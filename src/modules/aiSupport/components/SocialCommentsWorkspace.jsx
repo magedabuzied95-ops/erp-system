@@ -54,7 +54,7 @@ const getReplyCommentIdCandidates = (comment = {}) => {
 
 const resolveReplyCommentId = (comment = {}) => {
   const candidates = getReplyCommentIdCandidates(comment);
-  const preferred = candidates.find(({ value, source }) => value && (!isSmallNumericId(value) || source === "comment.id"));
+  const preferred = candidates.find(({ value, source }) => value && source !== "comment.id" && !isSmallNumericId(value));
   return clean(preferred?.value || "");
 };
 
@@ -785,16 +785,21 @@ function SocialCommentsWorkspace({
   };
 
   const submitReply = async (comment = actionableComment, replyText = replyDraft) => {
-    const commentId = resolveReplyCommentId(comment);
+    const selectedId = resolveReplyCommentId(comment);
+    const resolvedId = selectedId;
+    const sentId = resolvedId;
     const messageText = clean(replyText || suggestedReply);
     if (replyLoadingKey) return;
     const replyIdCandidates = getReplyCommentIdCandidates(comment);
     console.warn("[social-comments:reply-send-debug]", {
       candidate_ids: replyIdCandidates,
       rejected_small_numeric_ids: replyIdCandidates.filter(({ value }) => isSmallNumericId(value)),
-      sent_id: commentId,
+      selected_id: selectedId,
+      resolved_id: resolvedId,
+      sent_id: sentId,
     });
-    if (!commentId) {
+    if (!sentId) {
+      console.error("[social-comments:reply-send-debug]", "No provider comment id found");
       notify("amber", "اختر تعليقًا للرد");
       return;
     }
@@ -802,16 +807,16 @@ function SocialCommentsWorkspace({
       notify("amber", "اكتب الرد أولًا");
       return;
     }
-    setReplyLoadingKey(commentId);
+    setReplyLoadingKey(sentId);
     try {
-      await api.post(`/ai-inbox/comments/${encodeURIComponent(commentId)}/reply`, {
+      await api.post(`/ai-inbox/comments/${encodeURIComponent(sentId)}/reply`, {
         reply_text: messageText,
       });
-      setReplyStatusOverrides((current) => ({ ...current, [commentId]: "sent" }));
+      setReplyStatusOverrides((current) => ({ ...current, [sentId]: "sent" }));
       notify("emerald", "تم إرسال الرد");
       await Promise.resolve(onRefresh?.());
     } catch (error) {
-      setReplyStatusOverrides((current) => ({ ...current, [commentId]: "failed" }));
+      setReplyStatusOverrides((current) => ({ ...current, [sentId]: "failed" }));
       notify("rose", error?.message || "تعذر إرسال الرد");
     } finally {
       setReplyLoadingKey("");
