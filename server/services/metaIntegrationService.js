@@ -4324,6 +4324,12 @@ const fetchMetaPostMediaCandidate = async ({ candidatePostId = "", token } = {})
   return normalizeMetaPostPreview(payload || {});
 };
 
+const isDeprecatedStatusGraphError = (error = {}) => {
+  const message = text(error?.message || error?.meta?.message || error?.metaResponse?.error?.message || "");
+  const code = Number(error?.code || error?.meta?.error?.code || error?.metaResponse?.error?.code || 0);
+  return code === 12 || /singular statuses API is deprecated/i.test(message) || /deprecated.*status/i.test(message);
+};
+
 const fetchMetaReelMediaCandidate = async ({ candidateReelId = "", token } = {}) => {
   const candidateId = text(candidateReelId);
   if (!candidateId || !token) return null;
@@ -4393,6 +4399,7 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
   const skippedNonGraphIds = Array.from(new Set(rawCandidateIds.filter((value) => !isGraphCandidateId(value))));
   const candidateIds = Array.from(new Set(rawCandidateIds.filter((value) => isGraphCandidateId(value))));
   const errors = [];
+  let deprecatedStatusDetected = false;
   let primaryPreview = null;
   let reelPreview = null;
   let objectIdPreview = null;
@@ -4411,6 +4418,9 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
         break;
       }
     } catch (error) {
+      if (isDeprecatedStatusGraphError(error)) {
+        deprecatedStatusDetected = true;
+      }
       errors.push({
         candidate_id: candidatePostId,
         message: text(error?.message || "Graph fetch failed"),
@@ -4421,6 +4431,7 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
 
   const bestPreview = primaryPreview || objectIdPreview || reelPreview || null;
   if (!bestPreview) {
+    const deprecatedReason = deprecatedStatusDetected ? "deprecated_status_no_graph_media" : "";
     return {
       id: safePostId,
       post_id: safePostId,
@@ -4448,7 +4459,8 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
       attachments_shape: { count: 0, child_count: 0, has_media: false, has_subattachments: false, types: [] },
       full_picture_present: false,
       attachment_image_present: false,
-      reason_if_missing: errors.length ? "graph_errors" : "no_image_sources_found",
+      reason_if_missing: deprecatedReason || (errors.length ? "graph_errors" : "no_image_sources_found"),
+      media_enrichment_status: deprecatedReason ? "unsupported_deprecated_status" : "missing",
       tried_ids: candidateIds,
       tried_graph_ids: candidateIds,
       skipped_non_graph_ids: skippedNonGraphIds,
@@ -4466,7 +4478,12 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
     source_post_id: safePostId,
     thumbnail_url: isUsableGraphMediaUrl(bestPreview.thumbnail_url) ? bestPreview.thumbnail_url : null,
     thumbnail_source: isUsableGraphMediaUrl(bestPreview.thumbnail_url) ? bestPreview.thumbnail_source || "graph" : "missing",
-    reason_if_missing: isUsableGraphMediaUrl(bestPreview.thumbnail_url) ? "" : bestPreview.reason_if_missing || "no_image_sources_found",
+    reason_if_missing: isUsableGraphMediaUrl(bestPreview.thumbnail_url)
+      ? ""
+      : bestPreview.reason_if_missing || (deprecatedStatusDetected ? "deprecated_status_no_graph_media" : "no_image_sources_found"),
+    media_enrichment_status: isUsableGraphMediaUrl(bestPreview.thumbnail_url)
+      ? "enriched"
+      : bestPreview.media_enrichment_status || (deprecatedStatusDetected ? "unsupported_deprecated_status" : "missing"),
     tried_ids: candidateIds,
     tried_graph_ids: candidateIds,
     skipped_non_graph_ids: skippedNonGraphIds,

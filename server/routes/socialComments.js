@@ -1,6 +1,7 @@
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
+import db from "../database/db.js";
 import {
   getSocialAutoReplySettings,
   getSocialCommentCommentByCommentId,
@@ -209,6 +210,38 @@ const handleEnrichPostMediaDebug = async (req, res) => {
 
 debugRouter.get("/enrich-post-media", handleEnrichPostMediaDebug);
 debugRouter.post("/enrich-post-media", handleEnrichPostMediaDebug);
+
+debugRouter.post("/ensure-schema", async (_req, res) => {
+  try {
+    const before = await db.query(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'social_comment_auto_reply_runs'
+          AND column_name = 'reply_status'
+      ) AS reply_status_exists
+    `);
+    await ensureSocialCommentsCenterSchema().catch(() => {});
+    const after = await db.query(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'social_comment_auto_reply_runs'
+          AND column_name = 'reply_status'
+      ) AS reply_status_exists
+    `);
+    return res.json({
+      success: true,
+      applied: Boolean(!before.rows?.[0]?.reply_status_exists && after.rows?.[0]?.reply_status_exists),
+      columns_checked: ["social_comment_auto_reply_runs.reply_status"],
+      reply_status_exists: Boolean(after.rows?.[0]?.reply_status_exists),
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to ensure social comments schema" });
+  }
+});
 
 export default router;
 export { debugRouter as socialCommentsDebugRoutes };

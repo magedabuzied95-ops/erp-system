@@ -210,6 +210,7 @@ export default function SocialMediaPublisher() {
   const [aiTemplateCaption, setAiTemplateCaption] = useState("");
   const [aiTemplateError, setAiTemplateError] = useState("");
   const [aiTemplateSource, setAiTemplateSource] = useState("");
+  const [aiTemplateFallbackReason, setAiTemplateFallbackReason] = useState("");
   const [metaConnectOpen, setMetaConnectOpen] = useState(false);
   const [metaConnectLoading, setMetaConnectLoading] = useState(false);
   const mediaInputRef = useRef(null);
@@ -434,6 +435,7 @@ export default function SocialMediaPublisher() {
     setAiTemplateCaption("");
     setAiTemplateError("");
     setAiTemplateSource("");
+    setAiTemplateFallbackReason("");
     closeAiTemplateModal();
   };
 
@@ -442,6 +444,7 @@ export default function SocialMediaPublisher() {
     setAiTemplateLoading(false);
     setAiTemplateError("");
     setAiTemplateSource("");
+    setAiTemplateFallbackReason("");
   };
 
   const loadSelectedCatalogProductDetails = async () => {
@@ -474,14 +477,15 @@ export default function SocialMediaPublisher() {
     setAiTemplateOpen(true);
     setAiTemplateLoading(true);
     setAiTemplateError("");
+    setAiTemplateFallbackReason("");
     try {
       const productDetails = await loadSelectedCatalogProductDetails();
-      console.log("[ai-social-caption-product-source]", {
+      console.warn("[ai-social-caption-product-source]", {
         selected_catalog_product: selectedCatalogProduct,
         product_details: productDetails,
       });
       const aiContext = buildAiCaptionProductContext(productDetails || selectedCatalogProduct);
-      console.log("[ai-social-caption-product]", {
+      const aiPayload = {
         product_id: selectedCatalogProduct.id,
         product_name: aiContext.product_name || "",
         current_price: aiContext.current_price || "",
@@ -493,28 +497,65 @@ export default function SocialMediaPublisher() {
         features: aiContext.features || [],
         description: aiContext.description || "",
         product_url: aiContext.product_url || "",
-      });
-      const result = await generateSocialPublisherCaption(
-        {
+      };
+      console.warn("[ai-social-caption-product]", aiPayload);
+      console.warn("[ai-social-caption-request]", {
+        selectedCatalogProduct,
+        selectedCatalogProductDetails: productDetails,
+        aiContext,
+        payload: {
           current: aiContext,
           product_id: selectedCatalogProduct.id,
           template: "new_collection",
           force: Boolean(force),
         },
-        { timeoutMs: 45000 }
-      );
+      });
+      const payload = {
+        current: aiContext,
+        product_id: selectedCatalogProduct.id,
+        template: "new_collection",
+        force: Boolean(force),
+      };
+      const result = await generateSocialPublisherCaption(payload, { timeoutMs: 45000 });
       const nextCaption = String(result?.caption || "").trim() || buildCatalogCaption(selectedCatalogProduct);
+      console.warn("[ai-social-caption-response]", {
+        success: String(result?.source || "").toUpperCase() === "OPENAI",
+        source: result?.source || "",
+        error: result?.error || "",
+        caption_length: nextCaption.length,
+      });
       setAiTemplateCaption(nextCaption);
       setAiTemplateSource(String(result?.source || "LOCAL_FALLBACK"));
       if (String(result?.source || "").toUpperCase() !== "OPENAI") {
+        const payloadMissing =
+          !aiContext.product_name ||
+          !aiContext.current_price ||
+          !aiContext.stock_quantity ||
+          !aiContext.product_url ||
+          (!Array.isArray(aiContext.available_sizes) || aiContext.available_sizes.length === 0);
+        const fallbackReason = !result?.source
+          ? "unknown"
+          : String(result.source).toUpperCase() === "LOCAL_FALLBACK" && payloadMissing
+            ? "missing_product_data"
+            : String(result.source).toUpperCase() === "LOCAL_FALLBACK" && result?.error
+              ? "ai_request_failed"
+              : String(result.source).toUpperCase() === "LOCAL_FALLBACK" && !result?.error && !process.env.OPENAI_API_KEY
+                ? "missing_openai_key"
+                : String(result.source).toUpperCase() === "LOCAL_FALLBACK"
+                  ? "unknown"
+                  : "";
+        setAiTemplateFallbackReason(fallbackReason);
         setAiTemplateError(result?.error || "AI caption generation used fallback text.");
       } else if (!nextCaption) {
+        setAiTemplateFallbackReason("invalid_ai_json");
         setAiTemplateError("No caption returned.");
       } else {
+        setAiTemplateFallbackReason("");
         setAiTemplateError("");
       }
     } catch (error) {
       const message = error?.message || "Failed to generate caption";
+      setAiTemplateFallbackReason("ai_request_failed");
       setAiTemplateError(message);
       toast.error(message);
     } finally {
@@ -1515,6 +1556,11 @@ export default function SocialMediaPublisher() {
                         </div>
                       )}
                       {aiTemplateError ? <div className="mt-3 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{aiTemplateError}</div> : null}
+                      {aiTemplateSource && String(aiTemplateSource).toUpperCase() === "LOCAL_FALLBACK" ? (
+                        <div className="mt-3 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-amber-100">
+                          Fallback reason: {aiTemplateFallbackReason || "unknown"}
+                        </div>
+                      ) : null}
                       {aiTemplateSource ? <div className="mt-3 text-xs uppercase tracking-[0.18em] text-slate-500">Source: {aiTemplateSource}</div> : null}
                     </div>
                     <div className="flex flex-wrap gap-2 border-t border-white/10 px-4 py-4 md:px-5">

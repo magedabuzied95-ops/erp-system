@@ -251,7 +251,7 @@ const buildSocialCaptionFallback = (context = {}) => {
 };
 
 const logSocialCaptionContext = (label, context = {}) =>
-  console.log(label, {
+  console.warn(label, {
     product_id: context.product_id || context.id || "",
     product_name: context.product_name || "",
     current_price: context.current_price || "",

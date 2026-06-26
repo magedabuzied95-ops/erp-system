@@ -659,7 +659,12 @@ function SocialCommentsWorkspace({
                           <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
                         ) : (
                           <div className="grid h-full w-full place-items-center bg-gradient-to-br from-cyan-400/10 via-slate-950 to-slate-900 text-slate-400">
-                            <ImageIcon className="h-4 w-4" />
+                            <div className="flex flex-col items-center gap-1">
+                              <ImageIcon className="h-4 w-4" />
+                              <span className="rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-300">
+                                لا توجد صورة
+                              </span>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -725,7 +730,9 @@ function SocialCommentsWorkspace({
                           <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.05] ring-1 ring-white/10">
                             <Sparkles className="h-6 w-6 text-cyan-100" />
                           </span>
-                          <span className="text-sm font-black uppercase tracking-[0.16em] text-slate-400">No preview image</span>
+                          <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black tracking-[0.12em] text-slate-200">
+                            لا توجد صورة
+                          </span>
                         </div>
                       </div>
                     )}
