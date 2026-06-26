@@ -379,6 +379,11 @@ const resolveCommentCustomerAvatar = (comment = {}) => {
   );
 };
 
+const supportsPrivateMessage = (comment = {}, fallbackPlatform = "") => {
+  const channel = clean(comment?.platform || comment?.raw?.platform || fallbackPlatform).toLowerCase();
+  return channel.includes("facebook") || channel.includes("instagram");
+};
+
 const resolveCommentPlatformLabel = (comment = {}) => {
   const normalized = normalizeComment(comment);
   const raw = comment && typeof comment === "object" ? comment.raw || comment : {};
@@ -461,6 +466,7 @@ function SocialCommentsWorkspace({
   const [previewLoading, setPreviewLoading] = useState(false);
   const [replyLoadingKey, setReplyLoadingKey] = useState("");
   const [privateMessageLoadingKey, setPrivateMessageLoadingKey] = useState("");
+  const [privateMessageStatusOverrides, setPrivateMessageStatusOverrides] = useState({});
   const [ignoreLoadingKey, setIgnoreLoadingKey] = useState("");
   const [leadLoadingKey, setLeadLoadingKey] = useState("");
   const [replyStatusOverrides, setReplyStatusOverrides] = useState({});
@@ -552,6 +558,7 @@ function SocialCommentsWorkspace({
   );
 
   const suggestedReply = previewReply || activeSuggestedReply || "";
+  const activePrivateMessageStatus = clean(privateMessageStatusOverrides[actionableComment?.id] || "");
   const activePostImage = clean(
     activePostDetails?.thumbnailUrl ||
       activePostDetails?.raw?.thumbnailUrl ||
@@ -775,12 +782,17 @@ function SocialCommentsWorkspace({
     const conversationId = clean(activePostConversationId || activePostPostId);
     const commentId = clean(comment?.id || "");
     const finalMessage = clean(messageText);
+    if (privateMessageLoadingKey) return;
     if (!conversationId) {
       notify("amber", "تعذر تحديد المحادثة الخاصة لهذا البوست");
       return;
     }
     if (!finalMessage) {
       notify("amber", "اكتب رسالة خاصة أولًا");
+      return;
+    }
+    if (!supportsPrivateMessage(comment, activePostPlatform)) {
+      notify("amber", "الرسائل الخاصة مدعومة فقط لتعليقات Facebook وInstagram");
       return;
     }
     setPrivateMessageLoadingKey(commentId || conversationId);
@@ -791,9 +803,11 @@ function SocialCommentsWorkspace({
         platform: activePostPlatform || "facebook",
         post_id: activePostPostId,
       });
+      setPrivateMessageStatusOverrides((current) => ({ ...current, [commentId || conversationId]: "sent" }));
       notify("emerald", "تم إرسال الرسالة الخاصة");
       await Promise.resolve(onRefresh?.());
     } catch (error) {
+      setPrivateMessageStatusOverrides((current) => ({ ...current, [commentId || conversationId]: "failed" }));
       notify("rose", error?.message || "إرسال رسالة خاصة من التعليق يحتاج صلاحية/دعم Meta، استخدم فتح البوست مؤقتًا.");
     } finally {
       setPrivateMessageLoadingKey("");
@@ -1164,6 +1178,8 @@ function SocialCommentsWorkspace({
                       const tags = getCommentTags(comment);
                       const busy = isBusy(key);
                       const selected = key === selectedCommentKey;
+                      const privateMessageSupported = supportsPrivateMessage(comment, activePostPlatform);
+                      const privateMessageStatus = clean(privateMessageStatusOverrides[key] || "");
 
                       return (
                         <article
@@ -1260,11 +1276,12 @@ function SocialCommentsWorkspace({
                                     event.stopPropagation();
                                     void submitPrivateMessage(comment, replyDraft || previewReply || suggestedReply);
                                   }}
-                                  disabled={busy || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
+                                  disabled={busy || !privateMessageSupported || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
+                                  title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
                                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
                                 >
                                   {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-                                  Private Message
+                                  {privateMessageStatus === "sent" ? "Sent" : "Private Message"}
                                 </button>
                                 <button
                                   type="button"
@@ -1347,11 +1364,12 @@ function SocialCommentsWorkspace({
                       <button
                         type="button"
                         onClick={() => void submitPrivateMessage(actionableComment, replyDraft || previewReply || suggestedReply)}
-                        disabled={!actionableComment || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
+                        disabled={!actionableComment || !supportsPrivateMessage(actionableComment, activePostPlatform) || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
+                        title={supportsPrivateMessage(actionableComment, activePostPlatform) ? "" : "Private messages are only supported for Facebook and Instagram comments"}
                         className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-slate-200 disabled:opacity-50"
                       >
                         {privateMessageLoadingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-                        Private Message
+                        {activePrivateMessageStatus === "sent" ? "Sent" : "Private Message"}
                       </button>
                       <button
                         type="button"
