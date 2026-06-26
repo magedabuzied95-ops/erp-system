@@ -158,6 +158,7 @@ const summaryBucketLabel = (comment = {}) => {
 const getCommentTags = (comment = {}) => {
   const tags = new Set();
   const bucket = summaryBucketLabel(comment);
+  const normalized = normalizeComment(comment);
   if (bucket === "price") tags.add("Price");
   if (bucket === "size") tags.add("Size");
   if (bucket === "shipping") tags.add("Shipping");
