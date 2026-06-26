@@ -142,6 +142,99 @@ const toTenantId = (req) => {
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 };
 
+const isSmallNumericId = (value = "") => {
+  const candidate = envText(value);
+  return Boolean(candidate) && /^\d+$/.test(candidate) && candidate.length < 10;
+};
+
+const collectPrivateMessageCommentIdCandidates = (conversation = {}, req = {}) => {
+  const channelMetadata = conversation?.channel_metadata || {};
+  return [
+    { source: "body.comment_id", value: envText(req.body?.comment_id || "") },
+    { source: "body.commentId", value: envText(req.body?.commentId || "") },
+    { source: "channel_metadata.comment_id", value: envText(channelMetadata.comment_id || "") },
+    { source: "channel_metadata.lead.comment_id", value: envText(channelMetadata.lead?.comment_id || "") },
+    { source: "conversation.external_comment_id", value: envText(conversation?.external_comment_id || "") },
+    { source: "conversation.comment_id", value: envText(conversation?.comment_id || "") },
+  ];
+};
+
+const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId = "", conversation = {}, req = {}, platform = "" } = {}) => {
+  const candidates = collectPrivateMessageCommentIdCandidates(conversation, req);
+  const preferred = candidates.find(({ value }) => value && !isSmallNumericId(value)) || null;
+  if (preferred?.value) {
+    return {
+      selectedCommentId: preferred.value,
+      providerCommentId: preferred.value,
+      rejectedSmallNumericIds: candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
+      source: preferred.source,
+    };
+  }
+
+  const safeTenantId = Number(tenantId) || 0;
+  const safeConversationId = envText(conversationId);
+  const normalizedPlatform = envText(platform).toLowerCase().includes("instagram") ? "instagram" : "facebook";
+
+  const runResult = safeTenantId && safeConversationId
+    ? await db.query(
+      `
+      SELECT comment_id, inbox_conversation_id, raw_payload
+      FROM social_comment_automation_runs
+      WHERE tenant_id = $1::bigint
+        AND platform = $2::text
+        AND inbox_conversation_id = $3::text
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [safeTenantId, normalizedPlatform, safeConversationId]
+    ).catch(() => ({ rows: [] }))
+    : { rows: [] };
+
+  const runRow = runResult.rows?.[0] || null;
+  const runCommentId = envText(runRow?.comment_id || runRow?.raw_payload?.value?.comment_id || runRow?.raw_payload?.comment_id || "");
+  if (runCommentId && !isSmallNumericId(runCommentId)) {
+    return {
+      selectedCommentId: runCommentId,
+      providerCommentId: runCommentId,
+      rejectedSmallNumericIds: candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
+      source: "social_comment_automation_runs.comment_id",
+    };
+  }
+
+  const messageResult = safeTenantId && safeConversationId
+    ? await db.query(
+      `
+      SELECT comment_id, external_message_id, provider_message_id
+      FROM ai_support_messages
+      WHERE tenant_id = $1::bigint
+        AND session_id = $2::text
+        AND message_type = 'comment_inbound'
+      ORDER BY created_at DESC, id DESC
+      LIMIT 1
+      `,
+      [safeTenantId, safeConversationId]
+    ).catch(() => ({ rows: [] }))
+    : { rows: [] };
+
+  const messageRow = messageResult.rows?.[0] || null;
+  const messageCommentId = envText(messageRow?.comment_id || messageRow?.external_message_id || messageRow?.provider_message_id || "");
+  if (messageCommentId && !isSmallNumericId(messageCommentId)) {
+    return {
+      selectedCommentId: messageCommentId,
+      providerCommentId: messageCommentId,
+      rejectedSmallNumericIds: candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
+      source: "ai_support_messages.comment_id",
+    };
+  }
+
+  return {
+    selectedCommentId: "",
+    providerCommentId: "",
+    rejectedSmallNumericIds: candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
+    source: "",
+  };
+};
+
 const sendError = (res, error, fallback = "AI order request failed") =>
   res.status(error?.status || 500).json({
     success: false,
@@ -2312,14 +2405,29 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
 
   try {
     if (isCommentThread) {
-      const commentId = envText(
-        envText(req.body?.comment_id || req.body?.commentId || "") ||
-        channelMetadata.comment_id ||
+      const commentIdResolution = await resolvePrivateMessageCommentId({
+        tenantId,
+        conversationId,
+        conversation,
+        req,
+        platform: channel,
+      });
+      console.warn("[social-comments:private-message-debug]", {
+        conversation_id: conversationId,
+        selected_comment_id: envText(
+          req.body?.comment_id ||
+          req.body?.commentId ||
+          channelMetadata.comment_id ||
           channelMetadata.lead?.comment_id ||
           conversation.external_comment_id ||
           conversation.comment_id ||
           ""
-      );
+        ),
+        provider_comment_id: commentIdResolution.providerCommentId || "",
+        rejected_small_numeric_ids: commentIdResolution.rejectedSmallNumericIds || [],
+        meta_target_id: commentIdResolution.providerCommentId || "",
+      });
+      const commentId = envText(commentIdResolution.providerCommentId || "");
       if (!commentId) {
         throw Object.assign(new Error("Comment thread is missing a comment id"), { status: 409, code: "COMMENT_ID_MISSING" });
       }
