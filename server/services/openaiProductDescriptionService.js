@@ -250,6 +250,21 @@ const buildSocialCaptionFallback = (context = {}) => {
   return lines.filter(Boolean).join("\n").trim();
 };
 
+const logSocialCaptionContext = (label, context = {}) =>
+  console.log(label, {
+    product_id: context.product_id || context.id || "",
+    product_name: context.product_name || "",
+    current_price: context.current_price || "",
+    original_price: context.original_price || "",
+    discount_percent: context.discount_percent || "",
+    stock_quantity: context.stock_quantity || context.stock || "",
+    available_sizes: context.available_sizes || [],
+    available_colors: context.available_colors || context.colors || [],
+    features: context.features || [],
+    description: context.description || "",
+    product_url: context.product_url || "",
+  });
+
 export const generateProductDescription = async (input = {}) => {
   const context = compactContext(input);
   const target = cleanText(input.target || input.language || "all").toLowerCase() || "all";
@@ -326,6 +341,10 @@ export const generateSocialPublisherCaption = async (input = {}) => {
   const context = compactSocialCaptionContext(input);
   const fallback = buildSocialCaptionFallback(context);
   const requestId = cleanText(input.request_id) || `social-caption-${Date.now()}`;
+  logSocialCaptionContext("[ai-social-caption-fallback]", {
+    ...context,
+    product_id: input.product_id || input.productId || "",
+  });
 
   if (!process.env.OPENAI_API_KEY) {
     console.warn("[social-caption] OPENAI_API_KEY missing; using fallback", { requestId });

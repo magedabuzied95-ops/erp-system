@@ -476,7 +476,24 @@ export default function SocialMediaPublisher() {
     setAiTemplateError("");
     try {
       const productDetails = await loadSelectedCatalogProductDetails();
+      console.log("[ai-social-caption-product-source]", {
+        selected_catalog_product: selectedCatalogProduct,
+        product_details: productDetails,
+      });
       const aiContext = buildAiCaptionProductContext(productDetails || selectedCatalogProduct);
+      console.log("[ai-social-caption-product]", {
+        product_id: selectedCatalogProduct.id,
+        product_name: aiContext.product_name || "",
+        current_price: aiContext.current_price || "",
+        original_price: aiContext.original_price || "",
+        discount_percent: aiContext.discount_percent || "",
+        stock_quantity: aiContext.stock_quantity || "",
+        available_sizes: aiContext.available_sizes || [],
+        available_colors: aiContext.available_colors || [],
+        features: aiContext.features || [],
+        description: aiContext.description || "",
+        product_url: aiContext.product_url || "",
+      });
       const result = await generateSocialPublisherCaption(
         {
           current: aiContext,
