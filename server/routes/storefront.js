@@ -41,6 +41,10 @@ import { hasStorefrontCustomerToken, requireStorefrontCustomerAuth } from "../mi
 const router = express.Router();
 const IMAGE_TOO_LARGE_MESSAGE = "\u062d\u062c\u0645 \u0627\u0644\u0635\u0648\u0631\u0629 \u0643\u0628\u064a\u0631. \u0627\u0631\u0641\u0639 \u0635\u0648\u0631\u0629 \u0623\u0635\u063a\u0631";
 const UNSUPPORTED_IMAGE_MESSAGE = "\u0646\u0648\u0639 \u0627\u0644\u0635\u0648\u0631\u0629 \u063a\u064a\u0631 \u0645\u062f\u0639\u0648\u0645. \u0627\u0633\u062a\u062e\u062f\u0645 JPG \u0623\u0648 PNG \u0623\u0648 WEBP";
+const toText = (value) => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
 const visualSearchUpload = multer({
   storage: multer.memoryStorage(),
   limits: {
@@ -120,9 +124,15 @@ const storefrontCustomerTransitionAuth = (req, res, next) => {
 
 const storefrontCustomerAuthRequired = [requireStorefrontCustomerAuth, (req, _res, next) => {
   const jwtPhone = toText(req.storefrontCustomer?.phone || "");
-  req.query = { ...(req.query || {}), phone: jwtPhone };
-  req.body = { ...(req.body || {}), phone: jwtPhone };
-  req.params = { ...(req.params || {}), phone: jwtPhone };
+  if (req.query && typeof req.query === "object") {
+    req.query.phone = jwtPhone;
+  }
+  if (req.body && typeof req.body === "object") {
+    req.body.phone = jwtPhone;
+  }
+  if (req.params && typeof req.params === "object") {
+    req.params.phone = jwtPhone;
+  }
   logProtectedCustomerEndpoint(req, jwtPhone);
   return next();
 }];
