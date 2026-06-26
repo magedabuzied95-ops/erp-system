@@ -621,9 +621,9 @@ function SocialCommentsWorkspace({
 
   return (
     <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] text-white shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
-      <div className="grid h-full min-h-0 w-full min-w-0 gap-3 p-3 min-[1024px]:grid-cols-[320px_minmax(0,1fr)] min-[1280px]:grid-cols-[320px_minmax(0,1fr)_360px]">
-        <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55">
-          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-3 py-3">
+      <div className="grid h-full min-h-0 w-full min-w-0 gap-2.5 p-2.5 min-[1024px]:grid-cols-[312px_minmax(0,1fr)] min-[1280px]:grid-cols-[312px_minmax(0,1fr)_348px]">
+        <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
+          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2.5 py-2.5">
             <div className="min-w-0">
               <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">Social Comments</div>
               <div className="mt-1 text-sm font-black text-white">Posts</div>
@@ -639,7 +639,7 @@ function SocialCommentsWorkspace({
             </button>
           </div>
 
-          <div className="flex-1 min-h-0 overflow-y-auto p-2">
+          <div className="flex-1 min-h-0 overflow-y-auto p-1.5">
             {!normalizedPosts.length && !loading ? (
               <div className="rounded-2xl border border-dashed border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.02] p-6 text-center">
                 <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-400">
@@ -650,7 +650,7 @@ function SocialCommentsWorkspace({
               </div>
             ) : null}
 
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {normalizedPosts.map((post) => {
                 const key = postKey(post);
                 const active = activePostKey === key;
@@ -669,12 +669,14 @@ function SocialCommentsWorkspace({
                           }
                         : undefined
                     }
-                    className={`rounded-2xl border p-3 transition ${
-                      active ? "border-cyan-300/40 bg-cyan-300/10 ring-1 ring-cyan-300/20" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]"
+                    className={`rounded-2xl border p-2.5 transition ${
+                      active
+                        ? "border-cyan-300/50 bg-gradient-to-br from-cyan-300/15 to-white/[0.06] ring-1 ring-cyan-300/20 shadow-[0_10px_24px_rgba(34,211,238,0.12)]"
+                        : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]"
                     }`}
                   >
                     <div className="flex gap-3">
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
                         {thumb ? (
                           <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
                         ) : (
@@ -697,7 +699,7 @@ function SocialCommentsWorkspace({
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{post.commentsCount} comments</span>
-                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{post.newCount} new</span>
+                          <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.04] text-slate-200"}`}>{post.newCount} new</span>
                           {postTypeMeta(post) ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-slate-200">{postTypeMeta(post).label}</span> : null}
                           {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
                         </div>
@@ -716,7 +718,7 @@ function SocialCommentsWorkspace({
           </div>
         </aside>
 
-        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/50">
+        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/50 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="border-b border-white/10 p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -725,7 +727,7 @@ function SocialCommentsWorkspace({
                     <ArrowUpRight className="h-3.5 w-3.5" />
                     Post Workspace
                   </div>
-                  <h2 className="mt-1 line-clamp-2 text-lg font-black leading-7 text-white">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
+                  <h2 className="mt-1 line-clamp-2 text-xl font-black leading-8 text-white min-[1600px]:text-2xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     {postTypeMeta(activePostDetails) ? (
@@ -753,10 +755,10 @@ function SocialCommentsWorkspace({
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 gap-3 p-3 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
-              <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
-                <div className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/70">
-                  <div className="flex h-[260px] items-center justify-center overflow-hidden bg-slate-900 min-[1600px]:h-[320px]">
+            <div className="grid min-h-0 flex-1 gap-2.5 p-3 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(0,348px)]">
+              <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 overflow-hidden">
+                <div className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/70 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
+                  <div className="flex h-[240px] items-center justify-center overflow-hidden bg-slate-900 min-[1600px]:h-[300px]">
                     {activePostImage ? (
                       <img src={activePostImage} alt="" className="h-full w-full object-contain" loading="lazy" />
                     ) : (
@@ -773,7 +775,7 @@ function SocialCommentsWorkspace({
                     )}
                   </div>
 
-                  <div className="space-y-3 p-4">
+                  <div className="space-y-3 p-3.5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">{activePlatform.label} Post</div>
@@ -860,7 +862,7 @@ function SocialCommentsWorkspace({
                             if (event.key === "Enter" || event.key === " ") setSelectedCommentKey(key);
                           }}
                           className={`rounded-[22px] border p-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition ${
-                            selected ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-slate-950/75"
+                            selected ? "border-cyan-300/50 bg-gradient-to-br from-cyan-300/15 to-slate-950/55 ring-1 ring-cyan-300/15" : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-slate-950/75"
                           }`}
                         >
                           <div className="flex items-start gap-3">
@@ -903,7 +905,7 @@ function SocialCommentsWorkspace({
 
                               <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-100">{text}</div>
 
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                                 <button
                                   type="button"
                                   onClick={(event) => {
@@ -911,7 +913,7 @@ function SocialCommentsWorkspace({
                                     void submitReply(comment, replyDraft || suggestedReply);
                                   }}
                                   disabled={busy || !clean(replyDraft || suggestedReply)}
-                                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 disabled:opacity-50"
+                                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 shadow-[0_6px_18px_rgba(34,211,238,0.18)] disabled:opacity-50"
                                 >
                                   {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                                   Reply
@@ -923,7 +925,7 @@ function SocialCommentsWorkspace({
                                     void submitPrivateMessage(comment, replyDraft || suggestedReply);
                                   }}
                                   disabled={busy || !clean(replyDraft || suggestedReply)}
-                                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+                                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
                                 >
                                   {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
                                   Private Message
@@ -935,7 +937,7 @@ function SocialCommentsWorkspace({
                                     void handleCreateLead(comment);
                                   }}
                                   disabled={busy}
-                                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+                                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
                                 >
                                   {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
                                   Create Lead
@@ -947,7 +949,7 @@ function SocialCommentsWorkspace({
                                     void handleIgnoreComment(comment);
                                   }}
                                   disabled={busy}
-                                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
+                                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
                                 >
                                   {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
                                   Ignore
@@ -1038,10 +1040,16 @@ function SocialCommentsWorkspace({
                 </div>
               </section>
 
-              <aside className="flex min-h-0 min-w-0 flex-col gap-3 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 p-3">
+              <aside className="flex min-h-0 min-w-0 flex-col gap-2.5 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">AI Assistant</div>
-                  <div className="mt-2 space-y-2 text-sm text-slate-200">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">AI Assistant</div>
+                      <div className="mt-1 text-sm font-black text-white">Insight dashboard</div>
+                    </div>
+                    <span className="inline-flex items-center rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-black text-cyan-100">Live</span>
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm text-slate-200">
                     <SidebarRow label="Most Asked Question" value={labelText(summaryBucketLabel(actionableComment))} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
                     <SidebarRow label="Suggested Reply" value={suggestedReply || "No suggestion yet."} icon={<MessageSquareText className="h-4 w-4 text-emerald-100" />} />
                     <SidebarRow label="Lead Intent" value={`${visibleComments.filter((item) => getCommentTags(item).includes("Lead")).length} leads / ${visibleComments.filter((item) => getCommentTags(item).includes("Price")).length} price / ${visibleComments.filter((item) => getCommentTags(item).includes("Size")).length} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
@@ -1222,9 +1230,9 @@ function SocialCommentsWorkspace({
 
 function SidebarRow({ label, value, icon }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2.5 ring-1 ring-white/[0.03]">
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-slate-200 ring-1 ring-white/10">{icon}</div>
+        <div className="mt-0.5 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-white/[0.04] text-slate-200 ring-1 ring-white/10">{icon}</div>
         <div className="min-w-0">
           <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{label}</div>
           <div className="mt-1 text-sm font-semibold leading-6 text-slate-100">{value}</div>
@@ -1236,7 +1244,7 @@ function SidebarRow({ label, value, icon }) {
 
 function InfoChip({ label, value }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+    <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-2.5">
       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">{label}</div>
       <div className="mt-1 text-sm font-black text-white">{value || "—"}</div>
     </div>
@@ -1263,7 +1271,7 @@ function QuickActionButton({ label, onClick, disabled }) {
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex h-10 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-left text-xs font-black text-slate-200 transition hover:border-cyan-300/20 hover:bg-white/[0.06] disabled:opacity-40"
+      className="inline-flex h-11 items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-3 text-left text-xs font-black text-slate-200 transition hover:border-cyan-300/20 hover:bg-white/[0.06] disabled:opacity-40"
     >
       <span>{label}</span>
       <ArrowUpRight className="h-4 w-4" />
