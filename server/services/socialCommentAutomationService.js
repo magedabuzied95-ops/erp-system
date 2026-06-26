@@ -440,10 +440,24 @@ const resolveSocialCommentPostPermalink = (event = {}) =>
   );
 
 const fetchSocialCommentWebhookPostMedia = async ({ tenantId = null, event = {} } = {}) => {
-  const postId = text(event.raw_payload?.value?.post_id || "");
+  const postId = text(
+    event.post_id ||
+    event.metadata?.post_id ||
+    event.raw_payload?.post_id ||
+    event.raw_payload?.value?.post_id ||
+    event.raw_payload?.value?.media_id ||
+    ""
+  );
   if (!postId) return null;
 
-  const pageId = text(event.raw_payload?.entry?.id || event.raw_payload?.value?.page_id || event.raw_payload?.value?.metadata?.page_id || "");
+  const pageId = text(
+    event.page_id ||
+    event.metadata?.page_id ||
+    event.raw_payload?.entry?.id ||
+    event.raw_payload?.value?.page_id ||
+    event.raw_payload?.value?.metadata?.page_id ||
+    ""
+  );
   const permalinkUrl = text(event.post_permalink_url || event.post_permalink || event.raw_payload?.post_permalink_url || event.raw_payload?.post_permalink || event.raw_payload?.permalink_url || event.raw_payload?.post_url || event.raw_payload?.comment_url || "");
 
   try {
@@ -506,6 +520,51 @@ const fetchSocialCommentWebhookPostMedia = async ({ tenantId = null, event = {} 
     });
     return result;
   }
+};
+
+const applyWebhookPostMediaToEvent = (event = {}, media = null) => {
+  if (!media || typeof media !== "object") return event;
+  const thumbnailUrl = text(media.thumbnail_url || "");
+  const postFullPicture = text(media.post_full_picture || media.full_picture || thumbnailUrl || "");
+  const fullPicture = text(media.full_picture || media.post_full_picture || thumbnailUrl || "");
+  const picture = text(media.picture || "");
+  const mediaUrl = text(media.media_url || "");
+  const mediaType = text(media.media_type || "");
+  const attachments = asArray(media.attachments || []);
+  const postPermalinkUrl = text(media.post_permalink_url || event.post_permalink_url || event.post_permalink || "");
+  const mediaEnrichmentStatus = text(media.media_enrichment_status || event.media_enrichment_status || "");
+  const mediaEnrichmentError = text(media.media_enrichment_error || event.media_enrichment_error || "");
+  const rawPayload = {
+    ...(event.raw_payload && typeof event.raw_payload === "object" ? event.raw_payload : {}),
+    post_id: text(media.post_id || event.post_id || ""),
+    thumbnail_url: thumbnailUrl,
+    post_thumbnail: thumbnailUrl,
+    post_full_picture: postFullPicture,
+    full_picture: fullPicture,
+    picture,
+    media_url: mediaUrl,
+    media_type: mediaType,
+    attachments,
+    post_permalink_url: postPermalinkUrl,
+    media_enrichment_status: mediaEnrichmentStatus,
+    media_enrichment_error: mediaEnrichmentError,
+  };
+  return {
+    ...event,
+    post_id: text(media.post_id || event.post_id || ""),
+    thumbnail_url: thumbnailUrl || text(event.thumbnail_url || ""),
+    post_thumbnail: thumbnailUrl || text(event.post_thumbnail || ""),
+    post_full_picture: postFullPicture || text(event.post_full_picture || ""),
+    full_picture: fullPicture || text(event.full_picture || ""),
+    picture: picture || text(event.picture || ""),
+    media_url: mediaUrl || text(event.media_url || ""),
+    media_type: mediaType || text(event.media_type || ""),
+    attachments: attachments.length ? attachments : asArray(event.attachments || []),
+    post_permalink_url: postPermalinkUrl || text(event.post_permalink_url || event.post_permalink || ""),
+    media_enrichment_status: mediaEnrichmentStatus || text(event.media_enrichment_status || ""),
+    media_enrichment_error: mediaEnrichmentError || text(event.media_enrichment_error || ""),
+    raw_payload: rawPayload,
+  };
 };
 
 const resolveSocialCommentCustomerProfileId = async ({ tenantId = null, event = {} } = {}) => {
@@ -624,7 +683,14 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       post_url: postPermalink,
       post_message: postMessage,
       post_caption: text(event.post_caption || ""),
-      post_full_picture: resolveSocialCommentPostFullPicture(event),
+      thumbnail_url: text(event.thumbnail_url || event.post_thumbnail || event.post_full_picture || event.full_picture || event.picture || ""),
+      post_thumbnail: text(event.post_thumbnail || event.thumbnail_url || event.post_full_picture || event.full_picture || event.picture || ""),
+      post_full_picture: text(event.post_full_picture || event.full_picture || event.thumbnail_url || event.post_thumbnail || ""),
+      full_picture: text(event.full_picture || event.post_full_picture || event.thumbnail_url || event.post_thumbnail || ""),
+      picture: text(event.picture || ""),
+      media_url: text(event.media_url || ""),
+      media_type: text(event.media_type || ""),
+      attachments: asArray(event.attachments || []),
       post_created_time: postCreatedTime,
       comment_id: text(event.comment_id || ""),
       comment_url: commentUrl || (postPermalink && event.comment_id ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(text(event.comment_id || ""))}` : ""),
@@ -636,6 +702,8 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       commenter_profile_picture_url: text(event.commenter_profile_picture_url || ""),
       customer_profile_id: customerProfileId,
       original_comment_text: commentText,
+      media_enrichment_status: text(event.media_enrichment_status || ""),
+      media_enrichment_error: text(event.media_enrichment_error || ""),
       classification_label: text(event.classification_label || ""),
       classification_score: Number(event.classification_score || 0),
       lead: {
@@ -1885,7 +1953,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
   await ensureSocialCommentAutomationSchema();
   const stored = [];
   for (const event of asArray(events)) {
-    const normalized = {
+    let normalized = {
       tenant_id: tenantId ?? event.tenant_id,
       platform: text(event.platform || "facebook") || "facebook",
       channel: text(event.channel || (text(event.platform) === "instagram" ? "instagram_comment" : "facebook_comment")) || "facebook_comment",
@@ -1932,6 +2000,12 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       post_permalink_url: text(event.post_permalink_url || event.post_permalink || ""),
       processed_at: event.processed_at ? new Date(event.processed_at).toISOString() : new Date().toISOString(),
     };
+
+    const webhookMedia = await fetchSocialCommentWebhookPostMedia({
+      tenantId: normalized.tenant_id,
+      event: normalized,
+    }).catch(() => null);
+    normalized = applyWebhookPostMediaToEvent(normalized, webhookMedia);
 
     const result = await db.query(
       `
@@ -1998,7 +2072,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         normalized.error_code,
         JSON.stringify(normalized.automation_state || {}),
         JSON.stringify(normalized.raw_payload || {}),
-      normalized.processed_at,
+        normalized.processed_at,
       ]
     );
     const storedRow = result.rows[0] || normalized;
