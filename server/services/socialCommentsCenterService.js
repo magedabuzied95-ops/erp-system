@@ -1281,7 +1281,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
       run.rendered_reply,
       run.sent_at
     FROM ai_support_messages msg
-    LEFT JOIN social_comment_automation_runs run
+    LEFT JOIN social_comment_auto_reply_runs run
       ON run.tenant_id = msg.tenant_id
      AND run.platform = $3::text
      AND run.comment_id = msg.comment_id

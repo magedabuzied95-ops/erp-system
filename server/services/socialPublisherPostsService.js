@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { loadProductsWithVariantsPayload } from "../controllers/productsController.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { getMetaIntegrationStatus } from "./metaIntegrationService.js";
 import { publishPost as publishMetaPost } from "./socialPublisherService.js";
@@ -90,6 +91,145 @@ const resolveChannel = (platforms = []) => {
   if (normalized.includes("facebook") && normalized.includes("instagram")) return "all";
   if (normalized.includes("instagram")) return "instagram";
   return "facebook";
+};
+
+const normalizePositiveNumber = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+};
+
+const pickFirstPositiveNumber = (...values) => {
+  for (const value of values) {
+    const parsed = normalizePositiveNumber(value);
+    if (parsed > 0) return parsed;
+  }
+  return 0;
+};
+
+const uniqueTextList = (...sources) => {
+  const seen = new Set();
+  const items = [];
+  const pushValue = (value) => {
+    if (Array.isArray(value)) {
+      value.forEach(pushValue);
+      return;
+    }
+    const text = trimString(value);
+    if (!text) return;
+    const key = text.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push(text);
+  };
+  sources.forEach(pushValue);
+  return items;
+};
+
+const resolveSocialPublisherProductUrl = (product = {}) => {
+  const slug = trimString(product.canonical_slug || product.slug || "");
+  if (slug) return `/shop/product/${slug}`;
+  const id = trimString(product.id || product.product_id || "");
+  return id ? `/shop/product/${id}` : "";
+};
+
+const resolveSocialPublisherPricing = (product = {}) => {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const variantRegularPrice = pickFirstPositiveNumber(
+    ...variants.flatMap((variant) => [
+      variant.original_price,
+      variant.regular_price,
+      variant.selling_price,
+      variant.price,
+    ])
+  );
+  const variantSalePrice = pickFirstPositiveNumber(
+    ...variants.flatMap((variant) => [
+      variant.sale_price,
+      variant.current_price,
+      variant.discount_price,
+    ])
+  );
+  const productRegularPrice = pickFirstPositiveNumber(
+    product.original_price,
+    product.regular_price,
+    product.selling_price,
+    product.price
+  );
+  const productSalePrice = pickFirstPositiveNumber(
+    product.sale_price,
+    product.current_price,
+    product.discount_price
+  );
+  const originalPrice = productRegularPrice || variantRegularPrice || productSalePrice || variantSalePrice;
+  const currentPrice = productSalePrice || variantSalePrice || productRegularPrice || variantRegularPrice;
+  const resolvedCurrent = currentPrice > 0 ? currentPrice : originalPrice;
+  const resolvedOriginal = originalPrice > 0 ? originalPrice : resolvedCurrent;
+  const availableStock = variants.reduce(
+    (sum, variant) => sum + Math.max(0, Number(variant.stock ?? variant.stock_quantity ?? variant.quantity ?? variant.available_stock ?? 0)),
+    0
+  ) || Math.max(
+    0,
+    Number(
+      product.available_stock ??
+        product.stock_quantity ??
+        product.stock ??
+        product.total_stock ??
+        0
+    )
+  );
+  const discountPercent =
+    resolvedOriginal > 0 && resolvedCurrent > 0 && resolvedCurrent < resolvedOriginal
+      ? `${Math.max(1, Math.round(((resolvedOriginal - resolvedCurrent) / resolvedOriginal) * 100))}%`
+      : "";
+  return {
+    price: resolvedOriginal,
+    sale_price: resolvedCurrent < resolvedOriginal ? resolvedCurrent : 0,
+    current_price: resolvedCurrent,
+    original_price: resolvedOriginal,
+    discount_percent: discountPercent,
+    stock_quantity: availableStock,
+    available_stock: availableStock,
+  };
+};
+
+const normalizeSocialPublisherProduct = (product = {}) => {
+  const pricing = resolveSocialPublisherPricing(product);
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const availableSizes = uniqueTextList(
+    product.available_sizes,
+    product.sizes,
+    variants.map((variant) => variant.fixed_size_label || variant.size_label || variant.size_name || variant.size || "")
+  );
+  const availableColors = uniqueTextList(
+    product.available_colors,
+    product.colors,
+    product.color_names,
+    variants.map((variant) => variant.color || variant.color_name || "")
+  );
+  return {
+    id: product.id ?? product.product_id ?? null,
+    name: trimString(product.name || product.product_name || ""),
+    image_url:
+      trimString(
+        product.image_url ||
+          product.product_image_url ||
+          product.thumbnail_url ||
+          product.photo_url ||
+          variants[0]?.image_url ||
+          variants[0]?.variant_image_url ||
+          ""
+      ),
+    price: pricing.price,
+    sale_price: pricing.sale_price,
+    current_price: pricing.current_price,
+    original_price: pricing.original_price,
+    discount_percent: pricing.discount_percent,
+    stock_quantity: pricing.stock_quantity,
+    available_stock: pricing.available_stock,
+    available_sizes: availableSizes,
+    available_colors: availableColors,
+    product_url: resolveSocialPublisherProductUrl(product),
+  };
 };
 
 export const listSocialPublisherPosts = async ({ tenantId, limit = 20 } = {}) => {
@@ -363,56 +503,25 @@ export const searchSocialPublisherProducts = async ({ tenantId, query = "", limi
   await ensureMarketingSchema();
   const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 50));
   const normalizedQuery = trimString(query);
-  const values = [tenantId, safeLimit];
-  let searchSql = "";
-  if (normalizedQuery) {
-    values.push(`%${normalizedQuery.replace(/[%_]/g, "\\$&")}%`);
-    searchSql = `
-      AND (
-        p.name ILIKE $3 ESCAPE '\\'
-        OR COALESCE(p.sku, '') ILIKE $3 ESCAPE '\\'
-        OR COALESCE(p.barcode, '') ILIKE $3 ESCAPE '\\'
-        OR COALESCE(p.slug, '') ILIKE $3 ESCAPE '\\'
-        OR COALESCE(p.canonical_slug, '') ILIKE $3 ESCAPE '\\'
-      )
-    `;
-  }
-
-  const result = await db.query(
-    `
-    SELECT
-      p.id,
-      p.name,
-      COALESCE(NULLIF(p.image_url, ''), '') AS image_url,
-      COALESCE(NULLIF(p.sale_price, 0), 0)::numeric AS sale_price,
-      COALESCE(NULLIF(p.selling_price, 0), NULLIF(p.regular_price, 0), NULLIF(p.price, 0), 0)::numeric AS price,
-      COALESCE(p.stock, 0)::int AS stock_quantity,
-      CASE
-        WHEN COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, ''), '') <> '' THEN
-          '/shop/product/' || COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, ''))
-        ELSE
-          '/shop/product/' || p.id::text
-      END AS product_url
-    FROM products p
-    WHERE p.tenant_id = $1::bigint
-      AND COALESCE(p.is_active, TRUE) = TRUE
-      AND COALESCE(p.status, 'active') <> 'deleted'
-      ${searchSql}
-    ORDER BY p.updated_at DESC, p.id DESC
-    LIMIT $2
-    `,
-    values
-  );
-
-  return (result.rows || []).map((row) => ({
-    id: row.id,
-    name: row.name || "",
-    image_url: row.image_url || "",
-    price: Number(row.price || 0),
-    sale_price: Number(row.sale_price || 0),
-    stock_quantity: Number(row.stock_quantity || 0),
-    product_url: row.product_url || "",
-  }));
+  const payload = await loadProductsWithVariantsPayload({
+    query: {
+      search: normalizedQuery,
+      limit: safeLimit,
+    },
+    user: {
+      tenant_id: tenantId,
+    },
+    requestId: "social-publisher-products-search",
+  });
+  const products = Array.isArray(payload?.products) ? payload.products : Array.isArray(payload?.data) ? payload.data : [];
+  const normalizedProducts = products.map(normalizeSocialPublisherProduct).filter((product) => product.id);
+  console.warn("[social-publisher-products-search]", {
+    tenant: Number(tenantId || 1) || 1,
+    query: normalizedQuery,
+    count: normalizedProducts.length,
+    sample: normalizedProducts.slice(0, 2),
+  });
+  return normalizedProducts;
 };
 
 export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {

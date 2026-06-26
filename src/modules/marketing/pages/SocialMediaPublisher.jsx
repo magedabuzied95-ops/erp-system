@@ -171,6 +171,68 @@ const buildAiCaptionProductContext = (product = {}) => {
     product_url: productUrl,
   };
 };
+const normalizeCatalogProductMetrics = (product = {}) => {
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const numeric = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  };
+  const firstPositive = (...values) => {
+    for (const value of values) {
+      const parsed = numeric(value);
+      if (parsed > 0) return parsed;
+    }
+    return 0;
+  };
+  const variantRegularPrice = firstPositive(
+    ...variants.flatMap((variant) => [
+      variant.original_price,
+      variant.regular_price,
+      variant.selling_price,
+      variant.price,
+    ])
+  );
+  const variantSalePrice = firstPositive(
+    ...variants.flatMap((variant) => [
+      variant.sale_price,
+      variant.current_price,
+      variant.discount_price,
+    ])
+  );
+  const baseRegularPrice = firstPositive(
+    product.original_price,
+    product.regular_price,
+    product.selling_price,
+    product.price
+  );
+  const baseCurrentPrice = firstPositive(
+    product.current_price,
+    product.sale_price,
+    product.discount_price
+  );
+  const originalPrice = baseRegularPrice || variantRegularPrice || baseCurrentPrice || variantSalePrice;
+  const currentPrice = baseCurrentPrice || variantSalePrice || baseRegularPrice || variantRegularPrice;
+  const resolvedCurrent = currentPrice > 0 ? currentPrice : originalPrice;
+  const resolvedOriginal = originalPrice > 0 ? originalPrice : resolvedCurrent;
+  const stock = variants.reduce(
+    (sum, variant) => sum + Math.max(0, Number(variant.stock_quantity ?? variant.stock ?? variant.quantity ?? variant.available_stock ?? 0)),
+    0
+  ) || Math.max(0, Number(product.available_stock ?? product.stock_quantity ?? product.stock ?? product.total_stock ?? 0));
+  const discountPercent =
+    resolvedOriginal > 0 && resolvedCurrent > 0 && resolvedCurrent < resolvedOriginal
+      ? `${Math.max(1, Math.round(((resolvedOriginal - resolvedCurrent) / resolvedOriginal) * 100))}%`
+      : "";
+  return {
+    ...product,
+    price: resolvedOriginal,
+    sale_price: resolvedCurrent < resolvedOriginal ? resolvedCurrent : 0,
+    current_price: resolvedCurrent,
+    original_price: resolvedOriginal,
+    discount_percent: discountPercent,
+    stock_quantity: stock,
+    available_stock: stock,
+  };
+};
 const renderAccountCardValue = (label, value) => (
   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white">
     <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</div>
@@ -400,15 +462,13 @@ export default function SocialMediaPublisher() {
   const closeProductCatalog = () => setProductCatalogOpen(false);
 
   const applyCatalogProduct = (product = {}) => {
-    const nextProduct = {
+    const nextProduct = normalizeCatalogProductMetrics({
+      ...product,
       id: product.id || null,
       name: product.name || "",
       image_url: product.image_url || "",
-      price: Number(product.price || 0),
-      sale_price: Number(product.sale_price || 0),
-      stock_quantity: Number(product.stock_quantity || 0),
       product_url: product.product_url || "",
-    };
+    });
     setSelectedCatalogProduct(nextProduct);
     setCreateSource("catalog");
     setCaption(buildCatalogCaption(nextProduct));
@@ -456,17 +516,20 @@ export default function SocialMediaPublisher() {
       },
       timeoutMs: 30000,
     });
+    console.warn("[ai-social-caption-products-with-variants-raw]", response);
     const products = safeArray(response);
     const resolved =
       products.find((item) => String(item?.id || item?.product_id || "") === String(selectedCatalogProduct.id)) ||
       products[0] ||
       {};
-    return {
+    const normalized = normalizeCatalogProductMetrics({
       ...selectedCatalogProduct,
       ...resolved,
       image_url: resolved.image_url || resolved.product_image_url || selectedCatalogProduct.image_url || "",
       product_url: resolved.product_url || selectedCatalogProduct.product_url || "",
-    };
+    });
+    console.warn("[ai-social-caption-products-with-variants-normalized]", normalized);
+    return normalized;
   };
 
   const generateNewCollectionCaption = async ({ force = false } = {}) => {
