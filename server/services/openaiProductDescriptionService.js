@@ -56,6 +56,19 @@ const socialCaptionSchema = {
   },
 };
 
+const BRAND_VOICE_SYSTEM_PROMPT = [
+  "Brand voice for M1 Store:",
+  "- Use simple Egyptian Arabic that sounds written by a real local social media manager.",
+  "- Keep sentences short, natural, and human. Do not sound like ChatGPT or formal ad copy.",
+  "- Do not use poetic phrasing, overexplained marketing language, or generic opening lines.",
+  "- Start directly with the hook. Never add a fixed opener before it.",
+  "- Make the hook depend on the product type and the actual product facts, not a generic sentence.",
+  "- Avoid these phrases or close variants unless they are truly present in the product description: ارتقِ، اكتشف، استمتع، خطواتك، رحلتك، مغامرتك، الخيار الأمثل، مصمم خصيصاً، يجمع بين.",
+  "- Do not repeat the product name more than once.",
+  "- Do not repeat the brand name more than once.",
+  "- CTA must be short and natural. Use only one CTA line.",
+].join("\n");
+
 const compactContext = (input = {}) => {
   const current = input.current || input;
   return {
@@ -158,6 +171,7 @@ const requestedTargets = (target = "all") => {
 const buildPrompt = (context = {}, target = "all") => {
   const targets = requestedTargets(target);
   return [
+    BRAND_VOICE_SYSTEM_PROMPT,
     "Generate ecommerce product descriptions for an ERP product editor.",
     "Return strict JSON only with keys arabic_description and english_description.",
     targets.arabic
@@ -180,8 +194,11 @@ const buildPrompt = (context = {}, target = "all") => {
 };
 
 const buildSocialCaptionPrompt = (context = {}) => [
+  BRAND_VOICE_SYSTEM_PROMPT,
   "Write social media copy for an Egyptian footwear store in a natural, human voice that sounds like a local social media manager.",
   "Return strict JSON only with keys hook, body, cta, hashtags.",
+  "Do not add any generic opening line before the hook.",
+  "Start immediately with the hook.",
   "Do not include price, original price, discount, sizes, colors, stock, or link in the AI output.",
   "Those ERP fields will be inserted later by the app.",
   "Hook: one short, natural line, 1 sentence maximum, no marketing clichés.",
@@ -215,6 +232,7 @@ const buildSocialCaptionSections = (context = {}) => {
   const name = cleanText(context.product_name) || cleanText(context.name) || "NEW COLLECTION";
   const brand = cleanText(context.brand);
   const category = cleanText(context.category || context.product_type);
+  const productType = cleanText(context.product_type || context.productType);
   const description = cleanText(context.description || context.short_description);
   const features = normalizeList(context.features).slice(0, 4);
   const materials = normalizeList(context.materials).slice(0, 2);
@@ -226,7 +244,13 @@ const buildSocialCaptionSections = (context = {}) => {
   const stock = cleanText(context.stock_quantity || context.stock || "");
   const url = cleanText(context.product_url || "");
   const stockLine = Number(stock || 0) > 0 ? "متوفر الآن" : "غير متوفر حالياً";
-  const hook = brand ? `${name} من ${brand}` : name;
+  const hookSource =
+    cleanText(productType) ||
+    cleanText(category) ||
+    cleanText(features[0]) ||
+    cleanText(description.split(/[.!؟\n]/).find(Boolean) || "") ||
+    cleanText(name);
+  const hook = brand && hookSource && !hookSource.includes(brand) ? `${hookSource} من ${brand}` : hookSource || name;
   const bodyParts = [];
   if (description) bodyParts.push(description);
   if (category) bodyParts.push(category);
