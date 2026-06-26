@@ -1,4 +1,4 @@
-import { createPortal } from "react-dom";
+﻿import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CalendarClock,
@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
+import { resolveStorefrontPriceBreakdown } from "../../../shared/lib/storefrontPricing.js";
 
 import {
   createSocialPublisherPost,
@@ -76,19 +77,157 @@ const formatCompactCurrency = (value) => {
   if (!Number.isFinite(number) || number <= 0) return "";
   return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(number);
 };
+const normalizeTextValue = (value) => String(value || "").trim();
+const normalizeListValue = (value) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map(normalizeTextValue).filter(Boolean);
+  if (typeof value === "string") {
+    const text = value.trim();
+    if (!text) return [];
+    try {
+      const parsed = JSON.parse(text);
+      if (Array.isArray(parsed)) return parsed.map(normalizeTextValue).filter(Boolean);
+    } catch {
+      // Fall through to split text.
+    }
+    return text
+      .split(/[\,\n|]+/)
+      .map(normalizeTextValue)
+      .filter(Boolean);
+  }
+  return [normalizeTextValue(value)].filter(Boolean);
+};
+const uniqueTextList = (...values) => Array.from(new Set(values.flatMap((value) => normalizeListValue(value)).filter(Boolean)));
+const formatPriceForCaption = (value) => {
+  const number = Number(value || 0);
+  if (!Number.isFinite(number) || number <= 0) return "";
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(number);
+};
+const computeDiscountPercent = (originalPrice, currentPrice) => {
+  const original = Number(originalPrice || 0);
+  const current = Number(currentPrice || 0);
+  if (!Number.isFinite(original) || !Number.isFinite(current) || original <= 0 || current <= 0 || current >= original) return "";
+  return `${Math.max(1, Math.round(((original - current) / original) * 100))}%`;
+};
+const buildFullProductUrl = (value = "") => {
+  const text = normalizeTextValue(value);
+  if (!text) return "";
+  if (/^https?:\/\//i.test(text)) return text;
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return new URL(text.startsWith("/") ? text : `/${text}`, window.location.origin).toString();
+  }
+  return text;
+};
 const buildCatalogCaption = (product = {}) => {
   const name = String(product?.name || "").trim();
-  const priceValue = Number(product?.sale_price || product?.price || 0);
-  const priceLine = priceValue > 0 ? `السعر: ${formatCompactCurrency(priceValue)} ج.م` : "";
-  return [name, priceLine, "متوفر الآن", "اطلب الآن"].filter(Boolean).join("\n");
+  const pricing = resolveStorefrontPriceBreakdown(product);
+  const stockQuantity = Number(product?.stock_quantity ?? product?.available_stock ?? product?.stock ?? 0);
+  const lines = [name].filter(Boolean);
+  if (pricing.sale_active) {
+    if (pricing.current_price > 0) lines.push(`السعر الآن: ${formatCompactCurrency(pricing.current_price)} ج.م`);
+    if (pricing.old_crossed_price > pricing.current_price) lines.push(`بدلاً من: ${formatCompactCurrency(pricing.old_crossed_price)} ج.م`);
+    lines.push("عرض لفترة محدودة");
+  } else if (pricing.current_price > 0) {
+    lines.push(`السعر: ${formatCompactCurrency(pricing.current_price)} ج.م`);
+  }
+  lines.push(stockQuantity > 0 ? "متوفر الآن" : "غير متوفر حالياً", "اطلب الآن");
+  return lines.filter(Boolean).join("\n");
+};
+const normalizeCatalogProductMetrics = (product = {}) => {
+  const resolved = resolveStorefrontPriceBreakdown(product);
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const stock = variants.reduce(
+    (sum, variant) => sum + Math.max(0, Number(variant.stock_quantity ?? variant.stock ?? variant.quantity ?? variant.available_stock ?? 0)),
+    0
+  ) || Math.max(0, Number(product.available_stock ?? product.stock_quantity ?? product.stock ?? product.total_stock ?? 0));
+  const currentPrice = Number(resolved.current_price || 0);
+  const originalPrice = Number(resolved.old_crossed_price || 0) || currentPrice;
+  const discountPercent = resolved.discount_percent || computeDiscountPercent(originalPrice, currentPrice);
+  console.warn("[social-publisher-price-resolver]", {
+    product_id: resolved.product_id ?? product.id ?? product.product_id ?? null,
+    base_price: Number(resolved.base_price || 0),
+    sale_price: Number(resolved.sale_price || 0),
+    current_price: currentPrice,
+    old_crossed_price: Number(resolved.old_crossed_price || 0),
+    discount_percent: discountPercent,
+    source: resolved.source || "",
+  });
+  return {
+    ...product,
+    price: Number(resolved.base_price || currentPrice || 0),
+    sale_price: Number(resolved.sale_price || 0),
+    current_price: currentPrice,
+    original_price: originalPrice,
+    discount_percent: discountPercent,
+    stock_quantity: stock,
+    available_stock: stock,
+    base_price: Number(resolved.base_price || 0),
+    old_crossed_price: Number(resolved.old_crossed_price || 0),
+    sale_active: Boolean(resolved.sale_active),
+    price_source: resolved.source || "",
+  };
+};
+const buildAiCaptionProductContext = (product = {}) => {
+  const resolved = normalizeCatalogProductMetrics(product);
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const availableSizes = uniqueTextList(
+    product.available_sizes,
+    variants.map((variant) => variant.fixed_size_label || variant.size_label || variant.size_name || variant.size || ""),
+    variants.map((variant) => variant.size || "")
+  );
+  const availableColors = uniqueTextList(
+    product.available_colors,
+    product.colors,
+    product.color_names,
+    variants.map((variant) => variant.color || variant.color_name || variant.name || ""),
+    Array.isArray(product.color_images) ? product.color_images.map((item) => item?.color || item?.color_name || "").filter(Boolean) : []
+  );
+  const features = uniqueTextList(product.features, product.feature_list, product.highlights, product.benefits);
+  const materials = uniqueTextList(product.materials, product.material, product.fabric, product.upper_material);
+  const brand = normalizeTextValue(product.brand_name || product.brand || product.manufacturer_name || product.manufacturer || "");
+  const category = normalizeTextValue(product.category_name || product.category || product.department || "");
+  const productType = normalizeTextValue(product.product_type || product.productType || product.type || "");
+  const gender = normalizeTextValue(product.gender || product.audience_gender || product.target_gender || "");
+  const audience = normalizeTextValue(product.audience || product.target_audience || "");
+  const description = normalizeTextValue(product.description || product.product_description || product.long_description || "");
+  const shortDescription = normalizeTextValue(product.short_description || product.shortDescription || product.summary || product.meta_description || "");
+  const productUrl = buildFullProductUrl(resolved.product_url || product.product_url || "");
+  const currentPrice = Number(resolved.current_price || 0);
+  const originalPrice = Number(resolved.old_crossed_price || 0) || currentPrice;
+  const discountPercent = resolved.discount_percent || computeDiscountPercent(originalPrice, currentPrice);
+  const stock = Number(resolved.stock_quantity ?? resolved.available_stock ?? product.stock_quantity ?? product.stock ?? product.quantity ?? 0);
+  return {
+    product_name: normalizeTextValue(product.name || product.product_name || ""),
+    brand,
+    category,
+    product_type: productType,
+    gender,
+    audience,
+    description,
+    short_description: shortDescription,
+    features,
+    materials,
+    available_colors: availableColors,
+    available_sizes: availableSizes,
+    base_price: Number(resolved.base_price || 0),
+    sale_price: Number(resolved.sale_price || 0),
+    current_price: currentPrice > 0 ? formatPriceForCaption(currentPrice) : "",
+    original_price: originalPrice > 0 ? formatPriceForCaption(originalPrice) : "",
+    discount_percent: discountPercent,
+    stock_quantity: Number.isFinite(stock) ? String(stock) : "",
+    product_url: productUrl,
+    sale_active: Boolean(resolved.sale_active),
+    price_source: resolved.price_source || "",
+    old_crossed_price: Number(resolved.old_crossed_price || 0),
+  };
 };
 const buildErpProductInfo = (product = {}) => {
   const resolved = normalizeCatalogProductMetrics(product);
   const features = uniqueTextList(product.features, product.feature_list, product.highlights, product.benefits).slice(0, 4);
   const sizes = uniqueTextList(resolved.available_sizes, product.available_sizes, product.sizes).slice(0, 10);
   const colors = uniqueTextList(resolved.available_colors, product.available_colors, product.colors).slice(0, 5);
-  const currentPrice = Number(resolved.current_price || resolved.sale_price || resolved.price || 0);
-  const originalPrice = Number(resolved.original_price || resolved.price || 0);
+  const currentPrice = Number(resolved.current_price || 0);
+  const originalPrice = Number(resolved.original_price || 0);
   const discountPercent = resolved.discount_percent || computeDiscountPercent(originalPrice, currentPrice);
   const stockQuantity = Number(resolved.stock_quantity ?? resolved.available_stock ?? resolved.stock ?? 0);
   const productUrl = buildFullProductUrl(resolved.product_url || product.product_url || "");
@@ -96,12 +235,17 @@ const buildErpProductInfo = (product = {}) => {
     features,
     available_sizes: sizes,
     available_colors: colors,
+    base_price: Number(resolved.base_price || 0),
+    sale_price: Number(resolved.sale_price || 0),
     current_price: currentPrice,
     original_price: originalPrice,
     discount_percent: discountPercent,
     stock_quantity: stockQuantity,
     product_url: productUrl,
-    stock_line: stockQuantity > 0 ? "متوفر الآن" : "❌ غير متوفر حالياً",
+    price_source: resolved.price_source || "",
+    sale_active: Boolean(resolved.sale_active),
+    old_crossed_price: Number(resolved.old_crossed_price || 0),
+    stock_line: stockQuantity > 0 ? "متوفر الآن" : "غير متوفر حالياً",
   };
 };
 const normalizeAiCaptionSections = (result = {}) => {
@@ -136,14 +280,14 @@ const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}) => {
 
   lines.push("");
   lines.push("ERP INFO");
-  if (Number(erpInfo.current_price || 0) > 0) {
-    lines.push(`السعر الحالي: ${formatCompactCurrency(erpInfo.current_price)} ج.م`);
-  }
-  if (Number(erpInfo.original_price || 0) > 0 && Number(erpInfo.original_price || 0) !== Number(erpInfo.current_price || 0)) {
-    lines.push(`السعر القديم: ${formatCompactCurrency(erpInfo.original_price)} ج.م`);
-  }
-  if (erpInfo.discount_percent) {
-    lines.push(`نسبة الخصم: ${erpInfo.discount_percent}`);
+  if (Boolean(erpInfo.sale_active) && Number(erpInfo.current_price || 0) > 0) {
+    lines.push(`السعر الآن: ${formatCompactCurrency(erpInfo.current_price)} ج.م`);
+    if (Number(erpInfo.old_crossed_price || 0) > Number(erpInfo.current_price || 0)) {
+      lines.push(`بدلاً من: ${formatCompactCurrency(erpInfo.old_crossed_price)} ج.م`);
+    }
+    lines.push("عرض لفترة محدودة");
+  } else if (Number(erpInfo.current_price || 0) > 0) {
+    lines.push(`السعر: ${formatCompactCurrency(erpInfo.current_price)} ج.م`);
   }
   if (Array.isArray(erpInfo.available_sizes) && erpInfo.available_sizes.length) {
     lines.push(`المقاسات المتوفرة: ${erpInfo.available_sizes.join("، ")}`);
@@ -151,7 +295,7 @@ const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}) => {
   if (Array.isArray(erpInfo.available_colors) && erpInfo.available_colors.length) {
     lines.push(`الألوان المتوفرة: ${erpInfo.available_colors.join("، ")}`);
   }
-  lines.push(`حالة المخزون: ${erpInfo.stock_line || "❌ غير متوفر حالياً"}`);
+  lines.push(`حالة المخزون: ${erpInfo.stock_line || "غير متوفر حالياً"}`);
 
   lines.push("");
   lines.push("CTA");
@@ -170,157 +314,6 @@ const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}) => {
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
-};
-const normalizeTextValue = (value) => String(value || "").trim();
-const normalizeListValue = (value) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value.map(normalizeTextValue).filter(Boolean);
-  if (typeof value === "string") {
-    const text = value.trim();
-    if (!text) return [];
-    try {
-      const parsed = JSON.parse(text);
-      if (Array.isArray(parsed)) return parsed.map(normalizeTextValue).filter(Boolean);
-    } catch {
-      // Fall through to split text.
-    }
-    return text
-      .split(/[,\n|]+/)
-      .map(normalizeTextValue)
-      .filter(Boolean);
-  }
-  return [normalizeTextValue(value)].filter(Boolean);
-};
-const uniqueTextList = (...values) => Array.from(new Set(values.flatMap((value) => normalizeListValue(value)).filter(Boolean)));
-const formatPriceForCaption = (value) => {
-  const number = Number(value || 0);
-  if (!Number.isFinite(number) || number <= 0) return "";
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(number);
-};
-const computeDiscountPercent = (originalPrice, currentPrice) => {
-  const original = Number(originalPrice || 0);
-  const current = Number(currentPrice || 0);
-  if (!Number.isFinite(original) || !Number.isFinite(current) || original <= 0 || current <= 0 || current >= original) return "";
-  return `${Math.max(1, Math.round(((original - current) / original) * 100))}%`;
-};
-const buildFullProductUrl = (value = "") => {
-  const text = normalizeTextValue(value);
-  if (!text) return "";
-  if (/^https?:\/\//i.test(text)) return text;
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return new URL(text.startsWith("/") ? text : `/${text}`, window.location.origin).toString();
-  }
-  return text;
-};
-const buildAiCaptionProductContext = (product = {}) => {
-  const variants = Array.isArray(product.variants) ? product.variants : [];
-  const availableSizes = uniqueTextList(
-    product.available_sizes,
-    variants.map((variant) => variant.fixed_size_label || variant.size_label || variant.size_name || variant.size || ""),
-    variants.map((variant) => variant.size || "")
-  );
-  const availableColors = uniqueTextList(
-    product.available_colors,
-    product.colors,
-    product.color_names,
-    variants.map((variant) => variant.color || variant.color_name || variant.name || ""),
-    Array.isArray(product.color_images) ? product.color_images.map((item) => item?.color || item?.color_name || "").filter(Boolean) : []
-  );
-  const features = uniqueTextList(product.features, product.feature_list, product.highlights, product.benefits);
-  const materials = uniqueTextList(product.materials, product.material, product.fabric, product.upper_material);
-  const brand = normalizeTextValue(product.brand_name || product.brand || product.manufacturer_name || product.manufacturer || "");
-  const category = normalizeTextValue(product.category_name || product.category || product.department || "");
-  const productType = normalizeTextValue(product.product_type || product.productType || product.type || "");
-  const gender = normalizeTextValue(product.gender || product.audience_gender || product.target_gender || "");
-  const audience = normalizeTextValue(product.audience || product.target_audience || "");
-  const description = normalizeTextValue(product.description || product.product_description || product.long_description || "");
-  const shortDescription = normalizeTextValue(product.short_description || product.shortDescription || product.summary || product.meta_description || "");
-  const originalPrice = Number(product.price || product.original_price || product.regular_price || product.selling_price || 0);
-  const currentPrice = Number(product.sale_price || product.current_price || product.discount_price || product.price || product.selling_price || 0);
-  const stock = Number(product.stock_quantity ?? product.stock ?? product.quantity ?? 0);
-  const discountPercent = computeDiscountPercent(originalPrice, currentPrice);
-  const productUrl = buildFullProductUrl(product.product_url || "");
-  return {
-    product_name: normalizeTextValue(product.name || product.product_name || ""),
-    brand,
-    category,
-    product_type: productType,
-    gender,
-    audience,
-    description,
-    short_description: shortDescription,
-    features,
-    materials,
-    available_colors: availableColors,
-    available_sizes: availableSizes,
-    current_price: currentPrice > 0 ? formatPriceForCaption(currentPrice) : "",
-    original_price: originalPrice > 0 ? formatPriceForCaption(originalPrice) : "",
-    discount_percent: discountPercent,
-    stock_quantity: Number.isFinite(stock) ? String(stock) : "",
-    product_url: productUrl,
-  };
-};
-const normalizeCatalogProductMetrics = (product = {}) => {
-  const variants = Array.isArray(product.variants) ? product.variants : [];
-  const numeric = (value) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  };
-  const firstPositive = (...values) => {
-    for (const value of values) {
-      const parsed = numeric(value);
-      if (parsed > 0) return parsed;
-    }
-    return 0;
-  };
-  const variantRegularPrice = firstPositive(
-    ...variants.flatMap((variant) => [
-      variant.original_price,
-      variant.regular_price,
-      variant.selling_price,
-      variant.price,
-    ])
-  );
-  const variantSalePrice = firstPositive(
-    ...variants.flatMap((variant) => [
-      variant.sale_price,
-      variant.current_price,
-      variant.discount_price,
-    ])
-  );
-  const baseRegularPrice = firstPositive(
-    product.original_price,
-    product.regular_price,
-    product.selling_price,
-    product.price
-  );
-  const baseCurrentPrice = firstPositive(
-    product.current_price,
-    product.sale_price,
-    product.discount_price
-  );
-  const originalPrice = baseRegularPrice || variantRegularPrice || baseCurrentPrice || variantSalePrice;
-  const currentPrice = baseCurrentPrice || variantSalePrice || baseRegularPrice || variantRegularPrice;
-  const resolvedCurrent = currentPrice > 0 ? currentPrice : originalPrice;
-  const resolvedOriginal = originalPrice > 0 ? originalPrice : resolvedCurrent;
-  const stock = variants.reduce(
-    (sum, variant) => sum + Math.max(0, Number(variant.stock_quantity ?? variant.stock ?? variant.quantity ?? variant.available_stock ?? 0)),
-    0
-  ) || Math.max(0, Number(product.available_stock ?? product.stock_quantity ?? product.stock ?? product.total_stock ?? 0));
-  const discountPercent =
-    resolvedOriginal > 0 && resolvedCurrent > 0 && resolvedCurrent < resolvedOriginal
-      ? `${Math.max(1, Math.round(((resolvedOriginal - resolvedCurrent) / resolvedOriginal) * 100))}%`
-      : "";
-  return {
-    ...product,
-    price: resolvedOriginal,
-    sale_price: resolvedCurrent < resolvedOriginal ? resolvedCurrent : 0,
-    current_price: resolvedCurrent,
-    original_price: resolvedOriginal,
-    discount_percent: discountPercent,
-    stock_quantity: stock,
-    available_stock: stock,
-  };
 };
 const renderAccountCardValue = (label, value) => (
   <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white">
@@ -397,10 +390,10 @@ export default function SocialMediaPublisher() {
   const resolvedMediaPreview = mediaPreview || selectedCatalogProduct?.image_url || "";
   const selectedCatalogProductDiscount = useMemo(() => {
     if (!selectedCatalogProduct) return "";
-    const price = Number(selectedCatalogProduct.price || 0);
-    const salePrice = Number(selectedCatalogProduct.sale_price || 0);
-    if (!Number.isFinite(price) || !Number.isFinite(salePrice) || price <= 0 || salePrice <= 0 || salePrice >= price) return "";
-    const percent = Math.max(1, Math.round(((price - salePrice) / price) * 100));
+    const currentPrice = Number(selectedCatalogProduct.current_price || selectedCatalogProduct.price || 0);
+    const originalPrice = Number(selectedCatalogProduct.original_price || selectedCatalogProduct.old_crossed_price || 0);
+    if (!Number.isFinite(currentPrice) || !Number.isFinite(originalPrice) || currentPrice <= 0 || originalPrice <= 0 || originalPrice <= currentPrice) return "";
+    const percent = Math.max(1, Math.round(((originalPrice - currentPrice) / originalPrice) * 100));
     return `-${percent}%`;
   }, [selectedCatalogProduct]);
 
@@ -640,6 +633,8 @@ export default function SocialMediaPublisher() {
       const aiPayload = {
         product_id: selectedCatalogProduct.id,
         product_name: aiContext.product_name || "",
+        base_price: aiContext.base_price || "",
+        sale_price: aiContext.sale_price || "",
         current_price: aiContext.current_price || "",
         original_price: aiContext.original_price || "",
         discount_percent: aiContext.discount_percent || "",
@@ -649,6 +644,9 @@ export default function SocialMediaPublisher() {
         features: aiContext.features || [],
         description: aiContext.description || "",
         product_url: aiContext.product_url || "",
+        sale_active: aiContext.sale_active || false,
+        price_source: aiContext.price_source || "",
+        old_crossed_price: aiContext.old_crossed_price || 0,
       };
       console.warn("[ai-social-caption-product]", aiPayload);
       console.warn("[ai-social-caption-request]", {
@@ -1125,9 +1123,9 @@ export default function SocialMediaPublisher() {
                           ) : null}
                         </div>
                         <div className="mt-1 text-xs text-emerald-100/80">
-                          {selectedCatalogProduct.sale_price > 0 ? (
-                            <span className="font-semibold">Sale {formatCompactCurrency(selectedCatalogProduct.sale_price)} EGP</span>
-                          ) : selectedCatalogProduct.price > 0 ? (
+                          {Number(selectedCatalogProduct.current_price || selectedCatalogProduct.price || 0) > 0 ? (
+                            <span className="font-semibold">Now {formatCompactCurrency(selectedCatalogProduct.current_price || selectedCatalogProduct.price)} EGP</span>
+                          ) : Number(selectedCatalogProduct.price || 0) > 0 ? (
                             <span className="font-semibold">Price {formatCompactCurrency(selectedCatalogProduct.price)} EGP</span>
                           ) : (
                             <span className="font-semibold">Price not available</span>
@@ -1806,7 +1804,8 @@ export default function SocialMediaPublisher() {
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                       {productCatalogResults.map((product) => {
                         const isSelected = String(product.id || "") === String(selectedCatalogProduct?.id || "");
-                        const productPrice = Number(product.sale_price || product.price || 0);
+                        const productCurrentPrice = Number(product.current_price || product.price || 0);
+                        const productOriginalPrice = Number(product.original_price || product.old_crossed_price || 0);
                         return (
                           <article
                             key={product.id}
@@ -1829,11 +1828,11 @@ export default function SocialMediaPublisher() {
                                 <div className="line-clamp-2 text-sm font-black text-white">{product.name || "Unnamed product"}</div>
                                 <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
                                   <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">
-                                    {productPrice > 0 ? `${formatCompactCurrency(productPrice)} EGP` : "Price N/A"}
+                                    {productCurrentPrice > 0 ? `${formatCompactCurrency(productCurrentPrice)} EGP` : "Price N/A"}
                                   </span>
-                                  {Number(product.sale_price || 0) > 0 && Number(product.sale_price || 0) < Number(product.price || 0) ? (
+                                  {productOriginalPrice > 0 && productOriginalPrice > productCurrentPrice ? (
                                     <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-1 text-emerald-100">
-                                      Sale {formatCompactCurrency(product.sale_price)} EGP
+                                      Before {formatCompactCurrency(productOriginalPrice)} EGP
                                     </span>
                                   ) : null}
                                   <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">
@@ -1869,3 +1868,4 @@ export default function SocialMediaPublisher() {
     </div>
   );
 }
+

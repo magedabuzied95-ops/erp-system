@@ -64,6 +64,9 @@ const normalizePost = (raw) => {
     permalinkUrl: clean(post.permalink_url || post.post_permalink || post.post_permalink_url || post.post_url || metadata.permalink_url || metadata.post_permalink || metadata.post_permalink_url || metadata.post_url || ""),
     commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || metadata.comments_count || 0),
     newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),
+    likesCount: parseOptionalCount(post.likes_count, post.like_count, post.reactions_count, post.total_likes, metadata.likes_count, metadata.like_count, metadata.reactions_count, metadata.total_likes),
+    sharesCount: parseOptionalCount(post.shares_count, post.share_count, metadata.shares_count, metadata.share_count),
+    publishedAt: clean(post.published_at || post.created_time || post.created_at || post.posted_at || metadata.published_at || metadata.created_time || metadata.created_at || metadata.posted_at || ""),
     lastActivity: clean(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || ""),
     autoReplyEnabled: Boolean(post.auto_reply_enabled || post.template_enabled || post.auto_reply_mode || metadata.auto_reply_enabled || metadata.template_enabled || metadata.auto_reply_mode),
     productName: clean(post.product_name || metadata.product_name || ""),
@@ -95,13 +98,37 @@ const postTypeMeta = (post = {}) => {
   const rawType = clean(post?.raw?.post_type || post?.raw?.type || post?.raw?.story_type || post?.raw?.content_type || post?.metadata?.post_type || post?.metadata?.type || "");
   if (!rawType) return null;
   const key = rawType.toLowerCase();
-  const label =
-    key.includes("reel") ? "Reel" :
-    key.includes("video") ? "Video" :
-    key.includes("story") ? "Story" :
-    key.includes("photo") || key.includes("image") ? "Photo" :
-    rawType;
-  return label ? { label } : null;
+  const label = key.includes("reel")
+    ? "Reel"
+    : key.includes("carousel")
+      ? "Carousel"
+      : key.includes("video")
+        ? "Video"
+        : key.includes("story")
+          ? "Text"
+          : key.includes("photo") || key.includes("image")
+            ? "Photo"
+            : key.includes("text")
+              ? "Text"
+              : rawType;
+  if (!label) return null;
+  const styles = {
+    Reel: "border-fuchsia-300/20 bg-fuchsia-400/10 text-fuchsia-100",
+    Photo: "border-emerald-300/20 bg-emerald-400/10 text-emerald-100",
+    Video: "border-sky-300/20 bg-sky-400/10 text-sky-100",
+    Carousel: "border-violet-300/20 bg-violet-400/10 text-violet-100",
+    Text: "border-amber-300/20 bg-amber-400/10 text-amber-100",
+  };
+  return { label, className: styles[label] || "border-white/10 bg-white/[0.04] text-slate-200" };
+};
+
+const parseOptionalCount = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  return null;
 };
 
 const getAttachmentImage = (post = {}) => {
@@ -113,6 +140,53 @@ const getAttachmentImage = (post = {}) => {
         ? post.attachment.data
         : Array.isArray(post.attachment)
           ? post.attachment
+          : [];
+  for (const attachment of attachments) {
+    const image =
+      attachment?.media?.image?.src ||
+      attachment?.media?.image_url ||
+      attachment?.media?.source ||
+      attachment?.subattachments?.data?.[0]?.media?.image?.src ||
+      attachment?.subattachments?.data?.[0]?.media?.image_url ||
+      attachment?.subattachments?.[0]?.media?.image?.src ||
+      attachment?.subattachments?.[0]?.media?.image_url ||
+      "";
+    if (clean(image)) return clean(image);
+  }
+  return "";
+};
+
+const getCommentAttachmentImage = (comment = {}) => {
+  const raw = comment && typeof comment === "object" ? comment : {};
+  const metadata = raw.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
+  const directCandidates = [
+    raw.attachment_image,
+    raw.attachment_url,
+    raw.media_url,
+    raw.media_image_url,
+    raw.image_url,
+    raw.picture,
+    raw.thumbnail_url,
+    metadata.attachment_image,
+    metadata.attachment_url,
+    metadata.media_url,
+    metadata.media_image_url,
+    metadata.image_url,
+    metadata.picture,
+    metadata.thumbnail_url,
+  ];
+  for (const candidate of directCandidates) {
+    if (clean(candidate)) return clean(candidate);
+  }
+
+  const attachments = Array.isArray(raw.attachments?.data)
+    ? raw.attachments.data
+    : Array.isArray(raw.attachments)
+      ? raw.attachments
+      : Array.isArray(raw.attachment?.data)
+        ? raw.attachment.data
+        : Array.isArray(raw.attachment)
+          ? raw.attachment
           : [];
   for (const attachment of attachments) {
     const image =
@@ -330,10 +404,14 @@ function SocialCommentsWorkspace({
   const activePostCaption = clean(activePostDetails?.caption || "");
   const activePostLink = clean(activePostDetails?.permalinkUrl || "");
   const activePlatform = platformMeta(activePostDetails?.platform || activePost?.platform || "");
+  const activePostType = postTypeMeta(activePostDetails);
   const activePostPlatform = clean(activePostDetails?.platform || activePost?.platform || "facebook").toLowerCase();
   const activePostPostId = clean(activePostDetails?.postId || activePostDetails?.id || activePostKey);
   const activePostConversationId = clean(activePostDetails?.conversationId || activePostDetails?.sessionId || activePostDetails?.id || activePostKey);
   const activeTemplateEnabled = Boolean(activeTemplate?.enabled);
+  const activePostPublishedAt = clean(activePostDetails?.publishedAt || activePostDetails?.createdAt || activePostDetails?.lastActivity || "");
+  const activePostLikes = activePostDetails?.likesCount;
+  const activePostShares = activePostDetails?.sharesCount;
 
   useEffect(() => {
     setReplyDraft(activeSuggestedReply || "");
@@ -760,7 +838,7 @@ function SocialCommentsWorkspace({
                 <div className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/70 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
                   <div className="flex h-[240px] items-center justify-center overflow-hidden bg-slate-900 min-[1600px]:h-[300px]">
                     {activePostImage ? (
-                      <img src={activePostImage} alt="" className="h-full w-full object-contain" loading="lazy" />
+                      <img src={activePostImage} alt="" className="h-full w-full object-cover" loading="lazy" />
                     ) : (
                       <div className="grid h-full w-full place-items-center bg-gradient-to-br from-cyan-400/10 via-slate-950 to-slate-900 text-slate-500">
                         <div className="flex flex-col items-center gap-2">

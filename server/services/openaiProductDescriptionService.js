@@ -1,4 +1,4 @@
-import OpenAI from "openai";
+﻿import OpenAI from "openai";
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_TIMEOUT_MS = 20_000;
@@ -89,9 +89,14 @@ const compactSocialCaptionContext = (input = {}) => {
     materials: normalizeList(current.materials || current.material || input.materials || input.material),
     available_colors: normalizeList(current.available_colors || current.colors || current.color_list || input.available_colors || input.colors || input.color_list),
     available_sizes: normalizeList(current.available_sizes || current.sizes || input.available_sizes || input.sizes),
+    base_price: cleanText(current.base_price || input.base_price),
     current_price: cleanText(current.current_price || current.sale_price || current.price || input.current_price || input.sale_price || input.price),
     original_price: cleanText(current.original_price || current.price || input.original_price || input.price),
     discount_percent: cleanText(current.discount_percent || input.discount_percent),
+    sale_price: cleanText(current.sale_price || input.sale_price),
+    old_crossed_price: cleanText(current.old_crossed_price || input.old_crossed_price),
+    sale_active: cleanText(current.sale_active || input.sale_active),
+    price_source: cleanText(current.price_source || input.price_source),
     stock_quantity: cleanText(current.stock_quantity || current.stock || input.stock_quantity || input.stock),
     product_url: cleanText(current.product_url || input.product_url),
   };
@@ -214,15 +219,15 @@ const buildSocialCaptionSections = (context = {}) => {
   const colors = normalizeList(context.available_colors || context.colors).slice(0, 5);
   const sizes = normalizeList(context.available_sizes).slice(0, 10);
   const currentPrice = cleanText(context.current_price || context.price || "");
-  const originalPrice = cleanText(context.original_price || "");
-  const discount = cleanText(context.discount_percent || "");
+  const originalPrice = cleanText(context.original_price || context.old_crossed_price || "");
+  const saleActive = String(context.sale_active || "").toLowerCase() === "true" || cleanText(context.price_source) === "sale_price";
   const stock = cleanText(context.stock_quantity || context.stock || "");
   const url = cleanText(context.product_url || "");
-  const stockLine = Number(stock || 0) > 0 ? "متوفر الآن" : "❌ غير متوفر حالياً";
+  const stockLine = Number(stock || 0) > 0 ? "متوفر الآن" : "غير متوفر حالياً";
   const hook = `✨ اكتشف ${name} الآن` + (brand ? ` من ${brand}` : "");
   const bodyParts = [];
   if (description) bodyParts.push(description);
-  if (category) bodyParts.push(`مصمم ليمنحك حضورًا مميزًا داخل ${category}`);
+  if (category) bodyParts.push(`مصمم ليمنحك حضوراً مميزاً داخل ${category}`);
   if (materials.length) bodyParts.push(`الخامات: ${materials.join("، ")}`);
   if (features.length) bodyParts.push(`أهم المزايا: ${features.join("، ")}`);
   if (colors.length) bodyParts.push(`ألوان مختارة: ${colors.join("، ")}`);
@@ -234,9 +239,12 @@ const buildSocialCaptionSections = (context = {}) => {
     name,
     brand,
     category,
+    sale_active: saleActive,
+    base_price: cleanText(context.base_price || ""),
+    sale_price: cleanText(context.sale_price || ""),
     current_price: currentPrice,
     original_price: originalPrice,
-    discount_percent: discount,
+    discount_percent: cleanText(context.discount_percent || ""),
     stock_quantity: stock,
     stock_line: stockLine,
     available_sizes: sizes,
@@ -255,6 +263,9 @@ const buildSocialCaptionSections = (context = {}) => {
 
 const buildSocialCaptionFallback = (context = {}) => {
   const sections = buildSocialCaptionSections(context);
+  const currentPrice = cleanText(sections.erpInfo.current_price || "");
+  const originalPrice = cleanText(sections.erpInfo.original_price || "");
+  const saleActive = Boolean(sections.erpInfo.sale_active);
   return {
     ...sections,
     caption: [
@@ -265,12 +276,12 @@ const buildSocialCaptionFallback = (context = {}) => {
       sections.body,
       "",
       sections.erpInfo.features.length ? "FEATURES" : "",
-      ...sections.erpInfo.features.map((feature) => `• ${feature}`),
+      ...(Array.isArray(sections.erpInfo.features) ? sections.erpInfo.features.map((feature) => `• ${feature}`) : []),
       "",
       "ERP INFO",
-      sections.erpInfo.current_price ? `السعر الحالي: ${sections.erpInfo.current_price}` : "",
-      sections.erpInfo.original_price && sections.erpInfo.original_price !== sections.erpInfo.current_price ? `السعر القديم: ${sections.erpInfo.original_price}` : "",
-      sections.erpInfo.discount_percent ? `نسبة الخصم: ${sections.erpInfo.discount_percent}` : "",
+      saleActive && currentPrice ? `السعر الآن: ${currentPrice}` : currentPrice ? `السعر: ${currentPrice}` : "",
+      saleActive && originalPrice && originalPrice !== currentPrice ? `بدلاً من: ${originalPrice}` : "",
+      saleActive ? "عرض لفترة محدودة" : "",
       sections.erpInfo.available_sizes.length ? `المقاسات المتوفرة: ${sections.erpInfo.available_sizes.join("، ")}` : "",
       sections.erpInfo.available_colors.length ? `الألوان المتوفرة: ${sections.erpInfo.available_colors.join("، ")}` : "",
       `حالة المخزون: ${sections.erpInfo.stock_line}`,
@@ -295,9 +306,14 @@ const logSocialCaptionContext = (label, context = {}) =>
   console.warn(label, {
     product_id: context.product_id || context.id || "",
     product_name: context.product_name || "",
+    base_price: context.base_price || "",
+    sale_price: context.sale_price || "",
     current_price: context.current_price || "",
     original_price: context.original_price || "",
+    old_crossed_price: context.old_crossed_price || "",
     discount_percent: context.discount_percent || "",
+    sale_active: context.sale_active || "",
+    price_source: context.price_source || "",
     stock_quantity: context.stock_quantity || context.stock || "",
     available_sizes: context.available_sizes || [],
     available_colors: context.available_colors || context.colors || [],
@@ -333,6 +349,9 @@ const normalizeSocialCaptionGenerated = (raw = {}, fallback = {}) => {
     hashtags: mergedHashtags,
   };
   const erpInfo = safeFallback.erpInfo || {};
+  const currentPrice = cleanText(erpInfo.current_price || "");
+  const originalPrice = cleanText(erpInfo.original_price || "");
+  const saleActive = Boolean(erpInfo.sale_active);
   const caption = [
     "HOOK",
     sections.hook,
@@ -344,9 +363,9 @@ const normalizeSocialCaptionGenerated = (raw = {}, fallback = {}) => {
     ...(Array.isArray(erpInfo.features) ? erpInfo.features.map((feature) => `• ${feature}`) : []),
     "",
     "ERP INFO",
-    erpInfo.current_price ? `السعر الحالي: ${erpInfo.current_price}` : "",
-    erpInfo.original_price && erpInfo.original_price !== erpInfo.current_price ? `السعر القديم: ${erpInfo.original_price}` : "",
-    erpInfo.discount_percent ? `نسبة الخصم: ${erpInfo.discount_percent}` : "",
+    saleActive && currentPrice ? `السعر الآن: ${currentPrice}` : currentPrice ? `السعر: ${currentPrice}` : "",
+    saleActive && originalPrice && originalPrice !== currentPrice ? `بدلاً من: ${originalPrice}` : "",
+    saleActive ? "عرض لفترة محدودة" : "",
     Array.isArray(erpInfo.available_sizes) && erpInfo.available_sizes.length ? `المقاسات المتوفرة: ${erpInfo.available_sizes.join("، ")}` : "",
     Array.isArray(erpInfo.available_colors) && erpInfo.available_colors.length ? `الألوان المتوفرة: ${erpInfo.available_colors.join("، ")}` : "",
     `حالة المخزون: ${erpInfo.stock_line || ""}`,
@@ -521,3 +540,4 @@ export const generateSocialPublisherCaption = async (input = {}) => {
     };
   }
 };
+

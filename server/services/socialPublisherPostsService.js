@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { loadProductsWithVariantsPayload } from "../controllers/productsController.js";
+import { resolveStorefrontPriceBreakdown } from "../../src/shared/lib/storefrontPricing.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { getMetaIntegrationStatus } from "./metaIntegrationService.js";
 import { publishPost as publishMetaPost } from "./socialPublisherService.js";
@@ -133,37 +134,8 @@ const resolveSocialPublisherProductUrl = (product = {}) => {
 };
 
 const resolveSocialPublisherPricing = (product = {}) => {
+  const resolved = resolveStorefrontPriceBreakdown(product);
   const variants = Array.isArray(product.variants) ? product.variants : [];
-  const variantRegularPrice = pickFirstPositiveNumber(
-    ...variants.flatMap((variant) => [
-      variant.original_price,
-      variant.regular_price,
-      variant.selling_price,
-      variant.price,
-    ])
-  );
-  const variantSalePrice = pickFirstPositiveNumber(
-    ...variants.flatMap((variant) => [
-      variant.sale_price,
-      variant.current_price,
-      variant.discount_price,
-    ])
-  );
-  const productRegularPrice = pickFirstPositiveNumber(
-    product.original_price,
-    product.regular_price,
-    product.selling_price,
-    product.price
-  );
-  const productSalePrice = pickFirstPositiveNumber(
-    product.sale_price,
-    product.current_price,
-    product.discount_price
-  );
-  const originalPrice = productRegularPrice || variantRegularPrice || productSalePrice || variantSalePrice;
-  const currentPrice = productSalePrice || variantSalePrice || productRegularPrice || variantRegularPrice;
-  const resolvedCurrent = currentPrice > 0 ? currentPrice : originalPrice;
-  const resolvedOriginal = originalPrice > 0 ? originalPrice : resolvedCurrent;
   const availableStock = variants.reduce(
     (sum, variant) => sum + Math.max(0, Number(variant.stock ?? variant.stock_quantity ?? variant.quantity ?? variant.available_stock ?? 0)),
     0
@@ -177,16 +149,25 @@ const resolveSocialPublisherPricing = (product = {}) => {
         0
     )
   );
-  const discountPercent =
-    resolvedOriginal > 0 && resolvedCurrent > 0 && resolvedCurrent < resolvedOriginal
-      ? `${Math.max(1, Math.round(((resolvedOriginal - resolvedCurrent) / resolvedOriginal) * 100))}%`
-      : "";
+  console.warn("[social-publisher-price-resolver]", {
+    product_id: product.id ?? product.product_id ?? null,
+    base_price: Number(resolved.base_price || 0),
+    sale_price: Number(resolved.sale_price || 0),
+    current_price: Number(resolved.current_price || 0),
+    old_crossed_price: Number(resolved.old_crossed_price || 0),
+    discount_percent: resolved.discount_percent || "",
+    source: resolved.source || "",
+  });
   return {
-    price: resolvedOriginal,
-    sale_price: resolvedCurrent < resolvedOriginal ? resolvedCurrent : 0,
-    current_price: resolvedCurrent,
-    original_price: resolvedOriginal,
-    discount_percent: discountPercent,
+    base_price: Number(resolved.base_price || 0),
+    price: Number(resolved.base_price || resolved.current_price || 0),
+    sale_price: Number(resolved.sale_price || 0),
+    current_price: Number(resolved.current_price || 0),
+    original_price: Number(resolved.old_crossed_price || 0) || Number(resolved.current_price || 0),
+    old_crossed_price: Number(resolved.old_crossed_price || 0),
+    discount_percent: resolved.discount_percent || "",
+    sale_active: Boolean(resolved.sale_active),
+    price_source: resolved.source || "",
     stock_quantity: availableStock,
     available_stock: availableStock,
   };
@@ -229,6 +210,10 @@ const normalizeSocialPublisherProduct = (product = {}) => {
     available_sizes: availableSizes,
     available_colors: availableColors,
     product_url: resolveSocialPublisherProductUrl(product),
+    base_price: pricing.base_price,
+    sale_active: pricing.sale_active,
+    price_source: pricing.price_source,
+    old_crossed_price: pricing.old_crossed_price,
   };
 };
 
