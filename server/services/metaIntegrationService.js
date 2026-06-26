@@ -4318,7 +4318,7 @@ const fetchMetaPostMediaCandidate = async ({ candidatePostId = "", token } = {})
     endpoint: `/${encodeURIComponent(candidateId)}`,
     token,
     params: {
-      fields: "id,message,caption,permalink_url,full_picture,picture,source,attachments{media,type,url,title,description,subattachments},child_attachments",
+      fields: "id,message,caption,permalink_url,full_picture,picture,source,media_url,thumbnail_url,media_type,attachments{media,type,url,title,description,subattachments},child_attachments",
     },
   });
   return normalizeMetaPostPreview(payload || {});

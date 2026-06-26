@@ -355,7 +355,9 @@ const resolveSocialCommentGraphLookupIds = ({ row = {}, pageId = "" } = {}) => {
       const baseGraphPostId = text(candidate.split("_").slice(0, 1).join("_") || "");
       if (baseGraphPostId) lookupIds.push(`${safePageId}_${baseGraphPostId}`);
     }
-    lookupIds.push(candidate);
+    if (!/^(facebook|instagram|social_comment)_/i.test(candidate)) {
+      lookupIds.push(candidate);
+    }
   }
 
   return Array.from(new Set(lookupIds.filter(Boolean)));
