@@ -4312,17 +4312,83 @@ const normalizeMetaReelPreview = (post = {}) => {
   };
 };
 
-const fetchMetaPostMediaCandidate = async ({ candidatePostId = "", token } = {}) => {
+const META_POST_BASE_FIELDS = ["id", "permalink_url", "full_picture", "picture", "media_type", "media_url", "thumbnail_url"];
+const META_POST_FACEBOOK_TEXT_FIELD = "message";
+const META_POST_INSTAGRAM_TEXT_FIELD = "caption";
+const META_POST_ATTACHMENT_FIELDS = ["attachments{media,type,url,title,description,subattachments}", "child_attachments"];
+
+const extractMetaGraphMissingField = (error = {}) => {
+  const message = text(error?.message || error?.meta?.message || error?.metaResponse?.error?.message || "");
+  const match = message.match(/(?:nonexisting|unknown) field \(([^)]+)\)/i);
+  return text(match?.[1] || "");
+};
+
+const getGraphErrorCode = (error = {}) => Number(error?.code || error?.meta?.error?.code || error?.metaResponse?.error?.code || 0);
+
+const buildMetaPostPreviewFields = ({ instagramCandidate = false, includeAttachments = false, blockedFields = [] } = {}) => {
+  const blocked = new Set(asArray(blockedFields).map((value) => lower(value)).filter(Boolean));
+  const fields = [];
+  const pushField = (field) => {
+    if (!field || blocked.has(lower(field))) return;
+    fields.push(field);
+  };
+  pushField(META_POST_BASE_FIELDS[0]);
+  pushField(instagramCandidate ? META_POST_INSTAGRAM_TEXT_FIELD : META_POST_FACEBOOK_TEXT_FIELD);
+  META_POST_BASE_FIELDS.slice(1).forEach(pushField);
+  if (includeAttachments) META_POST_ATTACHMENT_FIELDS.forEach(pushField);
+  return fields.join(",");
+};
+
+const fetchMetaPostMediaCandidate = async ({ candidatePostId = "", token, instagramCandidate = false, includeAttachments = false } = {}) => {
   const candidateId = text(candidatePostId);
   if (!candidateId || !token) return null;
-  const payload = await callMetaGet({
-    endpoint: `/${encodeURIComponent(candidateId)}`,
-    token,
-    params: {
-      fields: "id,message,caption,permalink_url,full_picture,picture,source,media_url,thumbnail_url,media_type,attachments{media,type,url,title,description,subattachments},child_attachments",
-    },
-  });
-  return normalizeMetaPostPreview(payload || {});
+  const blockedFields = new Set();
+  const fetchOnce = async () => {
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(candidateId)}`,
+      token,
+      params: {
+        fields: buildMetaPostPreviewFields({
+          instagramCandidate,
+          includeAttachments,
+          blockedFields: Array.from(blockedFields),
+        }),
+      },
+    });
+    return normalizeMetaPostPreview(payload || {});
+  };
+
+  let preview = null;
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      preview = await fetchOnce();
+      break;
+    } catch (error) {
+      const missingField = extractMetaGraphMissingField(error);
+      if (getGraphErrorCode(error) === 100 && missingField) {
+        blockedFields.add(lower(missingField));
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (!preview) return null;
+  if (!includeAttachments && !instagramCandidate) {
+    const hasAttachmentSupportHint = Boolean(preview.post_type || preview.media_type || preview.full_picture || preview.picture || preview.source || preview.thumbnail_url);
+    if (hasAttachmentSupportHint && !isUsableGraphMediaUrl(preview.thumbnail_url)) {
+      const attachmentPreview = await fetchMetaPostMediaCandidate({
+        candidatePostId: candidateId,
+        token,
+        instagramCandidate,
+        includeAttachments: true,
+      }).catch(() => null);
+      if (attachmentPreview) {
+        preview = attachmentPreview;
+      }
+    }
+  }
+  return preview;
 };
 
 const isDeprecatedStatusGraphError = (error = {}) => {
@@ -4391,7 +4457,9 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
   const reelIdFromPermalink = extractReelIdFromPermalink(permalinkUrl);
   const objectIdFromPermalink = extractFacebookPostObjectIdFromPermalink(permalinkUrl);
   const shortPostId = safePostId.includes("_") ? safePostId.split("_").slice(1).join("_") || safePostId.split("_").pop() || "" : "";
+  const pagePostId = text(pageId && safePostId && !safePostId.startsWith(`${text(pageId)}_`) ? `${text(pageId)}_${safePostId}` : "");
   const rawCandidateIds = [
+    pagePostId,
     safePostId,
     objectIdFromPermalink,
     shortPostId,
@@ -4404,13 +4472,14 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
   let primaryPreview = null;
   let reelPreview = null;
   let objectIdPreview = null;
+  const instagramCandidate = /instagram/i.test(text(permalinkUrl || ""));
 
   for (const candidatePostId of candidateIds) {
     try {
       const isReelCandidate = text(candidatePostId) === text(reelIdFromPermalink);
       const preview = isReelCandidate
         ? await fetchMetaReelMediaCandidate({ candidateReelId: candidatePostId, token })
-        : await fetchMetaPostMediaCandidate({ candidatePostId, token });
+        : await fetchMetaPostMediaCandidate({ candidatePostId, token, instagramCandidate });
       if (isReelCandidate) reelPreview = preview;
       if (!isReelCandidate && (candidatePostId === safePostId || candidatePostId === shortPostId)) objectIdPreview = preview;
       if (!primaryPreview) primaryPreview = preview;
