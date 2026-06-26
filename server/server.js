@@ -840,6 +840,44 @@ app.post("/api/debug/meta-poll-comments-once", async (req, res) => {
     });
   }
 });
+app.post("/api/debug/social-comments/ensure-schema", async (_req, res) => {
+  try {
+    const before = await db.query(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'social_comment_auto_reply_runs'
+          AND column_name = 'reply_status'
+      ) AS reply_status_exists
+    `);
+    await ensureSocialCommentsCenterSchema();
+    const after = await db.query(`
+      SELECT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'social_comment_auto_reply_runs'
+          AND column_name = 'reply_status'
+      ) AS reply_status_exists
+    `);
+    return res.json({
+      success: true,
+      reply_status_exists: Boolean(after.rows?.[0]?.reply_status_exists),
+      columns_checked: ["social_comment_auto_reply_runs.reply_status"],
+      applied: Boolean(!before.rows?.[0]?.reply_status_exists && after.rows?.[0]?.reply_status_exists),
+    });
+  } catch (error) {
+    console.error("[social-comments-ensure-schema]", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to ensure social comments schema",
+    });
+  }
+});
 app.get("/api/debug/meta-comment-inbox-status", async (req, res) => {
   try {
     const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
