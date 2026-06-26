@@ -161,24 +161,22 @@ const collectPrivateMessageCommentIdCandidates = (conversation = {}, req = {}) =
 
 const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId = "", conversation = {}, req = {}, platform = "" } = {}) => {
   const candidates = collectPrivateMessageCommentIdCandidates(conversation, req);
-  const preferred = candidates.find(({ value }) => value && !isSmallNumericId(value)) || null;
-  if (preferred?.value) {
-    return {
-      selectedCommentId: preferred.value,
-      providerCommentId: preferred.value,
-      rejectedSmallNumericIds: candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
-      source: preferred.source,
-    };
-  }
-
   const safeTenantId = Number(tenantId) || 0;
   const safeConversationId = envText(conversationId);
   const normalizedPlatform = envText(platform).toLowerCase().includes("instagram") ? "instagram" : "facebook";
+  const selectedPostId = envText(
+    conversation?.channel_metadata?.post_id ||
+      conversation?.channel_metadata?.lead?.post_id ||
+      conversation?.post_id ||
+      conversation?.channel_metadata?.social_post_id ||
+      conversation?.channel_metadata?.post?.id ||
+      ""
+  );
 
   const runResult = safeTenantId && safeConversationId
     ? await db.query(
       `
-      SELECT comment_id, inbox_conversation_id, raw_payload
+      SELECT comment_id, post_id, inbox_conversation_id, raw_payload
       FROM social_comment_automation_runs
       WHERE tenant_id = $1::bigint
         AND platform = $2::text
@@ -191,20 +189,14 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
     : { rows: [] };
 
   const runRow = runResult.rows?.[0] || null;
-  const runCommentId = envText(runRow?.comment_id || runRow?.raw_payload?.value?.comment_id || runRow?.raw_payload?.comment_id || "");
-  if (runCommentId && !isSmallNumericId(runCommentId)) {
-    return {
-      selectedCommentId: runCommentId,
-      providerCommentId: runCommentId,
-      rejectedSmallNumericIds: candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
-      source: "social_comment_automation_runs.comment_id",
-    };
-  }
+  const runPostId = envText(runRow?.post_id || runRow?.raw_payload?.value?.post_id || runRow?.raw_payload?.post_id || selectedPostId || "");
+  const runRawCommentId = envText(runRow?.raw_payload?.value?.comment_id || runRow?.raw_payload?.comment_id || "");
+  const runCommentId = envText(runRow?.comment_id || "");
 
   const messageResult = safeTenantId && safeConversationId
     ? await db.query(
       `
-      SELECT comment_id, external_message_id, provider_message_id
+      SELECT comment_id, external_message_id, provider_message_id, raw_payload
       FROM ai_support_messages
       WHERE tenant_id = $1::bigint
         AND session_id = $2::text
@@ -217,21 +209,62 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
     : { rows: [] };
 
   const messageRow = messageResult.rows?.[0] || null;
-  const messageCommentId = envText(messageRow?.comment_id || messageRow?.external_message_id || messageRow?.provider_message_id || "");
-  if (messageCommentId && !isSmallNumericId(messageCommentId)) {
-    return {
-      selectedCommentId: messageCommentId,
-      providerCommentId: messageCommentId,
-      rejectedSmallNumericIds: candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
-      source: "ai_support_messages.comment_id",
-    };
-  }
+  const messageCommentId = envText(messageRow?.comment_id || "");
+  const messageExternalMessageId = envText(messageRow?.external_message_id || "");
+  const messageProviderMessageId = envText(messageRow?.provider_message_id || "");
+  const messageRawCommentId = envText(messageRow?.raw_payload?.value?.comment_id || messageRow?.raw_payload?.comment_id || "");
+
+  const rejectedSmallNumericIds = [
+    ...candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
+    ...[runRawCommentId, runCommentId, messageRawCommentId, messageProviderMessageId, messageExternalMessageId, messageCommentId].filter((value) => isSmallNumericId(value)),
+  ].filter(Boolean);
+
+  const pickCandidate = (source, value) => {
+    const candidate = envText(value);
+    if (!candidate) return "";
+    if (isSmallNumericId(candidate)) return "";
+    if (candidate === runPostId || candidate === selectedPostId || candidate === safeConversationId) return "";
+    return candidate;
+  };
+
+  const candidateDetails = {
+    selected_comment_id: candidates,
+    run_row: {
+      comment_id: runCommentId,
+      post_id: runPostId,
+      raw_payload_comment_id: runRawCommentId,
+      raw_payload_post_id: envText(runRow?.raw_payload?.value?.post_id || runRow?.raw_payload?.post_id || ""),
+      inbox_conversation_id: envText(runRow?.inbox_conversation_id || ""),
+    },
+    message_row: {
+      comment_id: messageCommentId,
+      external_message_id: messageExternalMessageId,
+      provider_message_id: messageProviderMessageId,
+      raw_payload_comment_id: messageRawCommentId,
+    },
+  };
+
+  const selectedId =
+    pickCandidate("raw_payload.value.comment_id", runRawCommentId) ||
+    pickCandidate("social_comment_automation_runs.comment_id", runCommentId) ||
+    pickCandidate("ai_support_messages.provider_message_id", messageProviderMessageId) ||
+    pickCandidate("ai_support_messages.external_message_id", messageExternalMessageId) ||
+    pickCandidate("ai_support_messages.comment_id", messageCommentId) ||
+    pickCandidate("ai_support_messages.raw_payload.value.comment_id", messageRawCommentId);
 
   return {
-    selectedCommentId: "",
-    providerCommentId: "",
-    rejectedSmallNumericIds: candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
-    source: "",
+    selectedCommentId: selectedId,
+    providerCommentId: selectedId,
+    rejectedSmallNumericIds,
+    source:
+      selectedId === runRawCommentId ? "raw_payload.value.comment_id" :
+      selectedId === runCommentId ? "social_comment_automation_runs.comment_id" :
+      selectedId === messageProviderMessageId ? "ai_support_messages.provider_message_id" :
+      selectedId === messageExternalMessageId ? "ai_support_messages.external_message_id" :
+      selectedId === messageCommentId ? "ai_support_messages.comment_id" :
+      selectedId === messageRawCommentId ? "ai_support_messages.raw_payload.value.comment_id" :
+      "",
+    candidateDetails,
   };
 };
 
@@ -2414,22 +2447,15 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
       });
       console.warn("[social-comments:private-message-debug]", {
         conversation_id: conversationId,
-        selected_comment_id: envText(
-          req.body?.comment_id ||
-          req.body?.commentId ||
-          channelMetadata.comment_id ||
-          channelMetadata.lead?.comment_id ||
-          conversation.external_comment_id ||
-          conversation.comment_id ||
-          ""
-        ),
-        provider_comment_id: commentIdResolution.providerCommentId || "",
-        rejected_small_numeric_ids: commentIdResolution.rejectedSmallNumericIds || [],
-        meta_target_id: commentIdResolution.providerCommentId || "",
+        selected_comment_id: envText(commentIdResolution?.selectedCommentId || ""),
+        provider_comment_id: envText(commentIdResolution?.providerCommentId || ""),
+        rejected_small_numeric_ids: commentIdResolution?.rejectedSmallNumericIds || [],
+        meta_target_id: envText(commentIdResolution?.providerCommentId || ""),
+        all_ids_found: commentIdResolution?.candidateDetails || {},
       });
       const commentId = envText(commentIdResolution.providerCommentId || "");
       if (!commentId) {
-        throw Object.assign(new Error("Comment thread is missing a comment id"), { status: 409, code: "COMMENT_ID_MISSING" });
+        throw Object.assign(new Error("Comment thread is missing a comment id"), { status: 409, code: "NO_PROVIDER_COMMENT_ID_FOR_PRIVATE_REPLY" });
       }
       const platform = channel.includes("instagram") ? "instagram" : "facebook";
       const reply = await sendPrivateReply(platform, commentId, messageText, tenantId);
