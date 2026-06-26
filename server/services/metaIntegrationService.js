@@ -2378,6 +2378,7 @@ const callMetaGet = async ({ endpoint, token, params = {} }) => {
     throw Object.assign(new Error(metaErrorMessage(payload)), {
       status: response.status,
       meta: payload?.error || payload,
+      metaResponse: payload,
     });
   }
   return payload;
@@ -4418,6 +4419,19 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
         break;
       }
     } catch (error) {
+      console.error("[social-comments:graph-raw]", {
+        requested_id: candidatePostId,
+        requested_fields: text(
+          text(candidatePostId) === text(reelIdFromPermalink)
+            ? "id,description,permalink_url,picture,source,media_url,media_type"
+            : "id,message,caption,permalink_url,full_picture,picture,source,media_url,thumbnail_url,media_type,attachments{media,type,url,title,description,subattachments},child_attachments"
+        ),
+        http_status: error?.status ?? error?.metaResponse?.status ?? null,
+        graph_error_code: error?.code || error?.meta?.code || error?.metaResponse?.error?.code || "",
+        graph_error_subcode: error?.meta?.error_subcode || error?.metaResponse?.error?.error_subcode || "",
+        graph_error_message: error?.message || error?.meta?.message || error?.metaResponse?.error?.message || "",
+        graph_json_body: error?.metaResponse || error?.meta || null,
+      });
       if (isDeprecatedStatusGraphError(error)) {
         deprecatedStatusDetected = true;
       }
