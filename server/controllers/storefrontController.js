@@ -4120,8 +4120,20 @@ export const accountByPhone = async (req, res) => {
     await ensureStorefrontSchema(db);
     await ensureLoyaltySchema(db);
     const tenantId = tenantFromRequest(req);
-    const phone = normalizePhone(toText(req.query.phone || req.params.phone));
-    if (!phone) return res.status(400).json({ success: false, message: "Phone is required" });
+    const jwtPhone = normalizePhone(toText(req.storefrontCustomer?.phone || ""));
+    const fallbackPhone = normalizePhone(toText(req.query.phone || req.body?.phone || req.params.phone));
+    const phone = jwtPhone || fallbackPhone;
+    console.info("[storefront-account] auth-phone-source", {
+      source: jwtPhone ? "jwt" : fallbackPhone ? "request" : "missing",
+      hasPhone: Boolean(phone),
+      phone_suffix: phone ? phone.slice(-4) : "",
+    });
+    if (!jwtPhone) {
+      return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
+    }
+    if (!phone) {
+      return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
+    }
     const phoneVariants = getPhoneSearchVariants(phone);
     const customer = await db.query(
       `
