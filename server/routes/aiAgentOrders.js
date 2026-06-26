@@ -2412,24 +2412,123 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
 router.post("/comments/:commentId/private-message", protect, permit("settings", "edit"), async (req, res) => {
   res.setHeader("X-Social-Private-Route", "comment-id-v1");
   const tenantId = toTenantId(req);
-  const commentId = decodeRouteId(req.params.commentId);
+  const uiResolvedId = decodeRouteId(req.params.commentId);
   const rawMessageText = String(req.body?.message ?? req.body?.reply ?? req.body?.text ?? "");
   const messageText = envText(rawMessageText);
   console.warn("[social-comments:private-message-comment-route-entry]", {
     tenantId,
-    commentId,
+    commentId: uiResolvedId,
     body: req.body,
   });
-  if (!tenantId || !commentId) {
+  if (!tenantId || !uiResolvedId) {
     return sendError(res, Object.assign(new Error("tenant_id and commentId are required"), { status: 400 }), "tenant_id and commentId are required");
   }
   if (!messageText) {
     return sendError(res, Object.assign(new Error("message is required"), { status: 400 }), "message is required");
   }
 
-  const commentRun = await resolveSocialCommentReplyTarget({ tenantId, commentId });
+  const commentRun = await resolveSocialCommentReplyTarget({ tenantId, commentId: uiResolvedId });
   if (!commentRun) {
-    return sendError(res, Object.assign(new Error(`Comment not found for tenant ${tenantId}: ${commentId}`), { status: 404, code: "SOCIAL_COMMENT_NOT_FOUND" }), "Comment not found");
+    return sendError(res, Object.assign(new Error(`Comment not found for tenant ${tenantId}: ${uiResolvedId}`), { status: 404, code: "SOCIAL_COMMENT_NOT_FOUND" }), "Comment not found");
+  }
+
+  const rawPayload = commentRun?.raw_payload && typeof commentRun.raw_payload === "object" ? commentRun.raw_payload : {};
+  const payloadValue = rawPayload?.value && typeof rawPayload.value === "object" ? rawPayload.value : {};
+  const postId = envText(
+    commentRun.post_id ||
+      payloadValue.post_id ||
+      rawPayload.post_id ||
+      rawPayload.value?.post_id ||
+      ""
+  );
+  const sessionId = envText(commentRun.inbox_conversation_id || commentRun.session_id || "");
+  const messageRows = sessionId
+    ? await db.query(
+        `
+        SELECT id, comment_id, external_message_id, provider_message_id, raw_payload
+        FROM ai_support_messages
+        WHERE tenant_id = $1::bigint
+          AND session_id = $2::text
+          AND message_type = 'comment_inbound'
+        ORDER BY created_at DESC, id DESC
+        LIMIT 1
+        `,
+        [tenantId, sessionId]
+      ).catch(() => ({ rows: [] }))
+    : { rows: [] };
+  const messageRow = messageRows.rows?.[0] || null;
+  const messageRawPayload = messageRow?.raw_payload && typeof messageRow.raw_payload === "object" ? messageRow.raw_payload : {};
+  const messageRawValue = messageRawPayload?.value && typeof messageRawPayload.value === "object" ? messageRawPayload.value : {};
+
+  const debugCandidateMap = {
+    ui_resolved_id: uiResolvedId,
+    ai_support_messages: {
+      id: envText(messageRow?.id || ""),
+      comment_id: envText(messageRow?.comment_id || ""),
+      external_message_id: envText(messageRow?.external_message_id || ""),
+      provider_message_id: envText(messageRow?.provider_message_id || ""),
+    },
+    automation: {
+      comment_id: envText(commentRun.comment_id || ""),
+      post_id: postId,
+    },
+    raw_payload_value: {
+      comment_id: envText(payloadValue.comment_id || ""),
+      post_id: envText(payloadValue.post_id || ""),
+      parent_id: envText(payloadValue.parent_id || ""),
+      message_id: envText(payloadValue.message_id || ""),
+      comment_id_nested: envText(payloadValue.comment?.id || ""),
+      from_id: envText(payloadValue.from?.id || ""),
+      message_id_nested: envText(payloadValue.message?.id || ""),
+    },
+    message_raw_payload_value: {
+      comment_id: envText(messageRawValue.comment_id || ""),
+      post_id: envText(messageRawValue.post_id || ""),
+      parent_id: envText(messageRawValue.parent_id || ""),
+      message_id: envText(messageRawValue.message_id || ""),
+      comment_id_nested: envText(messageRawValue.comment?.id || ""),
+      from_id: envText(messageRawValue.from?.id || ""),
+      message_id_nested: envText(messageRawValue.message?.id || ""),
+    },
+  };
+
+  const rejectedSmallNumericIds = Object.entries({
+    ui_resolved_id: uiResolvedId,
+    automation_comment_id: commentRun.comment_id || "",
+    automation_post_id: postId,
+    raw_comment_id: payloadValue.comment_id || "",
+    raw_comment_id_nested: payloadValue.comment?.id || "",
+    raw_message_id: payloadValue.message_id || "",
+    raw_from_id: payloadValue.from?.id || "",
+    msg_comment_id: messageRow?.comment_id || "",
+    msg_external_message_id: messageRow?.external_message_id || "",
+    msg_provider_message_id: messageRow?.provider_message_id || "",
+    msg_raw_comment_id: messageRawValue.comment_id || "",
+    msg_raw_comment_id_nested: messageRawValue.comment?.id || "",
+    msg_raw_message_id: messageRawValue.message_id || "",
+    msg_raw_from_id: messageRawValue.from?.id || "",
+  }).filter(([, value]) => isSmallNumericId(value)).map(([, value]) => value);
+
+  const metaTargetId =
+    (envText(payloadValue.comment_id || "") && !isSmallNumericId(payloadValue.comment_id) && envText(payloadValue.comment_id) !== postId ? envText(payloadValue.comment_id) : "") ||
+    (envText(payloadValue.comment?.id || "") && !isSmallNumericId(payloadValue.comment?.id) && envText(payloadValue.comment?.id) !== postId ? envText(payloadValue.comment?.id) : "") ||
+    (envText(payloadValue.message_id || "") && !isSmallNumericId(payloadValue.message_id) && envText(payloadValue.message_id) !== postId ? envText(payloadValue.message_id) : "") ||
+    (envText(messageRawValue.comment_id || "") && !isSmallNumericId(messageRawValue.comment_id) && envText(messageRawValue.comment_id) !== postId ? envText(messageRawValue.comment_id) : "") ||
+    (envText(messageRawValue.comment?.id || "") && !isSmallNumericId(messageRawValue.comment?.id) && envText(messageRawValue.comment?.id) !== postId ? envText(messageRawValue.comment?.id) : "") ||
+    (envText(messageRawValue.message_id || "") && !isSmallNumericId(messageRawValue.message_id) && envText(messageRawValue.message_id) !== postId ? envText(messageRawValue.message_id) : "") ||
+    (envText(messageRow?.provider_message_id || "") && !isSmallNumericId(messageRow?.provider_message_id) && envText(messageRow?.provider_message_id) !== postId ? envText(messageRow?.provider_message_id) : "") ||
+    (envText(messageRow?.external_message_id || "") && !isSmallNumericId(messageRow?.external_message_id) && envText(messageRow?.external_message_id) !== postId ? envText(messageRow?.external_message_id) : "") ||
+    (envText(messageRow?.comment_id || "") && !isSmallNumericId(messageRow?.comment_id) && envText(messageRow?.comment_id) !== postId ? envText(messageRow?.comment_id) : "");
+
+  console.warn("[social-comments:private-reply-candidate-debug]", {
+    ...debugCandidateMap,
+    selected_meta_target_id: metaTargetId,
+    rejected_small_numeric_ids: rejectedSmallNumericIds,
+    post_id: postId,
+  });
+
+  if (!metaTargetId) {
+    return sendError(res, Object.assign(new Error("NO_VALID_META_COMMENT_ID_FOR_PRIVATE_REPLY"), { status: 409, code: "NO_VALID_META_COMMENT_ID_FOR_PRIVATE_REPLY" }), "NO_VALID_META_COMMENT_ID_FOR_PRIVATE_REPLY");
   }
 
   const platform = envText(req.body?.platform || commentRun.platform || (commentRun.channel === "instagram_comment" ? "instagram" : "facebook")).toLowerCase().includes("instagram")
@@ -2438,13 +2537,13 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
   const nowIso = new Date().toISOString();
 
   try {
-    const reply = await sendPrivateReply(platform, commentId, messageText, tenantId);
+    const reply = await sendPrivateReply(platform, metaTargetId, messageText, tenantId);
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: envText(commentRun.session_id || commentRun.inbox_conversation_id || ""), at: nowIso });
     return res.status(201).json({
       success: true,
       sent: true,
       delivery_status: "sent",
-      comment_id: commentId,
+      comment_id: metaTargetId,
       platform,
       reply,
     });

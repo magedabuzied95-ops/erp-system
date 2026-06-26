@@ -2,9 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BadgeDollarSign,
+  BarChart3,
   Copy,
   CalendarClock,
   Camera,
+  Eye,
+  Activity,
   History,
   Image as ImageIcon,
   Loader2,
@@ -20,6 +23,8 @@ import {
   Sparkles,
   Tag,
   Truck,
+  Trash2,
+  Repeat2,
   Upload,
   Video,
   Wand2,
@@ -115,6 +120,90 @@ const getHistoryStatusDetails = (status, errorMessage = "") => {
     toneClass: "border-white/10 bg-white/5 text-slate-200",
     detail: String(errorMessage || "").trim(),
   };
+};
+
+const HISTORY_TABLE_LIMIT = 20;
+const ANALYTICS_DAYS = 30;
+const HISTORY_CHART_HEIGHT = 96;
+
+const formatRelativeDayLabel = (value) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((today.getTime() - target.getTime()) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
+};
+
+const formatChartDayLabel = (date) => new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(date);
+
+const getPostTimestamp = (post = {}) => {
+  const value = post.published_at || post.scheduled_at || post.created_at || post.updated_at || 0;
+  const time = new Date(value).getTime();
+  return Number.isFinite(time) ? time : 0;
+};
+
+const getPrimaryPlatformLabel = (post = {}) => {
+  const platforms = safeArray(post.platforms).map((platform) => String(platform || "").trim().toLowerCase()).filter(Boolean);
+  if (platforms.includes("facebook") && platforms.includes("instagram")) return "Facebook + Instagram";
+  if (platforms.includes("facebook")) return "Facebook";
+  if (platforms.includes("instagram")) return "Instagram";
+  if (platforms.length) return platforms.join(", ");
+  return "-";
+};
+
+const deriveTemplateLabel = (post = {}) => {
+  const explicit = normalizeTextValue(post.template_name || post.template_label || post.template || post.template_key);
+  if (explicit) {
+    const normalized = explicit.toLowerCase();
+    if (normalized === "new_collection") return "New Collection";
+    return explicit.replace(/_/g, " ");
+  }
+  const caption = normalizeTextValue(post.caption || "");
+  if (/new collection/i.test(caption)) return "New Collection";
+  if (/sale/i.test(caption) || /عرض/i.test(caption)) return "Sale";
+  if (/last pieces/i.test(caption)) return "Last Pieces";
+  if (/best seller/i.test(caption) || /bestseller/i.test(caption)) return "Best Seller";
+  if (/story/i.test(caption)) return "Story";
+  if (/reels?/i.test(caption)) return "Reels";
+  return "Custom";
+};
+
+const buildPostCountsByDay = (posts = []) => {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (ANALYTICS_DAYS - 1));
+  const days = Array.from({ length: ANALYTICS_DAYS }, (_, index) => {
+    const date = new Date(start);
+    date.setDate(start.getDate() + index);
+    return {
+      key: date.toISOString().slice(0, 10),
+      label: formatChartDayLabel(date),
+      published: 0,
+      scheduled: 0,
+      draft: 0,
+      total: 0,
+    };
+  });
+  const map = new Map(days.map((item) => [item.key, item]));
+  posts.forEach((post) => {
+    const timestamp = getPostTimestamp(post);
+    if (!timestamp) return;
+    const date = new Date(timestamp);
+    date.setHours(0, 0, 0, 0);
+    const key = date.toISOString().slice(0, 10);
+    const bucket = map.get(key);
+    if (!bucket) return;
+    const status = String(post.status || "draft").toLowerCase();
+    bucket.total += 1;
+    if (status === "published") bucket.published += 1;
+    else if (status === "scheduled") bucket.scheduled += 1;
+    else bucket.draft += 1;
+  });
+  return days;
 };
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
@@ -584,6 +673,7 @@ export default function SocialMediaPublisher() {
   const [publishingId, setPublishingId] = useState(null);
   const [error, setError] = useState("");
   const [posts, setPosts] = useState([]);
+  const [historyDetailPost, setHistoryDetailPost] = useState(null);
   const [caption, setCaption] = useState("");
   const [firstComment, setFirstComment] = useState("");
   const [firstCommentLoading, setFirstCommentLoading] = useState(false);
@@ -659,21 +749,80 @@ export default function SocialMediaPublisher() {
 
   const historyPosts = useMemo(
     () =>
-      [...posts]
-        .sort((a, b) => {
-          const aTime = new Date(a.created_at || a.updated_at || a.scheduled_at || a.published_at || 0).getTime();
-          const bTime = new Date(b.created_at || b.updated_at || b.scheduled_at || b.published_at || 0).getTime();
-          return bTime - aTime;
-        })
-        .slice(0, 20),
+      [...posts].sort((a, b) => {
+        const aTime = getPostTimestamp(a);
+        const bTime = getPostTimestamp(b);
+        return bTime - aTime;
+      }),
     [posts]
   );
+  const historyTablePosts = useMemo(() => historyPosts.slice(0, HISTORY_TABLE_LIMIT), [historyPosts]);
+  const analyticsPosts = historyPosts;
+  const analyticsCounts = useMemo(() => {
+    const counts = {
+      published: 0,
+      scheduled: 0,
+      drafts: 0,
+      firstCommentPublished: 0,
+      firstCommentFailed: 0,
+      firstCommentSkipped: 0,
+    };
+    analyticsPosts.forEach((post) => {
+      const status = String(post.status || "draft").toLowerCase();
+      if (status === "published") counts.published += 1;
+      else if (status === "scheduled") counts.scheduled += 1;
+      else counts.drafts += 1;
+      const firstCommentStatus = String(
+        post.first_comment_status || (String(post.first_comment || "").trim() ? (status === "published" ? "published" : status) : "skipped")
+      )
+        .trim()
+        .toLowerCase();
+      if (firstCommentStatus === "published") counts.firstCommentPublished += 1;
+      else if (firstCommentStatus === "failed") counts.firstCommentFailed += 1;
+      else counts.firstCommentSkipped += 1;
+    });
+    return counts;
+  }, [analyticsPosts]);
+  const analyticsTimeline = useMemo(() => {
+    return analyticsPosts
+      .slice(0, 8)
+      .map((post) => {
+        const timestamp = getPostTimestamp(post);
+        const platform = getPrimaryPlatformLabel(post);
+        const status = getHistoryStatusDetails(post.status, post.error_message);
+        const firstCommentStatus = getHistoryStatusDetails(
+          post.first_comment_status || (String(post.first_comment || "").trim() ? post.status : "skipped"),
+          post.first_comment_error || (String(post.first_comment || "").trim() && String(post.status || "").toLowerCase() === "failed" ? post.error_message : "")
+        );
+        return {
+          id: post.id,
+          timestamp,
+          time: timestamp ? new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(timestamp) : "-",
+          dayLabel: timestamp ? formatRelativeDayLabel(timestamp) : "-",
+          platform,
+          statusKey: String(post.status || "draft").toLowerCase(),
+          statusLabel: status.label,
+          firstCommentStatusKey: String(
+            post.first_comment_status || (String(post.first_comment || "").trim() ? (String(post.status || "").toLowerCase() === "published" ? "published" : String(post.status || "draft").toLowerCase()) : "skipped")
+          )
+            .trim()
+            .toLowerCase(),
+          firstCommentStatusLabel: firstCommentStatus.label,
+          publishedAt: post.published_at,
+          scheduledAt: post.scheduled_at,
+          hasFirstComment: Boolean(String(post.first_comment || "").trim()),
+        };
+      })
+      .filter((item) => item.id);
+  }, [analyticsPosts]);
+  const postsByDay = useMemo(() => buildPostCountsByDay(analyticsPosts), [analyticsPosts]);
+  const maxPostsPerDay = Math.max(1, ...postsByDay.map((item) => item.total));
 
   const loadPosts = async () => {
     setLoading(true);
     setError("");
     try {
-      const data = await getSocialPublisherPosts({ limit: 20 });
+      const data = await getSocialPublisherPosts({ limit: 50 });
       setPosts(safeArray(data));
     } catch (err) {
       const message = err?.message || "Failed to load social media publisher history";
@@ -1287,6 +1436,37 @@ export default function SocialMediaPublisher() {
     } finally {
       setPublishingId(null);
     }
+  };
+
+  const handleViewHistoryPost = (post) => {
+    setHistoryDetailPost(post);
+  };
+
+  const handleDuplicateHistoryPost = (post) => {
+    setCaption(String(post.caption || ""));
+    setFirstComment(String(post.first_comment || ""));
+    setScheduledAt("");
+    setMediaType(String(post.media_type || "").toLowerCase() === "video" ? "video" : "image");
+    setMediaFile(null);
+    setMediaPreview(String(post.media_url || ""));
+    setCreateSource("history");
+    setPlatforms({
+      facebook: safeArray(post.platforms).includes("facebook"),
+      instagram: safeArray(post.platforms).includes("instagram"),
+      tiktok: safeArray(post.platforms).includes("tiktok"),
+    });
+    setSelectedCatalogProduct(null);
+    toast.success("Draft duplicated.");
+  };
+
+  const handleDeleteHistoryPost = (post) => {
+    const confirmDelete = window.confirm("Delete this post from the current history view?");
+    if (!confirmDelete) return;
+    setPosts((current) => current.filter((item) => String(item.id) !== String(post.id)));
+    if (String(historyDetailPost?.id) === String(post.id)) {
+      setHistoryDetailPost(null);
+    }
+    toast.success("Post removed from view.");
   };
 
   const renderPreviewCard = (platformName, accentClass, platformHint) => (
@@ -1905,7 +2085,147 @@ export default function SocialMediaPublisher() {
           </section>
 
           <section className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/25">
-            <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-2 text-cyan-100">
+                  <BarChart3 className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black">Campaign Analytics</h2>
+                  <p className="text-sm text-slate-400">Campaign performance and content operations.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={loadPosts}
+                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+              >
+                <RefreshCcw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                Refresh
+              </button>
+            </div>
+
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-[1.5rem] border border-emerald-400/20 bg-emerald-400/10 p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">Published</div>
+                <div className="mt-2 text-3xl font-black text-white">{analyticsCounts.published}</div>
+                <div className="mt-1 text-xs text-emerald-100/80">Number of published posts.</div>
+              </div>
+              <div className="rounded-[1.5rem] border border-amber-400/20 bg-amber-400/10 p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-100">Scheduled</div>
+                <div className="mt-2 text-3xl font-black text-white">{analyticsCounts.scheduled}</div>
+                <div className="mt-1 text-xs text-amber-100/80">Posts queued for later.</div>
+              </div>
+              <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Drafts</div>
+                <div className="mt-2 text-3xl font-black text-white">{analyticsCounts.drafts}</div>
+                <div className="mt-1 text-xs text-slate-400">Draft content in progress.</div>
+              </div>
+              <div className="rounded-[1.5rem] border border-cyan-400/20 bg-cyan-400/10 p-4">
+                <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-100">First Comments</div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-center text-white">
+                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-2 py-2">
+                    <div className="text-lg font-black">{analyticsCounts.firstCommentPublished}</div>
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-emerald-100">Published</div>
+                  </div>
+                  <div className="rounded-2xl border border-rose-400/20 bg-rose-400/10 px-2 py-2">
+                    <div className="text-lg font-black">{analyticsCounts.firstCommentFailed}</div>
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-rose-100">Failed</div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-400/20 bg-slate-400/10 px-2 py-2">
+                    <div className="text-lg font-black">{analyticsCounts.firstCommentSkipped}</div>
+                    <div className="text-[10px] uppercase tracking-[0.12em] text-slate-200">Skipped</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(0,0.9fr)]">
+              <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Posts</div>
+                    <div className="text-xs text-slate-500">Last 30 days</div>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <span className="inline-flex h-2.5 w-2.5 rounded-full bg-cyan-400" />
+                    Total
+                  </div>
+                </div>
+                <div className="mt-4 overflow-x-auto">
+                  <div className="flex min-w-[760px] items-end gap-2">
+                    {postsByDay.map((day) => {
+                      const height = Math.max(8, Math.round((day.total / maxPostsPerDay) * HISTORY_CHART_HEIGHT));
+                      return (
+                        <div key={day.key} className="flex min-w-[24px] flex-1 flex-col items-center gap-2">
+                          <div className="flex h-[112px] w-full items-end justify-center rounded-2xl border border-white/5 bg-black/10 px-1 py-2">
+                            <div
+                              className="w-full rounded-t-2xl bg-gradient-to-t from-cyan-500 via-sky-400 to-emerald-300 shadow-lg shadow-cyan-500/20"
+                              style={{ height: `${height}px` }}
+                              title={`${day.label}: ${day.total}`}
+                            />
+                          </div>
+                          <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-slate-400">{day.label}</div>
+                          <div className="text-[10px] text-slate-500">{day.total}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-4">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-cyan-200" />
+                  <div>
+                    <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Activity Timeline</div>
+                    <div className="text-xs text-slate-500">Recent publishing activity</div>
+                  </div>
+                </div>
+                <div className="mt-4 space-y-3">
+                  {analyticsTimeline.length ? (
+                    analyticsTimeline.map((item) => (
+                      <div key={item.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+                            {item.dayLabel} · {item.time}
+                          </div>
+                          <div className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] text-slate-200">
+                            {item.platform}
+                          </div>
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] ${statusStyles[item.statusKey] || statusStyles.draft}`}>
+                            {item.statusLabel}
+                          </span>
+                          {item.hasFirstComment ? (
+                            <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-emerald-100">
+                              {item.firstCommentStatusKey === "published"
+                                ? "First Comment Published"
+                                : item.firstCommentStatusKey === "failed"
+                                  ? "First Comment Failed"
+                                  : item.firstCommentStatusKey === "skipped"
+                                    ? "First Comment Skipped"
+                                    : `First Comment ${item.firstCommentStatusLabel}`}
+                            </span>
+                          ) : (
+                            <span className="rounded-full border border-slate-400/20 bg-slate-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-slate-200">
+                              First Comment Skipped
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-slate-400">No activity yet.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/25">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-2 text-cyan-100">
                   <History className="h-5 w-5" />
@@ -1925,109 +2245,220 @@ export default function SocialMediaPublisher() {
               </button>
             </div>
 
-            <div className="space-y-3 break-words xl:max-h-[340px] xl:overflow-y-auto xl:pr-1">
-              {loading ? (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
-                  Loading history...
-                </div>
-              ) : historyPosts.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
-                  {t("marketing.socialPublisher.noHistory")}
-                </div>
-              ) : (
-                historyPosts.slice(0, 20).map((post) => {
-                  const previewLabel = post.media_type === "video" ? "Video" : "Image";
-                  const isBusy = publishingId === post.id;
-                  const canPublishAgain = post.status === "draft" || post.status === "failed" || post.status === "scheduled" || post.status === "partial_success";
-                  const captionStatus = getHistoryStatusDetails(post.status, post.error_message);
-                  const firstCommentStatus = getHistoryStatusDetails(
-                    post.first_comment_status || (String(post.first_comment || "").trim() ? post.status : "skipped"),
-                    post.first_comment_error || (String(post.first_comment || "").trim() && post.status === "failed" ? post.error_message : "")
-                  );
-                  const overallStatus = getHistoryStatusDetails(post.status, post.error_message);
-                  return (
-                    <article key={post.id} className="rounded-3xl border border-white/10 bg-slate-950/50 p-3">
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-slate-300">
-                          {post.media_url ? (
-                            post.media_type === "video" ? <Video className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />
-                          ) : (
-                            <ImageIcon className="h-4 w-4" />
-                          )}
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-3">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-                              {previewLabel}
-                            </span>
-                            <span className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] ${statusStyles[post.status] || statusStyles.draft}`}>
-                              {statusLabel(post.status)}
-                            </span>
-                          </div>
-                          <div className="grid gap-3 lg:grid-cols-3">
-                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-                              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Caption</div>
-                              <div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
-                                {post.caption || "No caption yet"}
-                              </div>
-                              <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${captionStatus.toneClass}`}>
-                                {captionStatus.label}
-                              </div>
-                              {captionStatus.detail ? <div className="mt-2 break-words text-xs leading-5 text-rose-200">{captionStatus.detail}</div> : null}
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-                              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">First Comment</div>
-                              <div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
-                                {String(post.first_comment || "").trim() || "-"}
-                              </div>
-                              <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${firstCommentStatus.toneClass}`}>
-                                {firstCommentStatus.label}
-                              </div>
-                              {firstCommentStatus.detail ? <div className="mt-2 break-words text-xs leading-5 text-rose-200">{firstCommentStatus.detail}</div> : null}
-                            </div>
-                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-                              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Status</div>
-                              <div className={`mt-1 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${overallStatus.toneClass}`}>
-                                {overallStatus.label}
-                              </div>
-                              {overallStatus.detail ? <div className="mt-2 break-words text-xs leading-5 text-rose-200">{overallStatus.detail}</div> : null}
-                              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-400">
+            {loading ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">Loading history...</div>
+            ) : historyTablePosts.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-400">
+                {t("marketing.socialPublisher.noHistory")}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-[1180px] w-full border-separate border-spacing-y-3">
+                  <thead>
+                    <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                      <th className="px-3">Platform</th>
+                      <th className="px-3">Template</th>
+                      <th className="px-3">Status</th>
+                      <th className="px-3">Caption</th>
+                      <th className="px-3">First Comment</th>
+                      <th className="px-3">Published At</th>
+                      <th className="px-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyTablePosts.map((post) => {
+                      const isBusy = publishingId === post.id;
+                      const canPublishAgain = post.status === "draft" || post.status === "failed" || post.status === "scheduled" || post.status === "partial_success";
+                      const statusDetails = getHistoryStatusDetails(post.status, post.error_message);
+                      const firstCommentStatus = getHistoryStatusDetails(
+                        post.first_comment_status || (String(post.first_comment || "").trim() ? post.status : "skipped"),
+                        post.first_comment_error || (String(post.first_comment || "").trim() && String(post.status || "").toLowerCase() === "failed" ? post.error_message : "")
+                      );
+                      const templateLabel = deriveTemplateLabel(post);
+                      const platformLabel = getPrimaryPlatformLabel(post);
+                      const publishedAtLabel = post.published_at ? formatDateTime(post.published_at) : post.scheduled_at ? formatDateTime(post.scheduled_at) : "-";
+                      return (
+                        <tr key={post.id} className="align-top">
+                          <td className="px-3">
+                            <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
+                              <div className="text-sm font-semibold text-white">{platformLabel}</div>
+                              <div className="mt-2 flex flex-wrap gap-2">
                                 {safeArray(post.platforms).map((platform) => (
-                                  <span key={platform} className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 break-all">
+                                  <span key={platform} className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300">
                                     {platform}
                                   </span>
                                 ))}
                               </div>
                             </div>
-                          </div>
-                          <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
-                            <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Created {formatDateTime(post.created_at)}</span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-3 flex items-center justify-between gap-3 border-t border-white/5 pt-3">
-                        <div className="min-w-0 text-xs text-slate-500">{post.scheduled_at ? `Scheduled ${formatDateTime(post.scheduled_at)}` : post.published_at ? `Published ${formatDateTime(post.published_at)}` : "Draft"}</div>
-                        {canPublishAgain ? (
-                          <button
-                            type="button"
-                            onClick={() => handlePublishFromHistory(post)}
-                            disabled={isBusy || !canPublish}
-                            className="inline-flex items-center gap-2 rounded-2xl bg-amber-400 px-3 py-2 text-sm font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
-                          >
-                            {isBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                            {t("marketing.socialPublisher.publishNow")}
-                          </button>
-                        ) : null}
-                      </div>
-                    </article>
-                  );
-                })
-              )}
-            </div>
+                          </td>
+                          <td className="px-3">
+                            <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
+                              <div className="text-sm font-semibold text-white">{templateLabel}</div>
+                              <div className="mt-1 text-xs text-slate-500">Content template snapshot</div>
+                            </div>
+                          </td>
+                          <td className="px-3">
+                            <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
+                              <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${statusDetails.toneClass}`}>
+                                {statusDetails.label}
+                              </span>
+                              {statusDetails.detail ? <div className="mt-2 break-words text-xs leading-5 text-rose-200">{statusDetails.detail}</div> : null}
+                              <div className="mt-3 text-[11px] uppercase tracking-[0.12em] text-slate-500">{post.media_type || "image"}</div>
+                            </div>
+                          </td>
+                          <td className="px-3">
+                            <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
+                              <div className="max-w-[260px] whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                                {post.caption || "No caption yet"}
+                              </div>
+                              <div className="mt-3 text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                {String(post.caption || "").trim().length} chars
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3">
+                            <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
+                              <div className="max-w-[280px] whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                                {String(post.first_comment || "").trim() || "-"}
+                              </div>
+                              <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${firstCommentStatus.toneClass}`}>
+                                {String(post.first_comment || "").trim() && firstCommentStatus.label === "Published ✓" ? "✓ First Comment" : firstCommentStatus.label}
+                              </div>
+                              {firstCommentStatus.detail ? <div className="mt-2 break-words text-xs leading-5 text-rose-200">{firstCommentStatus.detail}</div> : null}
+                              {post.first_comment_published_at ? (
+                                <div className="mt-2 text-[11px] text-slate-500">
+                                  First comment published {formatDateTime(post.first_comment_published_at)}
+                                </div>
+                              ) : null}
+                            </div>
+                          </td>
+                          <td className="px-3">
+                            <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3 text-sm text-white">
+                              {publishedAtLabel}
+                              <div className="mt-2 text-[11px] uppercase tracking-[0.12em] text-slate-500">
+                                {post.status === "scheduled" ? "Scheduled At" : "Published At"}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-3">
+                            <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
+                              <div className="flex flex-wrap gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewHistoryPost(post)}
+                                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+                                >
+                                  <Eye className="h-3.5 w-3.5" />
+                                  View
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDuplicateHistoryPost(post)}
+                                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+                                >
+                                  <Copy className="h-3.5 w-3.5" />
+                                  Duplicate
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteHistoryPost(post)}
+                                  className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                  Delete
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handlePublishFromHistory(post)}
+                                  disabled={isBusy || !canPublish || !canPublishAgain}
+                                  className="inline-flex items-center gap-2 rounded-2xl bg-amber-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                  {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Repeat2 className="h-3.5 w-3.5" />}
+                                  Republish
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </section>
         </div>
       </div>
+
+      {historyDetailPost
+        ? createPortal(
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+              role="presentation"
+              onClick={() => setHistoryDetailPost(null)}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Campaign post details"
+                className="flex w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f] text-white shadow-2xl shadow-black/60"
+                onClick={(event) => event.stopPropagation()}
+              >
+                <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
+                  <div className="min-w-0">
+                    <div className="text-sm font-black uppercase tracking-[0.22em] text-amber-100">View</div>
+                    <div className="text-xs text-slate-400">{deriveTemplateLabel(historyDetailPost)}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setHistoryDetailPost(null)}
+                    className="rounded-2xl border border-white/10 bg-white/[0.05] px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+                  >
+                    Close
+                  </button>
+                </div>
+                <div className="max-h-[78vh] overflow-y-auto p-4 md:p-6">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Platform</div>
+                      <div className="mt-2 text-sm font-semibold text-white">{getPrimaryPlatformLabel(historyDetailPost)}</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Status</div>
+                      <div className="mt-2 text-sm font-semibold text-white">{statusLabel(historyDetailPost.status)}</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Caption</div>
+                      <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                        {historyDetailPost.caption || "No caption yet"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 md:col-span-2">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">First Comment</div>
+                      <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                        {String(historyDetailPost.first_comment || "").trim() || "-"}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Published At</div>
+                      <div className="mt-2 text-sm font-semibold text-white">{formatDateTime(historyDetailPost.published_at || historyDetailPost.scheduled_at || historyDetailPost.created_at)}</div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                      <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">First Comment Status</div>
+                      <div className="mt-2 text-sm font-semibold text-white">
+                        {getHistoryStatusDetails(
+                          historyDetailPost.first_comment_status || (String(historyDetailPost.first_comment || "").trim() ? historyDetailPost.status : "skipped"),
+                          historyDetailPost.first_comment_error || ""
+                        ).label}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
 
       {previewOpen
         ? createPortal(
