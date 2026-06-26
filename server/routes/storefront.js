@@ -11,6 +11,7 @@ import {
   getProduct,
   getProductByToken,
   getShippingQuote,
+  getStorefrontCustomerPreferences,
   latestShippingAddress,
   listGenderClassifications,
   listLastPieceProducts,
@@ -21,6 +22,7 @@ import {
   buildStorefrontHomeFromProducts,
   saveRecentlyViewed,
   saveWishlist,
+  updateStorefrontCustomerPreferences,
   searchProducts,
   imageSearchProducts,
   trackOrder,
@@ -439,6 +441,8 @@ router.post("/track", storefrontCustomerTransitionAuth, async (req, res, next) =
   return trackOrder(req, res, next);
 });
 router.get("/account", ...storefrontCustomerAuthRequired, async (req, res, next) => accountByPhone(req, res, next));
+router.get("/customer/preferences", ...storefrontCustomerAuthRequired, async (req, res, next) => getStorefrontCustomerPreferences(req, res, next));
+router.put("/customer/preferences", ...storefrontCustomerAuthRequired, async (req, res, next) => updateStorefrontCustomerPreferences(req, res, next));
 router.get("/customers/latest-shipping-address", storefrontCustomerTransitionAuth, async (req, res, next) => {
   const jwtPhone = toText(req.storefrontCustomer?.phone || "");
   const resolvedPhone = resolveStorefrontCustomerPhone(req);

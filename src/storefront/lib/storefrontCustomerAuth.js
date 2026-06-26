@@ -27,6 +27,15 @@ const removeStorageValue = (key) => {
   }
 };
 
+const dispatchAuthChange = () => {
+  if (!isBrowser()) return;
+  try {
+    window.dispatchEvent(new CustomEvent("storefront-customer-auth-changed", { detail: readStorefrontCustomerAuth() }));
+  } catch {
+    // Ignore event dispatch failures.
+  }
+};
+
 const getTenantId = () => {
   const tenant = getCurrentTenant();
   const currentTenantId = tenant?.id ?? tenant?.tenant_id ?? "";
@@ -47,12 +56,14 @@ export const storeStorefrontCustomerAuth = ({ token = "", phone = "" } = {}) => 
   else removeStorageValue(STOREFRONT_CUSTOMER_TOKEN_KEY);
   if (safePhone) safeSetLocalStorage(STOREFRONT_CUSTOMER_PHONE_KEY, safePhone);
   else removeStorageValue(STOREFRONT_CUSTOMER_PHONE_KEY);
+  dispatchAuthChange();
   return { token: safeToken, phone: safePhone };
 };
 
 export const clearStorefrontCustomerAuth = () => {
   removeStorageValue(STOREFRONT_CUSTOMER_TOKEN_KEY);
   removeStorageValue(STOREFRONT_CUSTOMER_PHONE_KEY);
+  dispatchAuthChange();
 };
 
 export const getStorefrontCustomerAuthHeaders = (extraHeaders = {}) => {

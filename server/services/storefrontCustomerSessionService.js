@@ -87,7 +87,8 @@ export const ensureStorefrontCustomerSessionSchema = async (clientOrPool = db) =
       loyalty_tier VARCHAR(50) NOT NULL DEFAULT 'Bronze',
       wallet_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
       total_spent NUMERIC(12,2) NOT NULL DEFAULT 0,
-      total_orders INTEGER NOT NULL DEFAULT 0
+      total_orders INTEGER NOT NULL DEFAULT 0,
+      preferred_sizes JSONB NOT NULL DEFAULT '{}'::jsonb
     )
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
@@ -101,6 +102,7 @@ export const ensureStorefrontCustomerSessionSchema = async (clientOrPool = db) =
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS wallet_balance NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS total_spent NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS total_orders INTEGER NOT NULL DEFAULT 0`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS preferred_sizes JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS loyalty_updated_at TIMESTAMP NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS registration_source VARCHAR(80) NOT NULL DEFAULT ''`);

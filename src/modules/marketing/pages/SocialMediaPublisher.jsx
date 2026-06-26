@@ -1,16 +1,25 @@
 ﻿import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  BadgeDollarSign,
+  Copy,
   CalendarClock,
   Camera,
   History,
   Image as ImageIcon,
   Loader2,
+  MapPin,
+  Package,
+  Percent,
   RefreshCcw,
   Search,
   Send,
+  ShoppingCart,
   Share2,
   ShieldAlert,
+  Sparkles,
+  Tag,
+  Truck,
   Upload,
   Video,
   Wand2,
@@ -67,6 +76,45 @@ const statusLabel = (value) => {
   if (normalized === "partial_success") return "Partial success";
   if (normalized === "failed") return "Failed";
   return "Draft";
+};
+
+const normalizeHistoryStatus = (value) => String(value || "").trim().toLowerCase();
+
+const getHistoryStatusDetails = (status, errorMessage = "") => {
+  const normalized = normalizeHistoryStatus(status);
+  if (normalized === "published") {
+    return {
+      label: "Published ✓",
+      toneClass: "border-emerald-400/20 bg-emerald-400/10 text-emerald-100",
+      detail: "",
+    };
+  }
+  if (normalized === "failed") {
+    return {
+      label: "Failed",
+      toneClass: "border-rose-400/20 bg-rose-400/10 text-rose-100",
+      detail: String(errorMessage || "Unknown reason").trim(),
+    };
+  }
+  if (normalized === "scheduled") {
+    return {
+      label: "Scheduled",
+      toneClass: "border-amber-400/20 bg-amber-400/10 text-amber-100",
+      detail: "",
+    };
+  }
+  if (normalized === "skipped") {
+    return {
+      label: "Skipped",
+      toneClass: "border-slate-400/20 bg-slate-400/10 text-slate-200",
+      detail: String(errorMessage || "").trim(),
+    };
+  }
+  return {
+    label: statusLabel(normalized),
+    toneClass: "border-white/10 bg-white/5 text-slate-200",
+    detail: String(errorMessage || "").trim(),
+  };
 };
 
 const safeArray = (value) => (Array.isArray(value) ? value : []);
@@ -344,59 +392,65 @@ const buildSuggestedFirstComment = (product = {}, options = {}) => {
   const includeLocation = Boolean(options.includeLocation);
   const includeShipping = Boolean(options.includeShipping);
   const productUrl = buildFullProductUrl(product.product_url || product.url || "");
+  const sku = normalizeTextValue(product.sku || product.sku_code || product.product_sku || product.skuId || "");
   const lines = [];
   const currentPrice = Number(pricing.current_price || pricing.current || 0);
   const originalPrice = Number(pricing.old_crossed_price || pricing.original_price || pricing.original || 0);
   const hasSale = Boolean(pricing.sale_active || (currentPrice > 0 && originalPrice > currentPrice));
 
   if (hasSale && currentPrice > 0) {
-    lines.push(`السعر الآن: ${formatCompactCurrency(currentPrice)} ج.م`);
+    lines.push(`💰 السعر الآن: ${formatCompactCurrency(currentPrice)} ج.م`);
     if (originalPrice > currentPrice) {
-      lines.push(`قبل الخصم: ${formatCompactCurrency(originalPrice)} ج.م`);
+      lines.push(`🏷️ قبل الخصم: ${formatCompactCurrency(originalPrice)} ج.م`);
       const discountPercent = computeDiscountPercent(originalPrice, currentPrice);
       if (discountPercent) {
-        lines.push(`وفر ${discountPercent}`);
+        lines.push(`💸 وفر ${discountPercent}`);
       }
     }
     lines.push("⏳ عرض لفترة محدودة.");
   } else if (currentPrice > 0) {
-    lines.push(`السعر: ${formatCompactCurrency(currentPrice)} ج.م`);
+    lines.push(`💰 السعر: ${formatCompactCurrency(currentPrice)} ج.م`);
   }
 
   if (availability.sizes.length) {
     lines.push("");
-    lines.push(`المقاسات المتوفرة: ${availability.sizes.join(" • ")}`);
+    lines.push(`📏 المقاسات: ${availability.sizes.join(" • ")}`);
+  }
+
+  if (sku) {
+    lines.push("");
+    lines.push(`🏷️ كود المنتج: ${sku}`);
   }
 
   if (availability.colors.length) {
     lines.push("");
-    lines.push(`${availability.colors.length === 1 ? "اللون" : "الألوان"}: ${availability.colors.join(" • ")}`);
+    lines.push(`🎨 ${availability.colors.length === 1 ? "اللون" : "الألوان"}: ${availability.colors.join(" • ")}`);
   }
 
   if (availability.stock > 0) {
     lines.push("");
-    lines.push(availability.stock < 5 ? "⚠️ الكمية محدودة." : "متوفر الآن.");
+    lines.push(availability.stock < 5 ? "⚠️ الحالة: الكمية محدودة." : "✅ الحالة: متوفر الآن.");
   } else {
     lines.push("");
-    lines.push("❌ غير متوفر حالياً.");
+    lines.push("❌ الحالة: غير متوفر حالياً.");
   }
 
   if (includeShipping) {
     lines.push("");
-    lines.push("شحن لجميع المحافظات");
+    lines.push("🚚 الشحن: شحن لجميع المحافظات");
   }
 
   if (includeLocation) {
     lines.push("");
-    lines.push("دمياط الجديدة");
+    lines.push("📍 الموقع: دمياط الجديدة");
   }
 
   lines.push("");
-  lines.push("للحجز أو الاستفسار ابعتلنا رسالة.");
+  lines.push("💬 للحجز: للحجز أو الاستفسار ابعتلنا رسالة.");
 
   if (productUrl) {
     lines.push("");
-    lines.push("أو اطلب مباشرة:");
+    lines.push("🛒 اطلب الآن:");
     lines.push(productUrl);
   }
 
@@ -968,15 +1022,21 @@ export default function SocialMediaPublisher() {
     }
     toast.success("First comment saved to draft.");
   };
-  const copySuggestedFirstComment = async () => {
-    if (!firstComment.trim()) return;
+  const copyTextToClipboard = async (text) => {
+    const normalized = String(text || "").trim();
+    if (!normalized) return false;
     try {
-      await navigator.clipboard.writeText(firstComment);
-      toast.success("Copied first comment.");
+      await navigator.clipboard.writeText(normalized);
+      toast.success("Copied successfully.");
+      return true;
     } catch {
       toast.error("Copy failed.");
+      return false;
     }
   };
+  const copySuggestedFirstComment = () => copyTextToClipboard(firstComment);
+  const copyCaption = () => copyTextToClipboard(caption);
+  const copyAll = () => copyTextToClipboard([caption.trim(), firstComment.trim()].filter(Boolean).join("\n\n"));
 
   useEffect(() => {
     if (!selectedCatalogProduct?.id) {
@@ -1509,20 +1569,92 @@ export default function SocialMediaPublisher() {
 
                     <div className="mt-3 rounded-[1.35rem] border border-white/10 bg-white/[0.03] p-3">
                       <div className="max-h-[min(36vh,22rem)] overflow-y-auto pr-1">
-                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
-                        {firstCommentPreview}
-                        </p>
+                        <div className="space-y-3 text-sm leading-6 text-slate-100">
+                          {firstCommentPreview.split("\n").map((line, index) => {
+                            const text = String(line || "").trim();
+                            if (!text) {
+                              return <div key={`gap-${index}`} className="h-2" />;
+                            }
+
+                            const linkMatch = text.match(/^(https?:\/\/\S+)$/i);
+                            if (linkMatch) {
+                              return (
+                                <a
+                                  key={`link-${index}`}
+                                  href={linkMatch[1]}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block rounded-[1.1rem] border border-cyan-400/20 bg-cyan-400/10 px-4 py-3 font-semibold text-cyan-50 transition hover:border-cyan-300/40 hover:bg-cyan-400/15"
+                                >
+                                  {linkMatch[1]}
+                                </a>
+                              );
+                            }
+
+                            const lineIconMap = [
+                              { match: "💰 السعر الآن:", icon: BadgeDollarSign },
+                              { match: "💰 السعر:", icon: BadgeDollarSign },
+                              { match: "🏷️ قبل الخصم:", icon: Tag },
+                              { match: "💸 وفر", icon: Percent },
+                              { match: "📏 المقاسات:", icon: Package },
+                              { match: "🏷️ كود المنتج:", icon: Tag },
+                              { match: "🎨 اللون:", icon: Sparkles },
+                              { match: "🎨 الألوان:", icon: Sparkles },
+                              { match: "⚠️ الحالة:", icon: ShieldAlert },
+                              { match: "✅ الحالة:", icon: ShieldAlert },
+                              { match: "❌ الحالة:", icon: ShieldAlert },
+                              { match: "🚚 الشحن:", icon: Truck },
+                              { match: "📍 الموقع:", icon: MapPin },
+                              { match: "💬 للحجز:", icon: Send },
+                              { match: "🛒 اطلب الآن:", icon: ShoppingCart },
+                              { match: "⏳ عرض لفترة محدودة.", icon: Sparkles },
+                            ];
+                            const matchedLine = lineIconMap.find((entry) => text.startsWith(entry.match));
+                            const Icon = matchedLine?.icon || Sparkles;
+
+                            return (
+                              <div
+                                key={`line-${index}`}
+                                className="flex items-start gap-3 rounded-[1.1rem] border border-white/5 bg-black/10 px-3 py-2.5"
+                              >
+                                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-slate-200">
+                                  <Icon className="h-3.5 w-3.5" />
+                                </span>
+                                <span className="min-w-0 flex-1 break-words">{text}</span>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     </div>
 
                     <div className="sticky bottom-0 mt-3 flex flex-wrap gap-2 border-t border-white/10 bg-slate-950/90 pt-3 backdrop-blur">
                       <button
                         type="button"
+                        onClick={copyCaption}
+                        disabled={!caption.trim()}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copy Caption
+                      </button>
+                      <button
+                        type="button"
                         onClick={copySuggestedFirstComment}
                         disabled={!firstComment.trim()}
-                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        Copy
+                        <Copy className="h-3.5 w-3.5" />
+                        Copy First Comment
+                      </button>
+                      <button
+                        type="button"
+                        onClick={copyAll}
+                        disabled={!caption.trim() && !firstComment.trim()}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        Copy All
                       </button>
                       <button
                         type="button"
@@ -1807,6 +1939,12 @@ export default function SocialMediaPublisher() {
                   const previewLabel = post.media_type === "video" ? "Video" : "Image";
                   const isBusy = publishingId === post.id;
                   const canPublishAgain = post.status === "draft" || post.status === "failed" || post.status === "scheduled" || post.status === "partial_success";
+                  const captionStatus = getHistoryStatusDetails(post.status, post.error_message);
+                  const firstCommentStatus = getHistoryStatusDetails(
+                    post.first_comment_status || (String(post.first_comment || "").trim() ? post.status : "skipped"),
+                    post.first_comment_error || (String(post.first_comment || "").trim() && post.status === "failed" ? post.error_message : "")
+                  );
+                  const overallStatus = getHistoryStatusDetails(post.status, post.error_message);
                   return (
                     <article key={post.id} className="rounded-3xl border border-white/10 bg-slate-950/50 p-3">
                       <div className="flex items-start gap-3">
@@ -1817,7 +1955,7 @@ export default function SocialMediaPublisher() {
                             <ImageIcon className="h-4 w-4" />
                           )}
                         </div>
-                        <div className="min-w-0 flex-1 space-y-2">
+                        <div className="min-w-0 flex-1 space-y-3">
                           <div className="flex flex-wrap items-center gap-2">
                             <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
                               {previewLabel}
@@ -1826,21 +1964,45 @@ export default function SocialMediaPublisher() {
                               {statusLabel(post.status)}
                             </span>
                           </div>
-                          <p className="line-clamp-2 break-words text-sm leading-6 text-slate-100">{post.caption || "No caption yet"}</p>
+                          <div className="grid gap-3 lg:grid-cols-3">
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+                              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Caption</div>
+                              <div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                                {post.caption || "No caption yet"}
+                              </div>
+                              <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${captionStatus.toneClass}`}>
+                                {captionStatus.label}
+                              </div>
+                              {captionStatus.detail ? <div className="mt-2 break-words text-xs leading-5 text-rose-200">{captionStatus.detail}</div> : null}
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+                              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">First Comment</div>
+                              <div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                                {String(post.first_comment || "").trim() || "-"}
+                              </div>
+                              <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${firstCommentStatus.toneClass}`}>
+                                {firstCommentStatus.label}
+                              </div>
+                              {firstCommentStatus.detail ? <div className="mt-2 break-words text-xs leading-5 text-rose-200">{firstCommentStatus.detail}</div> : null}
+                            </div>
+                            <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+                              <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Status</div>
+                              <div className={`mt-1 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${overallStatus.toneClass}`}>
+                                {overallStatus.label}
+                              </div>
+                              {overallStatus.detail ? <div className="mt-2 break-words text-xs leading-5 text-rose-200">{overallStatus.detail}</div> : null}
+                              <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-400">
+                                {safeArray(post.platforms).map((platform) => (
+                                  <span key={platform} className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 break-all">
+                                    {platform}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
                           <div className="flex flex-wrap gap-2 text-[11px] text-slate-400">
-                            {safeArray(post.platforms).map((platform) => (
-                              <span key={platform} className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 break-all">
-                                {platform}
-                              </span>
-                            ))}
                             <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1">Created {formatDateTime(post.created_at)}</span>
                           </div>
-                          {post.error_message ? (
-                            <div className="flex items-start gap-2 rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-100 break-words">
-                              <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                              <span>{post.error_message}</span>
-                            </div>
-                          ) : null}
                         </div>
                       </div>
 
@@ -2018,7 +2180,9 @@ export default function SocialMediaPublisher() {
                       disabled={!selectedCatalogProduct || aiTemplateLoading}
                       className="w-full rounded-[1.6rem] border border-amber-400/25 bg-amber-400/10 p-4 text-start transition hover:border-amber-300/35 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-slate-500"
                     >
-                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-100">NEW COLLECTION</div>
+                      <span className="inline-flex rounded-full border border-amber-400/25 bg-amber-400/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-amber-100">
+                        NEW COLLECTION
+                      </span>
                       <div className="mt-2 text-base font-black text-white">New Collection</div>
                       <div className="mt-2 text-sm leading-6 text-slate-300">
                         Premium caption generated from the selected ERP product only.

@@ -213,16 +213,14 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             setTouchedOptions({ color: false, size: false });
             try {
               rememberProduct(product);
-              const { token, phone: storedPhone } = readStorefrontCustomerAuth();
-              const phone = storedPhone || profilePhone;
-              const recentlyViewedKey = `${product.id}:${phone || getSessionId()}`;
-              if (recentlyViewedSentRef.current !== recentlyViewedKey) {
-                recentlyViewedSentRef.current = recentlyViewedKey;
-                const payload = { product_id: product.id, session_id: getSessionId(), phone };
-                const request = token
-                  ? storefrontCustomerRequest("/storefront/recently-viewed", { method: "POST", body: payload })
-                  : api.post("/storefront/recently-viewed", payload);
-                Promise.resolve(request).catch(() => undefined);
+              const { token } = readStorefrontCustomerAuth();
+              if (token) {
+                const recentlyViewedKey = `${product.id}:${token}`;
+                if (recentlyViewedSentRef.current !== recentlyViewedKey) {
+                  recentlyViewedSentRef.current = recentlyViewedKey;
+                  const payload = { product_id: product.id, session_id: getSessionId() };
+                  storefrontCustomerRequest("/storefront/recently-viewed", { method: "POST", body: payload }).catch(() => undefined);
+                }
               }
             } catch (sideEffectError) {
               console.warn("[storefront-product] post-load side effect skipped", sideEffectError);

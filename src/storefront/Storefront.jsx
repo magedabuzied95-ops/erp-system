@@ -62,7 +62,7 @@ import {
 import { api } from "../shared/api/api";
 import { API_BASE_URL } from "../shared/constants/app";
 import { resolveProductImageUrl } from "../shared/lib/imageUrls";
-import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "./lib/storefrontCustomerAuth";
+import { clearStorefrontCustomerAuth, readStorefrontCustomerAuth, storefrontCustomerRequest } from "./lib/storefrontCustomerAuth";
 import { formatCurrencyParts, getCurrency } from "../shared/lib/currency";
 import { useProductClassifications } from "../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../modules/products/lib/productClassifications";
@@ -10556,15 +10556,28 @@ function Storefront() {
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [routeReady, setRouteReady] = useState(false);
+  const [customerAuth, setCustomerAuth] = useState(() => readStorefrontCustomerAuth());
   const storefrontRouteKey = `${location.pathname}${location.search}`;
   const cartCount = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const wishlistCount = wishlist.length;
+  const customerAuthTokenRef = useRef("");
   const toggleThemeMode = useCallback(() => {
     setThemeMode((current) => (current === "dark" ? "light" : "dark"));
   }, []);
 
   useEffect(() => {
     setRouteReady(true);
+  }, []);
+
+  useEffect(() => {
+    const syncCustomerAuth = () => setCustomerAuth(readStorefrontCustomerAuth());
+    syncCustomerAuth();
+    window.addEventListener("storefront-customer-auth-changed", syncCustomerAuth);
+    window.addEventListener("storage", syncCustomerAuth);
+    return () => {
+      window.removeEventListener("storefront-customer-auth-changed", syncCustomerAuth);
+      window.removeEventListener("storage", syncCustomerAuth);
+    };
   }, []);
 
   useEffect(() => {
@@ -10673,9 +10686,22 @@ function Storefront() {
   const toggleWishlist = useCallback((product) => {
     const item = normalizeStorefrontItem(product);
     if (!item.id) return;
+    const { token } = readStorefrontCustomerAuth();
     setWishlist((prev) => {
       const exists = prev.some((entry) => String(entry.id) === String(item.id));
-      return exists ? prev.filter((entry) => String(entry.id) !== String(item.id)) : [item, ...prev];
+      const next = exists ? prev.filter((entry) => String(entry.id) !== String(item.id)) : [item, ...prev];
+      if (token) {
+        storefrontCustomerRequest("/storefront/wishlist", {
+          method: exists ? "DELETE" : "POST",
+          body: { product_id: item.id, remove: exists },
+        }).catch((error) => {
+          const status = Number(error?.status || error?.response?.status || 0);
+          if (status === 401 || status === 403) {
+            clearStorefrontCustomerAuth();
+          }
+        });
+      }
+      return next;
     });
   }, []);
 
@@ -10684,9 +10710,90 @@ function Storefront() {
     if (!item.id) return;
     setRecent((prev) => {
       const next = [item, ...prev.filter((entry) => String(entry.id) !== String(item.id))];
+      const { token } = readStorefrontCustomerAuth();
+      if (token) {
+        storefrontCustomerRequest("/storefront/recently-viewed", {
+          method: "POST",
+          body: { product_id: item.id, session_id: getSessionId() },
+        }).catch((error) => {
+          const status = Number(error?.status || error?.response?.status || 0);
+          if (status === 401 || status === 403) {
+            clearStorefrontCustomerAuth();
+          }
+        });
+      }
       return next.slice(0, 20);
     });
   }, []);
+
+  useEffect(() => {
+    const token = String(customerAuth.token || "").trim();
+    if (!token || customerAuthTokenRef.current === token) return undefined;
+    customerAuthTokenRef.current = token;
+    let cancelled = false;
+
+    const syncCustomerLists = async () => {
+      try {
+        const data = await storefrontCustomerRequest("/storefront/account");
+        if (cancelled) return;
+        const backendWishlist = Array.isArray(data?.wishlist_products) ? data.wishlist_products.map(normalizeStorefrontItem).filter((item) => item.id) : [];
+        const backendRecent = Array.isArray(data?.recent_products) ? data.recent_products.map(normalizeStorefrontItem).filter((item) => item.id) : [];
+        const backendWishlistIds = new Set(backendWishlist.map((item) => String(item.id)));
+        const backendRecentIds = new Set(backendRecent.map((item) => String(item.id)));
+        const guestWishlist = (Array.isArray(wishlist) ? wishlist : []).map(normalizeStorefrontItem).filter((item) => item.id);
+        const guestRecent = (Array.isArray(recent) ? recent : []).map(normalizeStorefrontItem).filter((item) => item.id);
+        const mergedWishlist = [...backendWishlist, ...guestWishlist].reduce((acc, item) => {
+          const id = String(item.id || "");
+          if (!id || acc.some((entry) => String(entry.id) === id)) return acc;
+          acc.push(item);
+          return acc;
+        }, []);
+        const mergedRecent = [...backendRecent, ...guestRecent].reduce((acc, item) => {
+          const id = String(item.id || "");
+          if (!id || acc.some((entry) => String(entry.id) === id)) return acc;
+          acc.push(item);
+          return acc;
+        }, []).slice(0, 20);
+        setProfile((prev) => ({
+          ...prev,
+          primary_phone: data?.customer?.phone || prev.primary_phone || "",
+          phone: data?.customer?.phone || prev.phone || "",
+          customer_id: data?.customer?.id || prev.customer_id || "",
+          full_name: data?.customer?.name || prev.full_name || "",
+        }));
+        setWishlist(mergedWishlist);
+        setRecent(mergedRecent);
+
+        const missingWishlistItems = guestWishlist.filter((item) => !backendWishlistIds.has(String(item.id)));
+        const missingRecentItems = guestRecent.filter((item) => !backendRecentIds.has(String(item.id)));
+        await Promise.allSettled([
+          ...missingWishlistItems.map((item) =>
+            storefrontCustomerRequest("/storefront/wishlist", {
+              method: "POST",
+              body: { product_id: item.id },
+            })
+          ),
+          ...missingRecentItems.map((item) =>
+            storefrontCustomerRequest("/storefront/recently-viewed", {
+              method: "POST",
+              body: { product_id: item.id, session_id: getSessionId() },
+            })
+          ),
+        ]);
+      } catch (error) {
+        const status = Number(error?.status || error?.response?.status || 0);
+        if (status === 401 || status === 403) {
+          clearStorefrontCustomerAuth();
+          setCustomerAuth(readStorefrontCustomerAuth());
+        }
+      }
+    };
+
+    void syncCustomerLists();
+    return () => {
+      cancelled = true;
+    };
+  }, [customerAuth.token, recent, setProfile, setRecent, setWishlist, wishlist]);
 
   const brandName = resolveStorefrontBrandName(publicStoreSettings);
   const brandLogoUrl = resolveStorefrontBrandLogoUrl(publicStoreSettings);

@@ -829,14 +829,10 @@ function SocialCommentsWorkspace({
   };
 
   const submitPrivateMessage = async (comment = actionableComment, messageText = replyDraft || suggestedReply) => {
-    const conversationId = clean(activePostConversationId || activePostPostId);
-    const commentId = clean(comment?.id || "");
+    const actionId = resolveSocialCommentActionId(comment);
+    const actionCandidates = getSocialCommentActionIdCandidates(comment);
     const finalMessage = clean(messageText);
     if (privateMessageLoadingKey) return;
-    if (!conversationId) {
-      notify("amber", "تعذر تحديد المحادثة الخاصة لهذا البوست");
-      return;
-    }
     if (!finalMessage) {
       notify("amber", "اكتب رسالة خاصة أولًا");
       return;
@@ -845,19 +841,29 @@ function SocialCommentsWorkspace({
       notify("amber", "الرسائل الخاصة مدعومة فقط لتعليقات Facebook وInstagram");
       return;
     }
-    setPrivateMessageLoadingKey(commentId || conversationId);
+    console.warn("[social-comments:action-id-debug]", {
+      action: "private_message",
+      candidate_ids: actionCandidates,
+      rejected_small_numeric_ids: actionCandidates.filter(({ value }) => isSmallNumericId(value)),
+      resolved_id: actionId,
+    });
+    if (!actionId) {
+      console.error("[social-comments:action-id-debug]", "No provider comment id found");
+      notify("amber", "تعذر تحديد معرف التعليق");
+      return;
+    }
+    setPrivateMessageLoadingKey(actionId);
     try {
-      await api.post(`/ai-inbox/inbox/${encodeURIComponent(conversationId)}/private-message`, {
+      await api.post(`/ai-inbox/comments/${encodeURIComponent(actionId)}/private-message`, {
         message: finalMessage,
-        comment_id: commentId,
         platform: activePostPlatform || "facebook",
         post_id: activePostPostId,
       });
-      setPrivateMessageStatusOverrides((current) => ({ ...current, [commentId || conversationId]: "sent" }));
+      setPrivateMessageStatusOverrides((current) => ({ ...current, [actionId]: "sent" }));
       notify("emerald", "تم إرسال الرسالة الخاصة");
       await Promise.resolve(onRefresh?.());
     } catch (error) {
-      setPrivateMessageStatusOverrides((current) => ({ ...current, [commentId || conversationId]: "failed" }));
+      setPrivateMessageStatusOverrides((current) => ({ ...current, [actionId]: "failed" }));
       notify("rose", error?.message || "إرسال رسالة خاصة من التعليق يحتاج صلاحية/دعم Meta، استخدم فتح البوست مؤقتًا.");
     } finally {
       setPrivateMessageLoadingKey("");

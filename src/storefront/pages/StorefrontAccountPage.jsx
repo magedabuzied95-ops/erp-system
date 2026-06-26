@@ -36,6 +36,23 @@ const normalizeAccountIdentity = (value = {}) => ({
   customer_id: String(value?.customer_id || value?.id || "").trim(),
 });
 
+const defaultPreferredSizes = () => ({
+  men: "",
+  women: "",
+  kids: "",
+  crocs: "",
+});
+
+const normalizePreferredSizes = (value = {}) => {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  return {
+    men: String(source.men || source.male || source["رجالي"] || source.man || source.men_size || source.size_men || "").trim(),
+    women: String(source.women || source.female || source["حريمي"] || source.women_size || source.size_women || "").trim(),
+    kids: String(source.kids || source.children || source["أطفال"] || source["اطفال"] || source.kids_size || source.size_kids || "").trim(),
+    crocs: String(source.crocs || source.crocs_size || source.size_crocs || "").trim(),
+  };
+};
+
 const clearAccountIdentityStorage = () => {
   if (typeof window === "undefined") return;
   try {
@@ -209,8 +226,10 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
   const [loading, setLoading] = useState(false);
   const [requestingOtp, setRequestingOtp] = useState(false);
   const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [savingPreferences, setSavingPreferences] = useState(false);
   const [otpRequestedAt, setOtpRequestedAt] = useState(0);
   const [resendCountdown, setResendCountdown] = useState(0);
+  const [preferredSizes, setPreferredSizes] = useState(() => defaultPreferredSizes());
   const accountRefreshIntervalMs = selectedOrder ? 10 * 1000 : 30 * 1000;
   const hasCustomerToken = Boolean(customerAuth.token);
   const normalizedLoginPhone = normalizePhoneDigits(phone);
@@ -247,6 +266,8 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     setLoading(false);
     setRequestingOtp(false);
     setVerifyingOtp(false);
+    setSavingPreferences(false);
+    setPreferredSizes(defaultPreferredSizes());
     setProfile((prev) => ({
       ...prev,
       full_name: "",
@@ -276,6 +297,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
         customer_id: data.customer?.id || prev.customer_id || prev.id || "",
         full_name: data.customer?.name || prev.full_name || "",
       }));
+      setPreferredSizes(normalizePreferredSizes(data.preferences || data.customer?.preferred_sizes || defaultPreferredSizes()));
       setCustomerAuth({ token, phone: requestPhone || storedPhone || "" });
       return data;
     } catch (error) {
@@ -393,6 +415,37 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
       setVerifyingOtp(false);
     }
   }, [load, otpCode, phone]);
+
+  const updatePreferredSize = useCallback((key, value) => {
+    setPreferredSizes((prev) => ({
+      ...prev,
+      [key]: String(value || "").trim(),
+    }));
+  }, []);
+
+  const savePreferredSizes = useCallback(async () => {
+    if (!hasCustomerToken) {
+      toast.error("سجّل الدخول أولًا حتى نحفظ مقاساتك");
+      return;
+    }
+    setSavingPreferences(true);
+    try {
+      const response = await storefrontCustomerRequest("/storefront/customer/preferences", {
+        method: "PUT",
+        body: { preferred_sizes: preferredSizes },
+      });
+      setPreferredSizes(normalizePreferredSizes(response?.preferences || preferredSizes));
+      toast.success("تم حفظ مقاساتك");
+    } catch (error) {
+      if (Number(error?.status || error?.response?.status || 0) === 401) {
+        toast.error("سجّل الدخول مرة أخرى");
+        return;
+      }
+      toast.error("تعذر حفظ المقاسات حاليًا");
+    } finally {
+      setSavingPreferences(false);
+    }
+  }, [hasCustomerToken, preferredSizes]);
 
   const loadProductsForReorder = useCallback(async (items = []) => {
     const uniqueProductIds = [...new Set(
@@ -566,6 +619,28 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
           <div className="mt-4">
             <InfoBox label={sfText("storefront.account.myData", "بياناتي")} value={hasCustomerToken ? authSummary : "أدخل رقم هاتفك ثم فعّل OTP لعرض الحساب"} />
             {hasCustomerToken ? <LoyaltyWidget loyalty={account?.loyalty} loading={loading} helpers={helpers} /> : null}
+            {hasCustomerToken ? (
+              <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+                <div>
+                  <div className="text-sm font-black text-stone-900">مقاساتي</div>
+                  <p className="mt-1 text-xs font-bold leading-6 text-stone-500">احفظ المقاسات المفضلة حتى تراها من أي جهاز بعد تسجيل الدخول.</p>
+                </div>
+                <div className="mt-4 grid gap-3">
+                  <Field label="رجالي" value={preferredSizes.men} onChange={(value) => updatePreferredSize("men", value)} placeholder="44" inputMode="text" />
+                  <Field label="حريمي" value={preferredSizes.women} onChange={(value) => updatePreferredSize("women", value)} placeholder="39" inputMode="text" />
+                  <Field label="أطفال" value={preferredSizes.kids} onChange={(value) => updatePreferredSize("kids", value)} placeholder="31" inputMode="text" />
+                  <Field label="كروكس" value={preferredSizes.crocs} onChange={(value) => updatePreferredSize("crocs", value)} placeholder="41/42" inputMode="text" />
+                  <button
+                    type="button"
+                    onClick={savePreferredSizes}
+                    disabled={savingPreferences}
+                    className="min-h-11 rounded-full bg-stone-950 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-stone-300"
+                  >
+                    {savingPreferences ? "جارٍ الحفظ..." : "حفظ المقاسات"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
         <div className="space-y-5">

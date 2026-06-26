@@ -748,6 +748,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS is_trusted BOOLEAN DEFAULT false`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS cod_enabled BOOLEAN DEFAULT false`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS completed_orders INTEGER DEFAULT 0`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS preferred_sizes JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS source VARCHAR(50) NOT NULL DEFAULT 'pos'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_type VARCHAR(50) NOT NULL DEFAULT 'walk_in'`);
@@ -4218,6 +4219,7 @@ export const accountByPhone = async (req, res) => {
     res.json({
       success: true,
       customer: customer.rows[0] || null,
+      preferences: normalizePreferredSizes(customer.rows[0]?.preferred_sizes || defaultPreferredSizes()),
       orders: orders.rows.map(attachPublicOrderNumber),
       loyalty,
       addresses,
@@ -4234,6 +4236,69 @@ export const accountByPhone = async (req, res) => {
       tenantId: Number(req.storefrontCustomer?.tenant_id || req.headers?.["x-tenant-id"] || req.query?.tenant_id || req.body?.tenant_id || DEFAULT_TENANT_ID),
     });
     res.status(500).json({ success: false, message: "Failed to load account" });
+  }
+};
+
+export const getStorefrontCustomerPreferences = async (req, res) => {
+  try {
+    await ensureStorefrontSchema(db);
+    const tenantId = Number(req.storefrontCustomer?.tenant_id || tenantFromRequest(req));
+    const phone = normalizePhone(toText(req.storefrontCustomer?.phone || ""));
+    if (!phone) {
+      return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
+    }
+    const customer = await findStorefrontCustomerByPhone(db, { tenantId, phone });
+    return res.json({
+      success: true,
+      preferences: normalizePreferredSizes(customer?.preferred_sizes || defaultPreferredSizes()),
+    });
+  } catch (error) {
+    console.error("[storefront-preferences] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+      hasStorefrontCustomer: Boolean(req.storefrontCustomer),
+      hasJwtPhone: Boolean(req.storefrontCustomer?.phone),
+      tenantId: Number(req.storefrontCustomer?.tenant_id || req.headers?.["x-tenant-id"] || req.query?.tenant_id || req.body?.tenant_id || DEFAULT_TENANT_ID),
+    });
+    return res.status(500).json({ success: false, message: "Failed to load customer preferences" });
+  }
+};
+
+export const updateStorefrontCustomerPreferences = async (req, res) => {
+  try {
+    await ensureStorefrontSchema(db);
+    const tenantId = Number(req.storefrontCustomer?.tenant_id || tenantFromRequest(req));
+    const phone = normalizePhone(toText(req.storefrontCustomer?.phone || ""));
+    if (!phone) {
+      return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
+    }
+    const customer = await findStorefrontCustomerByPhone(db, { tenantId, phone });
+    if (!customer?.id) {
+      return res.status(404).json({ success: false, message: "Customer not found" });
+    }
+    const currentSizes = normalizePreferredSizes(customer.preferred_sizes || defaultPreferredSizes());
+    const incomingSizes = normalizePreferredSizes(req.body?.preferred_sizes || req.body || {});
+    const preferredSizes = mergePreferredSizes(currentSizes, incomingSizes);
+    await db.query(
+      `
+      UPDATE customers
+      SET preferred_sizes = $3::jsonb,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE tenant_id = $1
+        AND id = $2
+      `,
+      [tenantId, customer.id, JSON.stringify(preferredSizes)]
+    );
+    return res.json({ success: true, preferences: preferredSizes });
+  } catch (error) {
+    console.error("[storefront-preferences] save failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+      hasStorefrontCustomer: Boolean(req.storefrontCustomer),
+      hasJwtPhone: Boolean(req.storefrontCustomer?.phone),
+      tenantId: Number(req.storefrontCustomer?.tenant_id || req.headers?.["x-tenant-id"] || req.query?.tenant_id || req.body?.tenant_id || DEFAULT_TENANT_ID),
+    });
+    return res.status(500).json({ success: false, message: "Failed to save customer preferences" });
   }
 };
 
@@ -4343,17 +4408,69 @@ export const latestShippingAddress = async (req, res) => {
   }
 };
 
+const defaultPreferredSizes = () => ({
+  men: "",
+  women: "",
+  kids: "",
+  crocs: "",
+});
+
+const normalizePreferredSizes = (value = {}) => {
+  const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  const text = (input = "") => String(input ?? "").trim();
+  return {
+    men: text(source.men || source.male || source["رجالي"] || source.man || source.men_size || source.size_men || ""),
+    women: text(source.women || source.female || source["حريمي"] || source.women_size || source.size_women || ""),
+    kids: text(source.kids || source.children || source["أطفال"] || source["اطفال"] || source.kids_size || source.size_kids || ""),
+    crocs: text(source.crocs || source.crocs_size || source.size_crocs || ""),
+  };
+};
+
+const mergePreferredSizes = (current = {}, patch = {}) => {
+  const currentSizes = normalizePreferredSizes(current);
+  const nextSizes = normalizePreferredSizes(patch);
+  return {
+    men: nextSizes.men || currentSizes.men || "",
+    women: nextSizes.women || currentSizes.women || "",
+    kids: nextSizes.kids || currentSizes.kids || "",
+    crocs: nextSizes.crocs || currentSizes.crocs || "",
+  };
+};
+
+const findStorefrontCustomerByPhone = async (client, { tenantId, phone = "" }) => {
+  const normalizedPhone = normalizePhone(toText(phone));
+  if (!normalizedPhone) return null;
+  const variants = getPhoneSearchVariants(normalizedPhone);
+  if (!variants.length) return null;
+  const result = await client.query(
+    `
+    SELECT *
+    FROM customers
+    WHERE tenant_id = $1
+      AND ${phoneSqlDigits("phone")} = ANY($2::text[])
+    ORDER BY updated_at DESC NULLS LAST, id DESC
+    LIMIT 1
+    `,
+    [tenantId, variants]
+  );
+  return result.rows[0] || null;
+};
+
 export const saveWishlist = async (req, res) => {
   try {
     await ensureStorefrontSchema(db);
     const tenantId = tenantFromRequest(req);
-    const phone = toText(req.body.phone || "");
+    const phone = normalizePhone(toText(req.storefrontCustomer?.phone || ""));
     const productId = Number(req.body.product_id);
-    if (!phone || !productId) return res.status(400).json({ success: false, message: "Phone and product are required" });
+    if (!phone || !productId) return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
+    const customer = await findStorefrontCustomerByPhone(db, { tenantId, phone });
     if (req.method === "DELETE" || req.body.remove) {
       await db.query(`DELETE FROM customer_wishlist WHERE tenant_id = $1 AND phone = $2 AND product_id = $3`, [tenantId, phone, productId]);
     } else {
-      await db.query(`INSERT INTO customer_wishlist (tenant_id, phone, product_id) VALUES ($1,$2,$3) ON CONFLICT (tenant_id, phone, product_id) DO NOTHING`, [tenantId, phone, productId]);
+      await db.query(
+        `INSERT INTO customer_wishlist (tenant_id, customer_id, phone, product_id) VALUES ($1,$2,$3,$4) ON CONFLICT (tenant_id, phone, product_id) DO NOTHING`,
+        [tenantId, customer?.id || null, phone, productId]
+      );
     }
     res.json({ success: true });
   } catch {
@@ -4366,16 +4483,17 @@ export const saveRecentlyViewed = async (req, res) => {
     await ensureStorefrontSchema(db);
     const tenantId = tenantFromRequest(req);
     const sessionId = toText(req.body.session_id);
-    const phone = toText(req.body.phone);
+    const phone = normalizePhone(toText(req.storefrontCustomer?.phone || ""));
     const productId = Number(req.body.product_id);
-    if (!productId) return res.status(400).json({ success: false, message: "Product is required" });
+    if (!phone || !productId) return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
+    const customer = await findStorefrontCustomerByPhone(db, { tenantId, phone });
     await db.query(
       `DELETE FROM recently_viewed_products WHERE tenant_id = $1 AND product_id = $2 AND (($3 <> '' AND phone = $3) OR ($4 <> '' AND session_id = $4))`,
       [tenantId, productId, phone, sessionId]
     );
     await db.query(
-      `INSERT INTO recently_viewed_products (tenant_id, session_id, phone, product_id) VALUES ($1,$2,$3,$4)`,
-      [tenantId, sessionId, phone, productId]
+      `INSERT INTO recently_viewed_products (tenant_id, customer_id, session_id, phone, product_id) VALUES ($1,$2,$3,$4,$5)`,
+      [tenantId, customer?.id || null, sessionId, phone, productId]
     );
     await db.query(
       `
