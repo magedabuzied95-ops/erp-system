@@ -36,6 +36,7 @@ import {
 } from "../Storefront";
 import { api } from "../../shared/api/api";
 import { applyProductSocialMeta } from "../../shared/lib/socialMeta";
+import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
 import { Heart, Share2, ShoppingCart } from "lucide-react";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
@@ -212,11 +213,16 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             setTouchedOptions({ color: false, size: false });
             try {
               rememberProduct(product);
-              const phone = profilePhone;
+              const { token, phone: storedPhone } = readStorefrontCustomerAuth();
+              const phone = storedPhone || profilePhone;
               const recentlyViewedKey = `${product.id}:${phone || getSessionId()}`;
               if (recentlyViewedSentRef.current !== recentlyViewedKey) {
                 recentlyViewedSentRef.current = recentlyViewedKey;
-                api.post("/storefront/recently-viewed", { product_id: product.id, session_id: getSessionId(), phone }).catch(() => undefined);
+                const payload = { product_id: product.id, session_id: getSessionId(), phone };
+                const request = token
+                  ? storefrontCustomerRequest("/storefront/recently-viewed", { method: "POST", body: payload })
+                  : api.post("/storefront/recently-viewed", payload);
+                Promise.resolve(request).catch(() => undefined);
               }
             } catch (sideEffectError) {
               console.warn("[storefront-product] post-load side effect skipped", sideEffectError);

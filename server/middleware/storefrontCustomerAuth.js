@@ -6,15 +6,17 @@ const getBearerToken = (req = {}) => {
   return header.slice(7).trim();
 };
 
+export const hasStorefrontCustomerToken = (req = {}) => Boolean(getBearerToken(req));
+
 export const requireStorefrontCustomerAuth = (req, res, next) => {
   try {
     const token = getBearerToken(req);
     if (!token) {
-      return res.status(401).json({ success: false, message: "Not authorized, no token" });
+      return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
     }
     const decoded = jwt.verify(token, process.env.JWT_SECRET || "SECRET_KEY");
     if (!decoded || decoded.type !== "storefront_customer") {
-      return res.status(401).json({ success: false, message: "Token failed" });
+      return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
     }
     req.storefrontCustomer = {
       type: decoded.type,
@@ -23,7 +25,7 @@ export const requireStorefrontCustomerAuth = (req, res, next) => {
     };
     return next();
   } catch {
-    return res.status(401).json({ success: false, message: "Token failed" });
+    return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
   }
 };
 

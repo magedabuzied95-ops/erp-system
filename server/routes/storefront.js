@@ -3,7 +3,6 @@ import multer from "multer";
 import db from "../database/db.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
-import { requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
 import { ensureBrandsTable } from "../controllers/brandsController.js";
 import {
   accountByPhone,
@@ -37,6 +36,7 @@ import {
   setStorefrontCustomerCookie,
 } from "../services/storefrontCustomerSessionService.js";
 import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAuthService.js";
+import { hasStorefrontCustomerToken, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
 
 const router = express.Router();
 const IMAGE_TOO_LARGE_MESSAGE = "\u062d\u062c\u0645 \u0627\u0644\u0635\u0648\u0631\u0629 \u0643\u0628\u064a\u0631. \u0627\u0631\u0641\u0639 \u0635\u0648\u0631\u0629 \u0623\u0635\u063a\u0631";
@@ -108,6 +108,36 @@ const customerSessionRateLimit = (req, res, next) => {
   recent.push(now);
   customerSessionBuckets.set(key, recent);
   next();
+};
+
+const storefrontCustomerTransitionAuth = (req, res, next) => {
+  if (!hasStorefrontCustomerToken(req)) {
+    req.storefrontCustomer = null;
+    return next();
+  }
+  return requireStorefrontCustomerAuth(req, res, next);
+};
+
+const storefrontCustomerAuthRequired = [requireStorefrontCustomerAuth, (req, _res, next) => {
+  const jwtPhone = toText(req.storefrontCustomer?.phone || "");
+  req.query = { ...(req.query || {}), phone: jwtPhone };
+  req.body = { ...(req.body || {}), phone: jwtPhone };
+  req.params = { ...(req.params || {}), phone: jwtPhone };
+  logProtectedCustomerEndpoint(req, jwtPhone);
+  return next();
+}];
+
+const resolveStorefrontCustomerPhone = (req = {}) => {
+  const jwtPhone = toText(req.storefrontCustomer?.phone || "");
+  if (jwtPhone) return jwtPhone;
+  return toText(req.query?.phone || req.body?.phone || req.body?.mobile || req.params?.phone || "");
+};
+
+const logProtectedCustomerEndpoint = (req, phone = "") => {
+  console.log("[customer-auth] protected-endpoint", {
+    endpoint: req.originalUrl || req.path || "",
+    phone_jwt: phone || "",
+  });
 };
 
 const publicTenantId = (req) => {
@@ -374,14 +404,40 @@ router.get("/products/resolve/:slugOrId", resolveProductLink);
 router.get("/products/:identifier", getProduct);
 router.get("/shipping/quote", getShippingQuote);
 router.post("/checkout", checkoutUpload, createWebsiteOrder);
-router.get("/track", trackOrder);
-router.post("/track", trackOrder);
-router.get("/account", accountByPhone);
-router.get("/customers/latest-shipping-address", latestShippingAddress);
-router.post("/wishlist", saveWishlist);
-router.delete("/wishlist", saveWishlist);
-router.post("/recently-viewed", saveRecentlyViewed);
-router.get("/notifications", listNotifications);
+router.get("/track", storefrontCustomerTransitionAuth, async (req, res, next) => {
+  const jwtPhone = toText(req.storefrontCustomer?.phone || "");
+  const resolvedPhone = resolveStorefrontCustomerPhone(req);
+  req.query = { ...(req.query || {}), phone: jwtPhone || resolvedPhone };
+  req.body = { ...(req.body || {}), phone: jwtPhone || resolvedPhone };
+  logProtectedCustomerEndpoint(req, jwtPhone);
+  return trackOrder(req, res, next);
+});
+router.post("/track", storefrontCustomerTransitionAuth, async (req, res, next) => {
+  const jwtPhone = toText(req.storefrontCustomer?.phone || "");
+  const resolvedPhone = resolveStorefrontCustomerPhone(req);
+  req.query = { ...(req.query || {}), phone: jwtPhone || resolvedPhone };
+  req.body = { ...(req.body || {}), phone: jwtPhone || resolvedPhone };
+  logProtectedCustomerEndpoint(req, jwtPhone);
+  return trackOrder(req, res, next);
+});
+router.get("/account", ...storefrontCustomerAuthRequired, async (req, res, next) => accountByPhone(req, res, next));
+router.get("/customers/latest-shipping-address", storefrontCustomerTransitionAuth, async (req, res, next) => {
+  const jwtPhone = toText(req.storefrontCustomer?.phone || "");
+  const resolvedPhone = resolveStorefrontCustomerPhone(req);
+  req.query = {
+    ...(req.query || {}),
+    phone: jwtPhone || resolvedPhone,
+    primary_phone: jwtPhone || resolvedPhone,
+    email: jwtPhone ? "" : toText(req.query?.email || req.query?.customer_email || ""),
+    customer_email: jwtPhone ? "" : toText(req.query?.email || req.query?.customer_email || ""),
+  };
+  logProtectedCustomerEndpoint(req, jwtPhone);
+  return latestShippingAddress(req, res, next);
+});
+router.post("/wishlist", ...storefrontCustomerAuthRequired, async (req, res, next) => saveWishlist(req, res, next));
+router.delete("/wishlist", ...storefrontCustomerAuthRequired, async (req, res, next) => saveWishlist(req, res, next));
+router.post("/recently-viewed", ...storefrontCustomerAuthRequired, async (req, res, next) => saveRecentlyViewed(req, res, next));
+router.get("/notifications", ...storefrontCustomerAuthRequired, async (req, res, next) => listNotifications(req, res, next));
 router.get("/shipping/providers", listShippingProviders);
 router.post("/shipping/orders/:orderId/create-shipment", protect, permit("orders", "edit"), createShipment);
 

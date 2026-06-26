@@ -4385,6 +4385,9 @@ export const listNotifications = async (req, res) => {
     await ensureStorefrontSchema(db);
     const tenantId = tenantFromRequest(req);
     const phone = toText(req.query.phone);
+    if (!phone) {
+      return res.json({ success: true, notifications: [] });
+    }
     const payload = await getOrSetCache(storefrontCacheKey(tenantId, "notifications", { phone }), 15, async () => {
       const result = await db.query(
         `SELECT * FROM website_notifications WHERE tenant_id = $1 AND ($2 = '' OR phone = $2) ORDER BY created_at DESC LIMIT 30`,

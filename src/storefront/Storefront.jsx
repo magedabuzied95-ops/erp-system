@@ -62,6 +62,7 @@ import {
 import { api } from "../shared/api/api";
 import { API_BASE_URL } from "../shared/constants/app";
 import { resolveProductImageUrl } from "../shared/lib/imageUrls";
+import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "./lib/storefrontCustomerAuth";
 import { formatCurrencyParts, getCurrency } from "../shared/lib/currency";
 import { useProductClassifications } from "../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../modules/products/lib/productClassifications";
@@ -5448,9 +5449,16 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     setNotificationsOpen((value) => {
       const next = !value;
       if (next && notifications.length === 0) {
-        cachedStorefrontGet("/storefront/notifications", { ttlMs: 30 * 1000 })
-          .then((data) => setNotifications(data.notifications || []))
-          .catch(() => setNotifications([]));
+        const { token } = readStorefrontCustomerAuth();
+        if (token) {
+          storefrontCustomerRequest("/storefront/notifications", { params: { limit: 20 } })
+            .then((data) => setNotifications(data.notifications || []))
+            .catch(() => setNotifications([]));
+        } else {
+          cachedStorefrontGet("/storefront/notifications", { ttlMs: 30 * 1000 })
+            .then((data) => setNotifications(data.notifications || []))
+            .catch(() => setNotifications([]));
+        }
       }
       return next;
     });
@@ -7461,10 +7469,18 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     deferReactState(() => {
       if (!cancelled) setCustomerTrust((prev) => ({ ...prev, loading: true }));
     });
+    const params = new URLSearchParams();
+    params.set("phone", phone);
+    if (String(profile.email || profile.customer_email || "").trim()) {
+      params.set("email", String(profile.email || profile.customer_email || "").trim().toLowerCase());
+    }
     api
-      .get(`/storefront/account?phone=${encodeURIComponent(phone)}`)
+      .get(`/storefront/customers/latest-shipping-address?${params.toString()}`)
       .then((data) => {
-        if (!cancelled) setCustomerTrust({ loading: false, customer: data.customer || null });
+        if (!cancelled) {
+          const address = data.address || null;
+          setCustomerTrust({ loading: false, customer: address });
+        }
       })
       .catch(() => {
         if (!cancelled) setCustomerTrust({ loading: false, customer: null });

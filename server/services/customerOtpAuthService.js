@@ -85,7 +85,7 @@ export const sendCustomerOtpWhatsApp = async (phone = "", otp = "") => {
 
   const message = `كود الدخول الخاص بك في M1 Store هو: ${text(otp)}\nصالح لمدة 5 دقائق.`;
   const url = `${apiUrl}/message/sendText/${encodeURIComponent(instanceName)}`;
-  otpLog("request", {
+  otpLog("send-whatsapp", {
     phone_suffix: normalizedPhone.slice(-4),
     phone_length: normalizedPhone.length,
     instance_name: instanceName,
@@ -126,6 +126,13 @@ export const requestCustomerOtp = async ({ tenantId = null, phone = "" } = {}) =
     error.code = "CUSTOMER_OTP_INVALID_PHONE";
     throw error;
   }
+  otpLog("request", {
+    tenant_id: safeTenantId,
+    phone_suffix: normalizedPhone.slice(-4),
+    phone_length: normalizedPhone.length,
+    cooldown_seconds: 60,
+    expires_in_seconds: 300,
+  });
 
   const client = await db.connect();
   let createdOtp = "";

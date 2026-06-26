@@ -1,6 +1,7 @@
 ﻿import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/api";
+import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
 import {
   Bell,
   MessageCircle,
@@ -116,12 +117,19 @@ export function TrackOrderPage({ helpers, components }) {
   const submit = useCallback(async (event) => {
     event?.preventDefault();
     if (!form.order_number.trim()) {
-      setState({ loading: false, data: null, error: sfText("storefront.tracking.validation.orderNumberRequired", "ط£ط¯ط®ظ„ ط±ظ‚ظ… ط§ظ„ط·ظ„ط¨ ط£ظˆظ„ظ‹ط§") });
+      setState({ loading: false, data: null, error: sfText("storefront.tracking.validation.orderNumberRequired", "أدخل رقم الطلب أولًا") });
       return;
     }
     setState({ loading: true, data: null, error: "" });
     try {
-      const data = await api.get(`/storefront/track?order_number=${encodeURIComponent(form.order_number)}&phone=${encodeURIComponent(form.phone)}`);
+      const { token, phone: storedPhone } = readStorefrontCustomerAuth();
+      const params = {
+        order_number: form.order_number,
+        ...(token && storedPhone ? { phone: storedPhone } : form.phone ? { phone: form.phone } : {}),
+      };
+      const data = token
+        ? await storefrontCustomerRequest("/storefront/track", { params })
+        : await api.get(`/storefront/track?order_number=${encodeURIComponent(form.order_number)}&phone=${encodeURIComponent(form.phone)}`);
       setState({ loading: false, data, error: "" });
     } catch (error) {
       setState({ loading: false, data: null, error: error.message });
