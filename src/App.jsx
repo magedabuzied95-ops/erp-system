@@ -171,6 +171,7 @@ const MarketingAttribution = lazy(() => import("./modules/marketing/pages/Market
 const MarketingAutomation = lazy(() => import("./modules/marketing/pages/MarketingAutomation"));
 const SocialPosts = lazy(() => import("./modules/marketing/pages/SocialPosts"));
 const SocialMediaPublisher = lazy(() => import("./modules/marketing/pages/SocialMediaPublisher"));
+const SocialCalendar = lazy(() => import("./modules/marketing/pages/SocialCalendar"));
 const Campaigns = lazy(() => import("./modules/marketing/pages/Campaigns"));
 const PostTemplates = lazy(() => import("./modules/marketing/pages/PostTemplates"));
 const MarketingSettings = lazy(() => import("./modules/marketing/pages/MarketingSettings"));
@@ -1124,6 +1125,15 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["marketing.view"]}>
               <SocialPosts />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="marketing/social-calendar"
+          element={
+            <ProtectedRoute requiredPermissions={["marketing.view"]}>
+              <SocialCalendar />
             </ProtectedRoute>
           }
         />

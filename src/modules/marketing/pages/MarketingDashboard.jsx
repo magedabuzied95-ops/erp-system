@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BarChart3, Bot, CalendarClock, Megaphone, Pencil, Settings2, Share2, Sparkles } from "lucide-react";
+import { BarChart3, Bot, CalendarClock, CalendarDays, Megaphone, Pencil, Settings2, Share2, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
@@ -50,6 +50,7 @@ export default function MarketingDashboard() {
 
   const quickActions = [
     { label: t("marketing.dashboard.quickActions.createPost"), to: "/marketing/posts", icon: Pencil, permission: "marketing.create" },
+    { label: t("marketing.dashboard.quickActions.socialCalendar"), to: "/marketing/social-calendar", icon: CalendarDays, permission: "marketing.view" },
     { label: t("marketing.dashboard.quickActions.socialPublisher", { defaultValue: "Social Media Publisher" }), to: "/marketing/social-media-publisher", icon: Megaphone, permission: "marketing.view" },
     { label: t("marketing.dashboard.quickActions.createCampaign"), to: "/marketing/campaigns", icon: CalendarClock, permission: "marketing.create" },
     { label: t("marketing.dashboard.quickActions.analytics"), to: "/marketing/analytics", icon: BarChart3, permission: "marketing.view" },

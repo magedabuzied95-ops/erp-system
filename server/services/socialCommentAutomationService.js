@@ -16,6 +16,14 @@ import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+let fetchMetaPostPreviewDetailsLoaderPromise = null;
+
+const loadFetchMetaPostPreviewDetails = async () => {
+  if (!fetchMetaPostPreviewDetailsLoaderPromise) {
+    fetchMetaPostPreviewDetailsLoaderPromise = import("./metaIntegrationService.js").then((module) => module.fetchMetaPostPreviewDetails);
+  }
+  return fetchMetaPostPreviewDetailsLoaderPromise;
+};
 const confidenceFrom = (value, fallback = 0.9) => {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return fallback;
@@ -431,6 +439,75 @@ const resolveSocialCommentPostPermalink = (event = {}) =>
       ""
   );
 
+const fetchSocialCommentWebhookPostMedia = async ({ tenantId = null, event = {} } = {}) => {
+  const postId = text(event.raw_payload?.value?.post_id || "");
+  if (!postId) return null;
+
+  const pageId = text(event.raw_payload?.entry?.id || event.raw_payload?.value?.page_id || event.raw_payload?.value?.metadata?.page_id || "");
+  const permalinkUrl = text(event.post_permalink_url || event.post_permalink || event.raw_payload?.post_permalink_url || event.raw_payload?.post_permalink || event.raw_payload?.permalink_url || event.raw_payload?.post_url || event.raw_payload?.comment_url || "");
+
+  try {
+    const fetchMetaPostPreviewDetails = await loadFetchMetaPostPreviewDetails();
+    const preview = fetchMetaPostPreviewDetails
+      ? await fetchMetaPostPreviewDetails({ tenantId, postId, pageId, permalinkUrl }).catch((error) => ({
+          error_message: text(error?.message || "Graph fetch failed"),
+          thumbnail_url: "",
+          post_full_picture: "",
+          full_picture: "",
+          picture: "",
+          media_url: "",
+          media_type: "",
+          attachments: [],
+          post_permalink_url: permalinkUrl,
+          media_enrichment_status: "failed",
+        }))
+      : null;
+    const savedThumbnail = text(preview?.thumbnail_url || preview?.post_full_picture || preview?.full_picture || preview?.picture || "");
+    const graphMediaFound = Boolean(savedThumbnail);
+    const result = {
+      post_id: postId,
+      thumbnail_url: savedThumbnail,
+      post_full_picture: text(preview?.post_full_picture || preview?.full_picture || savedThumbnail || ""),
+      full_picture: text(preview?.full_picture || preview?.post_full_picture || savedThumbnail || ""),
+      picture: text(preview?.picture || ""),
+      media_url: text(preview?.media_url || ""),
+      media_type: text(preview?.media_type || ""),
+      attachments: asArray(preview?.attachments || []),
+      post_permalink_url: text(preview?.post_permalink_url || preview?.permalink_url || permalinkUrl || ""),
+      media_enrichment_status: graphMediaFound ? "success" : "failed",
+      media_enrichment_error: text(preview?.error_message || preview?.reason_if_missing || (!graphMediaFound ? "no_media_found" : "")),
+    };
+    console.log("[social-comments:webhook-media-persist]", {
+      post_id: postId,
+      graph_media_found: graphMediaFound,
+      thumbnail_url_saved: result.thumbnail_url,
+      status: result.media_enrichment_status,
+    });
+    return result;
+  } catch (error) {
+    const result = {
+      post_id: postId,
+      thumbnail_url: "",
+      post_full_picture: "",
+      full_picture: "",
+      picture: "",
+      media_url: "",
+      media_type: "",
+      attachments: [],
+      post_permalink_url: permalinkUrl,
+      media_enrichment_status: "failed",
+      media_enrichment_error: text(error?.message || "Graph fetch failed"),
+    };
+    console.log("[social-comments:webhook-media-persist]", {
+      post_id: postId,
+      graph_media_found: false,
+      thumbnail_url_saved: "",
+      status: result.media_enrichment_status,
+    });
+    return result;
+  }
+};
+
 const resolveSocialCommentCustomerProfileId = async ({ tenantId = null, event = {} } = {}) => {
   const safeTenantId = Number(tenantId);
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) return null;
@@ -739,7 +816,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         text(event.comment_id || ""),
         "social_comment_automation",
         "social_comment_lead",
-        postId,
+      postId,
         postPermalink,
         postMessage,
         text(event.post_caption || ""),

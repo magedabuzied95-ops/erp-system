@@ -22,6 +22,8 @@ import { api } from "../../../shared/api/api";
 
 const clean = (value = "") => String(value ?? "").trim();
 
+const toArray = (value) => (Array.isArray(value) ? value : []);
+
 const absoluteTime = (value) => {
   if (!value) return "—";
   const date = new Date(value);
@@ -35,8 +37,32 @@ const normalizeComment = (raw) => {
   return {
     id: clean(comment.comment_id || comment.id || comment.external_message_id || comment.provider_message_id || metadata.comment_id || ""),
     message: clean(comment.customer_message || comment.message || comment.text || comment.message_text || comment.original_comment_text || metadata.customer_message || metadata.message || ""),
-    customerName: clean(comment.commenter_name || comment.customer_name || metadata.commenter_name || metadata.customer_name || "عميل"),
-    customerAvatar: clean(comment.avatar || comment.customer_avatar || comment.customer_avatar_url || comment.commenter_profile_picture_url || comment.avatar_url || comment.profile_pic || metadata.avatar || metadata.customer_avatar || ""),
+    customerName: clean(
+      comment.customer_name ||
+      comment.commenter_name ||
+      comment.from?.name ||
+      metadata.customer_name ||
+      metadata.commenter_name ||
+      metadata.from?.name ||
+      ""
+    ),
+    customerAvatar: clean(
+      comment.customer_avatar_url ||
+      comment.commenter_profile_picture_url ||
+      comment.customer_avatar ||
+      comment.avatar ||
+      comment.avatar_url ||
+      comment.profile_pic ||
+      comment.from?.picture ||
+      metadata.customer_avatar_url ||
+      metadata.customer_avatar ||
+      metadata.commenter_profile_picture_url ||
+      metadata.avatar ||
+      metadata.avatar_url ||
+      metadata.profile_pic ||
+      metadata.from?.picture ||
+      ""
+    ),
     classification: clean(comment.classification_label || comment.classification || comment.intent || metadata.classification_label || metadata.classification || metadata.intent || "Question"),
     replyStatus: clean(comment.reply_status || metadata.reply_status || "pending"),
     createdTime: clean(comment.created_time || comment.created_at || comment.processed_at || metadata.created_time || metadata.created_at || metadata.processed_at || ""),
@@ -304,6 +330,84 @@ const templatePreviewText = (template = {}, context = {}) => {
 
 const selectFirst = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
 
+const initialsFromName = (value = "") => {
+  const parts = clean(value)
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (!parts.length) return "U";
+  return parts.slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+};
+
+const resolveCommentCustomerName = (comment = {}) => {
+  const normalized = normalizeComment(comment);
+  const raw = comment && typeof comment === "object" ? comment.raw || comment : {};
+  const metadata = raw.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
+  return clean(
+    normalized.customerName ||
+      raw.customer_name ||
+      raw.commenter_name ||
+      raw.from?.name ||
+      metadata.customer_name ||
+      metadata.commenter_name ||
+      metadata.from?.name ||
+      "Customer"
+  );
+};
+
+const resolveCommentCustomerAvatar = (comment = {}) => {
+  const normalized = normalizeComment(comment);
+  const raw = comment && typeof comment === "object" ? comment.raw || comment : {};
+  const metadata = raw.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
+  return clean(
+    normalized.customerAvatar ||
+      raw.customer_avatar_url ||
+      raw.commenter_profile_picture_url ||
+      raw.customer_avatar ||
+      raw.avatar ||
+      raw.avatar_url ||
+      raw.profile_pic ||
+      raw.from?.picture ||
+      metadata.customer_avatar_url ||
+      metadata.customer_avatar ||
+      metadata.commenter_profile_picture_url ||
+      metadata.avatar ||
+      metadata.avatar_url ||
+      metadata.profile_pic ||
+      metadata.from?.picture ||
+      ""
+  );
+};
+
+const resolvePostMediaBadge = (post = {}) => {
+  const rawType = clean(post?.raw?.post_type || post?.raw?.type || post?.raw?.story_type || post?.raw?.content_type || post?.metadata?.post_type || post?.metadata?.type || post?.metadata?.content_type || "");
+  const key = rawType.toLowerCase();
+  const label = key.includes("reel")
+    ? "Reel"
+    : key.includes("carousel")
+      ? "Carousel"
+      : key.includes("video")
+        ? "Video"
+        : key.includes("photo") || key.includes("image")
+          ? "Photo"
+          : key.includes("text")
+            ? "Text"
+            : key.includes("story")
+              ? "Text"
+              : "";
+  if (!label) return null;
+  const styles = {
+    Reel: "border-fuchsia-300/20 bg-fuchsia-400/15 text-fuchsia-100",
+    Photo: "border-emerald-300/20 bg-emerald-400/15 text-emerald-100",
+    Video: "border-sky-300/20 bg-sky-400/15 text-sky-100",
+    Carousel: "border-violet-300/20 bg-violet-400/15 text-violet-100",
+    Text: "border-amber-300/20 bg-amber-400/15 text-amber-100",
+  };
+  return { label, className: styles[label] || "border-white/10 bg-white/[0.04] text-slate-200" };
+};
+
+const stripTrailingParagraphBreaks = (value = "") => clean(value).replace(/\n{3,}/g, "\n\n");
+
 function SocialCommentsWorkspace({
   items = [],
   loading = false,
@@ -362,6 +466,7 @@ function SocialCommentsWorkspace({
   const [privateMessageLoadingKey, setPrivateMessageLoadingKey] = useState("");
   const [ignoreLoadingKey, setIgnoreLoadingKey] = useState("");
   const [leadLoadingKey, setLeadLoadingKey] = useState("");
+  const [expandedCaption, setExpandedCaption] = useState(false);
   const [globalDraft, setGlobalDraft] = useState(() => ({
     generic_enabled: false,
     generic_like_enabled: true,
@@ -480,10 +585,15 @@ function SocialCommentsWorkspace({
   const activePostPublishedAt = clean(activePostDetails?.publishedAt || activePostDetails?.createdAt || activePostDetails?.lastActivity || "");
   const activePostLikes = activePostDetails?.likesCount;
   const activePostShares = activePostDetails?.sharesCount;
+  const activePostMediaBadge = resolvePostMediaBadge(activePostDetails) || postTypeMeta(activePostDetails);
   useEffect(() => {
     setReplyDraft(activeSuggestedReply || "");
     setPreviewReply("");
   }, [activePostKey, activeSuggestedReply]);
+
+  useEffect(() => {
+    setExpandedCaption(false);
+  }, [activePostKey]);
 
 
   const isBusy = (key) =>
@@ -873,7 +983,7 @@ function SocialCommentsWorkspace({
                     <ArrowUpRight className="h-3.5 w-3.5" />
                     Post Workspace
                   </div>
-                  <h2 className="mt-1 line-clamp-2 text-xl font-black leading-8 text-white min-[1600px]:text-2xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
+                  <h2 className="mt-1 line-clamp-2 text-2xl font-black leading-8 text-white min-[1600px]:text-3xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     {activePostType ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostType.className}`}>{activePostType.label}</span> : null}
@@ -912,7 +1022,7 @@ function SocialCommentsWorkspace({
                     type="button"
                     onClick={handleOpenPost}
                     disabled={!activePostLink || openingPost}
-                    className="group relative flex h-[240px] items-center justify-center overflow-hidden bg-slate-900 text-left outline-none min-[1600px]:h-[300px] disabled:cursor-default"
+                    className="group relative flex h-[340px] items-center justify-center overflow-hidden bg-slate-900 text-left outline-none min-[1600px]:h-[420px] disabled:cursor-default"
                   >
                     {activePostImage ? (
                       <img src={activePostImage} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -928,29 +1038,52 @@ function SocialCommentsWorkspace({
                         </div>
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/88 via-slate-950/15 to-transparent" />
-                    <div className="absolute inset-x-0 bottom-0 p-3.5">
-                      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/75 px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-slate-100 shadow-[0_6px_18px_rgba(0,0,0,0.22)]">
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent" />
+                    <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3.5">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-100 shadow-[0_6px_18px_rgba(0,0,0,0.22)]">
                         {activePlatform.label}
-                        {activePostType ? <span className={`rounded-full border px-2 py-0.5 ${activePostType.className}`}>{activePostType.label}</span> : null}
+                        {activePostMediaBadge ? <span className={`rounded-full border px-2 py-0.5 ${activePostMediaBadge.className}`}>{activePostMediaBadge.label}</span> : null}
                       </div>
-                      <div className="mt-2 line-clamp-2 max-w-3xl text-base font-black leading-7 text-white min-[1600px]:text-lg">{activePostCaption || "No caption available"}</div>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          void handleOpenPost();
+                        }}
+                        disabled={!activePostLink || openingPost}
+                        className="inline-flex h-8 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100 disabled:opacity-50"
+                      >
+                        {openingPost ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
+                        Open Post
+                      </button>
                     </div>
                   </button>
 
-                  <div className="space-y-3 p-3.5">
+                  <div className="space-y-4 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">Post Summary</div>
-                        <p className="mt-1 whitespace-pre-wrap text-sm leading-7 text-slate-200">{activePostCaption || "لا يوجد وصف للمنشور"}</p>
+                        <div className="mt-2 text-sm leading-7 text-slate-200">
+                          <p className={expandedCaption ? "whitespace-pre-wrap" : "line-clamp-2 whitespace-pre-wrap"}>
+                            {activePostCaption || "لا يوجد وصف للمنشور"}
+                          </p>
+                          {activePostCaption && activePostCaption.length > 140 ? (
+                            <button
+                              type="button"
+                              onClick={() => setExpandedCaption((current) => !current)}
+                              className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200"
+                            >
+                              {expandedCaption ? "Collapse" : "Expand"}
+                            </button>
+                          ) : null}
+                        </div>
                       </div>
-                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     </div>
 
                     {activePostDetails?.productName || activePostDetails?.productPrice || activePostDetails?.productSalePrice || activePostDetails?.productSizes || activePostDetails?.productColors ? (
-                      <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
-                        <div className="flex items-center justify-between gap-2">
-                          <div>
+                      <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
                             <div className="mt-1 text-sm font-black text-white">{selectFirst(activePostDetails?.productName, "Linked product")}</div>
                           </div>
@@ -959,14 +1092,14 @@ function SocialCommentsWorkspace({
                               href={selectFirst(activePostDetails?.productLink)}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex h-8 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100"
+                              className="inline-flex h-8 shrink-0 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100"
                             >
                               Product link
                               <ExternalLink className="h-4 w-4" />
                             </a>
                           ) : null}
                         </div>
-                        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
                           <InfoChip label="Price" value={selectFirst(activePostDetails?.productPrice, "—")} />
                           <InfoChip label="Sale" value={selectFirst(activePostDetails?.productSalePrice, "—")} />
                           <InfoChip label="Sizes" value={selectFirst(activePostDetails?.productSizes, "—")} />
@@ -976,6 +1109,18 @@ function SocialCommentsWorkspace({
                         </div>
                       </div>
                     ) : null}
+
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300">
+                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{activePost.commentsCount || 0} comments</span>
+                      {typeof activePostLikes === "number" ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{activePostLikes} likes</span> : null}
+                      {typeof activePostShares === "number" ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{activePostShares} shares</span> : null}
+                      {activePostPublishedAt ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-slate-200">
+                          <Clock3 className="h-3.5 w-3.5" />
+                          {absoluteTime(activePostPublishedAt)}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
@@ -984,6 +1129,7 @@ function SocialCommentsWorkspace({
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Comments Timeline</div>
                       <div className="mt-1 text-sm font-black text-white">{visibleComments.length} comments</div>
+                      <div className="mt-1 text-xs text-slate-500">Showing the latest social thread activity</div>
                     </div>
                     {activeThread.loading ? <Loader2 className="h-4 w-4 animate-spin text-slate-300" /> : null}
                   </div>
@@ -1008,8 +1154,8 @@ function SocialCommentsWorkspace({
                     {visibleComments.map((comment) => {
                       const key = comment.id;
                       const status = clean(getCommentClassification(comment));
-                      const avatar = comment.customerAvatar;
-                      const name = comment.customerName;
+                      const avatar = resolveCommentCustomerAvatar(comment);
+                      const name = resolveCommentCustomerName(comment);
                       const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
                       const text = getCommentText(comment) || "بدون نص";
                       const tags = getCommentTags(comment);
@@ -1025,24 +1171,24 @@ function SocialCommentsWorkspace({
                           onKeyDown={(event) => {
                             if (event.key === "Enter" || event.key === " ") setSelectedCommentKey(key);
                           }}
-                          className={`rounded-[22px] border p-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition ${
+                          className={`rounded-[22px] border p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition ${
                             selected ? "border-cyan-300/50 bg-gradient-to-br from-cyan-300/15 to-slate-950/55 ring-1 ring-cyan-300/15" : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-slate-950/75"
                           }`}
                         >
-                          <div className="flex items-start gap-3">
+                          <div className="flex items-start gap-3.5">
                             {avatar ? (
-                              <img src={avatar} alt={name} className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-white/10" loading="lazy" />
+                              <img src={avatar} alt={name} className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-white/10" loading="lazy" />
                             ) : (
-                              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/[0.04] text-slate-300 ring-1 ring-white/10">
-                                <UserRound className="h-5 w-5" />
+                              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300/20 to-white/[0.04] text-sm font-black text-cyan-100 ring-1 ring-white/10">
+                                {initialsFromName(name)}
                               </span>
                             )}
 
                             <div className="min-w-0 flex-1">
                               <div className="flex flex-wrap items-start justify-between gap-2">
                                 <div className="min-w-0">
-                                  <div className="truncate text-sm font-black text-white">{name}</div>
-                                  <div className="mt-1 inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
+                                  <div className="truncate text-[15px] font-black leading-6 text-white">{name}</div>
+                                  <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
                                     <Clock3 className="h-3.5 w-3.5" />
                                     {absoluteTime(comment.createdTime)}
                                   </div>
@@ -1067,24 +1213,26 @@ function SocialCommentsWorkspace({
                                 </div>
                               </div>
 
-                              <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-100">{text}</div>
+                              <div className="mt-2 rounded-2xl border border-white/5 bg-white/[0.03] p-3 text-sm leading-7 text-slate-100">
+                                <div className="whitespace-pre-wrap">{text}</div>
 
-                              {attachmentPreview ? (
-                                <a
-                                  href={attachmentPreview}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="mt-3 block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-                                >
-                                  <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
-                                    <img src={attachmentPreview} alt="" className="h-full w-full object-cover" loading="lazy" />
-                                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent" />
-                                    <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-100">
-                                      Media
-                                    </span>
-                                  </div>
-                                </a>
-                              ) : null}
+                                {attachmentPreview ? (
+                                  <a
+                                    href={attachmentPreview}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="mt-3 block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                                  >
+                                    <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
+                                      <img src={attachmentPreview} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent" />
+                                      <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-100">
+                                        Media
+                                      </span>
+                                    </div>
+                                  </a>
+                                ) : null}
+                              </div>
 
                               <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                                 <button
@@ -1234,7 +1382,17 @@ function SocialCommentsWorkspace({
                     <SidebarRow label="Most Asked Question" value={labelText(summaryBucketLabel(actionableComment))} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
                     <SidebarRow label="Suggested Reply" value={suggestedReply || "No suggestion yet."} icon={<MessageSquareText className="h-4 w-4 text-emerald-100" />} />
                     <SidebarRow label="Lead Intent" value={`${visibleComments.filter((item) => getCommentTags(item).includes("Lead")).length} leads / ${visibleComments.filter((item) => getCommentTags(item).includes("Price")).length} price / ${visibleComments.filter((item) => getCommentTags(item).includes("Size")).length} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
-                    <SidebarRow label="Customer Summary" value={selectFirst(actionableComment?.customerName, activePostDetails?.customerName, "Customer")} icon={<UserRound className="h-4 w-4 text-amber-100" />} />
+                    <SidebarRow
+                      label="Customer Summary"
+                      value={selectFirst(activeCommentIdentityName, actionableComment?.customerName, activePostDetails?.customerName, "Customer")}
+                      icon={
+                        activeCommentIdentityAvatar ? (
+                          <img src={activeCommentIdentityAvatar} alt="" className="h-4 w-4 rounded-full object-cover" />
+                        ) : (
+                          <UserRound className="h-4 w-4 text-amber-100" />
+                        )
+                      }
+                    />
                     <SidebarRow label="Auto Reply Status" value={currentGlobalSettings.generic_enabled ? "Global ON" : "Global OFF"} icon={<Bot className="h-4 w-4 text-sky-100" />} />
                   </div>
                 </div>

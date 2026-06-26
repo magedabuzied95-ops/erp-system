@@ -28,6 +28,7 @@ import toast from "react-hot-toast";
 import ProductsShell from "../components/ProductsShell";
 import ProductForm from "../components/ProductForm";
 import ImageThumbnailActions from "../components/ImageThumbnailActions";
+import MultiVersionGenerator from "../components/MultiVersionGenerator";
 
 import {
   generateBarcode,
@@ -492,6 +493,22 @@ function CreateProduct() {
       toast.error(error?.message || t("products.editor.descriptionGenerationFailed"));
     } finally {
       setDescriptionGenerating({ ar: false, en: false });
+    }
+  };
+  const applyGeneratedVersion = (version = {}) => {
+    const nextAr = String(version?.arabic_description || "").trim();
+    const nextEn = String(version?.english_description || "").trim();
+    if (nextAr) {
+      setDescriptionAr(nextAr);
+      setDescriptionTouched((current) => ({ ...current, ar: false }));
+    }
+    if (nextEn) {
+      setDescriptionEn(nextEn);
+      setDescriptionTouched((current) => ({ ...current, en: false }));
+    }
+    setDescription(nextEn || nextAr || "");
+    if (nextAr || nextEn) {
+      toast.success(t("products.editor.versionApplied", "Description version applied"));
     }
   };
   const regenerateSeoMetadata = () => {
@@ -2426,6 +2443,15 @@ function CreateProduct() {
 
               <div className="mt-4">
                 {activeContentTab === "description" ? productDescriptionPanel : null}
+                {activeContentTab === "description" ? (
+                  <div className="mt-4">
+                    <MultiVersionGenerator
+                      context={descriptionContext}
+                      onApplyVersion={applyGeneratedVersion}
+                      t={t}
+                    />
+                  </div>
+                ) : null}
                 {activeContentTab === "metadata" ? seoMetadataPanel : null}
                 {activeContentTab === "preview" ? socialPreviewPanel : null}
               </div>

@@ -25,6 +25,7 @@
     "loadFailed": "Failed to load marketing dashboard",
     "quickActions": {
       "createPost": "Create Post",
+      "socialCalendar": "Social Calendar",
       "createCampaign": "Create Campaign",
       "analytics": "Analytics",
       "attribution": "Attribution",
@@ -249,6 +250,127 @@
     "untitled": "Untitled operation",
     "image": "Image",
     "video": "Video"
+  },
+  "socialCalendar": {
+    "eyebrow": "Social Calendar",
+    "title": "Plan posts across the month before they go live",
+    "subtitle": "A UI-only planning board with month view, week view, draft layout, cards, scheduled posts, and history.",
+    "summary": {
+      "month": "Month",
+      "week": "Week",
+      "slots": "Planned slots",
+      "slotsValue": "18",
+      "history": "History",
+      "historyValue": "12 items"
+    },
+    "month": {
+      "title": "Month View",
+      "subtitle": "A visual grid for campaign pacing and publishing windows.",
+      "badge": "Current month",
+      "scheduledLabel": "Planned for the month",
+      "empty": "Open day"
+    },
+    "week": {
+      "title": "Week View",
+      "subtitle": "A focused look at the next seven days.",
+      "badge": "Weekly cadence",
+      "empty": "No items planned on this day"
+    },
+    "draft": {
+      "title": "Draft Layout",
+      "subtitle": "A simple editorial canvas for the copy, visual, and review flow.",
+      "badge": "Draft mode",
+      "steps": {
+        "idea": {
+          "title": "Idea",
+          "description": "Capture the angle, offer, and audience fit."
+        },
+        "copy": {
+          "title": "Copy",
+          "description": "Build the caption, hook, and CTA."
+        },
+        "visual": {
+          "title": "Visual",
+          "description": "Reserve the creative asset and preview it."
+        },
+        "publish": {
+          "title": "Review",
+          "description": "Check timing, platform mix, and final readiness."
+        }
+      },
+      "canvasLabel": "Draft canvas",
+      "canvas": {
+        "title": "Story-first layout",
+        "subtitle": "Placeholder blocks keep the planning flow clear without backend data.",
+        "leftLabel": "Primary angle",
+        "leftValue": "Launch energy",
+        "rightLabel": "Channel mix",
+        "rightValue": "Instagram + Facebook",
+        "checklist": "Readiness checklist",
+        "checkItems": {
+          "copy": "Copy",
+          "image": "Image",
+          "channel": "Channel",
+          "timing": "Timing"
+        }
+      }
+    },
+    "cards": {
+      "title": "Cards",
+      "subtitle": "Reusable planning blocks for recurring social ideas.",
+      "brand": {
+        "title": "Brand Story",
+        "description": "Narrative post for brand identity, social proof, or seasonal positioning.",
+        "meta": "pillar"
+      },
+      "offer": {
+        "title": "Offer Card",
+        "description": "Promotion-focused card for launches, bundles, and limited-time offers.",
+        "meta": "promo"
+      },
+      "community": {
+        "title": "Community Post",
+        "description": "UGC, customer shoutouts, and content that builds trust.",
+        "meta": "engage"
+      },
+      "launch": {
+        "title": "Launch Card",
+        "description": "High-visibility tile for new arrivals and hero product moments.",
+        "meta": "launch"
+      }
+    },
+    "scheduled": {
+      "title": "Scheduled Posts Section",
+      "subtitle": "Upcoming items queued for review and publishing.",
+      "countSuffix": "items"
+    },
+    "history": {
+      "title": "History Section",
+      "subtitle": "Completed planning actions and archived outcomes.",
+      "badge": "Timeline",
+      "headers": {
+        "time": "Time",
+        "post": "Post",
+        "channel": "Channel",
+        "result": "Result"
+      },
+      "published": "Published",
+      "reviewed": "Reviewed",
+      "archived": "Archived"
+    },
+    "samples": {
+      "launch": "Summer launch teaser",
+      "story": "Story frame refresh",
+      "promo": "Weekend offer spotlight",
+      "reel": "Product reel cut",
+      "ugc": "Community spotlight",
+      "reminder": "Restock reminder"
+    },
+    "notes": {
+      "launch": "Ready for the first slot in the month.",
+      "story": "Keep it short and visual.",
+      "ugc": "Use customer photo and quote."
+    }
   },
   "socialPublisher": {
     "eyebrow": "Marketing",

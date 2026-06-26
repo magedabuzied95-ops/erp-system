@@ -56,24 +56,72 @@ const socialCaptionSchema = {
   },
 };
 
-const BRAND_VOICE_SYSTEM_PROMPT = [
-  "Brand voice for M1 Store:",
-  "- Use simple Egyptian Arabic that sounds written by a real local social media manager.",
-  "- Keep sentences short, natural, and human. Do not sound like ChatGPT or formal ad copy.",
-  "- Do not use poetic phrasing, overexplained marketing language, or generic opening lines.",
-  "- Start directly with the hook. Never add a fixed opener before it.",
-  "- Make the hook depend on the product type and the actual product facts, not a generic sentence.",
-  "- Do not invent product use cases or scenarios.",
-  "- Do not assume the product is for running, adventures, wilderness, hiking, camping, travel, sports, or high performance unless those ideas appear explicitly inside description, features, product_type, or category.",
-  "- If the ERP data does not support a specific use case, keep the hook generic and based only on design, shape, comfort, or look.",
-  "- Safe hook examples when no use case is confirmed: تصميم جديد بإطلالة مميزة، خامات مريحة مع شكل عملي، اختيار بسيط وسهل للبس اليومي، شكل مرتب يناسب أكتر من ستايل، لمسة هادئة تناسب أكتر من ستايل.",
-  "- Use only the product facts that are explicitly present in ERP fields.",
-  "- Avoid these phrases or close variants unless they are truly present in the product description: ارتقِ، اكتشف، استمتع، خطواتك، رحلتك، مغامرتك، الخيار الأمثل، مصمم خصيصاً، يجمع بين.",
-  "- Avoid these words or close variants unless they are explicitly present in ERP data: البرية، المغامرات، التخييم، الجبال، الرحلات، الهايكنج، العدائين، الرياضة، الأداء العالي.",
-  "- Do not repeat the product name more than once.",
-  "- Do not repeat the brand name more than once.",
-  "- CTA must be short and natural. Use only one CTA line.",
-].join("\n");
+const buildM1Personality = () => {
+  const profiles = {
+    premium: {
+      label: "Premium",
+      hook: "clean, balanced, polished",
+      body: "short and neat, with a calm premium feel",
+    },
+    luxury: {
+      label: "Luxury",
+      hook: "quiet, refined, elegant",
+      body: "soft, confident, and premium without exaggeration",
+    },
+    friendly: {
+      label: "Friendly",
+      hook: "easy, human, everyday",
+      body: "simple, warm, and natural like a local social manager",
+    },
+    sales: {
+      label: "Sales",
+      hook: "clear, direct, fast",
+      body: "focus on the offer with no fake hype",
+    },
+    sport: {
+      label: "Sport",
+      hook: "energetic but still grounded",
+      body: "practical, light, and ready for the product facts only",
+    },
+  };
+
+  const toneGuide = Object.values(profiles)
+    .map((profile) => `- ${profile.label}: hook is ${profile.hook}; body is ${profile.body}.`)
+    .join("\n");
+
+  const systemPrompt = [
+    "M1 Store Voice",
+    "Style Guide:",
+    "Tone: simple Egyptian Arabic that sounds written by a real local social media manager.",
+    "Writing Style: short, natural, human sentences. Never sound like ChatGPT or formal ad copy.",
+    "Forbidden Phrases: ارتقِ، اكتشف، استمتع، خطواتك، رحلتك، مغامرتك، الخيار الأمثل، مصمم خصيصاً، يجمع بين، البرية، المغامرات، التخييم، الجبال، الرحلات، الهايكنج، العدائين، الرياضة، الأداء العالي.",
+    "Allowed Phrases: بسيطة، مريحة، شكل مرتب، تصميم جديد، خفيفة، عملية، يومي، مناسبة، متوفرة الآن.",
+    "CTA Library: اطلبه الآن. | اطلبه قبل نفاد المقاسات. | متوفر الآن للشحن. | ابعتلنا لو محتاج تعرف المقاس المناسب. | اطلبه مباشرة من الموقع.",
+    "Hook Library: تصميم جديد بإطلالة مميزة. | خامات مريحة مع شكل عملي. | اختيار بسيط وسهل للبس اليومي. | شكل مرتب يناسب أكتر من ستايل. | لمسة هادئة تناسب أكتر من ستايل.",
+    "Emoji Rules: use emojis lightly and only when they fit naturally. Do not overuse them.",
+    "Sentence Length Rules: keep sentences short. Prefer one idea per line. Avoid long paragraphs.",
+    "General Rules:",
+    "- Start directly with the hook. Never add a fixed opener before it.",
+    "- Do not invent product use cases or scenarios.",
+    "- Do not assume the product is for running, adventures, wilderness, hiking, camping, travel, sports, or high performance unless those ideas appear explicitly inside description, features, product_type, or category.",
+    "- If the ERP data does not support a specific use case, keep the hook generic and based only on design, shape, comfort, or look.",
+    "- Use only the product facts that are explicitly present in ERP fields.",
+    "- Do not repeat the product name more than once.",
+    "- Do not repeat the brand name more than once.",
+    "- CTA must be short and natural. Use only one CTA line.",
+    "Tone Profiles:",
+    toneGuide,
+  ];
+
+  return {
+    name: "M1 Store Voice",
+    profiles,
+    systemPrompt: systemPrompt.join("\n"),
+  };
+};
+
+const M1_PERSONALITY = buildM1Personality();
+const BRAND_VOICE_SYSTEM_PROMPT = M1_PERSONALITY.systemPrompt;
 
 const compactContext = (input = {}) => {
   const current = input.current || input;
@@ -118,6 +166,7 @@ const compactSocialCaptionContext = (input = {}) => {
     price_source: cleanText(current.price_source || input.price_source),
     stock_quantity: cleanText(current.stock_quantity || current.stock || input.stock_quantity || input.stock),
     product_url: cleanText(current.product_url || input.product_url),
+    tone: cleanText(current.tone || input.tone || current.prompt_customization || input.prompt_customization),
   };
 };
 
@@ -189,6 +238,7 @@ const fallbackDescription = (context = {}) => {
   const colors = normalizeList(context.colors).slice(0, 5);
   const sizes = normalizeList(context.sizes).slice(0, 8);
   const tone = cleanText(context.selling_vibe) || "retail-ready";
+  const normalizedTone = tone.toLowerCase();
   const gender = cleanText(context.gender);
   const material = cleanText(context.material);
   const brandPrefix = brand && !name.toLowerCase().includes(brand.toLowerCase()) ? brand : "";
@@ -197,12 +247,35 @@ const fallbackDescription = (context = {}) => {
   const colorText = colors.length ? `Available in ${colors.join(", ")}` : "Designed with versatile colorways";
   const sizeText = sizes.length ? `with sizes ${sizes.join(", ")}` : "with practical everyday sizing";
   const materialText = material ? ` ${material} material` : "";
-  const englishDescription = `${displayName} is a storefront-ready ${category} for ${genderPhrase || "everyday "}customers with a ${tone} presentation.${materialText ? ` Made with${materialText}.` : ""} ${colorText} and ${sizeText}, it is ready for clear catalog browsing and product detail pages.`
-    .replace(/\s+/g, " ")
-    .trim();
   const arabicCategory = translateArabicFallbackTerm(category);
   const arabicGender = translateArabicFallbackTerm(gender, "gender");
-  const arabicDescription = `${displayName} ${arabicCategory} بجودة عرض واضحة للسوق المصري.${arabicGender ? ` مناسب لـ ${arabicGender}.` : ""}${material ? ` الخامة: ${material}.` : ""} متوفر بألوان ${colors.length ? colors.join("، ") : "عملية"}${sizes.length ? ` ومقاسات ${sizes.join("، ")}` : ""}، ومجهز لعرض منظم في الكتالوج وصفحة المنتج.`
+  const toneLeads = {
+    premium: {
+      ar: "شكل مرتب ولمسة هادئة.",
+      en: "Clean, balanced, and polished.",
+    },
+    luxury: {
+      ar: "لمسة أنيقة وهادية.",
+      en: "Refined with a quiet premium feel.",
+    },
+    friendly: {
+      ar: "اختيار سهل ومريح للبس اليومي.",
+      en: "Easy, natural, and everyday friendly.",
+    },
+    sales: {
+      ar: "عرض واضح وكلام مباشر.",
+      en: "Clear, direct, and sales-ready.",
+    },
+    sport: {
+      ar: "ستايل عملي وخفيف.",
+      en: "Practical, light, and energetic.",
+    },
+  };
+  const toneLead = toneLeads[normalizedTone] || toneLeads.premium;
+  const englishDescription = `${toneLead.en} ${displayName} is a storefront-ready ${category} for ${genderPhrase || "everyday "}customers with a ${tone} presentation.${materialText ? ` Made with${materialText}.` : ""} ${colorText} and ${sizeText}, it is ready for clear catalog browsing and product detail pages.`
+    .replace(/\s+/g, " ")
+    .trim();
+  const arabicDescription = `${toneLead.ar} ${displayName} ${arabicCategory} بجودة عرض واضحة للسوق المصري.${arabicGender ? ` مناسب لـ ${arabicGender}.` : ""}${material ? ` الخامة: ${material}.` : ""} متوفر بألوان ${colors.length ? colors.join("، ") : "عملية"}${sizes.length ? ` ومقاسات ${sizes.join("، ")}` : ""}، ومجهز لعرض منظم في الكتالوج وصفحة المنتج.`
     .replace(/\s+/g, " ")
     .trim();
 
@@ -222,9 +295,13 @@ const requestedTargets = (target = "all") => {
 
 const buildPrompt = (context = {}, target = "all") => {
   const targets = requestedTargets(target);
+  const selectedTone = cleanText(context.tone).toLowerCase();
+  const toneProfile = selectedTone && M1_PERSONALITY.profiles[selectedTone] ? M1_PERSONALITY.profiles[selectedTone] : M1_PERSONALITY.profiles.premium;
   return [
     BRAND_VOICE_SYSTEM_PROMPT,
     "Generate ecommerce product descriptions for an ERP product editor.",
+    `Selected Personality Mode: ${toneProfile.label}.`,
+    `Selected Tone Guide: hook should feel ${toneProfile.hook}; body should feel ${toneProfile.body}.`,
     "Return strict JSON only with keys arabic_description and english_description.",
     targets.arabic
       ? "For arabic_description: write natural Arabic for Egyptian ecommerce customers, not a robotic translation. Use common search wording customers actually use."
@@ -247,6 +324,7 @@ const buildPrompt = (context = {}, target = "all") => {
 
 const buildSocialCaptionPrompt = (context = {}) => [
   BRAND_VOICE_SYSTEM_PROMPT,
+  `Selected Personality Mode: ${(M1_PERSONALITY.profiles[cleanText(context.tone).toLowerCase()] || M1_PERSONALITY.profiles.premium).label}.`,
   "Write social media copy for an Egyptian footwear store in a natural, human voice that sounds like a local social media manager.",
   "Return strict JSON only with keys hook, body, cta, hashtags.",
   "Do not add any generic opening line before the hook.",
@@ -315,7 +393,7 @@ const localizeColorName = (value = "") => {
   if (arabicMatch) return arabicMatch[0];
   const normalized = text
     .toLowerCase()
-    .replace(/[(){}\[\]]/g, " ")
+    .replace(/[(){}[\]]/g, " ")
     .replace(/[_\-/]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -487,7 +565,7 @@ const logSocialCaptionContext = (label, context = {}) =>
     product_url: context.product_url || "",
   });
 
-const mapSocialCaptionOpenAiErrorReason = (error = {}, model = "") => {
+const mapSocialCaptionOpenAiErrorReason = (error = {}) => {
   const message = cleanText(error?.message || "");
   const code = cleanText(error?.code || error?.type || "");
   const status = Number(error?.status || error?.response?.status || 0);
@@ -688,7 +766,7 @@ export const generateSocialPublisherCaption = async (input = {}) => {
     };
   } catch (error) {
     const model = process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
-    const errorReason = mapSocialCaptionOpenAiErrorReason(error, model);
+    const errorReason = mapSocialCaptionOpenAiErrorReason(error);
     console.error("[ai-social-caption-openai-error]", {
       requestId,
       message: error?.message || "",

@@ -27,6 +27,7 @@ import toast from "react-hot-toast";
 import ProductsShell from "../components/ProductsShell";
 import ProductForm from "../components/ProductForm";
 import ImageThumbnailActions from "../components/ImageThumbnailActions";
+import MultiVersionGenerator from "../components/MultiVersionGenerator";
 import {
   buildSmartSkuPrefix,
   buildVariantSku,
@@ -783,6 +784,30 @@ function ProductEdit() {
       toast.error(error?.message || "Description generation failed");
     } finally {
       setDescriptionGenerating({ ar: false, en: false });
+    }
+  };
+  const applyGeneratedVersion = (version = {}) => {
+    const nextAr = String(version?.arabic_description || "").trim();
+    const nextEn = String(version?.english_description || "").trim();
+
+    if (nextAr) {
+      setProduct((current) => ({ ...current, description_ar: nextAr }));
+      setDescriptionTouched((current) => ({ ...current, ar: false }));
+    }
+
+    if (nextEn) {
+      setProduct((current) => ({
+        ...current,
+        description_en: nextEn,
+        description: nextEn || current.description || nextAr,
+      }));
+      setDescriptionTouched((current) => ({ ...current, en: false }));
+    } else if (nextAr) {
+      setProduct((current) => ({ ...current, description: nextAr }));
+    }
+
+    if (nextAr || nextEn) {
+      toast.success(t("products.editor.versionApplied", "Description version applied"));
     }
   };
   const regenerateSeoMetadata = () => {
@@ -2610,7 +2635,15 @@ function ProductEdit() {
                       className="mt-1.5 w-full rounded-[16px] border border-white/10 bg-zinc-900/80 px-4 py-3 text-sm leading-6 text-white shadow-inner shadow-black/20 outline-none ring-1 ring-inset ring-white/[0.03] placeholder:text-zinc-500 transition focus:border-sky-300/35 focus:bg-zinc-900"
                     />
                   </div>
-                </div>
+              </div>
+              </div>
+
+              <div className="mt-4">
+                <MultiVersionGenerator
+                  context={descriptionContext}
+                  onApplyVersion={applyGeneratedVersion}
+                  t={t}
+                />
               </div>
 
               <div className={`rounded-[22px] border p-3 shadow-[0_16px_45px_rgba(0,0,0,0.18)] transition ${seoOpen ? "border-amber-300/28 bg-amber-300/[0.075]" : "border-sky-300/20 bg-sky-400/[0.06] hover:border-sky-300/32 hover:bg-sky-400/[0.09]"}`}>
