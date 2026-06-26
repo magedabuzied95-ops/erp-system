@@ -1274,7 +1274,13 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
   const channel = normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment";
-  const sessionId = `${normalizedPlatform}_post:${safePostId}`;
+  const sessionId = (
+    safePostId.startsWith("facebook_comment:") ||
+    safePostId.startsWith("instagram_comment:") ||
+    safePostId.startsWith("social_comment:")
+  )
+    ? safePostId
+    : `${normalizedPlatform}_post:${safePostId}`;
   console.warn("[social-comments:data-debug]", {
     scope: "service:listSocialCommentThreadComments:before",
     tenantId: safeTenantId,

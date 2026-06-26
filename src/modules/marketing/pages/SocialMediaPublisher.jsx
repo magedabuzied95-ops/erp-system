@@ -600,13 +600,9 @@ export default function SocialMediaPublisher() {
           ? "unknown"
           : String(result.source).toUpperCase() === "LOCAL_FALLBACK" && payloadMissing
             ? "missing_product_data"
-            : String(result.source).toUpperCase() === "LOCAL_FALLBACK" && result?.error
-              ? "ai_request_failed"
-              : String(result.source).toUpperCase() === "LOCAL_FALLBACK" && !result?.error && !process.env.OPENAI_API_KEY
-                ? "missing_openai_key"
-                : String(result.source).toUpperCase() === "LOCAL_FALLBACK"
-                  ? "unknown"
-                  : "";
+            : String(result.source).toUpperCase() === "LOCAL_FALLBACK"
+              ? String(result?.error_reason || result?.error || "").trim().toUpperCase().replace(/\s+/g, "_") || "unknown"
+              : "";
         setAiTemplateFallbackReason(fallbackReason);
         setAiTemplateError(result?.error || "AI caption generation used fallback text.");
       } else if (!nextCaption) {

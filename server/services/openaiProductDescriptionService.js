@@ -265,6 +265,19 @@ const logSocialCaptionContext = (label, context = {}) =>
     product_url: context.product_url || "",
   });
 
+const mapSocialCaptionOpenAiErrorReason = (error = {}, model = "") => {
+  const message = cleanText(error?.message || "");
+  const code = cleanText(error?.code || error?.type || "");
+  const status = Number(error?.status || error?.response?.status || 0);
+  const combined = `${message} ${code}`.toLowerCase();
+  if (code === "INVALID_JSON" || /invalid.*json|unexpected token|json parse|parse json/.test(combined)) return "INVALID_JSON";
+  if (code === "OPENAI_TIMEOUT" || /timeout|timed out|aborterror|request aborted|signal aborted|etimedout/.test(combined)) return "OPENAI_TIMEOUT";
+  if (code === "MODEL_ERROR" || /model|deployment|snapshot|not found/.test(combined)) return "MODEL_ERROR";
+  if (status >= 400 || /api key|unauthorized|authentication|forbidden|invalid api key|auth/.test(combined)) return "OPENAI_API_ERROR";
+  if (model && /model/i.test(message) && !message) return "MODEL_ERROR";
+  return "OPENAI_API_ERROR";
+};
+
 export const generateProductDescription = async (input = {}) => {
   const context = compactContext(input);
   const target = cleanText(input.target || input.language || "all").toLowerCase() || "all";
@@ -357,14 +370,15 @@ export const generateSocialPublisherCaption = async (input = {}) => {
 
   const startedAt = Date.now();
   try {
+    const model = process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
     console.log("[social-caption] OpenAI request start", {
       requestId,
-      model: process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
+      model,
     });
 
     const response = await getClient().responses.create(
       {
-        model: process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL,
+        model,
         instructions: "You are an expert luxury ecommerce social media copywriter.",
         input: buildSocialCaptionPrompt(context),
         text: {
@@ -396,19 +410,22 @@ export const generateSocialPublisherCaption = async (input = {}) => {
       source: "OPENAI",
     };
   } catch (error) {
-    console.error("[social-caption] OpenAI request failed", {
+    const model = process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || process.env.OPENAI_MODEL || DEFAULT_MODEL;
+    const errorReason = mapSocialCaptionOpenAiErrorReason(error, model);
+    console.error("[ai-social-caption-openai-error]", {
       requestId,
-      durationMs: Date.now() - startedAt,
-      name: error?.name,
-      status: error?.status,
-      code: error?.code,
-      type: error?.type,
-      message: error?.message,
+      message: error?.message || "",
+      status: error?.status ?? error?.response?.status ?? null,
+      stack: error?.stack || "",
+      model,
+      code: error?.code || error?.type || "",
+      error_reason: errorReason,
     });
     return {
       caption: fallback,
       source: "LOCAL_FALLBACK",
-      error: process.env.NODE_ENV === "production" ? undefined : error?.message || "OpenAI request failed",
+      error: error?.message || errorReason,
+      error_reason: errorReason,
     };
   }
 };

@@ -90,6 +90,7 @@ router.post("/generate-social-caption", protect, async (req, res) => {
       caption: result.caption || "",
       source: result.source,
       error: result.error,
+      error_reason: result.error_reason || "",
     });
   } catch (error) {
     console.error("[products] generate-social-caption failed", {
