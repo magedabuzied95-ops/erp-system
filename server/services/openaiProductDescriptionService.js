@@ -345,14 +345,15 @@ export const generateSocialPublisherCaption = async (input = {}) => {
     ...context,
     product_id: input.product_id || input.productId || "",
   });
-
-  if (!process.env.OPENAI_API_KEY) {
-    console.warn("[social-caption] OPENAI_API_KEY missing; using fallback", { requestId });
-    return {
-      caption: fallback,
-      source: "LOCAL_FALLBACK",
-    };
-  }
+  console.warn("[social-caption] runtime env", {
+    requestId,
+    env: {
+      OPENAI_API_KEY: Boolean(process.env.OPENAI_API_KEY),
+      OPENAI_PRODUCT_DESCRIPTION_MODEL: process.env.OPENAI_PRODUCT_DESCRIPTION_MODEL || "",
+      OPENAI_MODEL: process.env.OPENAI_MODEL || "",
+      OPENAI_PRODUCT_DESCRIPTION_TIMEOUT_MS: process.env.OPENAI_PRODUCT_DESCRIPTION_TIMEOUT_MS || "",
+    },
+  });
 
   const startedAt = Date.now();
   try {
