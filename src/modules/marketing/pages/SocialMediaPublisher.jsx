@@ -309,6 +309,104 @@ const buildErpProductInfo = (product = {}) => {
     stock_line: stockQuantity > 0 ? "متوفر الآن" : "غير متوفر حالياً",
   };
 };
+const collectFirstCommentAvailability = (product = {}) => {
+  const variants = safeArray(product.variants);
+  const activeVariants = variants.filter((variant) => {
+    const quantity = Number(variant?.quantity ?? variant?.stock ?? variant?.stock_quantity ?? variant?.available_quantity ?? 0);
+    const available = variant?.available === true || variant?.in_stock === true;
+    return quantity > 0 || available;
+  });
+  const getVariantText = (...values) => normalizeTextValue(values.find((value) => normalizeTextValue(value)));
+  const sizes = uniqueTextList(
+    activeVariants.map((variant) => getVariantText(variant?.size_name, variant?.size_label, variant?.size, variant?.variant_size, variant?.size_value, variant?.label))
+  );
+  const colors = uniqueTextList(
+    activeVariants.map((variant) => localizeColorName(getVariantText(variant?.color_name, variant?.color_label, variant?.color, variant?.colour, variant?.variant_color)))
+  );
+  const fallbackSizes = uniqueTextList(product.available_sizes, product.sizes);
+  const fallbackColors = uniqueTextList(product.available_colors, product.colors, product.color_names).map((value) => localizeColorName(value)).filter(Boolean);
+  const resolvedSizes = sizes.length ? sizes : fallbackSizes;
+  const resolvedColors = colors.length ? colors : fallbackColors;
+  const stockFromVariants = activeVariants.reduce((sum, variant) => {
+    const quantity = Number(variant?.quantity ?? variant?.stock ?? variant?.stock_quantity ?? variant?.available_quantity ?? 0);
+    return sum + (Number.isFinite(quantity) && quantity > 0 ? quantity : 1);
+  }, 0);
+  const stock = stockFromVariants || Math.max(0, Number(product.stock_quantity ?? product.available_stock ?? product.stock ?? product.quantity ?? 0));
+  return {
+    sizes: resolvedSizes,
+    colors: resolvedColors,
+    stock,
+  };
+};
+const buildSuggestedFirstComment = (product = {}, options = {}) => {
+  const pricing = resolveStorefrontPriceBreakdown(product);
+  const availability = collectFirstCommentAvailability(product);
+  const includeLocation = Boolean(options.includeLocation);
+  const includeShipping = Boolean(options.includeShipping);
+  const productUrl = buildFullProductUrl(product.product_url || product.url || "");
+  const lines = [];
+  const currentPrice = Number(pricing.current_price || pricing.current || 0);
+  const originalPrice = Number(pricing.old_crossed_price || pricing.original_price || pricing.original || 0);
+  const hasSale = Boolean(pricing.sale_active || (currentPrice > 0 && originalPrice > currentPrice));
+
+  if (hasSale && currentPrice > 0) {
+    lines.push(`السعر الآن: ${formatCompactCurrency(currentPrice)} ج.م`);
+    if (originalPrice > currentPrice) {
+      lines.push(`قبل الخصم: ${formatCompactCurrency(originalPrice)} ج.م`);
+      const discountPercent = computeDiscountPercent(originalPrice, currentPrice);
+      if (discountPercent) {
+        lines.push(`وفر ${discountPercent}`);
+      }
+    }
+    lines.push("⏳ عرض لفترة محدودة.");
+  } else if (currentPrice > 0) {
+    lines.push(`السعر: ${formatCompactCurrency(currentPrice)} ج.م`);
+  }
+
+  if (availability.sizes.length) {
+    lines.push("");
+    lines.push(`المقاسات المتوفرة: ${availability.sizes.join(" • ")}`);
+  }
+
+  if (availability.colors.length) {
+    lines.push("");
+    lines.push(`${availability.colors.length === 1 ? "اللون" : "الألوان"}: ${availability.colors.join(" • ")}`);
+  }
+
+  if (availability.stock > 0) {
+    lines.push("");
+    lines.push(availability.stock < 5 ? "⚠️ الكمية محدودة." : "متوفر الآن.");
+  } else {
+    lines.push("");
+    lines.push("❌ غير متوفر حالياً.");
+  }
+
+  if (includeShipping) {
+    lines.push("");
+    lines.push("شحن لجميع المحافظات");
+  }
+
+  if (includeLocation) {
+    lines.push("");
+    lines.push("دمياط الجديدة");
+  }
+
+  lines.push("");
+  lines.push("للحجز أو الاستفسار ابعتلنا رسالة.");
+
+  if (productUrl) {
+    lines.push("");
+    lines.push("أو اطلب مباشرة:");
+    lines.push(productUrl);
+  }
+
+  return lines
+    .map((line) => String(line || "").trim())
+    .filter((line, index, array) => line !== "" || array[index - 1] !== "")
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
 const normalizeAiCaptionSections = (result = {}) => {
   const hashtags = uniqueTextList(result.hashtags, result.tags, result.hash_tags, result.keywords).slice(0, 5);
   return {
@@ -433,6 +531,8 @@ export default function SocialMediaPublisher() {
   const [error, setError] = useState("");
   const [posts, setPosts] = useState([]);
   const [caption, setCaption] = useState("");
+  const [firstComment, setFirstComment] = useState("");
+  const [firstCommentLoading, setFirstCommentLoading] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaPreview, setMediaPreview] = useState("");
@@ -471,6 +571,7 @@ export default function SocialMediaPublisher() {
   const canPublish = hasPermission("marketing.publish");
   const previewTitle = caption.trim() || "Your caption will appear here";
   const previewSubtitle = mediaFile ? `${mediaType.toUpperCase()} ready` : selectedCatalogProduct ? "Catalog product selected" : "No media selected";
+  const firstCommentPreview = firstComment.trim() || "Select a product to generate the first comment.";
 
   const selectedPlatforms = useMemo(
     () => platformOptions.filter((platform) => platforms[platform.key] && platform.key !== "tiktok").map((platform) => platform.key),
@@ -659,6 +760,7 @@ export default function SocialMediaPublisher() {
     setSelectedCatalogProduct(nextProduct);
     setCreateSource("catalog");
     setCaption(buildCatalogCaption(nextProduct, { includeLocation, includeShipping }));
+    setFirstComment(buildSuggestedFirstComment(nextProduct, { includeLocation, includeShipping }));
     setAiTemplateCaption("");
     setAiTemplateError("");
     setAiTemplateSource("");
@@ -680,6 +782,7 @@ export default function SocialMediaPublisher() {
     if (wasAutoCaption) {
       setCaption("");
     }
+    setFirstComment("");
     setCreateSource("device");
     setAiTemplateCaption("");
     setAiTemplateError("");
@@ -796,6 +899,7 @@ export default function SocialMediaPublisher() {
       });
       setAiTemplateCaption(nextCaption);
       setAiTemplateSource(String(result?.source || "LOCAL_FALLBACK"));
+      setFirstComment(buildSuggestedFirstComment(productDetails || selectedCatalogProduct, { includeLocation, includeShipping }));
       if (String(result?.source || "").toUpperCase() !== "OPENAI") {
         const payloadMissing =
           !aiContext.product_name ||
@@ -834,6 +938,54 @@ export default function SocialMediaPublisher() {
     setCaption(aiTemplateCaption);
     setAiTemplateOpen(false);
   };
+  const refreshSuggestedFirstComment = async () => {
+    if (!selectedCatalogProduct?.id) {
+      setFirstComment("");
+      return "";
+    }
+    setFirstCommentLoading(true);
+    try {
+      const productDetails = await loadSelectedCatalogProductDetails();
+      const nextComment = buildSuggestedFirstComment(productDetails || selectedCatalogProduct, {
+        includeLocation,
+        includeShipping,
+      });
+      setFirstComment(nextComment);
+      return nextComment;
+    } catch (error) {
+      console.error("[social-publisher-first-comment] refresh failed", error);
+      const fallbackComment = buildSuggestedFirstComment(selectedCatalogProduct, { includeLocation, includeShipping });
+      setFirstComment(fallbackComment);
+      return fallbackComment;
+    } finally {
+      setFirstCommentLoading(false);
+    }
+  };
+  const useSuggestedFirstComment = () => {
+    if (!firstComment.trim()) {
+      void refreshSuggestedFirstComment();
+      return;
+    }
+    toast.success("First comment saved to draft.");
+  };
+  const copySuggestedFirstComment = async () => {
+    if (!firstComment.trim()) return;
+    try {
+      await navigator.clipboard.writeText(firstComment);
+      toast.success("Copied first comment.");
+    } catch {
+      toast.error("Copy failed.");
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedCatalogProduct?.id) {
+      setFirstComment("");
+      return undefined;
+    }
+    void refreshSuggestedFirstComment();
+    return undefined;
+  }, [selectedCatalogProduct?.id, includeLocation, includeShipping]);
 
   useEffect(() => {
     const refreshOnReturn = () => {
@@ -900,6 +1052,7 @@ export default function SocialMediaPublisher() {
 
   const resetComposer = () => {
     setCaption("");
+    setFirstComment("");
     setScheduledAt("");
     setMediaFile(null);
     setSelectedCatalogProduct(null);
@@ -936,6 +1089,9 @@ export default function SocialMediaPublisher() {
   const buildPayload = () => {
     const formData = new FormData();
     formData.append("caption", caption);
+    if (firstComment.trim()) {
+      formData.append("first_comment", firstComment);
+    }
     formData.append("platforms", JSON.stringify(selectedPlatforms));
     formData.append("media_type", mediaType);
     if (selectedCatalogProduct?.id) {
@@ -1325,7 +1481,7 @@ export default function SocialMediaPublisher() {
               </label>
 
               <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-                <label className="space-y-2">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold text-slate-200">{t("marketing.socialPublisher.caption")}</span>
                     <span className="text-xs text-slate-500">{caption.length} chars</span>
@@ -1337,7 +1493,55 @@ export default function SocialMediaPublisher() {
                     placeholder="Write your post caption..."
                     className="min-h-[170px] w-full rounded-[1.75rem] border border-white/10 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-400/40 focus:ring-2 focus:ring-amber-400/10"
                   />
-                </label>
+
+                  <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-black text-white">Suggested First Comment</div>
+                        <div className="mt-1 text-xs leading-5 text-slate-400">
+                          Built from ERP data only. Caption stays unchanged.
+                        </div>
+                      </div>
+                      <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
+                        ERP
+                      </span>
+                    </div>
+
+                    <div className="mt-3 rounded-[1.35rem] border border-white/10 bg-white/[0.03] p-3">
+                      <p className="max-h-40 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                        {firstCommentPreview}
+                      </p>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={copySuggestedFirstComment}
+                        disabled={!firstComment.trim()}
+                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Copy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={useSuggestedFirstComment}
+                        disabled={!firstComment.trim()}
+                        className="rounded-2xl bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Use Comment
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void refreshSuggestedFirstComment()}
+                        disabled={firstCommentLoading || !selectedCatalogProduct?.id}
+                        className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {firstCommentLoading ? <Loader2 className="mr-1 inline-block h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="mr-1 inline-block h-3.5 w-3.5" />}
+                        Regenerate
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
                 <div className="space-y-3">
                   <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
