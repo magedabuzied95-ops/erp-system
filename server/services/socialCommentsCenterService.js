@@ -1743,6 +1743,14 @@ const getSocialCommentCommentByCommentId = async ({ tenantId = null, platform = 
   if (!safeTenantId || !safeCommentId) return null;
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
+  const lookupColumnsChecked = [
+    "ai_support_messages.comment_id",
+    "ai_support_messages.external_message_id",
+    "ai_support_messages.provider_message_id",
+    "ai_support_messages.external_reply_id",
+    "social_comment_automation_runs.comment_id",
+    "social_comment_automation_runs.inbox_conversation_id",
+  ];
   const result = await db.query(
     `
     SELECT
@@ -1761,13 +1769,119 @@ const getSocialCommentCommentByCommentId = async ({ tenantId = null, platform = 
      AND run.platform = $3::text
      AND run.comment_id = msg.comment_id
     WHERE msg.tenant_id = $1::bigint
-      AND msg.comment_id = $2::text
       AND msg.message_type = 'comment_inbound'
+      AND (
+        msg.comment_id = $2::text
+        OR msg.external_message_id = $2::text
+        OR msg.provider_message_id = $2::text
+        OR msg.external_reply_id = $2::text
+      )
     LIMIT 1
     `,
     [safeTenantId, safeCommentId, normalizedPlatform]
   );
-  return result.rows?.[0] || null;
+  const directRow = result.rows?.[0] || null;
+  if (directRow) {
+    console.warn("[social-comments:preview-lookup-debug]", {
+      incoming_comment_id: safeCommentId,
+      lookup_columns_checked: lookupColumnsChecked,
+      matched_table: "ai_support_messages",
+      matched_row_id: text(directRow.id || directRow.comment_id || directRow.external_message_id || directRow.provider_message_id || ""),
+    });
+    return directRow;
+  }
+
+  const runResult = await db.query(
+    `
+    SELECT *
+    FROM social_comment_auto_reply_runs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND comment_id = $3::text
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, normalizedPlatform, safeCommentId]
+  );
+  const runRow = runResult.rows?.[0] || null;
+  if (runRow) {
+    const rawPayload = metadataObject(runRow.raw_payload || {});
+    const payloadValue = metadataObject(rawPayload.value || {});
+    const fallbackComment = {
+      id: text(runRow.comment_id || safeCommentId),
+      comment_id: text(runRow.comment_id || safeCommentId),
+      external_message_id: text(runRow.comment_id || safeCommentId),
+      provider_message_id: text(runRow.comment_id || safeCommentId),
+      message: text(
+        payloadValue.message ||
+        payloadValue.text ||
+        rawPayload.message ||
+        rawPayload.text ||
+        runRow.original_comment_text ||
+        ""
+      ),
+      customer_name: text(
+        payloadValue.from?.name ||
+        rawPayload.from?.name ||
+        runRow.commenter_name ||
+        "عميل"
+      ),
+      commenter_name: text(
+        payloadValue.from?.name ||
+        rawPayload.from?.name ||
+        runRow.commenter_name ||
+        "عميل"
+      ),
+      customer_avatar_url: text(
+        payloadValue.from?.picture ||
+        rawPayload.from?.picture ||
+        runRow.commenter_profile_picture_url ||
+        ""
+      ),
+      commenter_profile_picture_url: text(
+        payloadValue.from?.picture ||
+        rawPayload.from?.picture ||
+        runRow.commenter_profile_picture_url ||
+        ""
+      ),
+      post_id: text(
+        runRow.post_id ||
+        payloadValue.post_id ||
+        rawPayload.post_id ||
+        rawPayload.value?.post_id ||
+        ""
+      ),
+      platform: normalizedPlatform,
+      reply_status: text(runRow.reply_status || "pending"),
+      like_status: text(runRow.like_status || "pending"),
+      auto_reply_mode: text(runRow.mode || "manual_approval"),
+      metadata: {
+        ...(rawPayload && typeof rawPayload === "object" ? rawPayload : {}),
+        post_id: text(runRow.post_id || payloadValue.post_id || rawPayload.post_id || rawPayload.value?.post_id || ""),
+        comment_id: text(runRow.comment_id || safeCommentId),
+        inbox_conversation_id: text(runRow.inbox_conversation_id || ""),
+      },
+      raw: {
+        ...runRow,
+        raw_payload: rawPayload,
+      },
+    };
+    console.warn("[social-comments:preview-lookup-debug]", {
+      incoming_comment_id: safeCommentId,
+      lookup_columns_checked: lookupColumnsChecked,
+      matched_table: "social_comment_automation_runs",
+      matched_row_id: text(runRow.id || runRow.comment_id || ""),
+    });
+    return fallbackComment;
+  }
+
+  console.warn("[social-comments:preview-lookup-debug]", {
+    incoming_comment_id: safeCommentId,
+    lookup_columns_checked: lookupColumnsChecked,
+    matched_table: "",
+    matched_row_id: "",
+  });
+  return null;
 };
 
 const processSocialCommentAutoReply = async ({ tenantId = null, platform = "", postId = "", commentId = "", comment = null, post = null, settings = null, template = null, force = false } = {}) => {
