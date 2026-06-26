@@ -267,6 +267,44 @@ const resolvePostPreviewLink = (row = {}) => {
   );
 };
 
+const resolveSocialCommentGraphPostId = (row = {}) => {
+  const metadata = metadataObject(row.metadata || {});
+  const candidates = [
+    row.post_id,
+    metadata.post_id,
+    row.conversation_id,
+    row.external_conversation_id,
+    metadata.conversation_id,
+  ]
+    .map((value) => text(value))
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (/^(facebook|instagram)_post:/i.test(candidate)) {
+      const parts = candidate.split(":").filter(Boolean);
+      return text(parts.slice(1).join(":"));
+    }
+    if (/^(facebook|instagram)_comment:/i.test(candidate)) {
+      const parts = candidate.split(":").filter(Boolean);
+      if (parts.length >= 3) return text(parts[1] || "");
+      return text(parts[1] || "");
+    }
+    if (/^social_comment:/i.test(candidate)) {
+      const parts = candidate.split(":").filter(Boolean);
+      if (parts.length >= 3) {
+        const tail = text(parts.slice(2).join(":"));
+        if (tail) return tail;
+      }
+      if (parts.length >= 2) {
+        return text(parts[parts.length - 1] || "");
+      }
+    }
+    return candidate;
+  }
+
+  return "";
+};
+
 const persistSocialCommentPostMedia = async ({ tenantId = null, channel = "", conversationId = "", metadata = {} } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const safeChannel = text(channel);
@@ -359,9 +397,11 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   const safeRow = { ...(row || {}) };
   const metadata = metadataObject(safeRow.metadata || {});
   const postId = text(safeRow.post_id || safeRow.conversation_id || metadata.post_id || "");
+  const graphPostId = resolveSocialCommentGraphPostId(safeRow);
   const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
   const currentDetails = resolvePostThumbnailDetails(safeRow);
   const currentHasThumbnail = Boolean(currentDetails.has_thumbnail);
+  const shouldLogMediaBackfill = !currentHasThumbnail;
   const unsupportedGraphMedia = currentDetails.reason_if_missing === "deprecated_status_no_graph_media" || lower(metadata.media_enrichment_status) === "unsupported_deprecated_status";
   const needsGraph = !unsupportedGraphMedia && (!currentDetails.has_thumbnail || !resolvePostPreviewCaption(safeRow) || !resolvePostPreviewLink(safeRow));
   if (!tenantId || !postId || !needsGraph) {
@@ -394,9 +434,10 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     };
   }
   try {
+    const graphLookupPostId = text(graphPostId || postId);
     const graphPost = await fetchMetaPostPreviewDetails({
       tenantId,
-      postId,
+      postId: graphLookupPostId,
       pageId,
       permalinkUrl: safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "",
     }).catch(() => null);
@@ -412,6 +453,11 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           ...metadata,
           post_id: postId,
           thumbnail_url: fallbackMedia.thumbnail_url,
+          post_full_picture: fallbackMedia.thumbnail_url,
+          full_picture: fallbackMedia.thumbnail_url,
+          picture: fallbackMedia.thumbnail_url,
+          media_url: "",
+          media_type: metadata.media_type || "",
           thumbnail_source: fallbackMedia.thumbnail_source,
           fallback_media_source: "marketing_content_queue",
           fallback_record_id: fallbackMedia.publisher_record_id || "",
@@ -424,6 +470,16 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
           metadata: fallbackMetadata,
         });
+        if (shouldLogMediaBackfill) {
+          console.warn("[social-comments:media-backfill]", {
+            conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
+            original_post_id: postId,
+            resolved_graph_id: graphLookupPostId,
+            graph_media_found: false,
+            media_source_used: fallbackMedia.thumbnail_source || "marketing_content_queue",
+            thumbnail_url_saved: text(fallbackMedia.thumbnail_url || ""),
+          });
+        }
         return {
           ...safeRow,
           metadata: fallbackMetadata,
@@ -472,6 +528,16 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
           metadata: unsupportedMetadata,
         });
+        if (shouldLogMediaBackfill) {
+          console.warn("[social-comments:media-backfill]", {
+            conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
+            original_post_id: postId,
+            resolved_graph_id: graphLookupPostId,
+            graph_media_found: false,
+            media_source_used: "deprecated_status_no_graph_media",
+            thumbnail_url_saved: "",
+          });
+        }
         return {
           ...safeRow,
           metadata: unsupportedMetadata,
@@ -571,6 +637,16 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
       metadata: nextPersistedMetadata,
     });
+    if (shouldLogMediaBackfill) {
+      console.warn("[social-comments:media-backfill]", {
+        conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
+        original_post_id: postId,
+        resolved_graph_id: graphLookupPostId,
+        graph_media_found: Boolean(nextDetails.thumbnail_url),
+        media_source_used: nextDetails.thumbnail_source || "graph",
+        thumbnail_url_saved: text(nextDetails.thumbnail_url || ""),
+      });
+    }
     return {
       ...mergedRow,
       metadata: nextPersistedMetadata,
@@ -600,6 +676,16 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       object_id_thumbnail_present: Boolean(graphPost.object_id_thumbnail_present),
     };
   } catch {
+    if (shouldLogMediaBackfill) {
+      console.warn("[social-comments:media-backfill]", {
+        conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
+        original_post_id: postId,
+        resolved_graph_id: graphPostId || postId,
+        graph_media_found: false,
+        media_source_used: "graph_error",
+        thumbnail_url_saved: "",
+      });
+    }
     return {
       ...safeRow,
       had_thumbnail_before: currentHasThumbnail,
