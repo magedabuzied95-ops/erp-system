@@ -4273,22 +4273,65 @@ export const updateStorefrontCustomerPreferences = async (req, res) => {
       return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
     }
     const customer = await findStorefrontCustomerByPhone(db, { tenantId, phone });
-    if (!customer?.id) {
-      return res.status(404).json({ success: false, message: "Customer not found" });
-    }
-    const currentSizes = normalizePreferredSizes(customer.preferred_sizes || defaultPreferredSizes());
+    const currentSizes = normalizePreferredSizes(customer?.preferred_sizes || defaultPreferredSizes());
     const incomingSizes = normalizePreferredSizes(req.body?.preferred_sizes || req.body || {});
     const preferredSizes = mergePreferredSizes(currentSizes, incomingSizes);
-    await db.query(
-      `
-      UPDATE customers
-      SET preferred_sizes = $3::jsonb,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE tenant_id = $1
-        AND id = $2
-      `,
-      [tenantId, customer.id, JSON.stringify(preferredSizes)]
-    );
+    if (customer?.id) {
+      await db.query(
+        `
+        UPDATE customers
+        SET preferred_sizes = $3::jsonb,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = $1
+          AND id = $2
+        `,
+        [tenantId, customer.id, JSON.stringify(preferredSizes)]
+      );
+    } else {
+      await db.query(
+        `
+        INSERT INTO customers (
+          tenant_id,
+          name,
+          phone,
+          status,
+          registration_source,
+          created_at,
+          updated_at,
+          first_visit_at,
+          last_visit_at,
+          storefront_last_seen_at,
+          is_storefront_customer,
+          loyalty_points,
+          loyalty_tier,
+          wallet_balance,
+          total_spent,
+          total_orders,
+          preferred_sizes
+        )
+        VALUES (
+          $1,
+          $2,
+          $3,
+          'active',
+          'storefront',
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP,
+          CURRENT_TIMESTAMP,
+          TRUE,
+          0,
+          'Bronze',
+          0,
+          0,
+          0,
+          $4::jsonb
+        )
+        `,
+        [tenantId, "Storefront Customer", phone, JSON.stringify(preferredSizes)]
+      );
+    }
     return res.json({ success: true, preferences: preferredSizes });
   } catch (error) {
     console.error("[storefront-preferences] save failed", {
