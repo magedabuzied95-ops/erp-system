@@ -88,6 +88,10 @@ router.post("/generate-social-caption", protect, async (req, res) => {
     res.json({
       success: true,
       caption: result.caption || "",
+      hook: result.hook || "",
+      body: result.body || "",
+      cta: result.cta || "",
+      hashtags: result.hashtags || [],
       source: result.source,
       error: result.error,
       error_reason: result.error_reason || "",

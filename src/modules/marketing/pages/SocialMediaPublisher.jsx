@@ -82,6 +82,95 @@ const buildCatalogCaption = (product = {}) => {
   const priceLine = priceValue > 0 ? `السعر: ${formatCompactCurrency(priceValue)} ج.م` : "";
   return [name, priceLine, "متوفر الآن", "اطلب الآن"].filter(Boolean).join("\n");
 };
+const buildErpProductInfo = (product = {}) => {
+  const resolved = normalizeCatalogProductMetrics(product);
+  const features = uniqueTextList(product.features, product.feature_list, product.highlights, product.benefits).slice(0, 4);
+  const sizes = uniqueTextList(resolved.available_sizes, product.available_sizes, product.sizes).slice(0, 10);
+  const colors = uniqueTextList(resolved.available_colors, product.available_colors, product.colors).slice(0, 5);
+  const currentPrice = Number(resolved.current_price || resolved.sale_price || resolved.price || 0);
+  const originalPrice = Number(resolved.original_price || resolved.price || 0);
+  const discountPercent = resolved.discount_percent || computeDiscountPercent(originalPrice, currentPrice);
+  const stockQuantity = Number(resolved.stock_quantity ?? resolved.available_stock ?? resolved.stock ?? 0);
+  const productUrl = buildFullProductUrl(resolved.product_url || product.product_url || "");
+  return {
+    features,
+    available_sizes: sizes,
+    available_colors: colors,
+    current_price: currentPrice,
+    original_price: originalPrice,
+    discount_percent: discountPercent,
+    stock_quantity: stockQuantity,
+    product_url: productUrl,
+    stock_line: stockQuantity > 0 ? "متوفر الآن" : "❌ غير متوفر حالياً",
+  };
+};
+const normalizeAiCaptionSections = (result = {}) => {
+  const hashtags = uniqueTextList(result.hashtags, result.tags, result.hash_tags, result.keywords).slice(0, 5);
+  return {
+    hook: normalizeTextValue(result.hook || result.opening_hook || result.opening || ""),
+    body: normalizeTextValue(result.body || result.marketing_body || result.copy || ""),
+    cta: normalizeTextValue(result.cta || result.call_to_action || ""),
+    hashtags,
+    caption: normalizeTextValue(result.caption || ""),
+  };
+};
+const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}) => {
+  const lines = [];
+  const hook = normalizeTextValue(aiSections.hook);
+  const body = normalizeTextValue(aiSections.body);
+  const cta = normalizeTextValue(aiSections.cta);
+  const hashtags = uniqueTextList(aiSections.hashtags).slice(0, 5);
+
+  lines.push("HOOK");
+  if (hook) lines.push(hook);
+
+  lines.push("");
+  lines.push("MARKETING BODY");
+  if (body) lines.push(body);
+
+  if (Array.isArray(erpInfo.features) && erpInfo.features.length) {
+    lines.push("");
+    lines.push("FEATURES");
+    erpInfo.features.forEach((feature) => lines.push(`• ${feature}`));
+  }
+
+  lines.push("");
+  lines.push("ERP INFO");
+  if (Number(erpInfo.current_price || 0) > 0) {
+    lines.push(`السعر الحالي: ${formatCompactCurrency(erpInfo.current_price)} ج.م`);
+  }
+  if (Number(erpInfo.original_price || 0) > 0 && Number(erpInfo.original_price || 0) !== Number(erpInfo.current_price || 0)) {
+    lines.push(`السعر القديم: ${formatCompactCurrency(erpInfo.original_price)} ج.م`);
+  }
+  if (erpInfo.discount_percent) {
+    lines.push(`نسبة الخصم: ${erpInfo.discount_percent}`);
+  }
+  if (Array.isArray(erpInfo.available_sizes) && erpInfo.available_sizes.length) {
+    lines.push(`المقاسات المتوفرة: ${erpInfo.available_sizes.join("، ")}`);
+  }
+  if (Array.isArray(erpInfo.available_colors) && erpInfo.available_colors.length) {
+    lines.push(`الألوان المتوفرة: ${erpInfo.available_colors.join("، ")}`);
+  }
+  lines.push(`حالة المخزون: ${erpInfo.stock_line || "❌ غير متوفر حالياً"}`);
+
+  lines.push("");
+  lines.push("CTA");
+  if (cta) lines.push(cta);
+
+  lines.push("");
+  lines.push("LINK");
+  if (erpInfo.product_url) lines.push(erpInfo.product_url);
+
+  lines.push("");
+  lines.push("HASHTAGS");
+  if (hashtags.length) lines.push(hashtags.join(" "));
+
+  return lines
+    .map((line) => String(line || "").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+};
 const normalizeTextValue = (value) => String(value || "").trim();
 const normalizeListValue = (value) => {
   if (!value) return [];
@@ -580,12 +669,20 @@ export default function SocialMediaPublisher() {
         force: Boolean(force),
       };
       const result = await generateSocialPublisherCaption(payload, { timeoutMs: 45000 });
-      const nextCaption = String(result?.caption || "").trim() || buildCatalogCaption(selectedCatalogProduct);
+      const aiSections = normalizeAiCaptionSections(result || {});
+      const erpInfo = buildErpProductInfo(productDetails || selectedCatalogProduct);
+      const nextCaption = composeNewCollectionCaption(aiSections, erpInfo) || String(result?.caption || "").trim() || buildCatalogCaption(selectedCatalogProduct);
       console.warn("[ai-social-caption-response]", {
         success: String(result?.source || "").toUpperCase() === "OPENAI",
         source: result?.source || "",
         error: result?.error || "",
         caption_length: nextCaption.length,
+        sections: {
+          hook: aiSections.hook || "",
+          body: aiSections.body || "",
+          cta: aiSections.cta || "",
+          hashtags: aiSections.hashtags || [],
+        },
       });
       setAiTemplateCaption(nextCaption);
       setAiTemplateSource(String(result?.source || "LOCAL_FALLBACK"));

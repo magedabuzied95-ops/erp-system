@@ -91,6 +91,19 @@ const platformMeta = (platform = "") => {
   return { label: "Facebook", className: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100" };
 };
 
+const postTypeMeta = (post = {}) => {
+  const rawType = clean(post?.raw?.post_type || post?.raw?.type || post?.raw?.story_type || post?.raw?.content_type || post?.metadata?.post_type || post?.metadata?.type || "");
+  if (!rawType) return null;
+  const key = rawType.toLowerCase();
+  const label =
+    key.includes("reel") ? "Reel" :
+    key.includes("video") ? "Video" :
+    key.includes("story") ? "Story" :
+    key.includes("photo") || key.includes("image") ? "Photo" :
+    rawType;
+  return label ? { label } : null;
+};
+
 const getAttachmentImage = (post = {}) => {
   const attachments = Array.isArray(post.attachments?.data)
     ? post.attachments.data
@@ -628,7 +641,13 @@ function SocialCommentsWorkspace({
 
           <div className="flex-1 min-h-0 overflow-y-auto p-2">
             {!normalizedPosts.length && !loading ? (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">لا توجد منشورات بعد</div>
+              <div className="rounded-2xl border border-dashed border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.02] p-6 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-400">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div className="mt-3 text-sm font-black text-white">لا توجد منشورات بعد</div>
+                <div className="mt-1 text-xs text-slate-500">سيظهر هنا المنشور المرتبط بالتعليقات عندما يتوفر</div>
+              </div>
             ) : null}
 
             <div className="space-y-2">
@@ -672,13 +691,14 @@ function SocialCommentsWorkspace({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <div className="line-clamp-2 text-sm font-black text-white">{post.caption || "Post"}</div>
+                            <div className="line-clamp-2 text-sm font-black leading-6 text-white">{post.caption || "Post"}</div>
                           </div>
                           <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{post.commentsCount} comments</span>
                           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{post.newCount} new</span>
+                          {postTypeMeta(post) ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-slate-200">{postTypeMeta(post).label}</span> : null}
                           {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
                         </div>
                         <div className="mt-2 text-[11px] font-medium text-slate-400">
@@ -705,7 +725,21 @@ function SocialCommentsWorkspace({
                     <ArrowUpRight className="h-3.5 w-3.5" />
                     Post Workspace
                   </div>
-                  <h2 className="mt-1 line-clamp-2 text-lg font-black text-white">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
+                  <h2 className="mt-1 line-clamp-2 text-lg font-black leading-7 text-white">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
+                    {postTypeMeta(activePostDetails) ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black text-slate-200">
+                        {postTypeMeta(activePostDetails).label}
+                      </span>
+                    ) : null}
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black text-slate-200">
+                      {activePost.commentsCount || 0} comments
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black text-slate-200">
+                      {activePost.newCount || 0} new
+                    </span>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -749,7 +783,7 @@ function SocialCommentsWorkspace({
                     </div>
 
                     {activePostDetails?.productName || activePostDetails?.productPrice || activePostDetails?.productSalePrice || activePostDetails?.productSizes || activePostDetails?.productColors ? (
-                      <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3">
+                      <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
                         <div className="flex items-center justify-between gap-2">
                           <div>
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
@@ -790,13 +824,19 @@ function SocialCommentsWorkspace({
                   </div>
 
                   {activeThread.error ? (
-                    <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{activeThread.error}</div>
+                    <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold leading-6 text-rose-100">{activeThread.error}</div>
                   ) : null}
 
                   <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
                     {!visibleComments.length && !activeThread.loading ? (
-                      <div className="grid min-h-[18rem] place-items-center rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] p-6 text-center text-sm text-slate-500">
-                        لا توجد تعليقات لعرضها الآن
+                      <div className="grid min-h-[18rem] place-items-center rounded-[22px] border border-dashed border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.02] p-6 text-center">
+                        <div>
+                          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-400">
+                            <MessageSquareText className="h-5 w-5" />
+                          </div>
+                          <div className="mt-3 text-sm font-black text-white">لا توجد تعليقات للعرض الآن</div>
+                          <div className="mt-1 text-xs text-slate-500">عندما تصل تعليقات جديدة ستظهر هنا مباشرة</div>
+                        </div>
                       </div>
                     ) : null}
 
@@ -819,7 +859,7 @@ function SocialCommentsWorkspace({
                           onKeyDown={(event) => {
                             if (event.key === "Enter" || event.key === " ") setSelectedCommentKey(key);
                           }}
-                          className={`rounded-[22px] border p-3 transition ${
+                          className={`rounded-[22px] border p-3 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition ${
                             selected ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-slate-950/75"
                           }`}
                         >
@@ -841,21 +881,27 @@ function SocialCommentsWorkspace({
                                     {absoluteTime(comment.createdTime)}
                                   </div>
                                 </div>
-                                <span
-                                  className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${
-                                    status === "sent"
-                                      ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
-                                      : status === "failed"
-                                        ? "border-rose-300/20 bg-rose-400/10 text-rose-100"
-                                        : "border-white/10 bg-white/[0.04] text-slate-300"
-                                  }`}
-                                >
-                                  {labelText(status)}
-                                </span>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <span
+                                    className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${
+                                      status === "sent"
+                                        ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                                        : status === "failed"
+                                          ? "border-rose-300/20 bg-rose-400/10 text-rose-100"
+                                          : "border-white/10 bg-white/[0.04] text-slate-300"
+                                    }`}
+                                  >
+                                    {labelText(status)}
+                                  </span>
+                                  {getCommentTags(comment).map((tag) => (
+                                    <span key={tag} className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
 
-                              <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{text}</div>
-                              {renderCommentTags(comment)}
+                              <div className="mt-2 whitespace-pre-wrap text-sm leading-7 text-slate-100">{text}</div>
 
                               <div className="mt-3 flex flex-wrap gap-2">
                                 <button
@@ -946,7 +992,7 @@ function SocialCommentsWorkspace({
                       value={replyDraft}
                       onChange={(event) => setReplyDraft(event.target.value)}
                       rows={4}
-                      className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 p-3 text-sm text-white outline-none"
+                      className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-6 text-white outline-none"
                       placeholder="Reply draft"
                     />
 

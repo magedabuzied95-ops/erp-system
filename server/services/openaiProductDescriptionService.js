@@ -44,9 +44,15 @@ const productDescriptionSchema = {
 const socialCaptionSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["caption"],
+  required: ["hook", "body", "cta", "hashtags"],
   properties: {
-    caption: { type: "string" },
+    hook: { type: "string" },
+    body: { type: "string" },
+    cta: { type: "string" },
+    hashtags: {
+      type: "array",
+      items: { type: "string" },
+    },
   },
 };
 
@@ -169,29 +175,17 @@ const buildPrompt = (context = {}, target = "all") => {
 };
 
 const buildSocialCaptionPrompt = (context = {}) => [
-  "Write a premium social media caption for a luxury footwear store.",
-  "Return strict JSON only with key caption.",
-  "The caption must be short, premium, and suitable for Facebook and Instagram.",
-  "Maximum length: 1200 characters.",
-  "Use emojis moderately.",
-  "Do not repeat the same word excessively.",
-  "Do not invent information that is not provided.",
-  "Always follow this order when available:",
-  "NEW COLLECTION",
-  "Product name",
-  "A strong opening line",
-  "Top 3 or 4 features from the supplied product data only",
-  "Current price",
-  "If a discount exists, show current price, original price, and discount percent.",
-  "If no discount exists, do not mention the original price.",
-  "If stock_quantity is 0, say غير متوفر حاليا.",
-  "If stock_quantity is greater than 0, say متوفر الآن.",
-  "Only use available_sizes and available_colors from the supplied data.",
-  "CTA",
-  "Product URL must be the full absolute URL.",
-  "3 to 5 relevant hashtags",
-  "Use Arabic copy for the caption body, but keep NEW COLLECTION exactly as written.",
-  "Omit any section whose data is missing.",
+  "Write structured social media copy for a luxury footwear store.",
+  "Return strict JSON only with keys hook, body, cta, hashtags.",
+  "Do not include price, original price, discount, sizes, colors, stock, or link in the AI output.",
+  "Those ERP fields will be inserted later by the app.",
+  "Hook: one short premium line, 1 sentence maximum.",
+  "Body: 2 to 4 short lines, premium and persuasive, without repeating the product name too much.",
+  "CTA: one short line only.",
+  "Hashtags: return 3 to 5 short hashtags as an array of strings.",
+  "Use only supplied ERP product facts. Do not invent features or claims.",
+  "Keep the tone premium, concise, and suitable for Facebook and Instagram.",
+  "Arabic body is preferred, but keep the hook impactful and natural.",
   `Product context:\n${JSON.stringify(context, null, 2)}`,
 ]
   .filter(Boolean)
@@ -205,13 +199,12 @@ const normalizeGenerated = (raw = {}, fallback = {}, target = "all") => {
   };
 };
 
-const normalizeSocialCaptionGenerated = (raw = {}, fallback = "") => {
-  const caption = cleanText(raw.caption || raw.post_caption || raw.social_caption || raw.text);
-  return caption || fallback;
+const normalizeSocialCaptionArray = (value = []) => {
+  const items = Array.isArray(value) ? value : String(value || "").split(/[\n,|]+/);
+  return Array.from(new Set(items.map(cleanText).filter(Boolean))).slice(0, 5);
 };
 
-const buildSocialCaptionFallback = (context = {}) => {
-  const lines = [];
+const buildSocialCaptionSections = (context = {}) => {
   const name = cleanText(context.product_name) || cleanText(context.name) || "NEW COLLECTION";
   const brand = cleanText(context.brand);
   const category = cleanText(context.category || context.product_type);
@@ -225,29 +218,77 @@ const buildSocialCaptionFallback = (context = {}) => {
   const discount = cleanText(context.discount_percent || "");
   const stock = cleanText(context.stock_quantity || context.stock || "");
   const url = cleanText(context.product_url || "");
-  const stockLine = Number(stock || 0) > 0 ? "متوفر الآن" : "غير متوفر حاليا";
+  const stockLine = Number(stock || 0) > 0 ? "متوفر الآن" : "❌ غير متوفر حالياً";
+  const hook = `✨ اكتشف ${name} الآن` + (brand ? ` من ${brand}` : "");
+  const bodyParts = [];
+  if (description) bodyParts.push(description);
+  if (category) bodyParts.push(`مصمم ليمنحك حضورًا مميزًا داخل ${category}`);
+  if (materials.length) bodyParts.push(`الخامات: ${materials.join("، ")}`);
+  if (features.length) bodyParts.push(`أهم المزايا: ${features.join("، ")}`);
+  if (colors.length) bodyParts.push(`ألوان مختارة: ${colors.join("، ")}`);
+  if (sizes.length) bodyParts.push(`متاح بمقاسات: ${sizes.join("، ")}`);
+  const body = bodyParts.slice(0, 4).join("\n");
+  const cta = "اطلبه الآن قبل نفاد الكمية.";
+  const hashtags = normalizeList(context.hashtags || context.tags || ["#NewCollection", "#Fashion", "#Footwear"]).slice(0, 5);
+  const erpInfo = {
+    name,
+    brand,
+    category,
+    current_price: currentPrice,
+    original_price: originalPrice,
+    discount_percent: discount,
+    stock_quantity: stock,
+    stock_line: stockLine,
+    available_sizes: sizes,
+    available_colors: colors,
+    product_url: url,
+    features,
+  };
+  return {
+    hook,
+    body,
+    cta,
+    hashtags,
+    erpInfo,
+  };
+};
 
-  lines.push("NEW COLLECTION");
-  lines.push(name);
-  if (brand || category) lines.push([brand, category].filter(Boolean).join(" • "));
-  if (description) lines.push(description);
-  features.forEach((feature) => lines.push(`• ${feature}`));
-  if (materials.length) lines.push(`المواد: ${materials.join("، ")}`);
-  if (colors.length) lines.push(`الألوان: ${colors.join("، ")}`);
-  if (sizes.length) lines.push(`المقاسات: ${sizes.join("، ")}`);
-  if (currentPrice) {
-    if (originalPrice && originalPrice !== currentPrice) {
-      lines.push(`السعر الحالي: ${currentPrice}`);
-      lines.push(`السعر القديم: ${originalPrice}`);
-      if (discount) lines.push(`الخصم: ${discount}`);
-    } else {
-      lines.push(`السعر: ${currentPrice}`);
-    }
-  }
-  lines.push(stockLine);
-  if (url) lines.push(url);
-  lines.push("#NewCollection #Fashion #Footwear");
-  return lines.filter(Boolean).join("\n").trim();
+const buildSocialCaptionFallback = (context = {}) => {
+  const sections = buildSocialCaptionSections(context);
+  return {
+    ...sections,
+    caption: [
+      "HOOK",
+      sections.hook,
+      "",
+      "MARKETING BODY",
+      sections.body,
+      "",
+      sections.erpInfo.features.length ? "FEATURES" : "",
+      ...sections.erpInfo.features.map((feature) => `• ${feature}`),
+      "",
+      "ERP INFO",
+      sections.erpInfo.current_price ? `السعر الحالي: ${sections.erpInfo.current_price}` : "",
+      sections.erpInfo.original_price && sections.erpInfo.original_price !== sections.erpInfo.current_price ? `السعر القديم: ${sections.erpInfo.original_price}` : "",
+      sections.erpInfo.discount_percent ? `نسبة الخصم: ${sections.erpInfo.discount_percent}` : "",
+      sections.erpInfo.available_sizes.length ? `المقاسات المتوفرة: ${sections.erpInfo.available_sizes.join("، ")}` : "",
+      sections.erpInfo.available_colors.length ? `الألوان المتوفرة: ${sections.erpInfo.available_colors.join("، ")}` : "",
+      `حالة المخزون: ${sections.erpInfo.stock_line}`,
+      "",
+      "CTA",
+      sections.cta,
+      "",
+      "LINK",
+      sections.erpInfo.product_url,
+      "",
+      "HASHTAGS",
+      sections.hashtags.join(" "),
+    ]
+      .map((line) => String(line || "").trim())
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim(),
+  };
 };
 
 const logSocialCaptionContext = (label, context = {}) =>
@@ -274,8 +315,59 @@ const mapSocialCaptionOpenAiErrorReason = (error = {}, model = "") => {
   if (code === "OPENAI_TIMEOUT" || /timeout|timed out|aborterror|request aborted|signal aborted|etimedout/.test(combined)) return "OPENAI_TIMEOUT";
   if (code === "MODEL_ERROR" || /model|deployment|snapshot|not found/.test(combined)) return "MODEL_ERROR";
   if (status >= 400 || /api key|unauthorized|authentication|forbidden|invalid api key|auth/.test(combined)) return "OPENAI_API_ERROR";
-  if (model && /model/i.test(message) && !message) return "MODEL_ERROR";
+  if (/model|deployment|snapshot|not found/i.test(message)) return "MODEL_ERROR";
   return "OPENAI_API_ERROR";
+};
+
+const normalizeSocialCaptionGenerated = (raw = {}, fallback = {}) => {
+  const safeFallback = fallback || {};
+  const hook = cleanText(raw.hook || raw.opening_hook || raw.opening || raw.title) || safeFallback.hook || "";
+  const body = cleanText(raw.body || raw.marketing_body || raw.copy || raw.description) || safeFallback.body || "";
+  const cta = cleanText(raw.cta || raw.call_to_action || raw.action) || safeFallback.cta || "";
+  const hashtags = normalizeSocialCaptionArray(raw.hashtags || raw.tags || raw.hash_tags || raw.keywords);
+  const mergedHashtags = hashtags.length ? hashtags : Array.isArray(safeFallback.hashtags) ? safeFallback.hashtags : [];
+  const sections = {
+    hook,
+    body,
+    cta,
+    hashtags: mergedHashtags,
+  };
+  const erpInfo = safeFallback.erpInfo || {};
+  const caption = [
+    "HOOK",
+    sections.hook,
+    "",
+    "MARKETING BODY",
+    sections.body,
+    "",
+    Array.isArray(erpInfo.features) && erpInfo.features.length ? "FEATURES" : "",
+    ...(Array.isArray(erpInfo.features) ? erpInfo.features.map((feature) => `• ${feature}`) : []),
+    "",
+    "ERP INFO",
+    erpInfo.current_price ? `السعر الحالي: ${erpInfo.current_price}` : "",
+    erpInfo.original_price && erpInfo.original_price !== erpInfo.current_price ? `السعر القديم: ${erpInfo.original_price}` : "",
+    erpInfo.discount_percent ? `نسبة الخصم: ${erpInfo.discount_percent}` : "",
+    Array.isArray(erpInfo.available_sizes) && erpInfo.available_sizes.length ? `المقاسات المتوفرة: ${erpInfo.available_sizes.join("، ")}` : "",
+    Array.isArray(erpInfo.available_colors) && erpInfo.available_colors.length ? `الألوان المتوفرة: ${erpInfo.available_colors.join("، ")}` : "",
+    `حالة المخزون: ${erpInfo.stock_line || ""}`,
+    "",
+    "CTA",
+    sections.cta,
+    "",
+    "LINK",
+    erpInfo.product_url || "",
+    "",
+    "HASHTAGS",
+    sections.hashtags.join(" "),
+  ]
+    .map((line) => String(line || "").trim())
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  return {
+    ...sections,
+    caption,
+  };
 };
 
 export const generateProductDescription = async (input = {}) => {
@@ -398,7 +490,7 @@ export const generateSocialPublisherCaption = async (input = {}) => {
     );
 
     const parsed = JSON.parse(response.output_text || "{}");
-    const caption = normalizeSocialCaptionGenerated(parsed, fallback);
+    const generated = normalizeSocialCaptionGenerated(parsed, fallback);
     console.log("[social-caption] OpenAI request end", {
       requestId,
       durationMs: Date.now() - startedAt,
@@ -406,7 +498,7 @@ export const generateSocialPublisherCaption = async (input = {}) => {
     });
 
     return {
-      caption,
+      ...generated,
       source: "OPENAI",
     };
   } catch (error) {
@@ -422,7 +514,7 @@ export const generateSocialPublisherCaption = async (input = {}) => {
       error_reason: errorReason,
     });
     return {
-      caption: fallback,
+      ...fallback,
       source: "LOCAL_FALLBACK",
       error: error?.message || errorReason,
       error_reason: errorReason,
