@@ -24,18 +24,39 @@ const clean = (value = "") => String(value ?? "").trim();
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
-const resolveReplyCommentId = (comment = {}) =>
-  clean(
-    comment?.raw?.comment_id ||
-    comment?.raw?.external_message_id ||
-    comment?.raw?.provider_message_id ||
-    comment?.metadata?.comment_id ||
-    comment?.comment_id ||
-    comment?.external_message_id ||
-    comment?.provider_message_id ||
-    comment?.id ||
-    ""
-  );
+const isSmallNumericId = (value = "") => {
+  const candidate = clean(value);
+  return Boolean(candidate) && /^\d+$/.test(candidate) && candidate.length < 10;
+};
+
+const getReplyCommentIdCandidates = (comment = {}) => {
+  const metadata = comment?.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
+  const raw = comment?.raw && typeof comment.raw === "object" && !Array.isArray(comment.raw) ? comment.raw : {};
+  return [
+    { source: "raw.comment_id", value: clean(raw.comment_id || "") },
+    { source: "raw.external_comment_id", value: clean(raw.external_comment_id || "") },
+    { source: "raw.provider_comment_id", value: clean(raw.provider_comment_id || "") },
+    { source: "raw.external_message_id", value: clean(raw.external_message_id || "") },
+    { source: "raw.provider_message_id", value: clean(raw.provider_message_id || "") },
+    { source: "metadata.comment_id", value: clean(metadata.comment_id || "") },
+    { source: "metadata.external_comment_id", value: clean(metadata.external_comment_id || "") },
+    { source: "metadata.provider_comment_id", value: clean(metadata.provider_comment_id || "") },
+    { source: "metadata.external_message_id", value: clean(metadata.external_message_id || "") },
+    { source: "metadata.provider_message_id", value: clean(metadata.provider_message_id || "") },
+    { source: "comment.external_comment_id", value: clean(comment?.external_comment_id || "") },
+    { source: "comment.provider_comment_id", value: clean(comment?.provider_comment_id || "") },
+    { source: "comment.external_message_id", value: clean(comment?.external_message_id || "") },
+    { source: "comment.provider_message_id", value: clean(comment?.provider_message_id || "") },
+    { source: "comment.comment_id", value: clean(comment?.comment_id || "") },
+    { source: "comment.id", value: clean(comment?.id || "") },
+  ];
+};
+
+const resolveReplyCommentId = (comment = {}) => {
+  const candidates = getReplyCommentIdCandidates(comment);
+  const preferred = candidates.find(({ value, source }) => value && (!isSmallNumericId(value) || source === "comment.id"));
+  return clean(preferred?.value || "");
+};
 
 const absoluteTime = (value) => {
   if (!value) return "—";
@@ -767,14 +788,10 @@ function SocialCommentsWorkspace({
     const commentId = resolveReplyCommentId(comment);
     const messageText = clean(replyText || suggestedReply);
     if (replyLoadingKey) return;
+    const replyIdCandidates = getReplyCommentIdCandidates(comment);
     console.warn("[social-comments:reply-send-debug]", {
-      available_comment_ids: {
-        id: clean(comment?.id || ""),
-        comment_id: clean(comment?.comment_id || comment?.raw?.comment_id || comment?.metadata?.comment_id || ""),
-        external_message_id: clean(comment?.external_message_id || comment?.raw?.external_message_id || comment?.metadata?.external_message_id || ""),
-        provider_message_id: clean(comment?.provider_message_id || comment?.raw?.provider_message_id || comment?.metadata?.provider_message_id || ""),
-        raw_id: clean(comment?.raw?.id || ""),
-      },
+      candidate_ids: replyIdCandidates,
+      rejected_small_numeric_ids: replyIdCandidates.filter(({ value }) => isSmallNumericId(value)),
       sent_id: commentId,
     });
     if (!commentId) {
