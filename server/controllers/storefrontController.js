@@ -4119,7 +4119,7 @@ export const accountByPhone = async (req, res) => {
   try {
     await ensureStorefrontSchema(db);
     await ensureLoyaltySchema(db);
-    const tenantId = tenantFromRequest(req);
+    const tenantId = Number(req.storefrontCustomer?.tenant_id || tenantFromRequest(req));
     const jwtPhone = normalizePhone(toText(req.storefrontCustomer?.phone || ""));
     const fallbackPhone = normalizePhone(toText(req.query.phone || req.body?.phone || req.params.phone));
     const phone = jwtPhone || fallbackPhone;
@@ -4226,7 +4226,13 @@ export const accountByPhone = async (req, res) => {
       recent_products: recent.rows.sort((a, b) => new Date(b.viewed_at || 0) - new Date(a.viewed_at || 0)),
     });
   } catch (error) {
-    console.error("[storefront] account", error);
+    console.error("[storefront-account] failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+      hasStorefrontCustomer: Boolean(req.storefrontCustomer),
+      hasJwtPhone: Boolean(req.storefrontCustomer?.phone),
+      tenantId: Number(req.storefrontCustomer?.tenant_id || req.headers?.["x-tenant-id"] || req.query?.tenant_id || req.body?.tenant_id || DEFAULT_TENANT_ID),
+    });
     res.status(500).json({ success: false, message: "Failed to load account" });
   }
 };
