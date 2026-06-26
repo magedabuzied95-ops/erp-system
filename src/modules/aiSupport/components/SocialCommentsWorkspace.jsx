@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+﻿import { memo, useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   Bot,
@@ -463,6 +463,7 @@ function SocialCommentsWorkspace({
   const [privateMessageLoadingKey, setPrivateMessageLoadingKey] = useState("");
   const [ignoreLoadingKey, setIgnoreLoadingKey] = useState("");
   const [leadLoadingKey, setLeadLoadingKey] = useState("");
+  const [replyStatusOverrides, setReplyStatusOverrides] = useState({});
   const [expandedCaption, setExpandedCaption] = useState(false);
   const [globalDraft, setGlobalDraft] = useState(() => ({
     generic_enabled: false,
@@ -720,6 +721,7 @@ function SocialCommentsWorkspace({
       notify("amber", "اختر تعليقًا أولًا");
       return;
     }
+    if (previewLoading) return;
     setPreviewLoading(true);
     try {
       const payload = await api.post(`/social-comments/comments/${encodeURIComponent(commentId)}/auto-reply-preview`, {
@@ -744,6 +746,7 @@ function SocialCommentsWorkspace({
   const submitReply = async (comment = actionableComment, replyText = replyDraft) => {
     const commentId = clean(comment?.id || "");
     const messageText = clean(replyText || suggestedReply);
+    if (replyLoadingKey) return;
     if (!commentId) {
       notify("amber", "اختر تعليقًا للرد");
       return;
@@ -757,9 +760,11 @@ function SocialCommentsWorkspace({
       await api.post(`/ai-inbox/comments/${encodeURIComponent(commentId)}/reply`, {
         reply_text: messageText,
       });
+      setReplyStatusOverrides((current) => ({ ...current, [commentId]: "sent" }));
       notify("emerald", "تم إرسال الرد");
       await Promise.resolve(onRefresh?.());
     } catch (error) {
+      setReplyStatusOverrides((current) => ({ ...current, [commentId]: "failed" }));
       notify("rose", error?.message || "تعذر إرسال الرد");
     } finally {
       setReplyLoadingKey("");
@@ -1150,7 +1155,8 @@ function SocialCommentsWorkspace({
 
                     {visibleComments.map((comment) => {
                       const key = comment.id;
-                      const status = clean(getCommentClassification(comment));
+                      const replyStatus = clean(replyStatusOverrides[key] || comment.replyStatus || "");
+                      const status = replyStatus === "sent" || replyStatus === "failed" ? replyStatus : clean(getCommentClassification(comment));
                       const avatar = resolveCommentCustomerAvatar(comment);
                       const name = resolveCommentCustomerName(comment);
                       const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
@@ -1240,9 +1246,9 @@ function SocialCommentsWorkspace({
                                   type="button"
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    void submitReply(comment, replyDraft || suggestedReply);
+                                    void submitReply(comment, replyDraft || previewReply || suggestedReply);
                                   }}
-                                  disabled={busy || !clean(replyDraft || suggestedReply)}
+                                  disabled={busy || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)}
                                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 shadow-[0_6px_18px_rgba(34,211,238,0.18)] disabled:opacity-50"
                                 >
                                   {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -1252,9 +1258,9 @@ function SocialCommentsWorkspace({
                                   type="button"
                                   onClick={(event) => {
                                     event.stopPropagation();
-                                    void submitPrivateMessage(comment, replyDraft || suggestedReply);
+                                    void submitPrivateMessage(comment, replyDraft || previewReply || suggestedReply);
                                   }}
-                                  disabled={busy || !clean(replyDraft || suggestedReply)}
+                                  disabled={busy || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
                                   className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
                                 >
                                   {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
@@ -1331,8 +1337,8 @@ function SocialCommentsWorkspace({
                     <div className="mt-3 flex flex-wrap gap-2">
                       <button
                         type="button"
-                        onClick={() => void submitReply(actionableComment, previewReply || suggestedReply || replyDraft)}
-                        disabled={!actionableComment || !clean(previewReply || suggestedReply || replyDraft) || Boolean(replyLoadingKey)}
+                        onClick={() => void submitReply(actionableComment, replyDraft || previewReply || suggestedReply)}
+                        disabled={!actionableComment || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)}
                         className="inline-flex h-10 items-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-black text-slate-950 disabled:opacity-50"
                       >
                         {replyLoadingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
@@ -1340,8 +1346,8 @@ function SocialCommentsWorkspace({
                       </button>
                       <button
                         type="button"
-                        onClick={() => void submitPrivateMessage(actionableComment, previewReply || suggestedReply || replyDraft)}
-                        disabled={!actionableComment || !clean(previewReply || suggestedReply || replyDraft) || Boolean(privateMessageLoadingKey)}
+                        onClick={() => void submitPrivateMessage(actionableComment, replyDraft || previewReply || suggestedReply)}
+                        disabled={!actionableComment || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
                         className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-sm font-black text-slate-200 disabled:opacity-50"
                       >
                         {privateMessageLoadingKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
@@ -1553,8 +1559,8 @@ function SocialCommentsWorkspace({
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
                   <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Quick Actions</div>
                   <div className="mt-3 grid gap-2">
-                    <QuickActionButton label="Reply All Price Questions" onClick={() => void submitReply(firstMatchingComment((comment) => getCommentTags(comment).includes("Price")), replyDraft || suggestedReply)} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Price")) || !clean(replyDraft || suggestedReply)} />
-                    <QuickActionButton label="Reply All Size Questions" onClick={() => void submitReply(firstMatchingComment((comment) => getCommentTags(comment).includes("Size")), replyDraft || suggestedReply)} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Size")) || !clean(replyDraft || suggestedReply)} />
+                    <QuickActionButton label="Reply All Price Questions" onClick={() => void submitReply(firstMatchingComment((comment) => getCommentTags(comment).includes("Price")), replyDraft || previewReply || suggestedReply)} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Price")) || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)} />
+                    <QuickActionButton label="Reply All Size Questions" onClick={() => void submitReply(firstMatchingComment((comment) => getCommentTags(comment).includes("Size")), replyDraft || previewReply || suggestedReply)} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Size")) || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)} />
                     <QuickActionButton label="Create Leads" onClick={() => void handleCreateLead(firstMatchingComment((comment) => getCommentTags(comment).includes("Lead")))} disabled={!firstMatchingComment((comment) => getCommentTags(comment).includes("Lead"))} />
                     <QuickActionButton label="Send Product" onClick={() => void handleSendProduct()} />
                   </div>
