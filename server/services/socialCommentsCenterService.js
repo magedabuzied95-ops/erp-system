@@ -305,6 +305,62 @@ const resolveSocialCommentGraphPostId = (row = {}) => {
   return "";
 };
 
+const resolveSocialCommentGraphLookupIds = ({ row = {}, pageId = "" } = {}) => {
+  const metadata = metadataObject(row.metadata || {});
+  const safePageId = text(pageId);
+  const rawCandidates = [
+    resolveSocialCommentGraphPostId(row),
+    row.post_id,
+    metadata.post_id,
+    row.conversation_id,
+    row.external_conversation_id,
+    metadata.conversation_id,
+  ]
+    .map((value) => text(value))
+    .filter(Boolean);
+
+  const lookupIds = [];
+  for (const candidate of rawCandidates) {
+    if (/^(facebook|instagram)_post:/i.test(candidate)) {
+      const parts = candidate.split(":").filter(Boolean);
+      const graphPostId = text(parts.slice(1).join(":"));
+      if (graphPostId) lookupIds.push(graphPostId);
+      continue;
+    }
+    if (/^(facebook|instagram)_comment:/i.test(candidate)) {
+      const parts = candidate.split(":").filter(Boolean);
+      const graphPostId = text(parts[1] || "");
+      if (graphPostId) {
+        if (safePageId && !graphPostId.startsWith(`${safePageId}_`)) {
+          const baseGraphPostId = text(graphPostId.split("_").slice(0, 1).join("_") || "");
+          if (baseGraphPostId) lookupIds.push(`${safePageId}_${baseGraphPostId}`);
+        }
+        lookupIds.push(graphPostId);
+      }
+      continue;
+    }
+    if (/^social_comment:/i.test(candidate)) {
+      const parts = candidate.split(":").filter(Boolean);
+      const graphPostId = text(parts.slice(2).join(":") || parts[parts.length - 1] || "");
+      if (graphPostId) {
+        if (safePageId) {
+          const baseGraphPostId = text(graphPostId.split("_").slice(0, 1).join("_") || "");
+          if (baseGraphPostId) lookupIds.push(`${safePageId}_${baseGraphPostId}`);
+        }
+        lookupIds.push(graphPostId);
+      }
+      continue;
+    }
+    if (safePageId && candidate.includes("_") && !candidate.startsWith(`${safePageId}_`)) {
+      const baseGraphPostId = text(candidate.split("_").slice(0, 1).join("_") || "");
+      if (baseGraphPostId) lookupIds.push(`${safePageId}_${baseGraphPostId}`);
+    }
+    lookupIds.push(candidate);
+  }
+
+  return Array.from(new Set(lookupIds.filter(Boolean)));
+};
+
 const persistSocialCommentPostMedia = async ({ tenantId = null, channel = "", conversationId = "", metadata = {} } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const safeChannel = text(channel);
@@ -399,11 +455,34 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   const postId = text(safeRow.post_id || safeRow.conversation_id || metadata.post_id || "");
   const graphPostId = resolveSocialCommentGraphPostId(safeRow);
   const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
+  const graphLookupPostIds = resolveSocialCommentGraphLookupIds({ row: safeRow, pageId });
   const currentDetails = resolvePostThumbnailDetails(safeRow);
   const currentHasThumbnail = Boolean(currentDetails.has_thumbnail);
   const shouldLogMediaBackfill = !currentHasThumbnail;
+  const hasAnyMediaBefore = Boolean(
+    currentDetails.has_thumbnail ||
+    currentDetails.thumbnail_url ||
+    safeRow.thumbnail_url ||
+    metadata.thumbnail_url ||
+    safeRow.post_thumbnail ||
+    metadata.post_thumbnail ||
+    safeRow.post_full_picture ||
+    metadata.post_full_picture ||
+    safeRow.full_picture ||
+    metadata.full_picture ||
+    safeRow.picture ||
+    metadata.picture ||
+    safeRow.attachment_image ||
+    metadata.attachment_image ||
+    safeRow.media_url ||
+    metadata.media_url ||
+    safeRow.image_url ||
+    metadata.image_url ||
+    safeRow.image ||
+    metadata.image
+  );
   const unsupportedGraphMedia = currentDetails.reason_if_missing === "deprecated_status_no_graph_media" || lower(metadata.media_enrichment_status) === "unsupported_deprecated_status";
-  const needsGraph = !unsupportedGraphMedia && (!currentDetails.has_thumbnail || !resolvePostPreviewCaption(safeRow) || !resolvePostPreviewLink(safeRow));
+  const needsGraph = !currentDetails.has_thumbnail || !resolvePostPreviewCaption(safeRow) || !resolvePostPreviewLink(safeRow);
   if (!tenantId || !postId || !needsGraph) {
     return {
       ...safeRow,
@@ -434,13 +513,45 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     };
   }
   try {
-    const graphLookupPostId = text(graphPostId || postId);
-    const graphPost = await fetchMetaPostPreviewDetails({
-      tenantId,
-      postId: graphLookupPostId,
-      pageId,
-      permalinkUrl: safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "",
-    }).catch(() => null);
+    const permalinkUrl = safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "";
+    const graphLookupFallbackPostIds = Array.from(new Set([
+      ...(graphLookupPostIds.length ? graphLookupPostIds : [text(graphPostId || postId)]),
+      text(graphPostId || postId),
+      postId,
+    ].filter(Boolean)));
+    if (shouldLogMediaBackfill) {
+      console.warn("[social-comments:media-backfill:start]", {
+        conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
+        post_id: postId,
+        metadata_post_id: text(metadata.post_id || ""),
+        resolved_graph_id: text(graphLookupFallbackPostIds[0] || graphPostId || postId || ""),
+        has_any_media_before: hasAnyMediaBefore,
+      });
+    }
+    let graphPost = null;
+    let resolvedGraphId = "";
+    let graphErrorMessage = "";
+    for (const candidatePostId of graphLookupFallbackPostIds) {
+      const candidateGraphPost = await fetchMetaPostPreviewDetails({
+        tenantId,
+        postId: candidatePostId,
+        pageId,
+        permalinkUrl,
+      }).catch((error) => {
+        graphErrorMessage = text(error?.message || graphErrorMessage || "");
+        return null;
+      });
+      if (!candidateGraphPost) continue;
+      graphPost = candidateGraphPost;
+      resolvedGraphId = candidatePostId;
+      const candidateDetails = resolvePostThumbnailDetails(candidateGraphPost);
+      if (candidateDetails.has_thumbnail || isUsableImageUrl(candidateDetails.thumbnail_url)) {
+        break;
+      }
+    }
+    if (!resolvedGraphId) {
+      resolvedGraphId = text(graphLookupFallbackPostIds[0] || graphPostId || postId || "");
+    }
     const graphUnsupported = text(graphPost?.reason_if_missing || "") === "deprecated_status_no_graph_media" || lower(graphPost?.media_enrichment_status) === "unsupported_deprecated_status";
     if (!graphPost || graphUnsupported) {
       const fallbackMedia = await loadSocialPublisherFallbackMedia({
@@ -471,13 +582,14 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           metadata: fallbackMetadata,
         });
         if (shouldLogMediaBackfill) {
-          console.warn("[social-comments:media-backfill]", {
+          console.warn("[social-comments:media-backfill:result]", {
             conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
             original_post_id: postId,
-            resolved_graph_id: graphLookupPostId,
+            resolved_graph_id: resolvedGraphId,
             graph_media_found: false,
             media_source_used: fallbackMedia.thumbnail_source || "marketing_content_queue",
             thumbnail_url_saved: text(fallbackMedia.thumbnail_url || ""),
+            error_message: text(graphErrorMessage || graphPost?.reason_if_missing || ""),
           });
         }
         return {
@@ -529,13 +641,14 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           metadata: unsupportedMetadata,
         });
         if (shouldLogMediaBackfill) {
-          console.warn("[social-comments:media-backfill]", {
+          console.warn("[social-comments:media-backfill:result]", {
             conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
             original_post_id: postId,
-            resolved_graph_id: graphLookupPostId,
+            resolved_graph_id: resolvedGraphId,
             graph_media_found: false,
             media_source_used: "deprecated_status_no_graph_media",
             thumbnail_url_saved: "",
+            error_message: text(graphErrorMessage || graphPost?.reason_if_missing || ""),
           });
         }
         return {
@@ -638,13 +751,14 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       metadata: nextPersistedMetadata,
     });
     if (shouldLogMediaBackfill) {
-      console.warn("[social-comments:media-backfill]", {
+      console.warn("[social-comments:media-backfill:result]", {
         conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
         original_post_id: postId,
-        resolved_graph_id: graphLookupPostId,
+        resolved_graph_id: resolvedGraphId,
         graph_media_found: Boolean(nextDetails.thumbnail_url),
         media_source_used: nextDetails.thumbnail_source || "graph",
         thumbnail_url_saved: text(nextDetails.thumbnail_url || ""),
+        error_message: text(graphErrorMessage || graphPost?.reason_if_missing || ""),
       });
     }
     return {
@@ -675,15 +789,16 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       reel_thumbnail_present: Boolean(graphPost.reel_thumbnail_present),
       object_id_thumbnail_present: Boolean(graphPost.object_id_thumbnail_present),
     };
-  } catch {
+  } catch (error) {
     if (shouldLogMediaBackfill) {
-      console.warn("[social-comments:media-backfill]", {
+      console.warn("[social-comments:media-backfill:result]", {
         conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
         original_post_id: postId,
         resolved_graph_id: graphPostId || postId,
         graph_media_found: false,
         media_source_used: "graph_error",
         thumbnail_url_saved: "",
+        error_message: text(error?.message || ""),
       });
     }
     return {
