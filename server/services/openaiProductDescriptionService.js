@@ -63,7 +63,13 @@ const BRAND_VOICE_SYSTEM_PROMPT = [
   "- Do not use poetic phrasing, overexplained marketing language, or generic opening lines.",
   "- Start directly with the hook. Never add a fixed opener before it.",
   "- Make the hook depend on the product type and the actual product facts, not a generic sentence.",
+  "- Do not invent product use cases or scenarios.",
+  "- Do not assume the product is for running, adventures, wilderness, hiking, camping, travel, sports, or high performance unless those ideas appear explicitly inside description, features, product_type, or category.",
+  "- If the ERP data does not support a specific use case, keep the hook generic and based only on design, shape, comfort, or look.",
+  "- Safe hook examples when no use case is confirmed: موديل جديد وصل، تصميم جديد بإطلالة مميزة، خامات مريحة مع شكل عملي، اختيار بسيط وسهل للبس اليومي، شكل مرتب يناسب أكتر من ستايل.",
+  "- Use only the product facts that are explicitly present in ERP fields.",
   "- Avoid these phrases or close variants unless they are truly present in the product description: ارتقِ، اكتشف، استمتع، خطواتك، رحلتك، مغامرتك، الخيار الأمثل، مصمم خصيصاً، يجمع بين.",
+  "- Avoid these words or close variants unless they are explicitly present in ERP data: البرية، المغامرات، التخييم، الجبال، الرحلات، الهايكنج، العدائين، الرياضة، الأداء العالي.",
   "- Do not repeat the product name more than once.",
   "- Do not repeat the brand name more than once.",
   "- CTA must be short and natural. Use only one CTA line.",
@@ -228,6 +234,49 @@ const normalizeSocialCaptionArray = (value = []) => {
   return Array.from(new Set(items.map(cleanText).filter(Boolean))).slice(0, 5);
 };
 
+const EXPLICIT_USE_CASE_PATTERNS = [
+  /(^|[^a-z])running([^a-z]|$)/i,
+  /(^|[^a-z])jogging([^a-z]|$)/i,
+  /(^|[^a-z])outdoor([^a-z]|$)/i,
+  /(^|[^a-z])hiking([^a-z]|$)/i,
+  /(^|[^a-z])camping([^a-z]|$)/i,
+  /(^|[^a-z])travel([^a-z]|$)/i,
+  /(^|[^a-z])sports?([^a-z]|$)/i,
+  /(^|[^a-z])adventure([^a-z]|$)/i,
+  /(^|[^a-z])wilderness([^a-z]|$)/i,
+  /(^|[^a-z])trail([^a-z]|$)/i,
+  /الجري/,
+  /الرياضة/,
+  /الهايكنج/,
+  /التخييم/,
+  /الرحلات/,
+  /المغامرات/,
+  /البرية/,
+  /الأداء العالي/,
+];
+
+const hasExplicitUseCase = (value = "") => {
+  const text = cleanText(value);
+  return EXPLICIT_USE_CASE_PATTERNS.some((pattern) => pattern.test(text));
+};
+
+const buildGenericHook = ({ name, category, features, description } = {}) => {
+  const featureHint = cleanText(features[0]);
+  if (featureHint) {
+    const shortFeature = featureHint.split(/[،,.!?؟\n]/).find(Boolean) || featureHint;
+    return shortFeature;
+  }
+  const descriptionHint = cleanText(description || "").split(/[.!؟\n]/).find(Boolean) || "";
+  const safeDescriptionHint = cleanText(descriptionHint);
+  if (safeDescriptionHint && !hasExplicitUseCase(safeDescriptionHint)) {
+    return safeDescriptionHint;
+  }
+  if (category) {
+    return `تصميم جديد بإطلالة مميزة`;
+  }
+  return cleanText(name) || "موديل جديد وصل.";
+};
+
 const buildSocialCaptionSections = (context = {}) => {
   const name = cleanText(context.product_name) || cleanText(context.name) || "NEW COLLECTION";
   const brand = cleanText(context.brand);
@@ -244,12 +293,15 @@ const buildSocialCaptionSections = (context = {}) => {
   const stock = cleanText(context.stock_quantity || context.stock || "");
   const url = cleanText(context.product_url || "");
   const stockLine = Number(stock || 0) > 0 ? "متوفر الآن" : "غير متوفر حالياً";
-  const hookSource =
-    cleanText(productType) ||
-    cleanText(category) ||
-    cleanText(features[0]) ||
-    cleanText(description.split(/[.!؟\n]/).find(Boolean) || "") ||
-    cleanText(name);
+  const useCaseBlob = [productType, category, description, features.join(" "), materials.join(" "), name].filter(Boolean).join(" ");
+  const explicitUseCaseSource = hasExplicitUseCase(useCaseBlob);
+  const hookSource = explicitUseCaseSource
+    ? cleanText(productType) ||
+      cleanText(category) ||
+      cleanText(features[0]) ||
+      cleanText(description.split(/[.!؟\n]/).find(Boolean) || "") ||
+      cleanText(name)
+    : buildGenericHook({ name, category, features, description });
   const hook = brand && hookSource && !hookSource.includes(brand) ? `${hookSource} من ${brand}` : hookSource || name;
   const bodyParts = [];
   if (description) bodyParts.push(description);
