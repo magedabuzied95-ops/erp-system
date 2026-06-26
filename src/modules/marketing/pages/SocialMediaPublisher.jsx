@@ -114,15 +114,24 @@ const computeDiscountPercent = (originalPrice, currentPrice) => {
   if (!Number.isFinite(original) || !Number.isFinite(current) || original <= 0 || current <= 0 || current >= original) return "";
   return `${Math.max(1, Math.round(((original - current) / original) * 100))}%`;
 };
+const buildFullProductUrl = (value = "") => {
+  const text = normalizeTextValue(value);
+  if (!text) return "";
+  if (/^https?:\/\//i.test(text)) return text;
+  if (typeof window !== "undefined" && window.location?.origin) {
+    return new URL(text.startsWith("/") ? text : `/${text}`, window.location.origin).toString();
+  }
+  return text;
+};
 const buildAiCaptionProductContext = (product = {}) => {
   const variants = Array.isArray(product.variants) ? product.variants : [];
   const availableSizes = uniqueTextList(
     product.available_sizes,
-    product.sizes,
     variants.map((variant) => variant.fixed_size_label || variant.size_label || variant.size_name || variant.size || ""),
     variants.map((variant) => variant.size || "")
   );
-  const colors = uniqueTextList(
+  const availableColors = uniqueTextList(
+    product.available_colors,
     product.colors,
     product.color_names,
     variants.map((variant) => variant.color || variant.color_name || variant.name || ""),
@@ -141,7 +150,7 @@ const buildAiCaptionProductContext = (product = {}) => {
   const currentPrice = Number(product.sale_price || product.current_price || product.discount_price || product.price || product.selling_price || 0);
   const stock = Number(product.stock_quantity ?? product.stock ?? product.quantity ?? 0);
   const discountPercent = computeDiscountPercent(originalPrice, currentPrice);
-  const productUrl = normalizeTextValue(product.product_url || "");
+  const productUrl = buildFullProductUrl(product.product_url || "");
   return {
     product_name: normalizeTextValue(product.name || product.product_name || ""),
     brand,
@@ -153,12 +162,12 @@ const buildAiCaptionProductContext = (product = {}) => {
     short_description: shortDescription,
     features,
     materials,
-    colors,
+    available_colors: availableColors,
     available_sizes: availableSizes,
     current_price: currentPrice > 0 ? formatPriceForCaption(currentPrice) : "",
     original_price: originalPrice > 0 ? formatPriceForCaption(originalPrice) : "",
     discount_percent: discountPercent,
-    stock: Number.isFinite(stock) ? String(stock) : "",
+    stock_quantity: Number.isFinite(stock) ? String(stock) : "",
     product_url: productUrl,
   };
 };

@@ -81,12 +81,12 @@ const compactSocialCaptionContext = (input = {}) => {
     short_description: cleanText(current.short_description || current.shortDescription || input.short_description || input.shortDescription),
     features: normalizeList(current.features || current.feature_list || input.features || input.feature_list),
     materials: normalizeList(current.materials || current.material || input.materials || input.material),
-    colors: normalizeList(current.colors || current.color_list || input.colors || input.color_list),
+    available_colors: normalizeList(current.available_colors || current.colors || current.color_list || input.available_colors || input.colors || input.color_list),
     available_sizes: normalizeList(current.available_sizes || current.sizes || input.available_sizes || input.sizes),
     current_price: cleanText(current.current_price || current.sale_price || current.price || input.current_price || input.sale_price || input.price),
     original_price: cleanText(current.original_price || current.price || input.original_price || input.price),
     discount_percent: cleanText(current.discount_percent || input.discount_percent),
-    stock: cleanText(current.stock || current.stock_quantity || input.stock || input.stock_quantity),
+    stock_quantity: cleanText(current.stock_quantity || current.stock || input.stock_quantity || input.stock),
     product_url: cleanText(current.product_url || input.product_url),
   };
 };
@@ -182,11 +182,13 @@ const buildSocialCaptionPrompt = (context = {}) => [
   "A strong opening line",
   "Top 3 or 4 features from the supplied product data only",
   "Current price",
-  "If a discount exists, show original price then current price",
-  "If sizes exist, show them",
-  "If colors exist, show them",
+  "If a discount exists, show current price, original price, and discount percent.",
+  "If no discount exists, do not mention the original price.",
+  "If stock_quantity is 0, say غير متوفر حاليا.",
+  "If stock_quantity is greater than 0, say متوفر الآن.",
+  "Only use available_sizes and available_colors from the supplied data.",
   "CTA",
-  "Product URL",
+  "Product URL must be the full absolute URL.",
   "3 to 5 relevant hashtags",
   "Use Arabic copy for the caption body, but keep NEW COLLECTION exactly as written.",
   "Omit any section whose data is missing.",
@@ -216,13 +218,14 @@ const buildSocialCaptionFallback = (context = {}) => {
   const description = cleanText(context.description || context.short_description);
   const features = normalizeList(context.features).slice(0, 4);
   const materials = normalizeList(context.materials).slice(0, 2);
-  const colors = normalizeList(context.colors).slice(0, 5);
+  const colors = normalizeList(context.available_colors || context.colors).slice(0, 5);
   const sizes = normalizeList(context.available_sizes).slice(0, 10);
   const currentPrice = cleanText(context.current_price || context.price || "");
   const originalPrice = cleanText(context.original_price || "");
   const discount = cleanText(context.discount_percent || "");
-  const stock = cleanText(context.stock || "");
+  const stock = cleanText(context.stock_quantity || context.stock || "");
   const url = cleanText(context.product_url || "");
+  const stockLine = Number(stock || 0) > 0 ? "متوفر الآن" : "غير متوفر حاليا";
 
   lines.push("NEW COLLECTION");
   lines.push(name);
@@ -233,10 +236,15 @@ const buildSocialCaptionFallback = (context = {}) => {
   if (colors.length) lines.push(`الألوان: ${colors.join("، ")}`);
   if (sizes.length) lines.push(`المقاسات: ${sizes.join("، ")}`);
   if (currentPrice) {
-    lines.push(originalPrice && originalPrice !== currentPrice ? `السعر: ${originalPrice} -> ${currentPrice}` : `السعر: ${currentPrice}`);
+    if (originalPrice && originalPrice !== currentPrice) {
+      lines.push(`السعر الحالي: ${currentPrice}`);
+      lines.push(`السعر القديم: ${originalPrice}`);
+      if (discount) lines.push(`الخصم: ${discount}`);
+    } else {
+      lines.push(`السعر: ${currentPrice}`);
+    }
   }
-  if (discount) lines.push(`الخصم: ${discount}`);
-  if (stock) lines.push(`المتاح: ${stock}`);
+  lines.push(stockLine);
   if (url) lines.push(url);
   lines.push("#NewCollection #Fashion #Footwear");
   return lines.filter(Boolean).join("\n").trim();

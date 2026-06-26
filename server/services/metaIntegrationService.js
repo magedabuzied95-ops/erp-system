@@ -4135,6 +4135,34 @@ const extractReelIdFromPermalink = (value = "") => {
   return "";
 };
 
+const extractFacebookPostObjectIdFromPermalink = (value = "") => {
+  const permalink = text(value);
+  if (!permalink) return "";
+  const patterns = [
+    /facebook\.com\/[^/]+\/posts\/(\d+)/i,
+    /facebook\.com\/[^/]+\/videos\/(\d+)/i,
+    /facebook\.com\/photo\.php\?(?:[^#&]*&)*fbid=(\d+)/i,
+    /facebook\.com\/permalink\.php\?(?:[^#&]*&)*story_fbid=(\d+)/i,
+    /facebook\.com\/story\.php\?(?:[^#&]*&)*story_fbid=(\d+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = permalink.match(pattern);
+    if (match?.[1]) return text(match[1]);
+  }
+  return "";
+};
+
+const isGraphCandidateId = (value = "") => {
+  const id = text(value);
+  if (!id || id.includes(":")) return false;
+  return true;
+};
+
+const isUsableGraphMediaUrl = (value = "") => {
+  const image = text(value);
+  return Boolean(image) && !/^null$/i.test(image) && !/^undefined$/i.test(image);
+};
+
 const extractMetaPostAttachmentImage = (post = {}) => {
   const details = extractMetaPostAttachmentDetails(post);
   const directSources = [
@@ -4266,8 +4294,8 @@ const normalizeMetaReelPreview = (post = {}) => {
     source: sourceUrl,
     media_url: mediaUrl,
     attachment_image: attachmentImage,
-    post_thumbnail: thumbnailUrl || null,
-    thumbnail_url: thumbnailUrl || null,
+    post_thumbnail: isUsableGraphMediaUrl(thumbnailUrl) ? thumbnailUrl : null,
+    thumbnail_url: isUsableGraphMediaUrl(thumbnailUrl) ? thumbnailUrl : null,
     thumbnail_source: thumbnailSource || "missing",
     media_type: mediaType,
     post_type: text(post.type || post.media_type || mediaType || "reel"),
@@ -4299,14 +4327,45 @@ const fetchMetaPostMediaCandidate = async ({ candidatePostId = "", token } = {})
 const fetchMetaReelMediaCandidate = async ({ candidateReelId = "", token } = {}) => {
   const candidateId = text(candidateReelId);
   if (!candidateId || !token) return null;
-  const payload = await callMetaGet({
-    endpoint: `/${encodeURIComponent(candidateId)}`,
-    token,
-    params: {
-      fields: "id,description,permalink_url,thumbnail_url,source,picture,media_url,media_type",
-    },
-  });
-  return normalizeMetaReelPreview(payload || {});
+  const fieldSets = [
+    "id,picture",
+    "id,source",
+    "id,permalink_url,description",
+    "id,description,permalink_url,picture,source,media_url,media_type",
+  ];
+  const errors = [];
+  for (const fields of fieldSets) {
+    try {
+      const payload = await callMetaGet({
+        endpoint: `/${encodeURIComponent(candidateId)}`,
+        token,
+        params: { fields },
+      });
+      const preview = normalizeMetaReelPreview(payload || {});
+      if (preview?.thumbnail_url) {
+        return {
+          ...preview,
+          tried_fields: fieldSets,
+          graph_errors_sample: errors.slice(0, 5),
+        };
+      }
+      if (preview) {
+        return {
+          ...preview,
+          tried_fields: fieldSets,
+          graph_errors_sample: errors.slice(0, 5),
+        };
+      }
+    } catch (error) {
+      errors.push({
+        candidate_id: candidateId,
+        fields,
+        message: text(error?.message || "Graph fetch failed"),
+        code: text(error?.code || error?.response?.data?.error?.code || ""),
+      });
+    }
+  }
+  return null;
 };
 
 export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = "", pageId = "", permalinkUrl = "" } = {}) => {
@@ -4322,13 +4381,16 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
   const token = getTokenForConfig(row);
   if (!token) return null;
   const reelIdFromPermalink = extractReelIdFromPermalink(permalinkUrl);
+  const objectIdFromPermalink = extractFacebookPostObjectIdFromPermalink(permalinkUrl);
   const shortPostId = safePostId.includes("_") ? safePostId.split("_").slice(1).join("_") || safePostId.split("_").pop() || "" : "";
-  const candidateIds = [
-    ...new Set([safePostId, shortPostId].filter(Boolean)),
-  ];
-  if (reelIdFromPermalink && !candidateIds.includes(reelIdFromPermalink)) {
-    candidateIds.push(reelIdFromPermalink);
-  }
+  const rawCandidateIds = [
+    safePostId,
+    objectIdFromPermalink,
+    shortPostId,
+    reelIdFromPermalink,
+  ].filter(Boolean);
+  const skippedNonGraphIds = Array.from(new Set(rawCandidateIds.filter((value) => !isGraphCandidateId(value))));
+  const candidateIds = Array.from(new Set(rawCandidateIds.filter((value) => isGraphCandidateId(value))));
   const errors = [];
   let primaryPreview = null;
   let reelPreview = null;
@@ -4343,7 +4405,7 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
       if (isReelCandidate) reelPreview = preview;
       if (!isReelCandidate && (candidatePostId === safePostId || candidatePostId === shortPostId)) objectIdPreview = preview;
       if (!primaryPreview) primaryPreview = preview;
-      if (preview?.thumbnail_url) {
+      if (isUsableGraphMediaUrl(preview?.thumbnail_url)) {
         primaryPreview = preview;
         break;
       }
@@ -4385,6 +4447,9 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
       attachment_image_present: false,
       reason_if_missing: errors.length ? "graph_errors" : "no_image_sources_found",
       tried_ids: candidateIds,
+      tried_graph_ids: candidateIds,
+      skipped_non_graph_ids: skippedNonGraphIds,
+      extracted_permalink_object_id: objectIdFromPermalink,
       graph_errors_sample: errors.slice(0, 5),
       reel_id_from_permalink: reelIdFromPermalink,
       reel_thumbnail_present: Boolean(reelPreview?.thumbnail_url),
@@ -4394,10 +4459,13 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
 
   return {
     ...bestPreview,
-    thumbnail_url: bestPreview.thumbnail_url || null,
-    thumbnail_source: bestPreview.thumbnail_url ? bestPreview.thumbnail_source || "graph" : "missing",
-    reason_if_missing: bestPreview.thumbnail_url ? "" : bestPreview.reason_if_missing || "no_image_sources_found",
+    thumbnail_url: isUsableGraphMediaUrl(bestPreview.thumbnail_url) ? bestPreview.thumbnail_url : null,
+    thumbnail_source: isUsableGraphMediaUrl(bestPreview.thumbnail_url) ? bestPreview.thumbnail_source || "graph" : "missing",
+    reason_if_missing: isUsableGraphMediaUrl(bestPreview.thumbnail_url) ? "" : bestPreview.reason_if_missing || "no_image_sources_found",
     tried_ids: candidateIds,
+    tried_graph_ids: candidateIds,
+    skipped_non_graph_ids: skippedNonGraphIds,
+    extracted_permalink_object_id: objectIdFromPermalink,
     graph_errors_sample: errors.slice(0, 5),
     reel_id_from_permalink: reelIdFromPermalink,
     reel_thumbnail_present: Boolean(reelPreview?.thumbnail_url),

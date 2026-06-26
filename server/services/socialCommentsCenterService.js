@@ -283,12 +283,76 @@ const persistSocialCommentPostMedia = async ({ tenantId = null, channel = "", co
   ).catch(() => {});
 };
 
+const extractPermalinkObjectId = (value = "") => {
+  const permalink = text(value);
+  if (!permalink) return "";
+  const patterns = [
+    /facebook\.com\/[^/]+\/posts\/(\d+)/i,
+    /facebook\.com\/[^/]+\/videos\/(\d+)/i,
+    /facebook\.com\/photo\.php\?(?:[^#&]*&)*fbid=(\d+)/i,
+    /facebook\.com\/permalink\.php\?(?:[^#&]*&)*story_fbid=(\d+)/i,
+    /facebook\.com\/story\.php\?(?:[^#&]*&)*story_fbid=(\d+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = permalink.match(pattern);
+    if (match?.[1]) return text(match[1]);
+  }
+  return "";
+};
+
+const loadSocialPublisherFallbackMedia = async ({ tenantId = null, postId = "", permalinkUrl = "" } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const safePostId = text(postId);
+  const safePermalinkUrl = text(permalinkUrl);
+  if (!safeTenantId) return null;
+  const extractedPermalinkObjectId = extractPermalinkObjectId(safePermalinkUrl);
+  const candidateIds = Array.from(new Set([safePostId, extractedPermalinkObjectId].filter((value) => Boolean(value) && !String(value).includes(":"))));
+  const candidatePermalinks = Array.from(new Set([safePermalinkUrl].filter(Boolean)));
+  if (!candidateIds.length && !candidatePermalinks.length) return null;
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      platform_post_id,
+      COALESCE(NULLIF(final_asset_url, ''), NULLIF(rendered_image_url, ''), NULLIF(story_image_url, ''), NULLIF(primary_image_url, ''), NULLIF(variant_image_url, ''), NULLIF(image_url, '')) AS candidate_image_url,
+      COALESCE(NULLIF(metadata->>'final_asset_url', ''), NULLIF(metadata->>'rendered_image_url', ''), NULLIF(metadata->>'story_image_url', ''), NULLIF(metadata->>'primary_image_url', ''), NULLIF(metadata->>'variant_image_url', ''), NULLIF(metadata->>'image_url', '')) AS metadata_image_url,
+      COALESCE(NULLIF(metadata->>'permalink_url', ''), NULLIF(metadata->>'post_permalink_url', ''), NULLIF(metadata->>'post_url', ''), NULLIF(metadata->>'external_post_url', '')) AS metadata_permalink_url
+    FROM ai_marketing_content_queue
+    WHERE tenant_id = $1::bigint
+      AND (
+        (${candidateIds.length ? "platform_post_id = ANY($2::text[])" : "FALSE"})
+        OR (${candidateIds.length ? "NULLIF(metadata->>'platform_post_id', '') = ANY($2::text[])" : "FALSE"})
+        OR (${candidateIds.length ? "NULLIF(metadata->>'external_post_id', '') = ANY($2::text[])" : "FALSE"})
+        OR (${candidateIds.length ? "NULLIF(metadata->>'post_id', '') = ANY($2::text[])" : "FALSE"})
+        OR (${candidatePermalinks.length ? "NULLIF(metadata->>'permalink_url', '') = ANY($3::text[])" : "FALSE"})
+        OR (${candidatePermalinks.length ? "NULLIF(metadata->>'post_permalink_url', '') = ANY($3::text[])" : "FALSE"})
+        OR (${candidatePermalinks.length ? "NULLIF(metadata->>'post_url', '') = ANY($3::text[])" : "FALSE"})
+      )
+    ORDER BY updated_at DESC, created_at DESC, id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, candidateIds, candidatePermalinks]
+  ).catch(() => ({ rows: [] }));
+  const row = result.rows?.[0] || null;
+  if (!row) return null;
+  const fallbackImage = text(row.candidate_image_url || row.metadata_image_url || "");
+  if (!isUsableImageUrl(fallbackImage)) return null;
+  return {
+    thumbnail_url: fallbackImage,
+    thumbnail_source: "marketing_content_queue",
+    source_post_id: text(row.platform_post_id || ""),
+    source_permalink_url: text(row.metadata_permalink_url || safePermalinkUrl || ""),
+    publisher_record_id: text(row.id || ""),
+  };
+};
+
 const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform = "" } = {}) => {
   const safeRow = { ...(row || {}) };
   const metadata = metadataObject(safeRow.metadata || {});
   const postId = text(safeRow.post_id || safeRow.conversation_id || metadata.post_id || "");
   const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
   const currentDetails = resolvePostThumbnailDetails(safeRow);
+  const currentHasThumbnail = Boolean(currentDetails.has_thumbnail);
   const needsGraph = !currentDetails.has_thumbnail || !resolvePostPreviewCaption(safeRow) || !resolvePostPreviewLink(safeRow);
   if (!tenantId || !postId || !needsGraph) {
     return {
@@ -303,9 +367,15 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       full_picture_present: Boolean(safeRow.full_picture_present ?? metadata.full_picture_present),
       attachment_image_present: Boolean(safeRow.attachment_image_present ?? metadata.attachment_image_present),
       graph_enriched: false,
+      fallback_enriched: false,
       reason_if_missing: currentDetails.reason_if_missing || "",
       tried_ids: [],
+      tried_graph_ids: [],
+      skipped_non_graph_ids: [],
       graph_errors_sample: [],
+      normalized_post_id: postId,
+      source_post_id: postId,
+      extracted_permalink_object_id: "",
       reel_id_from_permalink: "",
       reel_thumbnail_present: false,
       object_id_thumbnail_present: false,
@@ -319,15 +389,70 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       permalinkUrl: safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "",
     }).catch(() => null);
     if (!graphPost) {
+      const fallbackMedia = await loadSocialPublisherFallbackMedia({
+        tenantId,
+        postId,
+        permalinkUrl: safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "",
+      }).catch(() => null);
+      if (fallbackMedia) {
+        const fallbackMetadata = {
+          ...metadata,
+          post_id: postId,
+          thumbnail_url: fallbackMedia.thumbnail_url,
+          thumbnail_source: fallbackMedia.thumbnail_source,
+          fallback_media_source: "marketing_content_queue",
+          fallback_record_id: fallbackMedia.publisher_record_id || "",
+          fallback_source_post_id: fallbackMedia.source_post_id || "",
+          fallback_source_permalink_url: fallbackMedia.source_permalink_url || "",
+        };
+        await persistSocialCommentPostMedia({
+          tenantId,
+          channel: safeRow.channel || (normalizePlatform(platform) === "instagram" ? "instagram_comment" : "facebook_comment"),
+          conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
+          metadata: fallbackMetadata,
+        });
+        return {
+          ...safeRow,
+          metadata: fallbackMetadata,
+          thumbnail_url: fallbackMedia.thumbnail_url,
+          thumbnail_source: fallbackMedia.thumbnail_source,
+          has_thumbnail: true,
+          post_type: text(safeRow.post_type || metadata.post_type || ""),
+          media_type: text(safeRow.media_type || metadata.media_type || ""),
+          graph_fields_present: asArray(safeRow.graph_fields_present || metadata.graph_fields_present || []),
+          attachments_shape: metadataObject(safeRow.attachments_shape || metadata.attachments_shape || {}),
+          full_picture_present: Boolean(safeRow.full_picture_present ?? metadata.full_picture_present),
+          attachment_image_present: Boolean(safeRow.attachment_image_present ?? metadata.attachment_image_present),
+          graph_enriched: false,
+          fallback_enriched: true,
+          reason_if_missing: "",
+          tried_ids: [],
+          tried_graph_ids: [],
+          skipped_non_graph_ids: [],
+          graph_errors_sample: [],
+          normalized_post_id: postId,
+          source_post_id: postId,
+          extracted_permalink_object_id: extractPermalinkObjectId(safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || ""),
+          reel_id_from_permalink: "",
+          reel_thumbnail_present: false,
+          object_id_thumbnail_present: false,
+        };
+      }
       return {
         ...safeRow,
         thumbnail_url: currentDetails.thumbnail_url,
         thumbnail_source: currentDetails.thumbnail_source,
         has_thumbnail: currentDetails.has_thumbnail,
         graph_enriched: false,
+        fallback_enriched: false,
         reason_if_missing: currentDetails.reason_if_missing || "graph_unavailable",
         tried_ids: [],
+        tried_graph_ids: [],
+        skipped_non_graph_ids: [],
         graph_errors_sample: [],
+        normalized_post_id: postId,
+        source_post_id: postId,
+        extracted_permalink_object_id: extractPermalinkObjectId(safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || ""),
         reel_id_from_permalink: "",
         reel_thumbnail_present: false,
         object_id_thumbnail_present: false,
@@ -377,6 +502,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       thumbnail_source: nextDetails.thumbnail_source,
       has_thumbnail: nextDetails.has_thumbnail,
       graph_enriched: true,
+      fallback_enriched: false,
       reason_if_missing: nextDetails.reason_if_missing || "",
     };
     await persistSocialCommentPostMedia({
@@ -391,6 +517,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       thumbnail_url: nextDetails.thumbnail_url,
       thumbnail_source: nextDetails.thumbnail_source,
       has_thumbnail: nextDetails.has_thumbnail,
+      thumbnail_saved: Boolean(isUsableImageUrl(nextDetails.thumbnail_url)),
       post_type: nextMetadata.post_type,
       media_type: nextMetadata.media_type,
       graph_fields_present: nextMetadata.graph_fields_present,
@@ -398,8 +525,14 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       full_picture_present: nextMetadata.full_picture_present,
       attachment_image_present: nextMetadata.attachment_image_present,
       graph_enriched: true,
+      fallback_enriched: false,
       reason_if_missing: nextDetails.reason_if_missing || "",
       tried_ids: asArray(graphPost.tried_ids || []),
+      tried_graph_ids: asArray(graphPost.tried_graph_ids || graphPost.tried_ids || []),
+      skipped_non_graph_ids: asArray(graphPost.skipped_non_graph_ids || []),
+      normalized_post_id: postId,
+      source_post_id: postId,
+      extracted_permalink_object_id: text(graphPost.extracted_permalink_object_id || ""),
       graph_errors_sample: asArray(graphPost.graph_errors_sample || []),
       reel_id_from_permalink: text(graphPost.reel_id_from_permalink || ""),
       reel_thumbnail_present: Boolean(graphPost.reel_thumbnail_present),
@@ -418,9 +551,15 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       full_picture_present: Boolean(safeRow.full_picture_present ?? metadata.full_picture_present),
       attachment_image_present: Boolean(safeRow.attachment_image_present ?? metadata.attachment_image_present),
       graph_enriched: false,
+      fallback_enriched: false,
       reason_if_missing: currentDetails.reason_if_missing || "graph_error",
       tried_ids: [],
+      tried_graph_ids: [],
+      skipped_non_graph_ids: [],
       graph_errors_sample: [],
+      normalized_post_id: postId,
+      source_post_id: postId,
+      extracted_permalink_object_id: extractPermalinkObjectId(safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || ""),
       reel_id_from_permalink: "",
       reel_thumbnail_present: false,
       object_id_thumbnail_present: false,
