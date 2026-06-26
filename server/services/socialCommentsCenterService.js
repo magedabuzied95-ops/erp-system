@@ -1274,6 +1274,17 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
   const channel = normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment";
+  const sessionId = `${normalizedPlatform}_post:${safePostId}`;
+  console.warn("[social-comments:data-debug]", {
+    scope: "service:listSocialCommentThreadComments:before",
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    incomingPostId: safePostId,
+    sessionId,
+    whereSessionId: sessionId,
+    wherePostId: safePostId,
+    whereRootCommentId: "",
+  });
   const result = await db.query(
     `
     SELECT
@@ -1296,8 +1307,17 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
       AND msg.message_type = 'comment_inbound'
     ORDER BY msg.created_at ASC, msg.id ASC
     `,
-    [safeTenantId, `${normalizedPlatform}_post:${safePostId}`, normalizedPlatform]
+    [safeTenantId, sessionId, normalizedPlatform]
   );
+  console.warn("[social-comments:data-debug]", {
+    scope: "service:listSocialCommentThreadComments:after",
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    incomingPostId: safePostId,
+    sessionId,
+    sqlParams: [safeTenantId, sessionId, normalizedPlatform],
+    returnedRows: result.rows?.length || 0,
+  });
   return result.rows || [];
 };
 

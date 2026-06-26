@@ -64,6 +64,13 @@ router.get("/posts/:postId/comments", protect, permit("settings", "view"), async
     const tenantId = toTenantId(req);
     const postId = String(req.params.postId || "").trim();
     const platform = String(req.query?.platform || "").trim();
+    console.warn("[social-comments:data-debug]", {
+      scope: "route",
+      tenantId,
+      platform,
+      incomingPostId: postId,
+      query: req.query || {},
+    });
     const comments = await listSocialCommentThreadComments({ tenantId, platform, postId });
     const post = await loadSocialCommentPost({ tenantId, platform, postId });
     return res.json({ success: true, post, comments, total: comments.length });
