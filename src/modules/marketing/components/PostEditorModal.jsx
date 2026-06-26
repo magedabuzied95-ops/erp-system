@@ -23,6 +23,14 @@ import {
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
+import {
+  buildSocialAICopy,
+  defaultSocialTone,
+  hasInternalSectionLabels,
+  socialToneOptions,
+  stripInternalSectionLabels,
+} from "./socialAiCopy";
+
 const defaultPost = {
   title: "",
   caption: "",
@@ -103,12 +111,7 @@ const getDefaultPreviewTab = (source = {}) => {
   return source.channel === "instagram" && tabs.some((tab) => tab.id === "instagram") ? "instagram" : tabs[0]?.id || "facebook";
 };
 
-const captionStyles = [
-  { id: "casual", labelKey: "marketing.social.captionStyles.casual", toneKey: "marketing.social.captionTones.friendly" },
-  { id: "luxury", labelKey: "marketing.social.captionStyles.luxury", toneKey: "marketing.social.captionTones.premium" },
-  { id: "offer", labelKey: "marketing.social.captionStyles.offer", toneKey: "marketing.social.captionTones.salesFocused" },
-  { id: "urgency", labelKey: "marketing.social.captionStyles.urgency", toneKey: "marketing.social.captionTones.scarcity" },
-];
+const aiToneOptions = socialToneOptions;
 
 const toDatetimeLocal = (value) => {
   if (!value) return "";
@@ -392,7 +395,6 @@ const buildFallbackHashtags = ({ productName, color, size, strategyType, content
     "#fashion",
     contentType === "story" ? "#story" : "#new_arrival",
     strategyType === "last_size" ? "#last_piece" : "",
-    productName ? `#${productName}` : "",
     color ? `#${color}` : "",
     size ? `#size_${size}` : "",
   ].map(normalizeHash)).slice(0, 8);
@@ -405,6 +407,21 @@ const buildFallbackCaption = ({ productName, price, color, size, cta }) => {
     price ? `Price starts from ${price}.` : "",
     cta || "Send us a message to order today.",
   ].filter(Boolean).join("\n\n");
+};
+
+const normalizeAICaption = (post = {}, design = {}, product = {}, variants = []) => {
+  const rawCaption = String(post.caption || design.caption || design.post_caption || design.copy || "").trim();
+  const hasStructuredCopy = hasInternalSectionLabels(rawCaption);
+  const baseCopy = buildSocialAICopy({
+    tone: post.ai_tone || design.ai_tone || defaultSocialTone,
+    post,
+    design,
+    product,
+    variants,
+  });
+  if (!rawCaption) return baseCopy.caption;
+  if (hasStructuredCopy) return baseCopy.caption;
+  return stripInternalSectionLabels(rawCaption) || baseCopy.caption;
 };
 
 const normalizePostMedia = ({ post = {}, design = {}, product = {}, variants = [], variantId, color, size } = {}) => {
@@ -482,7 +499,8 @@ export const normalizeMarketingPostInput = (post = {}) => {
   const audio = resolveStoryAudio(post, design);
   const hashtags = parseHashtags(post.hashtags || design.hashtags || design.tags || post.metadata?.hashtags)
     .concat(buildFallbackHashtags({ productName, color, size, strategyType: post.strategy_type, contentType: post.content_type }));
-  const caption = post.caption || design.caption || design.post_caption || design.copy || buildFallbackCaption({ productName, price, color, size, cta });
+  const caption = normalizeAICaption(post, design, product, variants);
+  const aiTone = post.ai_tone || design.ai_tone || defaultSocialTone;
 
   return {
     ...defaultPost,
@@ -500,6 +518,7 @@ export const normalizeMarketingPostInput = (post = {}) => {
     size_name: size,
     available_sizes: availableSizes,
     sizes_label: sizesLabel,
+    ai_tone: aiTone,
     variant_id: variantId,
     content_type: post.content_type || design.content_type || "post",
     layout_type: post.layout_type || design.layout_type || "",
@@ -877,13 +896,16 @@ export default function PostEditorModal({
   const [tagInput, setTagInput] = useState("");
   const [scheduledAt, setScheduledAt] = useState(toDatetimeLocal(initial.scheduled_at));
   const [activePreview, setActivePreview] = useState(getDefaultPreviewTab(initial));
-  const [captionSeed, setCaptionSeed] = useState(0);
+  const [captionTone, setCaptionTone] = useState(initial.ai_tone || defaultSocialTone);
+  const [copyVariants, setCopyVariants] = useState({ hook: 0, cta: 0, hashtags: 0 });
 
   useEffect(() => {
     setForm({ ...initial, hashtags: initialTags.join(" ") });
     setHashtags(initialTags);
     setScheduledAt(toDatetimeLocal(initial.scheduled_at));
     setActivePreview(getDefaultPreviewTab(initial));
+    setCaptionTone(initial.ai_tone || defaultSocialTone);
+    setCopyVariants({ hook: 0, cta: 0, hashtags: 0 });
   }, [initial, initialTags]);
 
   const mediaUrls = useMemo(() => uniqueMediaUrls(Array.isArray(form.media_urls) ? form.media_urls : [], [form.image_url]), [form.image_url, form.media_urls]);
@@ -898,6 +920,21 @@ export default function PostEditorModal({
 
   const productName = form.product_name || form.title || "المنتج";
   const price = form.price || extractPrice(form.caption);
+
+  const composedAiCopy = useMemo(
+    () =>
+      buildSocialAICopy({
+        tone: captionTone,
+        hookVariant: copyVariants.hook,
+        ctaVariant: copyVariants.cta,
+        hashtagVariant: copyVariants.hashtags,
+        post: form,
+        design: form,
+        product: form.product || {},
+        variants: form.variants || [],
+      }),
+    [captionTone, copyVariants.cta, copyVariants.hashtags, copyVariants.hook, form]
+  );
 
   const stats = useMemo(() => {
     const tagScore = Math.max(0, 10 - Math.max(0, hashtags.length - 5) * 2);
@@ -948,12 +985,81 @@ export default function PostEditorModal({
     }));
   };
 
-  const applyCaptionStyle = (styleId, increment = 0) => {
-    const variants = captionBank[styleId] || captionBank.casual;
-    const nextIndex = (captionSeed + increment) % variants.length;
-    const nextCaption = variants[nextIndex]({ productName, price });
-    setCaptionSeed((current) => current + 1);
-    updateField("caption", nextCaption);
+  const applyGeneratedCaption = (nextCopy = composedAiCopy) => {
+    updateField("caption", nextCopy.caption);
+    syncHashtags(nextCopy.hashtags);
+  };
+
+  const generateFullCaption = (tone = captionTone) => {
+    const nextCopy = buildSocialAICopy({
+      tone,
+      hookVariant: copyVariants.hook,
+      ctaVariant: copyVariants.cta,
+      hashtagVariant: copyVariants.hashtags,
+      post: form,
+      design: form,
+      product: form.product || {},
+      variants: form.variants || [],
+    });
+    setCaptionTone(tone);
+    applyGeneratedCaption(nextCopy);
+  };
+
+  const regenerateHook = () => {
+    setCopyVariants((current) => {
+      const next = { ...current, hook: current.hook + 1 };
+      applyGeneratedCaption(
+        buildSocialAICopy({
+          tone: captionTone,
+          hookVariant: next.hook,
+          ctaVariant: next.cta,
+          hashtagVariant: next.hashtags,
+          post: form,
+          design: form,
+          product: form.product || {},
+          variants: form.variants || [],
+        })
+      );
+      return next;
+    });
+  };
+
+  const regenerateCta = () => {
+    setCopyVariants((current) => {
+      const next = { ...current, cta: current.cta + 1 };
+      applyGeneratedCaption(
+        buildSocialAICopy({
+          tone: captionTone,
+          hookVariant: next.hook,
+          ctaVariant: next.cta,
+          hashtagVariant: next.hashtags,
+          post: form,
+          design: form,
+          product: form.product || {},
+          variants: form.variants || [],
+        })
+      );
+      return next;
+    });
+  };
+
+  const regenerateHashtags = () => {
+    setCopyVariants((current) => {
+      const next = { ...current, hashtags: current.hashtags + 1 };
+      applyGeneratedCaption(
+        buildSocialAICopy({
+          tone: captionTone,
+          hookVariant: next.hook,
+          ctaVariant: next.cta,
+          hashtagVariant: next.hashtags,
+          post: form,
+          design: form,
+          product: form.product || {},
+          variants: form.variants || [],
+        })
+      );
+      return next;
+    });
   };
 
   const addTag = () => {
@@ -1047,32 +1153,55 @@ export default function PostEditorModal({
             </div>
 
             <div className="rounded-3xl border border-cyan-500/15 bg-cyan-500/[0.04] p-4 shadow-lg shadow-cyan-950/10">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-sm font-black text-white">
-                  <Wand2 className="h-4 w-4 text-cyan-300" />
-                  {t("marketing.ai.captionVariants")}
-                </div>
+              <div className="mb-3 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+                <label className="space-y-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">Tone</span>
+                  <select
+                    value={captionTone}
+                    onChange={(event) => setCaptionTone(event.target.value)}
+                    className="w-full min-w-[220px] rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm font-semibold text-white outline-none"
+                  >
+                    {aiToneOptions.map((tone) => (
+                      <option key={tone.id} value={tone.id} className="bg-slate-950">
+                        {tone.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <button
                   type="button"
-                  onClick={() => applyCaptionStyle(captionStyles[captionSeed % captionStyles.length].id, 1)}
+                  onClick={() => generateFullCaption(captionTone)}
                   className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-cyan-100 transition hover:bg-cyan-500/10"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  {t("marketing.ai.generateAnotherCaption")}
+                  Generate
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-2">
-                {captionStyles.map((style) => (
-                  <button
-                    key={style.id}
-                    type="button"
-                    onClick={() => applyCaptionStyle(style.id)}
-                    className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3 text-left transition hover:border-cyan-400/30 hover:bg-cyan-500/10"
-                  >
-                    <div className="text-sm font-black text-white">{t(style.labelKey)}</div>
-                    <div className="text-xs text-slate-400">{t(style.toneKey)}</div>
-                  </button>
-                ))}
+              <div className="grid gap-2 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={regenerateHook}
+                  className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3 text-left transition hover:border-cyan-400/30 hover:bg-cyan-500/10"
+                >
+                  <div className="text-sm font-black text-white">Regenerate Hook</div>
+                  <div className="text-xs text-slate-400">{composedAiCopy.hook}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={regenerateCta}
+                  className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3 text-left transition hover:border-cyan-400/30 hover:bg-cyan-500/10"
+                >
+                  <div className="text-sm font-black text-white">Regenerate CTA</div>
+                  <div className="text-xs text-slate-400">{composedAiCopy.cta}</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={regenerateHashtags}
+                  className="rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-3 text-left transition hover:border-cyan-400/30 hover:bg-cyan-500/10"
+                >
+                  <div className="text-sm font-black text-white">Regenerate Hashtags</div>
+                  <div className="text-xs text-slate-400">{composedAiCopy.hashtags.join(" ")}</div>
+                </button>
               </div>
             </div>
 

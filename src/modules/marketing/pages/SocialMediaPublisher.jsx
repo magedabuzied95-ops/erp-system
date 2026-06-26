@@ -259,58 +259,85 @@ const normalizeAiCaptionSections = (result = {}) => {
   };
 };
 const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}) => {
-  const lines = [];
   const hook = normalizeTextValue(aiSections.hook);
   const body = normalizeTextValue(aiSections.body);
   const cta = normalizeTextValue(aiSections.cta);
   const hashtags = uniqueTextList(aiSections.hashtags).slice(0, 5);
+  const lines = ["NEW COLLECTION"];
 
-  lines.push("HOOK");
-  if (hook) lines.push(hook);
-
-  lines.push("");
-  lines.push("MARKETING BODY");
-  if (body) lines.push(body);
-
-  if (Array.isArray(erpInfo.features) && erpInfo.features.length) {
+  if (hook) {
     lines.push("");
-    lines.push("FEATURES");
-    erpInfo.features.forEach((feature) => lines.push(`• ${feature}`));
+    lines.push(hook);
   }
 
-  lines.push("");
-  lines.push("ERP INFO");
-  if (Boolean(erpInfo.sale_active) && Number(erpInfo.current_price || 0) > 0) {
-    lines.push(`السعر الآن: ${formatCompactCurrency(erpInfo.current_price)} ج.م`);
-    if (Number(erpInfo.old_crossed_price || 0) > Number(erpInfo.current_price || 0)) {
-      lines.push(`بدلاً من: ${formatCompactCurrency(erpInfo.old_crossed_price)} ج.م`);
+  if (body) {
+    lines.push("");
+    lines.push(body);
+  }
+
+  const priceLines = [];
+  const currentPrice = Number(erpInfo.current_price || 0);
+  const originalPrice = Number(erpInfo.old_crossed_price || 0);
+  const saleActive = Boolean(erpInfo.sale_active);
+
+  if (saleActive && currentPrice > 0) {
+    priceLines.push(`السعر الآن: ${formatCompactCurrency(currentPrice)} ج.م`);
+    if (originalPrice > currentPrice) {
+      priceLines.push(`قبل الخصم: ${formatCompactCurrency(originalPrice)} ج.م`);
     }
-    lines.push("عرض لفترة محدودة");
-  } else if (Number(erpInfo.current_price || 0) > 0) {
-    lines.push(`السعر: ${formatCompactCurrency(erpInfo.current_price)} ج.م`);
+    if (erpInfo.discount_percent) {
+      priceLines.push(`وفر ${erpInfo.discount_percent}`);
+    }
+    priceLines.push("⏳ عرض لفترة محدودة حتى نفاد الكمية.");
+  } else if (currentPrice > 0) {
+    priceLines.push(`السعر: ${formatCompactCurrency(currentPrice)} ج.م`);
   }
-  if (Array.isArray(erpInfo.available_sizes) && erpInfo.available_sizes.length) {
-    lines.push(`المقاسات المتوفرة: ${erpInfo.available_sizes.join("، ")}`);
+
+  const sizesLine = Array.isArray(erpInfo.available_sizes) && erpInfo.available_sizes.length
+    ? `المقاسات المتوفرة: ${erpInfo.available_sizes.join(" • ")}`
+    : "";
+  const colorsLine = Array.isArray(erpInfo.available_colors) && erpInfo.available_colors.length
+    ? `الألوان المتوفرة: ${erpInfo.available_colors.join(" • ")}`
+    : "";
+  const stockLine = erpInfo.stock_line || "";
+  const productUrl = normalizeTextValue(erpInfo.product_url || "");
+
+  if (priceLines.length || sizesLine || colorsLine || stockLine || productUrl) {
+    lines.push("");
+    lines.push("━━━━━━━━━━━━");
+    lines.push(...priceLines.filter(Boolean));
+    if (sizesLine) {
+      lines.push("");
+      lines.push(sizesLine);
+    }
+    if (colorsLine) {
+      lines.push("");
+      lines.push(colorsLine);
+    }
+    if (stockLine) {
+      lines.push("");
+      lines.push(stockLine);
+    }
+    if (productUrl) {
+      lines.push("");
+      lines.push("━━━━━━━━━━━━");
+      lines.push(`اطلب الآن: ${productUrl}`);
+    }
   }
-  if (Array.isArray(erpInfo.available_colors) && erpInfo.available_colors.length) {
-    lines.push(`الألوان المتوفرة: ${erpInfo.available_colors.join("، ")}`);
+
+  if (cta) {
+    lines.push("");
+    lines.push(cta);
   }
-  lines.push(`حالة المخزون: ${erpInfo.stock_line || "غير متوفر حالياً"}`);
 
-  lines.push("");
-  lines.push("CTA");
-  if (cta) lines.push(cta);
-
-  lines.push("");
-  lines.push("LINK");
-  if (erpInfo.product_url) lines.push(erpInfo.product_url);
-
-  lines.push("");
-  lines.push("HASHTAGS");
-  if (hashtags.length) lines.push(hashtags.join(" "));
+  if (hashtags.length) {
+    lines.push("");
+    lines.push(hashtags.join(" "));
+  }
 
   return lines
     .map((line) => String(line || "").trim())
+    .filter((line, index, array) => line !== "" || array[index - 1] !== "")
     .join("\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
@@ -1868,4 +1895,5 @@ export default function SocialMediaPublisher() {
     </div>
   );
 }
+
 
