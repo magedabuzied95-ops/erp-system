@@ -121,6 +121,52 @@ const compactSocialCaptionContext = (input = {}) => {
   };
 };
 
+const buildProductFacts = (context = {}) => {
+  const productName = cleanText(context.product_name || context.name);
+  const brand = cleanText(context.brand);
+  const productType = cleanText(context.product_type || context.productType);
+  const category = cleanText(context.category);
+  const gender = cleanText(context.gender);
+  const materials = normalizeList(context.materials).slice(0, 5);
+  const features = normalizeList(context.features).slice(0, 8);
+  const colors = normalizeList(context.available_colors || context.colors).slice(0, 8);
+  const availableSizes = normalizeList(context.available_sizes || context.sizes).slice(0, 12);
+  const productUrl = cleanText(context.product_url);
+  const currentPrice = cleanText(context.current_price || context.price || context.sale_price);
+  const originalPrice = cleanText(context.original_price || context.base_price || context.price);
+  const discountPercent = cleanText(context.discount_percent);
+  const stockQuantity = cleanText(context.stock_quantity || context.stock || "");
+  const stockStatus = Number(stockQuantity || 0) > 0 ? "متوفر الآن" : "غير متوفر حالياً";
+  const joinedFeatureText = features.join(" ");
+  const joinedDescriptionText = cleanText(context.description || context.short_description);
+  const waterproof = /waterproof|water resistant|ضد الماء|مقاوم للماء/i.test(`${joinedFeatureText} ${joinedDescriptionText}`)
+    ? true
+    : undefined;
+  const slipResistant = /slip resistant|non[-\s]?slip|anti[-\s]?slip|مانع للانزلاق|ضد الانزلاق/i.test(`${joinedFeatureText} ${joinedDescriptionText}`)
+    ? true
+    : undefined;
+
+  return {
+    ...(productName ? { product_name: productName } : {}),
+    ...(brand ? { brand } : {}),
+    ...(productType ? { product_type: productType } : {}),
+    ...(category ? { category } : {}),
+    ...(gender ? { gender } : {}),
+    ...(materials.length ? { materials } : {}),
+    ...(features.length ? { features } : {}),
+    ...(typeof waterproof === "boolean" ? { waterproof } : {}),
+    ...(typeof slipResistant === "boolean" ? { slip_resistant: slipResistant } : {}),
+    ...(colors.length ? { colors } : {}),
+    ...(availableSizes.length ? { available_sizes: availableSizes } : {}),
+    ...(currentPrice ? { current_price: currentPrice } : {}),
+    ...(originalPrice ? { original_price: originalPrice } : {}),
+    ...(discountPercent ? { discount_percent: discountPercent } : {}),
+    ...(stockQuantity ? { stock_quantity: stockQuantity } : {}),
+    stock_status: stockStatus,
+    ...(productUrl ? { product_url: productUrl } : {}),
+  };
+};
+
 const translateArabicFallbackTerm = (value = "", type = "generic") => {
   const text = cleanText(value);
   const normalized = text.toLowerCase();
@@ -211,12 +257,12 @@ const buildSocialCaptionPrompt = (context = {}) => [
   "Body: 2 to 4 short lines, simple and natural, based only on ERP facts. Do not sound robotic.",
   "CTA: one short natural line only.",
   "Hashtags: return 3 to 5 short hashtags as an array of strings.",
-  "Use only supplied ERP product facts. Do not invent features or claims.",
+  "Use only supplied Product Facts. Do not invent features or claims.",
   "Keep the tone simple, local, and believable for Facebook and Instagram.",
   "Prefer Arabic. Do not use these phrases or close variants: احصل على زوجك الآن، لا تفوت الفرصة، ارتقِ بإطلالتك، اكتشف الآن، امشِ بخطى واثقة، صُمم خصيصًا لك، الخيار المثالي، مزيج من الأداء والأناقة.",
   "Do not repeat the product name more than once. Do not repeat the brand more than once.",
   "CTA examples that are acceptable: اطلبه الآن، اطلبه قبل نفاد المقاسات، ابعتلنا رسالة لو محتاج تعرف المقاس المناسب، متوفر الآن للشحن، اطلبه مباشرة من الموقع.",
-  `Product context:\n${JSON.stringify(context, null, 2)}`,
+  `Product facts:\n${JSON.stringify(context, null, 2)}`,
 ]
   .filter(Boolean)
   .join("\n");
@@ -541,6 +587,7 @@ export const generateProductDescription = async (input = {}) => {
 
 export const generateSocialPublisherCaption = async (input = {}) => {
   const context = compactSocialCaptionContext(input);
+  const facts = buildProductFacts(context);
   const fallback = buildSocialCaptionFallback(context);
   const requestId = cleanText(input.request_id) || `social-caption-${Date.now()}`;
   logSocialCaptionContext("[ai-social-caption-fallback]", {
@@ -569,7 +616,7 @@ export const generateSocialPublisherCaption = async (input = {}) => {
       {
         model,
         instructions: "You are an expert luxury ecommerce social media copywriter.",
-        input: buildSocialCaptionPrompt(context),
+        input: buildSocialCaptionPrompt(facts),
         text: {
           format: {
             type: "json_schema",

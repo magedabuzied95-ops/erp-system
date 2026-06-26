@@ -306,10 +306,8 @@ export const buildSocialAICopy = ({
     ...(toneVariantHashtags(productName, brandName)),
     ...normalizeList(post.hashtags || design.hashtags || design.tags),
   ]).slice(0, 8);
-  const opening = [productName, brandName && brandName !== productName ? brandName : ""].filter(Boolean).slice(0, 1);
   const caption = [
     "NEW COLLECTION",
-    ...opening,
     hook,
     body,
     cta,
