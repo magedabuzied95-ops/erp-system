@@ -7,6 +7,8 @@ import { normalizeEgyptPhone } from "./whatsappGatewayService.js";
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+const OTP_RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000;
+const OTP_RATE_LIMIT_MAX_REQUESTS = 5;
 const OTP_MAX_ATTEMPTS = 5;
 const OTP_LENGTH = 6;
 
@@ -139,12 +141,32 @@ export const requestCustomerOtp = async ({ tenantId = null, phone = "" } = {}) =
   let otpRowId = null;
   try {
     await client.query("BEGIN");
+    const cleanupResult = await client.query(
+      `
+      DELETE FROM customer_otps
+      WHERE tenant_id = $1::integer
+        AND phone = $2::text
+        AND used = FALSE
+        AND expires_at < NOW()
+      RETURNING id
+      `,
+      [safeTenantId, normalizedPhone]
+    );
+    if (cleanupResult.rowCount > 0) {
+      otpLog("cleanup-expired", {
+        tenant_id: safeTenantId,
+        phone_suffix: normalizedPhone.slice(-4),
+        removed: cleanupResult.rowCount,
+      });
+    }
+
     const recent = await client.query(
       `
       SELECT id, created_at
       FROM customer_otps
       WHERE tenant_id = $1::integer
         AND phone = $2::text
+        AND created_at >= NOW() - INTERVAL '15 minutes'
       ORDER BY created_at DESC, id DESC
       LIMIT 1
       FOR UPDATE
@@ -162,6 +184,37 @@ export const requestCustomerOtp = async ({ tenantId = null, phone = "" } = {}) =
           retry_after_seconds: Math.max(1, Math.ceil((OTP_RESEND_COOLDOWN_MS - ageMs) / 1000)),
         };
       }
+    }
+
+    const rateLimitCountResult = await client.query(
+      `
+      SELECT COUNT(*)::int AS count, MIN(created_at) AS oldest_created_at
+      FROM customer_otps
+      WHERE tenant_id = $1::integer
+        AND phone = $2::text
+        AND created_at >= NOW() - INTERVAL '15 minutes'
+      `,
+      [safeTenantId, normalizedPhone]
+    );
+    const rateLimitCount = Number(rateLimitCountResult.rows?.[0]?.count || 0);
+    if (rateLimitCount >= OTP_RATE_LIMIT_MAX_REQUESTS) {
+      const oldestCreatedAt = rateLimitCountResult.rows?.[0]?.oldest_created_at ? new Date(rateLimitCountResult.rows[0].oldest_created_at).getTime() : Date.now();
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((OTP_RATE_LIMIT_WINDOW_MS - Math.max(0, Date.now() - oldestCreatedAt)) / 1000)
+      );
+      await client.query("ROLLBACK");
+      otpLog("rate-limited", {
+        tenant_id: safeTenantId,
+        phone_suffix: normalizedPhone.slice(-4),
+        request_count: rateLimitCount,
+        retry_after_seconds: retryAfterSeconds,
+      });
+      return {
+        success: false,
+        error: "OTP_RATE_LIMITED",
+        retry_after_seconds: retryAfterSeconds,
+      };
     }
 
     createdOtp = randomOtp();

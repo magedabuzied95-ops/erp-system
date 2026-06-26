@@ -256,6 +256,11 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     }));
   }, [setProfile]);
 
+  const invalidateCustomerIdentity = useCallback(() => {
+    clearCustomerIdentity();
+    toast.error("انتهت صلاحية الدخول. سجّل دخولك مرة أخرى.");
+  }, [clearCustomerIdentity]);
+
   const load = useCallback(async ({ silent = false } = {}) => {
     const { token, phone: storedPhone } = readStorefrontCustomerAuth();
     if (!token) return null;
@@ -276,7 +281,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     } catch (error) {
       const status = Number(error?.status || error?.response?.status || 0);
       if (status === 401 || status === 403) {
-        clearCustomerIdentity();
+        invalidateCustomerIdentity();
       }
       if (!silent) {
         toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "لا يمكن فتح الحساب الآن."));
@@ -285,7 +290,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     } finally {
       setLoading(false);
     }
-  }, [clearCustomerIdentity, phone, setProfile, sfText]);
+  }, [invalidateCustomerIdentity, phone, setProfile, sfText]);
 
   useEffect(() => {
     if (!customerAuth.token) {
@@ -304,10 +309,15 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     const id = window.setInterval(() => {
       storefrontCustomerRequest("/storefront/account")
         .then((data) => setAccount(data))
-        .catch(() => undefined);
+        .catch((error) => {
+          const status = Number(error?.status || error?.response?.status || 0);
+          if (status === 401 || status === 403) {
+            invalidateCustomerIdentity();
+          }
+        });
     }, accountRefreshIntervalMs);
     return () => window.clearInterval(id);
-  }, [account, accountRefreshIntervalMs, hasCustomerToken]);
+  }, [account, accountRefreshIntervalMs, hasCustomerToken, invalidateCustomerIdentity]);
 
   useEffect(() => {
     if (!account || !hasCustomerToken || typeof document === "undefined") return undefined;
@@ -315,11 +325,16 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
       if (document.visibilityState !== "visible") return;
       storefrontCustomerRequest("/storefront/account")
         .then((data) => setAccount(data))
-        .catch(() => undefined);
+        .catch((error) => {
+          const status = Number(error?.status || error?.response?.status || 0);
+          if (status === 401 || status === 403) {
+            invalidateCustomerIdentity();
+          }
+        });
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [account, hasCustomerToken]);
+  }, [account, hasCustomerToken, invalidateCustomerIdentity]);
 
   const requestOtp = useCallback(async () => {
     const normalizedPhone = normalizeStorefrontCustomerPhone(phone);
@@ -450,6 +465,8 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
   const backendWishlist = account?.wishlist_products || [];
   const backendRecent = account?.recent_products || [];
   const authSummary = account?.customer?.name || profile.full_name || sfText("storefront.account.enterPhoneHint", "أدخل رقم هاتفك لعرض الحساب");
+  const isRestoringAccount = hasCustomerToken && !account;
+  const showOtpLogin = !hasCustomerToken;
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-5 md:py-8">
@@ -472,57 +489,71 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
             </div>
           </div>
           <div className="mt-4 space-y-3">
-            <Field label={sfText("storefront.form.mobileNumber", "رقم الهاتف")} value={phone} onChange={setPhone} inputMode="tel" />
-            {!otpRequestedAt ? (
-              <button
-                onClick={requestOtp}
-                disabled={requestingOtp || !normalizedLoginPhone}
-                className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
-              >
-                {requestingOtp ? (
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    جارٍ الإرسال...
-                  </span>
-                ) : (
-                  "إرسال كود واتساب"
-                )}
-              </button>
-            ) : (
+            {showOtpLogin ? (
               <>
-                <Field
-                  label="كود OTP"
-                  value={otpCode}
-                  onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))}
-                  inputMode="numeric"
-                />
-                <button
-                  onClick={verifyOtp}
-                  disabled={verifyingOtp || String(otpCode || "").replace(/\D/g, "").length !== 6}
-                  className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
-                >
-                  {verifyingOtp ? (
-                    <span className="inline-flex items-center justify-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      جارٍ التحقق...
-                    </span>
-                  ) : (
-                    "تأكيد الدخول"
-                  )}
-                </button>
-                <button
-                  onClick={requestOtp}
-                  disabled={requestingOtp || resendCountdown > 0}
-                  className="min-h-11 w-full rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-600 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <span className="inline-flex items-center justify-center gap-2">
-                    <RefreshCcw className="h-4 w-4" />
-                    {resendCountdown > 0 ? `إعادة الإرسال بعد ${resendCountdown} ثانية` : "إعادة إرسال الكود"}
-                  </span>
-                </button>
-                <p className="text-xs font-bold leading-6 text-stone-500">أرسلنا كود الدخول على واتساب. أدخل الكود المكوّن من 6 أرقام خلال 5 دقائق.</p>
+                <Field label={sfText("storefront.form.mobileNumber", "رقم الهاتف")} value={phone} onChange={setPhone} inputMode="tel" />
+                {!otpRequestedAt ? (
+                  <button
+                    onClick={requestOtp}
+                    disabled={requestingOtp || !normalizedLoginPhone}
+                    className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
+                  >
+                    {requestingOtp ? (
+                      <span className="inline-flex items-center justify-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        جارٍ الإرسال...
+                      </span>
+                    ) : (
+                      "إرسال كود واتساب"
+                    )}
+                  </button>
+                ) : (
+                  <>
+                    <Field
+                      label="كود OTP"
+                      value={otpCode}
+                      onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))}
+                      inputMode="numeric"
+                    />
+                    <button
+                      onClick={verifyOtp}
+                      disabled={verifyingOtp || String(otpCode || "").replace(/\D/g, "").length !== 6}
+                      className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
+                    >
+                      {verifyingOtp ? (
+                        <span className="inline-flex items-center justify-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          جارٍ التحقق...
+                        </span>
+                      ) : (
+                        "تأكيد الدخول"
+                      )}
+                    </button>
+                    <button
+                      onClick={requestOtp}
+                      disabled={requestingOtp || resendCountdown > 0}
+                      className="min-h-11 w-full rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-600 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <span className="inline-flex items-center justify-center gap-2">
+                        <RefreshCcw className="h-4 w-4" />
+                        {resendCountdown > 0 ? `إعادة الإرسال بعد ${resendCountdown} ثانية` : "إعادة إرسال الكود"}
+                      </span>
+                    </button>
+                    <p className="text-xs font-bold leading-6 text-stone-500">أرسلنا كود الدخول على واتساب. أدخل الكود المكوّن من 6 أرقام خلال 5 دقائق.</p>
+                  </>
+                )}
               </>
-            )}
+            ) : isRestoringAccount ? (
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-5">
+                <div className="flex items-center gap-3">
+                  <Loader2 className="h-5 w-5 animate-spin text-stone-500" />
+                  <div>
+                    <div className="text-sm font-black text-stone-900">جارٍ استعادة حسابك</div>
+                    <p className="mt-1 text-sm font-bold leading-6 text-stone-500">نستخدم Remember Me لعرض بياناتك مباشرة.</p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
             <button
               onClick={clearCustomerIdentity}
               type="button"

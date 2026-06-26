@@ -366,6 +366,14 @@ router.post("/auth/request-otp", async (req, res) => {
     }
     return res.json({ success: true, sent: true });
   } catch (error) {
+    if (error?.code === "OTP_RATE_LIMITED") {
+      return res.status(429).json({
+        success: false,
+        error: "OTP_RATE_LIMITED",
+        message: "تم طلب كود الدخول عدة مرات. حاول مرة أخرى بعد قليل.",
+        retry_after_seconds: Number(error?.retry_after_seconds || 60),
+      });
+    }
     return res.status(error?.status || 500).json({
       success: false,
       message: "تعذر إرسال كود الدخول حاليًا",
