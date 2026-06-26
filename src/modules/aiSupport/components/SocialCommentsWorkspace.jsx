@@ -60,7 +60,43 @@ const normalizePost = (raw) => {
     sessionId: clean(post.session_id || metadata.session_id || ""),
     platform: clean(post.platform || metadata.platform || "facebook").toLowerCase(),
     caption: clean(post.caption || post.post_caption || post.post_message || post.message || post.last_message || post.post_text || metadata.post_caption || metadata.post_message || metadata.caption || metadata.message || "منشور بدون نص"),
-    thumbnailUrl: post.thumbnail_url || post.post_thumbnail || post.post_full_picture || post.attachment_image || post.full_picture || metadata.thumbnail_url || metadata.post_thumbnail || metadata.post_full_picture || attachmentImage || post.picture || post.product_image_url || post.product_image || null,
+    thumbnailUrl:
+      post.thumbnailUrl ||
+      post.thumbnail_url ||
+      post.postThumbnail ||
+      post.post_thumbnail ||
+      post.postFullPicture ||
+      post.post_full_picture ||
+      post.attachmentImage ||
+      post.attachment_image ||
+      post.fullPicture ||
+      post.full_picture ||
+      post.picture ||
+      post.mediaUrl ||
+      post.media_url ||
+      post.imageUrl ||
+      post.image_url ||
+      post.image ||
+      metadata.thumbnailUrl ||
+      metadata.thumbnail_url ||
+      metadata.postThumbnail ||
+      metadata.post_thumbnail ||
+      metadata.postFullPicture ||
+      metadata.post_full_picture ||
+      metadata.attachmentImage ||
+      metadata.attachment_image ||
+      metadata.fullPicture ||
+      metadata.full_picture ||
+      metadata.picture ||
+      metadata.mediaUrl ||
+      metadata.media_url ||
+      metadata.imageUrl ||
+      metadata.image_url ||
+      metadata.image ||
+      attachmentImage ||
+      post.product_image_url ||
+      post.product_image ||
+      null,
     permalinkUrl: clean(post.permalink_url || post.post_permalink || post.post_permalink_url || post.post_url || metadata.permalink_url || metadata.post_permalink || metadata.post_permalink_url || metadata.post_url || ""),
     commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || metadata.comments_count || 0),
     newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),
@@ -413,7 +449,26 @@ function SocialCommentsWorkspace({
   );
 
   const suggestedReply = previewReply || activeSuggestedReply || "";
-  const activePostImage = activePostDetails?.thumbnailUrl ? clean(activePostDetails.thumbnailUrl) : "";
+  const activePostImage = clean(
+    activePostDetails?.thumbnailUrl ||
+      activePostDetails?.raw?.thumbnailUrl ||
+      activePostDetails?.raw?.thumbnail_url ||
+      activePostDetails?.raw?.postThumbnail ||
+      activePostDetails?.raw?.post_thumbnail ||
+      activePostDetails?.raw?.postFullPicture ||
+      activePostDetails?.raw?.post_full_picture ||
+      activePostDetails?.raw?.attachmentImage ||
+      activePostDetails?.raw?.attachment_image ||
+      activePostDetails?.raw?.fullPicture ||
+      activePostDetails?.raw?.full_picture ||
+      activePostDetails?.raw?.picture ||
+      activePostDetails?.raw?.mediaUrl ||
+      activePostDetails?.raw?.media_url ||
+      activePostDetails?.raw?.imageUrl ||
+      activePostDetails?.raw?.image_url ||
+      activePostDetails?.raw?.image ||
+      ""
+  );
   const activePostCaption = clean(activePostDetails?.caption || "");
   const activePostLink = clean(activePostDetails?.permalinkUrl || "");
   const activePlatform = platformMeta(activePostDetails?.platform || activePost?.platform || "");
