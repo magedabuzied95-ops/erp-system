@@ -267,13 +267,18 @@ const resolvePostPreviewLink = (row = {}) => {
   );
 };
 
+const isWrapperSocialCommentPostId = (value = "") => /^(social_comment|facebook_comment|instagram_comment):/i.test(text(value));
+
 const resolveSocialCommentGraphPostId = (row = {}) => {
   const metadata = metadataObject(row.metadata || {});
   const candidates = [
-    row.post_id,
     metadata.post_id,
-    row.conversation_id,
+    row.automation_run_post_id,
+    row.raw_payload?.value?.post_id,
+    row.raw_payload?.post_id,
+    row.post_id,
     row.external_conversation_id,
+    row.conversation_id,
     metadata.conversation_id,
   ]
     .map((value) => text(value))
@@ -299,6 +304,9 @@ const resolveSocialCommentGraphPostId = (row = {}) => {
         return text(parts[parts.length - 1] || "");
       }
     }
+    if (!isWrapperSocialCommentPostId(candidate)) {
+      return candidate;
+    }
     return candidate;
   }
 
@@ -310,6 +318,9 @@ const resolveSocialCommentGraphLookupIds = ({ row = {}, pageId = "" } = {}) => {
   const safePageId = text(pageId);
   const rawCandidates = [
     resolveSocialCommentGraphPostId(row),
+    row.automation_run_post_id,
+    row.raw_payload?.value?.post_id,
+    row.raw_payload?.post_id,
     row.post_id,
     metadata.post_id,
     row.conversation_id,
@@ -454,7 +465,14 @@ const loadSocialPublisherFallbackMedia = async ({ tenantId = null, postId = "", 
 const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform = "" } = {}) => {
   const safeRow = { ...(row || {}) };
   const metadata = metadataObject(safeRow.metadata || {});
-  const postId = text(safeRow.post_id || safeRow.conversation_id || metadata.post_id || "");
+  const storedPostId = text(
+    metadata.post_id ||
+    safeRow.automation_run_post_id ||
+    safeRow.raw_payload?.value?.post_id ||
+    safeRow.raw_payload?.post_id ||
+    ""
+  ) || (safeRow.post_id && !isWrapperSocialCommentPostId(safeRow.post_id) ? text(safeRow.post_id) : "");
+  const postId = storedPostId || text(safeRow.post_id || safeRow.conversation_id || metadata.conversation_id || "");
   const graphPostId = resolveSocialCommentGraphPostId(safeRow);
   const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
   const graphLookupPostIds = resolveSocialCommentGraphLookupIds({ row: safeRow, pageId });
@@ -1017,6 +1035,8 @@ const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = 
       COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
       COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
+      runmeta.automation_run_post_id,
+      runmeta.automation_run_raw_payload,
       s.read_at AS session_read_at,
       s.status AS session_status,
       s.updated_at AS session_updated_at,
@@ -1047,6 +1067,15 @@ const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = 
     LEFT JOIN ai_support_sessions s
       ON s.tenant_id = c.tenant_id
      AND s.session_id = c.external_conversation_id
+    LEFT JOIN LATERAL (
+      SELECT
+        (ARRAY_AGG(r.post_id ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_post_id,
+        (ARRAY_AGG(r.raw_payload ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_raw_payload
+      FROM social_comment_automation_runs r
+      WHERE r.tenant_id = c.tenant_id
+        AND r.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
+        AND r.inbox_conversation_id = c.external_conversation_id
+    ) runmeta ON TRUE
     LEFT JOIN LATERAL (
       SELECT
         COUNT(*)::int AS comments_count,
@@ -1165,6 +1194,8 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
       COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
+      runmeta.automation_run_post_id,
+      runmeta.automation_run_raw_payload,
       s.read_at AS session_read_at,
       s.status AS session_status,
       s.updated_at AS session_updated_at,
@@ -1195,6 +1226,15 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     LEFT JOIN ai_support_sessions s
       ON s.tenant_id = c.tenant_id
      AND s.session_id = c.external_conversation_id
+    LEFT JOIN LATERAL (
+      SELECT
+        (ARRAY_AGG(r.post_id ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_post_id,
+        (ARRAY_AGG(r.raw_payload ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_raw_payload
+      FROM social_comment_automation_runs r
+      WHERE r.tenant_id = c.tenant_id
+        AND r.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
+        AND r.inbox_conversation_id = c.external_conversation_id
+    ) runmeta ON TRUE
     LEFT JOIN LATERAL (
       SELECT
         COUNT(*)::int AS comments_count,
@@ -1322,6 +1362,8 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
       COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
       COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
+      runmeta.automation_run_post_id,
+      runmeta.automation_run_raw_payload,
       prod.product_id,
       prod.product_name,
       prod.product_price,
@@ -1333,6 +1375,15 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
       prod.product_sizes,
       prod.product_colors
     FROM ai_channel_conversations c
+    LEFT JOIN LATERAL (
+      SELECT
+        (ARRAY_AGG(r.post_id ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_post_id,
+        (ARRAY_AGG(r.raw_payload ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_raw_payload
+      FROM social_comment_automation_runs r
+      WHERE r.tenant_id = c.tenant_id
+        AND r.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
+        AND r.inbox_conversation_id = c.external_conversation_id
+    ) runmeta ON TRUE
     LEFT JOIN LATERAL (
       SELECT
         ppl.product_id,
@@ -1653,6 +1704,8 @@ const getSocialCommentPostByCommentId = async ({ tenantId = null, platform = "",
       COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
       COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
+      runmeta.automation_run_post_id,
+      runmeta.automation_run_raw_payload,
       s.read_at AS session_read_at,
       s.status AS session_status,
       s.updated_at AS session_updated_at
@@ -1660,6 +1713,15 @@ const getSocialCommentPostByCommentId = async ({ tenantId = null, platform = "",
     LEFT JOIN ai_support_sessions s
       ON s.tenant_id = c.tenant_id
      AND s.session_id = c.external_conversation_id
+    LEFT JOIN LATERAL (
+      SELECT
+        (ARRAY_AGG(r.post_id ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_post_id,
+        (ARRAY_AGG(r.raw_payload ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_raw_payload
+      FROM social_comment_automation_runs r
+      WHERE r.tenant_id = c.tenant_id
+        AND r.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
+        AND r.inbox_conversation_id = c.external_conversation_id
+    ) runmeta ON TRUE
     INNER JOIN ai_support_messages msg
       ON msg.tenant_id = c.tenant_id
      AND msg.session_id = c.external_conversation_id
