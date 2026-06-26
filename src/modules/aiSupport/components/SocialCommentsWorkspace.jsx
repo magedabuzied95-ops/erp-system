@@ -335,7 +335,7 @@ const initialsFromName = (value = "") => {
     .split(/\s+/)
     .map((part) => part.trim())
     .filter(Boolean);
-  if (!parts.length) return "U";
+  if (!parts.length) return "";
   return parts.slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 };
 
@@ -351,7 +351,7 @@ const resolveCommentCustomerName = (comment = {}) => {
       metadata.customer_name ||
       metadata.commenter_name ||
       metadata.from?.name ||
-      "Customer"
+      ""
   );
 };
 
@@ -440,19 +440,6 @@ function SocialCommentsWorkspace({
   const normalizedComments = useMemo(() => comments.map((comment) => normalizeComment(comment)).filter(Boolean), [comments]);
   const activePostDetails = normalizePost(activeThread.post || activePost || null);
 
-  console.warn("[social-comments:media-data-debug]", {
-    selectedPost,
-    keys: selectedPost ? Object.keys(selectedPost) : [],
-    image: selectedPost?.image,
-    image_url: selectedPost?.image_url,
-    media_url: selectedPost?.media_url,
-    thumbnail_url: selectedPost?.thumbnail_url,
-    full_picture: selectedPost?.full_picture,
-    picture: selectedPost?.picture,
-    attachments: selectedPost?.attachments,
-    metadata: selectedPost?.metadata,
-  });
-
   const [selectedCommentKey, setSelectedCommentKey] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
   const [previewReply, setPreviewReply] = useState("");
@@ -539,7 +526,7 @@ function SocialCommentsWorkspace({
   const activeSuggestedReply = useMemo(
     () =>
       templatePreviewText(activeTemplate || { template: currentGlobalSettings.generic_template || "" }, {
-        customer_name: selectFirst(actionableComment?.customerName, "Customer"),
+        customer_name: selectFirst(resolveCommentCustomerName(actionableComment)),
         product_name: selectFirst(activePostDetails?.productName, ""),
         price: selectFirst(activePostDetails?.productPrice, ""),
         sale_price: selectFirst(activePostDetails?.productSalePrice, ""),
@@ -1174,13 +1161,17 @@ function SocialCommentsWorkspace({
                           className={`rounded-[22px] border p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition ${
                             selected ? "border-cyan-300/50 bg-gradient-to-br from-cyan-300/15 to-slate-950/55 ring-1 ring-cyan-300/15" : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-slate-950/75"
                           }`}
-                        >
+                          >
                           <div className="flex items-start gap-3.5">
                             {avatar ? (
                               <img src={avatar} alt={name} className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-white/10" loading="lazy" />
-                            ) : (
+                            ) : name ? (
                               <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300/20 to-white/[0.04] text-sm font-black text-cyan-100 ring-1 ring-white/10">
                                 {initialsFromName(name)}
+                              </span>
+                            ) : (
+                              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300/20 to-white/[0.04] ring-1 ring-white/10">
+                                <UserRound className="h-5 w-5 text-cyan-100" />
                               </span>
                             )}
 
@@ -1383,8 +1374,8 @@ function SocialCommentsWorkspace({
                     <SidebarRow label="Suggested Reply" value={suggestedReply || "No suggestion yet."} icon={<MessageSquareText className="h-4 w-4 text-emerald-100" />} />
                     <SidebarRow label="Lead Intent" value={`${visibleComments.filter((item) => getCommentTags(item).includes("Lead")).length} leads / ${visibleComments.filter((item) => getCommentTags(item).includes("Price")).length} price / ${visibleComments.filter((item) => getCommentTags(item).includes("Size")).length} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
                     <SidebarRow
-                      label="Customer Summary"
-                      value={selectFirst(resolveCommentCustomerName(actionableComment), activePostDetails?.customerName, "Customer")}
+                      label="Comment Identity"
+                      value={selectFirst(resolveCommentCustomerName(actionableComment), activePostDetails?.customerName)}
                       icon={
                         resolveCommentCustomerAvatar(actionableComment) ? (
                           <img src={resolveCommentCustomerAvatar(actionableComment)} alt="" className="h-4 w-4 rounded-full object-cover" />
