@@ -215,6 +215,27 @@ const commentAutomationMessageLabel = (messageType = "") => {
 const normalizeSocialCommentPost = (raw) => {
   const post = raw || {};
   const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
+  const resolvedThumbnail =
+    post.thumbnail_url ||
+    post.thumbnailUrl ||
+    post.post_thumbnail ||
+    post.post_full_picture ||
+    post.attachment_image ||
+    post.full_picture ||
+    post.picture ||
+    post.media_url ||
+    post.image_url ||
+    post.image ||
+    metadata.thumbnail_url ||
+    metadata.post_thumbnail ||
+    metadata.post_full_picture ||
+    metadata.attachment_image ||
+    metadata.full_picture ||
+    metadata.picture ||
+    metadata.media_url ||
+    metadata.image_url ||
+    metadata.image ||
+    null;
   return {
     id: String(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
     postId: String(post.post_id || post.id || metadata.post_id || ""),
@@ -222,7 +243,18 @@ const normalizeSocialCommentPost = (raw) => {
     sessionId: String(post.session_id || metadata.session_id || ""),
     platform: String(post.platform || metadata.platform || "facebook").toLowerCase(),
     caption: String(post.caption || post.post_caption || post.post_message || post.message || post.last_message || post.post_text || metadata.post_caption || metadata.post_message || metadata.caption || metadata.message || "منشور بدون نص").trim(),
-    thumbnailUrl: post.thumbnail_url || post.post_thumbnail || post.post_full_picture || post.attachment_image || post.full_picture || metadata.thumbnail_url || metadata.post_thumbnail || metadata.post_full_picture || post.image_url || post.product_image_url || post.product_image || null,
+    thumbnailUrl: resolvedThumbnail,
+    thumbnail_url: resolvedThumbnail,
+    post_thumbnail: post.post_thumbnail || metadata.post_thumbnail || null,
+    post_full_picture: post.post_full_picture || metadata.post_full_picture || null,
+    attachment_image: post.attachment_image || metadata.attachment_image || null,
+    full_picture: post.full_picture || metadata.full_picture || null,
+    picture: post.picture || metadata.picture || null,
+    media_url: post.media_url || metadata.media_url || null,
+    image_url: post.image_url || metadata.image_url || null,
+    image: post.image || metadata.image || null,
+    attachments: post.attachments || metadata.attachments || null,
+    metadata,
     permalinkUrl: String(post.permalink_url || post.post_permalink || post.post_permalink_url || post.post_url || metadata.permalink_url || metadata.post_permalink || metadata.post_permalink_url || metadata.post_url || "").trim(),
     commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || metadata.comments_count || 0),
     newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),

@@ -180,17 +180,19 @@ const buildPrompt = (context = {}, target = "all") => {
 };
 
 const buildSocialCaptionPrompt = (context = {}) => [
-  "Write structured social media copy for a luxury footwear store.",
+  "Write social media copy for an Egyptian footwear store in a natural, human voice that sounds like a local social media manager.",
   "Return strict JSON only with keys hook, body, cta, hashtags.",
   "Do not include price, original price, discount, sizes, colors, stock, or link in the AI output.",
   "Those ERP fields will be inserted later by the app.",
-  "Hook: one short premium line, 1 sentence maximum.",
-  "Body: 2 to 4 short lines, premium and persuasive, without repeating the product name too much.",
-  "CTA: one short line only.",
+  "Hook: one short, natural line, 1 sentence maximum, no marketing clichés.",
+  "Body: 2 to 4 short lines, simple and natural, based only on ERP facts. Do not sound robotic.",
+  "CTA: one short natural line only.",
   "Hashtags: return 3 to 5 short hashtags as an array of strings.",
   "Use only supplied ERP product facts. Do not invent features or claims.",
-  "Keep the tone premium, concise, and suitable for Facebook and Instagram.",
-  "Arabic body is preferred, but keep the hook impactful and natural.",
+  "Keep the tone simple, local, and believable for Facebook and Instagram.",
+  "Prefer Arabic. Do not use these phrases or close variants: احصل على زوجك الآن، لا تفوت الفرصة، ارتقِ بإطلالتك، اكتشف الآن، امشِ بخطى واثقة، صُمم خصيصًا لك، الخيار المثالي، مزيج من الأداء والأناقة.",
+  "Do not repeat the product name more than once. Do not repeat the brand more than once.",
+  "CTA examples that are acceptable: اطلبه الآن، اطلبه قبل نفاد المقاسات، ابعتلنا رسالة لو محتاج تعرف المقاس المناسب، متوفر الآن للشحن، اطلبه مباشرة من الموقع.",
   `Product context:\n${JSON.stringify(context, null, 2)}`,
 ]
   .filter(Boolean)
@@ -224,16 +226,16 @@ const buildSocialCaptionSections = (context = {}) => {
   const stock = cleanText(context.stock_quantity || context.stock || "");
   const url = cleanText(context.product_url || "");
   const stockLine = Number(stock || 0) > 0 ? "متوفر الآن" : "غير متوفر حالياً";
-  const hook = `✨ اكتشف ${name} الآن` + (brand ? ` من ${brand}` : "");
+  const hook = brand ? `${name} من ${brand}` : name;
   const bodyParts = [];
   if (description) bodyParts.push(description);
-  if (category) bodyParts.push(`مصمم ليمنحك حضوراً مميزاً داخل ${category}`);
-  if (materials.length) bodyParts.push(`الخامات: ${materials.join("، ")}`);
-  if (features.length) bodyParts.push(`أهم المزايا: ${features.join("، ")}`);
-  if (colors.length) bodyParts.push(`ألوان مختارة: ${colors.join("، ")}`);
-  if (sizes.length) bodyParts.push(`متاح بمقاسات: ${sizes.join("، ")}`);
+  if (category) bodyParts.push(category);
+  if (materials.length) bodyParts.push(materials.join("، "));
+  if (features.length) bodyParts.push(features.join("، "));
+  if (colors.length) bodyParts.push(colors.join("، "));
+  if (sizes.length) bodyParts.push(sizes.join("، "));
   const body = bodyParts.slice(0, 4).join("\n");
-  const cta = "اطلبه الآن قبل نفاد الكمية.";
+  const cta = "اطلبه الآن.";
   const hashtags = normalizeList(context.hashtags || context.tags || ["#NewCollection", "#Fashion", "#Footwear"]).slice(0, 5);
   const erpInfo = {
     name,
@@ -365,7 +367,7 @@ const normalizeSocialCaptionGenerated = (raw = {}, fallback = {}) => {
     "ERP INFO",
     saleActive && currentPrice ? `السعر الآن: ${currentPrice}` : currentPrice ? `السعر: ${currentPrice}` : "",
     saleActive && originalPrice && originalPrice !== currentPrice ? `بدلاً من: ${originalPrice}` : "",
-    saleActive ? "عرض لفترة محدودة" : "",
+    saleActive ? "عرض لفترة محدودة حتى نفاد الكمية." : "",
     Array.isArray(erpInfo.available_sizes) && erpInfo.available_sizes.length ? `المقاسات المتوفرة: ${erpInfo.available_sizes.join("، ")}` : "",
     Array.isArray(erpInfo.available_colors) && erpInfo.available_colors.length ? `الألوان المتوفرة: ${erpInfo.available_colors.join("، ")}` : "",
     `حالة المخزون: ${erpInfo.stock_line || ""}`,
