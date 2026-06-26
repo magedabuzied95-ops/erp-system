@@ -379,6 +379,16 @@ const resolveCommentCustomerAvatar = (comment = {}) => {
   );
 };
 
+const resolveCommentPlatformLabel = (comment = {}) => {
+  const normalized = normalizeComment(comment);
+  const raw = comment && typeof comment === "object" ? comment.raw || comment : {};
+  const metadata = raw.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
+  const platform = clean(normalized.platform || raw.platform || metadata.platform || "").toLowerCase();
+  if (platform.includes("instagram")) return "Instagram";
+  if (platform.includes("facebook")) return "Facebook";
+  return platform ? platform.charAt(0).toUpperCase() + platform.slice(1) : "Facebook";
+};
+
 const resolvePostMediaBadge = (post = {}) => {
   const rawType = clean(post?.raw?.post_type || post?.raw?.type || post?.raw?.story_type || post?.raw?.content_type || post?.metadata?.post_type || post?.metadata?.type || post?.metadata?.content_type || "");
   const key = rawType.toLowerCase();
