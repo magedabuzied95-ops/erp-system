@@ -1480,7 +1480,7 @@ export default function SocialMediaPublisher() {
                 </div>
               </label>
 
-              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="grid items-stretch gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
                 <div className="space-y-2">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold text-slate-200">{t("marketing.socialPublisher.caption")}</span>
@@ -1494,7 +1494,7 @@ export default function SocialMediaPublisher() {
                     className="min-h-[170px] w-full rounded-[1.75rem] border border-white/10 bg-slate-950/70 px-4 py-3 text-sm leading-6 text-white outline-none transition placeholder:text-slate-500 focus:border-amber-400/40 focus:ring-2 focus:ring-amber-400/10"
                   />
 
-                  <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
+                  <div className="flex flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-sm font-black text-white">Suggested First Comment</div>
@@ -1508,12 +1508,14 @@ export default function SocialMediaPublisher() {
                     </div>
 
                     <div className="mt-3 rounded-[1.35rem] border border-white/10 bg-white/[0.03] p-3">
-                      <p className="max-h-40 whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                      <div className="max-h-[min(36vh,22rem)] overflow-y-auto pr-1">
+                        <p className="whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
                         {firstCommentPreview}
-                      </p>
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="sticky bottom-0 mt-3 flex flex-wrap gap-2 border-t border-white/10 bg-slate-950/90 pt-3 backdrop-blur">
                       <button
                         type="button"
                         onClick={copySuggestedFirstComment}
