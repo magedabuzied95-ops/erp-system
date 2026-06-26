@@ -2409,6 +2409,50 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
   }
 });
 
+router.post("/comments/:commentId/private-message", protect, permit("settings", "edit"), async (req, res) => {
+  res.setHeader("X-Social-Private-Route", "comment-id-v1");
+  const tenantId = toTenantId(req);
+  const commentId = decodeRouteId(req.params.commentId);
+  const rawMessageText = String(req.body?.message ?? req.body?.reply ?? req.body?.text ?? "");
+  const messageText = envText(rawMessageText);
+  console.warn("[social-comments:private-message-comment-route-entry]", {
+    tenantId,
+    commentId,
+    body: req.body,
+  });
+  if (!tenantId || !commentId) {
+    return sendError(res, Object.assign(new Error("tenant_id and commentId are required"), { status: 400 }), "tenant_id and commentId are required");
+  }
+  if (!messageText) {
+    return sendError(res, Object.assign(new Error("message is required"), { status: 400 }), "message is required");
+  }
+
+  const commentRun = await resolveSocialCommentReplyTarget({ tenantId, commentId });
+  if (!commentRun) {
+    return sendError(res, Object.assign(new Error(`Comment not found for tenant ${tenantId}: ${commentId}`), { status: 404, code: "SOCIAL_COMMENT_NOT_FOUND" }), "Comment not found");
+  }
+
+  const platform = envText(req.body?.platform || commentRun.platform || (commentRun.channel === "instagram_comment" ? "instagram" : "facebook")).toLowerCase().includes("instagram")
+    ? "instagram"
+    : "facebook";
+  const nowIso = new Date().toISOString();
+
+  try {
+    const reply = await sendPrivateReply(platform, commentId, messageText, tenantId);
+    emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: envText(commentRun.session_id || commentRun.inbox_conversation_id || ""), at: nowIso });
+    return res.status(201).json({
+      success: true,
+      sent: true,
+      delivery_status: "sent",
+      comment_id: commentId,
+      platform,
+      reply,
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to send private message");
+  }
+});
+
 router.post("/inbox/:conversationId/private-message", protect, permit("settings", "edit"), async (req, res) => {
   res.setHeader("X-Social-Private-Route", "aiAgentOrders-v2");
   console.warn("[social-comments:private-message-actual-route-entry]", {
