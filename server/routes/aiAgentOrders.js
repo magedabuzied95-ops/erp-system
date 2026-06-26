@@ -2414,6 +2414,18 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
   const conversationId = envText(req.params.conversationId);
   const rawMessageText = String(req.body?.message ?? req.body?.reply ?? req.body?.text ?? "");
   const messageText = envText(rawMessageText);
+  console.warn("[social-comments:private-message-route-entry]", {
+    tenantId,
+    conversationId,
+    body: {
+      message: envText(req.body?.message || ""),
+      reply: envText(req.body?.reply || ""),
+      text: envText(req.body?.text || ""),
+      comment_id: envText(req.body?.comment_id || ""),
+      commentId: envText(req.body?.commentId || ""),
+      platform: envText(req.body?.platform || ""),
+    },
+  });
   if (!tenantId || !conversationId) {
     return sendError(res, Object.assign(new Error("tenant_id and conversationId are required"), { status: 400 }), "tenant_id and conversationId are required");
   }
