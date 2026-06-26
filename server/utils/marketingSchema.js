@@ -159,6 +159,11 @@ const statements = [
     id SERIAL PRIMARY KEY,
     tenant_id INTEGER NOT NULL DEFAULT 1,
     caption TEXT NOT NULL DEFAULT '',
+    first_comment TEXT NOT NULL DEFAULT '',
+    first_comment_status VARCHAR(30) NULL,
+    first_comment_error TEXT NULL,
+    first_comment_external_id TEXT NULL,
+    first_comment_published_at TIMESTAMP NULL,
     media_url TEXT NOT NULL DEFAULT '',
     media_type VARCHAR(20) NOT NULL DEFAULT 'image',
     platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
@@ -174,6 +179,11 @@ const statements = [
   `
   ALTER TABLE IF EXISTS social_publisher_posts
     ADD COLUMN IF NOT EXISTS media_type VARCHAR(20) NOT NULL DEFAULT 'image',
+    ADD COLUMN IF NOT EXISTS first_comment TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS first_comment_status VARCHAR(30) NULL,
+    ADD COLUMN IF NOT EXISTS first_comment_error TEXT NULL,
+    ADD COLUMN IF NOT EXISTS first_comment_external_id TEXT NULL,
+    ADD COLUMN IF NOT EXISTS first_comment_published_at TIMESTAMP NULL,
     ADD COLUMN IF NOT EXISTS platforms JSONB NOT NULL DEFAULT '[]'::jsonb,
     ADD COLUMN IF NOT EXISTS publish_settings JSONB NOT NULL DEFAULT '{}'::jsonb,
     ADD COLUMN IF NOT EXISTS status VARCHAR(30) NOT NULL DEFAULT 'draft',

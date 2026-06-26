@@ -3,12 +3,15 @@ import { loadProductsWithVariantsPayload } from "../controllers/productsControll
 import { resolveStorefrontPriceBreakdown } from "../../src/shared/lib/storefrontPricing.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { getMetaIntegrationStatus } from "./metaIntegrationService.js";
+import { validateMetaToken } from "./metaTokenService.js";
 import { publishPost as publishMetaPost } from "./socialPublisherService.js";
 
 const trimString = (value) => String(value || "").trim();
 const TIKTOK_PUBLISHING_NOT_CONNECTED_MESSAGE = "TikTok publishing is not connected yet.";
 const DISABLED_SOCIAL_PUBLISHER_PLATFORMS = new Set(["tiktok"]);
 const SOCIAL_PUBLISHER_SCHEDULER_LOCK_KEY = 74017102;
+const META_GRAPH_API_VERSION = "v19.0";
+const META_GRAPH_API_BASE_URL = `https://graph.facebook.com/${META_GRAPH_API_VERSION}`;
 
 const parseJsonArray = (value, fallback = []) => {
   if (!value) return fallback;
@@ -62,6 +65,11 @@ const normalizeSocialPublisherPostRow = (row = {}) => ({
   id: row.id,
   tenant_id: row.tenant_id,
   caption: row.caption || "",
+  first_comment: row.first_comment || "",
+  first_comment_status: row.first_comment_status || null,
+  first_comment_error: row.first_comment_error || null,
+  first_comment_external_id: row.first_comment_external_id || null,
+  first_comment_published_at: row.first_comment_published_at || null,
   media_url: row.media_url || "",
   media_type: normalizeMediaType(row.media_type),
   platforms: normalizePlatforms(row.platforms),
@@ -73,6 +81,46 @@ const normalizeSocialPublisherPostRow = (row = {}) => ({
   created_at: row.created_at || null,
   updated_at: row.updated_at || null,
 });
+
+const parseMetaPayload = async (response) => {
+  const text = await response.text();
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    return { raw: text };
+  }
+};
+
+const metaErrorMessage = (payload = {}, fallback = "Meta Graph API request failed") =>
+  payload?.error?.message || payload?.message || fallback;
+
+const callMetaComment = async ({ targetId, accessToken, message, platform }) => {
+  const endpoint = `${META_GRAPH_API_BASE_URL}/${encodeURIComponent(trimString(targetId))}/comments`;
+  console.log("[social-publisher-first-comment]", {
+    platform,
+    target_id: trimString(targetId) || null,
+    post_id: trimString(targetId) || null,
+    status: "publishing",
+    error: "",
+  });
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      message: trimString(message),
+      access_token: trimString(accessToken),
+    }),
+  });
+  const payload = await parseMetaPayload(response);
+  if (!response.ok) {
+    const error = new Error(metaErrorMessage(payload));
+    error.status = response.status;
+    error.metaResponse = payload;
+    throw error;
+  }
+  return payload;
+};
 
 const getMarketingSettingsRow = async (tenantId) => {
   const result = await db.query(
@@ -92,6 +140,12 @@ const resolveChannel = (platforms = []) => {
   if (normalized.includes("facebook") && normalized.includes("instagram")) return "all";
   if (normalized.includes("instagram")) return "instagram";
   return "facebook";
+};
+
+const normalizeFirstCommentStatus = (value = "") => {
+  const normalized = trimString(value).toLowerCase();
+  if (["published", "failed", "skipped"].includes(normalized)) return normalized;
+  return "";
 };
 
 const normalizePositiveNumber = (value) => {
@@ -236,6 +290,7 @@ export const listSocialPublisherPosts = async ({ tenantId, limit = 20 } = {}) =>
 export const createSocialPublisherPostRow = async ({
   tenantId,
   caption = "",
+  firstComment = "",
   mediaUrl = "",
   mediaType = "image",
   platforms = [],
@@ -253,6 +308,7 @@ export const createSocialPublisherPostRow = async ({
     INSERT INTO social_publisher_posts (
       tenant_id,
       caption,
+      first_comment,
       media_url,
       media_type,
       platforms,
@@ -268,6 +324,7 @@ export const createSocialPublisherPostRow = async ({
     [
       tenantId,
       trimString(caption),
+      trimString(firstComment),
       trimString(mediaUrl),
       normalizeMediaType(mediaType),
       JSON.stringify(normalizePlatforms(platforms)),
@@ -509,6 +566,190 @@ export const searchSocialPublisherProducts = async ({ tenantId, query = "", limi
   return normalizedProducts;
 };
 
+const resolveFirstCommentTargets = ({ post = {}, publishResult = {} } = {}) => {
+  const platformResults = publishResult?.platform_publish_results || {};
+  const singlePlatformTarget = (platform) => {
+    const normalizedPlatform = trimString(platform).toLowerCase();
+    if (!normalizedPlatform) return null;
+    const candidateId =
+      trimString(platformResults?.[normalizedPlatform]?.platform_post_id) ||
+      trimString(publishResult?.platform_post_id) ||
+      trimString(publishResult?.external_post_id);
+    if (!candidateId) return null;
+    return {
+      platform: normalizedPlatform,
+      targetId: candidateId,
+    };
+  };
+
+  if (trimString(publishResult?.mode).toLowerCase() === "all") {
+    return ["facebook", "instagram"].map((platform) => ({
+      platform,
+      targetId: trimString(platformResults?.[platform]?.platform_post_id),
+    })).filter((item) => item.targetId);
+  }
+
+  const mode = trimString(publishResult?.mode || resolveChannel(post.platforms)).toLowerCase();
+  const target = singlePlatformTarget(mode);
+  return target ? [target] : [];
+};
+
+const persistFirstCommentState = async ({
+  tenantId,
+  id,
+  status,
+  errorMessage = null,
+  externalId = null,
+  publishedAt = null,
+} = {}) => {
+  await db.query(
+    `
+    UPDATE social_publisher_posts
+    SET
+      first_comment_status = $1,
+      first_comment_error = $2,
+      first_comment_external_id = $3,
+      first_comment_published_at = $4::timestamp,
+      updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $5::integer
+      AND id = $6::bigint
+    `,
+    [
+      normalizeFirstCommentStatus(status) || null,
+      trimString(errorMessage) || null,
+      trimString(externalId) || null,
+      publishedAt || null,
+      tenantId,
+      id,
+    ]
+  );
+};
+
+const publishFirstCommentIfNeeded = async ({
+  tenantId,
+  id,
+  post,
+  publishResult,
+  accessToken,
+} = {}) => {
+  const commentText = trimString(post?.first_comment || "");
+  const currentStatus = normalizeFirstCommentStatus(post?.first_comment_status || "");
+  if (!commentText) {
+    console.log("[social-publisher-first-comment]", {
+      platform: "all",
+      post_id: publishResult?.platform_post_id || publishResult?.external_post_id || null,
+      status: "skipped",
+      error: "first_comment is empty",
+    });
+    await persistFirstCommentState({
+      tenantId,
+      id,
+      status: "skipped",
+      errorMessage: "first_comment is empty",
+      externalId: null,
+      publishedAt: null,
+    });
+    return { status: "skipped", error: "first_comment is empty" };
+  }
+
+  if (!trimString(accessToken)) {
+    const reason = "Meta access token is not configured.";
+    console.log("[social-publisher-first-comment]", {
+      platform: "all",
+      post_id: publishResult?.platform_post_id || publishResult?.external_post_id || null,
+      status: "skipped",
+      error: reason,
+    });
+    await persistFirstCommentState({ tenantId, id, status: "skipped", errorMessage: reason });
+    return { status: "skipped", error: reason };
+  }
+
+  if (currentStatus === "published" || currentStatus === "skipped" || currentStatus === "failed") {
+    console.log("[social-publisher-first-comment]", {
+      platform: "all",
+      post_id: publishResult?.platform_post_id || publishResult?.external_post_id || null,
+      status: "skipped",
+      error: `first_comment already ${currentStatus}`,
+    });
+    return {
+      status: "skipped",
+      error: `first_comment already ${currentStatus}`,
+    };
+  }
+
+  const targets = resolveFirstCommentTargets({ post, publishResult });
+  if (!targets.length) {
+    const reason = "No supported post/media id available for first comment.";
+    console.log("[social-publisher-first-comment]", {
+      platform: "all",
+      post_id: publishResult?.platform_post_id || publishResult?.external_post_id || null,
+      status: "skipped",
+      error: reason,
+    });
+    await persistFirstCommentState({ tenantId, id, status: "skipped", errorMessage: reason });
+    return { status: "skipped", error: reason };
+  }
+
+  const results = [];
+  for (const target of targets) {
+    try {
+      const payload = await callMetaComment({
+        targetId: target.targetId,
+        accessToken,
+        message: commentText,
+        platform: target.platform,
+      });
+      const commentId = trimString(payload?.id || payload?.comment_id || payload?.post_id || "");
+      console.log("[social-publisher-first-comment]", {
+        platform: target.platform,
+        post_id: target.targetId,
+        status: "published",
+        error: "",
+      });
+      results.push({ platform: target.platform, status: "published", commentId, targetId: target.targetId });
+    } catch (error) {
+      const message = error?.message || "First comment publish failed";
+      console.error("[social-publisher-first-comment]", {
+        platform: target.platform,
+        post_id: target.targetId,
+        status: "failed",
+        error: message,
+      });
+      results.push({ platform: target.platform, status: "failed", error: message, targetId: target.targetId });
+    }
+  }
+
+  const publishedResults = results.filter((item) => item.status === "published");
+  const failedResults = results.filter((item) => item.status === "failed");
+  if (publishedResults.length && !failedResults.length) {
+    const lastPublished = publishedResults[publishedResults.length - 1];
+    await persistFirstCommentState({
+      tenantId,
+      id,
+      status: "published",
+      errorMessage: null,
+      externalId: lastPublished.commentId || lastPublished.targetId,
+      publishedAt: new Date().toISOString(),
+    });
+    return { status: "published", commentId: lastPublished.commentId || null };
+  }
+
+  const reason = failedResults.map((item) => `${item.platform}: ${item.error}`).join("; ") || "First comment publish skipped";
+  await persistFirstCommentState({
+    tenantId,
+    id,
+    status: publishedResults.length ? "failed" : "failed",
+    errorMessage: reason,
+    externalId: publishedResults[0]?.commentId || null,
+    publishedAt: publishedResults.length ? new Date().toISOString() : null,
+  });
+  return {
+    status: "failed",
+    error: reason,
+    commentId: publishedResults[0]?.commentId || null,
+  };
+};
+
 export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
   await ensureMarketingSchema();
   const post = await getSocialPublisherPostRow({ tenantId, id });
@@ -534,6 +775,12 @@ export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
     instagram_business_account_id: publishSettings.instagram_account_id || settings?.instagram_business_account_id || "",
     instagram_username: publishSettings.instagram_username || settings?.instagram_username || "",
   };
+  let accessToken = "";
+  try {
+    accessToken = validateMetaToken(effectiveSettings).accessToken || "";
+  } catch (error) {
+    accessToken = "";
+  }
   const publishPayload = {
     ...post,
     channel: resolveChannel(post.platforms),
@@ -555,6 +802,33 @@ export const publishSocialPublisherPostRow = async ({ tenantId, id } = {}) => {
   const publishSucceeded = nextStatus === "published" || nextStatus === "partial_success";
   const errorMessage = publishResult?.error_message || null;
   const publishedAt = publishSucceeded ? publishResult?.published_at || new Date().toISOString() : null;
+
+  if (publishSucceeded) {
+    try {
+      await publishFirstCommentIfNeeded({
+        tenantId,
+        id,
+        post,
+        publishResult,
+        accessToken,
+      });
+    } catch (error) {
+      console.error("[social-publisher-first-comment]", {
+        platform: "all",
+        post_id: publishResult?.platform_post_id || publishResult?.external_post_id || null,
+        status: "failed",
+        error: error?.message || "First comment publish failed",
+      });
+      await persistFirstCommentState({
+        tenantId,
+        id,
+        status: "failed",
+        errorMessage: error?.message || "First comment publish failed",
+        externalId: null,
+        publishedAt: null,
+      });
+    }
+  }
 
   const updatedResult = await db.query(
     `
