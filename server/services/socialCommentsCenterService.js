@@ -909,6 +909,12 @@ const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = 
       ORDER BY ppl.created_at DESC, ppl.id DESC
       LIMIT 1
     ) prod ON TRUE
+    LEFT JOIN social_post_auto_reply_templates tmpl
+      ON tmpl.tenant_id = c.tenant_id
+     AND tmpl.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
+     AND tmpl.post_id = c.metadata->>'post_id'
+    LEFT JOIN social_auto_reply_settings settings
+      ON settings.tenant_id = c.tenant_id
     WHERE c.tenant_id = $1::bigint
       AND c.metadata->>'post_id' = $2::text
       AND c.channel = $3::text
