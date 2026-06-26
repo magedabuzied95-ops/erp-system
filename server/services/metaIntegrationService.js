@@ -128,6 +128,7 @@ if (typeof protectedV2ProductIntent !== "function") {
 }
 
 const text = (value = "") => String(value ?? "").trim();
+const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const bool = (value) => value === true || value === "true" || value === 1 || value === "1";
 const previewText = (value = "", limit = 180) => text(value).replace(/\s+/g, " ").slice(0, limit);
