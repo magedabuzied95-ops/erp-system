@@ -1384,10 +1384,10 @@ function SocialCommentsWorkspace({
                     <SidebarRow label="Lead Intent" value={`${visibleComments.filter((item) => getCommentTags(item).includes("Lead")).length} leads / ${visibleComments.filter((item) => getCommentTags(item).includes("Price")).length} price / ${visibleComments.filter((item) => getCommentTags(item).includes("Size")).length} size`} icon={<ThumbsUp className="h-4 w-4 text-violet-100" />} />
                     <SidebarRow
                       label="Customer Summary"
-                      value={selectFirst(activeCommentIdentityName, actionableComment?.customerName, activePostDetails?.customerName, "Customer")}
+                      value={selectFirst(resolveCommentCustomerName(actionableComment), activePostDetails?.customerName, "Customer")}
                       icon={
-                        activeCommentIdentityAvatar ? (
-                          <img src={activeCommentIdentityAvatar} alt="" className="h-4 w-4 rounded-full object-cover" />
+                        resolveCommentCustomerAvatar(actionableComment) ? (
+                          <img src={resolveCommentCustomerAvatar(actionableComment)} alt="" className="h-4 w-4 rounded-full object-cover" />
                         ) : (
                           <UserRound className="h-4 w-4 text-amber-100" />
                         )
