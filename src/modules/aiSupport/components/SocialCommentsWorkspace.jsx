@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Bot,
@@ -412,11 +412,57 @@ function SocialCommentsWorkspace({
   const activePostPublishedAt = clean(activePostDetails?.publishedAt || activePostDetails?.createdAt || activePostDetails?.lastActivity || "");
   const activePostLikes = activePostDetails?.likesCount;
   const activePostShares = activePostDetails?.sharesCount;
+  const mediaDebugKeyRef = useRef("");
 
   useEffect(() => {
     setReplyDraft(activeSuggestedReply || "");
     setPreviewReply("");
   }, [activePostKey, activeSuggestedReply]);
+
+  useEffect(() => {
+    if (!activePostKey || mediaDebugKeyRef.current === activePostKey) return;
+    mediaDebugKeyRef.current = activePostKey;
+
+    const rawPost = selectedPost || activePostDetails?.raw || null;
+    const metadata = rawPost && typeof rawPost === "object" && !Array.isArray(rawPost) && rawPost.metadata && typeof rawPost.metadata === "object" && !Array.isArray(rawPost.metadata) ? rawPost.metadata : {};
+    const mediaFields = {
+      image: rawPost?.image ?? null,
+      image_url: rawPost?.image_url ?? null,
+      media: rawPost?.media ?? null,
+      media_url: rawPost?.media_url ?? null,
+      thumbnail: rawPost?.thumbnail ?? null,
+      thumbnail_url: rawPost?.thumbnail_url ?? null,
+      attachment: rawPost?.attachment ?? null,
+      attachments: rawPost?.attachments ?? null,
+      preview: rawPost?.preview ?? null,
+      permalink: rawPost?.permalink_url ?? rawPost?.post_permalink_url ?? rawPost?.post_url ?? null,
+      type: rawPost?.type ?? null,
+      post_type: rawPost?.post_type ?? null,
+      post_thumbnail: rawPost?.post_thumbnail ?? null,
+      post_full_picture: rawPost?.post_full_picture ?? null,
+      attachment_image: rawPost?.attachment_image ?? null,
+      full_picture: rawPost?.full_picture ?? null,
+      picture: rawPost?.picture ?? null,
+      media_type: rawPost?.media_type ?? null,
+      media_source: rawPost?.media_source ?? null,
+      thumbnail_source: rawPost?.thumbnail_source ?? null,
+      metadata_thumbnail_url: metadata.thumbnail_url ?? null,
+      metadata_post_thumbnail: metadata.post_thumbnail ?? null,
+      metadata_post_full_picture: metadata.post_full_picture ?? null,
+      metadata_full_picture: metadata.full_picture ?? null,
+      metadata_attachment_image: metadata.attachment_image ?? null,
+      metadata_permalink_url: metadata.permalink_url ?? null,
+      metadata_post_type: metadata.post_type ?? null,
+    };
+
+    console.warn("[social-comments:media-data-debug]", {
+      activePostKey,
+      rawPost,
+      mediaFields,
+      hasHeroImage: Boolean(activePostDetails?.thumbnailUrl),
+      heroImageSource: activePostDetails?.thumbnailUrl ? "normalized" : "missing",
+    });
+  }, [activePostDetails?.raw, activePostDetails?.thumbnailUrl, activePostKey, selectedPost]);
 
   const isBusy = (key) =>
     Boolean(
