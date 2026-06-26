@@ -2410,15 +2410,16 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
 });
 
 router.post("/inbox/:conversationId/private-message", protect, permit("settings", "edit"), async (req, res) => {
+  res.setHeader("X-Social-Private-Route", "aiAgentOrders-v2");
+  console.warn("[social-comments:private-message-actual-route-entry]", {
+    tenantId: toTenantId(req),
+    conversationId: envText(req.params.conversationId),
+    body: req.body,
+  });
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   const rawMessageText = String(req.body?.message ?? req.body?.reply ?? req.body?.text ?? "");
   const messageText = envText(rawMessageText);
-  console.warn("[social-comments:private-message-actual-route-entry]", {
-    tenantId,
-    conversationId,
-    body: req.body,
-  });
   console.warn("[social-comments:private-message-route-entry]", {
     tenantId,
     conversationId,
