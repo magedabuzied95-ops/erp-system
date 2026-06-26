@@ -256,15 +256,13 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     }));
   }, [setProfile]);
 
-  const load = useCallback(async ({ silent = false, phoneOverride = "" } = {}) => {
+  const load = useCallback(async ({ silent = false } = {}) => {
     const { token, phone: storedPhone } = readStorefrontCustomerAuth();
     if (!token) return null;
-    const requestPhone = normalizePhoneDigits(storedPhone || phoneOverride || phone);
+    const requestPhone = normalizePhoneDigits(storedPhone || phone);
     setLoading(true);
     try {
-      const data = await storefrontCustomerRequest("/storefront/account", {
-        params: requestPhone ? { phone: requestPhone } : undefined,
-      });
+      const data = await storefrontCustomerRequest("/storefront/account");
       setAccount(data);
       setProfile((prev) => ({
         ...prev,
@@ -296,36 +294,32 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
       return undefined;
     }
     if (account || loading) return undefined;
-    load({ silent: true, phoneOverride: customerAuth.phone });
+    load({ silent: true });
     return undefined;
-  }, [account, customerAuth.phone, customerAuth.token, load, loading]);
+  }, [account, customerAuth.token, load, loading]);
 
   useEffect(() => {
     if (!account || !hasCustomerToken) return undefined;
     if (typeof document !== "undefined" && document.visibilityState !== "visible") return undefined;
     const id = window.setInterval(() => {
-      storefrontCustomerRequest("/storefront/account", {
-        params: customerAuth.phone ? { phone: customerAuth.phone } : undefined,
-      })
+      storefrontCustomerRequest("/storefront/account")
         .then((data) => setAccount(data))
         .catch(() => undefined);
     }, accountRefreshIntervalMs);
     return () => window.clearInterval(id);
-  }, [account, accountRefreshIntervalMs, customerAuth.phone, hasCustomerToken]);
+  }, [account, accountRefreshIntervalMs, hasCustomerToken]);
 
   useEffect(() => {
     if (!account || !hasCustomerToken || typeof document === "undefined") return undefined;
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "visible") return;
-      storefrontCustomerRequest("/storefront/account", {
-        params: customerAuth.phone ? { phone: customerAuth.phone } : undefined,
-      })
+      storefrontCustomerRequest("/storefront/account")
         .then((data) => setAccount(data))
         .catch(() => undefined);
     };
     document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => document.removeEventListener("visibilitychange", handleVisibilityChange);
-  }, [account, customerAuth.phone, hasCustomerToken]);
+  }, [account, hasCustomerToken]);
 
   const requestOtp = useCallback(async () => {
     const normalizedPhone = normalizeStorefrontCustomerPhone(phone);
@@ -377,7 +371,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
       setOtpCode("");
       setAccount(null);
       toast.success("تم تسجيل الدخول بنجاح");
-      await load({ silent: true, phoneOverride: customerPhone || normalizedPhone });
+      await load({ silent: true });
     } catch (error) {
       toast.error("الكود غير صحيح أو انتهت صلاحيته");
     } finally {
