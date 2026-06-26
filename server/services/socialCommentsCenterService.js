@@ -512,13 +512,13 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       object_id_thumbnail_present: false,
     };
   }
+  const permalinkUrl = safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "";
+  const graphLookupFallbackPostIds = Array.from(new Set([
+    ...(graphLookupPostIds.length ? graphLookupPostIds : [text(graphPostId || postId)]),
+    text(graphPostId || postId),
+    postId,
+  ].filter(Boolean)));
   try {
-    const permalinkUrl = safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "";
-    const graphLookupFallbackPostIds = Array.from(new Set([
-      ...(graphLookupPostIds.length ? graphLookupPostIds : [text(graphPostId || postId)]),
-      text(graphPostId || postId),
-      postId,
-    ].filter(Boolean)));
     if (shouldLogMediaBackfill) {
       console.warn("[social-comments:media-backfill:start]", {
         conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
@@ -532,6 +532,11 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     let resolvedGraphId = "";
     let graphErrorMessage = "";
     for (const candidatePostId of graphLookupFallbackPostIds) {
+      if (shouldLogMediaBackfill) {
+        console.warn("[social-comments:graph-fetch]", {
+          graphLookupPostId: candidatePostId,
+        });
+      }
       const candidateGraphPost = await fetchMetaPostPreviewDetails({
         tenantId,
         postId: candidatePostId,
@@ -794,7 +799,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       console.warn("[social-comments:media-backfill:result]", {
         conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
         original_post_id: postId,
-        resolved_graph_id: graphPostId || postId,
+        resolved_graph_id: resolvedGraphId || graphLookupFallbackPostIds[0] || graphPostId || postId,
         graph_media_found: false,
         media_source_used: "graph_error",
         thumbnail_url_saved: "",
