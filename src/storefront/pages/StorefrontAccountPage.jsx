@@ -289,6 +289,19 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     setLoading(true);
     try {
       const data = await storefrontCustomerRequest("/storefront/account");
+      let preferencesPayload = null;
+      try {
+        preferencesPayload = await storefrontCustomerRequest("/storefront/customer/preferences");
+      } catch (preferencesError) {
+        if (!import.meta.env.DEV) {
+          preferencesPayload = null;
+        } else {
+          console.log("[storefront-account] preferences load failed", {
+            message: preferencesError?.message || String(preferencesError),
+            status: Number(preferencesError?.status || preferencesError?.response?.status || 0),
+          });
+        }
+      }
       setAccount(data);
       setProfile((prev) => ({
         ...prev,
@@ -297,7 +310,14 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
         customer_id: data.customer?.id || prev.customer_id || prev.id || "",
         full_name: data.customer?.name || prev.full_name || "",
       }));
-      setPreferredSizes(normalizePreferredSizes(data.preferences || data.customer?.preferred_sizes || defaultPreferredSizes()));
+      setPreferredSizes(
+        normalizePreferredSizes(
+          preferencesPayload?.preferences ||
+            data.preferences ||
+            data.customer?.preferred_sizes ||
+            defaultPreferredSizes()
+        )
+      );
       setCustomerAuth({ token, phone: requestPhone || storedPhone || "" });
       return data;
     } catch (error) {
