@@ -66,7 +66,7 @@ const BRAND_VOICE_SYSTEM_PROMPT = [
   "- Do not invent product use cases or scenarios.",
   "- Do not assume the product is for running, adventures, wilderness, hiking, camping, travel, sports, or high performance unless those ideas appear explicitly inside description, features, product_type, or category.",
   "- If the ERP data does not support a specific use case, keep the hook generic and based only on design, shape, comfort, or look.",
-  "- Safe hook examples when no use case is confirmed: موديل جديد وصل، تصميم جديد بإطلالة مميزة، خامات مريحة مع شكل عملي، اختيار بسيط وسهل للبس اليومي، شكل مرتب يناسب أكتر من ستايل.",
+  "- Safe hook examples when no use case is confirmed: تصميم جديد بإطلالة مميزة، خامات مريحة مع شكل عملي، اختيار بسيط وسهل للبس اليومي، شكل مرتب يناسب أكتر من ستايل، لمسة هادئة تناسب أكتر من ستايل.",
   "- Use only the product facts that are explicitly present in ERP fields.",
   "- Avoid these phrases or close variants unless they are truly present in the product description: ارتقِ، اكتشف، استمتع، خطواتك، رحلتك، مغامرتك، الخيار الأمثل، مصمم خصيصاً، يجمع بين.",
   "- Avoid these words or close variants unless they are explicitly present in ERP data: البرية، المغامرات، التخييم، الجبال، الرحلات، الهايكنج، العدائين، الرياضة، الأداء العالي.",
@@ -129,7 +129,7 @@ const buildProductFacts = (context = {}) => {
   const gender = cleanText(context.gender);
   const materials = normalizeList(context.materials).slice(0, 5);
   const features = normalizeList(context.features).slice(0, 8);
-  const colors = normalizeList(context.available_colors || context.colors).slice(0, 8);
+  const colors = normalizeList(context.available_colors || context.colors).map(localizeColorName).filter(Boolean).slice(0, 8);
   const availableSizes = normalizeList(context.available_sizes || context.sizes).slice(0, 12);
   const productUrl = cleanText(context.product_url);
   const currentPrice = cleanText(context.current_price || context.price || context.sale_price);
@@ -280,6 +280,51 @@ const normalizeSocialCaptionArray = (value = []) => {
   return Array.from(new Set(items.map(cleanText).filter(Boolean))).slice(0, 5);
 };
 
+const COLOR_NAME_MAP = {
+  black: "أسود",
+  white: "أبيض",
+  gray: "رمادي",
+  grey: "رمادي",
+  silver: "فضي",
+  gold: "ذهبي",
+  red: "أحمر",
+  blue: "أزرق",
+  navy: "كحلي",
+  green: "أخضر",
+  olive: "زيتي",
+  yellow: "أصفر",
+  orange: "برتقالي",
+  pink: "وردي",
+  purple: "بنفسجي",
+  brown: "بني",
+  beige: "بيج",
+  nude: "نود",
+  tan: "تان",
+  maroon: "خمري",
+  burgundy: "عنابي",
+  cream: "كريمي",
+  charcoal: "فحمي",
+  offwhite: "أوف وايت",
+  "off white": "أوف وايت",
+};
+
+const localizeColorName = (value = "") => {
+  const text = cleanText(value);
+  if (!text) return "";
+  const arabicMatch = text.match(/[\u0600-\u06ff]+/);
+  if (arabicMatch) return arabicMatch[0];
+  const normalized = text
+    .toLowerCase()
+    .replace(/[(){}\[\]]/g, " ")
+    .replace(/[_\-/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const direct = COLOR_NAME_MAP[normalized] || COLOR_NAME_MAP[normalized.replace(/\s+/g, "")];
+  if (direct) return direct;
+  const firstToken = normalized.split(" ")[0];
+  return COLOR_NAME_MAP[firstToken] || text;
+};
+
 const EXPLICIT_USE_CASE_PATTERNS = [
   /(^|[^a-z])running([^a-z]|$)/i,
   /(^|[^a-z])jogging([^a-z]|$)/i,
@@ -307,20 +352,16 @@ const hasExplicitUseCase = (value = "") => {
 };
 
 const buildGenericHook = ({ name, category, features, description } = {}) => {
-  const featureHint = cleanText(features[0]);
-  if (featureHint) {
-    const shortFeature = featureHint.split(/[،,.!?؟\n]/).find(Boolean) || featureHint;
-    return shortFeature;
-  }
-  const descriptionHint = cleanText(description || "").split(/[.!؟\n]/).find(Boolean) || "";
-  const safeDescriptionHint = cleanText(descriptionHint);
-  if (safeDescriptionHint && !hasExplicitUseCase(safeDescriptionHint)) {
-    return safeDescriptionHint;
-  }
-  if (category) {
-    return `تصميم جديد بإطلالة مميزة`;
-  }
-  return cleanText(name) || "موديل جديد وصل.";
+  const safeHooks = [
+    "تصميم جديد بإطلالة مميزة",
+    "خامات مريحة مع شكل عملي",
+    "اختيار بسيط وسهل للبس اليومي",
+    "شكل مرتب يناسب أكتر من ستايل",
+    "لمسة هادئة تناسب أكتر من ستايل",
+  ];
+  const textSeed = cleanText([name, category, features?.[0], description].filter(Boolean).join(" "));
+  const hash = Array.from(textSeed).reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return safeHooks[hash % safeHooks.length] || safeHooks[0];
 };
 
 const buildSocialCaptionSections = (context = {}) => {
@@ -331,7 +372,7 @@ const buildSocialCaptionSections = (context = {}) => {
   const description = cleanText(context.description || context.short_description);
   const features = normalizeList(context.features).slice(0, 4);
   const materials = normalizeList(context.materials).slice(0, 2);
-  const colors = normalizeList(context.available_colors || context.colors).slice(0, 5);
+  const colors = normalizeList(context.available_colors || context.colors).map(localizeColorName).filter(Boolean).slice(0, 5);
   const sizes = normalizeList(context.available_sizes).slice(0, 10);
   const currentPrice = cleanText(context.current_price || context.price || "");
   const originalPrice = cleanText(context.original_price || context.old_crossed_price || "");

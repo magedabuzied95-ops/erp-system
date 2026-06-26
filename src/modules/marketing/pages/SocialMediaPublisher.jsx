@@ -98,6 +98,55 @@ const normalizeListValue = (value) => {
   return [normalizeTextValue(value)].filter(Boolean);
 };
 const uniqueTextList = (...values) => Array.from(new Set(values.flatMap((value) => normalizeListValue(value)).filter(Boolean)));
+const COLOR_NAME_MAP = {
+  black: "أسود",
+  white: "أبيض",
+  gray: "رمادي",
+  grey: "رمادي",
+  silver: "فضي",
+  gold: "ذهبي",
+  red: "أحمر",
+  blue: "أزرق",
+  navy: "كحلي",
+  green: "أخضر",
+  olive: "زيتي",
+  yellow: "أصفر",
+  orange: "برتقالي",
+  pink: "وردي",
+  purple: "بنفسجي",
+  brown: "بني",
+  beige: "بيج",
+  nude: "نود",
+  tan: "تان",
+  maroon: "خمري",
+  burgundy: "عنابي",
+  cream: "كريمي",
+  charcoal: "فحمي",
+  "off white": "أوف وايت",
+  offwhite: "أوف وايت",
+};
+const localizeColorName = (value = "") => {
+  const text = normalizeTextValue(value);
+  if (!text) return "";
+  const arabicMatch = text.match(/[\u0600-\u06ff]+/);
+  if (arabicMatch) return arabicMatch[0];
+  const normalized = text.toLowerCase().replace(/[(){}\[\]]/g, " ").replace(/[_\-/]+/g, " ").replace(/\s+/g, " ").trim();
+  const direct = COLOR_NAME_MAP[normalized] || COLOR_NAME_MAP[normalized.replace(/\s+/g, "")];
+  if (direct) return direct;
+  const firstToken = normalized.split(" ")[0];
+  return COLOR_NAME_MAP[firstToken] || text;
+};
+const buildErpHashtags = ({ brand = "", category = "", gender = "", productType = "" } = {}) => {
+  const values = [brand, category, gender, productType, "M1Store"];
+  return Array.from(
+    new Set(
+      values
+        .map((value) => normalizeTextValue(value).replace(/[^\p{L}\p{N}]+/gu, ""))
+        .filter(Boolean)
+        .map((value) => `#${value}`)
+    )
+  ).slice(0, 5);
+};
 const formatPriceForCaption = (value) => {
   const number = Number(value || 0);
   if (!Number.isFinite(number) || number <= 0) return "";
@@ -118,10 +167,12 @@ const buildFullProductUrl = (value = "") => {
   }
   return text;
 };
-const buildCatalogCaption = (product = {}) => {
+const buildCatalogCaption = (product = {}, options = {}) => {
   const name = String(product?.name || "").trim();
   const pricing = resolveStorefrontPriceBreakdown(product);
   const stockQuantity = Number(product?.stock_quantity ?? product?.available_stock ?? product?.stock ?? 0);
+  const includeLocation = Boolean(options.includeLocation);
+  const includeShipping = Boolean(options.includeShipping);
   const lines = [name].filter(Boolean);
   if (pricing.sale_active) {
     if (pricing.current_price > 0) lines.push(`السعر الآن: ${formatCompactCurrency(pricing.current_price)} ج.م`);
@@ -131,6 +182,12 @@ const buildCatalogCaption = (product = {}) => {
     lines.push(`السعر: ${formatCompactCurrency(pricing.current_price)} ج.م`);
   }
   lines.push(stockQuantity > 0 ? "متوفر الآن" : "غير متوفر حالياً", "اطلب الآن");
+  if (includeLocation) {
+    lines.push("دمياط الجديدة");
+  }
+  if (includeShipping) {
+    lines.push("شحن لجميع المحافظات");
+  }
   return lines.filter(Boolean).join("\n");
 };
 const normalizeCatalogProductMetrics = (product = {}) => {
@@ -181,7 +238,7 @@ const buildAiCaptionProductContext = (product = {}) => {
     product.color_names,
     variants.map((variant) => variant.color || variant.color_name || variant.name || ""),
     Array.isArray(product.color_images) ? product.color_images.map((item) => item?.color || item?.color_name || "").filter(Boolean) : []
-  );
+  ).map((value) => localizeColorName(value)).filter(Boolean);
   const features = uniqueTextList(product.features, product.feature_list, product.highlights, product.benefits);
   const materials = uniqueTextList(product.materials, product.material, product.fabric, product.upper_material);
   const brand = normalizeTextValue(product.brand_name || product.brand || product.manufacturer_name || product.manufacturer || "");
@@ -225,13 +282,17 @@ const buildErpProductInfo = (product = {}) => {
   const resolved = normalizeCatalogProductMetrics(product);
   const features = uniqueTextList(product.features, product.feature_list, product.highlights, product.benefits).slice(0, 4);
   const sizes = uniqueTextList(resolved.available_sizes, product.available_sizes, product.sizes).slice(0, 10);
-  const colors = uniqueTextList(resolved.available_colors, product.available_colors, product.colors).slice(0, 5);
+  const colors = uniqueTextList(resolved.available_colors, product.available_colors, product.colors).map((value) => localizeColorName(value)).filter(Boolean).slice(0, 5);
   const currentPrice = Number(resolved.current_price || 0);
   const originalPrice = Number(resolved.original_price || 0);
   const discountPercent = resolved.discount_percent || computeDiscountPercent(originalPrice, currentPrice);
   const stockQuantity = Number(resolved.stock_quantity ?? resolved.available_stock ?? resolved.stock ?? 0);
   const productUrl = buildFullProductUrl(resolved.product_url || product.product_url || "");
   return {
+    brand: normalizeTextValue(product.brand_name || product.brand || product.manufacturer_name || product.manufacturer || ""),
+    category: normalizeTextValue(product.category_name || product.category || product.department || ""),
+    product_type: normalizeTextValue(product.product_type || product.productType || product.type || ""),
+    gender: normalizeTextValue(product.gender || product.audience_gender || product.target_gender || ""),
     features,
     available_sizes: sizes,
     available_colors: colors,
@@ -258,11 +319,16 @@ const normalizeAiCaptionSections = (result = {}) => {
     caption: normalizeTextValue(result.caption || ""),
   };
 };
-const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}) => {
+const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}, options = {}) => {
   const hook = normalizeTextValue(aiSections.hook);
   const body = normalizeTextValue(aiSections.body);
   const cta = normalizeTextValue(aiSections.cta);
-  const hashtags = uniqueTextList(aiSections.hashtags).slice(0, 5);
+  const hashtags = buildErpHashtags({
+    brand: erpInfo.brand,
+    category: erpInfo.category,
+    gender: erpInfo.gender,
+    productType: erpInfo.product_type,
+  });
   const lines = ["NEW COLLECTION"];
 
   if (hook) {
@@ -301,6 +367,8 @@ const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}) => {
     : "";
   const stockLine = erpInfo.stock_line || "";
   const productUrl = normalizeTextValue(erpInfo.product_url || "");
+  const includeLocation = Boolean(options.includeLocation);
+  const includeShipping = Boolean(options.includeShipping);
 
   if (priceLines.length || sizesLine || colorsLine || stockLine || productUrl) {
     lines.push("");
@@ -317,6 +385,14 @@ const composeNewCollectionCaption = (aiSections = {}, erpInfo = {}) => {
     if (stockLine) {
       lines.push("");
       lines.push(stockLine);
+    }
+    if (includeLocation) {
+      lines.push("");
+      lines.push("دمياط الجديدة");
+    }
+    if (includeShipping) {
+      lines.push("");
+      lines.push("شحن لجميع المحافظات");
     }
     if (productUrl) {
       lines.push("");
@@ -382,6 +458,8 @@ export default function SocialMediaPublisher() {
   const [aiTemplateError, setAiTemplateError] = useState("");
   const [aiTemplateSource, setAiTemplateSource] = useState("");
   const [aiTemplateFallbackReason, setAiTemplateFallbackReason] = useState("");
+  const [includeLocation, setIncludeLocation] = useState(true);
+  const [includeShipping, setIncludeShipping] = useState(true);
   const [metaConnectOpen, setMetaConnectOpen] = useState(false);
   const [metaConnectLoading, setMetaConnectLoading] = useState(false);
   const mediaInputRef = useRef(null);
@@ -580,7 +658,7 @@ export default function SocialMediaPublisher() {
     });
     setSelectedCatalogProduct(nextProduct);
     setCreateSource("catalog");
-    setCaption(buildCatalogCaption(nextProduct));
+    setCaption(buildCatalogCaption(nextProduct, { includeLocation, includeShipping }));
     setAiTemplateCaption("");
     setAiTemplateError("");
     setAiTemplateSource("");
@@ -592,7 +670,9 @@ export default function SocialMediaPublisher() {
   };
 
   const clearCatalogProduct = () => {
-    const wasAutoCaption = selectedCatalogProduct ? caption.trim() === buildCatalogCaption(selectedCatalogProduct).trim() : false;
+    const wasAutoCaption = selectedCatalogProduct
+      ? caption.trim() === buildCatalogCaption(selectedCatalogProduct, { includeLocation, includeShipping }).trim()
+      : false;
     setSelectedCatalogProduct(null);
     if (!mediaFile) {
       setMediaPreview("");
@@ -605,6 +685,8 @@ export default function SocialMediaPublisher() {
     setAiTemplateError("");
     setAiTemplateSource("");
     setAiTemplateFallbackReason("");
+    setIncludeLocation(true);
+    setIncludeShipping(true);
     closeAiTemplateModal();
   };
 
@@ -696,7 +778,10 @@ export default function SocialMediaPublisher() {
       const result = await generateSocialPublisherCaption(payload, { timeoutMs: 45000 });
       const aiSections = normalizeAiCaptionSections(result || {});
       const erpInfo = buildErpProductInfo(productDetails || selectedCatalogProduct);
-      const nextCaption = composeNewCollectionCaption(aiSections, erpInfo) || String(result?.caption || "").trim() || buildCatalogCaption(selectedCatalogProduct);
+      const nextCaption =
+        composeNewCollectionCaption(aiSections, erpInfo, { includeLocation, includeShipping }) ||
+        String(result?.caption || "").trim() ||
+        buildCatalogCaption(selectedCatalogProduct, { includeLocation, includeShipping });
       console.warn("[ai-social-caption-response]", {
         success: String(result?.source || "").toUpperCase() === "OPENAI",
         source: result?.source || "",
@@ -1126,6 +1211,27 @@ export default function SocialMediaPublisher() {
                     <div className="text-sm font-black">AI Marketing</div>
                     <div className="mt-2 text-xs text-slate-500">Coming Soon</div>
                   </button>
+                </div>
+
+                <div className="grid gap-3 md:grid-cols-2">
+                  <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={includeLocation}
+                      onChange={(event) => setIncludeLocation(event.target.checked)}
+                      className="h-4 w-4 rounded border-white/20 bg-slate-950 text-amber-400 focus:ring-amber-400/20"
+                    />
+                    <span>إضافة الموقع</span>
+                  </label>
+                  <label className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200">
+                    <input
+                      type="checkbox"
+                      checked={includeShipping}
+                      onChange={(event) => setIncludeShipping(event.target.checked)}
+                      className="h-4 w-4 rounded border-white/20 bg-slate-950 text-amber-400 focus:ring-amber-400/20"
+                    />
+                    <span>إضافة الشحن</span>
+                  </label>
                 </div>
 
                 {hasCatalogProduct ? (

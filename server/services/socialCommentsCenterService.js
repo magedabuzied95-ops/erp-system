@@ -516,9 +516,8 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   }
   const permalinkUrl = safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "";
   const graphLookupFallbackPostIds = Array.from(new Set([
-    ...(graphLookupPostIds.length ? graphLookupPostIds : [text(graphPostId || postId)]),
-    text(graphPostId || postId),
-    postId,
+    ...(graphLookupPostIds.length ? graphLookupPostIds : [text(graphPostId || "")]),
+    text(graphPostId || ""),
   ].filter(Boolean)));
   try {
     if (shouldLogMediaBackfill) {
@@ -526,7 +525,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
         post_id: postId,
         metadata_post_id: text(metadata.post_id || ""),
-        resolved_graph_id: text(graphLookupFallbackPostIds[0] || graphPostId || postId || ""),
+        resolved_graph_id: text(graphLookupFallbackPostIds[0] || graphPostId || ""),
         has_any_media_before: hasAnyMediaBefore,
       });
     }
@@ -557,7 +556,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       }
     }
     if (!resolvedGraphId) {
-      resolvedGraphId = text(graphLookupFallbackPostIds[0] || graphPostId || postId || "");
+      resolvedGraphId = text(graphLookupFallbackPostIds[0] || graphPostId || "");
     }
     const graphUnsupported = text(graphPost?.reason_if_missing || "") === "deprecated_status_no_graph_media" || lower(graphPost?.media_enrichment_status) === "unsupported_deprecated_status";
     if (!graphPost || graphUnsupported) {
@@ -801,7 +800,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       console.warn("[social-comments:media-backfill:result]", {
         conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
         original_post_id: postId,
-        resolved_graph_id: resolvedGraphId || graphLookupFallbackPostIds[0] || graphPostId || postId,
+        resolved_graph_id: resolvedGraphId || graphLookupFallbackPostIds[0] || graphPostId || "",
         graph_media_found: false,
         media_source_used: "graph_error",
         thumbnail_url_saved: "",

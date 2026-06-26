@@ -28,6 +28,59 @@ const firstNumber = (...values) => {
 
 const firstText = (...values) => values.map((value) => cleanText(value)).find(Boolean) || "";
 
+const COLOR_NAME_MAP = {
+  black: "أسود",
+  white: "أبيض",
+  gray: "رمادي",
+  grey: "رمادي",
+  silver: "فضي",
+  gold: "ذهبي",
+  red: "أحمر",
+  blue: "أزرق",
+  navy: "كحلي",
+  green: "أخضر",
+  olive: "زيتي",
+  yellow: "أصفر",
+  orange: "برتقالي",
+  pink: "وردي",
+  purple: "بنفسجي",
+  brown: "بني",
+  beige: "بيج",
+  nude: "نود",
+  tan: "تان",
+  maroon: "خمري",
+  burgundy: "عنابي",
+  cream: "كريمي",
+  charcoal: "فحمي",
+  "off white": "أوف وايت",
+  offwhite: "أوف وايت",
+};
+
+const localizeColorName = (value = "") => {
+  const text = cleanText(value);
+  if (!text) return "";
+  const arabicMatch = text.match(/[\u0600-\u06ff]+/);
+  if (arabicMatch) return arabicMatch[0];
+  const normalized = text.toLowerCase().replace(/[(){}\[\]]/g, " ").replace(/[_\-/]+/g, " ").replace(/\s+/g, " ").trim();
+  const direct = COLOR_NAME_MAP[normalized] || COLOR_NAME_MAP[normalized.replace(/\s+/g, "")];
+  if (direct) return direct;
+  const firstToken = normalized.split(" ")[0];
+  return COLOR_NAME_MAP[firstToken] || text;
+};
+
+const normalizeHashtagToken = (value = "") =>
+  cleanText(value)
+    .replace(/[^\p{L}\p{N}]+/gu, "")
+    .trim();
+
+const buildErpHashtags = ({ brandName = "", category = "", gender = "", productType = "" } = {}) => {
+  const tags = [brandName, category, gender, productType, "M1Store"]
+    .map(normalizeHashtagToken)
+    .filter(Boolean)
+    .map((item) => `#${item}`);
+  return unique(tags).slice(0, 5);
+};
+
 const extractVariants = (variants = []) => {
   const active = Array.isArray(variants)
     ? variants.filter((variant) => {
@@ -253,9 +306,9 @@ export const collectSocialAvailability = ({ variants = [], product = {}, post = 
     .filter(Boolean);
   const resolvedSizes = sizes.length ? sizes : fallbackSizes;
   const fallbackColors = normalizeList(product.available_colors || post.available_colors || design.available_colors || post.color_name || design.color_name)
-    .map((item) => String(item || "").trim())
+    .map((item) => localizeColorName(item))
     .filter(Boolean);
-  const resolvedColors = colors.length ? colors : fallbackColors;
+  const resolvedColors = (colors.length ? colors : fallbackColors).map((item) => localizeColorName(item)).filter(Boolean);
   return {
     sizes: resolvedSizes,
     colors: resolvedColors,
@@ -278,10 +331,12 @@ export const buildSocialAICopy = ({
   const availability = collectSocialAvailability({ variants, product, post, design });
   const productName = fallbackProductLabel(post.product_name || design.product_name || product.name || post.title || design.title);
   const brandName = cleanText(post.brand_name || design.brand_name || product.brand_name || product.brand);
+  const categoryName = cleanText(post.category_name || design.category_name || product.category_name || post.category || design.category || product.category);
+  const genderName = cleanText(post.gender || design.gender || product.gender || post.audience_gender || design.audience_gender || product.audience_gender);
+  const productTypeName = cleanText(post.product_type || design.product_type || product.product_type || post.productType || design.productType || product.productType);
   const hook = selectedTone.hooks[hookVariant % selectedTone.hooks.length] || selectedTone.hooks[0];
   const body = selectedTone.bodies[hookVariant % selectedTone.bodies.length] || selectedTone.bodies[0];
   const cta = selectedTone.ctas[ctaVariant % selectedTone.ctas.length] || selectedTone.ctas[0];
-  const hashtagSet = selectedTone.hashtagSets[hashtagVariant % selectedTone.hashtagSets.length] || selectedTone.hashtagSets[0];
   const toneHint = selectedTone.label;
 
   const stockStatus =
@@ -302,10 +357,9 @@ export const buildSocialAICopy = ({
     : [`السعر: ${pricing.currentText}`];
   const link = firstText(post.product_url, design.product_url, product.url, product.product_url, post.cta_url, design.cta_url) || "";
   const hashtags = unique([
-    ...hashtagSet,
-    ...(toneVariantHashtags(productName, brandName)),
+    ...buildErpHashtags({ brandName, category: categoryName, gender: genderName, productType: productTypeName }),
     ...normalizeList(post.hashtags || design.hashtags || design.tags),
-  ]).slice(0, 8);
+  ]).slice(0, 5);
   const caption = [
     "NEW COLLECTION",
     hook,
@@ -335,11 +389,6 @@ export const buildSocialAICopy = ({
     brandName,
     link,
   };
-};
-
-const toneVariantHashtags = (productName, brandName) => {
-  const brandSlug = cleanText(brandName).replace(/[^\p{L}\p{N}]+/gu, "").toLowerCase();
-  return [brandSlug ? `#${brandSlug}` : ""].filter(Boolean);
 };
 
 export const defaultSocialTone = "premium";
