@@ -277,8 +277,29 @@ const normalizeSocialCommentPost = (raw) => {
 const normalizeSocialCommentThreadComment = (raw) => {
   const comment = raw || {};
   const metadata = comment.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
+  const resolvedCommentId = String(
+    comment.comment_id ||
+    comment.external_comment_id ||
+    comment.provider_comment_id ||
+    comment.external_message_id ||
+    comment.provider_message_id ||
+    comment.message_id ||
+    metadata.comment_id ||
+    metadata.external_comment_id ||
+    metadata.provider_comment_id ||
+    metadata.external_message_id ||
+    metadata.provider_message_id ||
+    metadata.message_id ||
+    ""
+  ).trim();
   return {
-    id: String(comment.comment_id || comment.id || comment.external_message_id || comment.provider_message_id || metadata.comment_id || "").trim(),
+    id: String(comment.id || resolvedCommentId || "").trim(),
+    comment_id: String(comment.comment_id || metadata.comment_id || resolvedCommentId || "").trim(),
+    external_comment_id: String(comment.external_comment_id || metadata.external_comment_id || "").trim(),
+    provider_comment_id: String(comment.provider_comment_id || metadata.provider_comment_id || "").trim(),
+    external_message_id: String(comment.external_message_id || metadata.external_message_id || "").trim(),
+    provider_message_id: String(comment.provider_message_id || metadata.provider_message_id || "").trim(),
+    message_id: String(comment.message_id || metadata.message_id || "").trim(),
     message: String(comment.customer_message || comment.message || comment.text || comment.message_text || comment.original_comment_text || metadata.customer_message || metadata.message || "").trim(),
     customerName: String(comment.commenter_name || comment.customer_name || metadata.commenter_name || metadata.customer_name || "عميل").trim(),
     customerAvatar: String(comment.avatar || comment.customer_avatar || comment.customer_avatar_url || comment.commenter_profile_picture_url || comment.avatar_url || comment.profile_pic || metadata.avatar || metadata.customer_avatar || "").trim(),
@@ -290,6 +311,7 @@ const normalizeSocialCommentThreadComment = (raw) => {
     platform: String(comment.platform || metadata.platform || "").trim(),
     permalinkUrl: String(comment.permalink_url || comment.comment_url || metadata.permalink_url || metadata.comment_url || "").trim(),
     replyText: String(comment.reply_text || comment.rendered_reply || metadata.reply_text || metadata.rendered_reply || "").trim(),
+    metadata,
     raw: comment,
   };
 };
