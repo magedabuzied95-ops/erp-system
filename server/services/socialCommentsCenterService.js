@@ -75,6 +75,7 @@ const ensureSocialCommentsCenterSchema = async () => {
       UNIQUE (tenant_id, platform, comment_id)
     )
   `);
+  await db.query(`ALTER TABLE IF EXISTS social_comment_auto_reply_runs ADD COLUMN IF NOT EXISTS reply_status TEXT NOT NULL DEFAULT 'pending'`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_auto_reply_settings_updated ON social_auto_reply_settings (updated_at DESC)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_post_auto_reply_templates_lookup ON social_post_auto_reply_templates (tenant_id, platform, post_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_lookup ON social_comment_auto_reply_runs (tenant_id, platform, comment_id)`);
@@ -152,6 +153,8 @@ const extractAttachmentThumbnail = (attachments = []) => {
 const resolvePostThumbnailDetails = (row = {}) => {
   const metadata = metadataObject(row.metadata || {});
   const attachments = asArray(metadata.attachments || row.attachments || []);
+  const storedReasonIfMissing = text(metadata.reason_if_missing || row.reason_if_missing || "");
+  const storedMediaStatus = text(metadata.media_enrichment_status || row.media_enrichment_status || "");
 
   const directSources = [
     ["post_thumbnail", row.post_thumbnail || metadata.post_thumbnail || metadata.thumbnail_url || ""],
@@ -226,7 +229,7 @@ const resolvePostThumbnailDetails = (row = {}) => {
     thumbnail_url: null,
     thumbnail_source: "missing",
     has_thumbnail: false,
-    reason_if_missing: "no_image_sources_found",
+    reason_if_missing: storedReasonIfMissing || (storedMediaStatus === "unsupported_deprecated_status" ? "deprecated_status_no_graph_media" : "no_image_sources_found"),
     graph_enriched: false,
   };
 };
@@ -359,7 +362,8 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
   const currentDetails = resolvePostThumbnailDetails(safeRow);
   const currentHasThumbnail = Boolean(currentDetails.has_thumbnail);
-  const needsGraph = !currentDetails.has_thumbnail || !resolvePostPreviewCaption(safeRow) || !resolvePostPreviewLink(safeRow);
+  const unsupportedGraphMedia = currentDetails.reason_if_missing === "deprecated_status_no_graph_media" || lower(metadata.media_enrichment_status) === "unsupported_deprecated_status";
+  const needsGraph = !unsupportedGraphMedia && (!currentDetails.has_thumbnail || !resolvePostPreviewCaption(safeRow) || !resolvePostPreviewLink(safeRow));
   if (!tenantId || !postId || !needsGraph) {
     return {
       ...safeRow,
@@ -376,6 +380,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       graph_enriched: false,
       fallback_enriched: false,
       reason_if_missing: currentDetails.reason_if_missing || "",
+      media_enrichment_status: unsupportedGraphMedia ? "unsupported_deprecated_status" : text(metadata.media_enrichment_status || ""),
       tried_ids: [],
       tried_graph_ids: [],
       skipped_non_graph_ids: [],
@@ -395,7 +400,8 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       pageId,
       permalinkUrl: safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "",
     }).catch(() => null);
-    if (!graphPost) {
+    const graphUnsupported = text(graphPost?.reason_if_missing || "") === "deprecated_status_no_graph_media" || lower(graphPost?.media_enrichment_status) === "unsupported_deprecated_status";
+    if (!graphPost || graphUnsupported) {
       const fallbackMedia = await loadSocialPublisherFallbackMedia({
         tenantId,
         postId,
@@ -426,6 +432,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           thumbnail_source: fallbackMedia.thumbnail_source,
           has_thumbnail: true,
           thumbnail_saved: true,
+          media_enrichment_status: "fallback_enriched",
           post_type: text(safeRow.post_type || metadata.post_type || ""),
           media_type: text(safeRow.media_type || metadata.media_type || ""),
           graph_fields_present: asArray(safeRow.graph_fields_present || metadata.graph_fields_present || []),
@@ -447,7 +454,48 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           object_id_thumbnail_present: false,
         };
       }
+      if (graphUnsupported) {
+        const unsupportedMetadata = {
+          ...metadata,
+          post_id: postId,
+          reason_if_missing: "deprecated_status_no_graph_media",
+          media_enrichment_status: "unsupported_deprecated_status",
+          graph_enriched: false,
+          fallback_enriched: false,
+          thumbnail_url: "",
+          thumbnail_source: "missing",
+          has_thumbnail: false,
+        };
+        await persistSocialCommentPostMedia({
+          tenantId,
+          channel: safeRow.channel || (normalizePlatform(platform) === "instagram" ? "instagram_comment" : "facebook_comment"),
+          conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
+          metadata: unsupportedMetadata,
+        });
         return {
+          ...safeRow,
+          metadata: unsupportedMetadata,
+          had_thumbnail_before: currentHasThumbnail,
+          thumbnail_url: currentDetails.thumbnail_url,
+          thumbnail_source: currentDetails.thumbnail_source,
+          has_thumbnail: currentDetails.has_thumbnail,
+          graph_enriched: false,
+          fallback_enriched: false,
+          media_enrichment_status: "unsupported_deprecated_status",
+          reason_if_missing: "deprecated_status_no_graph_media",
+          tried_ids: [],
+          tried_graph_ids: [],
+          skipped_non_graph_ids: [],
+          graph_errors_sample: [],
+          normalized_post_id: postId,
+          source_post_id: postId,
+          extracted_permalink_object_id: extractPermalinkObjectId(safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || ""),
+          reel_id_from_permalink: "",
+          reel_thumbnail_present: false,
+          object_id_thumbnail_present: false,
+        };
+      }
+      return {
         ...safeRow,
         had_thumbnail_before: currentHasThumbnail,
         thumbnail_url: currentDetails.thumbnail_url,
@@ -456,6 +504,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         graph_enriched: false,
         fallback_enriched: false,
         reason_if_missing: currentDetails.reason_if_missing || "graph_unavailable",
+        media_enrichment_status: text(metadata.media_enrichment_status || ""),
         tried_ids: [],
         tried_graph_ids: [],
         skipped_non_graph_ids: [],
@@ -514,6 +563,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       graph_enriched: true,
       fallback_enriched: false,
       reason_if_missing: nextDetails.reason_if_missing || "",
+      media_enrichment_status: "graph_enriched",
     };
     await persistSocialCommentPostMedia({
       tenantId,
@@ -565,6 +615,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       graph_enriched: false,
       fallback_enriched: false,
       reason_if_missing: currentDetails.reason_if_missing || "graph_error",
+      media_enrichment_status: text(metadata.media_enrichment_status || "graph_error"),
       tried_ids: [],
       tried_graph_ids: [],
       skipped_non_graph_ids: [],
@@ -1156,6 +1207,7 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
       graph_errors_sample: asArray(resolved?.graph_errors_sample || sourceRow.graph_errors_sample || sourceRow.metadata?.graph_errors_sample || []),
       reel_id_from_permalink: text(resolved?.reel_id_from_permalink || sourceRow.reel_id_from_permalink || sourceRow.metadata?.reel_id_from_permalink || ""),
       extracted_permalink_object_id: text(resolved?.extracted_permalink_object_id || sourceRow.extracted_permalink_object_id || sourceRow.metadata?.extracted_permalink_object_id || ""),
+      media_enrichment_status: text(resolved?.media_enrichment_status || sourceRow.media_enrichment_status || sourceRow.metadata?.media_enrichment_status || ""),
       reel_thumbnail_present: Boolean(resolved?.reel_thumbnail_present ?? sourceRow.reel_thumbnail_present ?? sourceRow.metadata?.reel_thumbnail_present),
       object_id_thumbnail_present: Boolean(resolved?.object_id_thumbnail_present ?? sourceRow.object_id_thumbnail_present ?? sourceRow.metadata?.object_id_thumbnail_present),
       post_type: text(resolved?.post_type || sourceRow.post_type || sourceRow.metadata?.post_type || ""),
