@@ -410,6 +410,43 @@ const parseCommentTimestamp = (row = {}) => {
   return null;
 };
 
+const debugParseCommentTimestamp = (row = {}) => {
+  const candidates = [
+    { key: "created_at", value: row.created_at },
+    { key: "processed_at", value: row.processed_at },
+    { key: "updated_at", value: row.updated_at },
+    { key: "raw_payload.received_at", value: row.raw_payload?.received_at },
+    { key: "raw_payload.entry[0].time", value: row.raw_payload?.entry?.[0]?.time },
+    { key: "raw_payload.entry[0].changes[0].value.created_time", value: row.raw_payload?.entry?.[0]?.changes?.[0]?.value?.created_time },
+    { key: "comment_created_time", value: row.comment_created_time },
+  ];
+  for (const candidate of candidates) {
+    const raw = text(candidate.value || "");
+    if (!raw) continue;
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+      return {
+        raw_created_time: raw,
+        parsed_created_time: parsed.toISOString(),
+        source_key: candidate.key,
+        parse_error: "",
+      };
+    }
+    return {
+      raw_created_time: raw,
+      parsed_created_time: null,
+      source_key: candidate.key,
+      parse_error: `invalid_date:${candidate.key}`,
+    };
+  }
+  return {
+    raw_created_time: "",
+    parsed_created_time: null,
+    source_key: "",
+    parse_error: "missing_created_time",
+  };
+};
+
 export const PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT = ({ row = {} } = {}) => {
   const platform = text(row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
   const source = text(row.raw_payload?.source || row.automation_source || row.source || "").toLowerCase();
@@ -418,11 +455,25 @@ export const PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT = ({ row = {} } = {}
   const hasQueuedOrSent = ["queued", "sending", "sent"].includes(dmStatus);
   const isPollComment = source === "meta_comment_poll";
   const compositeCommentId = Boolean(commentId && commentId.includes("_"));
-  const commentTimestamp = parseCommentTimestamp(row);
+  const commentTimestampDebug = debugParseCommentTimestamp(row);
+  const commentTimestamp = commentTimestampDebug.parsed_created_time ? new Date(commentTimestampDebug.parsed_created_time) : null;
   const ageMs = commentTimestamp ? Date.now() - commentTimestamp.getTime() : Number.POSITIVE_INFINITY;
   const recentEnough = ageMs <= 15 * 60 * 1000;
   const justSavedThisRun = Boolean(Number(row.id || 0)) && recentEnough;
   const allowFromPoll = platform === "facebook" && isPollComment && compositeCommentId && (recentEnough || justSavedThisRun) && !hasQueuedOrSent;
+  console.log("POLL_COMMENT_AGE_DEBUG", {
+    comment_id: commentId,
+    created_time_raw: commentTimestampDebug.raw_created_time || "",
+    parsed_created_time: commentTimestampDebug.parsed_created_time || "",
+    now: new Date().toISOString(),
+    age_ms: Number.isFinite(ageMs) ? ageMs : null,
+    age_seconds: Number.isFinite(ageMs) ? Math.floor(ageMs / 1000) : null,
+    allowed_max_age_seconds: 15 * 60,
+    decision: allowFromPoll ? "allowed" : "rejected",
+    source,
+    parse_error: commentTimestampDebug.parse_error || "",
+    source_key: commentTimestampDebug.source_key || "",
+  });
   return {
     platform,
     source,
