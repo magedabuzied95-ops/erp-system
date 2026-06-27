@@ -554,7 +554,7 @@ const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueT
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
-const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
+const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
 const { socialCommentConversationId, materializeSocialCommentInboxConversation } = await import("./services/socialCommentAutomationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
@@ -999,6 +999,29 @@ app.get("/api/debug/meta-comment-inbox-status", async (req, res) => {
     return res.status(error?.status || 500).json({
       success: false,
       message: error?.message || "Failed to load meta comment inbox status",
+    });
+  }
+});
+app.get("/api/debug/meta-comment-private-reply-capability", async (req, res) => {
+  try {
+    const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
+    const commentId = String(req.query?.comment_id || "").trim();
+    if (!commentId) {
+      return res.status(400).json({
+        success: false,
+        message: "comment_id is required",
+      });
+    }
+    const data = await getMetaCommentPrivateReplyCapabilityDebug({ tenantId, commentId });
+    return res.json({ success: true, data, ...data });
+  } catch (error) {
+    console.error("[meta-comment-private-reply-capability-debug] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load meta comment private reply capability",
     });
   }
 });

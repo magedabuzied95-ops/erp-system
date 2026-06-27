@@ -187,6 +187,18 @@ const selectPrivateReplyTargetId = ({ incomingCommentId = "", automationCommentI
   return { selectedTargetId, rejectedSmallNumericIds, rejectedWrapperIds, rejectReason };
 };
 
+const privateReplyHasWebhookContext = ({ automationSource = "", automationFromId = "", messageSource = "", messageFromId = "" } = {}) => {
+  const sources = [automationSource, messageSource].map((value) => envText(value));
+  const fromIds = [automationFromId, messageFromId].map((value) => envText(value));
+  return sources.includes("meta_webhook") && fromIds.some(Boolean);
+};
+
+const privateReplyIsPollerOnlyWithoutFrom = ({ automationSource = "", automationFromId = "", messageSource = "", messageFromId = "" } = {}) => {
+  const sources = [automationSource, messageSource].map((value) => envText(value));
+  const fromIds = [automationFromId, messageFromId].map((value) => envText(value));
+  return sources.some((value) => value === "meta_comment_poll") && !fromIds.some(Boolean);
+};
+
 const collectPrivateMessageCommentIdCandidates = (conversation = {}, req = {}) => {
   const channelMetadata = conversation?.channel_metadata || {};
   return [
@@ -225,7 +237,14 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
       WHERE tenant_id = $1::bigint
         AND platform = $2::text
         AND inbox_conversation_id = $3::text
-      ORDER BY created_at DESC, id DESC
+      ORDER BY
+        CASE
+          WHEN COALESCE(raw_payload->>'source', '') = 'meta_webhook' THEN 0
+          WHEN COALESCE(raw_payload->>'source', '') = 'meta_comment_poll' THEN 1
+          ELSE 2
+        END,
+        created_at DESC,
+        id DESC
       LIMIT 1
       `,
       [safeTenantId, normalizedPlatform, safeConversationId]
@@ -245,7 +264,14 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
       WHERE tenant_id = $1::bigint
         AND session_id = $2::text
         AND message_type = 'comment_inbound'
-      ORDER BY created_at DESC, id DESC
+      ORDER BY
+        CASE
+          WHEN COALESCE(raw_payload->>'source', '') = 'meta_webhook' THEN 0
+          WHEN COALESCE(raw_payload->>'source', '') = 'meta_comment_poll' THEN 1
+          ELSE 2
+        END,
+        created_at DESC,
+        id DESC
       LIMIT 1
       `,
       [safeTenantId, safeConversationId]
@@ -604,7 +630,14 @@ const resolveSocialCommentReplyTarget = async ({ tenantId = null, commentId = ""
         OR raw_payload->>'comment_id' = $2::text
         OR raw_payload->'value'->>'comment_id' = $2::text
       )
-    ORDER BY created_at DESC
+    ORDER BY
+      CASE
+        WHEN COALESCE(raw_payload->>'source', '') = 'meta_webhook' THEN 0
+        WHEN COALESCE(raw_payload->>'source', '') = 'meta_comment_poll' THEN 1
+        ELSE 2
+      END,
+      created_at DESC,
+      id DESC
     LIMIT 1
     `,
     [Math.trunc(safeTenantId), safeCommentId]
@@ -2546,7 +2579,14 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
         WHERE tenant_id = $1::bigint
           AND session_id = $2::text
           AND message_type = 'comment_inbound'
-        ORDER BY created_at DESC, id DESC
+        ORDER BY
+          CASE
+            WHEN COALESCE(raw_payload->>'source', '') = 'meta_webhook' THEN 0
+            WHEN COALESCE(raw_payload->>'source', '') = 'meta_comment_poll' THEN 1
+            ELSE 2
+          END,
+          created_at DESC,
+          id DESC
         LIMIT 1
         `,
         [tenantId, sessionId]
@@ -2555,6 +2595,10 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
   const messageRow = messageRows.rows?.[0] || null;
   const messageRawPayload = messageRow?.raw_payload && typeof messageRow.raw_payload === "object" ? messageRow.raw_payload : {};
   const messageRawValue = messageRawPayload?.value && typeof messageRawPayload.value === "object" ? messageRawPayload.value : {};
+  const automationSource = envText(commentRun?.raw_payload?.source || "");
+  const automationFromId = envText(commentRun?.raw_payload?.value?.from?.id || commentRun?.raw_payload?.from?.id || commentRun?.commenter_id || "");
+  const messageSource = envText(messageRawPayload?.source || "");
+  const messageFromId = envText(messageRawValue?.from?.id || messageRawPayload?.from?.id || "");
 
   const privateReplyTargetResolution = selectPrivateReplyTargetId({
     incomingCommentId: uiResolvedId,
@@ -2576,7 +2620,40 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
     reject_reason: privateReplyTargetResolution.rejectReason,
     meta_response_error: "",
     rejected_small_numeric_ids: privateReplyTargetResolution.rejectedSmallNumericIds,
+    automation_source: automationSource,
+    automation_from_id: automationFromId,
+    message_source: messageSource,
+    message_from_id: messageFromId,
   });
+
+  if (privateReplyIsPollerOnlyWithoutFrom({
+    automationSource,
+    automationFromId,
+    messageSource,
+    messageFromId,
+  }) && !privateReplyHasWebhookContext({
+    automationSource,
+    automationFromId,
+    messageSource,
+    messageFromId,
+  })) {
+    console.warn("[social-comments:private-reply-target-debug]", {
+      incoming_comment_id: uiResolvedId,
+      automation_comment_id: envText(commentRun?.comment_id || ""),
+      raw_payload_value_comment_id: envText(payloadValue.comment_id || payloadValue.comment?.id || payloadValue.message_id || ""),
+      ai_message_comment_id: envText(messageRow?.comment_id || ""),
+      post_id: postId,
+      selected_target_id: "",
+      reject_reason: "PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT",
+      meta_response_error: "",
+      rejected_small_numeric_ids: privateReplyTargetResolution.rejectedSmallNumericIds,
+      automation_source: automationSource,
+      automation_from_id: automationFromId,
+      message_source: messageSource,
+      message_from_id: messageFromId,
+    });
+    return sendError(res, Object.assign(new Error("PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT"), { status: 409, code: "PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT" }), "PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT");
+  }
 
   if (!privateReplyTargetResolution.selectedTargetId) {
     return sendError(res, Object.assign(new Error("NO_VALID_META_COMMENT_ID_FOR_PRIVATE_REPLY"), { status: 409, code: "NO_VALID_META_COMMENT_ID_FOR_PRIVATE_REPLY" }), "NO_VALID_META_COMMENT_ID_FOR_PRIVATE_REPLY");

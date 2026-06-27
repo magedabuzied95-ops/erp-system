@@ -6504,6 +6504,206 @@ export const getMetaPermissionsDebugStatus = async ({ tenantId, req = null } = {
   };
 };
 
+const summarizeSocialCommentPrivateReplyRawPayload = (payload = {}) => {
+  const safePayload = payload && typeof payload === "object" ? payload : {};
+  const value = safePayload.value && typeof safePayload.value === "object" ? safePayload.value : {};
+  const comment = safePayload.comment && typeof safePayload.comment === "object" ? safePayload.comment : {};
+  const from = value.from && typeof value.from === "object" ? value.from : safePayload.from && typeof safePayload.from === "object" ? safePayload.from : {};
+  return {
+    source: text(safePayload.source || ""),
+    keys: Object.keys(safePayload),
+    value_keys: Object.keys(value),
+    comment_keys: Object.keys(comment),
+    from_keys: Object.keys(from),
+    value_comment_id: text(value.comment_id || safePayload.comment_id || ""),
+    value_post_id: text(value.post_id || safePayload.post_id || ""),
+    value_parent_id: text(value.parent_id || safePayload.parent_id || ""),
+    value_message_id: text(value.message_id || safePayload.message_id || ""),
+    value_from_id: text(value.from?.id || safePayload.from?.id || value.from?.user_id || safePayload.from?.user_id || ""),
+    value_from_name: text(value.from?.name || safePayload.from?.name || value.from?.full_name || safePayload.from?.full_name || ""),
+  };
+};
+
+export const getMetaCommentPrivateReplyCapabilityDebug = async ({ tenantId = null, commentId = "" } = {}) => {
+  await ensureMetaIntegrationSchema();
+  const scopedTenantId = numberOrNull(tenantId);
+  const safeCommentId = text(commentId);
+  if (!scopedTenantId || !safeCommentId) {
+    throw Object.assign(new Error("tenant_id and comment_id are required"), { status: 400 });
+  }
+
+  const row = await getMetaIntegrationConfig({ tenantId: scopedTenantId });
+  const config = row ? sanitizeConfig(row) : defaultPublicConfig(scopedTenantId);
+  const token = row ? getTokenForConfig(row) : "";
+
+  const [webhookStatus, permissionsStatus, socialRunRows, messageRows] = await Promise.all([
+    getMetaWebhookDebugStatus({ tenantId: scopedTenantId }).catch(() => null),
+    getMetaPermissionsDebugStatus({ tenantId: scopedTenantId }).catch(() => null),
+    db.query(
+      `
+      SELECT id, platform, channel, post_id, comment_id, commenter_id, commenter_name, inbox_conversation_id, raw_payload, created_at, updated_at
+      FROM social_comment_automation_runs
+      WHERE tenant_id = $1::bigint
+        AND (
+          comment_id = $2::text
+          OR inbox_conversation_id = $2::text
+          OR COALESCE(raw_payload->>'comment_id', '') = $2::text
+          OR COALESCE(raw_payload->'value'->>'comment_id', '') = $2::text
+        )
+      ORDER BY
+        CASE
+          WHEN COALESCE(raw_payload->>'source', '') = 'meta_webhook' THEN 0
+          WHEN COALESCE(raw_payload->>'source', '') = 'meta_comment_poll' THEN 1
+          ELSE 2
+        END,
+        created_at DESC,
+        id DESC
+      LIMIT 20
+      `,
+      [scopedTenantId, safeCommentId]
+    ).catch(() => ({ rows: [] })),
+    db.query(
+      `
+      SELECT id, session_id, comment_id, external_message_id, provider_message_id, channel, raw_payload, created_at, updated_at
+      FROM ai_support_messages
+      WHERE tenant_id = $1::bigint
+        AND (
+          comment_id = $2::text
+          OR external_message_id = $2::text
+          OR provider_message_id = $2::text
+          OR session_id = $2::text
+          OR COALESCE(raw_payload->>'comment_id', '') = $2::text
+          OR COALESCE(raw_payload->'value'->>'comment_id', '') = $2::text
+        )
+      ORDER BY created_at DESC, id DESC
+      LIMIT 20
+      `,
+      [scopedTenantId, safeCommentId]
+    ).catch(() => ({ rows: [] })),
+  ]);
+
+  let commentProbe = null;
+  let commentProbeSuccess = false;
+  let commentProbeError = "";
+  let canReplyPrivately = null;
+  let canReplyPrivatelyError = "";
+  if (token) {
+    try {
+      commentProbe = await callMetaGet({
+        endpoint: `/${encodeURIComponent(safeCommentId)}`,
+        token,
+        params: { fields: "id,message,from,parent,permalink_url" },
+      });
+      commentProbeSuccess = true;
+    } catch (error) {
+      commentProbeError = error?.message || "";
+    }
+
+    try {
+      const canReplyPayload = await callMetaGet({
+        endpoint: `/${encodeURIComponent(safeCommentId)}`,
+        token,
+        params: { fields: "can_reply_privately" },
+      });
+      canReplyPrivately = typeof canReplyPayload?.can_reply_privately === "boolean" ? canReplyPayload.can_reply_privately : null;
+    } catch (error) {
+      canReplyPrivatelyError = error?.message || "";
+    }
+  }
+
+  const webhookSubscribedFields = Array.isArray(webhookStatus?.subscribed_fields)
+    ? webhookStatus.subscribed_fields
+    : Array.isArray(webhookStatus?.subscribed_apps?.subscribed_fields)
+      ? webhookStatus.subscribed_apps.subscribed_fields
+      : Array.isArray(webhookStatus?.setup_completion?.subscribed_fields)
+        ? webhookStatus.setup_completion.subscribed_fields
+        : [];
+  const permissionsPayload = permissionsStatus || {};
+  const normalizeFlowRow = (row = {}, rowType = "") => {
+    const rawPayload = row.raw_payload && typeof row.raw_payload === "object" ? row.raw_payload : {};
+    const value = rawPayload.value && typeof rawPayload.value === "object" ? rawPayload.value : {};
+    const comment = rawPayload.comment && typeof rawPayload.comment === "object" ? rawPayload.comment : {};
+    const from = value.from && typeof value.from === "object" ? value.from : rawPayload.from && typeof rawPayload.from === "object" ? rawPayload.from : {};
+    return {
+      row_type: rowType,
+      id: row.id || null,
+      source: text(rawPayload.source || ""),
+      origin: text(rawPayload.source || "").includes("webhook") ? "webhook" : text(rawPayload.source || "").includes("poll") ? "poller" : "unknown",
+      comment_id: text(row.comment_id || ""),
+      post_id: text(row.post_id || ""),
+      commenter_id: text(row.commenter_id || ""),
+      commenter_name: text(row.commenter_name || ""),
+      session_id: text(row.session_id || row.inbox_conversation_id || ""),
+      raw_payload_shape: summarizeSocialCommentPrivateReplyRawPayload({
+        ...rawPayload,
+        value,
+        comment,
+        from,
+      }),
+      created_at: row.created_at || null,
+      updated_at: row.updated_at || null,
+    };
+  };
+  const runRows = (socialRunRows.rows || []).map((row) => normalizeFlowRow(row, "social_comment_automation_runs"));
+  const messageRowsNormalized = (messageRows.rows || []).map((row) => normalizeFlowRow(row, "ai_support_messages"));
+
+  console.log("[social-comments:private-reply-capability-debug]", {
+    tenant_id: scopedTenantId,
+    comment_id: safeCommentId,
+    page_id: text(config.facebook_page_id || config.page_id || ""),
+    permissions_saved: Boolean(config.permissions_saved),
+    webhook_enabled: Boolean(config.webhook_enabled),
+    webhook_verified: Boolean(config.webhook_verified),
+    subscribed_fields: webhookSubscribedFields,
+    can_reply_privately: canReplyPrivately,
+    can_reply_privately_error: canReplyPrivatelyError,
+    comment_probe_success: commentProbeSuccess,
+    comment_probe_error: commentProbeError,
+    comment_probe: commentProbe,
+    webhook_context_rows: runRows.filter((row) => row.origin === "webhook"),
+    poller_context_rows: runRows.filter((row) => row.origin === "poller"),
+    message_context_rows: messageRowsNormalized,
+    token_present: Boolean(token),
+    permissions_granted: Array.isArray(permissionsPayload.granted_permissions) ? permissionsPayload.granted_permissions : [],
+    permissions_declined: Array.isArray(permissionsPayload.declined_permissions) ? permissionsPayload.declined_permissions : [],
+    page_tasks: Array.isArray(permissionsPayload.page_tasks) ? permissionsPayload.page_tasks : [],
+  });
+
+  return {
+    tenant_id: scopedTenantId,
+    comment_id: safeCommentId,
+    page_id: text(config.facebook_page_id || config.page_id || ""),
+    permissions_saved: Boolean(config.permissions_saved),
+    webhook: {
+      subscribed_fields: webhookSubscribedFields,
+      comments_delivery_mode: webhookStatus?.comments_delivery_mode || "",
+      comments_delivery_ready: Boolean(webhookStatus?.comments_delivery_ready),
+      webhook_verified: Boolean(webhookStatus?.webhook_verified),
+      webhook_enabled: Boolean(webhookStatus?.webhook_enabled),
+      subscribed_apps_status: webhookStatus?.subscribed_apps_status || "",
+      webhook_subscription_status: webhookStatus?.webhook_subscription_status || "",
+    },
+    permissions: {
+      granted_permissions: Array.isArray(permissionsPayload.granted_permissions) ? permissionsPayload.granted_permissions : [],
+      declined_permissions: Array.isArray(permissionsPayload.declined_permissions) ? permissionsPayload.declined_permissions : [],
+      page_tasks: Array.isArray(permissionsPayload.page_tasks) ? permissionsPayload.page_tasks : [],
+      page_access_token_present: Boolean(config.page_access_token_configured),
+    },
+    comment_probe: {
+      success: commentProbeSuccess,
+      error: commentProbeError,
+      raw: commentProbe || null,
+      can_reply_privately: canReplyPrivately,
+      can_reply_privately_error: canReplyPrivatelyError,
+    },
+    source_rows: {
+      social_comment_automation_runs: runRows,
+      ai_support_messages: messageRowsNormalized,
+    },
+    likely_supported: Boolean(commentProbeSuccess && (canReplyPrivately === true || canReplyPrivately === null)),
+  };
+};
+
 export const getMetaPostCommentsDebugStatus = async ({ tenantId, postId = "" } = {}) => {
   const scopedTenantId = numberOrNull(tenantId);
   const safePostId = text(postId);
