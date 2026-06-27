@@ -58,6 +58,18 @@ const resolveSocialCommentActionId = (comment = {}) => {
   return clean(preferred?.value || "");
 };
 
+const getSocialCommentActionDebugData = (comment = {}) => {
+  const raw = comment?.raw && typeof comment.raw === "object" && !Array.isArray(comment.raw) ? comment.raw : {};
+  const rawMetadata = raw.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
+  const metadata = comment?.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : rawMetadata;
+  return {
+    clicked_comment_text: clean(comment.message || raw.message || raw.customer_message || metadata.message || metadata.customer_message || ""),
+    clicked_comment_id: clean(comment.id || raw.id || metadata.id || ""),
+    clicked_comment_comment_id: clean(comment.comment_id || raw.comment_id || metadata.comment_id || ""),
+    clicked_comment_metadata_comment_id: clean(metadata.comment_id || rawMetadata.comment_id || ""),
+  };
+};
+
 const absoluteTime = (value) => {
   if (!value) return "—";
   const date = new Date(value);
@@ -829,7 +841,9 @@ function SocialCommentsWorkspace({
   };
 
   const submitPrivateMessage = async (comment = actionableComment, messageText = replyDraft || suggestedReply) => {
-    const actionId = resolveSocialCommentActionId(comment);
+    const clickedComment = comment || actionableComment || null;
+    const actionId = resolveSocialCommentActionId(clickedComment);
+    const loadingKey = clean(clickedComment?.id || "");
     const actionCandidates = getSocialCommentActionIdCandidates(comment);
     const finalMessage = clean(messageText);
     if (privateMessageLoadingKey) return;
@@ -837,10 +851,15 @@ function SocialCommentsWorkspace({
       notify("amber", "اكتب رسالة خاصة أولًا");
       return;
     }
-    if (!supportsPrivateMessage(comment, activePostPlatform)) {
+    if (!supportsPrivateMessage(clickedComment, activePostPlatform)) {
       notify("amber", "الرسائل الخاصة مدعومة فقط لتعليقات Facebook وInstagram");
       return;
     }
+    const debugData = getSocialCommentActionDebugData(clickedComment);
+    console.warn("[social-comments:private-action-click-debug]", {
+      ...debugData,
+      resolved_id: actionId,
+    });
     console.warn("[social-comments:action-id-debug]", {
       action: "private_message",
       candidate_ids: actionCandidates,
@@ -852,21 +871,25 @@ function SocialCommentsWorkspace({
       notify("amber", "تعذر تحديد معرف التعليق");
       return;
     }
-    setPrivateMessageLoadingKey(actionId);
+    if (loadingKey) setSelectedCommentKey(loadingKey);
+    setPrivateMessageLoadingKey(loadingKey || actionId);
     try {
       await api.post(`/ai-inbox/comments/${encodeURIComponent(actionId)}/private-message`, {
         message: finalMessage,
         platform: activePostPlatform || "facebook",
         post_id: activePostPostId,
       });
-      setPrivateMessageStatusOverrides((current) => ({ ...current, [actionId]: "sent" }));
+      const statusKey = loadingKey || actionId;
+      setPrivateMessageStatusOverrides((current) => ({ ...current, [statusKey]: "sent" }));
       notify("emerald", "تم إرسال الرسالة الخاصة");
       await Promise.resolve(onRefresh?.());
     } catch (error) {
-      setPrivateMessageStatusOverrides((current) => ({ ...current, [actionId]: "failed" }));
+      const statusKey = loadingKey || actionId;
+      setPrivateMessageStatusOverrides((current) => ({ ...current, [statusKey]: "failed" }));
       notify("rose", error?.message || "إرسال رسالة خاصة من التعليق يحتاج صلاحية/دعم Meta، استخدم فتح البوست مؤقتًا.");
     } finally {
-      setPrivateMessageLoadingKey("");
+      const statusKey = loadingKey || actionId;
+      setPrivateMessageLoadingKey((current) => (current === statusKey ? "" : current));
     }
   };
 
