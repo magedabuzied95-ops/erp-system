@@ -391,6 +391,61 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
   );
 };
 
+const parseCommentTimestamp = (row = {}) => {
+  const candidates = [
+    row.created_at,
+    row.processed_at,
+    row.updated_at,
+    row.raw_payload?.received_at,
+    row.raw_payload?.entry?.[0]?.time,
+    row.raw_payload?.entry?.[0]?.changes?.[0]?.value?.created_time,
+    row.comment_created_time,
+  ];
+  for (const candidate of candidates) {
+    const value = text(candidate || "");
+    if (!value) continue;
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return null;
+};
+
+export const PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT = ({ row = {} } = {}) => {
+  const platform = text(row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  const source = text(row.raw_payload?.source || row.automation_source || row.source || "").toLowerCase();
+  const commentId = text(row.comment_id || "");
+  const dmStatus = text(row.dm_status || row.automation_state?.private_reply?.status || "").toLowerCase();
+  const hasQueuedOrSent = ["queued", "sending", "sent"].includes(dmStatus);
+  const isPollComment = source === "meta_comment_poll";
+  const compositeCommentId = Boolean(commentId && commentId.includes("_"));
+  const commentTimestamp = parseCommentTimestamp(row);
+  const ageMs = commentTimestamp ? Date.now() - commentTimestamp.getTime() : Number.POSITIVE_INFINITY;
+  const recentEnough = ageMs <= 15 * 60 * 1000;
+  const justSavedThisRun = Boolean(Number(row.id || 0)) && recentEnough;
+  const allowFromPoll = platform === "facebook" && isPollComment && compositeCommentId && (recentEnough || justSavedThisRun) && !hasQueuedOrSent;
+  return {
+    platform,
+    source,
+    commentId,
+    dmStatus,
+    compositeCommentId,
+    recentEnough,
+    justSavedThisRun,
+    allowFromPoll,
+    rejectReason: !isPollComment
+      ? "not_poll_comment"
+      : platform !== "facebook"
+        ? "non_facebook_platform"
+        : !compositeCommentId
+          ? "non_composite_comment_id"
+          : !recentEnough && !justSavedThisRun
+            ? "poll_comment_too_old"
+            : hasQueuedOrSent
+              ? "private_reply_already_queued_or_sent"
+              : "allowed",
+  };
+};
+
 export const socialCommentConversationId = ({
   platform = "",
   postId = "",

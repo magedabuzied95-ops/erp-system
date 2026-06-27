@@ -670,6 +670,13 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
   let lastError = null;
   for (const attempt of versionAttempts) {
     try {
+      console.warn("GRAPH_PRIVATE_REPLY_REQUEST", {
+        target_comment_id: trimString(commentId),
+        graph_base: getGraphBaseUrlForVersion(attempt.version),
+        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
+        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        token_delivery: "form_body",
+      });
       console.warn("[social-comments:private-reply-version-debug]", {
         graph_base: getGraphBaseUrlForVersion(attempt.version),
         graph_version: trimString(attempt.version || GRAPH_API_VERSION),
@@ -690,6 +697,17 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         bodyShape: attempt.shapeLabel,
         graphVersion: attempt.version,
         tokenDelivery: "form_body",
+      });
+      console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
+        target_comment_id: trimString(commentId),
+        graph_base: getGraphBaseUrlForVersion(attempt.version),
+        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
+        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        token_delivery: "form_body",
+        meta_status: "ok",
+        meta_error_code: "",
+        meta_error_subcode: "",
+        meta_error_message: "",
       });
       console.warn("[social-comments:private-reply-version-debug]", {
         graph_base: getGraphBaseUrlForVersion(attempt.version),
@@ -716,6 +734,17 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       return payload;
     } catch (error) {
       const details = extractMetaErrorDetails(error);
+      console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
+        target_comment_id: trimString(commentId),
+        graph_base: getGraphBaseUrlForVersion(attempt.version),
+        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
+        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        token_delivery: "form_body",
+        meta_status: String(error?.status || details.status || ""),
+        meta_error_code: details.code || "",
+        meta_error_subcode: details.subcode || "",
+        meta_error_message: details.message || "",
+      });
       console.warn("[social-comments:private-reply-version-debug]", {
         graph_base: getGraphBaseUrlForVersion(attempt.version),
         graph_version: trimString(attempt.version || GRAPH_API_VERSION),

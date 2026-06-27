@@ -2,7 +2,11 @@ import db from "../database/db.js";
 import { registerJobHandler } from "./jobQueueService.js";
 import { sendWhatsappNotification } from "../utils/whatsapp.js";
 import { getSocialAutomationSettings } from "./socialAutomationSettingsService.js";
-import { persistSocialCommentAutomationState, buildSocialCommentSuggestedReply } from "./socialCommentAutomationService.js";
+import {
+  persistSocialCommentAutomationState,
+  buildSocialCommentSuggestedReply,
+  PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT,
+} from "./socialCommentAutomationService.js";
 import { renderTemplate, sendPrivateReply } from "./marketingCommentAutomationService.js";
 
 let registered = false;
@@ -58,6 +62,37 @@ export const registerBackgroundJobHandlers = () => {
     if (!row) {
       throw Object.assign(new Error("Social comment row not found"), { status: 404 });
     }
+
+    const privateReplyContext = PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT({ row });
+    if (privateReplyContext.source === "meta_comment_poll") {
+      if (!privateReplyContext.allowFromPoll) {
+        console.warn("[social-comments][private-reply] rejected", {
+          tenant_id: tenantId,
+          platform,
+          comment_id: commentId,
+          post_id: postId || row.post_id || "",
+          reason: privateReplyContext.rejectReason,
+        });
+        console.warn("SOCIAL_COMMENT_PRIVATE_REPLY_REJECTED", {
+          tenant_id: tenantId,
+          platform,
+          comment_id: commentId,
+          post_id: postId || row.post_id || "",
+          reason: privateReplyContext.rejectReason,
+        });
+        return { ok: true, skipped: true, reason: privateReplyContext.rejectReason };
+      }
+
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ALLOWED_FROM_POLL", {
+        tenant_id: tenantId,
+        platform,
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        created_at: row.created_at || null,
+        processed_at: row.processed_at || null,
+      });
+    }
+
     if (String(row.dm_status || "").toLowerCase() === "sent") {
       console.log("[social-comments][private-reply] skipped", {
         tenant_id: tenantId,
@@ -114,7 +149,19 @@ export const registerBackgroundJobHandlers = () => {
     } catch {}
 
     try {
+      console.log("GRAPH_PRIVATE_REPLY_REQUEST", {
+        target_comment_id: commentId,
+        platform,
+        post_id: postId || row.post_id || "",
+      });
       const result = await sendPrivateReply(platform, commentId, message, tenantId);
+      console.log("GRAPH_PRIVATE_REPLY_RESPONSE", {
+        target_comment_id: commentId,
+        platform,
+        post_id: postId || row.post_id || "",
+        ok: true,
+        external_id: result?.id || result?.message_id || result?.reply_id || "",
+      });
       await persistSocialCommentAutomationState({
         tenantId,
         platform,
@@ -143,6 +190,14 @@ export const registerBackgroundJobHandlers = () => {
       });
       return result;
     } catch (error) {
+      console.log("GRAPH_PRIVATE_REPLY_RESPONSE", {
+        target_comment_id: commentId,
+        platform,
+        post_id: postId || row.post_id || "",
+        ok: false,
+        status: error?.status || null,
+        message: error?.message || "",
+      });
       const status = Number(error?.status || error?.metaResponse?.error?.code || 0);
       const messageText = error?.message || "private reply failed";
       const retryable = status === 429 || status >= 500 || /timeout|timed out|fetch failed|network|ECONNREFUSED|ENOTFOUND/i.test(messageText);
