@@ -824,7 +824,7 @@ function BarcodeLabels() {
           }
         }
       `}</style>
-      <div className="print:hidden">
+      <div className="barcode-preview-only print:hidden">
         <ProductsShell
           title={t("products.barcodeLabels.labelSheetTitle")}
           description={t("products.barcodeLabels.labelSheetDescription")}
@@ -1063,7 +1063,7 @@ function BarcodeLabels() {
         </ProductsShell>
       </div>
 
-      <div className="hidden print:block print-document" data-barcode-print-root="page">
+      <div className="barcode-print-only hidden print:block print-document" data-barcode-print-root="page">
         {expandedLabels.length > 0 ? (
           previewPages.map((pageLabels, pageIndex) => {
             const isLastPage = pageIndex === previewPages.length - 1;
