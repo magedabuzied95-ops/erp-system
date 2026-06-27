@@ -616,7 +616,6 @@ export const replyToComment = async (platform, commentId, message, businessId) =
 export const sendPrivateReply = async (platform, commentId, message, businessId) => {
   const settings = await getSettingsRow(businessId);
   const tokenStatus = validateMetaToken(settings || {});
-  const graphPath = `/${encodeURIComponent(commentId)}/private_replies`;
   const capabilityDebug = await loadPrivateReplyCapabilityDebug({ businessId, commentId }).catch((error) => ({
     settings,
     accessToken: tokenStatus?.accessToken || "",
@@ -628,15 +627,48 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     canReplyPrivatelyError: error?.message || "",
     commentProbeSuccess: false,
   }));
-  console.warn("[social-comments:private-reply-meta-call-debug]", {
+  const initialProbe = capabilityDebug?.commentProbe?.raw || null;
+  const resolvedTarget = await resolvePrivateReplyTargetCommentId({
+    businessId,
+    commentId,
+    initialProbe,
+  });
+  const graphCommentId = trimString(resolvedTarget?.resolvedCommentId || commentId);
+  const graphProbe = resolvedTarget?.probe || initialProbe || null;
+  const probeFields = graphProbe
+    ? {
+        id: trimString(graphProbe?.id || ""),
+        parent: graphProbe?.parent || null,
+        from: graphProbe?.from || null,
+        can_reply_privately: capabilityDebug?.canReplyPrivately ?? null,
+        permalink_url: trimString(graphProbe?.permalink_url || ""),
+        created_time: trimString(graphProbe?.created_time || ""),
+      }
+    : {
+        id: "",
+        parent: null,
+        from: null,
+        can_reply_privately: capabilityDebug?.canReplyPrivately ?? null,
+        permalink_url: "",
+        created_time: "",
+      };
+  console.warn("[social-comments:private-reply-comment-probe-debug]", {
     comment_id: trimString(commentId),
-    graph_path: graphPath,
+    resolved_comment_id: graphCommentId,
+    probe_success: Boolean(capabilityDebug?.commentProbeSuccess || graphProbe),
+    probe_error: resolvedTarget?.probeError || capabilityDebug?.commentProbeError || "",
+    probe_fields: probeFields,
+  });
+  console.warn("[social-comments:private-reply-meta-call-debug]", {
+    comment_id: graphCommentId,
+    graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
     method: "POST",
     payload_keys: ["message"],
     page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
     token_present: Boolean(tokenStatus?.accessToken),
     meta_status: "",
     meta_error_message: "",
+    resolved_comment_id: graphCommentId,
   });
 
   const attempts = GRAPH_API_PRIVATE_REPLY_VERSIONS.map((version, index) => ({
@@ -671,16 +703,16 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
   for (const attempt of versionAttempts) {
     try {
       console.warn("GRAPH_PRIVATE_REPLY_REQUEST", {
-        target_comment_id: trimString(commentId),
+        target_comment_id: graphCommentId,
         graph_base: getGraphBaseUrlForVersion(attempt.version),
         graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
         token_delivery: "form_body",
       });
       console.warn("[social-comments:private-reply-version-debug]", {
         graph_base: getGraphBaseUrlForVersion(attempt.version),
         graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
         content_type: "application/x-www-form-urlencoded",
         token_delivery: "form_body",
         meta_status: "attempting",
@@ -690,7 +722,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       });
       const payload = await callMetaPostWithShape({
         businessId,
-        endpoint: `/${encodeURIComponent(commentId)}/private_replies`,
+        endpoint: `/${encodeURIComponent(graphCommentId)}/private_replies`,
         label: "private reply",
         contentType: "application/x-www-form-urlencoded",
         body: new URLSearchParams({ message: trimString(message) }),
@@ -699,10 +731,10 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         tokenDelivery: "form_body",
       });
       console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
-        target_comment_id: trimString(commentId),
+        target_comment_id: graphCommentId,
         graph_base: getGraphBaseUrlForVersion(attempt.version),
         graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
         token_delivery: "form_body",
         meta_status: "ok",
         meta_error_code: "",
@@ -712,7 +744,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       console.warn("[social-comments:private-reply-version-debug]", {
         graph_base: getGraphBaseUrlForVersion(attempt.version),
         graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
         content_type: "application/x-www-form-urlencoded",
         token_delivery: "form_body",
         meta_status: "ok",
@@ -721,8 +753,8 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         meta_error_message: "",
       });
       console.warn("[social-comments:private-reply-meta-call-debug]", {
-        comment_id: trimString(commentId),
-        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        comment_id: graphCommentId,
+        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
         method: "POST",
         payload_keys: ["message"],
         page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
@@ -730,15 +762,16 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         meta_status: "ok",
         meta_error_message: "",
         payload_shape: attempt.shapeLabel,
+        resolved_comment_id: graphCommentId,
       });
       return payload;
     } catch (error) {
       const details = extractMetaErrorDetails(error);
       console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
-        target_comment_id: trimString(commentId),
+        target_comment_id: graphCommentId,
         graph_base: getGraphBaseUrlForVersion(attempt.version),
         graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
         token_delivery: "form_body",
         meta_status: String(error?.status || details.status || ""),
         meta_error_code: details.code || "",
@@ -748,7 +781,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       console.warn("[social-comments:private-reply-version-debug]", {
         graph_base: getGraphBaseUrlForVersion(attempt.version),
         graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
         content_type: "application/x-www-form-urlencoded",
         token_delivery: "form_body",
         meta_status: String(error?.status || details.status || ""),
@@ -765,8 +798,8 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     ? "META_PRIVATE_REPLY_UNSUPPORTED_OR_PERMISSION_DENIED"
     : "";
   console.warn("[social-comments:private-reply-meta-call-debug]", {
-    comment_id: trimString(commentId),
-    graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+    comment_id: graphCommentId,
+    graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
     method: "POST",
     payload_keys: ["message"],
     page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
@@ -774,13 +807,14 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     meta_status: String(lastError?.status || details.status || ""),
     meta_error_message: String(lastError?.message || details.message || ""),
     payload_shape: "current default graph base | explicit /v19.0 | explicit /v20.0 | explicit /v21.0",
+    resolved_comment_id: graphCommentId,
   });
   console.warn("[social-comments:private-reply-capability-debug]", {
     token_me_id: capabilityDebug?.tokenMeId || "",
     token_me_name: capabilityDebug?.tokenMeName || "",
     page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || ""),
     page_name: trimString(capabilityDebug?.pageName || settings?.page_name || settings?.facebook_page_name || ""),
-    comment_id: trimString(commentId),
+    comment_id: graphCommentId,
     comment_probe_success: Boolean(capabilityDebug?.commentProbeSuccess),
     can_reply_privately: capabilityDebug?.canReplyPrivately,
     can_reply_privately_error: capabilityDebug?.canReplyPrivatelyError || "",
@@ -805,10 +839,55 @@ export const probePrivateReplyComment = async ({ businessId, commentId } = {}) =
     endpoint: graphPath,
     label: "private_reply_comment_probe",
     params: {
-      fields: "id,message,from,parent,permalink_url",
+      fields: "id,message,from,parent,permalink_url,created_time",
     },
   });
   return payload;
+};
+
+const resolvePrivateReplyTargetCommentId = async ({ businessId, commentId = "", initialProbe = null } = {}) => {
+  const settings = await getSettingsRow(businessId);
+  const tokenStatus = validateMetaToken(settings || {});
+  const accessToken = tokenStatus.accessToken || "";
+  const visited = new Set();
+  let resolvedCommentId = trimString(commentId);
+  let probe = initialProbe || null;
+  let probeError = "";
+
+  if (!resolvedCommentId) {
+    return { resolvedCommentId: "", probe: null, probeError: "missing_comment_id" };
+  }
+
+  if (!accessToken) {
+    return { resolvedCommentId, probe, probeError: "missing_access_token" };
+  }
+
+  for (let depth = 0; depth < 5 && resolvedCommentId && !visited.has(resolvedCommentId); depth += 1) {
+    visited.add(resolvedCommentId);
+    if (!probe) {
+      try {
+        probe = await callMetaGet({
+          accessToken,
+          endpoint: `/${encodeURIComponent(resolvedCommentId)}`,
+          label: "private_reply_comment_probe",
+          params: {
+            fields: "id,message,from,parent,permalink_url,created_time",
+          },
+        });
+      } catch (error) {
+        probeError = error?.message || "";
+        break;
+      }
+    }
+
+    const parentId = trimString(probe?.parent?.id || "");
+    if (!parentId || parentId === resolvedCommentId) break;
+
+    resolvedCommentId = parentId;
+    probe = null;
+  }
+
+  return { resolvedCommentId, probe, probeError };
 };
 
 export const savePostProductLinks = async ({ businessId, platform, postId, mediaId, productId, createdBy }) => {

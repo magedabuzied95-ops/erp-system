@@ -6641,7 +6641,7 @@ export const getMetaCommentPrivateReplyCapabilityDebug = async ({ tenantId = nul
       commentProbe = await callMetaGet({
         endpoint: `/${encodeURIComponent(safeCommentId)}`,
         token,
-        params: { fields: "id,message,from,parent,permalink_url" },
+        params: { fields: "id,message,from,parent,permalink_url,created_time" },
       });
       commentProbeSuccess = true;
     } catch (error) {
