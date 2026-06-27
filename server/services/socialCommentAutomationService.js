@@ -781,6 +781,26 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       session_ref_id: bigintOrNull(sessionResult.rows[0]?.id),
     });
 
+    console.log("[social-comments:conversation-upsert-param-debug]", {
+      tenant_id: safeTenantId,
+      channel,
+      external_conversation_id: sessionId,
+      external_customer_id: commenterId,
+      thread_kind: threadKind,
+      customer_name: commenterName,
+      customer_avatar_url: commenterProfilePictureUrl,
+      last_message: commentText,
+      customer_profile_id: customerProfileId,
+      metadata_keys: Object.keys(metadata || {}).slice(0, 20),
+      metadata_preview: {
+        post_id: metadata.post_id,
+        comment_id: metadata.comment_id,
+        platform: metadata.platform,
+        channel: metadata.channel,
+        media_enrichment_status: metadata.media_enrichment_status,
+        classification_label: metadata.classification_label,
+      },
+    });
     await db.query(
       `
       INSERT INTO ai_channel_conversations (
@@ -818,7 +838,27 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       last_message_at = NOW(),
       updated_at = NOW()
       `,
-      [safeTenantId, channel, sessionId, commenterId, threadKind, commenterName, customerProfileId, commenterProfilePictureUrl, commentText, JSON.stringify(metadata)]
+      [
+        safeTenantId,
+        channel,
+        sessionId,
+        commenterId,
+        threadKind,
+        commenterName,
+        commenterProfilePictureUrl,
+        commentText,
+        customerProfileId,
+        JSON.stringify({
+          thread_kind: metadata.thread_kind,
+          platform: metadata.platform,
+          channel: metadata.channel,
+          post_id: metadata.post_id,
+          comment_id: metadata.comment_id,
+          customer_profile_id: metadata.customer_profile_id ? "[bigint]" : null,
+          media_enrichment_status: metadata.media_enrichment_status,
+          classification_label: metadata.classification_label,
+        }),
+      ]
     );
 
     const inboundMessage = await db.query(
