@@ -261,10 +261,15 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
 export async function generateBarcodeLabelsPdf(labels = [], options = {}) {
   const title = normalizeLabelText(options.title || options.filename || "Barcode Labels", "Barcode Labels");
   const doc = new jsPDF({
-    orientation: "landscape",
+    orientation: "portrait",
     unit: "mm",
     format: [100, 50],
     compress: true,
+  });
+
+  console.log("[barcode-pdf-page-size]", {
+    width: doc.internal.pageSize.getWidth(),
+    height: doc.internal.pageSize.getHeight(),
   });
 
   doc.setProperties({
