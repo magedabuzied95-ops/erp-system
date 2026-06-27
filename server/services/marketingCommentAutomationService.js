@@ -709,7 +709,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     : `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(graphCommentId)}/private_replies`;
   console.warn("ACTIVE_PRIVATE_REPLY_IMPLEMENTATION", {
     implementation: "page_messages_v2",
-    file: __filename,
+    file: "server/services/marketingCommentAutomationService.js",
     page_id: pageId,
     comment_id: graphCommentId,
     final_url_without_token: activeImplementationFinalUrl,
