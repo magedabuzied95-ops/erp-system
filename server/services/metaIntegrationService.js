@@ -4065,17 +4065,57 @@ const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
   console.log("META_COMMENTS_POLL_GRAPH_REQUEST", {
     object_id: text(postId || ""),
     url: `/${encodeURIComponent(text(postId))}/comments`,
-    fields: "id,message,from,created_time,parent,permalink_url,like_count,comment_count",
+    fields: "id,message,from{id,name,picture},created_time,parent,permalink_url,like_count,comment_count",
   });
   const payload = await callMetaGet({
     endpoint: `/${encodeURIComponent(text(postId))}/comments`,
     token,
     params: {
-      fields: "id,message,from,created_time,parent,permalink_url,like_count,comment_count",
+      fields: "id,message,from{id,name,picture},created_time,parent,permalink_url,like_count,comment_count",
       limit: "50",
     },
   });
   return Array.isArray(payload?.data) ? payload.data.slice(0, 50) : [];
+};
+
+const fetchMetaCommentDetailsForPolling = async ({ commentId = "", token } = {}) => {
+  const safeCommentId = text(commentId);
+  if (!safeCommentId || !token) return null;
+  const extractPictureUrl = (value = "") => {
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    return text(value?.data?.url || value?.url || value?.source || "");
+  };
+  console.log("META_COMMENTS_POLL_GRAPH_REQUEST", {
+    object_id: safeCommentId,
+    url: `/${encodeURIComponent(safeCommentId)}`,
+    fields: "id,message,from{id,name,picture},created_time,permalink_url,parent,like_count,comment_count",
+  });
+  const payload = await callMetaGet({
+    endpoint: `/${encodeURIComponent(safeCommentId)}`,
+    token,
+    params: {
+      fields: "id,message,from{id,name,picture},created_time,permalink_url,parent,like_count,comment_count",
+    },
+  });
+  const from = payload?.from && typeof payload.from === "object" ? payload.from : {};
+  const parent = payload?.parent && typeof payload.parent === "object" ? payload.parent : {};
+  return {
+    id: text(payload?.id || safeCommentId),
+    message: text(payload?.message || ""),
+    from: {
+      id: text(from.id || ""),
+      name: text(from.name || ""),
+      picture: extractPictureUrl(from.picture || from.profile_pic || ""),
+    },
+    created_time: text(payload?.created_time || ""),
+    permalink_url: text(payload?.permalink_url || ""),
+    parent: {
+      id: text(parent.id || ""),
+    },
+    like_count: Number(payload?.like_count || 0),
+    comment_count: Number(payload?.comment_count || 0),
+  };
 };
 
 const extractMetaPostAttachmentDetails = (post = {}) => {
@@ -4590,6 +4630,11 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
 };
 
 const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {} } = {}) => {
+  const extractPictureUrl = (value = "") => {
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    return text(value?.data?.url || value?.url || value?.source || "");
+  };
   const commentId = text(comment.id || "");
   const parentCommentId = text(comment.parent?.id || comment.parent_id || "");
   const commenterId = text(comment.from?.id || "");
@@ -4619,7 +4664,7 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
     root_comment_id: parentCommentId || commentId,
     commenter_id: commenterId,
     commenter_name: commenterName,
-    commenter_profile_picture_url: text(comment.from?.profile_pic || comment.from?.picture || ""),
+    commenter_profile_picture_url: extractPictureUrl(comment.from?.profile_pic || comment.from?.picture || ""),
     original_comment_text: originalCommentText,
     comment_created_time: createdTime,
     comment_url: postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : "",
@@ -4637,6 +4682,21 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
       page_id: text(pageId || ""),
       post,
       comment,
+      value: {
+        post_id: text(post.id || ""),
+        comment_id: commentId,
+        from: {
+          id: commenterId,
+          name: commenterName,
+          picture: extractPictureUrl(comment.from?.picture || comment.from?.profile_pic || ""),
+        },
+        message: originalCommentText,
+        created_time: createdTime,
+        permalink_url: postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : "",
+        parent_id: parentCommentId,
+        like_count: Number(comment.like_count || 0),
+        comment_count: Number(comment.comment_count || 0),
+      },
       post_full_picture: fullPicture,
       attachment_image: attachmentImage,
       post_thumbnail: attachmentImage || fullPicture || "",
@@ -6832,8 +6892,18 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
 
         for (const comment of comments) {
           totals.comments_seen += 1;
-          const commenterId = text(comment.from?.id || "");
           const commentId = text(comment.id || "");
+          const enrichedComment = await fetchMetaCommentDetailsForPolling({ commentId, token }).catch(() => null);
+          const effectiveComment = enrichedComment || comment;
+          const commenterId = text(effectiveComment.from?.id || comment.from?.id || "");
+          const commenterName = text(effectiveComment.from?.name || comment.from?.name || "");
+          const hasAvatar = Boolean(text(effectiveComment.from?.picture || effectiveComment.from?.profile_pic || comment.from?.picture || comment.from?.profile_pic || ""));
+          console.log("[social-comments:comment-identity-enrich-debug]", {
+            comment_id: commentId,
+            from_id: commenterId,
+            from_name: commenterName,
+            has_avatar: hasAvatar,
+          });
           console.log("META_COMMENTS_POLL_COMMENT_FOUND", {
             tenant_id: safeTenantId,
             page_id: pageId,
@@ -6846,7 +6916,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
             tenantId: safeTenantId,
             pageId,
             post: resolvedPost,
-            comment,
+            comment: effectiveComment,
           });
           console.log("META_COMMENTS_POLL_COMMENT_SEEN", {
             tenant_id: safeTenantId,
@@ -6854,7 +6924,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
             post_id: text(post.id || ""),
             comment_id: commentId,
             from_id: commenterId,
-            text_length: text(comment.message || "").length,
+            text_length: text(effectiveComment.message || comment.message || "").length,
           });
 
           if (commenterId && commenterId === pageId) {

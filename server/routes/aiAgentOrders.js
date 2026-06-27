@@ -153,9 +153,13 @@ const collectPrivateMessageCommentIdCandidates = (conversation = {}, req = {}) =
     { source: "body.comment_id", value: envText(req.body?.comment_id || "") },
     { source: "body.commentId", value: envText(req.body?.commentId || "") },
     { source: "channel_metadata.comment_id", value: envText(channelMetadata.comment_id || "") },
+    { source: "channel_metadata.raw_payload.value.comment_id", value: envText(channelMetadata.raw_payload?.value?.comment_id || "") },
+    { source: "channel_metadata.raw_payload.comment_id", value: envText(channelMetadata.raw_payload?.comment_id || "") },
     { source: "channel_metadata.lead.comment_id", value: envText(channelMetadata.lead?.comment_id || "") },
     { source: "conversation.external_comment_id", value: envText(conversation?.external_comment_id || "") },
     { source: "conversation.comment_id", value: envText(conversation?.comment_id || "") },
+    { source: "conversation.raw_payload.value.comment_id", value: envText(conversation?.raw_payload?.value?.comment_id || "") },
+    { source: "conversation.raw_payload.comment_id", value: envText(conversation?.raw_payload?.comment_id || "") },
   ];
 };
 
@@ -553,17 +557,57 @@ const resolveSocialCommentReplyTarget = async ({ tenantId = null, commentId = ""
   const safeTenantId = Number(tenantId);
   const safeCommentId = envText(commentId);
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
-  const result = await db.query(
+  const automationResult = await db.query(
     `
     SELECT *
     FROM social_comment_automation_runs
-    WHERE tenant_id = $1::bigint AND comment_id = $2::text
+    WHERE tenant_id = $1::bigint
+      AND (
+        comment_id = $2::text
+        OR inbox_conversation_id = $2::text
+        OR raw_payload->>'comment_id' = $2::text
+        OR raw_payload->'value'->>'comment_id' = $2::text
+      )
     ORDER BY created_at DESC
     LIMIT 1
     `,
     [Math.trunc(safeTenantId), safeCommentId]
-  );
-  return result.rows[0] || null;
+  ).catch(() => ({ rows: [] }));
+  const automationRow = automationResult.rows?.[0] || null;
+  if (automationRow) {
+    return automationRow;
+  }
+  const messageResult = await db.query(
+    `
+    SELECT
+      msg.*,
+      run.post_id AS automation_run_post_id,
+      run.comment_id AS automation_run_comment_id,
+      run.raw_payload AS automation_run_raw_payload
+    FROM ai_support_messages msg
+    LEFT JOIN social_comment_automation_runs run
+      ON run.tenant_id = msg.tenant_id
+     AND run.platform = msg.platform
+     AND (
+       run.comment_id = msg.comment_id
+       OR run.raw_payload->>'comment_id' = msg.comment_id
+       OR run.raw_payload->'value'->>'comment_id' = msg.comment_id
+     )
+    WHERE msg.tenant_id = $1::bigint
+      AND msg.message_type = 'comment_inbound'
+      AND (
+        msg.comment_id = $2::text
+        OR msg.external_message_id = $2::text
+        OR msg.provider_message_id = $2::text
+        OR msg.raw_payload->>'comment_id' = $2::text
+        OR msg.raw_payload->'value'->>'comment_id' = $2::text
+      )
+    ORDER BY msg.created_at DESC, msg.id DESC
+    LIMIT 1
+    `,
+    [Math.trunc(safeTenantId), safeCommentId]
+  ).catch(() => ({ rows: [] }));
+  return messageResult.rows?.[0] || null;
 };
 
 const whatsappEnabled = () => String(process.env.WHATSAPP_ENABLED || "false").toLowerCase() === "true";
@@ -2428,6 +2472,22 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
   }
 
   const commentRun = await resolveSocialCommentReplyTarget({ tenantId, commentId: uiResolvedId });
+  console.warn("[social-comments:private-reply-target-debug]", {
+    incoming_comment_id: uiResolvedId,
+    automation_comment_id: envText(commentRun?.comment_id || ""),
+    metadata_comment_id: envText(commentRun?.raw_payload?.value?.comment_id || commentRun?.raw_payload?.comment_id || commentRun?.metadata?.comment_id || ""),
+    post_id: envText(commentRun?.post_id || commentRun?.raw_payload?.value?.post_id || commentRun?.raw_payload?.post_id || ""),
+    selected_target_id: envText(
+      commentRun?.raw_payload?.value?.comment_id ||
+      commentRun?.raw_payload?.comment_id ||
+      commentRun?.metadata?.comment_id ||
+      commentRun?.comment_id ||
+      commentRun?.external_message_id ||
+      commentRun?.provider_message_id ||
+      ""
+    ),
+    reject_reason: commentRun ? "" : "comment_not_found",
+  });
   if (!commentRun) {
     return sendError(res, Object.assign(new Error(`Comment not found for tenant ${tenantId}: ${uiResolvedId}`), { status: 404, code: "SOCIAL_COMMENT_NOT_FOUND" }), "Comment not found");
   }
@@ -2471,6 +2531,8 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
     automation: {
       comment_id: envText(commentRun.comment_id || ""),
       post_id: postId,
+      metadata_comment_id: envText(commentRun?.metadata?.comment_id || ""),
+      raw_payload_comment_id: envText(commentRun?.raw_payload?.value?.comment_id || commentRun?.raw_payload?.comment_id || ""),
     },
     raw_payload_value: {
       comment_id: envText(payloadValue.comment_id || ""),
@@ -2513,6 +2575,7 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
     (envText(payloadValue.comment_id || "") && !isSmallNumericId(payloadValue.comment_id) && envText(payloadValue.comment_id) !== postId ? envText(payloadValue.comment_id) : "") ||
     (envText(payloadValue.comment?.id || "") && !isSmallNumericId(payloadValue.comment?.id) && envText(payloadValue.comment?.id) !== postId ? envText(payloadValue.comment?.id) : "") ||
     (envText(payloadValue.message_id || "") && !isSmallNumericId(payloadValue.message_id) && envText(payloadValue.message_id) !== postId ? envText(payloadValue.message_id) : "") ||
+    (envText(commentRun?.metadata?.comment_id || "") && !isSmallNumericId(commentRun?.metadata?.comment_id) && envText(commentRun?.metadata?.comment_id) !== postId ? envText(commentRun?.metadata?.comment_id) : "") ||
     (envText(messageRawValue.comment_id || "") && !isSmallNumericId(messageRawValue.comment_id) && envText(messageRawValue.comment_id) !== postId ? envText(messageRawValue.comment_id) : "") ||
     (envText(messageRawValue.comment?.id || "") && !isSmallNumericId(messageRawValue.comment?.id) && envText(messageRawValue.comment?.id) !== postId ? envText(messageRawValue.comment?.id) : "") ||
     (envText(messageRawValue.message_id || "") && !isSmallNumericId(messageRawValue.message_id) && envText(messageRawValue.message_id) !== postId ? envText(messageRawValue.message_id) : "") ||

@@ -353,9 +353,17 @@ const resolveSocialCommentCustomerName = (event = {}) => {
   const candidates = [
     event.commenter_name,
     event.from?.name,
+    event.from?.full_name,
+    event.raw_payload?.value?.from?.name,
+    event.raw_payload?.value?.from?.full_name,
+    event.raw_payload?.value?.commenter_name,
+    event.raw_payload?.value?.author_name,
     event.raw_payload?.comment?.from?.name,
+    event.raw_payload?.comment?.from?.full_name,
     event.raw_payload?.value?.from?.name,
     event.raw_payload?.from?.name,
+    event.raw_payload?.value?.comment?.from?.name,
+    event.metadata?.commenter_name,
     event.username,
     event.profile_name,
     event.contact_name,
@@ -373,6 +381,17 @@ const resolveSocialCommentAvatarUrl = (event = {}) =>
       event.profile_pic_url ||
       event.profile_picture_url ||
       event.avatar_url ||
+      event.from?.picture?.data?.url ||
+      event.from?.picture?.url ||
+      event.from?.picture ||
+      event.from?.profile_pic ||
+      event.metadata?.commenter_profile_picture_url ||
+      event.raw_payload?.value?.from?.picture?.data?.url ||
+      event.raw_payload?.value?.from?.picture?.url ||
+      event.raw_payload?.value?.from?.profile_pic ||
+      event.raw_payload?.value?.from?.picture ||
+      event.raw_payload?.value?.comment?.from?.profile_pic ||
+      event.raw_payload?.value?.comment?.from?.picture ||
       event.raw_payload?.comment?.from?.profile_pic ||
       event.raw_payload?.comment?.from?.picture ||
       event.raw_payload?.from?.profile_pic ||
@@ -571,7 +590,15 @@ const resolveSocialCommentCustomerProfileId = async ({ tenantId = null, event = 
   const safeTenantId = Number(tenantId);
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0) return null;
 
-  const commenterId = text(event.commenter_id || event.from?.id || event.raw_payload?.comment?.from?.id || "");
+  const commenterId = text(
+    event.commenter_id ||
+      event.from?.id ||
+      event.raw_payload?.value?.from?.id ||
+      event.raw_payload?.comment?.from?.id ||
+      event.raw_payload?.value?.comment?.from?.id ||
+      event.metadata?.commenter_id ||
+      ""
+  );
   if (!commenterId) return null;
 
   try {
@@ -656,7 +683,15 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     const threadKind = "comment";
     const commentText = text(event.original_comment_text);
     const commenterName = resolveSocialCommentCustomerName(event);
-    const commenterId = text(event.commenter_id || "");
+    const commenterId = text(
+      event.commenter_id ||
+        event.from?.id ||
+        event.raw_payload?.value?.from?.id ||
+        event.raw_payload?.comment?.from?.id ||
+        event.raw_payload?.value?.comment?.from?.id ||
+        event.metadata?.commenter_id ||
+        ""
+    );
     const commenterProfilePictureUrl = resolveSocialCommentAvatarUrl(event);
     const customerProfileId = bigintOrNull(await resolveSocialCommentCustomerProfileId({ tenantId: safeTenantId, event }));
     const postPermalink = resolveSocialCommentPostPermalink(event);
@@ -967,7 +1002,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     }
 
     console.log("[social-comments:new-comment-ingest-debug]", {
-      source: normalized.raw_payload?.source === "meta_comment_poll" ? "poller" : "webhook",
+      source: storedRow.raw_payload?.source === "meta_comment_poll" ? "poller" : "webhook",
       post_id: postId,
       comment_id: text(event.comment_id || ""),
       message: commentText,
@@ -1852,6 +1887,12 @@ const isCommentChange = (body = {}, change = {}) => {
 };
 
 const firstText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+const extractGraphPictureUrl = (value = "") => {
+  if (!value) return "";
+  if (typeof value === "string") return value;
+  if (typeof value !== "object") return text(value);
+  return firstText(value.data?.url, value.url, value.source, value.picture?.url, value.picture?.data?.url);
+};
 const bigintOrNull = (value) => {
   const normalized = text(value || "");
   if (!normalized || !/^\d+$/.test(normalized)) return null;
@@ -1901,7 +1942,7 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
     value.profile_picture_url,
     value.profile_pic_url,
     value.user_profile_picture,
-    value.from?.picture
+    extractGraphPictureUrl(value.from?.picture)
   );
   const originalCommentText = firstText(value.message, value.text, value.comment_text, value.caption, value.message_text);
   const timestamp = firstText(value.created_time, value.timestamp, change.created_time, change.timestamp, entry.time, entry.created_time);
