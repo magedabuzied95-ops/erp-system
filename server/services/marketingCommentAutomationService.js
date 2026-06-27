@@ -25,6 +25,13 @@ const isDevelopment = () => process.env.NODE_ENV !== "production";
 const devLog = (...args) => {
   if (isDevelopment()) console.log(...args);
 };
+const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
+const debugSocialCommentsLog = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.log(...args);
+};
+const debugSocialCommentsWarn = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.warn(...args);
+};
 
 const maskSecretStatus = (value) => Boolean(trimString(value));
 const normalizeWebhookField = (value = "") => trimString(value).toLowerCase();
@@ -355,7 +362,7 @@ const callMetaPostWithShape = async ({ businessId, endpoint, label, contentType,
       : JSON.stringify(requestBody || {});
   const safeBodyPreview = bodyPreview.replace(/(access_token=)[^&]+/g, "$1***");
 
-  console.warn("[social-comments:private-reply-payload-shape-debug]", {
+  debugSocialCommentsWarn("[social-comments:private-reply-payload-shape-debug]", {
     graph_path: endpoint,
     graph_base: getGraphBaseUrlForVersion(graphVersion),
     graph_version: trimString(graphVersion || GRAPH_API_VERSION),
@@ -375,7 +382,7 @@ const callMetaPostWithShape = async ({ businessId, endpoint, label, contentType,
   const payload = await parseMetaResponse(response);
 
   if (response.ok) {
-    console.warn("[social-comments:private-reply-payload-shape-debug]", {
+    debugSocialCommentsWarn("[social-comments:private-reply-payload-shape-debug]", {
       graph_path: endpoint,
       graph_base: getGraphBaseUrlForVersion(graphVersion),
       graph_version: trimString(graphVersion || GRAPH_API_VERSION),
@@ -396,7 +403,7 @@ const callMetaPostWithShape = async ({ businessId, endpoint, label, contentType,
   const error = new Error(getMetaErrorMessage(payload));
   error.status = response.status;
   error.metaResponse = payload;
-  console.warn("[social-comments:private-reply-payload-shape-debug]", {
+  debugSocialCommentsWarn("[social-comments:private-reply-payload-shape-debug]", {
     graph_path: endpoint,
     graph_base: getGraphBaseUrlForVersion(graphVersion),
     graph_version: trimString(graphVersion || GRAPH_API_VERSION),
@@ -664,19 +671,19 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
   const isStory = probeText.includes("/stories/") || probeMediaText.includes("story");
   const isCrosspost = probeText.includes("crosspost") || probeMediaText.includes("crosspost");
   if (isReel) {
-    console.warn("REEL_COMMENT_DETECTED", {
+    debugSocialCommentsWarn("REEL_COMMENT_DETECTED", {
       comment_id: trimString(commentId),
       probe_id: trimString(graphProbe?.id || ""),
       permalink_url: probePermalink,
     });
   } else if (isFeedPost) {
-    console.warn("FEED_COMMENT_DETECTED", {
+    debugSocialCommentsWarn("FEED_COMMENT_DETECTED", {
       comment_id: trimString(commentId),
       probe_id: trimString(graphProbe?.id || ""),
       permalink_url: probePermalink,
     });
   }
-  console.warn("[social-comments:private-reply-comment-probe-debug]", {
+  debugSocialCommentsWarn("[social-comments:private-reply-comment-probe-debug]", {
     comment_id: trimString(commentId),
     resolved_comment_id: graphCommentId,
     probe_success: Boolean(capabilityDebug?.commentProbeSuccess || graphProbe),
@@ -707,7 +714,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
   const activeImplementationFinalUrl = normalizedPlatform === "facebook"
     ? `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(pageId)}/messages`
     : `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(graphCommentId)}/private_replies`;
-  console.warn("ACTIVE_PRIVATE_REPLY_IMPLEMENTATION", {
+  debugSocialCommentsWarn("ACTIVE_PRIVATE_REPLY_IMPLEMENTATION", {
     implementation: "page_messages_v2",
     file: "server/services/marketingCommentAutomationService.js",
     page_id: pageId,
@@ -715,7 +722,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     final_url_without_token: activeImplementationFinalUrl,
     platform: normalizedPlatform,
   });
-  console.warn("[social-comments:private-reply-meta-call-debug]", {
+  debugSocialCommentsWarn("[social-comments:private-reply-meta-call-debug]", {
     comment_id: graphCommentId,
     graph_path: normalizedPlatform === "facebook"
       ? `/${encodeURIComponent(pageId)}/messages`
@@ -741,7 +748,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         text: fixedMessage,
       },
     };
-    console.warn("GRAPH_PRIVATE_REPLY_REQUEST", {
+    debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_REQUEST", {
       target_comment_id: graphCommentId,
       graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
       graph_version: trimString(GRAPH_API_VERSION),
@@ -751,7 +758,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       recipient_shape: "comment_id",
       final_url_without_token: finalUrlWithoutToken,
     });
-    console.warn("[social-comments:private-reply-version-debug]", {
+    debugSocialCommentsWarn("[social-comments:private-reply-version-debug]", {
       graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
       graph_version: trimString(GRAPH_API_VERSION),
       graph_path: endpoint,
@@ -778,7 +785,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         error.metaResponse = payload;
         throw error;
       }
-      console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
+      debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_RESPONSE", {
         target_comment_id: graphCommentId,
         graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
         graph_version: trimString(GRAPH_API_VERSION),
@@ -789,7 +796,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         meta_error_subcode: "",
         meta_error_message: "",
       });
-      console.warn("[social-comments:private-reply-version-debug]", {
+      debugSocialCommentsWarn("[social-comments:private-reply-version-debug]", {
         graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
         graph_version: trimString(GRAPH_API_VERSION),
         graph_path: endpoint,
@@ -800,7 +807,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         meta_error_subcode: "",
         meta_error_message: "",
       });
-      console.warn("[social-comments:private-reply-meta-call-debug]", {
+      debugSocialCommentsWarn("[social-comments:private-reply-meta-call-debug]", {
         comment_id: graphCommentId,
         graph_path: endpoint,
         method: "POST",
@@ -823,7 +830,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       return payload;
     } catch (error) {
       const details = extractMetaErrorDetails(error);
-      console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
+      debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_RESPONSE", {
         target_comment_id: graphCommentId,
         graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
         graph_version: trimString(GRAPH_API_VERSION),
@@ -834,7 +841,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         meta_error_subcode: details.subcode || "",
         meta_error_message: details.message || "",
       });
-      console.warn("[social-comments:private-reply-version-debug]", {
+      debugSocialCommentsWarn("[social-comments:private-reply-version-debug]", {
         graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
         graph_version: trimString(GRAPH_API_VERSION),
         graph_path: endpoint,
@@ -845,7 +852,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         meta_error_subcode: details.subcode || "",
         meta_error_message: details.message || "",
       });
-      console.warn("[social-comments:private-reply-meta-call-debug]", {
+      debugSocialCommentsWarn("[social-comments:private-reply-meta-call-debug]", {
         comment_id: graphCommentId,
         graph_path: endpoint,
         method: "POST",
@@ -894,7 +901,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
   const fixedMessage = "تم الرد على حضرتك في الخاص ✅";
   const endpoint = `/${encodeURIComponent(graphCommentId)}/private_replies`;
   const finalUrlWithoutToken = `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}${endpoint}`;
-  console.warn("GRAPH_PRIVATE_REPLY_REQUEST", {
+  debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_REQUEST", {
     target_comment_id: graphCommentId,
     graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
     graph_version: trimString(GRAPH_API_VERSION),
@@ -903,7 +910,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     body_shape: "minimal_text_only",
     final_url_without_token: finalUrlWithoutToken,
   });
-  console.warn("[social-comments:private-reply-version-debug]", {
+  debugSocialCommentsWarn("[social-comments:private-reply-version-debug]", {
     graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
     graph_version: trimString(GRAPH_API_VERSION),
     graph_path: endpoint,
@@ -927,7 +934,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       graphVersion: GRAPH_API_VERSION,
       tokenDelivery: "query",
     });
-    console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
+    debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_RESPONSE", {
       target_comment_id: graphCommentId,
       graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
       graph_version: trimString(GRAPH_API_VERSION),
@@ -938,7 +945,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       meta_error_subcode: "",
       meta_error_message: "",
     });
-    console.warn("[social-comments:private-reply-version-debug]", {
+    debugSocialCommentsWarn("[social-comments:private-reply-version-debug]", {
       graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
       graph_version: trimString(GRAPH_API_VERSION),
       graph_path: endpoint,
@@ -949,7 +956,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       meta_error_subcode: "",
       meta_error_message: "",
     });
-    console.warn("[social-comments:private-reply-meta-call-debug]", {
+    debugSocialCommentsWarn("[social-comments:private-reply-meta-call-debug]", {
       comment_id: graphCommentId,
       graph_path: endpoint,
       method: "POST",
@@ -967,7 +974,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
   } catch (error) {
     const details = extractMetaErrorDetails(error);
     lastError = error;
-    console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
+    debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_RESPONSE", {
       target_comment_id: graphCommentId,
       graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
       graph_version: trimString(GRAPH_API_VERSION),
@@ -978,7 +985,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       meta_error_subcode: details.subcode || "",
       meta_error_message: details.message || "",
     });
-    console.warn("[social-comments:private-reply-version-debug]", {
+    debugSocialCommentsWarn("[social-comments:private-reply-version-debug]", {
       graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
       graph_version: trimString(GRAPH_API_VERSION),
       graph_path: endpoint,
@@ -989,7 +996,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       meta_error_subcode: details.subcode || "",
       meta_error_message: details.message || "",
     });
-    console.warn("[social-comments:private-reply-meta-call-debug]", {
+    debugSocialCommentsWarn("[social-comments:private-reply-meta-call-debug]", {
       comment_id: graphCommentId,
       graph_path: endpoint,
       method: "POST",

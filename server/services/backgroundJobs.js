@@ -12,6 +12,13 @@ import { renderTemplate, sendPrivateReply } from "./marketingCommentAutomationSe
 let registered = false;
 
 const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== "";
+const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
+const debugSocialCommentsLog = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.log(...args);
+};
+const debugSocialCommentsWarn = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.warn(...args);
+};
 
 export const registerBackgroundJobHandlers = () => {
   if (registered) return;
@@ -66,14 +73,14 @@ export const registerBackgroundJobHandlers = () => {
     const privateReplyContext = PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT({ row });
     if (privateReplyContext.source === "meta_comment_poll") {
       if (!privateReplyContext.allowFromPoll) {
-        console.warn("[social-comments][private-reply] rejected", {
+        debugSocialCommentsWarn("[social-comments][private-reply] rejected", {
           tenant_id: tenantId,
           platform,
           comment_id: commentId,
           post_id: postId || row.post_id || "",
           reason: privateReplyContext.rejectReason,
         });
-        console.warn("SOCIAL_COMMENT_PRIVATE_REPLY_REJECTED", {
+        debugSocialCommentsWarn("SOCIAL_COMMENT_PRIVATE_REPLY_REJECTED", {
           tenant_id: tenantId,
           platform,
           comment_id: commentId,
@@ -83,7 +90,7 @@ export const registerBackgroundJobHandlers = () => {
         return { ok: true, skipped: true, reason: privateReplyContext.rejectReason };
       }
 
-      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ALLOWED_FROM_POLL", {
+      debugSocialCommentsLog("SOCIAL_COMMENT_PRIVATE_REPLY_ALLOWED_FROM_POLL", {
         tenant_id: tenantId,
         platform,
         comment_id: commentId,
@@ -95,7 +102,7 @@ export const registerBackgroundJobHandlers = () => {
 
     const currentPrivateReplyStatus = String(row.dm_status || "").toLowerCase();
     if (currentPrivateReplyStatus === "sent" || currentPrivateReplyStatus === "sending") {
-      console.log("[social-comments][private-reply] skipped", {
+      debugSocialCommentsLog("[social-comments][private-reply] skipped", {
         tenant_id: tenantId,
         platform,
         comment_id: commentId,
@@ -120,7 +127,7 @@ export const registerBackgroundJobHandlers = () => {
       platform,
     }).trim() || fallbackMessage;
 
-    console.log("[social-comments][private-reply] sending", {
+    debugSocialCommentsLog("[social-comments][private-reply] sending", {
       tenant_id: tenantId,
       platform,
       comment_id: commentId,
@@ -150,13 +157,13 @@ export const registerBackgroundJobHandlers = () => {
     } catch {}
 
     try {
-      console.log("GRAPH_PRIVATE_REPLY_REQUEST", {
+      debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_REQUEST", {
         target_comment_id: commentId,
         platform,
         post_id: postId || row.post_id || "",
       });
       const result = await sendPrivateReply(platform, commentId, message, tenantId);
-      console.log("GRAPH_PRIVATE_REPLY_RESPONSE", {
+      debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_RESPONSE", {
         target_comment_id: commentId,
         platform,
         post_id: postId || row.post_id || "",
@@ -198,7 +205,7 @@ export const registerBackgroundJobHandlers = () => {
       });
       return result;
     } catch (error) {
-      console.log("GRAPH_PRIVATE_REPLY_RESPONSE", {
+      debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_RESPONSE", {
         target_comment_id: commentId,
         platform,
         post_id: postId || row.post_id || "",
@@ -229,7 +236,7 @@ export const registerBackgroundJobHandlers = () => {
           },
         }).catch(() => {});
       }
-      console.warn("[social-comments][private-reply] failed", {
+      debugSocialCommentsWarn("[social-comments][private-reply] failed", {
         tenant_id: tenantId,
         platform,
         comment_id: commentId,

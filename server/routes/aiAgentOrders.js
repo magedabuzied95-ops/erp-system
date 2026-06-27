@@ -342,6 +342,10 @@ const userDisplayName = (user = {}) =>
   String(user.name || user.full_name || user.username || user.email || user.role_name || user.role || "Staff").trim();
 
 const envText = (value = "") => String(value ?? "").trim();
+const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
+const debugSocialCommentsWarn = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.warn(...args);
+};
 const requestClientRequestId = (req) =>
   envText(
     req.body?.client_request_id ||
@@ -2663,7 +2667,7 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
       } catch (error) {
         probeError = envText(error?.message || "");
       }
-      console.warn("[social-comments:private-reply-comment-probe-debug]", {
+      debugSocialCommentsWarn("[social-comments:private-reply-comment-probe-debug]", {
         comment_id: metaTargetId,
         probe_success: probeSuccess,
         probe_error: probeError,
@@ -2691,7 +2695,7 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
       meta_response_error: error?.message || "",
       rejected_small_numeric_ids: privateReplyTargetResolution.rejectedSmallNumericIds,
     });
-    console.warn("[social-comments:private-reply-meta-call-debug]", {
+    debugSocialCommentsWarn("[social-comments:private-reply-meta-call-debug]", {
       comment_id: privateReplyTargetResolution.selectedTargetId,
       graph_path: `/${encodeURIComponent(privateReplyTargetResolution.selectedTargetId)}/${platform === "facebook" ? "private_replies" : "replies"}`,
       method: "POST",

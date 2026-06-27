@@ -20,6 +20,10 @@ import {
 
 const router = express.Router();
 const debugRouter = express.Router();
+const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
+const debugSocialCommentsWarn = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.warn(...args);
+};
 
 const toTenantId = (req) => Number(req.query?.tenant_id || req.body?.tenant_id || req.headers["x-tenant-id"] || 1) || 1;
 
@@ -64,7 +68,7 @@ router.get("/posts/:postId/comments", protect, permit("settings", "view"), async
     const tenantId = toTenantId(req);
     const postId = String(req.params.postId || "").trim();
     const platform = String(req.query?.platform || "").trim();
-    console.warn("[social-comments:data-debug]", {
+    debugSocialCommentsWarn("[social-comments:data-debug]", {
       scope: "route",
       tenantId,
       platform,

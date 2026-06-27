@@ -17,6 +17,13 @@ import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
+const debugSocialCommentsLog = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.log(...args);
+};
+const debugSocialCommentsWarn = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.warn(...args);
+};
 let fetchMetaPostPreviewDetailsLoaderPromise = null;
 
 const loadFetchMetaPostPreviewDetails = async () => {
@@ -360,7 +367,7 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
   const safePlatform = text(platform || row.platform || "facebook") === "instagram" ? "instagram" : "facebook";
   const dedupeKey = `social-comment-private-reply:${safeTenantId}:${safePlatform}:${safeCommentId}`;
-  console.log("[social-comments][private-reply] queued", {
+  debugSocialCommentsLog("[social-comments][private-reply] queued", {
     tenant_id: safeTenantId,
     platform: safePlatform,
     post_id: text(postId || row.post_id || ""),
@@ -461,7 +468,7 @@ export const PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT = ({ row = {} } = {}
   const recentEnough = ageMs <= 15 * 60 * 1000;
   const justSavedThisRun = Boolean(Number(row.id || 0)) && recentEnough;
   const allowFromPoll = platform === "facebook" && isPollComment && compositeCommentId && (recentEnough || justSavedThisRun) && !hasSendingOrSent;
-  console.log("POLL_COMMENT_AGE_DEBUG", {
+  debugSocialCommentsLog("POLL_COMMENT_AGE_DEBUG", {
     comment_id: commentId,
     created_time_raw: commentTimestampDebug.raw_created_time || "",
     parsed_created_time: commentTimestampDebug.parsed_created_time || "",
@@ -987,7 +994,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       session_ref_id: bigintOrNull(sessionResult.rows[0]?.id),
     });
 
-    console.log("[social-comments:conversation-upsert-param-debug]", {
+    debugSocialCommentsLog("[social-comments:conversation-upsert-param-debug]", {
       tenant_id: safeTenantId,
       channel,
       external_conversation_id: sessionId,
@@ -1172,7 +1179,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       });
     }
 
-    console.log("[social-comments:new-comment-ingest-debug]", {
+    debugSocialCommentsLog("[social-comments:new-comment-ingest-debug]", {
       source: text(event.raw_payload?.source || "") === "meta_comment_poll" ? "poller" : "webhook",
       post_id: postId,
       comment_id: text(event.comment_id || ""),
@@ -2442,7 +2449,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       };
     }
     const privateReplyTrigger = isSupportedWebhookCommentTrigger(storedRow);
-    console.log("[social-comments][private-reply] received", {
+    debugSocialCommentsLog("[social-comments][private-reply] received", {
       tenant_id: storedRow.tenant_id,
       platform: storedRow.platform,
       post_id: text(storedRow.post_id || ""),

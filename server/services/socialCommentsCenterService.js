@@ -7,6 +7,10 @@ import { likeComment, replyToComment, renderTemplate } from "./marketingCommentA
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
+const debugSocialCommentsWarn = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.warn(...args);
+};
 const toBool = (value, fallback = false) => {
   if (value === null || typeof value === "undefined" || value === "") return fallback;
   if (typeof value === "boolean") return value;
@@ -1469,7 +1473,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     const bTime = new Date(b.last_comment_at || b.last_message_at || b.updated_at || b.created_at || 0).getTime();
     return bTime - aTime;
   });
-  console.warn("[social-comments:post-grouping-debug]", {
+  debugSocialCommentsWarn("[social-comments:post-grouping-debug]", {
     raw_rows: sourceRows.length,
     grouped_posts: groupedRows.length,
     duplicate_groups_count: groupedSummaries.filter((group) => group.size > 1).length,
@@ -1692,7 +1696,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
   const channel = normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment";
   const canonicalPostId = canonicalizeSocialCommentThreadPostId({ postId: safePostId, platform: normalizedPlatform });
   const sessionIds = buildSocialCommentThreadSessionVariants({ postId: canonicalPostId || safePostId, platform: normalizedPlatform });
-  console.warn("[social-comments:data-debug]", {
+  debugSocialCommentsWarn("[social-comments:data-debug]", {
     scope: "service:listSocialCommentThreadComments:before",
     tenantId: safeTenantId,
     platform: normalizedPlatform,
@@ -1731,7 +1735,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     `,
     [safeTenantId, sessionIds, normalizedPlatform, canonicalPostId || safePostId]
   );
-  console.warn("[social-comments:data-debug]", {
+  debugSocialCommentsWarn("[social-comments:data-debug]", {
     scope: "service:listSocialCommentThreadComments:after",
     tenantId: safeTenantId,
     platform: normalizedPlatform,

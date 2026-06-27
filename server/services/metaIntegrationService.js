@@ -130,6 +130,10 @@ if (typeof protectedV2ProductIntent !== "function") {
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
+const debugSocialCommentsLog = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.log(...args);
+};
 const bool = (value) => value === true || value === "true" || value === 1 || value === "1";
 const previewText = (value = "", limit = 180) => text(value).replace(/\s+/g, " ").slice(0, limit);
 const normalizedTraceMessage = (value = "") => normalizeArabicMessage(text(value));
@@ -4045,7 +4049,7 @@ const loadMetaCommentPollingConfigs = async ({ tenantId = null } = {}) => {
 };
 
 const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
-  console.log("META_COMMENTS_POLL_GRAPH_REQUEST", {
+  debugSocialCommentsLog("META_COMMENTS_POLL_GRAPH_REQUEST", {
     object_id: text(pageId || ""),
     url: `/${encodeURIComponent(text(pageId))}/posts`,
     fields: "id,message,created_time,permalink_url,full_picture,picture",
@@ -4062,7 +4066,7 @@ const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
 };
 
 const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
-  console.log("META_COMMENTS_POLL_GRAPH_REQUEST", {
+  debugSocialCommentsLog("META_COMMENTS_POLL_GRAPH_REQUEST", {
     object_id: text(postId || ""),
     url: `/${encodeURIComponent(text(postId))}/comments`,
     fields: "id,message,from{id,name,picture},created_time,parent,permalink_url,like_count,comment_count",
@@ -4086,7 +4090,7 @@ const fetchMetaCommentDetailsForPolling = async ({ commentId = "", token } = {})
     if (typeof value === "string") return value;
     return text(value?.data?.url || value?.url || value?.source || "");
   };
-  console.log("META_COMMENTS_POLL_GRAPH_REQUEST", {
+  debugSocialCommentsLog("META_COMMENTS_POLL_GRAPH_REQUEST", {
     object_id: safeCommentId,
     url: `/${encodeURIComponent(safeCommentId)}`,
     fields: "id,message,from{id,name,picture},created_time,permalink_url,parent,like_count,comment_count",
@@ -7104,7 +7108,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
       });
 
       for (const post of posts) {
-        console.log("META_COMMENTS_POLL_POST_SCAN", {
+        debugSocialCommentsLog("META_COMMENTS_POLL_POST_SCAN", {
           tenant_id: safeTenantId,
           page_id: pageId,
           post_id: text(post.id || ""),
@@ -7147,13 +7151,13 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
           const commenterId = text(effectiveComment.from?.id || comment.from?.id || "");
           const commenterName = text(effectiveComment.from?.name || comment.from?.name || "");
           const hasAvatar = Boolean(text(effectiveComment.from?.picture || effectiveComment.from?.profile_pic || comment.from?.picture || comment.from?.profile_pic || ""));
-          console.log("[social-comments:comment-identity-enrich-debug]", {
+          debugSocialCommentsLog("[social-comments:comment-identity-enrich-debug]", {
             comment_id: commentId,
             from_id: commenterId,
             from_name: commenterName,
             has_avatar: hasAvatar,
           });
-          console.log("META_COMMENTS_POLL_COMMENT_FOUND", {
+          debugSocialCommentsLog("META_COMMENTS_POLL_COMMENT_FOUND", {
             tenant_id: safeTenantId,
             page_id: pageId,
             post_id: text(post.id || ""),
@@ -7167,7 +7171,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
             post: resolvedPost,
             comment: effectiveComment,
           });
-          console.log("META_COMMENTS_POLL_COMMENT_SEEN", {
+          debugSocialCommentsLog("META_COMMENTS_POLL_COMMENT_SEEN", {
             tenant_id: safeTenantId,
             page_id: pageId,
             post_id: text(post.id || ""),
@@ -7188,7 +7192,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
             });
             if (alreadyStored) {
               totals.duplicates += 1;
-              console.log("META_COMMENTS_POLL_COMMENT_DUPLICATE", {
+              debugSocialCommentsLog("META_COMMENTS_POLL_COMMENT_DUPLICATE", {
                 tenant_id: safeTenantId,
                 page_id: pageId,
                 post_id: text(post.id || ""),
