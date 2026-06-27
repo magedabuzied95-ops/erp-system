@@ -4045,11 +4045,16 @@ const loadMetaCommentPollingConfigs = async ({ tenantId = null } = {}) => {
 };
 
 const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
+  console.log("META_COMMENTS_POLL_GRAPH_REQUEST", {
+    object_id: text(pageId || ""),
+    url: `/${encodeURIComponent(text(pageId))}/posts`,
+    fields: "id,message,created_time,permalink_url,full_picture,picture",
+  });
   const payload = await callMetaGet({
     endpoint: `/${encodeURIComponent(text(pageId))}/posts`,
     token,
     params: {
-      fields: "id,message,created_time,permalink_url,full_picture,caption,comments_count,like_count",
+      fields: "id,message,created_time,permalink_url,full_picture,picture",
       limit: "100",
     },
   });
@@ -4057,11 +4062,16 @@ const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
 };
 
 const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
+  console.log("META_COMMENTS_POLL_GRAPH_REQUEST", {
+    object_id: text(postId || ""),
+    url: `/${encodeURIComponent(text(postId))}/comments`,
+    fields: "id,message,from,created_time,parent,permalink_url,like_count,comment_count",
+  });
   const payload = await callMetaGet({
     endpoint: `/${encodeURIComponent(text(postId))}/comments`,
     token,
     params: {
-      fields: "id,message,from,created_time,parent,permalink_url,attachment,comment_count,like_count",
+      fields: "id,message,from,created_time,parent,permalink_url,like_count,comment_count",
       limit: "50",
     },
   });
