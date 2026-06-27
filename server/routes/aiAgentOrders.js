@@ -232,17 +232,12 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
   const runResult = safeTenantId && safeConversationId
     ? await db.query(
       `
-      SELECT comment_id, post_id, inbox_conversation_id, raw_payload
+      SELECT comment_id, post_id, inbox_conversation_id
       FROM social_comment_automation_runs
       WHERE tenant_id = $1::bigint
         AND platform = $2::text
         AND inbox_conversation_id = $3::text
       ORDER BY
-        CASE
-          WHEN COALESCE(raw_payload->>'source', '') = 'meta_webhook' THEN 0
-          WHEN COALESCE(raw_payload->>'source', '') = 'meta_comment_poll' THEN 1
-          ELSE 2
-        END,
         created_at DESC,
         id DESC
       LIMIT 1
@@ -252,8 +247,7 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
     : { rows: [] };
 
   const runRow = runResult.rows?.[0] || null;
-  const runPostId = envText(runRow?.post_id || runRow?.raw_payload?.value?.post_id || runRow?.raw_payload?.post_id || selectedPostId || "");
-  const runRawCommentId = envText(runRow?.raw_payload?.value?.comment_id || runRow?.raw_payload?.comment_id || "");
+  const runPostId = envText(runRow?.post_id || selectedPostId || "");
   const runCommentId = envText(runRow?.comment_id || "");
 
   const messageResult = safeTenantId && safeConversationId
@@ -266,9 +260,10 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
         AND message_type = 'comment_inbound'
       ORDER BY
         CASE
-          WHEN COALESCE(raw_payload->>'source', '') = 'meta_webhook' THEN 0
-          WHEN COALESCE(raw_payload->>'source', '') = 'meta_comment_poll' THEN 1
-          ELSE 2
+          WHEN comment_id = $2::text THEN 0
+          WHEN external_message_id = $2::text THEN 1
+          WHEN provider_message_id = $2::text THEN 2
+          ELSE 3
         END,
         created_at DESC,
         id DESC
@@ -285,7 +280,7 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
 
   const rejectedSmallNumericIds = [
     ...candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
-    ...[runRawCommentId, runCommentId, messageProviderMessageId, messageExternalMessageId, messageCommentId].filter((value) => isSmallNumericId(value)),
+    ...[runCommentId, messageProviderMessageId, messageExternalMessageId, messageCommentId].filter((value) => isSmallNumericId(value)),
   ].filter(Boolean);
 
   const pickCandidate = (source, value) => {
@@ -301,8 +296,6 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
     run_row: {
       comment_id: runCommentId,
       post_id: runPostId,
-      raw_payload_comment_id: runRawCommentId,
-      raw_payload_post_id: envText(runRow?.raw_payload?.value?.post_id || runRow?.raw_payload?.post_id || ""),
       inbox_conversation_id: envText(runRow?.inbox_conversation_id || ""),
     },
     message_row: {
@@ -313,7 +306,6 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
   };
 
   const selectedId =
-    pickCandidate("raw_payload.value.comment_id", runRawCommentId) ||
     pickCandidate("social_comment_automation_runs.comment_id", runCommentId) ||
     pickCandidate("ai_support_messages.provider_message_id", messageProviderMessageId) ||
     pickCandidate("ai_support_messages.external_message_id", messageExternalMessageId) ||
@@ -324,7 +316,6 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
     providerCommentId: selectedId,
     rejectedSmallNumericIds,
     source:
-      selectedId === runRawCommentId ? "raw_payload.value.comment_id" :
       selectedId === runCommentId ? "social_comment_automation_runs.comment_id" :
       selectedId === messageProviderMessageId ? "ai_support_messages.provider_message_id" :
       selectedId === messageExternalMessageId ? "ai_support_messages.external_message_id" :
@@ -627,15 +618,8 @@ const resolveSocialCommentReplyTarget = async ({ tenantId = null, commentId = ""
       AND (
         comment_id = $2::text
         OR inbox_conversation_id = $2::text
-        OR raw_payload->>'comment_id' = $2::text
-        OR raw_payload->'value'->>'comment_id' = $2::text
       )
     ORDER BY
-      CASE
-        WHEN COALESCE(raw_payload->>'source', '') = 'meta_webhook' THEN 0
-        WHEN COALESCE(raw_payload->>'source', '') = 'meta_comment_poll' THEN 1
-        ELSE 2
-      END,
       created_at DESC,
       id DESC
     LIMIT 1
@@ -652,15 +636,12 @@ const resolveSocialCommentReplyTarget = async ({ tenantId = null, commentId = ""
       msg.*,
       run.post_id AS automation_run_post_id,
       run.comment_id AS automation_run_comment_id,
-      run.raw_payload AS automation_run_raw_payload
     FROM ai_support_messages msg
     LEFT JOIN social_comment_automation_runs run
       ON run.tenant_id = msg.tenant_id
      AND run.platform = msg.platform
      AND (
        run.comment_id = msg.comment_id
-       OR run.raw_payload->>'comment_id' = msg.comment_id
-       OR run.raw_payload->'value'->>'comment_id' = msg.comment_id
      )
     WHERE msg.tenant_id = $1::bigint
       AND msg.message_type = 'comment_inbound'
@@ -668,8 +649,6 @@ const resolveSocialCommentReplyTarget = async ({ tenantId = null, commentId = ""
         msg.comment_id = $2::text
         OR msg.external_message_id = $2::text
         OR msg.provider_message_id = $2::text
-        OR msg.raw_payload->>'comment_id' = $2::text
-        OR msg.raw_payload->'value'->>'comment_id' = $2::text
       )
     ORDER BY msg.created_at DESC, msg.id DESC
     LIMIT 1
