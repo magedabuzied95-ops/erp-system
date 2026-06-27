@@ -652,12 +652,55 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         permalink_url: "",
         created_time: "",
       };
+  const probeParent = graphProbe?.parent && typeof graphProbe.parent === "object" ? graphProbe.parent : null;
+  const probeObject = trimString(graphProbe?.object || graphProbe?.type || graphProbe?.attachment?.type || "");
+  const probePermalink = trimString(graphProbe?.permalink_url || "");
+  const probeText = `${probePermalink} ${probeObject} ${probeParent?.type || ""}`.toLowerCase();
+  const probeMediaText = `${probeObject} ${probeParent?.type || ""}`.toLowerCase();
+  const isReel = /\/reel(s)?\//i.test(probePermalink) || probeText.includes("reel");
+  const isFeedPost = !isReel && (probeText.includes("facebook.com/") || probeText.includes("/posts/") || probeText.includes("/permalink.php") || probeText.includes("/videos/") || probeText.includes("/photo") || probeText.includes("feed"));
+  const isVideo = probeMediaText.includes("video") || /\/videos\//i.test(probePermalink);
+  const isPhoto = probeMediaText.includes("photo") || /\/photos\//i.test(probePermalink);
+  const isStory = probeText.includes("/stories/") || probeMediaText.includes("story");
+  const isCrosspost = probeText.includes("crosspost") || probeMediaText.includes("crosspost");
+  if (isReel) {
+    console.warn("REEL_COMMENT_DETECTED", {
+      comment_id: trimString(commentId),
+      probe_id: trimString(graphProbe?.id || ""),
+      permalink_url: probePermalink,
+    });
+  } else if (isFeedPost) {
+    console.warn("FEED_COMMENT_DETECTED", {
+      comment_id: trimString(commentId),
+      probe_id: trimString(graphProbe?.id || ""),
+      permalink_url: probePermalink,
+    });
+  }
   console.warn("[social-comments:private-reply-comment-probe-debug]", {
     comment_id: trimString(commentId),
     resolved_comment_id: graphCommentId,
     probe_success: Boolean(capabilityDebug?.commentProbeSuccess || graphProbe),
     probe_error: resolvedTarget?.probeError || capabilityDebug?.commentProbeError || "",
     probe_fields: probeFields,
+    comment: {
+      id: trimString(graphProbe?.id || ""),
+      parent: {
+        id: trimString(probeParent?.id || ""),
+        type: trimString(probeParent?.type || ""),
+      },
+      object: probeObject,
+      from: graphProbe?.from || null,
+      permalink_url: probePermalink,
+      created_time: trimString(graphProbe?.created_time || ""),
+    },
+    object_type_resolution: {
+      is_feed_post: isFeedPost,
+      is_reel: isReel,
+      is_video: isVideo,
+      is_photo: isPhoto,
+      is_story: isStory,
+      is_crosspost: isCrosspost,
+    },
   });
   console.warn("[social-comments:private-reply-meta-call-debug]", {
     comment_id: graphCommentId,
