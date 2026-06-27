@@ -704,6 +704,17 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
   });
   const normalizedPlatform = trimString(platform || "").toLowerCase().includes("instagram") ? "instagram" : "facebook";
   const pageId = trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || "");
+  const activeImplementationFinalUrl = normalizedPlatform === "facebook"
+    ? `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(pageId)}/messages`
+    : `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(graphCommentId)}/private_replies`;
+  console.warn("ACTIVE_PRIVATE_REPLY_IMPLEMENTATION", {
+    implementation: "page_messages_v2",
+    file: __filename,
+    page_id: pageId,
+    comment_id: graphCommentId,
+    final_url_without_token: activeImplementationFinalUrl,
+    platform: normalizedPlatform,
+  });
   console.warn("[social-comments:private-reply-meta-call-debug]", {
     comment_id: graphCommentId,
     graph_path: normalizedPlatform === "facebook"
