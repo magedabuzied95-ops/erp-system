@@ -650,7 +650,15 @@ const resolveSocialCommentReplyTarget = async ({ tenantId = null, commentId = ""
         OR msg.external_message_id = $2::text
         OR msg.provider_message_id = $2::text
       )
-    ORDER BY msg.created_at DESC, msg.id DESC
+    ORDER BY
+      CASE
+        WHEN msg.comment_id = $2::text THEN 0
+        WHEN msg.external_message_id = $2::text THEN 1
+        WHEN msg.provider_message_id = $2::text THEN 2
+        ELSE 3
+      END,
+      msg.created_at DESC,
+      msg.id DESC
     LIMIT 1
     `,
     [Math.trunc(safeTenantId), safeCommentId]
@@ -2560,15 +2568,16 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
           AND message_type = 'comment_inbound'
         ORDER BY
           CASE
-            WHEN COALESCE(raw_payload->>'source', '') = 'meta_webhook' THEN 0
-            WHEN COALESCE(raw_payload->>'source', '') = 'meta_comment_poll' THEN 1
-            ELSE 2
+            WHEN comment_id = $3::text THEN 0
+            WHEN external_message_id = $3::text THEN 1
+            WHEN provider_message_id = $3::text THEN 2
+            ELSE 3
           END,
           created_at DESC,
           id DESC
         LIMIT 1
         `,
-        [tenantId, sessionId]
+        [tenantId, sessionId, uiResolvedId]
       ).catch(() => ({ rows: [] }))
     : { rows: [] };
   const messageRow = messageRows.rows?.[0] || null;
