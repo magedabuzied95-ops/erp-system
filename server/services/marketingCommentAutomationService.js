@@ -355,6 +355,102 @@ const callMetaGet = async ({ accessToken, endpoint, params, label }) => {
   throw error;
 };
 
+const extractMetaErrorDetails = (error = {}) => ({
+  status: error?.status ?? null,
+  code: error?.metaResponse?.error?.code ?? error?.code ?? "",
+  subcode: error?.metaResponse?.error?.error_subcode ?? error?.metaResponse?.error?.subcode ?? "",
+  message: error?.metaResponse?.error?.message || error?.message || "",
+});
+
+const loadPrivateReplyCapabilityDebug = async ({ businessId, commentId } = {}) => {
+  const settings = await getSettingsRow(businessId);
+  validateMetaToken(settings || {});
+  const accessToken = getPublishingAccessToken(settings);
+  const pageId = trimString(settings?.page_id || settings?.facebook_page_id || "");
+  const tokenMe = { id: "", name: "" };
+  let pageName = "";
+  let canReplyPrivately = null;
+  let canReplyPrivatelyError = "";
+  let commentProbeSuccess = false;
+
+  try {
+    const mePayload = await callMetaGet({
+      accessToken,
+      endpoint: "/me",
+      label: "private_reply_me_probe",
+      params: { fields: "id,name" },
+    });
+    tokenMe.id = trimString(mePayload?.id || "");
+    tokenMe.name = trimString(mePayload?.name || "");
+  } catch (error) {
+    const details = extractMetaErrorDetails(error);
+    tokenMe.id = "";
+    tokenMe.name = "";
+    canReplyPrivatelyError = canReplyPrivatelyError || details.message;
+  }
+
+  if (pageId) {
+    try {
+      const pagePayload = await callMetaGet({
+        accessToken,
+        endpoint: `/${encodeURIComponent(pageId)}`,
+        label: "private_reply_page_probe",
+        params: { fields: "id,name,access_token" },
+      });
+      pageName = trimString(pagePayload?.name || "");
+    } catch (error) {
+      const details = extractMetaErrorDetails(error);
+      canReplyPrivatelyError = canReplyPrivatelyError || details.message;
+    }
+  }
+
+  try {
+    const commentPayload = await callMetaGet({
+      accessToken,
+      endpoint: `/${encodeURIComponent(trimString(commentId))}`,
+      label: "private_reply_comment_probe",
+      params: { fields: "id,message,from,parent,permalink_url,can_reply_privately" },
+    });
+    commentProbeSuccess = true;
+    if (Object.prototype.hasOwnProperty.call(commentPayload || {}, "can_reply_privately")) {
+      canReplyPrivately = Boolean(commentPayload.can_reply_privately);
+    }
+  } catch (error) {
+    const details = extractMetaErrorDetails(error);
+    if (Number(details.code) === 100) {
+      canReplyPrivatelyError = canReplyPrivatelyError || details.message || "unsupported field";
+      console.warn("[social-comments:private-reply-capability-debug]", {
+        token_me_id: tokenMe.id,
+        token_me_name: tokenMe.name,
+        page_id: pageId,
+        page_name: pageName,
+        comment_id: trimString(commentId),
+        comment_probe_success: false,
+        can_reply_privately: null,
+        can_reply_privately_error: details.message || "unsupported field",
+        private_reply_status: "",
+        private_reply_error_code: details.code || "",
+        private_reply_error_subcode: details.subcode || "",
+        private_reply_error_message: details.message || "",
+      });
+    } else {
+      canReplyPrivatelyError = canReplyPrivatelyError || details.message;
+    }
+  }
+
+  return {
+    settings,
+    accessToken,
+    pageId,
+    pageName,
+    tokenMeId: tokenMe.id,
+    tokenMeName: tokenMe.name,
+    canReplyPrivately,
+    canReplyPrivatelyError,
+    commentProbeSuccess,
+  };
+};
+
 export const normalizeCommentText = (value = "") =>
   trimString(value)
     .toLowerCase()
@@ -441,12 +537,23 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
   const settings = await getSettingsRow(businessId);
   const tokenStatus = validateMetaToken(settings || {});
   const graphPath = `/${encodeURIComponent(commentId)}/private_replies`;
+  const capabilityDebug = await loadPrivateReplyCapabilityDebug({ businessId, commentId }).catch((error) => ({
+    settings,
+    accessToken: tokenStatus?.accessToken || "",
+    pageId: trimString(settings?.page_id || settings?.facebook_page_id || ""),
+    pageName: trimString(settings?.page_name || settings?.facebook_page_name || ""),
+    tokenMeId: "",
+    tokenMeName: "",
+    canReplyPrivately: null,
+    canReplyPrivatelyError: error?.message || "",
+    commentProbeSuccess: false,
+  }));
   console.warn("[social-comments:private-reply-meta-call-debug]", {
     comment_id: trimString(commentId),
     graph_path: graphPath,
     method: "POST",
     payload_keys: ["message"],
-    page_id: trimString(settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+    page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
     token_present: Boolean(tokenStatus?.accessToken),
     meta_status: "",
     meta_error_message: "",
@@ -463,23 +570,45 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       graph_path: graphPath,
       method: "POST",
       payload_keys: ["message"],
-      page_id: trimString(settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+      page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
       token_present: Boolean(tokenStatus?.accessToken),
       meta_status: "ok",
       meta_error_message: "",
     });
     return payload;
   } catch (error) {
+    const details = extractMetaErrorDetails(error);
+    const mappedCode = Number(details.code) === 100 && Number(details.subcode) === 33
+      ? "META_PRIVATE_REPLY_UNSUPPORTED_OR_PERMISSION_DENIED"
+      : "";
     console.warn("[social-comments:private-reply-meta-call-debug]", {
       comment_id: trimString(commentId),
       graph_path: graphPath,
       method: "POST",
       payload_keys: ["message"],
-      page_id: trimString(settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+      page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
       token_present: Boolean(tokenStatus?.accessToken),
-      meta_status: String(error?.status || ""),
-      meta_error_message: String(error?.message || ""),
+      meta_status: String(error?.status || details.status || ""),
+      meta_error_message: String(error?.message || details.message || ""),
     });
+    console.warn("[social-comments:private-reply-capability-debug]", {
+      token_me_id: capabilityDebug?.tokenMeId || "",
+      token_me_name: capabilityDebug?.tokenMeName || "",
+      page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || ""),
+      page_name: trimString(capabilityDebug?.pageName || settings?.page_name || settings?.facebook_page_name || ""),
+      comment_id: trimString(commentId),
+      comment_probe_success: Boolean(capabilityDebug?.commentProbeSuccess),
+      can_reply_privately: capabilityDebug?.canReplyPrivately,
+      can_reply_privately_error: capabilityDebug?.canReplyPrivatelyError || "",
+      private_reply_status: String(error?.status || details.status || ""),
+      private_reply_error_code: details.code || "",
+      private_reply_error_subcode: details.subcode || "",
+      private_reply_error_message: details.message || "",
+    });
+    if (mappedCode) {
+      error.code = mappedCode;
+      error.publicCode = mappedCode;
+    }
     throw error;
   }
 };
