@@ -240,7 +240,7 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
   const messageResult = safeTenantId && safeConversationId
     ? await db.query(
       `
-      SELECT comment_id, external_message_id, provider_message_id, raw_payload
+      SELECT comment_id, external_message_id, provider_message_id
       FROM ai_support_messages
       WHERE tenant_id = $1::bigint
         AND session_id = $2::text
@@ -256,11 +256,10 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
   const messageCommentId = envText(messageRow?.comment_id || "");
   const messageExternalMessageId = envText(messageRow?.external_message_id || "");
   const messageProviderMessageId = envText(messageRow?.provider_message_id || "");
-  const messageRawCommentId = envText(messageRow?.raw_payload?.value?.comment_id || messageRow?.raw_payload?.comment_id || "");
 
   const rejectedSmallNumericIds = [
     ...candidates.filter(({ value }) => isSmallNumericId(value)).map(({ value }) => value),
-    ...[runRawCommentId, runCommentId, messageRawCommentId, messageProviderMessageId, messageExternalMessageId, messageCommentId].filter((value) => isSmallNumericId(value)),
+    ...[runRawCommentId, runCommentId, messageProviderMessageId, messageExternalMessageId, messageCommentId].filter((value) => isSmallNumericId(value)),
   ].filter(Boolean);
 
   const pickCandidate = (source, value) => {
@@ -284,7 +283,6 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
       comment_id: messageCommentId,
       external_message_id: messageExternalMessageId,
       provider_message_id: messageProviderMessageId,
-      raw_payload_comment_id: messageRawCommentId,
     },
   };
 
@@ -293,8 +291,7 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
     pickCandidate("social_comment_automation_runs.comment_id", runCommentId) ||
     pickCandidate("ai_support_messages.provider_message_id", messageProviderMessageId) ||
     pickCandidate("ai_support_messages.external_message_id", messageExternalMessageId) ||
-    pickCandidate("ai_support_messages.comment_id", messageCommentId) ||
-    pickCandidate("ai_support_messages.raw_payload.value.comment_id", messageRawCommentId);
+    pickCandidate("ai_support_messages.comment_id", messageCommentId);
 
   return {
     selectedCommentId: selectedId,
@@ -306,7 +303,6 @@ const resolvePrivateMessageCommentId = async ({ tenantId = null, conversationId 
       selectedId === messageProviderMessageId ? "ai_support_messages.provider_message_id" :
       selectedId === messageExternalMessageId ? "ai_support_messages.external_message_id" :
       selectedId === messageCommentId ? "ai_support_messages.comment_id" :
-      selectedId === messageRawCommentId ? "ai_support_messages.raw_payload.value.comment_id" :
       "",
     candidateDetails,
   };

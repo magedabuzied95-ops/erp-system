@@ -334,6 +334,77 @@ const callMetaPost = async ({ businessId, endpoint, params, label }) => {
   throw error;
 };
 
+const callMetaPostWithShape = async ({ businessId, endpoint, label, contentType, body, bodyShape }) => {
+  const settings = await getSettingsRow(businessId);
+  validateMetaToken(settings || {});
+  const accessToken = getPublishingAccessToken(settings);
+  const target = new URL(`${GRAPH_API_BASE_URL}${endpoint}`);
+  let requestBody = body;
+  let requestHeaders = { "Content-Type": contentType };
+  if (contentType === "application/x-www-form-urlencoded") {
+    const params = body instanceof URLSearchParams ? new URLSearchParams(body) : new URLSearchParams(body || {});
+    params.set("access_token", accessToken);
+    requestBody = params;
+  } else {
+    target.searchParams.set("access_token", accessToken);
+    if (typeof body === "object" && body !== null && !(body instanceof String)) {
+      requestBody = JSON.stringify(body);
+    }
+  }
+
+  const bodyPreview = requestBody instanceof URLSearchParams
+    ? requestBody.toString()
+    : typeof requestBody === "string"
+      ? requestBody
+      : JSON.stringify(requestBody || {});
+  const safeBodyPreview = bodyPreview.replace(/(access_token=)[^&]+/g, "$1***");
+
+  console.warn("[social-comments:private-reply-payload-shape-debug]", {
+    graph_path: endpoint,
+    method: "POST",
+    content_type: contentType,
+    body_shape: bodyShape,
+    body_preview: safeBodyPreview.slice(0, 500),
+    label,
+  });
+
+  const response = await fetch(target.toString(), {
+    method: "POST",
+    headers: requestHeaders,
+    body: requestBody,
+  });
+  const payload = await parseMetaResponse(response);
+
+  if (response.ok) {
+    console.warn("[social-comments:private-reply-payload-shape-debug]", {
+      graph_path: endpoint,
+      method: "POST",
+      content_type: contentType,
+      body_shape: bodyShape,
+      body_preview: safeBodyPreview.slice(0, 500),
+      label,
+      meta_status: "ok",
+      meta_error_message: "",
+    });
+    return payload;
+  }
+
+  const error = new Error(getMetaErrorMessage(payload));
+  error.status = response.status;
+  error.metaResponse = payload;
+  console.warn("[social-comments:private-reply-payload-shape-debug]", {
+    graph_path: endpoint,
+    method: "POST",
+    content_type: contentType,
+    body_shape: bodyShape,
+    body_preview: safeBodyPreview.slice(0, 500),
+    label,
+    meta_status: String(response.status || ""),
+    meta_error_message: error.message || "",
+  });
+  throw error;
+};
+
 const callMetaGet = async ({ accessToken, endpoint, params, label }) => {
   const target = new URL(`${GRAPH_API_BASE_URL}${endpoint}`);
   Object.entries(params || {}).forEach(([key, value]) => {
@@ -558,59 +629,87 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     meta_status: "",
     meta_error_message: "",
   });
-  try {
-    const payload = await callMetaPost({
-      businessId,
-      endpoint: graphPath,
-      label: "private reply",
-      params: { message: trimString(message) },
-    });
-    console.warn("[social-comments:private-reply-meta-call-debug]", {
-      comment_id: trimString(commentId),
-      graph_path: graphPath,
-      method: "POST",
-      payload_keys: ["message"],
-      page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
-      token_present: Boolean(tokenStatus?.accessToken),
-      meta_status: "ok",
-      meta_error_message: "",
-    });
-    return payload;
-  } catch (error) {
-    const details = extractMetaErrorDetails(error);
-    const mappedCode = Number(details.code) === 100 && Number(details.subcode) === 33
-      ? "META_PRIVATE_REPLY_UNSUPPORTED_OR_PERMISSION_DENIED"
-      : "";
-    console.warn("[social-comments:private-reply-meta-call-debug]", {
-      comment_id: trimString(commentId),
-      graph_path: graphPath,
-      method: "POST",
-      payload_keys: ["message"],
-      page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
-      token_present: Boolean(tokenStatus?.accessToken),
-      meta_status: String(error?.status || details.status || ""),
-      meta_error_message: String(error?.message || details.message || ""),
-    });
-    console.warn("[social-comments:private-reply-capability-debug]", {
-      token_me_id: capabilityDebug?.tokenMeId || "",
-      token_me_name: capabilityDebug?.tokenMeName || "",
-      page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || ""),
-      page_name: trimString(capabilityDebug?.pageName || settings?.page_name || settings?.facebook_page_name || ""),
-      comment_id: trimString(commentId),
-      comment_probe_success: Boolean(capabilityDebug?.commentProbeSuccess),
-      can_reply_privately: capabilityDebug?.canReplyPrivately,
-      can_reply_privately_error: capabilityDebug?.canReplyPrivatelyError || "",
-      private_reply_status: String(error?.status || details.status || ""),
-      private_reply_error_code: details.code || "",
-      private_reply_error_subcode: details.subcode || "",
-      private_reply_error_message: details.message || "",
-    });
-    if (mappedCode) {
-      error.code = mappedCode;
-      error.publicCode = mappedCode;
+
+  const attempts = [
+    {
+      shapeLabel: "A form message=text",
+      contentType: "application/x-www-form-urlencoded",
+      body: new URLSearchParams({ message: trimString(message) }),
+    },
+    {
+      shapeLabel: "B json { message: text }",
+      contentType: "application/json",
+      body: { message: trimString(message) },
+    },
+    {
+      shapeLabel: "C json { message: { text } }",
+      contentType: "application/json",
+      body: { message: { text: trimString(message) } },
+    },
+  ];
+
+  let lastError = null;
+  for (const attempt of attempts) {
+    try {
+      const payload = await callMetaPostWithShape({
+        businessId,
+        endpoint: graphPath,
+        label: "private reply",
+        contentType: attempt.contentType,
+        body: attempt.body,
+        bodyShape: attempt.shapeLabel,
+      });
+      console.warn("[social-comments:private-reply-meta-call-debug]", {
+        comment_id: trimString(commentId),
+        graph_path: graphPath,
+        method: "POST",
+        payload_keys: ["message"],
+        page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+        token_present: Boolean(tokenStatus?.accessToken),
+        meta_status: "ok",
+        meta_error_message: "",
+        payload_shape: attempt.shapeLabel,
+      });
+      return payload;
+    } catch (error) {
+      lastError = error;
     }
-    throw error;
   }
+
+  const details = extractMetaErrorDetails(lastError || {});
+  const mappedCode = Number(details.code) === 100 && Number(details.subcode) === 33
+    ? "META_PRIVATE_REPLY_UNSUPPORTED_OR_PERMISSION_DENIED"
+    : "";
+  console.warn("[social-comments:private-reply-meta-call-debug]", {
+    comment_id: trimString(commentId),
+    graph_path: graphPath,
+    method: "POST",
+    payload_keys: ["message"],
+    page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+    token_present: Boolean(tokenStatus?.accessToken),
+    meta_status: String(lastError?.status || details.status || ""),
+    meta_error_message: String(lastError?.message || details.message || ""),
+    payload_shape: "A form message=text | B json { message: text } | C json { message: { text } }",
+  });
+  console.warn("[social-comments:private-reply-capability-debug]", {
+    token_me_id: capabilityDebug?.tokenMeId || "",
+    token_me_name: capabilityDebug?.tokenMeName || "",
+    page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || ""),
+    page_name: trimString(capabilityDebug?.pageName || settings?.page_name || settings?.facebook_page_name || ""),
+    comment_id: trimString(commentId),
+    comment_probe_success: Boolean(capabilityDebug?.commentProbeSuccess),
+    can_reply_privately: capabilityDebug?.canReplyPrivately,
+    can_reply_privately_error: capabilityDebug?.canReplyPrivatelyError || "",
+    private_reply_status: String(lastError?.status || details.status || ""),
+    private_reply_error_code: details.code || "",
+    private_reply_error_subcode: details.subcode || "",
+    private_reply_error_message: details.message || "",
+  });
+  if (mappedCode && lastError) {
+    lastError.code = mappedCode;
+    lastError.publicCode = mappedCode;
+  }
+  throw lastError;
 };
 
 export const probePrivateReplyComment = async ({ businessId, commentId } = {}) => {
