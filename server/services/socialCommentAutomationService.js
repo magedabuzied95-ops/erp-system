@@ -2,6 +2,7 @@ import crypto from "node:crypto";
 
 import db from "../database/db.js";
 import { emitToRooms } from "../utils/socket.js";
+import { enqueueJob } from "./jobQueueService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
@@ -315,7 +316,7 @@ const socialCommentAutomationLabel = (messageType = "") => {
   return key || "";
 };
 
-const buildSocialCommentSuggestedReply = ({ classificationLabel = "", commenterName = "", originalCommentText = "", postPermalink = "" } = {}) => {
+export const buildSocialCommentSuggestedReply = ({ classificationLabel = "", commenterName = "", originalCommentText = "", postPermalink = "" } = {}) => {
   const name = text(commenterName) || "العميل";
   const linkHint = postPermalink ? ` لو تحب تراجع المنشور: ${postPermalink}` : "";
   if (classificationLabel === "lead_price") return `تم تجهيز السعر والتفاصيل يا ${name}.${linkHint}`;
@@ -324,6 +325,70 @@ const buildSocialCommentSuggestedReply = ({ classificationLabel = "", commenterN
   if (classificationLabel === "lead_details") return `تم تجهيز التفاصيل الكاملة يا ${name}.${linkHint}`;
   if (classificationLabel === "lead_inbox") return `تم تجهيز رسالة خاصة تحتوي على التفاصيل المطلوبة يا ${name}.${linkHint}`;
   return `رد مقترح: ${text(originalCommentText) || "تم استلام تعليقك."}${linkHint}`;
+};
+
+const isSupportedWebhookCommentTrigger = (event = {}) => {
+  const rawPayload = event.raw_payload && typeof event.raw_payload === "object" ? event.raw_payload : {};
+  const value = rawPayload.value && typeof rawPayload.value === "object" ? rawPayload.value : {};
+  const field = text(rawPayload.field || "").toLowerCase();
+  const item = text(value.item || "").toLowerCase();
+  const verb = text(value.verb || "").toLowerCase();
+  const platform = text(event.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  const allowedVerb = ["add", "created", "edited", "edit", ""].includes(verb);
+  const source = text(rawPayload.source || "");
+  const isFacebookFeedComment = platform === "facebook" && field === "feed" && item === "comment" && allowedVerb;
+  const isInstagramComment = platform === "instagram" && ["comments", "mentions"].includes(field) && item === "comment" && allowedVerb;
+  return source === "meta_webhook" && (isFacebookFeedComment || isInstagramComment);
+};
+
+const buildSocialCommentPrivateReplyMessage = ({ row = {}, settings = {} } = {}) => {
+  const template = text(settings.private_message_template || "");
+  if (template) {
+    return template;
+  }
+  return buildSocialCommentSuggestedReply({
+    classificationLabel: row.classification_label || "",
+    commenterName: row.commenter_name || "",
+    originalCommentText: row.original_comment_text || "",
+    postPermalink: row.post_permalink || row.post_permalink_url || "",
+  });
+};
+
+export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, platform = "", commentId = "", postId = "", row = {} } = {}) => {
+  const safeTenantId = Number(tenantId);
+  const safeCommentId = text(commentId || row.comment_id || "");
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
+  const safePlatform = text(platform || row.platform || "facebook") === "instagram" ? "instagram" : "facebook";
+  const dedupeKey = `social-comment-private-reply:${safeTenantId}:${safePlatform}:${safeCommentId}`;
+  console.log("[social-comments][private-reply] queued", {
+    tenant_id: safeTenantId,
+    platform: safePlatform,
+    post_id: text(postId || row.post_id || ""),
+    comment_id: safeCommentId,
+    dedupe_key: dedupeKey,
+  });
+  return enqueueJob(
+    "social.comment.private_reply",
+    {
+      tenantId: safeTenantId,
+      platform: safePlatform,
+      postId: text(postId || row.post_id || ""),
+      commentId: safeCommentId,
+      row,
+    },
+    {
+      dedupeKey,
+      maxAttempts: 4,
+      backoffMs: 2000,
+      maxBackoffMs: 30000,
+      context: {
+        tenantId: safeTenantId,
+        platform: safePlatform,
+        commentId: safeCommentId,
+        postId: text(postId || row.post_id || ""),
+      },
+    }
+  );
 };
 
 export const socialCommentConversationId = ({
@@ -1375,7 +1440,7 @@ const buildSocialCommentAutomationState = ({
   updated_at: new Date().toISOString(),
 });
 
-const persistSocialCommentAutomationState = async ({
+export const persistSocialCommentAutomationState = async ({
   tenantId = null,
   platform = "",
   commentId = "",
@@ -1875,15 +1940,12 @@ const normalizedChannel = (platform = "") => platform === "instagram" ? "instagr
 const isCommentChange = (body = {}, change = {}) => {
   const field = lower(change.field);
   const value = change.value || {};
-  if (field === "feed" || field.includes("comment")) return true;
-  if (body.object === "instagram" && (field === "comments" || field === "mentions")) return true;
-  return Boolean(
-    value.comment_id ||
-    value.parent_id ||
-    value.post_id ||
-    value.media_id ||
-    value.item === "comment"
-  );
+  const item = lower(value.item);
+  const verb = lower(value.verb);
+  const allowedVerb = ["add", "created", "edited", "edit", ""].includes(verb);
+  if (body.object === "instagram" && (field === "comments" || field === "mentions") && item === "comment" && allowedVerb) return true;
+  if (field === "feed" && item === "comment" && allowedVerb) return true;
+  return Boolean(value.comment_id || value.parent_id || value.post_id || value.media_id);
 };
 
 const firstText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
@@ -2005,6 +2067,8 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
       body_object: body.object || "",
       entry_id: entry.id || "",
       field: change.field || "",
+      item: value.item || "",
+      verb: value.verb || "",
       value,
       entry,
       body,
@@ -2105,12 +2169,6 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       processed_at: event.processed_at ? new Date(event.processed_at).toISOString() : new Date().toISOString(),
     };
 
-    const webhookMedia = await fetchSocialCommentWebhookPostMedia({
-      tenantId: normalized.tenant_id,
-      event: normalized,
-    }).catch(() => null);
-    normalized = applyWebhookPostMediaToEvent(normalized, webhookMedia);
-
     const result = await db.query(
       `
       INSERT INTO social_comment_automation_runs (
@@ -2179,7 +2237,46 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         normalized.processed_at,
       ]
     );
-    const storedRow = result.rows[0] || normalized;
+    let storedRow = result.rows[0] || normalized;
+    const privateReplyTrigger = isSupportedWebhookCommentTrigger(storedRow);
+    console.log("[social-comments][private-reply] received", {
+      tenant_id: storedRow.tenant_id,
+      platform: storedRow.platform,
+      post_id: text(storedRow.post_id || ""),
+      comment_id: text(storedRow.comment_id || ""),
+      field: text(storedRow.raw_payload?.field || ""),
+      item: text(storedRow.raw_payload?.value?.item || ""),
+      verb: text(storedRow.raw_payload?.value?.verb || ""),
+      source: text(storedRow.raw_payload?.source || ""),
+      trigger: privateReplyTrigger,
+    });
+    if (privateReplyTrigger) {
+      storedRow.dm_status = storedRow.dm_status || "queued";
+      storedRow.automation_state = {
+        ...(storedRow.automation_state || {}),
+        private_reply: {
+          requested: true,
+          status: "queued",
+          queued_at: new Date().toISOString(),
+        },
+      };
+      await persistSocialCommentAutomationState({
+        tenantId: storedRow.tenant_id,
+        platform: storedRow.platform,
+        commentId: storedRow.comment_id,
+        sessionId: storedRow.inbox_conversation_id || "",
+        channel: storedRow.channel || "",
+        dmStatus: "queued",
+        automationState: storedRow.automation_state,
+      }).catch(() => {});
+      await enqueueSocialCommentPrivateReplyJob({
+        tenantId: storedRow.tenant_id,
+        platform: storedRow.platform,
+        commentId: storedRow.comment_id,
+        postId: storedRow.post_id,
+        row: storedRow,
+      }).catch(() => {});
+    }
     console.log("[COMMENT_EVENT_SAVED]", {
       platform: storedRow.platform,
       page_id: text(storedRow.raw_payload?.entry?.id || storedRow.raw_payload?.value?.page_id || ""),
@@ -2188,48 +2285,20 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       from_id: storedRow.commenter_id || "",
       text_length: String(storedRow.original_comment_text || "").length,
     });
-    try {
-      const materialized = await upsertSocialCommentLeadConversation({
-        tenantId: storedRow.tenant_id,
-        event: storedRow,
-        suggestedReply: "",
-      });
-      if (materialized?.session_id) {
-        storedRow.inbox_conversation_id = materialized.session_id;
-        await db.query(
-          `
-          UPDATE social_comment_automation_runs
-          SET inbox_conversation_id = $3::text,
-              updated_at = CURRENT_TIMESTAMP
-          WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $4::text
-          `,
-          [storedRow.tenant_id, storedRow.platform, materialized.session_id, storedRow.comment_id]
-        );
-      }
-    } catch (error) {
-      socialCommentsError("[social-comments] inbox conversation materialize failed", {
-        tenant_id: storedRow.tenant_id,
-        platform: storedRow.platform,
-        comment_id: storedRow.comment_id,
-        message: error?.message || "",
-      });
-      storedRow.error_code = storedRow.error_code || "comment_inbox_materialization_failed";
-    }
-    if (COMMENT_THREAD_LABELS.has(storedRow.classification_label)) {
+    const webhookMedia = await fetchSocialCommentWebhookPostMedia({
+      tenantId: storedRow.tenant_id,
+      event: storedRow,
+    }).catch(() => null);
+    storedRow = applyWebhookPostMediaToEvent(storedRow, webhookMedia);
+    if (!privateReplyTrigger) {
       try {
         const materialized = await upsertSocialCommentLeadConversation({
           tenantId: storedRow.tenant_id,
           event: storedRow,
-          suggestedReply: buildSocialCommentSuggestedReply({
-            classificationLabel: storedRow.classification_label,
-            commenterName: storedRow.commenter_name,
-            originalCommentText: storedRow.original_comment_text,
-            postPermalink: storedRow.post_permalink,
-          }),
+          suggestedReply: "",
         });
         if (materialized?.session_id) {
           storedRow.inbox_conversation_id = materialized.session_id;
-          storedRow.action_taken = storedRow.action_taken || "classified_only";
           await db.query(
             `
             UPDATE social_comment_automation_runs
@@ -2240,60 +2309,95 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
             [storedRow.tenant_id, storedRow.platform, materialized.session_id, storedRow.comment_id]
           );
         }
-        const automationResult = await executeSocialCommentAutomation({
-          tenantId: storedRow.tenant_id,
-          row: {
-            ...storedRow,
-            inbox_conversation_id: materialized?.session_id || storedRow.inbox_conversation_id || "",
-          },
-          conversation: materialized,
-        });
-        if (automationResult?.row) {
-          storedRow.action_taken = automationResult.row.action_taken || storedRow.action_taken;
-          storedRow.public_reply_status = automationResult.row.public_reply_status || storedRow.public_reply_status;
-          storedRow.dm_status = automationResult.row.dm_status || storedRow.dm_status;
-          storedRow.like_status = automationResult.row.like_status || storedRow.like_status;
-          storedRow.error_code = automationResult.row.error_code || storedRow.error_code;
-          storedRow.automation_state = automationResult.row.automation_state || storedRow.automation_state;
-          storedRow.inbox_conversation_id = automationResult.row.inbox_conversation_id || storedRow.inbox_conversation_id;
-        }
       } catch (error) {
-        socialCommentsError("[social-comments] lead conversation materialize failed", {
+        socialCommentsError("[social-comments] inbox conversation materialize failed", {
           tenant_id: storedRow.tenant_id,
           platform: storedRow.platform,
           comment_id: storedRow.comment_id,
-          classification_label: storedRow.classification_label,
           message: error?.message || "",
         });
-        storedRow.error_code = storedRow.error_code || "comment_lead_materialization_failed";
-        await db.query(
-          `
-          UPDATE social_comment_automation_runs
-          SET error_code = COALESCE(NULLIF($3::text, ''), error_code),
-              updated_at = CURRENT_TIMESTAMP
-          WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $4::text
-          `,
-          [storedRow.tenant_id, storedRow.platform, storedRow.error_code, storedRow.comment_id]
-        ).catch(() => {});
+        storedRow.error_code = storedRow.error_code || "comment_inbox_materialization_failed";
       }
-    }
-    try {
-      await processSocialCommentAutoReply({
-        tenantId: storedRow.tenant_id,
-        platform: storedRow.platform,
-        postId: storedRow.post_id,
-        commentId: storedRow.comment_id,
-        comment: storedRow,
-        post: storedRow,
-        force: false,
-      });
-    } catch (error) {
-      socialCommentsError("[social-comments] auto reply processing failed", {
-        tenant_id: storedRow.tenant_id,
-        platform: storedRow.platform,
-        comment_id: storedRow.comment_id,
-        message: error?.message || "",
-      });
+      if (COMMENT_THREAD_LABELS.has(storedRow.classification_label)) {
+        try {
+          const materialized = await upsertSocialCommentLeadConversation({
+            tenantId: storedRow.tenant_id,
+            event: storedRow,
+            suggestedReply: buildSocialCommentSuggestedReply({
+              classificationLabel: storedRow.classification_label,
+              commenterName: storedRow.commenter_name,
+              originalCommentText: storedRow.original_comment_text,
+              postPermalink: storedRow.post_permalink,
+            }),
+          });
+          if (materialized?.session_id) {
+            storedRow.inbox_conversation_id = materialized.session_id;
+            storedRow.action_taken = storedRow.action_taken || "classified_only";
+            await db.query(
+              `
+              UPDATE social_comment_automation_runs
+              SET inbox_conversation_id = $3::text,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $4::text
+              `,
+              [storedRow.tenant_id, storedRow.platform, materialized.session_id, storedRow.comment_id]
+            );
+          }
+          const automationResult = await executeSocialCommentAutomation({
+            tenantId: storedRow.tenant_id,
+            row: {
+              ...storedRow,
+              inbox_conversation_id: materialized?.session_id || storedRow.inbox_conversation_id || "",
+            },
+            conversation: materialized,
+          });
+          if (automationResult?.row) {
+            storedRow.action_taken = automationResult.row.action_taken || storedRow.action_taken;
+            storedRow.public_reply_status = automationResult.row.public_reply_status || storedRow.public_reply_status;
+            storedRow.dm_status = automationResult.row.dm_status || storedRow.dm_status;
+            storedRow.like_status = automationResult.row.like_status || storedRow.like_status;
+            storedRow.error_code = automationResult.row.error_code || storedRow.error_code;
+            storedRow.automation_state = automationResult.row.automation_state || storedRow.automation_state;
+            storedRow.inbox_conversation_id = automationResult.row.inbox_conversation_id || storedRow.inbox_conversation_id;
+          }
+        } catch (error) {
+          socialCommentsError("[social-comments] lead conversation materialize failed", {
+            tenant_id: storedRow.tenant_id,
+            platform: storedRow.platform,
+            comment_id: storedRow.comment_id,
+            classification_label: storedRow.classification_label,
+            message: error?.message || "",
+          });
+          storedRow.error_code = storedRow.error_code || "comment_lead_materialization_failed";
+          await db.query(
+            `
+            UPDATE social_comment_automation_runs
+            SET error_code = COALESCE(NULLIF($3::text, ''), error_code),
+                updated_at = CURRENT_TIMESTAMP
+            WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $4::text
+            `,
+            [storedRow.tenant_id, storedRow.platform, storedRow.error_code, storedRow.comment_id]
+          ).catch(() => {});
+        }
+      }
+      try {
+        await processSocialCommentAutoReply({
+          tenantId: storedRow.tenant_id,
+          platform: storedRow.platform,
+          postId: storedRow.post_id,
+          commentId: storedRow.comment_id,
+          comment: storedRow,
+          post: storedRow,
+          force: false,
+        });
+      } catch (error) {
+        socialCommentsError("[social-comments] auto reply processing failed", {
+          tenant_id: storedRow.tenant_id,
+          platform: storedRow.platform,
+          comment_id: storedRow.comment_id,
+          message: error?.message || "",
+        });
+      }
     }
     console.log("[META_WEBHOOK_COMMENT_STORED]", {
       tenant_id: storedRow.tenant_id,
