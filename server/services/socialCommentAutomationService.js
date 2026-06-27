@@ -2326,9 +2326,27 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
     });
     const privateReplyStatus = text(storedRow.dm_status || storedRow.automation_state?.private_reply?.status || "").toLowerCase();
     const privateReplySource = text(storedRow.raw_payload?.source || "").toLowerCase();
-    const privateReplyEligible = privateReplyTrigger || privateReplySource === "meta_comment_poll";
+    const isFacebookComment = text(storedRow.platform || "").toLowerCase() === "facebook";
+    const privateReplyEligible = isFacebookComment && Boolean(text(storedRow.comment_id || ""));
     const shouldQueuePrivateReply = privateReplyEligible && !["queued", "sending", "sent"].includes(privateReplyStatus);
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_REACHED", {
+      storedRow_id: storedRow.id || null,
+      comment_id: text(storedRow.comment_id || ""),
+      conversation_id: text(storedRow.inbox_conversation_id || ""),
+      platform: text(storedRow.platform || ""),
+      source: privateReplySource,
+      private_reply_status: privateReplyStatus || "empty",
+      eligible: privateReplyEligible,
+    });
     if (shouldQueuePrivateReply) {
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_CALLING", {
+        storedRow_id: storedRow.id || null,
+        comment_id: text(storedRow.comment_id || ""),
+        conversation_id: text(storedRow.inbox_conversation_id || ""),
+        platform: text(storedRow.platform || ""),
+        source: privateReplySource,
+        private_reply_status: privateReplyStatus || "empty",
+      });
       storedRow.dm_status = storedRow.dm_status || "queued";
       storedRow.automation_state = {
         ...(storedRow.automation_state || {}),
@@ -2361,6 +2379,14 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           postId: storedRow.post_id,
           row: storedRow,
         }).catch(() => {});
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_CALLED", {
+        storedRow_id: storedRow.id || null,
+        comment_id: text(storedRow.comment_id || ""),
+        conversation_id: text(storedRow.inbox_conversation_id || ""),
+        platform: text(storedRow.platform || ""),
+        source: privateReplySource,
+        private_reply_status: text(storedRow.dm_status || storedRow.automation_state?.private_reply?.status || "").toLowerCase() || "empty",
+      });
     } else {
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_SKIPPED", {
         storedRow_id: storedRow.id || null,
@@ -2369,7 +2395,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         source: privateReplySource,
         private_reply_status: privateReplyStatus || "empty",
         reason: !privateReplyEligible
-          ? "not_private_reply_eligible"
+          ? "not_facebook_comment_or_missing_comment_id"
           : `private_reply_status_${privateReplyStatus || "empty"}`,
       });
     }
