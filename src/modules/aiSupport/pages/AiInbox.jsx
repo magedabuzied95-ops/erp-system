@@ -5750,6 +5750,7 @@ export default function AiInbox() {
         onCommentAction={handleSocialCommentAction}
         selectedPostId={selectedSocialCommentPostId}
         actionLoading={socialCommentActionLoading}
+        tenantId={tenantId}
       />
   );
 
@@ -6063,6 +6064,7 @@ export default function AiInbox() {
                     onCommentAction={handleSocialCommentAction}
                     selectedPostId={selectedSocialCommentPostId}
                     actionLoading={socialCommentActionLoading}
+                    tenantId={tenantId}
                   />
                 </div>
                 <div className={`hidden ${fullscreenConversation ? "flex h-full min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>

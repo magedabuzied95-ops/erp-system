@@ -10,17 +10,19 @@ import {
   ignoreSocialComment,
   backfillSocialCommentPostMedia,
   getSocialCommentAutomationConfig,
-  listSocialCommentAutomationRuns,
   upsertSocialCommentAutomationConfig,
   listSocialCommentPosts,
   listSocialCommentThreadComments,
   loadSocialCommentPost,
   processSocialCommentAutoReply,
-  testSocialCommentAutomationRuntime,
   saveSocialAutoReplySettings,
   saveSocialPostAutoReplyTemplate,
   ensureSocialCommentsCenterSchema,
 } from "../services/socialCommentsCenterService.js";
+import {
+  listRecentSocialCommentAutomationRuns as listSocialCommentAutomationRuns,
+  testSocialCommentAutomationRuntime,
+} from "../services/socialCommentAutomationService.js";
 
 const router = express.Router();
 const debugRouter = express.Router();

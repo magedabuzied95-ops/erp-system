@@ -494,7 +494,9 @@ function SocialCommentsWorkspace({
   },
   onRefresh,
   onSelectPost,
+  tenantId = "",
 }) {
+  const resolvedTenantId = clean(tenantId || selectedPost?.tenant_id || selectedPost?.tenantId || selectedThread?.post?.tenant_id || selectedThread?.post?.tenantId || "");
   const normalizedPosts = useMemo(
     () =>
       [...(Array.isArray(items) ? items.filter(Boolean) : [])]
@@ -703,7 +705,7 @@ function SocialCommentsWorkspace({
     setAutomationRunsError("");
     try {
       const payload = await api.get(`/social-comments/automation/${encodeURIComponent(key)}/runs`, {
-        params: { tenant_id: tenantId, platform: platformForAutomation, limit: 10 },
+        params: { tenant_id: resolvedTenantId, platform: platformForAutomation, limit: 10 },
       });
       const items = Array.isArray(payload?.items)
         ? payload.items
@@ -730,7 +732,7 @@ function SocialCommentsWorkspace({
     setAutomationTestResult(null);
     try {
       const payload = await api.post(`/social-comments/automation/${encodeURIComponent(drawerKey)}/test`, {
-        tenant_id: tenantId,
+        tenant_id: resolvedTenantId,
         platform: platformForAutomation,
       });
       const result = payload?.result || payload?.data?.result || payload?.data || payload || {};
@@ -795,7 +797,7 @@ function SocialCommentsWorkspace({
 
     api
       .get(`/social-comments/automation/${encodeURIComponent(drawerKey)}`, {
-        params: { tenant_id: tenantId, platform: platformForAutomation },
+        params: { tenant_id: resolvedTenantId, platform: platformForAutomation },
       })
       .then((payload) => {
         if (cancelled) return;
@@ -827,7 +829,7 @@ function SocialCommentsWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [automationDrawerPostKey, automationDrawerPost?.id, automationDrawerPost?.postId, activePostKey, activePostPlatform, tenantId]);
+  }, [automationDrawerPostKey, automationDrawerPost?.id, automationDrawerPost?.postId, activePostKey, activePostPlatform, resolvedTenantId]);
 
   useEffect(() => {
     const drawerKey = clean(automationDrawerPostKey);
@@ -838,7 +840,7 @@ function SocialCommentsWorkspace({
       return;
     }
     void handleAutomationLoadRuns(drawerKey);
-  }, [automationDrawerPostKey, automationDrawerPost?.id, automationDrawerPost?.postId, activePostKey, activePostPlatform, tenantId]);
+  }, [automationDrawerPostKey, automationDrawerPost?.id, automationDrawerPost?.postId, activePostKey, activePostPlatform, resolvedTenantId]);
 
   const handleAutomationSaveRemote = async () => {
     const drawerKey = clean(automationDrawerPostKey || activePostKey);
@@ -850,7 +852,7 @@ function SocialCommentsWorkspace({
     setAutomationSavingKey(drawerKey);
     try {
       const response = await api.put(`/social-comments/automation/${encodeURIComponent(drawerKey)}`, {
-        tenant_id: tenantId,
+        tenant_id: resolvedTenantId,
         platform: platformForAutomation,
         ...payload,
       });
