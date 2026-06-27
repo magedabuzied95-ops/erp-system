@@ -653,6 +653,27 @@ app.use((req, res, next) => {
 
 app.get("/api/meta/webhook", handleMetaWebhookVerification);
 app.get("/api/meta/webhook-self-test", handleMetaWebhookSelfTest);
+app.get("/api/debug/meta-webhook-callback-self-test", async (req, res) => {
+  const pingUrl = "https://erp-system-0qhp.onrender.com/api/meta/webhook/ping";
+  const result = {
+    success: false,
+    url: pingUrl,
+    status: null,
+    body: "",
+    error: "",
+  };
+  try {
+    const response = await fetch(pingUrl, { method: "GET" });
+    const body = await response.text();
+    result.success = response.ok;
+    result.status = response.status;
+    result.body = body;
+    return res.json(result);
+  } catch (error) {
+    result.error = error?.message || String(error);
+    return res.status(200).json(result);
+  }
+});
 app.get("/api/debug/meta-webhook-subscription", async (req, res) => {
   try {
     const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
@@ -1264,6 +1285,19 @@ app.get("/debug/evolution-instance-events", async (req, res) => {
       message: error?.message || "Failed to load Evolution instance events debug",
     });
   }
+});
+
+app.use((req, res, next) => {
+  if (req.method === "POST" && req.originalUrl === "/api/meta/webhook") {
+    console.log("[META_WEBHOOK_ENTRY]", {
+      method: req.method,
+      url: req.url || "",
+      originalUrl: req.originalUrl || req.url || "",
+      has_signature_256: Boolean(req.headers?.["x-hub-signature-256"]),
+      body_keys: req.body && typeof req.body === "object" ? Object.keys(req.body) : [],
+    });
+  }
+  next();
 });
 
 app.use(express.json({

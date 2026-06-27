@@ -340,9 +340,19 @@ webhookRouter.post("/oauth/select-page", protect, permit("marketing", "settings"
 
 webhookRouter.get("/webhook", handleMetaWebhookVerification);
 webhookRouter.get("/webhook-self-test", handleMetaWebhookSelfTest);
+webhookRouter.get("/webhook/ping", (req, res) => {
+  return res.json({ success: true, route: "/api/meta/webhook", method: "GET" });
+});
 
 webhookRouter.post("/webhook", async (req, res) => {
   try {
+    console.log("[META_WEBHOOK_ENTRY]", {
+      method: req.method,
+      url: req.url || "",
+      originalUrl: req.originalUrl || req.url || "",
+      has_signature_256: Boolean(req.headers?.["x-hub-signature-256"]),
+      body_keys: req.body && typeof req.body === "object" ? Object.keys(req.body) : [],
+    });
     console.log("[meta-webhook] event received", {
       content_type: req.get("content-type") || "",
       has_signature: Boolean(req.headers?.["x-hub-signature-256"]),
