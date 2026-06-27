@@ -699,8 +699,8 @@ export const buildBarcodePrintHtml = ({
       if (isLandscapeTemplate) {
         const item = pageLabels[0];
         return `
-          <section class="sheet landscape-page">
-            <div class="landscape-frame">
+          <section class="barcode-print-page">
+            <div class="barcode-label-landscape-frame">
               ${item ? buildLabelMarkup(item) : ""}
             </div>
           </section>
@@ -797,28 +797,6 @@ export const buildBarcodePrintHtml = ({
             min-height: ${paper.paperHeightMm}mm;
             page-break-after: always;
             break-after: page;
-          }
-          .landscape-page {
-            position: relative;
-            width: 50mm;
-            height: 100mm;
-            padding: 0;
-            overflow: hidden;
-            box-sizing: border-box;
-            display: block;
-            gap: 0;
-            page-break-after: always;
-            break-after: page;
-          }
-          .landscape-frame {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 100mm;
-            height: 50mm;
-            box-sizing: border-box;
-            transform: translate(-50%, -50%) rotate(90deg);
-            transform-origin: center center;
           }
           .landscape-label {
             width: 100%;
@@ -972,6 +950,37 @@ export const buildBarcodePrintHtml = ({
             line-height: 1;
             font-weight: 900;
             color: #111827;
+          }
+          .barcode-print-sheet,
+          .barcode-print-page {
+            position: relative;
+            width: 50mm;
+            height: 100mm;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            box-sizing: border-box;
+            page-break-after: always;
+            break-after: page;
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+          .barcode-print-sheet {
+            display: block;
+          }
+          .barcode-print-page {
+            display: block;
+          }
+          .barcode-label-landscape-frame {
+            position: absolute;
+            top: 0;
+            left: 50mm;
+            width: 100mm;
+            height: 50mm;
+            overflow: hidden;
+            box-sizing: border-box;
+            transform-origin: top left;
+            transform: rotate(90deg);
           }
           .premium-sheet {
             width: 50mm;
@@ -1377,7 +1386,17 @@ export const buildBarcodePrintHtml = ({
             box-sizing: border-box;
           }
           @media print {
-            body { background: #ffffff; }
+            html,
+            body {
+              width: 50mm;
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+              overflow: hidden;
+            }
+            body {
+              min-width: 50mm;
+            }
             .preview-toolbar {
               display: none !important;
             }
@@ -1385,6 +1404,34 @@ export const buildBarcodePrintHtml = ({
               min-height: 0;
               display: block;
               background: #ffffff;
+            }
+            .page {
+              display: block;
+              width: 50mm;
+              margin: 0;
+              padding: 0;
+              background: #ffffff;
+            }
+            .barcode-print-sheet {
+              width: 50mm;
+              height: 100mm;
+              display: block;
+              margin: 0;
+              padding: 0;
+            }
+            .barcode-print-page {
+              width: 50mm;
+              height: 100mm;
+              display: block;
+              margin: 0;
+              padding: 0;
+            }
+            .barcode-label-landscape-frame {
+              top: 0;
+              left: 50mm;
+              width: 100mm;
+              height: 50mm;
+              transform: rotate(90deg);
             }
             .page {
               padding: 0;
@@ -1403,17 +1450,6 @@ export const buildBarcodePrintHtml = ({
             .sheet:last-child {
               page-break-after: auto;
               break-after: auto;
-            }
-            .landscape-page {
-              width: 50mm;
-              height: 100mm;
-              margin: 0;
-              box-shadow: none;
-              background: #ffffff;
-            }
-            .landscape-frame {
-              width: 100mm;
-              height: 50mm;
             }
             .label {
               box-shadow: none;
@@ -1448,7 +1484,7 @@ export const buildBarcodePrintHtml = ({
               height: 100%;
             }
             @page {
-              size: ${paper.pageCss};
+              size: 50mm 100mm;
               margin: 0;
             }
           }
@@ -1556,7 +1592,7 @@ export const buildBarcodePrintHtml = ({
               <button type="button" class="preview-toolbar-button primary" data-preview-action="print">طباعة</button>
             </div>
           ` : ""}
-          <div class="page">
+          <div class="page barcode-print-sheet">
             ${pageMarkup}
           </div>
         </div>
