@@ -4049,11 +4049,11 @@ const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
     endpoint: `/${encodeURIComponent(text(pageId))}/posts`,
     token,
     params: {
-      fields: "id,message,created_time,permalink_url,full_picture,caption",
-      limit: "20",
+      fields: "id,message,created_time,permalink_url,full_picture,caption,comments_count,like_count",
+      limit: "100",
     },
   });
-  return Array.isArray(payload?.data) ? payload.data.slice(0, 20) : [];
+  return Array.isArray(payload?.data) ? payload.data.slice(0, 100) : [];
 };
 
 const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
@@ -6767,6 +6767,17 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
     try {
       const posts = await fetchMetaPagePostsForPolling({ pageId, token });
       totals.posts_checked += posts.length;
+      console.log("META_COMMENTS_POLL_SUCCESS", {
+        tenant_id: safeTenantId,
+        page_id: pageId,
+        source,
+        posts_checked: posts.length,
+        comments_seen: totals.comments_seen,
+        comments_saved: totals.comments_saved,
+        duplicates: totals.duplicates,
+        errors: totals.errors,
+        error_message: "",
+      });
       console.log("META_COMMENTS_POLL_POSTS_LOADED", {
         tenant_id: safeTenantId,
         page_id: pageId,
@@ -6774,6 +6785,13 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
       });
 
       for (const post of posts) {
+        console.log("META_COMMENTS_POLL_POST_SCAN", {
+          tenant_id: safeTenantId,
+          page_id: pageId,
+          post_id: text(post.id || ""),
+          comments_count: Number(post.comments_count || 0),
+          error_message: "",
+        });
         const enrichedPost = await fetchMetaPostPreviewDetails({ tenantId: safeTenantId, postId: post.id, pageId }).catch(() => null);
         const resolvedPost = enrichedPost
           ? {
@@ -6806,6 +6824,14 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
           totals.comments_seen += 1;
           const commenterId = text(comment.from?.id || "");
           const commentId = text(comment.id || "");
+          console.log("META_COMMENTS_POLL_COMMENT_FOUND", {
+            tenant_id: safeTenantId,
+            page_id: pageId,
+            post_id: text(post.id || ""),
+            comment_id: commentId,
+            comments_count: Number(post.comments_count || 0),
+            error_message: "",
+          });
           const event = buildMetaPolledCommentEvent({
             tenantId: safeTenantId,
             pageId,
