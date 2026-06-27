@@ -2574,8 +2574,8 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
   const messageRows = sessionId
     ? await db.query(
         `
-        SELECT id, comment_id, external_message_id, provider_message_id, raw_payload
-        FROM ai_support_messages
+        SELECT id, comment_id, external_message_id, provider_message_id
+      FROM ai_support_messages
         WHERE tenant_id = $1::bigint
           AND session_id = $2::text
           AND message_type = 'comment_inbound'
@@ -2593,8 +2593,8 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
       ).catch(() => ({ rows: [] }))
     : { rows: [] };
   const messageRow = messageRows.rows?.[0] || null;
-  const messageRawPayload = messageRow?.raw_payload && typeof messageRow.raw_payload === "object" ? messageRow.raw_payload : {};
-  const messageRawValue = messageRawPayload?.value && typeof messageRawPayload.value === "object" ? messageRawPayload.value : {};
+  const messageRawPayload = {};
+  const messageRawValue = {};
   const automationSource = envText(commentRun?.raw_payload?.source || "");
   const automationFromId = envText(commentRun?.raw_payload?.value?.from?.id || commentRun?.raw_payload?.from?.id || commentRun?.commenter_id || "");
   const messageSource = envText(messageRawPayload?.source || "");
