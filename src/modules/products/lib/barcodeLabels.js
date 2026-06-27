@@ -419,7 +419,7 @@ export const getBarcodeSvg = (value, { width = 360, height = 92, displayText = "
   `;
 };
 
-const buildBarcodeSvgParts = (value, { width = 360, height = 92, displayText = "" } = {}) => {
+const buildBarcodeSvgParts = (value, { width = 360, height = 92, displayText = "", barTop = 14, barHeight } = {}) => {
   const safeWidth = Math.max(1, Number(width || 360));
   const safeHeight = Math.max(34, Number(height || 92));
   const barcode = normalizeBarcode(value, displayText);
@@ -444,8 +444,8 @@ const buildBarcodeSvgParts = (value, { width = 360, height = 92, displayText = "
     return sum + pattern.reduce((widthSum, moduleWidth) => widthSum + moduleWidth, 0);
   }, 0);
   const moduleWidth = Math.max(0.8, (safeWidth - quietZone * 2) / Math.max(1, moduleCount));
-  const barTop = 14;
-  const barHeight = Math.max(0, safeHeight - 30);
+  const barY = Number.isFinite(Number(barTop)) ? Number(barTop) : 14;
+  const barRectHeight = Number.isFinite(Number(barHeight)) ? Math.max(0, Number(barHeight)) : Math.max(0, safeHeight - 30);
 
   let cursorX = quietZone;
   let bars = "";
@@ -454,7 +454,7 @@ const buildBarcodeSvgParts = (value, { width = 360, height = 92, displayText = "
     pattern.forEach((segmentWidth, segmentIndex) => {
       const widthPx = segmentWidth * moduleWidth;
       if (segmentIndex % 2 === 0) {
-        bars += `<rect x="${cursorX.toFixed(3)}" y="${barTop}" width="${widthPx.toFixed(3)}" height="${barHeight}" fill="#111827" />`;
+        bars += `<rect x="${cursorX.toFixed(3)}" y="${barY.toFixed(3)}" width="${widthPx.toFixed(3)}" height="${barRectHeight.toFixed(3)}" fill="#111827" />`;
       }
       cursorX += widthPx;
     });
@@ -507,42 +507,41 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const skuValue = String(item?.sku || "").trim();
   const barcodeValue = String(item?.barcode || "").trim();
   const imageUrl = String(item?.imageUrl || item?.resolvedImage || "").trim();
-  const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, { width: 720, height: 112, displayText: barcodeValue });
+  const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, {
+    width: 92,
+    height: 8,
+    displayText: barcodeValue,
+    barTop: 39,
+    barHeight: 6.8,
+  });
 
   const productText = productLines.length
-    ? productLines.map((line, index) => `<text x="42" y="${8 + (index * 6.2)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? 4.9 : 4.6}" font-weight="900">${escapeHtml(line)}</text>`).join("")
-    : `<text x="42" y="8" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="4.9" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
+    ? productLines.map((line, index) => `<text x="40" y="${7.5 + (index * 5.6)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? 4.8 : 4.4}" font-weight="900">${escapeHtml(line)}</text>`).join("")
+    : `<text x="40" y="7.5" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="4.8" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
 
   return `
-    <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="50mm" height="100mm" viewBox="0 0 50 100" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
-      <rect x="0" y="0" width="50" height="100" fill="#ffffff" />
-      <g transform="translate(0 100) rotate(-90)">
-        <rect x="0" y="0" width="100" height="50" fill="#ffffff" stroke="#e2e8f0" stroke-width="0.35" />
+    <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
+      <rect x="0" y="0" width="100" height="50" fill="#ffffff" />
+      <rect x="0.4" y="0.4" width="99.2" height="49.2" fill="none" stroke="#e2e8f0" stroke-width="0.25" />
 
-        ${imageUrl ? `<image href="${escapeHtml(imageUrl)}" x="2" y="6" width="38" height="32" preserveAspectRatio="xMidYMid meet" />` : `<rect x="2" y="6" width="38" height="32" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.25" />`}
+      ${imageUrl ? `<image href="${escapeHtml(imageUrl)}" x="2" y="3.5" width="38" height="29" preserveAspectRatio="xMidYMid meet" />` : `<rect x="2" y="3.5" width="38" height="29" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.25" />`}
 
-        ${productText}
+      ${productText}
 
-        <rect x="42" y="18" width="16" height="12" rx="1.6" fill="#020617" />
-        <text x="50" y="22.8" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="2.7" font-weight="900" letter-spacing="0.35">${escapeHtml(printCopy.size || "SIZE")}</text>
-        <text x="50" y="27.8" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="6.7" font-weight="900">${escapeHtml(sizeValue)}</text>
+      <rect x="39.5" y="14.2" width="20.5" height="11.8" rx="1.8" fill="#020617" />
+      <text x="49.75" y="18" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="2.2" font-weight="900" letter-spacing="0.28">${escapeHtml(printCopy.size || "SIZE")}</text>
+      <text x="49.75" y="23" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="6.8" font-weight="900">${escapeHtml(sizeValue)}</text>
 
-        <rect x="42" y="31" width="12" height="7" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.2" />
-        <rect x="54.5" y="31" width="12" height="7" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.2" />
-        <text x="48" y="33.2" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.3" font-weight="900" letter-spacing="0.25">${escapeHtml(printCopy.color || "COLOR")}</text>
-        <text x="48" y="36.5" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3.5" font-weight="900">${escapeHtml(colorValue)}</text>
-        <text x="60.5" y="33.2" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.3" font-weight="900" letter-spacing="0.25">${escapeHtml(printCopy.price || "PRICE")}</text>
-        <text x="60.5" y="36.5" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.1" font-weight="900">${escapeHtml(priceValue)}</text>
+      <rect x="39.5" y="27.8" width="15.2" height="6.8" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
+      <rect x="55.4" y="27.8" width="15.2" height="6.8" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
+      <text x="47.1" y="30" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.1" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
+      <text x="47.1" y="33.3" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3.3" font-weight="900">${escapeHtml(colorValue)}</text>
+      <text x="63" y="30" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.1" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.price || "PRICE")}</text>
+      <text x="63" y="33.3" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3.7" font-weight="900">${escapeHtml(priceValue)}</text>
 
-        <text x="42" y="47.2" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.6" font-weight="800">${escapeHtml(skuValue)}</text>
-
-        <svg x="4" y="39" width="92" height="9" viewBox="0 0 ${barcodeParts.safeWidth} ${barcodeParts.safeHeight}" preserveAspectRatio="none">
-          <rect x="0" y="0" width="${barcodeParts.safeWidth}" height="${barcodeParts.safeHeight}" fill="#ffffff" />
-          ${barcodeParts.bars}
-        </svg>
-
-        <text x="50" y="49.2" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3.1" font-weight="900">${escapeHtml(barcodeValue)}</text>
-      </g>
+      <text x="40" y="39.1" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.45" font-weight="800">${escapeHtml(skuValue)}</text>
+      ${barcodeParts.bars}
+      <text x="50" y="49" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="900">${escapeHtml(barcodeValue)}</text>
     </svg>
   `;
 };
@@ -572,17 +571,17 @@ export const buildBarcodePrintHtml = ({
     ? normalizeBarcodePrintSettings({
         ...baseSettings,
         paperSize: "custom",
-        customPaperWidthMm: 50,
-        customPaperHeightMm: 100,
+        customPaperWidthMm: 100,
+        customPaperHeightMm: 50,
         labelWidthMm: 100,
         labelHeightMm: 50,
         labelsPerRow: 1,
         labelsPerPage: 1,
         gapMm: 0,
-        marginTopMm: 1.5,
-        marginRightMm: 1.5,
-        marginBottomMm: 1.5,
-        marginLeftMm: 1.5,
+        marginTopMm: 0,
+        marginRightMm: 0,
+        marginBottomMm: 0,
+        marginLeftMm: 0,
         barcodeWidthScale: 100,
         barcodeHeight: Math.max(100, Number(baseSettings.barcodeHeight || 88)),
       })
@@ -622,7 +621,7 @@ export const buildBarcodePrintHtml = ({
         })
       : baseSettings;
   const paper = isLandscapeTemplate
-    ? { paperWidthMm: 50, paperHeightMm: 100, pageCss: "50mm 100mm" }
+    ? { paperWidthMm: 100, paperHeightMm: 50, pageCss: "100mm 50mm" }
     : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
       ? { paperWidthMm: PREMIUM_RETAIL_LABEL_WIDTH_MM, paperHeightMm: PREMIUM_RETAIL_LABEL_HEIGHT_MM, pageCss: "50mm 100mm" }
     : resolvedTemplate === LABEL_TEMPLATE_THERMAL_PORTRAIT
@@ -1503,14 +1502,14 @@ export const buildBarcodePrintHtml = ({
             }
             .barcode-print-only {
               display: block !important;
-              width: 50mm !important;
+              width: 100mm !important;
               margin: 0 !important;
               padding: 0 !important;
               background: #ffffff !important;
             }
             html,
             body {
-              width: 50mm !important;
+              width: 100mm !important;
               margin: 0 !important;
               padding: 0 !important;
               background: #ffffff !important;
@@ -1518,19 +1517,19 @@ export const buildBarcodePrintHtml = ({
             }
             .barcode-print-sheet {
               display: block !important;
-              width: 50mm !important;
+              width: 100mm !important;
               margin: 0 !important;
               padding: 0 !important;
               background: #ffffff !important;
             }
             .barcode-print-page {
               display: block !important;
-              width: 50mm !important;
-              height: 100mm !important;
-              min-width: 50mm !important;
-              max-width: 50mm !important;
-              min-height: 100mm !important;
-              max-height: 100mm !important;
+              width: 100mm !important;
+              height: 50mm !important;
+              min-width: 100mm !important;
+              max-width: 100mm !important;
+              min-height: 50mm !important;
+              max-height: 50mm !important;
               margin: 0 !important;
               padding: 0 !important;
               overflow: hidden !important;
@@ -1546,11 +1545,11 @@ export const buildBarcodePrintHtml = ({
             }
             .barcode-print-svg {
               display: block !important;
-              width: 50mm !important;
-              height: 100mm !important;
+              width: 100mm !important;
+              height: 50mm !important;
             }
             @page {
-              size: 50mm 100mm;
+              size: 100mm 50mm;
               margin: 0;
             }
           }
