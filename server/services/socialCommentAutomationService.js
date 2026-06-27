@@ -1131,6 +1131,84 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       conversation_id: sessionId,
     });
 
+    const insertedRun = Boolean(sessionResult.rows[0]);
+    const savedRunRow = sessionResult.rows[0] || null;
+    const privateReplyStatus = text(
+      savedRunRow?.dm_status ||
+      savedRunRow?.automation_state?.private_reply?.status ||
+      event.dm_status ||
+      event.automation_state?.private_reply?.status ||
+      ""
+    ).toLowerCase();
+    const privateReplyCommentId = text(event.comment_id || savedRunRow?.comment_id || "");
+    const privateReplySource = text(event.raw_payload?.source || savedRunRow?.raw_payload?.source || "").toLowerCase();
+    const shouldEnqueuePrivateReply =
+      text(platform || "").toLowerCase() === "facebook" &&
+      Boolean(privateReplyCommentId) &&
+      insertedRun &&
+      !["queued", "sending", "sent"].includes(privateReplyStatus);
+
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_REACHED", {
+      tenant_id: safeTenantId,
+      platform,
+      post_id: postId,
+      comment_id: privateReplyCommentId,
+      inserted_run: insertedRun,
+      saved_run_row: Boolean(savedRunRow),
+      private_reply_status: privateReplyStatus || "empty",
+      source: privateReplySource,
+    });
+
+    if (shouldEnqueuePrivateReply) {
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_CALLING", {
+        tenant_id: safeTenantId,
+        platform,
+        post_id: postId,
+        comment_id: privateReplyCommentId,
+        private_reply_status: privateReplyStatus || "empty",
+        source: privateReplySource,
+      });
+      await enqueueSocialCommentPrivateReplyJob({
+        tenantId: safeTenantId,
+        platform,
+        commentId: privateReplyCommentId,
+        postId,
+        row: savedRunRow || {
+          tenant_id: safeTenantId,
+          platform,
+          comment_id: privateReplyCommentId,
+          post_id: postId,
+          raw_payload: event.raw_payload || {},
+        },
+      }).catch(() => {});
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_CALLED", {
+        tenant_id: safeTenantId,
+        platform,
+        post_id: postId,
+        comment_id: privateReplyCommentId,
+        private_reply_status: privateReplyStatus || "empty",
+        source: privateReplySource,
+      });
+    } else {
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_SKIPPED", {
+        tenant_id: safeTenantId,
+        platform,
+        post_id: postId,
+        comment_id: privateReplyCommentId,
+        inserted_run: insertedRun,
+        saved_run_row: Boolean(savedRunRow),
+        private_reply_status: privateReplyStatus || "empty",
+        source: privateReplySource,
+        reason: text(platform || "").toLowerCase() !== "facebook"
+          ? "not_facebook"
+          : !privateReplyCommentId
+            ? "missing_comment_id"
+            : !insertedRun
+              ? "missing_saved_run"
+              : `private_reply_status_${privateReplyStatus || "empty"}`,
+      });
+    }
+
     const commentsCountResult = await db.query(
       `
       SELECT COUNT(*)::int AS total_comments
