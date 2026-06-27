@@ -31,9 +31,8 @@ import {
   buildProductLabelItems,
   buildBarcodeShopLabelItem,
   buildSmartProductQrUrl,
-  buildLandscapePrintSvg,
-  openBarcodePrintWindow,
 } from "../lib/barcodeLabels";
+import { generateBarcodeLabelsPdf } from "../lib/barcodePdfGenerator";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { BARCODE_PRINT_DEFAULTS, barcodePrintSettingsFromValues, normalizeBarcodePrintSettings, paginateBarcodeLabels, resolveBarcodePrintPaper } from "../../../../shared/barcodePrintSettings.js";
@@ -577,16 +576,6 @@ function BarcodeLabels() {
       sheetMode.toUpperCase(),
     [labelTemplate, labelTemplates, sheetMode, sheetModes]
   );
-  const printCopy = useMemo(
-    () => ({
-      title: t("products.barcodeLabels.labelSheetTitle"),
-      color: t("print.barcodeLabels.color"),
-      size: t("print.barcodeLabels.size"),
-      sku: t("print.barcodeLabels.sku"),
-      price: t("print.barcodeLabels.price"),
-    }),
-    [t]
-  );
   const previewPages = useMemo(
     () => paginateBarcodeLabels(expandedLabels, activePrintSettings.labelsPerPage),
     [expandedLabels, activePrintSettings.labelsPerPage]
@@ -659,58 +648,33 @@ function BarcodeLabels() {
     setSelectedQuantities({});
   };
 
-  const handlePrint = () => {
+  const handlePrint = async () => {
     if (expandedLabels.length === 0) {
       toast.error(activeProductNotice || t("products.barcodeLabels.selectLabelFirst"));
       return;
     }
 
-    console.info("[barcode-print:selected-template]", labelTemplate);
-    console.info("[barcode-print:paper-width]", activePaper.paperWidthMm);
-    console.info("[barcode-print:paper-height]", activePaper.paperHeightMm);
-    console.info("[barcode-print:label-width]", activePrintSettings.labelWidthMm);
-    console.info("[barcode-print:label-height]", activePrintSettings.labelHeightMm);
-    console.info("[barcode-print:preview-orientation]", "outer:portrait-stock | inner:portrait-label");
-    console.info("[barcode-print:print-orientation]", "outer:portrait-stock | inner:portrait-label");
-    console.info("[barcode-print:labels-count]", expandedLabels.length);
-
-    void (async () => {
-      const root = document.querySelector('[data-barcode-print-root="page"]');
-      await waitForBarcodePrintReady(root);
-      console.info("[barcode-print:print-window-ready]", Boolean(root));
-      window.print();
-    })();
+    try {
+      const pdfBlob = await generateBarcodeLabelsPdf(expandedLabels, {
+        title: t("products.barcodeLabels.labelSheetTitle"),
+        filename: `barcode-labels-${Date.now()}.pdf`,
+      });
+      const url = URL.createObjectURL(pdfBlob);
+      const popup = window.open(url, "_blank", "noopener,noreferrer");
+      if (!popup) {
+        URL.revokeObjectURL(url);
+        toast.error(t("products.barcodeLabels.popupBlocked"));
+        return;
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (error) {
+      console.error("[barcode-pdf] generation failed", error);
+      toast.error(t("products.barcodeLabels.popupBlocked"));
+    }
   };
 
   const handlePreviewFallback = () => {
-    if (isBarcodeShopMode) {
-      handlePrint();
-      return;
-    }
-
-    if (expandedLabels.length === 0) {
-      toast.error(activeProductNotice || t("products.barcodeLabels.selectVariantLabelFirst"));
-      return;
-    }
-
-    const popup = openBarcodePrintWindow({
-      labels: expandedLabels,
-      sheetMode,
-      template: labelTemplate,
-      printSettings: activePrintSettings,
-      copy: {
-        title: t("print.barcodeLabels.title"),
-        color: t("print.barcodeLabels.color"),
-        size: t("print.barcodeLabels.size"),
-        sku: t("print.barcodeLabels.sku"),
-        price: t("print.barcodeLabels.price"),
-      },
-    });
-
-    if (!popup) {
-      toast.error(t("products.barcodeLabels.popupBlocked"));
-      window.print();
-    }
+    void handlePrint();
   };
 
   if (isBarcodeShopMode) {
@@ -1074,27 +1038,6 @@ function BarcodeLabels() {
         </ProductsShell>
       </div>
 
-      <div className="barcode-print-only print-document" data-barcode-print-root="page">
-        {expandedLabels.length > 0 ? (
-          <div className="barcode-print-sheet">
-            {expandedLabels.map((item, index) => (
-              <section
-                key={getLabelRenderKey(item, index, "print")}
-                className="barcode-print-page"
-                data-barcode-print-page
-              >
-                <div dangerouslySetInnerHTML={{ __html: buildLandscapePrintSvg(item, printCopy) }} />
-              </section>
-            ))}
-          </div>
-        ) : (
-          <div className="p-4">
-            <div className="mx-auto max-w-md rounded-3xl border border-zinc-200 bg-white p-8 text-center text-zinc-600">
-              {t("products.barcodeLabels.noLabelsSelected")}
-            </div>
-          </div>
-        )}
-      </div>
     </>
   );
 }
