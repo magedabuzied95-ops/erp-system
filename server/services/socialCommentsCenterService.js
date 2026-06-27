@@ -374,69 +374,99 @@ const resolveSocialCommentGraphLookupIds = ({ row = {}, pageId = "" } = {}) => {
   return Array.from(new Set(lookupIds.filter(Boolean)));
 };
 
+const normalizeSocialCommentPostIdCandidate = ({ value = "", pageId = "", source = "" } = {}) => {
+  let candidate = text(value);
+  const safePageId = text(pageId);
+  const sourceKey = lower(source);
+  if (!candidate) return "";
+  if (/^(facebook|instagram|social_comment|facebook_comment|instagram_comment):/i.test(candidate)) {
+    const parts = candidate.split(":").filter(Boolean);
+    candidate = text(parts.slice(2).join(":") || parts.slice(1).join(":") || "");
+  }
+  if (!candidate) return "";
+  const parts = candidate.split("_").filter(Boolean);
+  if (parts.length >= 3) {
+    if (safePageId && parts[0] === safePageId) return `${parts[0]}_${parts[1]}`;
+    return `${parts[0]}_${parts[1]}`;
+  }
+  if (parts.length === 2) {
+    if (safePageId && parts[0] !== safePageId && ["metadata.post_id", "automation_run_post_id", "raw_payload.value.post_id", "raw_payload.post_id", "post_id", "conversation_id", "external_conversation_id", "metadata.conversation_id"].includes(sourceKey)) {
+      return `${safePageId}_${parts[0]}`;
+    }
+    return candidate;
+  }
+  if (parts.length === 1 && safePageId) {
+    return `${safePageId}_${parts[0]}`;
+  }
+  return candidate;
+};
+
 const resolveSocialCommentCanonicalPostId = (row = {}) => {
   const metadata = metadataObject(row.metadata || {});
   const rawPayload = metadataObject(row.automation_run_raw_payload || row.raw_payload || {});
   const valuePayload = metadataObject(rawPayload.value || {});
+  const pageId = text(metadata.page_id || metadata.facebook_page_id || rawPayload.value?.page_id || rawPayload.value?.facebook_page_id || rawPayload.page_id || rawPayload.facebook_page_id || "");
   const candidates = [
-    metadata.post_id,
-    row.automation_run_post_id,
-    valuePayload.post_id,
-    rawPayload.post_id,
-    row.post_id,
-    row.conversation_id,
-    row.external_conversation_id,
-    metadata.conversation_id,
-  ]
-    .map((value) => text(value))
-    .filter(Boolean);
+    { source: "metadata.post_id", value: metadata.post_id },
+    { source: "automation_run_post_id", value: row.automation_run_post_id },
+    { source: "raw_payload.value.post_id", value: valuePayload.post_id },
+    { source: "raw_payload.post_id", value: rawPayload.post_id },
+    { source: "post_id", value: row.post_id },
+    { source: "conversation_id", value: row.conversation_id },
+    { source: "external_conversation_id", value: row.external_conversation_id },
+    { source: "metadata.conversation_id", value: metadata.conversation_id },
+  ];
 
   for (const candidate of candidates) {
-    if (/^(facebook|instagram)_post:/i.test(candidate)) {
-      return text(candidate.split(":").slice(1).join(":"));
-    }
-    if (/^social_comment:/i.test(candidate)) {
-      const parts = candidate.split(":").filter(Boolean);
-      const tail = text(parts.slice(2).join(":") || parts[parts.length - 1] || "");
-      if (tail) {
-        const tailParts = tail.split("_").filter(Boolean);
-        if (tailParts.length >= 2 && /^\d+$/.test(tailParts[0])) {
-          return text(tail);
-        }
-        return tail;
-      }
-    }
-    if (/^(facebook|instagram)_comment:/i.test(candidate)) {
-      const parts = candidate.split(":").filter(Boolean);
-      const maybePostId = text(parts[1] || "");
-      if (maybePostId) return maybePostId;
-    }
-    if (!isWrapperSocialCommentPostId(candidate)) {
-      return candidate;
-    }
+    const normalized = normalizeSocialCommentPostIdCandidate({ value: candidate.value, pageId, source: candidate.source });
+    if (normalized) return normalized;
   }
 
   return "";
 };
 
-const canonicalizeSocialCommentThreadPostId = ({ postId = "", platform = "" } = {}) => {
+const canonicalizeSocialCommentThreadPostId = ({ postId = "", platform = "", pageId = "" } = {}) => {
   const safePostId = text(postId);
-  const normalizedPlatform = normalizePlatform(platform);
+  const safePageId = text(pageId);
   if (!safePostId) return "";
-  if (safePostId.startsWith("facebook_post:") || safePostId.startsWith("instagram_post:")) {
-    return text(safePostId.split(":").slice(1).join(":"));
-  }
-  if (safePostId.startsWith("social_comment:")) {
-    const parts = safePostId.split(":").filter(Boolean);
-    const tail = text(parts.slice(2).join(":") || parts[parts.length - 1] || "");
-    if (tail) return tail;
-  }
-  if (safePostId.startsWith("facebook_comment:") || safePostId.startsWith("instagram_comment:")) {
-    const parts = safePostId.split(":").filter(Boolean);
-    const maybePostId = text(parts[1] || "");
-    if (maybePostId) return maybePostId;
+  const normalizedPlatform = normalizePlatform(platform);
+  const candidates = [
+    { source: "input", value: safePostId },
+    { source: "wrapped_session", value: `social_comment:${normalizedPlatform}:${safePostId}` },
+    { source: "wrapped_platform", value: `${normalizedPlatform}_post:${safePostId}` },
+  ];
+  for (const candidate of candidates) {
+    const normalized = normalizeSocialCommentPostIdCandidate({ value: candidate.value, pageId: safePageId, source: candidate.source });
+    if (normalized) return normalized;
   }
   return safePostId;
+};
+
+const buildSocialCommentThreadSessionVariants = ({ postId = "", platform = "", pageId = "" } = {}) => {
+  const safePostId = text(postId);
+  const normalizedPlatform = normalizePlatform(platform);
+  const safePageId = text(pageId);
+  const variants = new Set();
+  const push = (value = "") => {
+    const candidate = text(value);
+    if (candidate) variants.add(candidate);
+  };
+  push(safePostId);
+  push(`${normalizedPlatform}_post:${safePostId}`);
+  push(`social_comment:${normalizedPlatform}:${safePostId}`);
+  const normalized = canonicalizeSocialCommentThreadPostId({ postId: safePostId, platform: normalizedPlatform, pageId: safePageId });
+  push(normalized);
+  push(`${normalizedPlatform}_post:${normalized}`);
+  push(`social_comment:${normalizedPlatform}:${normalized}`);
+  if (safePageId && safePostId && !safePostId.startsWith(`${safePageId}_`)) {
+    const tailParts = safePostId.split("_").filter(Boolean);
+    if (tailParts.length >= 1) {
+      push(`${safePageId}_${tailParts[0]}`);
+      push(`${normalizedPlatform}_post:${safePageId}_${tailParts[0]}`);
+      push(`social_comment:${normalizedPlatform}:${safePageId}_${tailParts[0]}`);
+    }
+  }
+  return Array.from(variants);
 };
 
 const persistSocialCommentPostMedia = async ({ tenantId = null, channel = "", conversationId = "", metadata = {} } = {}) => {
@@ -1393,7 +1423,19 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     }
     groupedPosts.get(key).push(row);
   }
-  const groupedRows = Array.from(groupedPosts.entries()).map(([key, rows]) => {
+  const groupedSummaries = Array.from(groupedPosts.entries()).map(([key, rows]) => ({
+    key,
+    size: rows.length,
+    sources: Array.from(new Set(rows.flatMap((row) => [
+      text(row.metadata?.post_id || ""),
+      text(row.automation_run_post_id || ""),
+      text(row.post_id || ""),
+      text(row.conversation_id || ""),
+      text(row.external_conversation_id || ""),
+    ]).filter(Boolean))),
+  }));
+  const groupedRows = groupedSummaries.map(({ key, size }) => {
+    const rows = groupedPosts.get(key) || [];
     const sortedRows = [...rows].sort((a, b) => {
       const aTime = new Date(a.last_comment_at || a.last_message_at || a.updated_at || a.created_at || 0).getTime();
       const bTime = new Date(b.last_comment_at || b.last_message_at || b.updated_at || b.created_at || 0).getTime();
@@ -1410,15 +1452,17 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     }, primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null);
     return {
       ...primary,
+      id: key,
       canonical_post_id: key,
       post_id: key || text(primary.post_id || ""),
-      conversation_id: text(primary.conversation_id || primary.external_conversation_id || ""),
+      conversation_id: key || text(primary.conversation_id || primary.external_conversation_id || ""),
       comments_count: commentsCount,
       new_comments_count: newCommentsCount,
       last_comment_at: latestActivity || primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null,
       last_message_at: latestActivity || primary.last_message_at || primary.last_comment_at || primary.updated_at || primary.created_at || null,
       grouped_conversation_ids: rows.map((row) => text(row.conversation_id || row.external_conversation_id || "")).filter(Boolean),
       grouped_row_count: rows.length,
+      latest_activity_at: latestActivity || primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null,
     };
   }).sort((a, b) => {
     const aTime = new Date(a.last_comment_at || a.last_message_at || a.updated_at || a.created_at || 0).getTime();
@@ -1428,7 +1472,9 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
   console.warn("[social-comments:post-grouping-debug]", {
     raw_rows: sourceRows.length,
     grouped_posts: groupedRows.length,
-    sample_keys: groupedRows.slice(0, 10).map((row) => row.canonical_post_id || row.post_id || row.conversation_id || ""),
+    duplicate_groups_count: groupedSummaries.filter((group) => group.size > 1).length,
+    sample_group_sizes: groupedSummaries.slice(0, 10).map((group) => ({ key: group.key, size: group.size })),
+    sample_keys_with_sources: groupedSummaries.slice(0, 10).map((group) => ({ key: group.key, sources: group.sources.slice(0, 5) })),
   });
   return Promise.all(groupedRows.map((row) => enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
 };
@@ -1645,20 +1691,14 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
   const normalizedPlatform = normalizePlatform(platform);
   const channel = normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment";
   const canonicalPostId = canonicalizeSocialCommentThreadPostId({ postId: safePostId, platform: normalizedPlatform });
-  const sessionIds = Array.from(new Set([
-    safePostId.startsWith("facebook_comment:") || safePostId.startsWith("instagram_comment:") || safePostId.startsWith("social_comment:")
-      ? safePostId
-      : `${normalizedPlatform}_post:${safePostId}`,
-    canonicalPostId ? `${normalizedPlatform}_post:${canonicalPostId}` : "",
-    canonicalPostId,
-  ].filter(Boolean)));
+  const sessionIds = buildSocialCommentThreadSessionVariants({ postId: canonicalPostId || safePostId, platform: normalizedPlatform });
   console.warn("[social-comments:data-debug]", {
     scope: "service:listSocialCommentThreadComments:before",
     tenantId: safeTenantId,
     platform: normalizedPlatform,
     incomingPostId: safePostId,
     canonical_post_id: canonicalPostId,
-    sessionIds,
+    query_variants: sessionIds,
     whereSessionId: sessionIds,
     wherePostId: canonicalPostId || safePostId,
     whereRootCommentId: "",
@@ -1697,7 +1737,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     platform: normalizedPlatform,
     incomingPostId: safePostId,
     canonical_post_id: canonicalPostId,
-    sessionIds,
+    query_variants: sessionIds,
     sqlParams: [safeTenantId, sessionIds, normalizedPlatform, canonicalPostId || safePostId],
     returnedRows: result.rows?.length || 0,
   });
