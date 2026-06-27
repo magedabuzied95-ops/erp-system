@@ -2150,6 +2150,12 @@ const processSocialCommentAutoReply = async ({ tenantId = null, platform = "", p
     if (likeEnabled) {
       await likeComment(normalizedPlatform, safeCommentId, safeTenantId);
       likeStatus = "sent";
+      console.log("SOCIAL_COMMENT_AUTOMATION_COMMENT_LIKED", {
+        tenant_id: safeTenantId,
+        platform: normalizedPlatform,
+        post_id: safePostId,
+        comment_id: safeCommentId,
+      });
     }
   } catch (error) {
     likeStatus = "failed";
@@ -2160,6 +2166,12 @@ const processSocialCommentAutoReply = async ({ tenantId = null, platform = "", p
     if (replyEnabled && decision.rendered_reply) {
       await replyToComment(normalizedPlatform, safeCommentId, decision.rendered_reply, safeTenantId);
       replyStatus = "sent";
+      console.log("SOCIAL_COMMENT_AUTOMATION_PUBLIC_REPLY_SENT", {
+        tenant_id: safeTenantId,
+        platform: normalizedPlatform,
+        post_id: safePostId,
+        comment_id: safeCommentId,
+      });
     } else if (replyEnabled) {
       replyStatus = "skipped";
     }

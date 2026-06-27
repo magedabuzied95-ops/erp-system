@@ -8,6 +8,7 @@ import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
 import { processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
+import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
   getSocialAutomationSettings,
@@ -359,6 +360,177 @@ const buildSocialCommentPrivateReplyMessage = ({ row = {}, settings = {} } = {})
     originalCommentText: row.original_comment_text || "",
     postPermalink: row.post_permalink || row.post_permalink_url || "",
   });
+};
+
+const renderSocialCommentTemplateText = (templateText = "", context = {}) =>
+  text(templateText).replace(/\{\{\s*(\w+)\s*\}\}|\{\s*(\w+)\s*\}/g, (_match, leftKey, rightKey) => {
+    const key = leftKey || rightKey || "";
+    return text(context[key] ?? context[key.toLowerCase()] ?? "");
+  });
+
+export const resolveSocialCommentPublishedProductContext = async ({ tenantId = null, row = {} } = {}) => {
+  const safeTenantId = Number(tenantId || row.tenant_id || 0);
+  const platform = text(row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || platform !== "facebook") {
+    return {
+      found: false,
+      source: "unsupported",
+      reason: !Number.isFinite(safeTenantId) || safeTenantId <= 0 ? "invalid_tenant" : "non_facebook_platform",
+      platform,
+      candidate_post_ids: [],
+    };
+  }
+
+  const candidatePostIds = [...new Set([
+    row.post_id,
+    row.metadata?.post_id,
+    row.raw_payload?.post_id,
+    row.raw_payload?.value?.post_id,
+    row.raw_payload?.value?.media_id,
+    row.raw_payload?.value?.post?.id,
+    row.raw_payload?.value?.post?.post_id,
+    row.raw_payload?.value?.id,
+  ].map(text).filter(Boolean))];
+
+  if (!candidatePostIds.length) {
+    return {
+      found: false,
+      source: "missing_post_id",
+      reason: "missing_post_id",
+      platform,
+      candidate_post_ids: [],
+    };
+  }
+
+  const buildProductContext = async (productRow = {}, source = "") => {
+    if (!productRow) return null;
+    const product = {
+      id: productRow.product_id || null,
+      product_id: productRow.product_id || null,
+      name: productRow.product_name || "",
+      price: productRow.product_price || "",
+      sale_price: productRow.product_sale_price || "",
+      selling_price: productRow.product_selling_price || "",
+      slug: productRow.product_slug || "",
+      canonical_slug: productRow.product_canonical_slug || "",
+    };
+    const link = await resolveStorefrontProductLink({ tenantId: safeTenantId, product }).catch(() => ({ product_url: "" }));
+    const sizes = text(productRow.product_sizes || "")
+      .split(",")
+      .map((value) => text(value))
+      .filter(Boolean);
+    const colors = text(productRow.product_colors || "")
+      .split(",")
+      .map((value) => text(value))
+      .filter(Boolean);
+    return {
+      found: true,
+      source,
+      platform,
+      post_id: text(productRow.mapped_post_id || candidatePostIds[0] || ""),
+      product_id: text(productRow.product_id || ""),
+      product_name: text(productRow.product_name || ""),
+      price: text(productRow.product_sale_price || productRow.product_price || ""),
+      sale_price: text(productRow.product_sale_price || ""),
+      selling_price: text(productRow.product_selling_price || productRow.product_price || ""),
+      sizes,
+      colors,
+      product_url: text(link?.product_url || link?.url || ""),
+      variant_id: text(productRow.variant_id || row.raw_payload?.variant_id || row.variant_id || ""),
+      color: text(productRow.color || row.raw_payload?.color || row.color || ""),
+      size: text(productRow.size || row.raw_payload?.size || row.size || ""),
+      mapped_media_id: text(productRow.mapped_media_id || ""),
+      candidate_post_ids: candidatePostIds,
+    };
+  };
+
+  const linkResult = await db.query(
+    `
+    SELECT
+      ppl.product_id,
+      ppl.post_id AS mapped_post_id,
+      ppl.media_id AS mapped_media_id,
+      p.name AS product_name,
+      p.price AS product_price,
+      p.sale_price AS product_sale_price,
+      p.selling_price AS product_selling_price,
+      p.slug AS product_slug,
+      p.canonical_slug AS product_canonical_slug,
+      COALESCE((
+        SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
+        FROM product_variants v
+        WHERE v.tenant_id = ppl.business_id
+          AND v.product_id = ppl.product_id
+      ), '') AS product_sizes,
+      COALESCE((
+        SELECT string_agg(DISTINCT NULLIF(v.color, ''), ', ' ORDER BY NULLIF(v.color, ''))
+        FROM product_variants v
+        WHERE v.tenant_id = ppl.business_id
+          AND v.product_id = ppl.product_id
+      ), '') AS product_colors
+    FROM marketing_post_product_links ppl
+    LEFT JOIN products p ON p.id = ppl.product_id
+    WHERE ppl.business_id = $1::bigint
+      AND ppl.platform = $2::text
+      AND ppl.post_id = ANY($3::text[])
+    ORDER BY ppl.created_at DESC, ppl.id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, platform, candidatePostIds]
+  ).catch(() => ({ rows: [] }));
+  const linkedContext = await buildProductContext(linkResult.rows?.[0] || null, "marketing_post_product_links");
+  if (linkedContext) return linkedContext;
+
+  const postResult = await db.query(
+    `
+    SELECT
+      mp.product_id,
+      COALESCE(NULLIF(mp.platform_post_id, ''), NULLIF(mp.external_post_id, '')) AS mapped_post_id,
+      COALESCE(NULLIF(mp.platform_post_id, ''), NULLIF(mp.external_post_id, '')) AS mapped_media_id,
+      p.name AS product_name,
+      p.price AS product_price,
+      p.sale_price AS product_sale_price,
+      p.selling_price AS product_selling_price,
+      p.slug AS product_slug,
+      p.canonical_slug AS product_canonical_slug,
+      COALESCE((
+        SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
+        FROM product_variants v
+        WHERE v.tenant_id = mp.tenant_id
+          AND v.product_id = mp.product_id
+      ), '') AS product_sizes,
+      COALESCE((
+        SELECT string_agg(DISTINCT NULLIF(v.color, ''), ', ' ORDER BY NULLIF(v.color, ''))
+        FROM product_variants v
+        WHERE v.tenant_id = mp.tenant_id
+          AND v.product_id = mp.product_id
+      ), '') AS product_colors,
+      mp.variant_id AS variant_id,
+      mp.design_json->>'color' AS color,
+      mp.design_json->>'size' AS size
+    FROM marketing_posts mp
+    LEFT JOIN products p ON p.id = mp.product_id
+    WHERE mp.tenant_id = $1::bigint
+      AND mp.product_id IS NOT NULL
+      AND (
+        mp.platform_post_id = ANY($2::text[])
+        OR mp.external_post_id = ANY($2::text[])
+      )
+    ORDER BY mp.updated_at DESC, mp.created_at DESC, mp.id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, candidatePostIds]
+  ).catch(() => ({ rows: [] }));
+  const postContext = await buildProductContext(postResult.rows?.[0] || null, "marketing_posts");
+  if (postContext) return postContext;
+
+  return {
+    found: false,
+    source: "marketing_post_product_links",
+    reason: "product_not_found",
+    platform,
+    candidate_post_ids: candidatePostIds,
+  };
 };
 
 export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, platform = "", commentId = "", postId = "", row = {} } = {}) => {
@@ -885,6 +1057,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       ""
     );
     const commentUrl = text(event.comment_url || event.raw_payload?.comment_url || "");
+    const productContext = metadataObject(event.product_context || event.raw_payload?.product_context || {});
     const metadata = {
       thread_kind: threadKind,
       platform,
@@ -917,6 +1090,17 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       original_comment_text: commentText,
       media_enrichment_status: text(event.media_enrichment_status || ""),
       media_enrichment_error: text(event.media_enrichment_error || ""),
+      product_context: productContext,
+      product_id: text(productContext.product_id || event.product_id || ""),
+      product_name: text(productContext.product_name || ""),
+      product_price: text(productContext.price || ""),
+      product_sale_price: text(productContext.sale_price || ""),
+      product_url: text(productContext.product_url || ""),
+      product_sizes: asArray(productContext.sizes || []),
+      product_colors: asArray(productContext.colors || []),
+      product_variant_id: text(productContext.variant_id || ""),
+      product_color: text(productContext.color || ""),
+      product_size: text(productContext.size || ""),
       classification_label: text(event.classification_label || ""),
       classification_score: Number(event.classification_score || 0),
       lead: {
@@ -1010,6 +1194,8 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         comment_id: metadata.comment_id,
         platform: metadata.platform,
         channel: metadata.channel,
+        product_id: metadata.product_id,
+        product_name: metadata.product_name,
         media_enrichment_status: metadata.media_enrichment_status,
         classification_label: metadata.classification_label,
       },
@@ -2447,6 +2633,36 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         id: null,
         raw_payload: normalized.raw_payload || {},
       };
+    }
+    const productContext = await resolveSocialCommentPublishedProductContext({
+      tenantId: storedRow.tenant_id,
+      row: storedRow,
+    }).catch(() => null);
+    if (productContext?.found) {
+      storedRow.product_context = productContext;
+      storedRow.raw_payload = {
+        ...(storedRow.raw_payload || {}),
+        product_context: productContext,
+      };
+      console.log("SOCIAL_COMMENT_AUTOMATION_PRODUCT_RESOLVED", {
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        post_id: text(storedRow.post_id || ""),
+        comment_id: text(storedRow.comment_id || ""),
+        product_id: text(productContext.product_id || ""),
+        product_name: text(productContext.product_name || ""),
+        product_url: text(productContext.product_url || ""),
+        sizes: asArray(productContext.sizes || []),
+        source: text(productContext.source || ""),
+      });
+    } else {
+      console.log("SOCIAL_COMMENT_AUTOMATION_PRODUCT_NOT_FOUND", {
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        post_id: text(storedRow.post_id || ""),
+        comment_id: text(storedRow.comment_id || ""),
+        reason: text(productContext?.reason || "product_not_found"),
+      });
     }
     const privateReplyTrigger = isSupportedWebhookCommentTrigger(storedRow);
     debugSocialCommentsLog("[social-comments][private-reply] received", {

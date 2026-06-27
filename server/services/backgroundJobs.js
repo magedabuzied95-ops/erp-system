@@ -6,6 +6,7 @@ import {
   persistSocialCommentAutomationState,
   buildSocialCommentSuggestedReply,
   PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT,
+  resolveSocialCommentPublishedProductContext,
 } from "./socialCommentAutomationService.js";
 import { renderTemplate, sendPrivateReply } from "./marketingCommentAutomationService.js";
 
@@ -18,6 +19,32 @@ const debugSocialCommentsLog = (...args) => {
 };
 const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
+};
+const renderSocialCommentTemplateText = (template = "", context = {}) =>
+  String(template || "").replace(/\{\{\s*(\w+)\s*\}\}|\{\s*(\w+)\s*\}/g, (_match, leftKey, rightKey) => {
+    const key = leftKey || rightKey || "";
+    return String(context[key] ?? context[key.toLowerCase()] ?? "").trim();
+  });
+const buildProductAwarePrivateReply = ({ row = {}, productContext = {}, settings = {} } = {}) => {
+  const defaultTemplate = [
+    "أهلًا بحضرتك",
+    "ده المنتج اللي سألت عنه:",
+    "{product_name}",
+    "السعر: {price}",
+    "المقاسات المتاحة: {sizes}",
+    "اطلبه من هنا:",
+    "{product_url}",
+  ].join("\n");
+  const template = String(settings?.private_message_template || "").trim() || defaultTemplate;
+  const sizesText = Array.isArray(productContext.sizes) ? productContext.sizes.filter(Boolean).join(", ") : "";
+  return renderSocialCommentTemplateText(template, {
+    product_name: productContext.product_name || row.product_name || "",
+    price: productContext.price || productContext.sale_price || productContext.selling_price || row.product_price || "",
+    sizes: sizesText || "غير متوفرة حاليا",
+    product_url: productContext.product_url || row.product_url || "",
+    product_color: productContext.color || "",
+    product_size: productContext.size || "",
+  }).trim();
 };
 
 export const registerBackgroundJobHandlers = () => {
@@ -65,7 +92,9 @@ export const registerBackgroundJobHandlers = () => {
       `,
       [tenantId, platform, commentId]
     );
-    const row = rowResult.rows?.[0] || payload.row || null;
+    const row = rowResult.rows?.[0]
+      ? { ...(payload.row || {}), ...rowResult.rows[0] }
+      : (payload.row || null);
     if (!row) {
       throw Object.assign(new Error("Social comment row not found"), { status: 404 });
     }
@@ -112,6 +141,10 @@ export const registerBackgroundJobHandlers = () => {
     }
 
     const settings = await getSocialAutomationSettings(tenantId).catch(() => ({}));
+    let productContext = row.product_context || row.raw_payload?.product_context || null;
+    if (platform === "facebook" && !productContext) {
+      productContext = await resolveSocialCommentPublishedProductContext({ tenantId, row }).catch(() => null);
+    }
     const fallbackMessage = buildSocialCommentSuggestedReply({
       classificationLabel: row.classification_label || "",
       commenterName: row.commenter_name || "",
@@ -119,13 +152,15 @@ export const registerBackgroundJobHandlers = () => {
       postPermalink: row.post_permalink || row.post_permalink_url || "",
     });
     const template = String(settings?.private_message_template || "").trim();
-    const message = renderTemplate(template || fallbackMessage, {
-      commenter_name: row.commenter_name || "",
-      original_comment_text: row.original_comment_text || "",
-      post_permalink: row.post_permalink || row.post_permalink_url || "",
-      post_id: row.post_id || postId || "",
-      platform,
-    }).trim() || fallbackMessage;
+    const message = productContext?.found
+      ? buildProductAwarePrivateReply({ row, productContext, settings })
+      : (renderTemplate(template || fallbackMessage, {
+          commenter_name: row.commenter_name || "",
+          original_comment_text: row.original_comment_text || "",
+          post_permalink: row.post_permalink || row.post_permalink_url || "",
+          post_id: row.post_id || postId || "",
+          platform,
+        }).trim() || fallbackMessage);
 
     debugSocialCommentsLog("[social-comments][private-reply] sending", {
       tenant_id: tenantId,
