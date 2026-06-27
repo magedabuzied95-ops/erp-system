@@ -429,16 +429,24 @@ router.post("/checkout", checkoutUpload, createWebsiteOrder);
 router.get("/track", storefrontCustomerTransitionAuth, async (req, res, next) => {
   const jwtPhone = toText(req.storefrontCustomer?.phone || "");
   const resolvedPhone = resolveStorefrontCustomerPhone(req);
-  req.query = { ...(req.query || {}), phone: jwtPhone || resolvedPhone };
-  req.body = { ...(req.body || {}), phone: jwtPhone || resolvedPhone };
+  if (req.query && typeof req.query === "object") {
+    req.query.phone = jwtPhone || resolvedPhone;
+  }
+  if (req.body && typeof req.body === "object") {
+    req.body.phone = jwtPhone || resolvedPhone;
+  }
   logProtectedCustomerEndpoint(req, jwtPhone);
   return trackOrder(req, res, next);
 });
 router.post("/track", storefrontCustomerTransitionAuth, async (req, res, next) => {
   const jwtPhone = toText(req.storefrontCustomer?.phone || "");
   const resolvedPhone = resolveStorefrontCustomerPhone(req);
-  req.query = { ...(req.query || {}), phone: jwtPhone || resolvedPhone };
-  req.body = { ...(req.body || {}), phone: jwtPhone || resolvedPhone };
+  if (req.query && typeof req.query === "object") {
+    req.query.phone = jwtPhone || resolvedPhone;
+  }
+  if (req.body && typeof req.body === "object") {
+    req.body.phone = jwtPhone || resolvedPhone;
+  }
   logProtectedCustomerEndpoint(req, jwtPhone);
   return trackOrder(req, res, next);
 });
@@ -450,13 +458,12 @@ router.put("/customer/cart", ...storefrontCustomerAuthRequired, async (req, res,
 router.get("/customers/latest-shipping-address", storefrontCustomerTransitionAuth, async (req, res, next) => {
   const jwtPhone = toText(req.storefrontCustomer?.phone || "");
   const resolvedPhone = resolveStorefrontCustomerPhone(req);
-  req.query = {
-    ...(req.query || {}),
-    phone: jwtPhone || resolvedPhone,
-    primary_phone: jwtPhone || resolvedPhone,
-    email: jwtPhone ? "" : toText(req.query?.email || req.query?.customer_email || ""),
-    customer_email: jwtPhone ? "" : toText(req.query?.email || req.query?.customer_email || ""),
-  };
+  if (req.query && typeof req.query === "object") {
+    req.query.phone = jwtPhone || resolvedPhone;
+    req.query.primary_phone = jwtPhone || resolvedPhone;
+    req.query.email = jwtPhone ? "" : toText(req.query?.email || req.query?.customer_email || "");
+    req.query.customer_email = jwtPhone ? "" : toText(req.query?.email || req.query?.customer_email || "");
+  }
   logProtectedCustomerEndpoint(req, jwtPhone);
   return latestShippingAddress(req, res, next);
 });
