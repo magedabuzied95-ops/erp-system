@@ -27,7 +27,6 @@ import {
   Repeat2,
   Upload,
   Video,
-  Wand2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -476,6 +475,152 @@ const collectFirstCommentAvailability = (product = {}) => {
     stock,
   };
 };
+const normalizeCatalogMediaUrl = (value = "") => {
+  if (!value) return "";
+  if (typeof value === "string") return normalizeTextValue(value);
+  if (typeof value === "object") {
+    return normalizeTextValue(
+      value.image_url ||
+        value.url ||
+        value.src ||
+        value.media_url ||
+        value.primary_image_url ||
+        value.variant_image_url ||
+        value.color_image_url ||
+        value.image ||
+        value.photo_url ||
+        value.thumbnail_url ||
+        value.file_url ||
+        ""
+    );
+  }
+  return "";
+};
+const flattenCatalogMediaUrls = (...sources) => {
+  const seen = new Set();
+  const urls = [];
+
+  const push = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(push);
+      return;
+    }
+    if (typeof value === "string") {
+      const text = normalizeTextValue(value);
+      if (!text) return;
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(push);
+          return;
+        }
+      } catch {
+        // Fall through to plain string handling.
+      }
+      const key = text.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      urls.push(text);
+      return;
+    }
+    if (typeof value === "object") {
+      push(normalizeCatalogMediaUrl(value));
+      push(value.images);
+      push(value.gallery_images);
+      push(value.media_urls);
+    }
+  };
+
+  sources.forEach(push);
+  return urls;
+};
+const isCatalogMediaVariantAvailable = (variant = {}) => {
+  const quantity = Number(
+    variant.quantity ??
+      variant.stock ??
+      variant.stock_quantity ??
+      variant.available_quantity ??
+      variant.inventory_quantity ??
+      variant.current_stock ??
+      0
+  );
+  const available = variant.available === true || variant.in_stock === true || variant.is_available === true;
+  return quantity > 0 || available;
+};
+const buildCatalogColorMediaItems = (product = {}) => {
+  const items = [];
+  const seen = new Set();
+
+  const addItem = (color, sourceValue, source = "") => {
+    const colorText = normalizeTextValue(color);
+    const mediaUrls = flattenCatalogMediaUrls(sourceValue);
+    if (!colorText || !mediaUrls.length) return;
+    const key = colorText.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+    items.push({
+      key,
+      color: localizeColorName(colorText),
+      url: mediaUrls[0],
+      media_urls: mediaUrls,
+      source,
+    });
+  };
+
+  const variants = Array.isArray(product.variants) ? product.variants.filter(isCatalogMediaVariantAvailable) : [];
+  variants.forEach((variant) => {
+    addItem(
+      variant.color || variant.color_name || variant.colour || variant.name || variant.label || "",
+      [
+        variant.primary_image_url,
+        variant.variant_image_url,
+        variant.color_image_url,
+        variant.image_url,
+        variant.image,
+        variant.photo_url,
+        variant.thumbnail_url,
+        variant.images,
+        variant.gallery_images,
+        variant.media_urls,
+      ],
+      "variant"
+    );
+  });
+
+  if (items.length) {
+    return items;
+  }
+
+  const colorImageSources = Array.isArray(product.color_images) ? product.color_images : [];
+  colorImageSources.forEach((entry) => {
+    addItem(entry?.color || entry?.color_name || entry?.name || entry?.label || "", entry, "color_images");
+  });
+
+  if (product.images_by_color && typeof product.images_by_color === "object" && !Array.isArray(product.images_by_color)) {
+    Object.entries(product.images_by_color).forEach(([color, value]) => {
+      addItem(color, value, "images_by_color");
+    });
+  }
+
+  return items;
+};
+const buildCatalogFallbackMediaUrl = (product = {}) =>
+  flattenCatalogMediaUrls(
+    product.color_images,
+    product.images_by_color,
+    product.variants,
+    product.gallery_images,
+    product.images,
+    product.media_urls,
+    product.primary_media_url,
+    product.image_url,
+    product.cover_image_url,
+    product.product_image_url,
+    product.thumbnail_url,
+    product.photo_url,
+    product.image
+  )[0] || "";
 const buildSuggestedFirstComment = (product = {}, options = {}) => {
   const pricing = resolveStorefrontPriceBreakdown(product);
   const availability = collectFirstCommentAvailability(product);
@@ -667,6 +812,15 @@ const renderAccountCardValue = (label, value) => (
   </div>
 );
 
+const sharedBadgeClass =
+  "inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]";
+const sharedButtonClass =
+  "inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
+const primaryButtonClass = `${sharedButtonClass} bg-amber-400 text-slate-950 hover:bg-amber-300`;
+const secondaryButtonClass = `${sharedButtonClass} border border-white/10 bg-white/[0.06] text-white hover:bg-white/[0.1]`;
+const ghostButtonClass = `${sharedButtonClass} border border-white/10 bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]`;
+const dangerButtonClass = `${sharedButtonClass} border border-rose-400/20 bg-rose-400/10 text-rose-100 hover:bg-rose-400/15`;
+
 export default function SocialMediaPublisher() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
@@ -677,6 +831,7 @@ export default function SocialMediaPublisher() {
   const [historyDetailPost, setHistoryDetailPost] = useState(null);
   const [caption, setCaption] = useState("");
   const [firstComment, setFirstComment] = useState("");
+  const [firstCommentAccordionOpen, setFirstCommentAccordionOpen] = useState(false);
   const [firstCommentLoading, setFirstCommentLoading] = useState(false);
   const [scheduledAt, setScheduledAt] = useState("");
   const [mediaFile, setMediaFile] = useState(null);
@@ -693,6 +848,7 @@ export default function SocialMediaPublisher() {
   const [selectedFacebookPageId, setSelectedFacebookPageId] = useState("");
   const [selectedInstagramAccountId, setSelectedInstagramAccountId] = useState("");
   const [selectedCatalogProduct, setSelectedCatalogProduct] = useState(null);
+  const [selectedCatalogMediaUrl, setSelectedCatalogMediaUrl] = useState("");
   const [productCatalogOpen, setProductCatalogOpen] = useState(false);
   const [productCatalogLoading, setProductCatalogLoading] = useState(false);
   const [productCatalogQuery, setProductCatalogQuery] = useState("");
@@ -738,7 +894,11 @@ export default function SocialMediaPublisher() {
       ["connected", "fully_connected", "active", "saved", "partially_connected"].includes(String(metaIntegrationStatus.overall_status || "").toLowerCase())
   );
   const metaAccountsEmpty = !facebookPages.length && !instagramAccounts.length;
-  const resolvedMediaPreview = mediaPreview || selectedCatalogProduct?.image_url || "";
+  const selectedCatalogMediaItems = useMemo(() => buildCatalogColorMediaItems(selectedCatalogProduct || {}), [selectedCatalogProduct]);
+  const selectedCatalogPrimaryMediaUrl = useMemo(() => buildCatalogFallbackMediaUrl(selectedCatalogProduct || {}), [selectedCatalogProduct]);
+  const selectedCatalogResolvedMediaUrl = selectedCatalogMediaUrl || selectedCatalogPrimaryMediaUrl || selectedCatalogProduct?.image_url || "";
+  const resolvedMediaPreview = mediaFile ? mediaPreview : selectedCatalogResolvedMediaUrl || mediaPreview || "";
+  const selectedCatalogProductAvailability = useMemo(() => collectFirstCommentAvailability(selectedCatalogProduct || {}), [selectedCatalogProduct]);
   const selectedCatalogProductDiscount = useMemo(() => {
     if (!selectedCatalogProduct) return "";
     const currentPrice = Number(selectedCatalogProduct.current_price || selectedCatalogProduct.price || 0);
@@ -747,6 +907,13 @@ export default function SocialMediaPublisher() {
     const percent = Math.max(1, Math.round(((originalPrice - currentPrice) / originalPrice) * 100));
     return `-${percent}%`;
   }, [selectedCatalogProduct]);
+  const hasFirstCommentText = Boolean(firstComment.trim());
+
+  useEffect(() => {
+    if (!hasFirstCommentText) {
+      setFirstCommentAccordionOpen(false);
+    }
+  }, [hasFirstCommentText]);
 
   const historyPosts = useMemo(
     () =>
@@ -963,20 +1130,18 @@ export default function SocialMediaPublisher() {
       ...product,
       id: product.id || null,
       name: product.name || "",
-      image_url: product.image_url || "",
       product_url: product.product_url || "",
     });
+    const nextMediaUrl = buildCatalogColorMediaItems(nextProduct)[0]?.url || buildCatalogFallbackMediaUrl(nextProduct);
     setSelectedCatalogProduct(nextProduct);
+    setSelectedCatalogMediaUrl(nextMediaUrl);
     setCreateSource("catalog");
     setCaption(buildCatalogCaption(nextProduct, { includeLocation, includeShipping }));
     setFirstComment(buildSuggestedFirstComment(nextProduct, { includeLocation, includeShipping }));
     setAiTemplateCaption("");
     setAiTemplateError("");
     setAiTemplateSource("");
-    if (!mediaFile && nextProduct.image_url) {
-      setMediaPreview(nextProduct.image_url);
-      setMediaType("image");
-    }
+    if (!mediaFile) setMediaType("image");
     setProductCatalogOpen(false);
   };
 
@@ -985,8 +1150,10 @@ export default function SocialMediaPublisher() {
       ? caption.trim() === buildCatalogCaption(selectedCatalogProduct, { includeLocation, includeShipping }).trim()
       : false;
     setSelectedCatalogProduct(null);
+    setSelectedCatalogMediaUrl("");
     if (!mediaFile) {
       setMediaPreview("");
+      setMediaType("image");
     }
     if (wasAutoCaption) {
       setCaption("");
@@ -1265,12 +1432,28 @@ export default function SocialMediaPublisher() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [mediaFile]);
 
+  useEffect(() => {
+    if (!selectedCatalogProduct) {
+      setSelectedCatalogMediaUrl("");
+      return;
+    }
+    if (mediaFile) return;
+    const nextDefaultUrl = selectedCatalogMediaItems[0]?.url || selectedCatalogPrimaryMediaUrl || selectedCatalogProduct?.image_url || "";
+    setSelectedCatalogMediaUrl((current) => {
+      if (current && selectedCatalogMediaItems.some((item) => item.url === current)) {
+        return current;
+      }
+      return nextDefaultUrl;
+    });
+  }, [mediaFile, selectedCatalogMediaItems, selectedCatalogPrimaryMediaUrl, selectedCatalogProduct]);
+
   const resetComposer = () => {
     setCaption("");
     setFirstComment("");
     setScheduledAt("");
     setMediaFile(null);
     setSelectedCatalogProduct(null);
+    setSelectedCatalogMediaUrl("");
     setAiTemplateCaption("");
     setAiTemplateError("");
     setAiTemplateSource("");
@@ -1312,8 +1495,8 @@ export default function SocialMediaPublisher() {
     if (selectedCatalogProduct?.id) {
       formData.append("product_id", String(selectedCatalogProduct.id));
     }
-    if (!mediaFile && selectedCatalogProduct?.image_url) {
-      formData.append("media_url", selectedCatalogProduct.image_url);
+    if (!mediaFile && selectedCatalogResolvedMediaUrl) {
+      formData.append("media_url", selectedCatalogResolvedMediaUrl);
     }
     formData.append(
       "publish_settings",
@@ -1456,6 +1639,7 @@ export default function SocialMediaPublisher() {
     setMediaFile(null);
     setMediaPreview(String(post.media_url || ""));
     setCreateSource("history");
+    setSelectedCatalogMediaUrl("");
     setPlatforms({
       facebook: safeArray(post.platforms).includes("facebook"),
       instagram: safeArray(post.platforms).includes("instagram"),
@@ -1535,26 +1719,11 @@ export default function SocialMediaPublisher() {
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.12),_transparent_32%),linear-gradient(180deg,#07111f_0%,#050816_100%)] text-white">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 pb-32 pt-5 md:px-6 md:pb-10 lg:px-8 lg:pb-12">
-        <MarketingStudioHeader />
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/25 backdrop-blur">
-          <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-amber-100">
-                <Wand2 className="h-3.5 w-3.5" />
-                {t("marketing.socialPublisher.eyebrow")}
-              </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.socialPublisher.title")}</h1>
-              <p className="max-w-3xl text-sm leading-6 text-slate-300">
-                {t("marketing.socialPublisher.subtitle")}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2 text-xs text-slate-300">
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{t("marketing.social.platforms.facebook")}</span>
-              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1">{t("marketing.social.platforms.instagram")}</span>
-              <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1 text-amber-100">{t("marketing.socialPublisher.tiktokComingSoon")}</span>
-            </div>
-          </div>
-        </section>
+        <MarketingStudioHeader
+          eyebrow="Marketing Studio"
+          title="Campaign Studio"
+          description="أنشئ حملاتك التسويقية، راجع المحتوى، ثم انشر أو جدوله من مكان واحد."
+        />
 
         {error ? <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
@@ -1641,56 +1810,93 @@ export default function SocialMediaPublisher() {
                   <div className="rounded-[1.5rem] border border-emerald-400/20 bg-emerald-400/10 p-4">
                     <div className="flex items-start gap-3">
                       <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
-                        {selectedCatalogProduct.image_url ? (
-                          <img src={selectedCatalogProduct.image_url} alt={selectedCatalogProduct.name || "Selected product"} className="h-full w-full object-cover" />
+                        {selectedCatalogResolvedMediaUrl ? (
+                          <img src={selectedCatalogResolvedMediaUrl} alt={selectedCatalogProduct.name || "Selected product"} className="h-full w-full object-cover" />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-slate-500">
                             <ImageIcon className="h-6 w-6" />
                           </div>
                         )}
                       </div>
-                      <div className="min-w-0 flex-1">
+                      <div className="min-w-0 flex-1 space-y-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <div className="truncate text-sm font-black text-white">{selectedCatalogProduct.name || "Selected product"}</div>
-                          {selectedCatalogProductDiscount ? (
-                            <span className="rounded-full border border-emerald-300/20 bg-emerald-300/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-100">
-                              {selectedCatalogProductDiscount}
-                            </span>
-                          ) : null}
+                          {selectedCatalogProductDiscount ? <span className={`${sharedBadgeClass} border-emerald-300/20 bg-emerald-300/15 text-emerald-100`}>{selectedCatalogProductDiscount}</span> : null}
                         </div>
-                        <div className="mt-1 text-xs text-emerald-100/80">
-                          {Number(selectedCatalogProduct.current_price || selectedCatalogProduct.price || 0) > 0 ? (
-                            <span className="font-semibold">Now {formatCompactCurrency(selectedCatalogProduct.current_price || selectedCatalogProduct.price)} EGP</span>
-                          ) : Number(selectedCatalogProduct.price || 0) > 0 ? (
-                            <span className="font-semibold">Price {formatCompactCurrency(selectedCatalogProduct.price)} EGP</span>
-                          ) : (
-                            <span className="font-semibold">Price not available</span>
-                          )}
-                          <span className="mx-2">•</span>
-                          <span>{Number(selectedCatalogProduct.stock_quantity || 0) > 0 ? `${selectedCatalogProduct.stock_quantity} in stock` : "Out of stock"}</span>
+                        <div className="grid gap-2 text-xs text-emerald-100/85 sm:grid-cols-2 xl:grid-cols-3">
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">اسم المنتج</div>
+                            <div className="mt-1 line-clamp-2 text-sm font-semibold text-white">{selectedCatalogProduct.name || "Selected product"}</div>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">السعر الحالي</div>
+                            <div className="mt-1 text-sm font-semibold text-white">
+                              {Number(selectedCatalogProduct.current_price || selectedCatalogProduct.price || 0) > 0
+                                ? `${formatCompactCurrency(selectedCatalogProduct.current_price || selectedCatalogProduct.price)} EGP`
+                                : "Price not available"}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">المخزون</div>
+                            <div className="mt-1 text-sm font-semibold text-white">
+                              {Number(selectedCatalogProductAvailability.stock || selectedCatalogProduct.stock_quantity || 0) > 0
+                                ? `${selectedCatalogProductAvailability.stock || selectedCatalogProduct.stock_quantity} in stock`
+                                : "Out of stock"}
+                            </div>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">عدد المقاسات</div>
+                            <div className="mt-1 text-sm font-semibold text-white">{selectedCatalogProductAvailability.sizes.length}</div>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">عدد الألوان</div>
+                            <div className="mt-1 text-sm font-semibold text-white">{selectedCatalogProductAvailability.colors.length}</div>
+                          </div>
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">نسبة الخصم</div>
+                            <div className="mt-1 text-sm font-semibold text-white">{selectedCatalogProductDiscount || "—"}</div>
+                          </div>
                         </div>
+                        {selectedCatalogMediaItems.length > 1 ? (
+                          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                            <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-100/60">صور الألوان المتاحة</div>
+                            <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-5 xl:grid-cols-6">
+                              {selectedCatalogMediaItems.map((item) => {
+                                const isActive = item.url === selectedCatalogResolvedMediaUrl;
+                                return (
+                                  <button
+                                    key={item.key || item.url}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedCatalogMediaUrl(item.url);
+                                      setMediaType("image");
+                                    }}
+                                    className={[
+                                      "group overflow-hidden rounded-2xl border p-1 text-left transition",
+                                      isActive ? "border-emerald-300/60 bg-emerald-300/15" : "border-white/10 bg-black/20 hover:border-white/20 hover:bg-white/[0.04]",
+                                    ].join(" ")}
+                                    title={item.color || item.url}
+                                  >
+                                    <div className="aspect-square overflow-hidden rounded-xl bg-black/40">
+                                      <img src={item.url} alt={item.color || "Color image"} className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]" />
+                                    </div>
+                                    <div className="mt-1 truncate px-1 text-[10px] font-semibold text-emerald-100/80">{item.color || "Color"}</div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={openProductCatalog}
-                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
-                      >
+                      <button type="button" onClick={openProductCatalog} className={secondaryButtonClass}>
                         Change product
                       </button>
-                      <button
-                        type="button"
-                        onClick={clearCatalogProduct}
-                        className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-slate-200 transition hover:bg-white/[0.08]"
-                      >
+                      <button type="button" onClick={clearCatalogProduct} className={ghostButtonClass}>
                         Clear product
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setAiTemplateOpen(true)}
-                        className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:border-amber-300/35 hover:bg-amber-400/15"
-                      >
+                      <button type="button" onClick={() => setAiTemplateOpen(true)} className="inline-flex h-10 items-center gap-2 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 text-xs font-black text-amber-100 transition hover:border-amber-300/35 hover:bg-amber-400/15">
                         ✨ Generate AI Caption
                       </button>
                     </div>
@@ -1698,7 +1904,12 @@ export default function SocialMediaPublisher() {
                 ) : null}
               </section>
 
-              <label className="block cursor-pointer rounded-[2rem] border border-dashed border-amber-400/25 bg-black/20 p-5 transition hover:border-amber-400/45 hover:bg-black/25">
+              <label
+                className={[
+                  "block cursor-pointer rounded-[2rem] border border-dashed border-amber-400/25 bg-black/20 transition hover:border-amber-400/45 hover:bg-black/25",
+                  hasCatalogProduct || resolvedMediaPreview ? "p-4" : "p-5",
+                ].join(" ")}
+              >
                 <input
                   ref={mediaInputRef}
                   type="file"
@@ -1706,7 +1917,7 @@ export default function SocialMediaPublisher() {
                   onChange={handleMediaChange}
                   className="hidden"
                 />
-                <div className="flex min-h-[280px] items-center justify-center text-center">
+                <div className={`flex items-center justify-center text-center ${hasCatalogProduct || resolvedMediaPreview ? "min-h-[190px] md:min-h-[220px]" : "min-h-[280px]"}`}>
                   {resolvedMediaPreview ? (
                     mediaType === "video" ? (
                       <video src={resolvedMediaPreview} controls className="max-h-[360px] w-full rounded-[1.75rem] bg-black object-contain shadow-2xl shadow-black/30" />
@@ -1742,22 +1953,35 @@ export default function SocialMediaPublisher() {
                   />
 
                   <div className="flex flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/60 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-black text-white">Suggested First Comment</div>
+                    <button
+                      type="button"
+                      onClick={() => setFirstCommentAccordionOpen((current) => !current)}
+                      disabled={!hasFirstCommentText}
+                      className={[
+                        "flex w-full items-center justify-between gap-3 rounded-[1.35rem] border px-4 py-3 text-left transition",
+                        hasFirstCommentText
+                          ? "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]"
+                          : "cursor-not-allowed border-white/5 bg-white/[0.02] opacity-80",
+                      ].join(" ")}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 text-sm font-black text-white">
+                          <span>{firstCommentAccordionOpen ? "▼" : "▶"}</span>
+                          <span>Suggested First Comment</span>
+                        </div>
                         <div className="mt-1 text-xs leading-5 text-slate-400">
-                          Built from ERP data only. Caption stays unchanged.
+                          {hasFirstCommentText ? "Built from ERP data only. Caption stays unchanged." : "Generate a product first to build the comment."}
                         </div>
                       </div>
-                      <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">
-                        ERP
-                      </span>
-                    </div>
+                      <span className={`${sharedBadgeClass} border-white/10 bg-white/[0.05] text-slate-300`}>ERP</span>
+                    </button>
 
-                    <div className="mt-3 rounded-[1.35rem] border border-white/10 bg-white/[0.03] p-3">
-                      <div className="max-h-[min(42vh,26rem)] overflow-y-auto pr-1">
-                        <div className="space-y-3 text-sm leading-6 text-slate-100">
-                          {firstCommentPreview.split("\n").map((line, index) => {
+                    {hasFirstCommentText && firstCommentAccordionOpen ? (
+                      <>
+                        <div className="mt-3 rounded-[1.35rem] border border-white/10 bg-white/[0.03] p-3">
+                          <div className="max-h-[min(42vh,26rem)] overflow-y-auto pr-1">
+                            <div className="space-y-3 text-sm leading-6 text-slate-100">
+                              {firstCommentPreview.split("\n").map((line, index) => {
                             const text = String(line || "").trim();
                             if (!text) {
                               return <div key={`gap-${index}`} className="h-2" />;
@@ -1809,58 +2033,60 @@ export default function SocialMediaPublisher() {
                                 </span>
                                 <span className="min-w-0 flex-1 break-words">{text}</span>
                               </div>
-                            );
-                          })}
+                              );
+                            })}
+                            </div>
+                          </div>
                         </div>
-                      </div>
-                    </div>
 
-                    <div className="sticky bottom-0 mt-3 flex flex-wrap gap-2 border-t border-white/10 bg-slate-950/90 pt-3 backdrop-blur">
-                      <button
-                        type="button"
-                        onClick={copyCaption}
-                        disabled={!caption.trim()}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        Copy Caption
-                      </button>
-                      <button
-                        type="button"
-                        onClick={copySuggestedFirstComment}
-                        disabled={!firstComment.trim()}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        Copy First Comment
-                      </button>
-                      <button
-                        type="button"
-                        onClick={copyAll}
-                        disabled={!caption.trim() && !firstComment.trim()}
-                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        Copy All
-                      </button>
-                      <button
-                        type="button"
-                        onClick={useSuggestedFirstComment}
-                        disabled={!firstComment.trim()}
-                        className="rounded-2xl bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        Use Comment
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void refreshSuggestedFirstComment()}
-                        disabled={firstCommentLoading || !selectedCatalogProduct?.id}
-                        className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {firstCommentLoading ? <Loader2 className="mr-1 inline-block h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="mr-1 inline-block h-3.5 w-3.5" />}
-                        Regenerate
-                      </button>
-                    </div>
+                        <div className="sticky bottom-0 mt-3 flex flex-wrap gap-2 border-t border-white/10 bg-slate-950/90 pt-3 backdrop-blur">
+                          <button
+                            type="button"
+                            onClick={copyCaption}
+                            disabled={!caption.trim()}
+                            className={`${secondaryButtonClass} px-3 py-2 text-xs`}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copy Caption
+                          </button>
+                          <button
+                            type="button"
+                            onClick={copySuggestedFirstComment}
+                            disabled={!firstComment.trim()}
+                            className={`${secondaryButtonClass} px-3 py-2 text-xs`}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copy First Comment
+                          </button>
+                          <button
+                            type="button"
+                            onClick={copyAll}
+                            disabled={!caption.trim() && !firstComment.trim()}
+                            className={`${secondaryButtonClass} px-3 py-2 text-xs`}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            Copy All
+                          </button>
+                          <button
+                            type="button"
+                            onClick={useSuggestedFirstComment}
+                            disabled={!firstComment.trim()}
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-emerald-300 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            Use Comment
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void refreshSuggestedFirstComment()}
+                            disabled={firstCommentLoading || !selectedCatalogProduct?.id}
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-semibold text-cyan-100 transition hover:border-cyan-300/40 hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {firstCommentLoading ? <Loader2 className="mr-1 inline-block h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="mr-1 inline-block h-3.5 w-3.5" />}
+                            Regenerate
+                          </button>
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                 </div>
 
@@ -1915,11 +2141,11 @@ export default function SocialMediaPublisher() {
                     <div className="text-xs text-slate-400">Choose the connected Facebook page and Instagram account.</div>
                   </div>
                   {metaAccountsLoading || metaIntegrationLoading ? (
-                    <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-300">Loading</span>
+                    <span className={`${sharedBadgeClass} border-white/10 bg-white/[0.05] text-slate-300`}>LOADING</span>
                   ) : hasFacebookAccount ? (
-                    <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-emerald-100">Connected</span>
+                    <span className={`${sharedBadgeClass} border-emerald-400/20 bg-emerald-400/10 text-emerald-100`}>CONNECTED</span>
                   ) : (
-                    <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-amber-100">Needs connect</span>
+                    <span className={`${sharedBadgeClass} border-amber-400/20 bg-amber-400/10 text-amber-100`}>CONNECT</span>
                   )}
                 </div>
 
@@ -2246,7 +2472,7 @@ export default function SocialMediaPublisher() {
                       disabled={!selectedCatalogProduct || aiTemplateLoading}
                       className="w-full rounded-[1.6rem] border border-amber-400/25 bg-amber-400/10 p-4 text-start transition hover:border-amber-300/35 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/[0.03] disabled:text-slate-500"
                     >
-                      <span className="inline-flex rounded-full border border-amber-400/25 bg-amber-400/10 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.22em] text-amber-100">
+                      <span className={`${sharedBadgeClass} border-amber-400/25 bg-amber-400/10 font-black text-amber-100`}>
                         NEW COLLECTION
                       </span>
                       <div className="mt-2 text-base font-black text-white">New Collection</div>
@@ -2385,8 +2611,8 @@ export default function SocialMediaPublisher() {
                           >
                             <div className="flex gap-3">
                               <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-black/30">
-                                {product.image_url ? (
-                                  <img src={product.image_url} alt={product.name || "Product"} className="h-full w-full object-cover" />
+                                {product.primary_media_url || product.image_url ? (
+                                  <img src={product.primary_media_url || product.image_url} alt={product.name || "Product"} className="h-full w-full object-cover" />
                                 ) : (
                                   <div className="flex h-full w-full items-center justify-center text-slate-500">
                                     <ImageIcon className="h-6 w-6" />

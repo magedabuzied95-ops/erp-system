@@ -180,6 +180,73 @@ const uniqueTextList = (...sources) => {
   return items;
 };
 
+const collectMediaUrls = (...sources) => {
+  const seen = new Set();
+  const items = [];
+
+  const pushValue = (value) => {
+    if (!value) return;
+    if (Array.isArray(value)) {
+      value.forEach(pushValue);
+      return;
+    }
+    if (typeof value === "string") {
+      const text = trimString(value);
+      if (!text) return;
+      try {
+        const parsed = JSON.parse(text);
+        if (Array.isArray(parsed)) {
+          parsed.forEach(pushValue);
+          return;
+        }
+      } catch {
+        // Fall through to plain text handling.
+      }
+      const key = text.toLowerCase();
+      if (seen.has(key)) return;
+      seen.add(key);
+      items.push(text);
+      return;
+    }
+    if (typeof value === "object") {
+      pushValue(
+        value.image_url ||
+          value.url ||
+          value.src ||
+          value.media_url ||
+          value.primary_image_url ||
+          value.variant_image_url ||
+          value.color_image_url ||
+          value.image ||
+          value.photo_url ||
+          value.thumbnail_url ||
+          value.file_url ||
+          ""
+      );
+      pushValue(value.images);
+      pushValue(value.gallery_images);
+      pushValue(value.media_urls);
+    }
+  };
+
+  sources.forEach(pushValue);
+  return items;
+};
+
+const isAvailableVariantForMedia = (variant = {}) => {
+  const quantity = Number(
+    variant.quantity ??
+      variant.stock ??
+      variant.stock_quantity ??
+      variant.available_quantity ??
+      variant.inventory_quantity ??
+      variant.current_stock ??
+      0
+  );
+  const available = variant.available === true || variant.in_stock === true || variant.is_available === true;
+  return quantity > 0 || available;
+};
+
 const resolveSocialPublisherProductUrl = (product = {}) => {
   const slug = trimString(product.canonical_slug || product.slug || "");
   if (slug) return `/shop/product/${slug}`;
@@ -230,30 +297,108 @@ const resolveSocialPublisherPricing = (product = {}) => {
 const normalizeSocialPublisherProduct = (product = {}) => {
   const pricing = resolveSocialPublisherPricing(product);
   const variants = Array.isArray(product.variants) ? product.variants : [];
+  const galleryImages = collectMediaUrls(product.gallery_images, product.images, product.media_urls);
+  const variantMediaUrls = uniqueTextList(
+    variants.flatMap((variant) => collectMediaUrls(variant.primary_image_url, variant.variant_image_url, variant.color_image_url, variant.image_url, variant.image, variant.photo_url, variant.thumbnail_url, variant.images, variant.gallery_images, variant.media_urls))
+  );
+  const availableVariantMedia = variants.filter(isAvailableVariantForMedia);
+  const availableColorEntries = [];
+  const seenColorKeys = new Set();
+
+  const addColorEntry = (variant = {}, source = "") => {
+    const color = trimString(variant.color || variant.color_name || variant.colour || variant.variant_color || variant.name || "");
+    if (!color) return;
+    const colorKey = color.toLowerCase();
+    if (seenColorKeys.has(colorKey)) return;
+    const mediaUrls = collectMediaUrls(
+      variant.primary_image_url,
+      variant.variant_image_url,
+      variant.color_image_url,
+      variant.image_url,
+      variant.image,
+      variant.photo_url,
+      variant.thumbnail_url,
+      variant.images,
+      variant.gallery_images,
+      variant.media_urls
+    );
+    if (!mediaUrls.length) return;
+    seenColorKeys.add(colorKey);
+    availableColorEntries.push({
+      color,
+      color_key: colorKey,
+      image_url: mediaUrls[0],
+      images: mediaUrls.slice(1),
+      media_urls: mediaUrls,
+      available: true,
+      source,
+    });
+  };
+
+  const colorImageSources = Array.isArray(product.color_images) ? product.color_images : [];
+  colorImageSources.forEach((entry) => addColorEntry(entry, "color_images"));
+
+  if (product.images_by_color && typeof product.images_by_color === "object" && !Array.isArray(product.images_by_color)) {
+    Object.entries(product.images_by_color).forEach(([color, value]) => {
+      const mediaUrls = collectMediaUrls(value);
+      if (!mediaUrls.length || !trimString(color)) return;
+      const colorKey = trimString(color).toLowerCase();
+      if (seenColorKeys.has(colorKey)) return;
+      seenColorKeys.add(colorKey);
+      availableColorEntries.push({
+        color: trimString(color),
+        color_key: colorKey,
+        image_url: mediaUrls[0],
+        images: mediaUrls.slice(1),
+        media_urls: mediaUrls,
+        available: true,
+        source: "images_by_color",
+      });
+    });
+  }
+
+  availableVariantMedia.forEach((variant) => addColorEntry(variant, "variant"));
+
+  const fallbackCoverImage =
+    collectMediaUrls(
+      product.image_url,
+      product.product_image_url,
+      product.thumbnail_url,
+      product.photo_url,
+      product.image,
+      variants[0]?.image_url,
+      variants[0]?.variant_image_url,
+      galleryImages[0]
+    )[0] || "";
+  const primaryMediaUrl = availableColorEntries[0]?.image_url || fallbackCoverImage || "";
+  const availableColors = availableColorEntries.length
+    ? uniqueTextList(availableColorEntries.map((item) => item.color))
+    : uniqueTextList(
+        product.available_colors,
+        product.colors,
+        product.color_names,
+        variants.map((variant) => variant.color || variant.color_name || "")
+      );
+  const imagesByColor = availableColorEntries.reduce((acc, item) => {
+    acc[item.color_key] = uniqueTextList([item.image_url, ...item.images, ...(item.media_urls || [])]);
+    return acc;
+  }, {});
   const availableSizes = uniqueTextList(
     product.available_sizes,
     product.sizes,
     variants.map((variant) => variant.fixed_size_label || variant.size_label || variant.size_name || variant.size || "")
   );
-  const availableColors = uniqueTextList(
-    product.available_colors,
-    product.colors,
-    product.color_names,
-    variants.map((variant) => variant.color || variant.color_name || "")
-  );
   return {
     id: product.id ?? product.product_id ?? null,
     name: trimString(product.name || product.product_name || ""),
-    image_url:
-      trimString(
-        product.image_url ||
-          product.product_image_url ||
-          product.thumbnail_url ||
-          product.photo_url ||
-          variants[0]?.image_url ||
-          variants[0]?.variant_image_url ||
-          ""
-      ),
+    image_url: fallbackCoverImage,
+    cover_image_url: fallbackCoverImage,
+    primary_media_url: primaryMediaUrl,
+    media_urls: uniqueTextList([primaryMediaUrl, fallbackCoverImage, ...galleryImages, ...variantMediaUrls]),
+    gallery_images: galleryImages,
+    variant_images: variantMediaUrls,
+    color_images: availableColorEntries,
+    images_by_color: imagesByColor,
     price: pricing.price,
     sale_price: pricing.sale_price,
     current_price: pricing.current_price,
