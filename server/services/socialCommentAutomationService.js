@@ -2325,7 +2325,9 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       trigger: privateReplyTrigger,
     });
     const privateReplyStatus = text(storedRow.dm_status || storedRow.automation_state?.private_reply?.status || "").toLowerCase();
-    const shouldQueuePrivateReply = privateReplyTrigger && !["queued", "sending", "sent"].includes(privateReplyStatus);
+    const privateReplySource = text(storedRow.raw_payload?.source || "").toLowerCase();
+    const privateReplyEligible = privateReplyTrigger || privateReplySource === "meta_comment_poll";
+    const shouldQueuePrivateReply = privateReplyEligible && !["queued", "sending", "sent"].includes(privateReplyStatus);
     if (shouldQueuePrivateReply) {
       storedRow.dm_status = storedRow.dm_status || "queued";
       storedRow.automation_state = {
@@ -2342,21 +2344,34 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         commentId: storedRow.comment_id,
         sessionId: storedRow.inbox_conversation_id || "",
         channel: storedRow.channel || "",
-        dmStatus: "queued",
-        automationState: storedRow.automation_state,
-      }).catch(() => {});
+          dmStatus: "queued",
+          automationState: storedRow.automation_state,
+        }).catch(() => {});
       console.log("SOCIAL_COMMENT_SAVED_FOR_PRIVATE_REPLY", {
         storedRow_id: storedRow.id || null,
         comment_id: text(storedRow.comment_id || ""),
         conversation_id: text(storedRow.inbox_conversation_id || ""),
+        source: privateReplySource,
+        private_reply_status: privateReplyStatus || "empty",
       });
       await enqueueSocialCommentPrivateReplyJob({
         tenantId: storedRow.tenant_id,
         platform: storedRow.platform,
         commentId: storedRow.comment_id,
-        postId: storedRow.post_id,
-        row: storedRow,
-      }).catch(() => {});
+          postId: storedRow.post_id,
+          row: storedRow,
+        }).catch(() => {});
+    } else {
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_SKIPPED", {
+        storedRow_id: storedRow.id || null,
+        comment_id: text(storedRow.comment_id || ""),
+        conversation_id: text(storedRow.inbox_conversation_id || ""),
+        source: privateReplySource,
+        private_reply_status: privateReplyStatus || "empty",
+        reason: !privateReplyEligible
+          ? "not_private_reply_eligible"
+          : `private_reply_status_${privateReplyStatus || "empty"}`,
+      });
     }
     console.log("[COMMENT_EVENT_SAVED]", {
       platform: storedRow.platform,
