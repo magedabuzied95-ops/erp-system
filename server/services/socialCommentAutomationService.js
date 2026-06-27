@@ -1126,7 +1126,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       post_id: postId,
       comment_id: text(event.comment_id || ""),
       message: commentText,
-      inserted_run: Boolean(result.rows[0]),
+      inserted_run: Boolean(sessionResult.rows[0]),
       inserted_message: Boolean(inboundMessage.rows[0]),
       conversation_id: sessionId,
     });
@@ -2224,7 +2224,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       processed_at: event.processed_at ? new Date(event.processed_at).toISOString() : new Date().toISOString(),
     };
 
-    const result = await db.query(
+    const insertResult = await db.query(
       `
       INSERT INTO social_comment_automation_runs (
         tenant_id, platform, channel, post_id, post_permalink, comment_id, parent_comment_id, root_comment_id,
@@ -2292,7 +2292,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         normalized.processed_at,
       ]
     );
-    let storedRow = result.rows[0] || null;
+    let storedRow = insertResult.rows[0] || null;
     if (!storedRow) {
       const existingRowResult = await db.query(
         `
