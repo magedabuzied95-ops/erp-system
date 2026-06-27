@@ -74,7 +74,7 @@ const SETTINGS_CENTER_ACTIVE_ROUTES = new Set([
   "/settings/shipping",
   "/settings/payments",
 ]);
-const AI_MARKETING_ROUTES = new Set(["/marketing/ai-center", "/marketing/ai-center/videos", "/admin/ai-inbox", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics"]);
+const AI_MARKETING_ROUTES = new Set(["/marketing/ai-center", "/marketing/ai-center/leads", "/marketing/ai-center/videos", "/admin/ai-inbox", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics"]);
 const AI_SUPPORT_ROUTES = new Set(["/admin/ai-support-console", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"]);
 const ARABIC_GROUP_LABELS = {
   Main: "الرئيسية",
@@ -242,6 +242,7 @@ const resolveMainLayoutTitle = (pathname = "") => {
   if (path === "/admin/ai-support-knowledge-base") return "AI Knowledge Base";
   if (path === "/admin/tenants") return "Tenants";
   if (path === "/marketing/ai-center") return "AI Marketing";
+  if (path === "/marketing/ai-center/leads") return "AI Lead Center";
   return "";
 };
 

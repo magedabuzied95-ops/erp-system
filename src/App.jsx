@@ -165,6 +165,7 @@ const StaffQrAttendance = lazy(() => import("./modules/attendance/pages/StaffQrA
 const PublicBranchAttendance = lazy(() => import("./modules/attendance/pages/PublicBranchAttendance"));
 const MarketingDashboard = lazy(() => import("./modules/marketing/pages/MarketingDashboard"));
 const AiMarketingCenter = lazy(() => import("./modules/marketing/pages/AiMarketingCenter"));
+const AiLeadCenter = lazy(() => import("./modules/marketing/pages/AiLeadCenter"));
 const AiMarketingVideos = lazy(() => import("./modules/marketing/pages/AiMarketingVideos"));
 const MarketingAnalytics = lazy(() => import("./modules/marketing/pages/MarketingAnalytics"));
 const MarketingAttribution = lazy(() => import("./modules/marketing/pages/MarketingAttribution"));
@@ -1080,6 +1081,15 @@ function App() {
           element={
             <ProtectedRoute requiredPermissions={["marketing.view"]}>
               <AiMarketingCenter />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="marketing/ai-center/leads"
+          element={
+            <ProtectedRoute requiredPermissions={["marketing.view"]}>
+              <AiLeadCenter />
             </ProtectedRoute>
           }
         />
