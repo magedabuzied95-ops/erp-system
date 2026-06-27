@@ -713,145 +713,124 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     meta_error_message: "",
     resolved_comment_id: graphCommentId,
   });
-
-  const attempts = GRAPH_API_PRIVATE_REPLY_VERSIONS.map((version, index) => ({
-    version,
-    label: index === 0 ? "current default graph base" : `explicit ${version}`,
-    endpoint: `/${encodeURIComponent(commentId)}/private_replies`,
-    contentType: "application/x-www-form-urlencoded",
-    body: new URLSearchParams({ message: trimString(message) }),
-    tokenDelivery: "form_body",
-  }));
-
-  const versionAttempts = [
-    {
-      version: GRAPH_API_VERSION,
-      shapeLabel: "current default graph base",
-    },
-    {
-      version: "v19.0",
-      shapeLabel: "explicit /v19.0",
-    },
-    {
-      version: "v20.0",
-      shapeLabel: "explicit /v20.0",
-    },
-    {
-      version: "v21.0",
-      shapeLabel: "explicit /v21.0",
-    },
-  ];
+  const fixedMessage = "تم الرد على حضرتك في الخاص ✅";
+  const endpoint = `/${encodeURIComponent(graphCommentId)}/private_replies`;
+  const finalUrlWithoutToken = `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}${endpoint}`;
+  console.warn("GRAPH_PRIVATE_REPLY_REQUEST", {
+    target_comment_id: graphCommentId,
+    graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+    graph_version: trimString(GRAPH_API_VERSION),
+    graph_path: endpoint,
+    token_delivery: "query",
+    body_shape: "minimal_text_only",
+    final_url_without_token: finalUrlWithoutToken,
+  });
+  console.warn("[social-comments:private-reply-version-debug]", {
+    graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+    graph_version: trimString(GRAPH_API_VERSION),
+    graph_path: endpoint,
+    content_type: "application/x-www-form-urlencoded",
+    token_delivery: "query",
+    meta_status: "attempting",
+    meta_error_code: "",
+    meta_error_subcode: "",
+    meta_error_message: "",
+  });
 
   let lastError = null;
-  for (const attempt of versionAttempts) {
-    try {
-      console.warn("GRAPH_PRIVATE_REPLY_REQUEST", {
-        target_comment_id: graphCommentId,
-        graph_base: getGraphBaseUrlForVersion(attempt.version),
-        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
-        token_delivery: "form_body",
-      });
-      console.warn("[social-comments:private-reply-version-debug]", {
-        graph_base: getGraphBaseUrlForVersion(attempt.version),
-        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
-        content_type: "application/x-www-form-urlencoded",
-        token_delivery: "form_body",
-        meta_status: "attempting",
-        meta_error_code: "",
-        meta_error_subcode: "",
-        meta_error_message: "",
-      });
-      const payload = await callMetaPostWithShape({
-        businessId,
-        endpoint: `/${encodeURIComponent(graphCommentId)}/private_replies`,
-        label: "private reply",
-        contentType: "application/x-www-form-urlencoded",
-        body: new URLSearchParams({ message: trimString(message) }),
-        bodyShape: attempt.shapeLabel,
-        graphVersion: attempt.version,
-        tokenDelivery: "form_body",
-      });
-      console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
-        target_comment_id: graphCommentId,
-        graph_base: getGraphBaseUrlForVersion(attempt.version),
-        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
-        token_delivery: "form_body",
-        meta_status: "ok",
-        meta_error_code: "",
-        meta_error_subcode: "",
-        meta_error_message: "",
-      });
-      console.warn("[social-comments:private-reply-version-debug]", {
-        graph_base: getGraphBaseUrlForVersion(attempt.version),
-        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
-        content_type: "application/x-www-form-urlencoded",
-        token_delivery: "form_body",
-        meta_status: "ok",
-        meta_error_code: "",
-        meta_error_subcode: "",
-        meta_error_message: "",
-      });
-      console.warn("[social-comments:private-reply-meta-call-debug]", {
-        comment_id: graphCommentId,
-        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
-        method: "POST",
-        payload_keys: ["message"],
-        page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
-        token_present: Boolean(tokenStatus?.accessToken),
-        meta_status: "ok",
-        meta_error_message: "",
-        payload_shape: attempt.shapeLabel,
-        resolved_comment_id: graphCommentId,
-      });
-      return payload;
-    } catch (error) {
-      const details = extractMetaErrorDetails(error);
-      console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
-        target_comment_id: graphCommentId,
-        graph_base: getGraphBaseUrlForVersion(attempt.version),
-        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
-        token_delivery: "form_body",
-        meta_status: String(error?.status || details.status || ""),
-        meta_error_code: details.code || "",
-        meta_error_subcode: details.subcode || "",
-        meta_error_message: details.message || "",
-      });
-      console.warn("[social-comments:private-reply-version-debug]", {
-        graph_base: getGraphBaseUrlForVersion(attempt.version),
-        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
-        graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
-        content_type: "application/x-www-form-urlencoded",
-        token_delivery: "form_body",
-        meta_status: String(error?.status || details.status || ""),
-        meta_error_code: details.code || "",
-        meta_error_subcode: details.subcode || "",
-        meta_error_message: details.message || "",
-      });
-      lastError = error;
-    }
+  try {
+    const payload = await callMetaPostWithShape({
+      businessId,
+      endpoint,
+      label: "private reply",
+      contentType: "application/x-www-form-urlencoded",
+      body: new URLSearchParams({ message: fixedMessage }),
+      bodyShape: "minimal_text_only",
+      graphVersion: GRAPH_API_VERSION,
+      tokenDelivery: "query",
+    });
+    console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
+      target_comment_id: graphCommentId,
+      graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+      graph_version: trimString(GRAPH_API_VERSION),
+      graph_path: endpoint,
+      token_delivery: "query",
+      meta_status: "ok",
+      meta_error_code: "",
+      meta_error_subcode: "",
+      meta_error_message: "",
+    });
+    console.warn("[social-comments:private-reply-version-debug]", {
+      graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+      graph_version: trimString(GRAPH_API_VERSION),
+      graph_path: endpoint,
+      content_type: "application/x-www-form-urlencoded",
+      token_delivery: "query",
+      meta_status: "ok",
+      meta_error_code: "",
+      meta_error_subcode: "",
+      meta_error_message: "",
+    });
+    console.warn("[social-comments:private-reply-meta-call-debug]", {
+      comment_id: graphCommentId,
+      graph_path: endpoint,
+      method: "POST",
+      payload_keys: ["message"],
+      page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+      token_present: Boolean(tokenStatus?.accessToken),
+      meta_status: "ok",
+      meta_error_message: "",
+      payload_shape: "minimal_text_only",
+      resolved_comment_id: graphCommentId,
+      token_delivery: "query",
+      final_url_without_token: finalUrlWithoutToken,
+    });
+    return payload;
+  } catch (error) {
+    const details = extractMetaErrorDetails(error);
+    lastError = error;
+    console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
+      target_comment_id: graphCommentId,
+      graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+      graph_version: trimString(GRAPH_API_VERSION),
+      graph_path: endpoint,
+      token_delivery: "query",
+      meta_status: String(error?.status || details.status || ""),
+      meta_error_code: details.code || "",
+      meta_error_subcode: details.subcode || "",
+      meta_error_message: details.message || "",
+    });
+    console.warn("[social-comments:private-reply-version-debug]", {
+      graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+      graph_version: trimString(GRAPH_API_VERSION),
+      graph_path: endpoint,
+      content_type: "application/x-www-form-urlencoded",
+      token_delivery: "query",
+      meta_status: String(error?.status || details.status || ""),
+      meta_error_code: details.code || "",
+      meta_error_subcode: details.subcode || "",
+      meta_error_message: details.message || "",
+    });
+    console.warn("[social-comments:private-reply-meta-call-debug]", {
+      comment_id: graphCommentId,
+      graph_path: endpoint,
+      method: "POST",
+      payload_keys: ["message"],
+      page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+      token_present: Boolean(tokenStatus?.accessToken),
+      meta_status: String(error?.status || details.status || ""),
+      meta_error_message: String(error?.message || details.message || ""),
+      payload_shape: "minimal_text_only",
+      resolved_comment_id: graphCommentId,
+      token_delivery: "query",
+      final_url_without_token: finalUrlWithoutToken,
+    });
   }
 
   const details = extractMetaErrorDetails(lastError || {});
   const mappedCode = Number(details.code) === 100 && Number(details.subcode) === 33
     ? "META_PRIVATE_REPLY_UNSUPPORTED_OR_PERMISSION_DENIED"
     : "";
-  console.warn("[social-comments:private-reply-meta-call-debug]", {
-    comment_id: graphCommentId,
-    graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
-    method: "POST",
-    payload_keys: ["message"],
-    page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
-    token_present: Boolean(tokenStatus?.accessToken),
-    meta_status: String(lastError?.status || details.status || ""),
-    meta_error_message: String(lastError?.message || details.message || ""),
-    payload_shape: "current default graph base | explicit /v19.0 | explicit /v20.0 | explicit /v21.0",
-    resolved_comment_id: graphCommentId,
-  });
   console.warn("[social-comments:private-reply-capability-debug]", {
     token_me_id: capabilityDebug?.tokenMeId || "",
     token_me_name: capabilityDebug?.tokenMeName || "",
