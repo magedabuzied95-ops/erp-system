@@ -31,6 +31,7 @@ import {
   buildProductLabelItems,
   buildBarcodeShopLabelItem,
   buildSmartProductQrUrl,
+  buildLandscapePrintSvg,
   openBarcodePrintWindow,
 } from "../lib/barcodeLabels";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -576,6 +577,16 @@ function BarcodeLabels() {
       sheetMode.toUpperCase(),
     [labelTemplate, labelTemplates, sheetMode, sheetModes]
   );
+  const printCopy = useMemo(
+    () => ({
+      title: t("products.barcodeLabels.labelSheetTitle"),
+      color: t("print.barcodeLabels.color"),
+      size: t("print.barcodeLabels.size"),
+      sku: t("print.barcodeLabels.sku"),
+      price: t("print.barcodeLabels.price"),
+    }),
+    [t]
+  );
   const previewPages = useMemo(
     () => paginateBarcodeLabels(expandedLabels, activePrintSettings.labelsPerPage),
     [expandedLabels, activePrintSettings.labelsPerPage]
@@ -1063,77 +1074,19 @@ function BarcodeLabels() {
         </ProductsShell>
       </div>
 
-      <div className="barcode-print-only hidden print:block print-document" data-barcode-print-root="page">
+      <div className="barcode-print-only print-document" data-barcode-print-root="page">
         {expandedLabels.length > 0 ? (
-          previewPages.map((pageLabels, pageIndex) => {
-            const isLastPage = pageIndex === previewPages.length - 1;
-            if (isPremiumRetailTemplate) {
-                return (
-                  <section
-                    key={`print-page-${pageIndex}`}
-                    className="premium-page relative mx-0 overflow-hidden bg-white"
-                    data-barcode-print-page
-                    style={{
-                      width: "50mm",
-                      height: "100mm",
-                      display: "block",
-                      padding: 0,
-                      margin: 0,
-                      boxSizing: "border-box",
-                      overflow: "hidden",
-                      breakInside: "avoid",
-                      pageBreakInside: "avoid",
-                      pageBreakAfter: isLastPage ? "auto" : "always",
-                      breakAfter: isLastPage ? "auto" : "page",
-                    }}
-                  >
-                  {pageLabels.map((item, index) => (
-                    <PrintLabel
-                      key={getLabelRenderKey(item, index + pageIndex * Math.max(1, activePrintSettings.labelsPerPage || pageLabels.length), "print")}
-                      item={item}
-                      printSettings={activePrintSettings}
-                      template={labelTemplate}
-                    />
-                  ))}
-                </section>
-              );
-            }
-
-            return (
-              <div
-                key={`print-page-${pageIndex}`}
-                className={`mx-auto mb-4 grid justify-start last:mb-0 ${isLandscapeTemplate ? "w-full" : ""}`}
+          <div className="barcode-print-sheet">
+            {expandedLabels.map((item, index) => (
+              <section
+                key={getLabelRenderKey(item, index, "print")}
+                className="barcode-print-page"
                 data-barcode-print-page
-                style={{
-                  width: isLandscapeTemplate
-                    ? "50mm"
-                    : `${Math.max(20, activePaper.paperWidthMm - activePrintSettings.marginLeftMm - activePrintSettings.marginRightMm)}mm`,
-                  maxWidth: isLandscapeTemplate ? "50mm" : undefined,
-                  gridTemplateColumns: isLandscapeTemplate
-                    ? "minmax(0, 1fr)"
-                    : `repeat(${Math.max(1, activePrintSettings.labelsPerRow)}, minmax(0, ${activePrintSettings.labelWidthMm}mm))`,
-                  gap: `${activePrintSettings.gapMm}mm`,
-                  padding: isLandscapeTemplate ? 0 : undefined,
-                  paddingTop: isLandscapeTemplate ? 0 : `${activePrintSettings.marginTopMm}mm`,
-                  paddingRight: isLandscapeTemplate ? 0 : `${activePrintSettings.marginRightMm}mm`,
-                  paddingBottom: isLandscapeTemplate ? 0 : `${activePrintSettings.marginBottomMm}mm`,
-                  paddingLeft: isLandscapeTemplate ? 0 : `${activePrintSettings.marginLeftMm}mm`,
-                  minHeight: isLandscapeTemplate ? "100mm" : `${activePaper.paperHeightMm}mm`,
-                  pageBreakAfter: isLastPage ? "auto" : "always",
-                  breakAfter: isLastPage ? "auto" : "page",
-                }}
               >
-                {pageLabels.map((item, index) => (
-                  <PrintLabel
-                    key={getLabelRenderKey(item, index + pageIndex * Math.max(1, activePrintSettings.labelsPerPage || pageLabels.length), "print")}
-                    item={item}
-                    printSettings={activePrintSettings}
-                    template={labelTemplate}
-                  />
-                ))}
-              </div>
-            );
-          })
+                <div dangerouslySetInnerHTML={{ __html: buildLandscapePrintSvg(item, printCopy) }} />
+              </section>
+            ))}
+          </div>
         ) : (
           <div className="p-4">
             <div className="mx-auto max-w-md rounded-3xl border border-zinc-200 bg-white p-8 text-center text-zinc-600">

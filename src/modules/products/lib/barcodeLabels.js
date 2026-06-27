@@ -498,7 +498,7 @@ const splitSvgText = (value = "", maxLineLength = 24, maxLines = 2) => {
   return clipped;
 };
 
-const buildLandscapePrintSvg = (item, printCopy = {}) => {
+export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const productName = String(item?.productName || "").trim();
   const productLines = splitSvgText(productName, 28, 2);
   const sizeValue = String(item?.size || "ONE SIZE").trim() || "ONE SIZE";
@@ -1046,19 +1046,13 @@ export const buildBarcodePrintHtml = ({
             font-weight: 900;
             color: #111827;
           }
-          .barcode-print-sheet,
-          .barcode-print-page {
+          .barcode-print-sheet {
             position: relative;
             width: 50mm;
-            height: 100mm;
             margin: 0;
             padding: 0;
             overflow: hidden;
             box-sizing: border-box;
-            page-break-after: always;
-            break-after: page;
-            page-break-inside: avoid;
-            break-inside: avoid;
           }
           .barcode-print-sheet {
             display: block;
@@ -1068,13 +1062,22 @@ export const buildBarcodePrintHtml = ({
             height: auto;
           }
           .barcode-print-page {
+            position: relative;
             display: block;
+            width: 50mm;
+            height: 100mm;
             min-width: 50mm;
             max-width: 50mm;
             min-height: 100mm;
             max-height: 100mm;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            box-sizing: border-box;
             page-break-after: always;
             break-after: page;
+            page-break-inside: avoid;
+            break-inside: avoid;
           }
           .barcode-print-page:last-child {
             page-break-after: auto;
@@ -1500,87 +1503,51 @@ export const buildBarcodePrintHtml = ({
             }
             .barcode-print-only {
               display: block !important;
+              width: 50mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
             }
             html,
             body {
-              width: 50mm;
-              height: auto;
-              margin: 0;
-              padding: 0;
-              background: #ffffff;
-              overflow: visible;
-            }
-            body {
-              min-width: 50mm;
-            }
-            .preview-shell {
-              min-height: 0;
-              display: block;
-              background: #ffffff;
+              width: 50mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
+              overflow: visible !important;
             }
             .barcode-print-sheet {
               display: block !important;
-              width: 50mm;
-              margin: 0;
-              padding: 0;
-              background: #ffffff;
-              overflow: hidden;
-              height: auto;
+              width: 50mm !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              background: #ffffff !important;
             }
             .barcode-print-page {
               display: block !important;
-              width: 50mm;
-              height: 100mm;
-              margin: 0;
-              padding: 0;
-              overflow: hidden;
-              gap: 0;
+              width: 50mm !important;
+              height: 100mm !important;
               min-width: 50mm !important;
               max-width: 50mm !important;
               min-height: 100mm !important;
               max-height: 100mm !important;
-              position: relative !important;
-              break-after: page !important;
+              margin: 0 !important;
+              padding: 0 !important;
+              overflow: hidden !important;
               page-break-after: always !important;
+              break-after: page !important;
               break-inside: avoid !important;
               page-break-inside: avoid !important;
+              background: #ffffff !important;
+            }
+            .barcode-print-page:last-child {
+              page-break-after: auto !important;
+              break-after: auto !important;
             }
             .barcode-print-svg {
               display: block !important;
               width: 50mm !important;
               height: 100mm !important;
-            }
-            .page,
-            .sheet,
-            .label,
-            .image {
-              box-shadow: none;
-            }
-            .premium-sheet {
-              width: 50mm;
-              height: 100mm;
-              padding: 0;
-              gap: 0;
-              overflow: hidden;
-              box-shadow: none;
-              background: #ffffff;
-              margin: 0;
-            }
-            .premium-page {
-              width: 50mm;
-              height: 100mm;
-              overflow: hidden;
-              margin: 0;
-              box-sizing: border-box;
-              contain: layout paint;
-              page-break-inside: avoid;
-              break-inside: avoid;
-              page-break-after: always;
-              break-after: page;
-            }
-            .premium-page .premium-retail {
-              width: 100%;
-              height: 100%;
             }
             @page {
               size: 50mm 100mm;
