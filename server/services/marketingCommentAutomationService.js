@@ -438,12 +438,65 @@ export const replyToComment = async (platform, commentId, message, businessId) =
 };
 
 export const sendPrivateReply = async (platform, commentId, message, businessId) => {
-  return callMetaPost({
-    businessId,
-    endpoint: `/${encodeURIComponent(commentId)}/private_replies`,
-    label: "private reply",
-    params: { message: trimString(message) },
+  const settings = await getSettingsRow(businessId);
+  const tokenStatus = validateMetaToken(settings || {});
+  const graphPath = `/${encodeURIComponent(commentId)}/private_replies`;
+  console.warn("[social-comments:private-reply-meta-call-debug]", {
+    comment_id: trimString(commentId),
+    graph_path: graphPath,
+    method: "POST",
+    payload_keys: ["message"],
+    page_id: trimString(settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+    token_present: Boolean(tokenStatus?.accessToken),
+    meta_status: "",
+    meta_error_message: "",
   });
+  try {
+    const payload = await callMetaPost({
+      businessId,
+      endpoint: graphPath,
+      label: "private reply",
+      params: { message: trimString(message) },
+    });
+    console.warn("[social-comments:private-reply-meta-call-debug]", {
+      comment_id: trimString(commentId),
+      graph_path: graphPath,
+      method: "POST",
+      payload_keys: ["message"],
+      page_id: trimString(settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+      token_present: Boolean(tokenStatus?.accessToken),
+      meta_status: "ok",
+      meta_error_message: "",
+    });
+    return payload;
+  } catch (error) {
+    console.warn("[social-comments:private-reply-meta-call-debug]", {
+      comment_id: trimString(commentId),
+      graph_path: graphPath,
+      method: "POST",
+      payload_keys: ["message"],
+      page_id: trimString(settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+      token_present: Boolean(tokenStatus?.accessToken),
+      meta_status: String(error?.status || ""),
+      meta_error_message: String(error?.message || ""),
+    });
+    throw error;
+  }
+};
+
+export const probePrivateReplyComment = async ({ businessId, commentId } = {}) => {
+  const settings = await getSettingsRow(businessId);
+  const tokenStatus = validateMetaToken(settings || {});
+  const graphPath = `/${encodeURIComponent(trimString(commentId))}`;
+  const payload = await callMetaGet({
+    accessToken: tokenStatus.accessToken,
+    endpoint: graphPath,
+    label: "private_reply_comment_probe",
+    params: {
+      fields: "id,message,from,parent,permalink_url",
+    },
+  });
+  return payload;
 };
 
 export const savePostProductLinks = async ({ businessId, platform, postId, mediaId, productId, createdBy }) => {

@@ -93,7 +93,7 @@ import {
 import {
   listRecentSocialCommentAutomationRuns,
 } from "../services/socialCommentAutomationService.js";
-import { replyToComment, sendPrivateReply } from "../services/marketingCommentAutomationService.js";
+import { probePrivateReplyComment, replyToComment, sendPrivateReply } from "../services/marketingCommentAutomationService.js";
 import {
   createCorrection,
   listConversationCorrections,
@@ -2593,6 +2593,21 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
 
   try {
     const metaTargetId = privateReplyTargetResolution.selectedTargetId;
+    let probeSuccess = false;
+    let probeError = "";
+    if (platform === "facebook") {
+      try {
+        await probePrivateReplyComment({ businessId: tenantId, commentId: metaTargetId });
+        probeSuccess = true;
+      } catch (error) {
+        probeError = envText(error?.message || "");
+      }
+      console.warn("[social-comments:private-reply-comment-probe-debug]", {
+        comment_id: metaTargetId,
+        probe_success: probeSuccess,
+        probe_error: probeError,
+      });
+    }
     const reply = await sendPrivateReply(platform, metaTargetId, messageText, tenantId);
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: envText(commentRun.session_id || commentRun.inbox_conversation_id || ""), at: nowIso });
     return res.status(201).json({
@@ -2614,6 +2629,16 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
       reject_reason: privateReplyTargetResolution.rejectReason || "",
       meta_response_error: error?.message || "",
       rejected_small_numeric_ids: privateReplyTargetResolution.rejectedSmallNumericIds,
+    });
+    console.warn("[social-comments:private-reply-meta-call-debug]", {
+      comment_id: privateReplyTargetResolution.selectedTargetId,
+      graph_path: `/${encodeURIComponent(privateReplyTargetResolution.selectedTargetId)}/${platform === "facebook" ? "private_replies" : "replies"}`,
+      method: "POST",
+      payload_keys: ["message"],
+      page_id: envText(commentRun?.raw_payload?.value?.page_id || commentRun?.raw_payload?.page_id || commentRun?.metadata?.page_id || ""),
+      token_present: true,
+      meta_status: String(error?.status || ""),
+      meta_error_message: String(error?.message || ""),
     });
     return sendError(res, error, "Failed to send private message");
   }
