@@ -110,12 +110,30 @@ export const buildLeadOpportunityPayload = ({ conversation = {}, profile = {} } 
       external_customer_id: conversation.external_customer_id || conversation.customer_profile?.external_customer_id || "",
       customer_name: customerName,
       customer_phone: conversation.phone || conversation.customer_profile?.phone || "",
+      platform: text(conversation.channel || conversation.source || conversation.channel_metadata?.platform || ""),
+      source_post_id:
+        conversation.channel_metadata?.post_id ||
+        conversation.post_id ||
+        conversation.metadata?.post_id ||
+        "",
+      source_comment_id:
+        conversation.channel_metadata?.comment_id ||
+        conversation.comment_id ||
+        conversation.metadata?.comment_id ||
+        "",
       comment_id:
         conversation.external_comment_id ||
         conversation.comment_id ||
         conversation.channel_metadata?.comment_id ||
         conversation.channel_metadata?.lead?.comment_id ||
         "",
+      product_id: conversation.channel_metadata?.product_id || conversation.product_id || "",
+      product_name: conversation.channel_metadata?.product_name || conversation.product_name || "",
+      product_price: conversation.channel_metadata?.product_price || conversation.product_price || "",
+      product_sale_price: conversation.channel_metadata?.product_sale_price || conversation.product_sale_price || "",
+      product_url: conversation.channel_metadata?.product_url || conversation.product_url || "",
+      website_product_link: conversation.channel_metadata?.website_product_link || conversation.website_product_link || conversation.product_url || "",
+      lead_status: conversation.channel_metadata?.lead_status || conversation.lead_status || "new_lead",
     },
   };
 };

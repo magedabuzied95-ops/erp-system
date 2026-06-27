@@ -9,10 +9,14 @@ import {
   getSocialPostAutoReplyTemplate,
   ignoreSocialComment,
   backfillSocialCommentPostMedia,
+  getSocialCommentAutomationConfig,
+  listSocialCommentAutomationRuns,
+  upsertSocialCommentAutomationConfig,
   listSocialCommentPosts,
   listSocialCommentThreadComments,
   loadSocialCommentPost,
   processSocialCommentAutoReply,
+  testSocialCommentAutomationRuntime,
   saveSocialAutoReplySettings,
   saveSocialPostAutoReplyTemplate,
   ensureSocialCommentsCenterSchema,
@@ -80,6 +84,87 @@ router.get("/posts/:postId/comments", protect, permit("settings", "view"), async
     return res.json({ success: true, post, comments, total: comments.length });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment thread" });
+  }
+});
+
+router.get("/automation/:postId", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const postId = String(req.params.postId || "").trim();
+    const platform = String(req.query?.platform || req.body?.platform || "").trim();
+    const config = await getSocialCommentAutomationConfig({ tenantId, platform, postId });
+    return res.json({ success: true, config });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment automation config" });
+  }
+});
+
+router.put("/automation/:postId", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const postId = String(req.params.postId || "").trim();
+    const platform = String(req.body?.platform || req.query?.platform || "").trim();
+    const config = await upsertSocialCommentAutomationConfig({
+      tenantId,
+      platform,
+      postId,
+      payload: req.body || {},
+    });
+    return res.json({ success: true, config });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to save social comment automation config" });
+  }
+});
+
+router.get("/automation/:postId/runs", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const postId = String(req.params.postId || "").trim();
+    const platform = String(req.query?.platform || req.body?.platform || "").trim();
+    const limit = Math.min(50, Math.max(1, Number(req.query?.limit || 20) || 20));
+    const runs = await listSocialCommentAutomationRuns({ tenantId, platform, postId, limit });
+    return res.json({
+      success: true,
+      items: runs.map((run) => {
+        const status = run.status || run.automation_state?.runtime_monitor?.status || "skipped";
+        const skippedReason = run.skipped_reason || run.automation_state?.runtime_monitor?.skipped_reason || "";
+        return {
+          id: run.id,
+          tenant_id: run.tenant_id,
+          post_id: run.post_id,
+          comment_id: run.comment_id,
+          platform: run.platform,
+          config_id: run.config_id || null,
+          status,
+          step_results: run.step_results || run.automation_state?.runtime_monitor?.step_results || [],
+          error_message: run.error_message || run.error_code || "",
+          customer_name: run.commenter_name || run.customer_name || "",
+          skipped_reason: skippedReason,
+          product_link: run.product_link || run.automation_state?.runtime_monitor?.product_link || "",
+          checkout_link: run.checkout_link || run.automation_state?.runtime_monitor?.checkout_link || "",
+          guidance_mode: run.guidance_mode || run.automation_state?.runtime_monitor?.guidance_mode || "",
+          would_run: Boolean(run.would_run ?? run.automation_state?.runtime_monitor?.would_run ?? (status !== "duplicate_skipped" && skippedReason !== "duplicate_comment_automation")),
+          duplicate_reason: run.duplicate_reason || run.automation_state?.runtime_monitor?.duplicate_reason || "",
+          created_at: run.created_at || null,
+          updated_at: run.updated_at || null,
+        };
+      }),
+      total: runs.length,
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment automation runs" });
+  }
+});
+
+router.post("/automation/:postId/test", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const postId = String(req.params.postId || "").trim();
+    const platform = String(req.body?.platform || req.query?.platform || "").trim();
+    const result = await testSocialCommentAutomationRuntime({ tenantId, platform, postId });
+    return res.json({ success: true, result });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to test social comment automation" });
   }
 });
 

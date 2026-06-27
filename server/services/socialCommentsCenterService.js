@@ -60,6 +60,22 @@ const ensureSocialCommentsCenterSchema = async () => {
     )
   `);
   await db.query(`
+    CREATE TABLE IF NOT EXISTS social_comment_post_automation_configs (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+      post_id TEXT NOT NULL,
+      platform VARCHAR(30) NOT NULL DEFAULT 'facebook',
+      product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
+      template_key TEXT NOT NULL DEFAULT '',
+      enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+      message_templates JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (tenant_id, post_id, platform)
+    )
+  `);
+  await db.query(`
     CREATE TABLE IF NOT EXISTS social_comment_auto_reply_runs (
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -82,6 +98,7 @@ const ensureSocialCommentsCenterSchema = async () => {
   await db.query(`ALTER TABLE IF EXISTS social_comment_auto_reply_runs ADD COLUMN IF NOT EXISTS reply_status TEXT NOT NULL DEFAULT 'pending'`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_auto_reply_settings_updated ON social_auto_reply_settings (updated_at DESC)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_post_auto_reply_templates_lookup ON social_post_auto_reply_templates (tenant_id, platform, post_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_post_automation_configs_lookup ON social_comment_post_automation_configs (tenant_id, post_id, platform)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_lookup ON social_comment_auto_reply_runs (tenant_id, platform, comment_id)`);
 };
 
@@ -383,10 +400,11 @@ const normalizeSocialCommentPostIdCandidate = ({ value = "", pageId = "", source
   const safePageId = text(pageId);
   const sourceKey = lower(source);
   if (!candidate) return "";
-  if (/^(facebook|instagram|social_comment|facebook_comment|instagram_comment):/i.test(candidate)) {
-    const parts = candidate.split(":").filter(Boolean);
-    candidate = text(parts.slice(2).join(":") || parts.slice(1).join(":") || "");
-  }
+  candidate = candidate
+    .replace(/^(social_comment|facebook_comment|instagram_comment|facebook_post|instagram_post):/i, "")
+    .replace(/^(facebook|instagram):/i, "")
+    .split(":")[0]
+    .trim();
   if (!candidate) return "";
   const parts = candidate.split("_").filter(Boolean);
   if (parts.length >= 3) {
@@ -1105,6 +1123,189 @@ const renderSocialCommentTemplateText = (templateText = "", context = {}) =>
     return text(context[key] ?? context[key.toLowerCase()] ?? "");
   });
 
+const normalizeSocialCommentAutomationSettings = (value = {}) => ({
+  enabled: Boolean(value.enabled),
+  likeComment: value.likeComment ?? value.like_comment ?? true,
+  publicReply: value.publicReply ?? value.public_reply ?? true,
+  privateReply: value.privateReply ?? value.private_reply ?? true,
+  aiFollowUp: value.aiFollowUp ?? value.ai_follow_up ?? true,
+  createLead: value.createLead ?? value.create_lead ?? false,
+});
+
+const buildSocialCommentAutomationDefaultTemplates = (post = {}, product = {}) => {
+  const productName = text(product.name || post.product_name || post.title || post.post_caption || post.post_message || "Linked product");
+  const price = text(product.sale_price || product.price || post.product_sale_price || post.product_price || "");
+  const sizes = text(post.product_sizes || post.sizes || product.sizes || "");
+  const productLink = text(product.storefront_url || product.product_url || post.product_link || "");
+  return {
+    publicReplyTemplate: "تم الرد على حضرتك في الخاص ✅",
+    privateReplyTemplate: `أهلاً {{customer_name}}
+{{product_name}} متاح بسعر {{price}}.
+المقاسات المتاحة: {{available_sizes}}
+اطلبه مباشرة من هنا: {{product_link}}`,
+    aiOpeningPrompt: "أنت مساعد مبيعات داخل AI Social Media Center. وجّه العميل لإكمال الشراء من خلال الموقع فقط واستخدم {{product_link}} و{{checkout_link}} عندما يكونان متاحين.",
+  };
+};
+
+const normalizeSocialCommentAutomationConfigRow = (row = {}, defaults = {}) => ({
+  id: row.id || null,
+  tenant_id: Number(row.tenant_id || 0) || null,
+  post_id: text(row.post_id || defaults.post_id || ""),
+  platform: normalizePlatform(row.platform || defaults.platform || "facebook"),
+  product_id: row.product_id ?? defaults.product_id ?? null,
+  template_key: text(row.template_key || defaults.template_key || "product_comment_sales_flow") || "product_comment_sales_flow",
+  enabled: Boolean(row.enabled ?? defaults.enabled ?? false),
+  settings: normalizeSocialCommentAutomationSettings(row.settings || defaults.settings || {}),
+  message_templates: {
+    ...buildSocialCommentAutomationDefaultTemplates(defaults.post || {}, defaults.product || {}),
+    ...(metadataObject(row.message_templates || {})),
+  },
+  created_at: row.created_at || null,
+  updated_at: row.updated_at || null,
+  persisted: Boolean(row.id),
+});
+
+const resolveSocialCommentAutomationDefaultConfig = async ({ tenantId = null, platform = "", postId = "" } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const safePostId = text(postId);
+  const normalizedPlatform = normalizePlatform(platform);
+  const post = await loadSocialCommentPost({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
+  const product = metadataObject(post?.product || {});
+  return {
+    id: null,
+    tenant_id: safeTenantId,
+    post_id: safePostId,
+    platform: normalizedPlatform,
+    product_id: post?.product_id || product?.id || null,
+    template_key: "product_comment_sales_flow",
+    enabled: false,
+    settings: normalizeSocialCommentAutomationSettings({
+      enabled: false,
+      likeComment: true,
+      publicReply: true,
+      privateReply: true,
+      aiFollowUp: true,
+      createLead: false,
+    }),
+    message_templates: buildSocialCommentAutomationDefaultTemplates(post || {}, product || {}),
+    created_at: null,
+    updated_at: null,
+    persisted: false,
+    source: "default",
+    post: post || {},
+    product: product || {},
+  };
+};
+
+export const getSocialCommentAutomationConfig = async ({ tenantId = null, platform = "", postId = "" } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const safePostId = text(postId);
+  if (!safeTenantId || !safePostId) return null;
+  await ensureSocialCommentsCenterSchema();
+  const normalizedPlatform = normalizePlatform(platform);
+  const result = await db.query(
+    `
+    SELECT *
+    FROM social_comment_post_automation_configs
+    WHERE tenant_id = $1::bigint
+      AND post_id = $2::text
+      AND platform = $3::text
+    LIMIT 1
+    `,
+    [safeTenantId, safePostId, normalizedPlatform]
+  );
+  const row = result.rows?.[0] || null;
+  if (row) {
+    const defaults = await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
+    return normalizeSocialCommentAutomationConfigRow(row, defaults);
+  }
+  return resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
+};
+
+export const upsertSocialCommentAutomationConfig = async ({ tenantId = null, platform = "", postId = "", payload = {} } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const safePostId = text(postId);
+  if (!safeTenantId || !safePostId) {
+    throw Object.assign(new Error("Invalid tenant or post id"), { status: 400 });
+  }
+  await ensureSocialCommentsCenterSchema();
+  const normalizedPlatform = normalizePlatform(platform);
+  const defaults = await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
+  const rawSettings = metadataObject(payload.settings || {});
+  const rawTemplates = metadataObject(payload.message_templates || {});
+  const mergedSettings = normalizeSocialCommentAutomationSettings({
+    ...defaults.settings,
+    ...rawSettings,
+    enabled: Object.prototype.hasOwnProperty.call(payload, "enabled") ? Boolean(payload.enabled) : defaults.enabled,
+  });
+  const templateKey = text(payload.template_key || payload.templateKey || defaults.template_key || "product_comment_sales_flow") || "product_comment_sales_flow";
+  const numericProductId = Number(payload.product_id ?? payload.productId ?? defaults.product_id ?? null);
+  const productId = Number.isFinite(numericProductId) && numericProductId > 0 ? Math.trunc(numericProductId) : null;
+  const messageTemplates = {
+    ...buildSocialCommentAutomationDefaultTemplates(defaults, defaults.product || {}),
+    ...defaults.message_templates,
+    ...rawTemplates,
+  };
+  if (Object.prototype.hasOwnProperty.call(rawTemplates, "publicReplyTemplate")) {
+    messageTemplates.publicReplyTemplate = text(rawTemplates.publicReplyTemplate);
+  }
+  if (Object.prototype.hasOwnProperty.call(rawTemplates, "privateReplyTemplate")) {
+    messageTemplates.privateReplyTemplate = text(rawTemplates.privateReplyTemplate);
+  }
+  if (Object.prototype.hasOwnProperty.call(rawTemplates, "aiOpeningPrompt")) {
+    messageTemplates.aiOpeningPrompt = text(rawTemplates.aiOpeningPrompt);
+  }
+
+  const result = await db.query(
+    `
+    INSERT INTO social_comment_post_automation_configs (
+      tenant_id,
+      post_id,
+      platform,
+      product_id,
+      template_key,
+      enabled,
+      settings,
+      message_templates,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      $1::bigint,
+      $2::text,
+      $3::text,
+      $4::bigint,
+      $5::text,
+      $6::boolean,
+      $7::jsonb,
+      $8::jsonb,
+      CURRENT_TIMESTAMP,
+      CURRENT_TIMESTAMP
+    )
+    ON CONFLICT (tenant_id, post_id, platform) DO UPDATE SET
+      product_id = EXCLUDED.product_id,
+      template_key = EXCLUDED.template_key,
+      enabled = EXCLUDED.enabled,
+      settings = EXCLUDED.settings,
+      message_templates = EXCLUDED.message_templates,
+      updated_at = CURRENT_TIMESTAMP
+    RETURNING *
+    `,
+    [
+      safeTenantId,
+      safePostId,
+      normalizedPlatform,
+      productId,
+      templateKey,
+      Boolean(payload.enabled ?? defaults.enabled),
+      JSON.stringify(mergedSettings),
+      JSON.stringify(messageTemplates),
+    ]
+  );
+  const row = result.rows?.[0] || null;
+  return row ? normalizeSocialCommentAutomationConfigRow(row, { postId: safePostId, platform: normalizedPlatform, product_id: productId, settings: mergedSettings, message_templates: messageTemplates }) : null;
+};
+
 const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = "" } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const safePostId = text(postId);
@@ -1696,6 +1897,14 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
   const channel = normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment";
   const canonicalPostId = canonicalizeSocialCommentThreadPostId({ postId: safePostId, platform: normalizedPlatform });
   const sessionIds = buildSocialCommentThreadSessionVariants({ postId: canonicalPostId || safePostId, platform: normalizedPlatform });
+  const sessionPatterns = Array.from(new Set(sessionIds.flatMap((value) => {
+    const safeValue = text(value);
+    if (!safeValue) return [];
+    return [
+      `${safeValue}%`,
+      safeValue.includes(":") ? safeValue : "",
+    ].filter(Boolean);
+  })));
   debugSocialCommentsWarn("[social-comments:data-debug]", {
     scope: "service:listSocialCommentThreadComments:before",
     tenantId: safeTenantId,
@@ -1703,6 +1912,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     incomingPostId: safePostId,
     canonical_post_id: canonicalPostId,
     query_variants: sessionIds,
+    query_patterns: sessionPatterns,
     whereSessionId: sessionIds,
     wherePostId: canonicalPostId || safePostId,
     whereRootCommentId: "",
@@ -1727,13 +1937,15 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     WHERE msg.tenant_id = $1::bigint
       AND (
         msg.session_id = ANY($2::text[])
+        OR msg.session_id LIKE ANY($3::text[])
         OR msg.post_id = $4::text
         OR msg.post_id = ANY($2::text[])
+        OR msg.post_id LIKE ANY($3::text[])
       )
       AND msg.message_type = 'comment_inbound'
     ORDER BY msg.created_at ASC, msg.id ASC
     `,
-    [safeTenantId, sessionIds, normalizedPlatform, canonicalPostId || safePostId]
+    [safeTenantId, sessionIds, sessionPatterns, canonicalPostId || safePostId]
   );
   debugSocialCommentsWarn("[social-comments:data-debug]", {
     scope: "service:listSocialCommentThreadComments:after",
@@ -1742,7 +1954,8 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     incomingPostId: safePostId,
     canonical_post_id: canonicalPostId,
     query_variants: sessionIds,
-    sqlParams: [safeTenantId, sessionIds, normalizedPlatform, canonicalPostId || safePostId],
+    query_patterns: sessionPatterns,
+    sqlParams: [safeTenantId, sessionIds, sessionPatterns, canonicalPostId || safePostId],
     returnedRows: result.rows?.length || 0,
   });
   return result.rows || [];

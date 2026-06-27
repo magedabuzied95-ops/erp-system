@@ -19,6 +19,13 @@ import {
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+import SocialAutomationDrawer from "./socialAutomation/SocialAutomationDrawer.jsx";
+import {
+  applyAutomationTemplate,
+  buildAutomationDraft,
+  normalizeAutomationConfig,
+  serializeAutomationDraft,
+} from "./socialAutomation/automationEngine.js";
 
 const clean = (value = "") => String(value ?? "").trim();
 
@@ -178,6 +185,8 @@ const normalizePost = (raw) => {
     lastActivity: clean(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || ""),
     autoReplyEnabled: Boolean(post.auto_reply_enabled || post.template_enabled || post.auto_reply_mode || metadata.auto_reply_enabled || metadata.template_enabled || metadata.auto_reply_mode),
     productName: clean(post.product_name || metadata.product_name || ""),
+    productId: clean(post.product_id || metadata.product_id || ""),
+    product_id: clean(post.product_id || metadata.product_id || ""),
     productPrice: clean(post.product_price || metadata.product_price || ""),
     productSalePrice: clean(post.product_sale_price || metadata.product_sale_price || ""),
     productSizes: clean(post.product_sizes || metadata.product_sizes || ""),
@@ -517,6 +526,16 @@ function SocialCommentsWorkspace({
   const [leadLoadingKey, setLeadLoadingKey] = useState("");
   const [replyStatusOverrides, setReplyStatusOverrides] = useState({});
   const [expandedCaption, setExpandedCaption] = useState(false);
+  const [automationDrawerPostKey, setAutomationDrawerPostKey] = useState("");
+  const [automationDrafts, setAutomationDrafts] = useState({});
+  const [automationLoadingKey, setAutomationLoadingKey] = useState("");
+  const [automationSavingKey, setAutomationSavingKey] = useState("");
+  const [automationLoadErrors, setAutomationLoadErrors] = useState({});
+  const [automationRuns, setAutomationRuns] = useState([]);
+  const [automationRunsLoading, setAutomationRunsLoading] = useState(false);
+  const [automationRunsError, setAutomationRunsError] = useState("");
+  const [automationTesting, setAutomationTesting] = useState(false);
+  const [automationTestResult, setAutomationTestResult] = useState(null);
   const [globalDraft, setGlobalDraft] = useState(() => ({
     generic_enabled: false,
     generic_like_enabled: true,
@@ -637,6 +656,228 @@ function SocialCommentsWorkspace({
   const activePostLikes = activePostDetails?.likesCount;
   const activePostShares = activePostDetails?.sharesCount;
   const activePostMediaBadge = resolvePostMediaBadge(activePostDetails) || postTypeMeta(activePostDetails);
+  const activeAutomationDraftKey = automationDrawerPostKey || activePostKey;
+  const automationDrawerPost = useMemo(() => {
+    const drawerKey = clean(automationDrawerPostKey);
+    if (!drawerKey) return null;
+    return normalizedPosts.find((item) => postKey(item) === drawerKey) || (drawerKey === activePostKey ? activePostDetails : null);
+  }, [activePostDetails, activePostKey, automationDrawerPostKey, normalizedPosts]);
+  const activeAutomationDraft =
+    automationDrafts[activeAutomationDraftKey] ||
+    buildAutomationDraft(automationDrawerPost || activePostDetails || activePost || {});
+
+  const updateAutomationDraft = (patch = {}) => {
+    const drawerKey = clean(automationDrawerPostKey || activePostKey);
+    if (!drawerKey) return;
+    setAutomationDrafts((current) => {
+      const existing = current[drawerKey] || buildAutomationDraft(automationDrawerPost || activePostDetails || activePost || {});
+      return {
+        ...current,
+        [drawerKey]: {
+          ...existing,
+          ...patch,
+        },
+      };
+    });
+  };
+
+  const handleAutomationSelectTemplate = (templateId = "") => {
+    const drawerKey = clean(automationDrawerPostKey || activePostKey);
+    if (!drawerKey) return;
+    setAutomationDrafts((current) => {
+      const existing = current[drawerKey] || buildAutomationDraft(automationDrawerPost || activePostDetails || activePost || {});
+      return {
+        ...current,
+        [drawerKey]: applyAutomationTemplate(existing, templateId, automationDrawerPost || activePostDetails || activePost || {}),
+      };
+    });
+    notify("emerald", "تم تغيير قالب الأتمتة محليًا");
+  };
+
+  const handleAutomationLoadRuns = async (drawerKey = "") => {
+    const key = clean(drawerKey || automationDrawerPostKey || activePostKey);
+    if (!key) return;
+    const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
+    const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
+    setAutomationRunsLoading(true);
+    setAutomationRunsError("");
+    try {
+      const payload = await api.get(`/social-comments/automation/${encodeURIComponent(key)}/runs`, {
+        params: { tenant_id: tenantId, platform: platformForAutomation, limit: 10 },
+      });
+      const items = Array.isArray(payload?.items)
+        ? payload.items
+        : Array.isArray(payload?.data?.items)
+          ? payload.data.items
+          : Array.isArray(payload)
+            ? payload
+            : [];
+      setAutomationRuns(items);
+    } catch (error) {
+      setAutomationRuns([]);
+      setAutomationRunsError(error?.message || "Failed to load recent runs");
+    } finally {
+      setAutomationRunsLoading(false);
+    }
+  };
+
+  const handleAutomationTest = async () => {
+    const drawerKey = clean(automationDrawerPostKey || activePostKey);
+    if (!drawerKey) return;
+    const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
+    const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
+    setAutomationTesting(true);
+    setAutomationTestResult(null);
+    try {
+      const payload = await api.post(`/social-comments/automation/${encodeURIComponent(drawerKey)}/test`, {
+        tenant_id: tenantId,
+        platform: platformForAutomation,
+      });
+      const result = payload?.result || payload?.data?.result || payload?.data || payload || {};
+      setAutomationTestResult(result);
+      notify("emerald", "تم تنفيذ اختبار الأتمتة محليًا");
+    } catch (error) {
+      notify("rose", error?.message || "تعذر تنفيذ اختبار الأتمتة");
+    } finally {
+      setAutomationTesting(false);
+    }
+  };
+
+  const handleAutomationSaveLocal = () => {
+    const drawerKey = clean(automationDrawerPostKey || activePostKey);
+    if (!drawerKey) return;
+    const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
+    const currentDraft = automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
+    setAutomationDrafts((current) => ({
+      ...current,
+      [drawerKey]: currentDraft,
+    }));
+    void handleAutomationSaveRemote();
+  };
+
+  const handleAutomationReset = () => {
+    const drawerKey = clean(automationDrawerPostKey || activePostKey);
+    if (!drawerKey) return;
+    setAutomationDrafts((current) => ({
+      ...current,
+      [drawerKey]: buildAutomationDraft(automationDrawerPost || activePostDetails || activePost || {}),
+    }));
+    notify("amber", "تمت إعادة تعيين مسودة الأتمتة");
+  };
+
+  const handleOpenAutomationDrawer = (post = null, key = "") => {
+    const drawerPostKey = clean(key || postKey(post || activePostDetails || activePost || {}));
+    if (!drawerPostKey) return;
+    setAutomationDrawerPostKey(drawerPostKey);
+  };
+
+  useEffect(() => {
+    const drawerKey = clean(automationDrawerPostKey);
+    if (!drawerKey) return;
+
+    let cancelled = false;
+    const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
+    const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
+
+    setAutomationLoadingKey(drawerKey);
+    setAutomationLoadErrors((current) => {
+      if (!current[drawerKey]) return current;
+      const next = { ...current };
+      delete next[drawerKey];
+      return next;
+    });
+
+    const fallbackDraft = buildAutomationDraft(postForAutomation);
+    setAutomationDrafts((current) => ({
+      ...current,
+      [drawerKey]: current[drawerKey] || fallbackDraft,
+    }));
+
+    api
+      .get(`/social-comments/automation/${encodeURIComponent(drawerKey)}`, {
+        params: { tenant_id: tenantId, platform: platformForAutomation },
+      })
+      .then((payload) => {
+        if (cancelled) return;
+        const config = payload?.config || payload?.data || payload || {};
+        const normalized = normalizeAutomationConfig(config, postForAutomation);
+        setAutomationDrafts((current) => ({
+          ...current,
+          [drawerKey]: {
+            ...fallbackDraft,
+            ...normalized,
+            productId: clean(config?.product_id || config?.productId || postForAutomation?.productId || fallbackDraft.productId),
+            product_id: clean(config?.product_id || config?.productId || postForAutomation?.productId || fallbackDraft.productId),
+          },
+        }));
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        setAutomationLoadErrors((current) => ({
+          ...current,
+          [drawerKey]: error?.message || "Failed to load automation config",
+        }));
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setAutomationLoadingKey((current) => (current === drawerKey ? "" : current));
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [automationDrawerPostKey, automationDrawerPost?.id, automationDrawerPost?.postId, activePostKey, activePostPlatform, tenantId]);
+
+  useEffect(() => {
+    const drawerKey = clean(automationDrawerPostKey);
+    if (!drawerKey) {
+      setAutomationRuns([]);
+      setAutomationRunsError("");
+      setAutomationTestResult(null);
+      return;
+    }
+    void handleAutomationLoadRuns(drawerKey);
+  }, [automationDrawerPostKey, automationDrawerPost?.id, automationDrawerPost?.postId, activePostKey, activePostPlatform, tenantId]);
+
+  const handleAutomationSaveRemote = async () => {
+    const drawerKey = clean(automationDrawerPostKey || activePostKey);
+    if (!drawerKey) return;
+    const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
+    const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
+    const draft = automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
+    const payload = serializeAutomationDraft(draft, postForAutomation);
+    setAutomationSavingKey(drawerKey);
+    try {
+      const response = await api.put(`/social-comments/automation/${encodeURIComponent(drawerKey)}`, {
+        tenant_id: tenantId,
+        platform: platformForAutomation,
+        ...payload,
+      });
+      const savedConfig = response?.config || response?.data || response || {};
+      const normalized = normalizeAutomationConfig(savedConfig, postForAutomation);
+      setAutomationDrafts((current) => ({
+        ...current,
+        [drawerKey]: {
+          ...draft,
+          ...normalized,
+          productId: clean(savedConfig?.product_id || savedConfig?.productId || draft.productId || postForAutomation?.productId || ""),
+          product_id: clean(savedConfig?.product_id || savedConfig?.productId || draft.productId || postForAutomation?.productId || ""),
+        },
+      }));
+      void handleAutomationLoadRuns(drawerKey);
+      notify("emerald", "تم حفظ إعدادات الأتمتة");
+    } catch (error) {
+      setAutomationLoadErrors((current) => ({
+        ...current,
+        [drawerKey]: error?.message || "Failed to save automation config",
+      }));
+      notify("amber", error?.message || "تعذر حفظ إعدادات الأتمتة، تم الاحتفاظ بالمسودة محليًا");
+    } finally {
+      setAutomationSavingKey((current) => (current === drawerKey ? "" : current));
+    }
+  };
+
   useEffect(() => {
     setReplyDraft(activeSuggestedReply || "");
     setPreviewReply("");
@@ -1053,6 +1294,16 @@ function SocialCommentsWorkspace({
                           <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.04] text-slate-200"}`}>{post.newCount} new</span>
                           {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
                           {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleOpenAutomationDrawer(post, key);
+                            }}
+                            className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-cyan-100"
+                          >
+                            Automation
+                          </button>
                         </div>
                         <div className="mt-2 text-[11px] font-medium text-slate-400">
                           <span className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1">
@@ -1098,6 +1349,14 @@ function SocialCommentsWorkspace({
                     </span>
                   </div>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAutomationDrawer(activePostDetails, activePostKey)}
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100"
+                >
+                  <Bot className="h-4 w-4" />
+                  Automation
+                </button>
                 <button
                   type="button"
                   onClick={handleOpenPost}
@@ -1667,6 +1926,25 @@ function SocialCommentsWorkspace({
           </div>
         </main>
       </div>
+      <SocialAutomationDrawer
+        open={Boolean(automationDrawerPostKey)}
+        post={automationDrawerPost || activePostDetails || activePost}
+        draft={activeAutomationDraft}
+        loading={automationLoadingKey === clean(automationDrawerPostKey)}
+        saving={automationSavingKey === clean(automationDrawerPostKey)}
+        loadError={automationLoadErrors[clean(automationDrawerPostKey)] || ""}
+        runs={automationRuns}
+        runsLoading={automationRunsLoading}
+        runsError={automationRunsError}
+        testing={automationTesting}
+        testResult={automationTestResult}
+        onClose={() => setAutomationDrawerPostKey("")}
+        onSaveDraft={handleAutomationSaveLocal}
+        onResetDraft={handleAutomationReset}
+        onUpdateDraft={updateAutomationDraft}
+        onSelectTemplate={handleAutomationSelectTemplate}
+        onTestAutomation={handleAutomationTest}
+      />
     </section>
   );
 }

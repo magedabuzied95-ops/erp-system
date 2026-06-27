@@ -5,10 +5,13 @@ import { emitToRooms } from "../utils/socket.js";
 import { enqueueJob } from "./jobQueueService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
+import { upsertAiCustomerProfile } from "./aiSalesAgentService.js";
+import { createOrUpdateLeadOpportunity } from "./aiInboxLeadActionsService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
-import { processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
+import { getSocialCommentAutomationConfig, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
 import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
+import { getPublicAppUrl } from "../utils/publicUrl.js";
 import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
   getSocialAutomationSettings,
@@ -368,6 +371,1229 @@ const renderSocialCommentTemplateText = (templateText = "", context = {}) =>
     return text(context[key] ?? context[key.toLowerCase()] ?? "");
   });
 
+const renderAutomationTemplate = (templateText = "", context = {}) => renderSocialCommentTemplateText(templateText, context);
+
+const buildAutomationPublicUrl = (path = "") => {
+  const safePath = text(path || "");
+  const base = text(getPublicAppUrl() || "");
+  if (!safePath) return base || "";
+  if (/^https?:\/\//i.test(safePath)) return safePath;
+  const normalizedPath = safePath.startsWith("/") ? safePath : `/${safePath}`;
+  return base ? `${base}${normalizedPath}` : normalizedPath;
+};
+
+const extractTemplatePlaceholders = (templateText = "") => {
+  const placeholders = new Set();
+  const pattern = /\{\{\s*(\w+)\s*\}\}|\{\s*(\w+)\s*\}/g;
+  String(templateText || "").replace(pattern, (_match, leftKey, rightKey) => {
+    const key = leftKey || rightKey || "";
+    if (key) placeholders.add(key);
+    return _match;
+  });
+  return Array.from(placeholders);
+};
+
+const detectMissingTemplatePlaceholders = (templateText = "", context = {}) => {
+  const placeholders = extractTemplatePlaceholders(templateText);
+  return placeholders.filter((key) => !text(context[key] ?? context[key.toLowerCase()] ?? ""));
+};
+
+const summarizeAutomationStepResults = (stepResults = []) => {
+  const normalized = asArray(stepResults).map((item) => ({
+    step: text(item?.step || ""),
+    status: text(item?.status || "skipped") || "skipped",
+    reason: text(item?.reason || ""),
+    message: text(item?.message || ""),
+    meta: item?.meta && typeof item.meta === "object" ? item.meta : {},
+  }));
+  if (!normalized.length) {
+    return { status: "skipped", errorMessage: "", normalized };
+  }
+  const hasFailed = normalized.some((item) => item.status === "failed");
+  const hasSent = normalized.some((item) => ["sent", "queued", "created", "linked", "success"].includes(item.status));
+  const hasExecuted = normalized.some((item) => ["sent", "queued", "failed", "created", "linked", "success"].includes(item.status));
+  const allSkipped = normalized.every((item) => item.status === "skipped");
+  const status = allSkipped
+    ? "skipped"
+    : hasFailed
+      ? (hasSent ? "partial_success" : "failed")
+      : hasExecuted && normalized.some((item) => item.status === "queued")
+        ? "partial_success"
+        : "success";
+  const errorMessage = normalized.find((item) => item.status === "failed")?.reason || "";
+  return { status, errorMessage, normalized };
+};
+
+export const upsertSocialCommentAutomationRunSummary = async ({
+  tenantId = null,
+  platform = "",
+  postId = "",
+  commentId = "",
+  configId = null,
+  customerName = "",
+  status = "skipped",
+  stepResults = [],
+  errorMessage = "",
+  row = {},
+} = {}) => {
+  const safeTenantId = Number(tenantId || row.tenant_id || 0);
+  const safePostId = text(postId || row.post_id || row.metadata?.post_id || row.raw_payload?.post_id || "");
+  const safeCommentId = text(commentId || row.comment_id || "");
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
+  await ensureSocialCommentAutomationSchema();
+  const summary = summarizeAutomationStepResults(stepResults);
+  const finalStatus = text(status || summary.status || "skipped") || "skipped";
+  const finalErrorMessage = text(errorMessage || summary.errorMessage || "");
+  const result = await db.query(
+    `
+    INSERT INTO social_comment_automation_runs (
+      tenant_id,
+      platform,
+      channel,
+      post_id,
+      comment_id,
+      commenter_name,
+      action_taken,
+      public_reply_status,
+      dm_status,
+      like_status,
+      automation_state,
+      status,
+      step_results,
+      config_id,
+      error_message,
+      processed_at,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      $1::bigint,
+      $2::text,
+      $3::text,
+      $4::text,
+      $5::text,
+      $6::text,
+      $7::text,
+      $8::text,
+      $9::text,
+      $10::text,
+      $11::jsonb,
+      $12::text,
+      $13::jsonb,
+      $14::bigint,
+      $15::text,
+      CURRENT_TIMESTAMP,
+      COALESCE($16::timestamp, CURRENT_TIMESTAMP),
+      CURRENT_TIMESTAMP
+    )
+    ON CONFLICT (tenant_id, platform, comment_id) DO UPDATE SET
+      post_id = COALESCE(NULLIF(EXCLUDED.post_id, ''), social_comment_automation_runs.post_id),
+      commenter_name = COALESCE(NULLIF(EXCLUDED.commenter_name, ''), social_comment_automation_runs.commenter_name),
+      action_taken = COALESCE(NULLIF(EXCLUDED.action_taken, ''), social_comment_automation_runs.action_taken),
+      public_reply_status = COALESCE(NULLIF(EXCLUDED.public_reply_status, ''), social_comment_automation_runs.public_reply_status),
+      dm_status = COALESCE(NULLIF(EXCLUDED.dm_status, ''), social_comment_automation_runs.dm_status),
+      like_status = COALESCE(NULLIF(EXCLUDED.like_status, ''), social_comment_automation_runs.like_status),
+      automation_state = COALESCE(social_comment_automation_runs.automation_state, '{}'::jsonb) || COALESCE(EXCLUDED.automation_state, '{}'::jsonb),
+      status = COALESCE(NULLIF(EXCLUDED.status, ''), social_comment_automation_runs.status),
+      step_results = COALESCE(EXCLUDED.step_results, social_comment_automation_runs.step_results),
+      config_id = COALESCE(EXCLUDED.config_id, social_comment_automation_runs.config_id),
+      error_message = COALESCE(NULLIF(EXCLUDED.error_message, ''), social_comment_automation_runs.error_message),
+      processed_at = COALESCE(social_comment_automation_runs.processed_at, EXCLUDED.processed_at),
+      updated_at = CURRENT_TIMESTAMP
+    RETURNING *, (xmax = 0) AS inserted
+    `,
+    [
+      safeTenantId,
+      text(platform || row.platform || "facebook"),
+      text(row.channel || (text(platform || row.platform || "facebook") === "instagram" ? "instagram_comment" : "facebook_comment")),
+      safePostId,
+      safeCommentId,
+      text(customerName || row.commenter_name || row.customer_name || ""),
+      text(summary.status === "skipped" ? "automation_skipped" : `automation_${summary.status}`),
+      text(row.public_reply_status || row.automation_state?.public_reply_status || ""),
+      text(row.dm_status || row.automation_state?.dm_status || ""),
+      text(row.like_status || row.automation_state?.like_status || ""),
+      JSON.stringify({
+        ...(row.automation_state || {}),
+        runtime_monitor: {
+          post_id: safePostId,
+          comment_id: safeCommentId,
+          config_id: configId ?? null,
+          status: finalStatus,
+          step_results: summary.normalized,
+          error_message: finalErrorMessage,
+          skipped_reason: text(row.skipped_reason || row.metadata?.skipped_reason || ""),
+          duplicate_reason: text(row.duplicate_reason || row.metadata?.duplicate_reason || ""),
+          product_link: text(row.product_link || row.metadata?.product_link || row.metadata?.website_product_link || ""),
+          checkout_link: text(row.checkout_link || row.metadata?.checkout_link || ""),
+          guidance_mode: text(row.guidance_mode || row.metadata?.guidance_mode || "website_checkout") || "website_checkout",
+          updated_at: new Date().toISOString(),
+        },
+      }),
+      finalStatus,
+      JSON.stringify(summary.normalized),
+      configId ?? null,
+      finalErrorMessage,
+      row.created_at || null,
+    ]
+  );
+  return result.rows?.[0] || null;
+};
+
+const upsertSocialCommentAutomationRunAudit = async ({
+  tenantId = null,
+  platform = "",
+  postId = "",
+  commentId = "",
+  status = "duplicate_skipped",
+  skippedReason = "",
+  stepResults = [],
+  productLink = "",
+  checkoutLink = "",
+  row = {},
+} = {}) => {
+  const safeTenantId = Number(tenantId || row.tenant_id || 0);
+  const safePostId = text(postId || row.post_id || row.metadata?.post_id || row.raw_payload?.post_id || "");
+  const safeCommentId = text(commentId || row.comment_id || "");
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
+  await ensureSocialCommentAutomationSchema();
+  const result = await db.query(
+    `
+    INSERT INTO social_comment_automation_run_audits (
+      tenant_id,
+      platform,
+      post_id,
+      comment_id,
+      status,
+      skipped_reason,
+      step_results,
+      product_link,
+      checkout_link,
+      guidance_mode,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      $1::bigint,
+      $2::text,
+      $3::text,
+      $4::text,
+      $5::text,
+      $6::text,
+      $7::jsonb,
+      $8::text,
+      $9::text,
+      'website_checkout',
+      CURRENT_TIMESTAMP,
+      CURRENT_TIMESTAMP
+    )
+    RETURNING *
+    `,
+    [
+      safeTenantId,
+      text(platform || row.platform || "facebook"),
+      safePostId,
+      safeCommentId,
+      text(status || "duplicate_skipped") || "duplicate_skipped",
+      text(skippedReason || ""),
+      JSON.stringify(asArray(stepResults)),
+      text(productLink || row.product_link || row.metadata?.product_link || ""),
+      text(checkoutLink || row.checkout_link || row.metadata?.checkout_link || ""),
+    ]
+  );
+  return result.rows?.[0] || null;
+};
+
+const findSocialCommentAutomationRunByKey = async ({
+  tenantId = null,
+  platform = "",
+  postId = "",
+  commentId = "",
+} = {}) => {
+  const safeTenantId = Number(tenantId || 0);
+  const safePostId = text(postId || "");
+  const safeCommentId = text(commentId || "");
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId || !safePostId) return null;
+  await ensureSocialCommentAutomationSchema();
+  const result = await db.query(
+    `
+    SELECT *
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND comment_id = $3::text
+      AND post_id = $4::text
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, text(platform || "facebook"), safeCommentId, safePostId]
+  );
+  return result.rows?.[0] || null;
+};
+
+const loadPostAutomationConfig = async ({ tenantId = null, platform = "", postId = "", row = {} } = {}) => {
+  const safeTenantId = Number(tenantId || row.tenant_id || 0);
+  const safePostId = text(postId || row.post_id || row.metadata?.post_id || row.raw_payload?.post_id || "");
+  const normalizedPlatform = text(platform || row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  if (!safeTenantId || !safePostId || normalizedPlatform !== "facebook") {
+    return null;
+  }
+  const config = await getSocialCommentAutomationConfig({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+  }).catch(() => null);
+  if (!config?.persisted) {
+    return null;
+  }
+  return config;
+};
+
+const buildAutomationTemplateContext = ({ row = {}, productContext = {}, websiteLinks = {} } = {}) => {
+  const customerName = text(row.commenter_name || row.customer_name || row.from?.name || row.metadata?.from?.name || "");
+  const productName = text(productContext?.product_name || row.product_name || row.metadata?.product_name || "");
+  const price = text(productContext?.price || productContext?.sale_price || productContext?.selling_price || row.product_price || row.sale_price || row.price || "");
+  const availableSizesList = asArray(productContext?.sizes || row.sizes || row.product_sizes || [])
+    .map((value) => text(value))
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index);
+  const availableSizes = availableSizesList.join(", ");
+  const color = text(productContext?.color || row.color || "");
+  const stockStatus = text(productContext?.stock_status || row.stock_status || (availableSizesList.length ? "in_stock" : "") || "");
+  const productLink = text(
+    websiteLinks?.product_link ||
+      productContext?.product_url ||
+      row.product_url ||
+      row.metadata?.website_product_link ||
+      row.metadata?.product_url ||
+      row.post_permalink_url ||
+      row.post_permalink ||
+      ""
+  );
+  const checkoutLink = text(
+    websiteLinks?.checkout_link ||
+      productContext?.checkout_link ||
+      row.checkout_link ||
+      row.metadata?.checkout_link ||
+      buildAutomationPublicUrl("/shop/checkout")
+  );
+  const productUrl = productLink;
+  return {
+    customerName,
+    customer_name: customerName,
+    commenterName: customerName,
+    commenter_name: customerName,
+    productName,
+    product_name: productName,
+    price,
+    size: text(productContext?.size || row.size || ""),
+    color,
+    productUrl,
+    product_url: productUrl,
+    product_link: productLink,
+    checkout_link: checkoutLink,
+    checkoutLink,
+    postPermalink: text(row.post_permalink || row.post_permalink_url || ""),
+    post_permalink: text(row.post_permalink || row.post_permalink_url || ""),
+    originalCommentText: text(row.original_comment_text || row.comment_text || ""),
+    original_comment_text: text(row.original_comment_text || row.comment_text || ""),
+    sizes: availableSizes,
+    available_sizes: availableSizes,
+    availableSizes,
+    available_sizes_list: availableSizesList,
+    variants: availableSizes,
+    stock_status: stockStatus,
+    stockStatus,
+  };
+};
+
+const resolveAutomationCommenterIdentity = (row = {}) => {
+  const candidateName = resolveSocialCommentCustomerName(row) || text(row.customer_name || row.commenter_name || row.from?.name || "");
+  const commenterName = isGenericSocialCommentDisplayName(candidateName) ? "" : candidateName;
+  const commenterAvatarUrl = resolveSocialCommentAvatarUrl(row);
+  const commenterId = text(
+    row.commenter_id ||
+      row.external_customer_id ||
+      row.customer_external_id ||
+      row.from?.id ||
+      row.raw_payload?.value?.from?.id ||
+      row.raw_payload?.from?.id ||
+      row.metadata?.commenter_id ||
+      row.comment_id ||
+      ""
+  );
+  return {
+    commenterName,
+    commenterAvatarUrl,
+    commenterId,
+  };
+};
+
+const resolveAutomationWebsiteLinks = async ({ tenantId = null, row = {}, productContext = {} } = {}) => {
+  const directUrl = text(
+    productContext?.product_url ||
+      row.product_url ||
+      row.metadata?.website_product_link ||
+      row.metadata?.product_url ||
+      ""
+  );
+  try {
+    const resolved = await resolveStorefrontProductLink({
+      tenantId,
+      product: {
+        id: productContext?.product_id || row.product_id || row.metadata?.product_id || "",
+        product_id: productContext?.product_id || row.product_id || row.metadata?.product_id || "",
+        name: productContext?.product_name || row.product_name || row.metadata?.product_name || "",
+        slug: productContext?.slug || row.product_slug || row.metadata?.product_slug || "",
+        canonical_slug: productContext?.canonical_slug || row.product_slug || row.metadata?.product_slug || "",
+      },
+    }).catch(() => null);
+    const resolvedUrl = text(directUrl || resolved?.url || resolved?.product_url || "");
+    const selection = [
+      ["variant", text(productContext?.variant_id || row.variant_id || row.selected_variant_id || row.matched_variant_id || "")],
+      ["color", text(productContext?.color || row.color || row.product_color || "")],
+      ["size", text(productContext?.size || row.size || row.product_size || "")],
+    ].filter(([, value]) => Boolean(value));
+    const appendedUrl = selection.length
+      ? `${resolvedUrl || buildAutomationPublicUrl("/shop/products")}${(resolvedUrl || buildAutomationPublicUrl("/shop/products")).includes("?") ? "&" : "?"}${new URLSearchParams(selection).toString().replace(/\+/g, "%20")}`
+      : resolvedUrl || buildAutomationPublicUrl("/shop/products");
+    return {
+      product_link: appendedUrl,
+      product_url: appendedUrl,
+      checkout_link: buildAutomationPublicUrl("/shop/checkout"),
+      checkout_url: buildAutomationPublicUrl("/shop/checkout"),
+      available_sizes: asArray(productContext?.sizes || row.sizes || row.product_sizes || []).map((value) => text(value)).filter(Boolean),
+      stock_status: text(productContext?.stock_status || row.stock_status || (asArray(productContext?.sizes || row.sizes || row.product_sizes || []).length ? "in_stock" : "")),
+    };
+  } catch {
+    const fallback = buildAutomationPublicUrl("/shop/products");
+    return {
+      product_link: fallback,
+      product_url: fallback,
+      checkout_link: buildAutomationPublicUrl("/shop/checkout"),
+      checkout_url: buildAutomationPublicUrl("/shop/checkout"),
+      available_sizes: asArray(productContext?.sizes || row.sizes || row.product_sizes || []).map((value) => text(value)).filter(Boolean),
+      stock_status: text(productContext?.stock_status || row.stock_status || ""),
+    };
+  }
+};
+
+const upsertAutomationInboxConversation = async ({
+  tenantId = null,
+  platform = "facebook",
+  row = {},
+  productContext = {},
+  websiteProductLink = "",
+  checkoutLink = "",
+  aiHandling = false,
+  leadStatus = "new",
+  customerProfileId = null,
+  customerName = "",
+  customerAvatarUrl = "",
+} = {}) => {
+  const safeTenantId = Number(tenantId || row.tenant_id || 0);
+  const normalizedPlatform = text(platform || row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  const channel = text(row.channel || (normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"));
+  const externalConversationId = text(row.inbox_conversation_id || row.session_id || row.conversation_id || socialCommentConversationId({
+    platform: normalizedPlatform,
+    postId: row.post_id,
+    rootCommentId: row.root_comment_id,
+    commentId: row.comment_id,
+  }));
+  const externalCustomerId = text(resolveAutomationCommenterIdentity(row).commenterId || row.commenter_id || row.external_customer_id || row.comment_id || "");
+  const resolvedCustomerName = text(customerName || resolveAutomationCommenterIdentity(row).commenterName || row.customer_name || "");
+  const resolvedAvatarUrl = text(customerAvatarUrl || resolveAutomationCommenterIdentity(row).commenterAvatarUrl || row.customer_avatar_url || "");
+  if (!safeTenantId || !externalConversationId) return null;
+  const metadata = {
+    ...(row.metadata || {}),
+    source: "comment_automation",
+    source_type: "comment_automation",
+    platform: normalizedPlatform,
+    channel,
+    post_id: text(row.post_id || row.metadata?.post_id || ""),
+    comment_id: text(row.comment_id || row.metadata?.comment_id || ""),
+    product_id: text(productContext?.product_id || row.product_id || row.metadata?.product_id || ""),
+    product_name: text(productContext?.product_name || row.product_name || row.metadata?.product_name || ""),
+    product_price: text(productContext?.price || productContext?.sale_price || productContext?.selling_price || row.product_price || row.price || ""),
+    product_sale_price: text(productContext?.sale_price || row.product_sale_price || ""),
+    product_url: websiteProductLink || text(productContext?.product_url || row.product_url || ""),
+    website_product_link: websiteProductLink || text(productContext?.product_url || row.product_url || ""),
+    product_link: websiteProductLink || text(productContext?.product_url || row.product_url || ""),
+    checkout_link: text(checkoutLink || productContext?.checkout_link || row.checkout_link || buildAutomationPublicUrl("/shop/checkout")),
+    available_sizes: asArray(productContext?.sizes || row.sizes || row.product_sizes || []).map((value) => text(value)).filter(Boolean),
+    stock_status: text(productContext?.stock_status || row.stock_status || ""),
+    guidance_mode: "website_checkout",
+    ai_follow_up: aiHandling,
+    lead_state: aiHandling ? "ai_handling" : "new_lead",
+    lead_status: aiHandling ? "ai_handling" : "new_lead",
+    customer_name: resolvedCustomerName,
+    customer_avatar_url: resolvedAvatarUrl,
+  };
+  const result = await db.query(
+    `
+    INSERT INTO ai_channel_conversations (
+      tenant_id,
+      channel,
+      external_conversation_id,
+      external_customer_id,
+      thread_kind,
+      lead_status,
+      customer_name,
+      customer_avatar_url,
+      last_message,
+      customer_profile_id,
+      metadata,
+      last_message_at,
+      updated_at
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,NOW(),NOW())
+    ON CONFLICT (tenant_id, channel, external_conversation_id) DO UPDATE SET
+      external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_channel_conversations.external_customer_id),
+      thread_kind = COALESCE(NULLIF(EXCLUDED.thread_kind, ''), ai_channel_conversations.thread_kind),
+      lead_status = COALESCE(NULLIF(EXCLUDED.lead_status, ''), ai_channel_conversations.lead_status),
+      customer_name = CASE
+        WHEN COALESCE(NULLIF(ai_channel_conversations.customer_name, ''), '') = ''
+          OR LOWER(ai_channel_conversations.customer_name) IN ('customer', 'unknown', 'guest', 'anonymous', 'عميل', 'العميل')
+          THEN COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name)
+        ELSE ai_channel_conversations.customer_name
+      END,
+      customer_avatar_url = CASE
+        WHEN COALESCE(NULLIF(ai_channel_conversations.customer_avatar_url, ''), '') = ''
+          THEN COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_channel_conversations.customer_avatar_url)
+        ELSE ai_channel_conversations.customer_avatar_url
+      END,
+      customer_profile_id = COALESCE(EXCLUDED.customer_profile_id, ai_channel_conversations.customer_profile_id),
+      metadata = ai_channel_conversations.metadata || EXCLUDED.metadata,
+      last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_channel_conversations.last_message),
+      last_message_at = NOW(),
+      updated_at = NOW()
+    RETURNING *
+    `,
+    [
+      safeTenantId,
+      channel,
+      externalConversationId,
+      externalCustomerId,
+      text(row.thread_kind || "comment"),
+      text(leadStatus || "new"),
+      resolvedCustomerName,
+      resolvedAvatarUrl,
+      text(row.original_comment_text || row.comment_text || row.last_message || row.comment_id || ""),
+      customerProfileId ? Number(customerProfileId) : null,
+      JSON.stringify(metadata),
+    ]
+  );
+  return result.rows[0] || null;
+};
+
+const buildAutomationProfileMetadata = ({ row = {}, productContext = {}, templateContext = {}, websiteLinks = {} } = {}) => {
+  const commenter = resolveAutomationCommenterIdentity(row);
+  const availableSizes = asArray(productContext?.sizes || row.sizes || row.product_sizes || []).map((value) => text(value)).filter(Boolean);
+  return {
+    channel: text(row.channel || (text(row.platform) === "instagram" ? "instagram_comment" : "facebook_comment")),
+    customer_phone: text(row.phone || row.customer_phone || ""),
+    external_customer_id: commenter.commenterId || text(row.external_customer_id || row.comment_id || ""),
+    customer_name: commenter.commenterName || text(row.customer_name || row.commenter_name || ""),
+    full_name: commenter.commenterName || text(row.customer_name || row.commenter_name || ""),
+    sender_name: commenter.commenterName || text(row.commenter_name || ""),
+    contact_name: commenter.commenterName || text(row.commenter_name || ""),
+    profile_name: commenter.commenterName || text(row.commenter_name || ""),
+    product_name: text(productContext?.product_name || row.product_name || ""),
+    product_url: text(productContext?.product_url || row.product_url || ""),
+    product_price: text(productContext?.price || productContext?.sale_price || productContext?.selling_price || row.product_price || ""),
+    product_link: text(websiteLinks?.product_link || productContext?.product_url || row.product_url || ""),
+    checkout_link: text(websiteLinks?.checkout_link || productContext?.checkout_link || row.checkout_link || buildAutomationPublicUrl("/shop/checkout")),
+    available_sizes: availableSizes,
+    stock_status: text(productContext?.stock_status || row.stock_status || (availableSizes.length ? "in_stock" : "")),
+    guidance_mode: "website_checkout",
+    post_id: text(row.post_id || ""),
+    comment_id: text(row.comment_id || ""),
+    post_permalink_url: text(row.post_permalink_url || row.post_permalink || ""),
+    conversation_summary: templateContext?.productName ? `Comment automation for ${templateContext.productName}` : text(row.original_comment_text || row.comment_text || ""),
+    source_type: "comment_automation",
+    source_channel: text(row.channel || (text(row.platform) === "instagram" ? "instagram_comment" : "facebook_comment")),
+    messenger_profile: {
+      id: commenter.commenterId || "",
+      name: commenter.commenterName || "",
+      profile_pic: commenter.commenterAvatarUrl || "",
+      profile_pic_url: commenter.commenterAvatarUrl || "",
+    },
+    resolved_customer_id: commenter.commenterId || "",
+    website_product_link: text(websiteLinks?.product_link || productContext?.product_url || row.product_url || ""),
+  };
+};
+
+const executeAutomationStep = async ({
+  step = "",
+  enabled = false,
+  statusField = "",
+  run = async () => null,
+  onSkipped = "",
+  stepResults = [],
+  stepData = {},
+  persistState = async () => null,
+} = {}) => {
+  const result = { step, status: "skipped", reason: "", ...stepData };
+  if (!enabled) {
+    result.reason = onSkipped || "disabled";
+    stepResults.push(result);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", result);
+    return result;
+  }
+  try {
+    const response = await run();
+    result.status = text(response?.status || response?.step_status || stepData?.status || "sent") || "sent";
+    result.reason = text(response?.reason || "");
+    result.meta = response?.meta && typeof response.meta === "object" ? response.meta : response || null;
+    stepResults.push(result);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", result);
+    return result;
+  } catch (error) {
+    const message = error?.message || `${step} failed`;
+    result.status = "failed";
+    result.reason = message;
+    stepResults.push(result);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", result);
+    if (statusField) {
+      await persistState?.(statusField, "failed", message).catch(() => {});
+    }
+    return result;
+  }
+};
+
+const executeSocialCommentAutomationRuntime = async ({
+  tenantId = null,
+  platform = "",
+  postId = "",
+  commentId = "",
+  row = {},
+  productContext = null,
+  config = null,
+} = {}) => {
+  const safeTenantId = Number(tenantId || row.tenant_id || 0);
+  const normalizedPlatform = text(platform || row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  const safePostId = text(postId || row.post_id || "");
+  const safeCommentId = text(commentId || row.comment_id || "");
+  const safeRow = row || {};
+  const stepResults = [];
+  const currentPrivateReplyStatus = text(safeRow.dm_status || safeRow.automation_state?.private_reply?.status || "").toLowerCase();
+
+  if (!safeTenantId || !safePostId || !safeCommentId || normalizedPlatform !== "facebook") {
+    console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+      tenant_id: safeTenantId || null,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      reason: !safeTenantId ? "invalid_tenant" : !safePostId ? "missing_post_id" : !safeCommentId ? "missing_comment_id" : "non_facebook_platform",
+    });
+    return { applied: false, skipped: true, reason: "invalid_input", row: safeRow, step_results: stepResults };
+  }
+
+  const existingDuplicateRun = await findSocialCommentAutomationRunByKey({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+    commentId: safeCommentId,
+  }).catch(() => null);
+  if (existingDuplicateRun) {
+    const duplicateStepResults = [{
+      step: "automation",
+      status: "skipped",
+      reason: "duplicate_comment_automation",
+      meta: {
+        post_id: safePostId,
+        comment_id: safeCommentId,
+      },
+    }];
+    await upsertSocialCommentAutomationRunAudit({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: safePostId,
+      commentId: safeCommentId,
+      status: "duplicate_skipped",
+      skippedReason: "duplicate_comment_automation",
+      stepResults: duplicateStepResults,
+      productLink: text(existingDuplicateRun.metadata?.product_link || existingDuplicateRun.metadata?.website_product_link || ""),
+      checkoutLink: text(existingDuplicateRun.metadata?.checkout_link || ""),
+      row: existingDuplicateRun,
+    }).catch(() => {});
+    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      reason: "duplicate_comment_automation",
+      duplicate_run_id: existingDuplicateRun.id || null,
+    });
+    debugSocialCommentsWarn("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      reason: "duplicate_comment_automation",
+    });
+    return {
+      applied: false,
+      skipped: true,
+      duplicate_skipped: true,
+      reason: "duplicate_comment_automation",
+      row: existingDuplicateRun,
+      step_results: duplicateStepResults,
+    };
+  }
+
+  if (!config) {
+    console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      reason: "no_config",
+    });
+    return { applied: false, skipped: true, reason: "no_config", row: safeRow, step_results: stepResults };
+  }
+
+  if (!config.enabled) {
+    await upsertSocialCommentAutomationRunSummary({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: safePostId,
+      commentId: safeCommentId,
+      configId: config.id ?? null,
+      customerName: safeRow.commenter_name || safeRow.customer_name || "",
+      status: "skipped",
+      stepResults: [{ step: "automation", status: "skipped", reason: "automation_disabled" }],
+      errorMessage: "automation_disabled",
+      row: safeRow,
+    }).catch(() => {});
+    console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      reason: "automation_disabled",
+    });
+    return { applied: false, skipped: true, reason: "automation_disabled", row: safeRow, step_results: stepResults };
+  }
+
+  if (!productContext?.found) {
+    await upsertSocialCommentAutomationRunSummary({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: safePostId,
+      commentId: safeCommentId,
+      configId: config.id ?? null,
+      customerName: safeRow.commenter_name || safeRow.customer_name || "",
+      status: "skipped",
+      stepResults: [{ step: "automation", status: "skipped", reason: "product_not_found" }],
+      errorMessage: "product_not_found",
+      row: safeRow,
+    }).catch(() => {});
+    console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      reason: "product_not_found",
+    });
+    return { applied: false, skipped: true, reason: "product_not_found", row: safeRow, step_results: stepResults };
+  }
+
+  const websiteLinks = await resolveAutomationWebsiteLinks({
+    tenantId: safeTenantId,
+    row: safeRow,
+    productContext: productContext || {},
+  }).catch(() => ({
+    product_link: buildAutomationPublicUrl("/shop/products"),
+    product_url: buildAutomationPublicUrl("/shop/products"),
+    checkout_link: buildAutomationPublicUrl("/shop/checkout"),
+    checkout_url: buildAutomationPublicUrl("/shop/checkout"),
+    available_sizes: asArray(productContext?.sizes || safeRow.sizes || safeRow.product_sizes || []).map((value) => text(value)).filter(Boolean),
+    stock_status: text(productContext?.stock_status || safeRow.stock_status || ""),
+  }));
+  const templateContext = buildAutomationTemplateContext({ row: safeRow, productContext: productContext || {}, websiteLinks });
+  const publicReplyTemplate = text(config.message_templates?.publicReplyTemplate || "");
+  const privateReplyTemplate = text(config.message_templates?.privateReplyTemplate || "");
+  const aiOpeningPrompt = text(config.message_templates?.aiOpeningPrompt || "");
+  const renderedAiOpeningPrompt = renderAutomationTemplate(aiOpeningPrompt, templateContext).trim();
+  const renderedPublicReply = renderAutomationTemplate(publicReplyTemplate || "تم الرد على حضرتك في الخاص ✅", templateContext).trim() || "تم الرد على حضرتك في الخاص ✅";
+  const renderedPrivateReply = renderSocialCommentTemplateText(privateReplyTemplate || buildSocialCommentSuggestedReply({
+    classificationLabel: safeRow.classification_label || "",
+    commenterName: templateContext.customerName || "",
+    originalCommentText: safeRow.original_comment_text || "",
+    postPermalink: templateContext.postPermalink || "",
+  }), templateContext).trim();
+  const automationCommenter = resolveAutomationCommenterIdentity(safeRow);
+  const automationWebsiteProductLink = text(websiteLinks?.product_link || templateContext.product_link || templateContext.productUrl || "");
+  const automationWebsiteCheckoutLink = text(websiteLinks?.checkout_link || templateContext.checkout_link || "");
+  const websiteCheckoutGuidance = renderAutomationTemplate(
+    "أهلًا {{customer_name}}\n{{product_name}} متاح بسعر {{price}}.\nالمقاسات المتاحة: {{available_sizes}}\nاطلبه مباشرة من هنا: {{product_link}}",
+    templateContext
+  ).trim();
+  const automationRuntimeContext = {
+    conversation: null,
+    profile: null,
+    lead: null,
+    websiteProductLink: automationWebsiteProductLink || templateContext.productUrl || "",
+  };
+
+  console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_START", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    enabled: true,
+    config_enabled: Boolean(config.enabled),
+    template_key: text(config.template_key || ""),
+    product_id: config.product_id || null,
+  });
+
+  const persistedRuntimeState = {
+    ...(safeRow.automation_state || {}),
+    social_comment_runtime: {
+      enabled: true,
+      template_key: text(config.template_key || ""),
+      product_id: config.product_id || null,
+      post_id: safePostId,
+      platform: normalizedPlatform,
+      ai_opening_prompt: renderedAiOpeningPrompt || aiOpeningPrompt,
+      message_templates: {
+        publicReplyTemplate,
+        privateReplyTemplate,
+        aiOpeningPrompt,
+      },
+      updated_at: new Date().toISOString(),
+    },
+    public_reply: {
+      ...(safeRow.automation_state?.public_reply || {}),
+      template: publicReplyTemplate,
+      rendered_reply: renderedPublicReply,
+    },
+    private_reply: {
+      ...(safeRow.automation_state?.private_reply || {}),
+      template: privateReplyTemplate,
+      rendered_reply: renderedPrivateReply,
+    },
+  };
+
+  const persistRuntimeState = async (statePatch = {}) => persistSocialCommentAutomationState({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    commentId: safeCommentId,
+    sessionId: text(safeRow.inbox_conversation_id || ""),
+    channel: text(safeRow.channel || ""),
+    dmStatus: statePatch.dmStatus || "",
+    likeStatus: statePatch.likeStatus || "",
+    publicReplyStatus: statePatch.publicReplyStatus || "",
+    errorCode: statePatch.errorCode || "",
+    automationState: statePatch.automationState || {},
+  });
+
+  let workingRow = {
+    ...safeRow,
+    automation_state: persistedRuntimeState,
+  };
+
+  const likeEnabled = Boolean(config.settings?.likeComment);
+  const publicReplyEnabled = Boolean(config.settings?.publicReply);
+  const privateReplyEnabled = Boolean(config.settings?.privateReply);
+  const aiFollowUpEnabled = Boolean(config.settings?.aiFollowUp);
+  const createLeadEnabled = Boolean(config.settings?.createLead);
+
+  if (likeEnabled) {
+    await executeAutomationStep({
+      step: "likeComment",
+      enabled: true,
+      stepResults,
+      stepData: { status: "sent" },
+      persistState: async () => persistRuntimeState({
+        likeStatus: "sent",
+        automationState: {
+          ...persistedRuntimeState,
+          like_status: "sent",
+        },
+      }),
+      run: async () => {
+        await likeComment(normalizedPlatform, safeCommentId, safeTenantId);
+        workingRow.like_status = "sent";
+        persistedRuntimeState.like_status = "sent";
+        await persistRuntimeState({
+          likeStatus: "sent",
+          automationState: {
+            ...persistedRuntimeState,
+            like_status: "sent",
+          },
+        }).catch(() => {});
+        return { ok: true };
+      },
+    });
+  } else {
+    const result = { step: "likeComment", status: "skipped", reason: "disabled" };
+    stepResults.push(result);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", result);
+  }
+
+  if (publicReplyEnabled) {
+    await executeAutomationStep({
+      step: "publicReply",
+      enabled: true,
+      stepResults,
+      run: async () => {
+        await replyToComment(normalizedPlatform, safeCommentId, renderedPublicReply, safeTenantId);
+        workingRow.public_reply_status = "sent";
+        persistedRuntimeState.public_reply = {
+          ...(persistedRuntimeState.public_reply || {}),
+          status: "sent",
+          rendered_reply: renderedPublicReply,
+          sent_at: new Date().toISOString(),
+        };
+        await persistRuntimeState({
+          publicReplyStatus: "sent",
+          automationState: persistedRuntimeState,
+        }).catch(() => {});
+        return { ok: true };
+      },
+    });
+  } else {
+    const result = { step: "publicReply", status: "skipped", reason: "disabled" };
+    stepResults.push(result);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", result);
+  }
+
+  const privateReplySkippedReason = ["queued", "sending", "sent"].includes(currentPrivateReplyStatus)
+    ? `private_reply_status_${currentPrivateReplyStatus}`
+    : "";
+  if (!privateReplyEnabled) {
+    const result = { step: "privateReply", status: "skipped", reason: "disabled" };
+    stepResults.push(result);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", result);
+  } else if (privateReplySkippedReason) {
+    const result = { step: "privateReply", status: "skipped", reason: privateReplySkippedReason };
+    stepResults.push(result);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", result);
+  } else {
+    const queuedAt = new Date().toISOString();
+    workingRow.dm_status = "queued";
+    persistedRuntimeState.private_reply = {
+      ...(persistedRuntimeState.private_reply || {}),
+      status: "queued",
+      queued_at: queuedAt,
+      template: privateReplyTemplate,
+      rendered_reply: renderedPrivateReply,
+    };
+    await persistRuntimeState({
+      dmStatus: "queued",
+      automationState: persistedRuntimeState,
+    }).catch(() => {});
+    await enqueueSocialCommentPrivateReplyJob({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      commentId: safeCommentId,
+      postId: safePostId,
+      row: workingRow,
+    }).catch(() => {});
+    stepResults.push({
+      step: "privateReply",
+      status: "queued",
+      reason: "enqueued_to_worker",
+      message: renderedPrivateReply,
+    });
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", {
+      step: "privateReply",
+      status: "queued",
+      reason: "enqueued_to_worker",
+      message: renderedPrivateReply,
+    });
+  }
+
+  if (aiFollowUpEnabled) {
+    const aiFollowUpResult = await executeAutomationStep({
+      step: "aiFollowUp",
+      enabled: true,
+      stepResults,
+      stepData: { status: "linked" },
+      run: async () => {
+        const profileMetadata = buildAutomationProfileMetadata({
+          row: {
+            ...safeRow,
+            commenter_id: automationCommenter.commenterId || safeRow.commenter_id || safeCommentId,
+            commenter_name: automationCommenter.commenterName || safeRow.commenter_name || "",
+            commenter_profile_picture_url: automationCommenter.commenterAvatarUrl || safeRow.commenter_profile_picture_url || "",
+          },
+          productContext: productContext || {},
+          templateContext,
+          websiteLinks,
+        });
+        const aiProfile = await upsertAiCustomerProfile({
+          tenantId: safeTenantId,
+          sessionId: text(safeRow.inbox_conversation_id || safeRow.session_id || socialCommentConversationId({
+            platform: normalizedPlatform,
+            postId: safePostId,
+            rootCommentId: safeRow.root_comment_id || safeCommentId,
+            commentId: safeCommentId,
+          })),
+          metadata: profileMetadata,
+          message: text(safeRow.original_comment_text || safeRow.comment_text || safeRow.commenter_name || ""),
+          response: {
+            answer: text(websiteCheckoutGuidance),
+            detected_intent: "comment_automation_follow_up",
+            confidence: 0.92,
+            suggested_products: productContext?.found ? [productContext] : [],
+            ai_order: null,
+          },
+        });
+        const conversationRow = await upsertAutomationInboxConversation({
+          tenantId: safeTenantId,
+          platform: normalizedPlatform,
+          row: {
+            ...safeRow,
+            channel: text(safeRow.channel || (normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment")),
+            last_message: text(safeRow.original_comment_text || safeRow.comment_text || safeRow.last_message || ""),
+            thread_kind: "comment",
+            comment_id: safeCommentId,
+            post_id: safePostId,
+            commenter_id: automationCommenter.commenterId || safeRow.commenter_id || safeCommentId,
+            commenter_name: automationCommenter.commenterName || safeRow.commenter_name || "",
+            commenter_profile_picture_url: automationCommenter.commenterAvatarUrl || safeRow.commenter_profile_picture_url || "",
+            product_id: productContext?.product_id || safeRow.product_id || "",
+            product_name: productContext?.product_name || safeRow.product_name || "",
+            product_url: automationWebsiteProductLink || templateContext.productUrl || "",
+          },
+          productContext: productContext || {},
+          websiteProductLink: automationWebsiteProductLink || templateContext.productUrl || "",
+          checkoutLink: automationWebsiteCheckoutLink || "",
+          aiHandling: true,
+          leadStatus: "new",
+          customerProfileId: aiProfile?.id || null,
+          customerName: automationCommenter.commenterName || safeRow.commenter_name || "",
+          customerAvatarUrl: automationCommenter.commenterAvatarUrl || safeRow.commenter_profile_picture_url || "",
+        });
+        automationRuntimeContext.profile = aiProfile || null;
+        automationRuntimeContext.conversation = conversationRow || null;
+        if (conversationRow?.customer_profile_id && aiProfile?.id && Number(conversationRow.customer_profile_id) !== Number(aiProfile.id)) {
+          await db.query(
+            `
+            UPDATE ai_channel_conversations
+            SET customer_profile_id = $4::bigint,
+                metadata = COALESCE(metadata, '{}'::jsonb) || $5::jsonb,
+                updated_at = NOW()
+            WHERE tenant_id = $1::bigint
+              AND channel = $2::text
+              AND external_conversation_id = $3::text
+            `,
+            [
+              safeTenantId,
+              text(safeRow.channel || (normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment")),
+              text(safeRow.inbox_conversation_id || safeRow.session_id || socialCommentConversationId({
+                platform: normalizedPlatform,
+                postId: safePostId,
+                rootCommentId: safeRow.root_comment_id || safeCommentId,
+                commentId: safeCommentId,
+              })),
+              aiProfile.id,
+              JSON.stringify({
+                ai_follow_up: true,
+                ai_follow_up_status: "linked",
+                ai_follow_up_conversation_id: text(conversationRow?.external_conversation_id || ""),
+                website_product_link: automationWebsiteProductLink || templateContext.productUrl || "",
+              }),
+            ]
+          ).catch(() => {});
+        }
+        return {
+          status: conversationRow?.inserted ? "created" : "linked",
+          reason: conversationRow?.inserted ? "conversation_created" : "conversation_linked",
+          meta: {
+            conversation_id: text(conversationRow?.external_conversation_id || ""),
+            conversation_db_id: conversationRow?.id || null,
+            customer_profile_id: aiProfile?.id || conversationRow?.customer_profile_id || null,
+            website_product_link: automationWebsiteProductLink || templateContext.productUrl || "",
+            customer_name: automationCommenter.commenterName || safeRow.commenter_name || "",
+          },
+        };
+      },
+    });
+  } else {
+    const aiFollowUpResult = { step: "aiFollowUp", status: "skipped", reason: "disabled" };
+    stepResults.push(aiFollowUpResult);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", aiFollowUpResult);
+  }
+
+  if (createLeadEnabled) {
+    const createLeadResult = await executeAutomationStep({
+      step: "createLead",
+      enabled: true,
+      stepResults,
+      stepData: { status: "created" },
+      run: async () => {
+        const profileMetadata = buildAutomationProfileMetadata({
+          row: {
+            ...safeRow,
+            commenter_id: automationCommenter.commenterId || safeRow.commenter_id || safeCommentId,
+            commenter_name: automationCommenter.commenterName || safeRow.commenter_name || "",
+            commenter_profile_picture_url: automationCommenter.commenterAvatarUrl || safeRow.commenter_profile_picture_url || "",
+          },
+          productContext: productContext || {},
+          templateContext,
+          websiteLinks,
+        });
+        const leadProfile = automationRuntimeContext.profile || await upsertAiCustomerProfile({
+          tenantId: safeTenantId,
+          sessionId: text(safeRow.inbox_conversation_id || safeRow.session_id || socialCommentConversationId({
+            platform: normalizedPlatform,
+            postId: safePostId,
+            rootCommentId: safeRow.root_comment_id || safeCommentId,
+            commentId: safeCommentId,
+          })),
+          metadata: profileMetadata,
+          message: text(safeRow.original_comment_text || safeRow.comment_text || safeRow.commenter_name || ""),
+          response: {
+            answer: text(websiteCheckoutGuidance),
+            detected_intent: "comment_automation_lead",
+            confidence: 0.91,
+            suggested_products: productContext?.found ? [productContext] : [],
+            ai_order: null,
+          },
+        });
+        const conversationForLead = automationRuntimeContext.conversation || {
+          tenant_id: safeTenantId,
+          channel: text(safeRow.channel || (normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment")),
+          session_id: text(safeRow.inbox_conversation_id || safeRow.session_id || socialCommentConversationId({
+            platform: normalizedPlatform,
+            postId: safePostId,
+            rootCommentId: safeRow.root_comment_id || safeCommentId,
+            commentId: safeCommentId,
+          })),
+          external_conversation_id: text(safeRow.inbox_conversation_id || safeRow.session_id || socialCommentConversationId({
+            platform: normalizedPlatform,
+            postId: safePostId,
+            rootCommentId: safeRow.root_comment_id || safeCommentId,
+            commentId: safeCommentId,
+          })),
+          external_customer_id: automationCommenter.commenterId || safeRow.commenter_id || safeCommentId,
+          customer_name: automationCommenter.commenterName || safeRow.commenter_name || "",
+          customer_avatar_url: automationCommenter.commenterAvatarUrl || safeRow.commenter_profile_picture_url || "",
+          customer_profile: {
+            id: leadProfile?.id || null,
+            name: automationCommenter.commenterName || safeRow.commenter_name || "",
+            external_customer_id: automationCommenter.commenterId || safeRow.commenter_id || safeCommentId,
+            avatar_url: automationCommenter.commenterAvatarUrl || safeRow.commenter_profile_picture_url || "",
+          },
+          latest_message_preview: text(safeRow.original_comment_text || safeRow.comment_text || safeRow.last_message || ""),
+          last_message: text(safeRow.original_comment_text || safeRow.comment_text || safeRow.last_message || ""),
+          lead_status: "new_lead",
+          channel_metadata: {
+            ...(safeRow.metadata || {}),
+            source_type: "comment_automation",
+            source: "comment_automation",
+            platform: normalizedPlatform,
+            post_id: safePostId,
+            comment_id: safeCommentId,
+            product_link: automationWebsiteProductLink || templateContext.productUrl || "",
+            checkout_link: automationWebsiteCheckoutLink || "",
+            available_sizes: websiteLinks?.available_sizes || [],
+            stock_status: websiteLinks?.stock_status || "",
+            guidance_mode: "website_checkout",
+            website_product_link: automationWebsiteProductLink || templateContext.productUrl || "",
+            lead_state: "new_lead",
+            lead_status: "new_lead",
+          },
+        };
+        const leadOpportunity = await createOrUpdateLeadOpportunity({
+          tenantId: safeTenantId,
+          conversation: conversationForLead,
+          profile: leadProfile,
+        });
+        await db.query(
+          `
+          UPDATE ai_channel_conversations
+          SET metadata = COALESCE(metadata, '{}'::jsonb) || $4::jsonb,
+              lead_status = COALESCE(NULLIF($5::text, ''), lead_status),
+              customer_profile_id = COALESCE($6::bigint, customer_profile_id),
+              updated_at = NOW()
+          WHERE tenant_id = $1::bigint
+            AND channel = $2::text
+            AND external_conversation_id = $3::text
+          `,
+          [
+            safeTenantId,
+            text(conversationForLead.channel || (normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment")),
+            text(conversationForLead.external_conversation_id || ""),
+            JSON.stringify({
+              lead_opportunity_id: leadOpportunity?.id || null,
+              lead_opportunity_status: leadOpportunity?.status || "open",
+              lead_status: "new_lead",
+              ai_follow_up: Boolean(aiFollowUpEnabled),
+              create_lead: true,
+              product_link: automationWebsiteProductLink || templateContext.productUrl || "",
+              checkout_link: automationWebsiteCheckoutLink || "",
+              website_product_link: automationWebsiteProductLink || templateContext.productUrl || "",
+            }),
+            "new",
+            leadProfile?.id || null,
+          ]
+        ).catch(() => {});
+        automationRuntimeContext.profile = leadProfile || automationRuntimeContext.profile || null;
+        automationRuntimeContext.lead = leadOpportunity || null;
+        return {
+          status: leadOpportunity?.id ? "created" : "linked",
+          reason: leadOpportunity?.id ? "lead_created" : "lead_linked",
+          meta: {
+            lead_id: leadOpportunity?.id || null,
+            profile_id: leadProfile?.id || null,
+            conversation_id: text(conversationForLead.external_conversation_id || ""),
+            lead_status: leadOpportunity?.status || "open",
+            website_product_link: automationWebsiteProductLink || templateContext.productUrl || "",
+            customer_name: automationCommenter.commenterName || safeRow.commenter_name || "",
+          },
+        };
+      },
+    });
+  } else {
+    const createLeadResult = { step: "createLead", status: "skipped", reason: "disabled" };
+    stepResults.push(createLeadResult);
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", createLeadResult);
+  }
+
+  const summary = summarizeAutomationStepResults(stepResults);
+  await upsertSocialCommentAutomationRunSummary({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+    commentId: safeCommentId,
+    configId: config.id ?? null,
+    customerName: templateContext.customerName || safeRow.commenter_name || safeRow.customer_name || "",
+    status: summary.status,
+    stepResults,
+    errorMessage: summary.errorMessage,
+    row: {
+      ...safeRow,
+      automation_state: persistedRuntimeState,
+      status: summary.status,
+      error_message: summary.errorMessage,
+      product_link: automationWebsiteProductLink || templateContext.productUrl || "",
+      checkout_link: automationWebsiteCheckoutLink || "",
+      guidance_mode: "website_checkout",
+    },
+  }).catch(() => {});
+
+  console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_DONE", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    step_results: stepResults,
+  });
+
+  return {
+    applied: true,
+    skipped: false,
+    row: workingRow,
+    step_results: stepResults,
+    config,
+  };
+};
+
 export const resolveSocialCommentPublishedProductContext = async ({ tenantId = null, row = {} } = {}) => {
   const safeTenantId = Number(tenantId || row.tenant_id || 0);
   const platform = text(row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
@@ -415,6 +1641,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       canonical_slug: productRow.product_canonical_slug || "",
     };
     const link = await resolveStorefrontProductLink({ tenantId: safeTenantId, product }).catch(() => ({ product_url: "" }));
+    const stockCount = Number(productRow.product_stock || 0);
     const sizes = text(productRow.product_sizes || "")
       .split(",")
       .map((value) => text(value))
@@ -434,7 +1661,9 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       sale_price: text(productRow.product_sale_price || ""),
       selling_price: text(productRow.product_selling_price || productRow.product_price || ""),
       sizes,
+      available_sizes: sizes,
       colors,
+      stock_status: stockCount > 0 ? "in_stock" : "out_of_stock",
       product_url: text(link?.product_url || link?.url || ""),
       variant_id: text(productRow.variant_id || row.raw_payload?.variant_id || row.variant_id || ""),
       color: text(productRow.color || row.raw_payload?.color || row.color || ""),
@@ -454,6 +1683,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       p.price AS product_price,
       p.sale_price AS product_sale_price,
       p.selling_price AS product_selling_price,
+      COALESCE(p.stock, 0) AS product_stock,
       p.slug AS product_slug,
       p.canonical_slug AS product_canonical_slug,
       COALESCE((
@@ -491,6 +1721,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       p.price AS product_price,
       p.sale_price AS product_sale_price,
       p.selling_price AS product_selling_price,
+      COALESCE(p.stock, 0) AS product_stock,
       p.slug AS product_slug,
       p.canonical_slug AS product_canonical_slug,
       COALESCE((
@@ -1376,7 +2607,43 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     });
 
     const insertedRun = Boolean(sessionResult.rows[0]);
-    const savedRunRow = sessionResult.rows[0] || null;
+    let savedRunRow = sessionResult.rows[0] || null;
+    const runtimeProductContext = await resolveSocialCommentPublishedProductContext({
+      tenantId: safeTenantId,
+      row: savedRunRow || {
+        ...event,
+        tenant_id: safeTenantId,
+      },
+    }).catch(() => null);
+    const automationConfig = await loadPostAutomationConfig({
+      tenantId: safeTenantId,
+      platform,
+      postId,
+      row: savedRunRow || {},
+    }).catch(() => null);
+    const automationRuntimeResult = await executeSocialCommentAutomationRuntime({
+      tenantId: safeTenantId,
+      platform,
+      postId,
+      commentId: text(event.comment_id || savedRunRow?.comment_id || ""),
+      row: savedRunRow || {},
+      productContext: runtimeProductContext,
+      config: automationConfig,
+    }).catch((error) => {
+      console.warn("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+        tenant_id: safeTenantId,
+        platform,
+        post_id: postId,
+        comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
+        reason: "runtime_error",
+        message: error?.message || "",
+      });
+      return null;
+    });
+    if (automationRuntimeResult?.row) {
+      savedRunRow = automationRuntimeResult.row;
+    }
+    const automationRuntimeApplied = Boolean(automationRuntimeResult?.applied);
     const privateReplyStatus = text(
       savedRunRow?.dm_status ||
       savedRunRow?.automation_state?.private_reply?.status ||
@@ -1390,6 +2657,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       text(platform || "").toLowerCase() === "facebook" &&
       Boolean(privateReplyCommentId) &&
       insertedRun &&
+      !automationRuntimeApplied &&
       !["queued", "sending", "sent"].includes(privateReplyStatus);
 
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_REACHED", {
@@ -1447,6 +2715,8 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
           ? "not_facebook"
           : !privateReplyCommentId
             ? "missing_comment_id"
+            : automationRuntimeApplied
+              ? "runtime_already_enqueued"
             : !insertedRun
               ? "missing_saved_run"
               : `private_reply_status_${privateReplyStatus || "empty"}`,
@@ -2304,7 +3574,31 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_created ON social_comment_automation_runs (tenant_id, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_platform ON social_comment_automation_runs (tenant_id, platform, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_comment ON social_comment_automation_runs (tenant_id, comment_id)`);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_tenant_post_platform ON social_comment_automation_runs (tenant_id, post_id, platform, created_at DESC)`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS config_id BIGINT NULL`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS status TEXT NULL`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS step_results JSONB NOT NULL DEFAULT '[]'::jsonb`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS error_message TEXT NULL`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS automation_state JSONB NOT NULL DEFAULT '{}'::jsonb`);
+      await clientOrPool.query(`
+        CREATE TABLE IF NOT EXISTS social_comment_automation_run_audits (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NOT NULL,
+          platform TEXT NOT NULL,
+          post_id TEXT NOT NULL DEFAULT '',
+          comment_id TEXT NOT NULL DEFAULT '',
+          status TEXT NOT NULL DEFAULT 'duplicate_skipped',
+          skipped_reason TEXT NOT NULL DEFAULT '',
+          step_results JSONB NOT NULL DEFAULT '[]'::jsonb,
+          product_link TEXT NOT NULL DEFAULT '',
+          checkout_link TEXT NOT NULL DEFAULT '',
+          guidance_mode TEXT NOT NULL DEFAULT 'website_checkout',
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_run_audits_tenant_created ON social_comment_automation_run_audits (tenant_id, created_at DESC)`);
+      await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_run_audits_tenant_platform_post ON social_comment_automation_run_audits (tenant_id, platform, post_id, created_at DESC)`);
     })();
   }
 
@@ -2792,7 +4086,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         });
         storedRow.error_code = storedRow.error_code || "comment_inbox_materialization_failed";
       }
-      if (COMMENT_THREAD_LABELS.has(storedRow.classification_label)) {
+      if (!automationRuntimeApplied && COMMENT_THREAD_LABELS.has(storedRow.classification_label)) {
         try {
           const materialized = await upsertSocialCommentLeadConversation({
             tenantId: storedRow.tenant_id,
@@ -2854,23 +4148,25 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           ).catch(() => {});
         }
       }
-      try {
-        await processSocialCommentAutoReply({
-          tenantId: storedRow.tenant_id,
-          platform: storedRow.platform,
-          postId: storedRow.post_id,
-          commentId: storedRow.comment_id,
-          comment: storedRow,
-          post: storedRow,
-          force: false,
-        });
-      } catch (error) {
-        socialCommentsError("[social-comments] auto reply processing failed", {
-          tenant_id: storedRow.tenant_id,
-          platform: storedRow.platform,
-          comment_id: storedRow.comment_id,
-          message: error?.message || "",
-        });
+      if (!automationRuntimeApplied) {
+        try {
+          await processSocialCommentAutoReply({
+            tenantId: storedRow.tenant_id,
+            platform: storedRow.platform,
+            postId: storedRow.post_id,
+            commentId: storedRow.comment_id,
+            comment: storedRow,
+            post: storedRow,
+            force: false,
+          });
+        } catch (error) {
+          socialCommentsError("[social-comments] auto reply processing failed", {
+            tenant_id: storedRow.tenant_id,
+            platform: storedRow.platform,
+            comment_id: storedRow.comment_id,
+            message: error?.message || "",
+          });
+        }
       }
     }
     console.log("[META_WEBHOOK_COMMENT_STORED]", {
@@ -2932,6 +4228,46 @@ const mapMarketingCommentEventToRecentRow = (row = {}) => ({
   updated_at: row.updated_at || row.processed_at || row.created_at || new Date().toISOString(),
 });
 
+const mapSocialCommentAutomationAuditRowToRecentRow = (row = {}) => {
+  const stepResults = Array.isArray(row.step_results) ? row.step_results : [];
+  const productLink = text(row.product_link || row.metadata?.product_link || "");
+  const checkoutLink = text(row.checkout_link || row.metadata?.checkout_link || "");
+  const skippedReason = text(row.skipped_reason || row.error_message || "duplicate_comment_automation");
+  return {
+    id: `audit:${row.id ?? row.comment_id ?? crypto.randomUUID()}`,
+    tenant_id: row.tenant_id ?? null,
+    platform: text(row.platform || "facebook") || "facebook",
+    channel: text(row.platform || "facebook") === "instagram" ? "instagram_comment" : "facebook_comment",
+    post_id: text(row.post_id || ""),
+    comment_id: text(row.comment_id || ""),
+    config_id: row.config_id ?? null,
+    customer_name: text(row.customer_name || row.commenter_name || ""),
+    status: text(row.status || "duplicate_skipped") || "duplicate_skipped",
+    step_results: stepResults.length ? stepResults : [{
+      step: "automation",
+      status: "skipped",
+      reason: skippedReason,
+    }],
+    error_message: skippedReason,
+    skipped_reason: skippedReason,
+    product_link: productLink,
+    checkout_link: checkoutLink,
+    guidance_mode: text(row.guidance_mode || "website_checkout") || "website_checkout",
+    created_at: row.created_at || new Date().toISOString(),
+    updated_at: row.updated_at || row.created_at || new Date().toISOString(),
+    automation_state: {
+      runtime_monitor: {
+        status: text(row.status || "duplicate_skipped") || "duplicate_skipped",
+        skipped_reason: skippedReason,
+        step_results: stepResults,
+        product_link: productLink,
+        checkout_link: checkoutLink,
+        guidance_mode: text(row.guidance_mode || "website_checkout") || "website_checkout",
+      },
+    },
+  };
+};
+
 export const listRecentSocialCommentAutomationRuns = async ({ tenantId = null, limit = 50 } = {}) => {
   await ensureSocialCommentAutomationSchema();
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
@@ -2965,14 +4301,26 @@ export const listRecentSocialCommentAutomationRuns = async ({ tenantId = null, l
   ]);
 
   const automationRows = automationRunsResult.rows || [];
+  const auditRowsResult = await db.query(
+    `
+    SELECT *
+    FROM social_comment_automation_run_audits
+    WHERE tenant_id = $1::bigint
+    ORDER BY created_at DESC, id DESC
+    LIMIT $2
+    `,
+    [tenantId, safeLimit]
+  ).catch(() => ({ rows: [] }));
+  const auditRows = (auditRowsResult.rows || []).map(mapSocialCommentAutomationAuditRowToRecentRow);
   const marketingRows = (marketingEventsResult.rows || []).map(mapMarketingCommentEventToRecentRow);
-  const combinedRows = [...automationRows, ...marketingRows];
+  const combinedRows = [...automationRows, ...auditRows, ...marketingRows];
   socialCommentsLog("[social-comments] recent pipeline counts", {
     tenant_id: tenantId,
-    total_rows_before_filters: automationRows.length + marketingRows.length,
-    rows_after_tenant_filter: automationRows.length + marketingRows.length,
+    total_rows_before_filters: automationRows.length + auditRows.length + marketingRows.length,
+    rows_after_tenant_filter: automationRows.length + auditRows.length + marketingRows.length,
     rows_after_status_channel_filters: combinedRows.length,
     social_runs_rows: automationRows.length,
+    audit_rows: auditRows.length,
     marketing_rows: marketingRows.length,
   });
 
@@ -2992,4 +4340,170 @@ export const listRecentSocialCommentAutomationRuns = async ({ tenantId = null, l
   });
 
   return deduped.slice(0, safeLimit);
+};
+
+export const listSocialCommentAutomationRuns = async ({ tenantId = null, platform = "", postId = "", limit = 20 } = {}) => {
+  const safeTenantId = Number(tenantId || 0);
+  const safePostId = text(postId || "");
+  const normalizedPlatform = text(platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safePostId) return [];
+  await ensureSocialCommentAutomationSchema();
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+  const candidatePostIds = Array.from(
+    new Set(
+      [
+        safePostId,
+        safePostId.replace(/^facebook_post:/i, ""),
+        safePostId.replace(/^instagram_post:/i, ""),
+        safePostId.replace(/^social_comment:[^:]+:/i, ""),
+      ]
+        .map((value) => text(value))
+        .filter(Boolean)
+    )
+  );
+  const params = [safeTenantId, normalizedPlatform, ...candidatePostIds];
+  const wherePostClause = candidatePostIds
+    .map((_, index) => `post_id = $${index + 3}::text`)
+    .join(" OR ");
+  const [result, auditResult] = await Promise.all([
+    db.query(
+    `
+    SELECT *
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND (${wherePostClause})
+    ORDER BY created_at DESC, id DESC
+    LIMIT $4
+    `,
+      [...params, safeLimit]
+    ),
+    db.query(
+      `
+      SELECT *
+      FROM social_comment_automation_run_audits
+      WHERE tenant_id = $1::bigint
+        AND platform = $2::text
+        AND (${wherePostClause})
+      ORDER BY created_at DESC, id DESC
+      LIMIT $4
+      `,
+      [...params, safeLimit]
+    ).catch(() => ({ rows: [] })),
+  ]);
+  const automationRows = result.rows || [];
+  const auditRows = (auditResult.rows || []).map(mapSocialCommentAutomationAuditRowToRecentRow);
+  return [...automationRows, ...auditRows]
+    .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+    .slice(0, safeLimit);
+};
+
+export const testSocialCommentAutomationRuntime = async ({ tenantId = null, platform = "", postId = "" } = {}) => {
+  const safeTenantId = Number(tenantId || 0);
+  const safePostId = text(postId || "");
+  const normalizedPlatform = text(platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safePostId) {
+    throw Object.assign(new Error("tenant_id, platform and postId are required"), { status: 400 });
+  }
+  const config = await getSocialCommentAutomationConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
+  const post = config?.post || await loadSocialCommentPost({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
+  const product = metadataObject(config?.product || post?.product || {});
+  const websiteLinks = await resolveAutomationWebsiteLinks({
+    tenantId: safeTenantId,
+    row: post || {},
+    productContext: product || {},
+  }).catch(() => ({
+    product_link: buildAutomationPublicUrl("/shop/products"),
+    product_url: buildAutomationPublicUrl("/shop/products"),
+    checkout_link: buildAutomationPublicUrl("/shop/checkout"),
+    checkout_url: buildAutomationPublicUrl("/shop/checkout"),
+    available_sizes: asArray(post?.productSizes || product?.sizes || product?.available_sizes || [])
+      .map(text)
+      .filter(Boolean),
+    stock_status: text(product?.stock_status || post?.stock_status || ""),
+  }));
+  const templateContext = {
+    customerName: "عميل تجريبي",
+    customer_name: "عميل تجريبي",
+    commenterName: "عميل تجريبي",
+    commenter_name: "عميل تجريبي",
+    productName: text(product.name || post?.productName || post?.caption || "Linked product"),
+    product_name: text(product.name || post?.productName || post?.caption || "Linked product"),
+    price: text(product.sale_price || product.price || post?.productSalePrice || post?.productPrice || "0"),
+    size: text((post?.productSizes || "").split(",").map((value) => text(value)).filter(Boolean)[0] || "غير محدد"),
+    color: text(post?.productColors || product.color || ""),
+    productUrl: text(product.storefront_url || product.product_url || post?.productLink || ""),
+    product_url: text(product.storefront_url || product.product_url || post?.productLink || ""),
+    product_link: text(websiteLinks?.product_link || product.storefront_url || product.product_url || post?.productLink || ""),
+    checkout_link: text(websiteLinks?.checkout_link || buildAutomationPublicUrl("/shop/checkout")),
+    postPermalink: text(post?.permalinkUrl || post?.post_permalink_url || ""),
+    post_permalink: text(post?.permalinkUrl || post?.post_permalink_url || ""),
+    originalCommentText: "هذا تعليق تجريبي",
+    original_comment_text: "هذا تعليق تجريبي",
+    sizes: text(post?.productSizes || ""),
+    available_sizes: text(post?.productSizes || product?.available_sizes || product?.sizes || ""),
+    availableSizes: text(post?.productSizes || product?.available_sizes || product?.sizes || ""),
+    variants: text(post?.productSizes || ""),
+    stock_status: text(websiteLinks?.stock_status || product?.stock_status || post?.stock_status || "unknown"),
+  };
+  const duplicatePostIds = Array.from(new Set([
+    safePostId,
+    safePostId.replace(/^facebook_post:/i, ""),
+    safePostId.replace(/^instagram_post:/i, ""),
+    safePostId.replace(/^social_comment:[^:]+:/i, ""),
+  ].map((value) => text(value)).filter(Boolean)));
+  const duplicateRun = await db.query(
+    `
+    SELECT id
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND post_id = ANY($3::text[])
+    LIMIT 1
+    `,
+    [safeTenantId, normalizedPlatform, duplicatePostIds]
+  ).catch(() => ({ rows: [] }));
+  const duplicateAuditRun = await db.query(
+    `
+    SELECT id
+    FROM social_comment_automation_run_audits
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND post_id = ANY($3::text[])
+    LIMIT 1
+    `,
+    [safeTenantId, normalizedPlatform, duplicatePostIds]
+  ).catch(() => ({ rows: [] }));
+  const duplicateExists = Boolean(duplicateRun.rows?.[0] || duplicateAuditRun.rows?.[0]);
+  const publicTemplate = text(config?.message_templates?.publicReplyTemplate || "تم الرد على حضرتك في الخاص ✅");
+  const privateTemplate = text(config?.message_templates?.privateReplyTemplate || "");
+  const warnings = {
+    publicReplyTemplate: detectMissingTemplatePlaceholders(publicTemplate, templateContext),
+    privateReplyTemplate: detectMissingTemplatePlaceholders(privateTemplate, templateContext),
+    aiOpeningPrompt: detectMissingTemplatePlaceholders(text(config?.message_templates?.aiOpeningPrompt || ""), templateContext),
+  };
+  return {
+    success: true,
+    dry_run: true,
+    config: config || resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId }),
+    post: post || null,
+    product: product || null,
+    product_link: text(websiteLinks?.product_link || templateContext.product_link || ""),
+    checkout_link: text(websiteLinks?.checkout_link || templateContext.checkout_link || ""),
+    would_run: !duplicateExists,
+    duplicate_reason: duplicateExists ? "duplicate_comment_automation" : "",
+    enabled_steps: {
+      likeComment: Boolean(config?.settings?.likeComment),
+      publicReply: Boolean(config?.settings?.publicReply),
+      privateReply: Boolean(config?.settings?.privateReply),
+      aiFollowUp: Boolean(config?.settings?.aiFollowUp),
+      createLead: Boolean(config?.settings?.createLead),
+    },
+    rendered_public_reply: renderAutomationTemplate(publicTemplate, templateContext).trim(),
+    rendered_private_reply: renderAutomationTemplate(privateTemplate || "", templateContext).trim(),
+    rendered_ai_opening_prompt: renderAutomationTemplate(text(config?.message_templates?.aiOpeningPrompt || ""), templateContext).trim(),
+    guidance_mode: "website_checkout",
+    placeholder_warnings: warnings,
+    mock_context: templateContext,
+  };
 };
