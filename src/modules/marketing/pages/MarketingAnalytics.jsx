@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BarChart3, CalendarDays, Filter, RefreshCw, Share2, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 
-import { getMarketingAnalytics, syncMarketingAnalytics } from "../services/marketingApi";
+import { getMarketingAnalytics, getSocialPublisherPosts, syncMarketingAnalytics } from "../services/marketingApi";
 import MarketingMetricCard from "../components/MarketingMetricCard";
 import MarketingStudioHeader from "../components/MarketingStudioHeader";
+import MarketingCampaignAnalyticsPanel from "../components/MarketingCampaignAnalyticsPanel";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 
 const formatDateTime = (value) => {
@@ -24,8 +25,10 @@ export default function MarketingAnalytics() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [postsLoading, setPostsLoading] = useState(true);
   const [error, setError] = useState("");
   const [analytics, setAnalytics] = useState(null);
+  const [publisherPosts, setPublisherPosts] = useState([]);
   const [filters, setFilters] = useState({
     platform: "all",
     from: "",
@@ -58,6 +61,25 @@ export default function MarketingAnalytics() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  const loadPosts = useCallback(async () => {
+    setPostsLoading(true);
+    try {
+      const rows = await getSocialPublisherPosts({ limit: 50 });
+      setPublisherPosts(Array.isArray(rows) ? rows : []);
+    } catch (err) {
+      setPublisherPosts([]);
+    } finally {
+      setPostsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadPosts();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadPosts]);
+
   const refresh = async () => {
     if (!canSync) {
       toast.error(t("marketing.analytics.permissionSync"));
@@ -85,8 +107,6 @@ export default function MarketingAnalytics() {
   const activePlatform = analytics?.filters?.platform || filters.platform;
   const permissionLimited = Number(summary.permission_limited_rows || 0) > 0;
   const syncWarnings = Array.isArray(analytics?.sync?.warnings) ? analytics.sync.warnings : [];
-
-  const topRows = useMemo(() => rows.slice(0, 20), [rows]);
 
   return (
     <div className="min-h-full w-full overflow-x-hidden bg-[#060816] text-white">
@@ -195,68 +215,20 @@ export default function MarketingAnalytics() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-          <div className="mb-4 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-black text-white">{t("marketing.analytics.topPosts.title")}</h2>
-              <p className="text-sm text-slate-400">{t("marketing.analytics.topPosts.subtitle")}</p>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="min-w-full border-separate border-spacing-0">
-              <thead>
-                <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.post")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.social.platform")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.metrics.likes")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.metrics.comments")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.metrics.shares")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.reach")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.metrics.impressions")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.engagement")}</th>
-                  <th className="border-b border-white/10 px-3 py-3 font-semibold">{t("marketing.analytics.table.synced")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={9} className="px-3 py-10 text-center text-sm text-slate-400">
-                      {t("marketing.analytics.loading")}
-                    </td>
-                  </tr>
-                ) : topRows.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-3 py-10 text-center text-sm text-slate-400">
-                      {t("marketing.analytics.empty")}
-                    </td>
-                  </tr>
-                ) : (
-                  topRows.map((row) => (
-                    <tr key={`${row.platform}-${row.id}`} className="align-top">
-                      <td className="border-b border-white/5 px-3 py-4">
-                        <div className="max-w-[320px] truncate font-semibold text-white" title={row.title || t("marketing.analytics.table.postNumber", { id: row.post_id })}>
-                          {row.title || t("marketing.analytics.table.postNumber", { id: row.post_id })}
-                        </div>
-                        <div className="text-xs text-slate-400">{row.platform_post_id || "-"}</div>
-                      </td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.platform || "-"}</td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.likes ?? 0}</td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.comments ?? 0}</td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.shares ?? 0}</td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.reach ?? "-"}</td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.impressions ?? "-"}</td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">
-                        <div className="font-semibold text-white">{row.engagement}</div>
-                        <div className="text-xs text-slate-400">{formatPercent(row.engagement_rate)}</div>
-                      </td>
-                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatDateTime(row.synced_at)}</td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+        <MarketingCampaignAnalyticsPanel
+          summary={{
+            published: summary.published_posts ?? summary.published ?? 0,
+            scheduled: summary.scheduled_posts ?? summary.scheduled ?? 0,
+            drafts: summary.draft_posts ?? summary.drafts ?? 0,
+            firstCommentPublished: summary.first_comment_published ?? 0,
+            firstCommentFailed: summary.first_comment_failed ?? 0,
+            firstCommentSkipped: summary.first_comment_skipped ?? 0,
+          }}
+          posts={publisherPosts}
+          topPosts={rows}
+          loading={loading || postsLoading}
+          onRefresh={load}
+        />
       </div>
     </div>
   );
