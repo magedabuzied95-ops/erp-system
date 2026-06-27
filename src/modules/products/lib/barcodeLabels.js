@@ -409,6 +409,17 @@ export const expandLabelCopies = (items = []) =>
   );
 
 export const getBarcodeSvg = (value, { width = 360, height = 92, displayText = "" } = {}) => {
+  const parts = buildBarcodeSvgParts(value, { width, height, displayText });
+  return `
+    <svg viewBox="0 0 ${parts.safeWidth} ${parts.safeHeight}" width="${parts.safeWidth}" height="${parts.safeHeight}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${parts.text}">
+      <rect width="${parts.safeWidth}" height="${parts.safeHeight}" fill="#ffffff" />
+      ${parts.bars}
+      <text x="${parts.safeWidth / 2}" y="${Math.max(0, parts.safeHeight - 6)}" text-anchor="middle" fill="#111827" font-family="Arial, sans-serif" font-size="12" font-weight="700">${escapeHtml(parts.text)}</text>
+    </svg>
+  `;
+};
+
+const buildBarcodeSvgParts = (value, { width = 360, height = 92, displayText = "" } = {}) => {
   const safeWidth = Math.max(1, Number(width || 360));
   const safeHeight = Math.max(34, Number(height || 92));
   const barcode = normalizeBarcode(value, displayText);
@@ -451,12 +462,87 @@ export const getBarcodeSvg = (value, { width = 360, height = 92, displayText = "
       cursorX += 0;
     }
   });
+  return {
+    safeWidth,
+    safeHeight,
+    barcode,
+    text,
+    bars,
+  };
+};
+
+const splitSvgText = (value = "", maxLineLength = 24, maxLines = 2) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return [];
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  const lines = [];
+  let current = "";
+
+  words.forEach((word) => {
+    const candidate = current ? `${current} ${word}` : word;
+    if (candidate.length <= maxLineLength || !current) {
+      current = candidate;
+      return;
+    }
+
+    lines.push(current);
+    current = word;
+  });
+
+  if (current) lines.push(current);
+
+  if (lines.length <= maxLines) return lines;
+  const clipped = lines.slice(0, maxLines);
+  clipped[maxLines - 1] = `${clipped[maxLines - 1].slice(0, Math.max(0, maxLineLength - 1)).trimEnd()}…`;
+  return clipped;
+};
+
+const buildLandscapePrintSvg = (item, printCopy = {}) => {
+  const productName = String(item?.productName || "").trim();
+  const productLines = splitSvgText(productName, 28, 2);
+  const sizeValue = String(item?.size || "ONE SIZE").trim() || "ONE SIZE";
+  const colorValue = String(item?.color || "").trim();
+  const priceValue = formatLabelCurrency(item?.salePrice);
+  const skuValue = String(item?.sku || "").trim();
+  const barcodeValue = String(item?.barcode || "").trim();
+  const imageUrl = String(item?.imageUrl || item?.resolvedImage || "").trim();
+  const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, { width: 720, height: 112, displayText: barcodeValue });
+
+  const productText = productLines.length
+    ? productLines.map((line, index) => `<text x="42" y="${8 + (index * 6.2)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? 4.9 : 4.6}" font-weight="900">${escapeHtml(line)}</text>`).join("")
+    : `<text x="42" y="8" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="4.9" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
 
   return `
-    <svg viewBox="0 0 ${safeWidth} ${safeHeight}" width="${safeWidth}" height="${safeHeight}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${text}">
-      <rect width="${safeWidth}" height="${safeHeight}" fill="#ffffff" />
-      ${bars}
-      <text x="${safeWidth / 2}" y="${Math.max(0, safeHeight - 6)}" text-anchor="middle" fill="#111827" font-family="Arial, sans-serif" font-size="12" font-weight="700">${text}</text>
+    <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="50mm" height="100mm" viewBox="0 0 50 100" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
+      <rect x="0" y="0" width="50" height="100" fill="#ffffff" />
+      <g transform="translate(0 100) rotate(-90)">
+        <rect x="0" y="0" width="100" height="50" fill="#ffffff" stroke="#e2e8f0" stroke-width="0.35" />
+
+        ${imageUrl ? `<image href="${escapeHtml(imageUrl)}" x="2" y="6" width="38" height="32" preserveAspectRatio="xMidYMid meet" />` : `<rect x="2" y="6" width="38" height="32" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.25" />`}
+
+        ${productText}
+
+        <rect x="42" y="18" width="16" height="12" rx="1.6" fill="#020617" />
+        <text x="50" y="22.8" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="2.7" font-weight="900" letter-spacing="0.35">${escapeHtml(printCopy.size || "SIZE")}</text>
+        <text x="50" y="27.8" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="6.7" font-weight="900">${escapeHtml(sizeValue)}</text>
+
+        <rect x="42" y="31" width="12" height="7" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.2" />
+        <rect x="54.5" y="31" width="12" height="7" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.2" />
+        <text x="48" y="33.2" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.3" font-weight="900" letter-spacing="0.25">${escapeHtml(printCopy.color || "COLOR")}</text>
+        <text x="48" y="36.5" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3.5" font-weight="900">${escapeHtml(colorValue)}</text>
+        <text x="60.5" y="33.2" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.3" font-weight="900" letter-spacing="0.25">${escapeHtml(printCopy.price || "PRICE")}</text>
+        <text x="60.5" y="36.5" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.1" font-weight="900">${escapeHtml(priceValue)}</text>
+
+        <text x="42" y="47.2" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.6" font-weight="800">${escapeHtml(skuValue)}</text>
+
+        <svg x="4" y="39" width="92" height="9" viewBox="0 0 ${barcodeParts.safeWidth} ${barcodeParts.safeHeight}" preserveAspectRatio="none">
+          <rect x="0" y="0" width="${barcodeParts.safeWidth}" height="${barcodeParts.safeHeight}" fill="#ffffff" />
+          ${barcodeParts.bars}
+        </svg>
+
+        <text x="50" y="49.2" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3.1" font-weight="900">${escapeHtml(barcodeValue)}</text>
+      </g>
     </svg>
   `;
 };
@@ -700,9 +786,7 @@ export const buildBarcodePrintHtml = ({
         const item = pageLabels[0];
         return `
           <section class="barcode-print-page">
-            <div class="barcode-label-landscape-frame">
-              ${item ? buildLabelMarkup(item) : ""}
-            </div>
+            ${item ? buildLandscapePrintSvg(item, printCopy) : ""}
           </section>
         `;
       }
@@ -996,16 +1080,10 @@ export const buildBarcodePrintHtml = ({
             page-break-after: auto;
             break-after: auto;
           }
-          .barcode-label-landscape-frame {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100mm;
-            height: 50mm;
-            overflow: hidden;
-            box-sizing: border-box;
-            transform-origin: top left;
-            transform: rotate(90deg) translateY(-50mm);
+          .barcode-print-svg {
+            display: block;
+            width: 50mm;
+            height: 100mm;
           }
           .premium-sheet {
             width: 50mm;
@@ -1467,17 +1545,10 @@ export const buildBarcodePrintHtml = ({
               break-inside: avoid !important;
               page-break-inside: avoid !important;
             }
-            .barcode-label-landscape-frame {
-              top: 0 !important;
-              left: 0 !important;
-              width: 100mm;
-              height: 50mm;
-              transform-origin: top left;
-              transform: rotate(90deg) translateY(-50mm);
-              margin: 0;
-              padding: 0;
-              box-sizing: border-box;
-              overflow: hidden;
+            .barcode-print-svg {
+              display: block !important;
+              width: 50mm !important;
+              height: 100mm !important;
             }
             .page,
             .sheet,
