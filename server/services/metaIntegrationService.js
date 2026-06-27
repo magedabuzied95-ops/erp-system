@@ -6505,15 +6505,23 @@ export const getMetaWebhookSubscriptionDebugStatus = async ({ tenantId, req = nu
   }
   const subscribedFields = Array.isArray(subscription?.subscribed_fields) ? subscription.subscribed_fields : [];
   const feedSubscribed = subscribedFields.includes("feed");
+  const requestedFields = [...META_WEBHOOK_SUBSCRIBED_FIELDS, ...META_WEBHOOK_COMMENT_FIELDS];
+  const acceptedCommentFields = subscribedFields.filter((field) => META_WEBHOOK_COMMENT_FIELDS.includes(field));
+  const missingOptionalFields = META_WEBHOOK_COMMENT_FIELDS.filter((field) => !subscribedFields.includes(field));
   return {
     tenant_id: scopedTenantId,
     page_id: pageId,
     callback_url: getMetaWebhookUrl(),
     configured_webhook_url: getMetaWebhookUrl(),
+    requested_fields: requestedFields,
+    accepted_subscribed_fields: subscribedFields,
+    accepted_comment_fields: acceptedCommentFields,
+    missing_optional_fields: missingOptionalFields,
     token_present: tokenPresent,
     token_error: tokenError || "",
     subscribed_fields: subscribedFields,
     feed_subscribed: feedSubscribed,
+    feed_alone_should_be_enough_for_comments: true,
     page_subscription_present: Boolean(subscription?.page_subscription_present),
     app_installed: Boolean(subscription?.app_installed),
     errors: [

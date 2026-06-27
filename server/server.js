@@ -559,6 +559,17 @@ const { socialCommentConversationId, materializeSocialCommentInboxConversation }
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
 
+const getMetaWebhookDiagnosticsState = () => {
+  if (!globalThis.__META_WEBHOOK_DIAGNOSTICS__ || typeof globalThis.__META_WEBHOOK_DIAGNOSTICS__ !== "object") {
+    globalThis.__META_WEBHOOK_DIAGNOSTICS__ = {
+      raw_ingress: null,
+      parsed_summary: null,
+      ping_last: null,
+    };
+  }
+  return globalThis.__META_WEBHOOK_DIAGNOSTICS__;
+};
+
 const collectRouterEndpoints = (router, prefix = "") => {
   const endpoints = [];
   const stack = Array.isArray(router?.stack) ? router.stack : [];
@@ -653,6 +664,56 @@ app.use((req, res, next) => {
 
 app.get("/api/meta/webhook", handleMetaWebhookVerification);
 app.get("/api/meta/webhook-self-test", handleMetaWebhookSelfTest);
+app.get("/api/debug/meta-webhook-health", async (req, res) => {
+  try {
+    const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
+    const callbackUrl = getMetaWebhookUrl();
+    const pingUrl = callbackUrl.endsWith("/webhook")
+      ? callbackUrl.replace(/\/webhook$/, "/webhook/ping")
+      : `${callbackUrl.replace(/\/$/, "")}/ping`;
+    let pingStatus = null;
+    let pingBody = "";
+    let pingError = "";
+    try {
+      const pingResponse = await fetch(pingUrl, { method: "GET" });
+      pingStatus = pingResponse.status;
+      pingBody = await pingResponse.text();
+    } catch (error) {
+      pingError = error?.message || String(error);
+    }
+
+    const subscription = await getMetaWebhookSubscriptionDebugStatus({ tenantId, req }).catch((error) => ({
+      error: error?.message || String(error),
+    }));
+    const diag = getMetaWebhookDiagnosticsState();
+    return res.json({
+      success: true,
+      configured_callback_url: callbackUrl,
+      route_ping: {
+        url: pingUrl,
+        status: pingStatus,
+        body: pingBody,
+        error: pingError,
+      },
+      last_raw_ingress_seen: Boolean(diag.raw_ingress),
+      last_raw_ingress_at: diag.raw_ingress?.at || null,
+      last_raw_ingress: diag.raw_ingress || null,
+      last_parsed_summary: diag.parsed_summary || null,
+      last_webhook_object: diag.parsed_summary?.object || "",
+      last_webhook_entry_fields: Array.isArray(diag.parsed_summary?.change_fields) ? diag.parsed_summary.change_fields : [],
+      subscription: subscription || {},
+    });
+  } catch (error) {
+    console.error("[meta-webhook-health-debug] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load Meta webhook health",
+    });
+  }
+});
 app.get("/api/debug/meta-webhook-callback-self-test", async (req, res) => {
   const pingUrl = "https://erp-system-0qhp.onrender.com/api/meta/webhook/ping";
   const result = {
@@ -1322,6 +1383,57 @@ app.use((req, res, next) => {
     });
   }
 
+  next();
+});
+
+app.use((req, res, next) => {
+  if (req.method === "POST" && req.originalUrl === "/api/meta/webhook") {
+    const chunks = [];
+    req.on("data", (chunk) => {
+      if (chunk) chunks.push(Buffer.from(chunk));
+    });
+    req.on("end", () => {
+      if (req.__metaWebhookRawCaptured) return;
+      req.__metaWebhookRawCaptured = true;
+      const rawBodyBuffer = chunks.length ? Buffer.concat(chunks) : Buffer.alloc(0);
+      const rawBodyText = rawBodyBuffer.toString("utf8");
+      const rawIngressSummary = {
+        at: new Date().toISOString(),
+        method: req.method,
+        originalUrl: req.originalUrl || req.url || "",
+        contentType: req.get("content-type") || "",
+        contentLength: Number(req.get("content-length") || rawBodyBuffer.length || 0) || 0,
+        signaturePresent: Boolean(req.headers?.["x-hub-signature-256"]),
+        rawBodyLength: rawBodyText.length,
+        rawBodyPreview: rawBodyText.slice(0, 500),
+      };
+      getMetaWebhookDiagnosticsState().raw_ingress = rawIngressSummary;
+      console.log("[META_WEBHOOK_RAW_INGRESS]", rawIngressSummary);
+    });
+  }
+  next();
+});
+
+app.use((req, res, next) => {
+  if (req.method === "POST" && req.originalUrl === "/api/meta/webhook") {
+    if (!req.__metaWebhookRawCaptured) {
+      const rawBodyBuffer = Buffer.isBuffer(req.rawBody) ? req.rawBody : Buffer.from(String(req.rawBody || ""));
+      const rawBodyText = rawBodyBuffer.toString("utf8");
+      const rawIngressSummary = {
+        at: new Date().toISOString(),
+        method: req.method,
+        originalUrl: req.originalUrl || req.url || "",
+        contentType: req.get("content-type") || "",
+        contentLength: Number(req.get("content-length") || rawBodyBuffer.length || 0) || 0,
+        signaturePresent: Boolean(req.headers?.["x-hub-signature-256"]),
+        rawBodyLength: rawBodyText.length,
+        rawBodyPreview: rawBodyText.slice(0, 500),
+      };
+      getMetaWebhookDiagnosticsState().raw_ingress = rawIngressSummary;
+      console.log("[META_WEBHOOK_RAW_INGRESS]", rawIngressSummary);
+      req.__metaWebhookRawCaptured = true;
+    }
+  }
   next();
 });
 

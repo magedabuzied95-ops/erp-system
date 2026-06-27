@@ -126,6 +126,17 @@ export const handleMetaWebhookSelfTest = async (req, res) => {
   }
 };
 
+const getMetaWebhookDiagnosticsState = () => {
+  if (!globalThis.__META_WEBHOOK_DIAGNOSTICS__ || typeof globalThis.__META_WEBHOOK_DIAGNOSTICS__ !== "object") {
+    globalThis.__META_WEBHOOK_DIAGNOSTICS__ = {
+      raw_ingress: null,
+      parsed_summary: null,
+      ping_last: null,
+    };
+  }
+  return globalThis.__META_WEBHOOK_DIAGNOSTICS__;
+};
+
 const toTenantId = (req) => {
   if (req.user) {
     return isSuperAdminUser(req.user)
@@ -346,6 +357,26 @@ webhookRouter.get("/webhook/ping", (req, res) => {
 
 webhookRouter.post("/webhook", async (req, res) => {
   try {
+    const entry = Array.isArray(req.body?.entry) ? req.body.entry : [];
+    const firstEntry = entry[0] || {};
+    const changeFields = [...new Set(
+      entry.flatMap((item) =>
+        Array.isArray(item?.changes)
+          ? item.changes.map((change) => envText(change?.field || ""))
+          : []
+      ).filter(Boolean)
+    )];
+    const messagingCount = entry.reduce((count, item) => count + (Array.isArray(item?.messaging) ? item.messaging.length : 0), 0);
+    const parsedSummary = {
+      at: new Date().toISOString(),
+      object: envText(req.body?.object || ""),
+      entry_count: entry.length,
+      first_entry_id: envText(firstEntry?.id || ""),
+      change_fields: changeFields,
+      messaging_count: messagingCount,
+    };
+    getMetaWebhookDiagnosticsState().parsed_summary = parsedSummary;
+    console.log("[META_WEBHOOK_PARSED_SUMMARY]", parsedSummary);
     console.log("[META_WEBHOOK_ENTRY]", {
       method: req.method,
       url: req.url || "",
