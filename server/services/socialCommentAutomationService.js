@@ -1067,7 +1067,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     }
 
     console.log("[social-comments:new-comment-ingest-debug]", {
-      source: text(storedRow.raw_payload?.source || event.raw_payload?.source || "") === "meta_comment_poll" ? "poller" : "webhook",
+      source: text(event.raw_payload?.source || "") === "meta_comment_poll" ? "poller" : "webhook",
       post_id: postId,
       comment_id: text(event.comment_id || ""),
       message: commentText,
@@ -2237,7 +2237,26 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         normalized.processed_at,
       ]
     );
-    let storedRow = result.rows[0] || normalized;
+    let storedRow = result.rows[0] || null;
+    if (!storedRow) {
+      const existingRowResult = await db.query(
+        `
+        SELECT *
+        FROM social_comment_automation_runs
+        WHERE tenant_id = $1::bigint
+          AND platform = $2::text
+          AND comment_id = $3::text
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1
+        `,
+        [normalized.tenant_id, normalized.platform, normalized.comment_id]
+      ).catch(() => ({ rows: [] }));
+      storedRow = existingRowResult.rows[0] || {
+        ...normalized,
+        id: null,
+        raw_payload: normalized.raw_payload || {},
+      };
+    }
     const privateReplyTrigger = isSupportedWebhookCommentTrigger(storedRow);
     console.log("[social-comments][private-reply] received", {
       tenant_id: storedRow.tenant_id,
@@ -2250,7 +2269,9 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       source: text(storedRow.raw_payload?.source || ""),
       trigger: privateReplyTrigger,
     });
-    if (privateReplyTrigger) {
+    const privateReplyStatus = text(storedRow.dm_status || storedRow.automation_state?.private_reply?.status || "").toLowerCase();
+    const shouldQueuePrivateReply = privateReplyTrigger && !["queued", "sending", "sent"].includes(privateReplyStatus);
+    if (shouldQueuePrivateReply) {
       storedRow.dm_status = storedRow.dm_status || "queued";
       storedRow.automation_state = {
         ...(storedRow.automation_state || {}),
@@ -2269,6 +2290,11 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         dmStatus: "queued",
         automationState: storedRow.automation_state,
       }).catch(() => {});
+      console.log("SOCIAL_COMMENT_SAVED_FOR_PRIVATE_REPLY", {
+        storedRow_id: storedRow.id || null,
+        comment_id: text(storedRow.comment_id || ""),
+        conversation_id: text(storedRow.inbox_conversation_id || ""),
+      });
       await enqueueSocialCommentPrivateReplyJob({
         tenantId: storedRow.tenant_id,
         platform: storedRow.platform,
