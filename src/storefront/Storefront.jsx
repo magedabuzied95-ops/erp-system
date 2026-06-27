@@ -10538,6 +10538,48 @@ const normalizeCartLine = (product = {}, variant = {}, quantity = 1) => {
   };
 };
 
+const normalizeCartCollection = (items = []) => {
+  if (!Array.isArray(items)) return [];
+  return items
+    .filter(Boolean)
+    .map((item) => {
+      const quantity = Math.max(1, Number(item?.quantity || 1));
+      const price = Number(item?.price || item?.sale_price || 0);
+      const totalAmount = Number(item?.total_amount || price * quantity);
+      const lineId = String(
+        item?.lineId ||
+          item?.line_id ||
+          `${item?.product_id || item?.productId || item?.id || ""}:${item?.variant_id || item?.variantId || ""}:${item?.size || ""}:${item?.color || ""}`
+      ).trim();
+      return {
+        ...item,
+        lineId,
+        product_id: item?.product_id || item?.productId || "",
+        variant_id: item?.variant_id || item?.variantId || "",
+        quantity,
+        price,
+        sale_price: Number(item?.sale_price || price),
+        total_amount: totalAmount,
+      };
+    })
+    .filter((item) => item.lineId);
+};
+
+const mergeCartCollections = (localItems = [], remoteItems = []) => {
+  const local = normalizeCartCollection(localItems);
+  const remote = normalizeCartCollection(remoteItems);
+  if (!local.length) return remote;
+  if (!remote.length) return local;
+  const seen = new Set(local.map((item) => item.lineId));
+  const merged = [...local];
+  remote.forEach((item) => {
+    if (seen.has(item.lineId)) return;
+    merged.push(item);
+    seen.add(item.lineId);
+  });
+  return merged;
+};
+
 const OrderNumberBadge = ({ value, className = "" }) => {
   const text = displayPublicOrderNumber(value);
   return <span className={`inline-flex min-h-9 items-center justify-center rounded-full border px-3 py-1.5 text-sm font-black ${className}`.trim()} dir="ltr">{text}</span>;
@@ -10561,6 +10603,9 @@ function Storefront() {
   const cartCount = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const wishlistCount = wishlist.length;
   const customerAuthTokenRef = useRef("");
+  const cartSyncSaveTimerRef = useRef(null);
+  const cartRef = useRef(cart);
+  const [cartSyncReady, setCartSyncReady] = useState(false);
   const toggleThemeMode = useCallback(() => {
     setThemeMode((current) => (current === "dark" ? "light" : "dark"));
   }, []);
@@ -10582,6 +10627,10 @@ function Storefront() {
 
   useEffect(() => {
     writeStorefrontStorage(CART_KEY, cart);
+  }, [cart]);
+
+  useEffect(() => {
+    cartRef.current = cart;
   }, [cart]);
 
   useEffect(() => {
@@ -10728,20 +10777,31 @@ function Storefront() {
 
   useEffect(() => {
     const token = String(customerAuth.token || "").trim();
-    if (!token || customerAuthTokenRef.current === token) return undefined;
+    if (!token) {
+      customerAuthTokenRef.current = "";
+      setCartSyncReady(false);
+      return undefined;
+    }
+    if (customerAuthTokenRef.current === token) return undefined;
     customerAuthTokenRef.current = token;
     let cancelled = false;
+    setCartSyncReady(false);
 
     const syncCustomerLists = async () => {
       try {
         const data = await storefrontCustomerRequest("/storefront/account");
         if (cancelled) return;
+        const backendCartData = await storefrontCustomerRequest("/storefront/customer/cart");
+        if (cancelled) return;
+        const backendCart = normalizeCartCollection(backendCartData?.cart || backendCartData?.items || backendCartData?.cart_items || []);
         const backendWishlist = Array.isArray(data?.wishlist_products) ? data.wishlist_products.map(normalizeStorefrontItem).filter((item) => item.id) : [];
         const backendRecent = Array.isArray(data?.recent_products) ? data.recent_products.map(normalizeStorefrontItem).filter((item) => item.id) : [];
+        const guestCart = normalizeCartCollection(cartRef.current);
         const backendWishlistIds = new Set(backendWishlist.map((item) => String(item.id)));
         const backendRecentIds = new Set(backendRecent.map((item) => String(item.id)));
         const guestWishlist = (Array.isArray(wishlist) ? wishlist : []).map(normalizeStorefrontItem).filter((item) => item.id);
         const guestRecent = (Array.isArray(recent) ? recent : []).map(normalizeStorefrontItem).filter((item) => item.id);
+        const mergedCart = mergeCartCollections(guestCart, backendCart);
         const mergedWishlist = [...backendWishlist, ...guestWishlist].reduce((acc, item) => {
           const id = String(item.id || "");
           if (!id || acc.some((entry) => String(entry.id) === id)) return acc;
@@ -10761,6 +10821,7 @@ function Storefront() {
           customer_id: data?.customer?.id || prev.customer_id || "",
           full_name: data?.customer?.name || prev.full_name || "",
         }));
+        setCart(mergedCart);
         setWishlist(mergedWishlist);
         setRecent(mergedRecent);
 
@@ -10786,6 +10847,10 @@ function Storefront() {
           clearStorefrontCustomerAuth();
           setCustomerAuth(readStorefrontCustomerAuth());
         }
+      } finally {
+        if (!cancelled) {
+          setCartSyncReady(true);
+        }
       }
     };
 
@@ -10794,6 +10859,42 @@ function Storefront() {
       cancelled = true;
     };
   }, [customerAuth.token, recent, setProfile, setRecent, setWishlist, wishlist]);
+
+  useEffect(() => {
+    const token = String(customerAuth.token || "").trim();
+    if (!token) {
+      setCartSyncReady(false);
+      if (cartSyncSaveTimerRef.current) {
+        window.clearTimeout(cartSyncSaveTimerRef.current);
+        cartSyncSaveTimerRef.current = null;
+      }
+      return undefined;
+    }
+    if (!cartSyncReady) return undefined;
+    if (cartSyncSaveTimerRef.current) {
+      window.clearTimeout(cartSyncSaveTimerRef.current);
+      cartSyncSaveTimerRef.current = null;
+    }
+    const snapshot = normalizeCartCollection(cart);
+    cartSyncSaveTimerRef.current = window.setTimeout(() => {
+      storefrontCustomerRequest("/storefront/customer/cart", {
+        method: "PUT",
+        body: { cart: snapshot },
+      }).catch((error) => {
+        const status = Number(error?.status || error?.response?.status || 0);
+        if (status === 401 || status === 403) {
+          clearStorefrontCustomerAuth();
+          setCustomerAuth(readStorefrontCustomerAuth());
+          setCartSyncReady(false);
+        }
+      });
+    }, 750);
+    return () => {
+      if (!cartSyncSaveTimerRef.current) return;
+      window.clearTimeout(cartSyncSaveTimerRef.current);
+      cartSyncSaveTimerRef.current = null;
+    };
+  }, [cart, cartSyncReady, customerAuth.token]);
 
   const brandName = resolveStorefrontBrandName(publicStoreSettings);
   const brandLogoUrl = resolveStorefrontBrandLogoUrl(publicStoreSettings);

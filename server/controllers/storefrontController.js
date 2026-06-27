@@ -749,6 +749,25 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS cod_enabled BOOLEAN DEFAULT false`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS completed_orders INTEGER DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS customers ADD COLUMN IF NOT EXISTS preferred_sizes JSONB NOT NULL DEFAULT '{}'::jsonb`);
+  await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS storefront_customer_carts (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id INTEGER NOT NULL,
+      customer_id BIGINT NULL,
+      customer_phone VARCHAR(80) NOT NULL,
+      cart JSONB NOT NULL DEFAULT '[]'::jsonb,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS customer_id BIGINT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(80) NOT NULL DEFAULT ''`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS cart JSONB NOT NULL DEFAULT '[]'::jsonb`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS storefront_customer_carts ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_storefront_customer_carts_tenant_phone ON storefront_customer_carts (tenant_id, customer_phone)`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_storefront_customer_carts_updated_at ON storefront_customer_carts (updated_at DESC)`);
+  await clientOrPool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_storefront_customer_carts_tenant_phone_unique ON storefront_customer_carts (tenant_id, customer_phone)`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS source VARCHAR(50) NOT NULL DEFAULT 'pos'`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_type VARCHAR(50) NOT NULL DEFAULT 'walk_in'`);
@@ -4345,6 +4364,57 @@ export const updateStorefrontCustomerPreferences = async (req, res) => {
   }
 };
 
+export const getStorefrontCustomerCart = async (req, res) => {
+  try {
+    await ensureStorefrontSchema(db);
+    const tenantId = Number(req.storefrontCustomer?.tenant_id || tenantFromRequest(req));
+    const phone = getStorefrontCartPhone(req);
+    if (!phone) {
+      return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
+    }
+    const cart = await loadStorefrontCustomerCart(tenantId, phone);
+    return res.json({ success: true, cart });
+  } catch (error) {
+    console.error("[storefront-cart] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+      hasStorefrontCustomer: Boolean(req.storefrontCustomer),
+      hasJwtPhone: Boolean(req.storefrontCustomer?.phone),
+      tenantId: Number(req.storefrontCustomer?.tenant_id || req.headers?.["x-tenant-id"] || req.query?.tenant_id || req.body?.tenant_id || DEFAULT_TENANT_ID),
+    });
+    return res.status(500).json({ success: false, message: "Failed to load customer cart" });
+  }
+};
+
+export const updateStorefrontCustomerCart = async (req, res) => {
+  try {
+    await ensureStorefrontSchema(db);
+    const tenantId = Number(req.storefrontCustomer?.tenant_id || tenantFromRequest(req));
+    const phone = getStorefrontCartPhone(req);
+    if (!phone) {
+      return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
+    }
+    const customer = await findStorefrontCustomerByPhone(db, { tenantId, phone });
+    const cart = normalizeStorefrontCartItems(req.body?.cart || req.body?.items || req.body?.cart_items || req.body || []);
+    const saved = await saveStorefrontCustomerCart({
+      tenantId,
+      phone,
+      customerId: customer?.id || null,
+      cart,
+    });
+    return res.json({ success: true, cart: normalizeStorefrontCartItems(saved?.cart || cart) });
+  } catch (error) {
+    console.error("[storefront-cart] save failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+      hasStorefrontCustomer: Boolean(req.storefrontCustomer),
+      hasJwtPhone: Boolean(req.storefrontCustomer?.phone),
+      tenantId: Number(req.storefrontCustomer?.tenant_id || req.headers?.["x-tenant-id"] || req.query?.tenant_id || req.body?.tenant_id || DEFAULT_TENANT_ID),
+    });
+    return res.status(500).json({ success: false, message: "Failed to save customer cart" });
+  }
+};
+
 export const latestShippingAddress = async (req, res) => {
   try {
     await ensureStorefrontSchema(db);
@@ -4478,6 +4548,70 @@ const mergePreferredSizes = (current = {}, patch = {}) => {
     kids: nextSizes.kids || currentSizes.kids || "",
     crocs: nextSizes.crocs || currentSizes.crocs || "",
   };
+};
+
+const normalizeStorefrontCartItems = (value = []) => {
+  const items = Array.isArray(value) ? value : Array.isArray(value?.cart) ? value.cart : Array.isArray(value?.items) ? value.items : Array.isArray(value?.cart_items) ? value.cart_items : [];
+  return items
+    .filter(Boolean)
+    .map((item) => ({
+      ...item,
+      lineId: String(item?.lineId || item?.line_id || item?.id || `${item?.product_id || item?.productId || ""}:${item?.variant_id || item?.variantId || ""}:${item?.size || ""}:${item?.color || ""}`).trim(),
+      product_id: item?.product_id || item?.productId || "",
+      variant_id: item?.variant_id || item?.variantId || "",
+      quantity: Math.max(1, Number(item?.quantity || 1)),
+      price: Number(item?.price || item?.sale_price || 0),
+      sale_price: Number(item?.sale_price || item?.price || 0),
+      total_amount: Number(item?.total_amount || Number(item?.price || item?.sale_price || 0) * Math.max(1, Number(item?.quantity || 1))),
+    }))
+    .filter((item) => item.lineId);
+};
+
+const getStorefrontCartPhone = (req = {}) => normalizePhone(toText(req.storefrontCustomer?.phone || ""));
+
+const loadStorefrontCustomerCart = async (tenantId, phone) => {
+  const normalizedPhone = normalizePhone(toText(phone));
+  if (!normalizedPhone) return [];
+  const result = await db.query(
+    `
+    SELECT cart
+    FROM storefront_customer_carts
+    WHERE tenant_id = $1
+      AND customer_phone = $2
+    ORDER BY updated_at DESC, id DESC
+    LIMIT 1
+    `,
+    [tenantId, normalizedPhone]
+  );
+  return normalizeStorefrontCartItems(result.rows[0]?.cart || []);
+};
+
+const saveStorefrontCustomerCart = async ({ tenantId, phone, customerId = null, cart = [] }) => {
+  const normalizedPhone = normalizePhone(toText(phone));
+  const normalizedCart = normalizeStorefrontCartItems(cart);
+  if (!normalizedPhone) return null;
+  const payload = JSON.stringify(normalizedCart);
+  const result = await db.query(
+    `
+    INSERT INTO storefront_customer_carts (
+      tenant_id,
+      customer_id,
+      customer_phone,
+      cart,
+      created_at,
+      updated_at
+    )
+    VALUES ($1, $2, $3, $4::jsonb, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ON CONFLICT (tenant_id, customer_phone)
+    DO UPDATE SET
+      customer_id = COALESCE(EXCLUDED.customer_id, storefront_customer_carts.customer_id),
+      cart = EXCLUDED.cart,
+      updated_at = CURRENT_TIMESTAMP
+    RETURNING id, tenant_id, customer_phone, customer_id, cart, updated_at
+    `,
+    [tenantId, customerId || null, normalizedPhone, payload]
+  );
+  return result.rows[0] || null;
 };
 
 const findStorefrontCustomerByPhone = async (client, { tenantId, phone = "" }) => {
