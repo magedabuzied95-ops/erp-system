@@ -374,6 +374,71 @@ const resolveSocialCommentGraphLookupIds = ({ row = {}, pageId = "" } = {}) => {
   return Array.from(new Set(lookupIds.filter(Boolean)));
 };
 
+const resolveSocialCommentCanonicalPostId = (row = {}) => {
+  const metadata = metadataObject(row.metadata || {});
+  const rawPayload = metadataObject(row.automation_run_raw_payload || row.raw_payload || {});
+  const valuePayload = metadataObject(rawPayload.value || {});
+  const candidates = [
+    metadata.post_id,
+    row.automation_run_post_id,
+    valuePayload.post_id,
+    rawPayload.post_id,
+    row.post_id,
+    row.conversation_id,
+    row.external_conversation_id,
+    metadata.conversation_id,
+  ]
+    .map((value) => text(value))
+    .filter(Boolean);
+
+  for (const candidate of candidates) {
+    if (/^(facebook|instagram)_post:/i.test(candidate)) {
+      return text(candidate.split(":").slice(1).join(":"));
+    }
+    if (/^social_comment:/i.test(candidate)) {
+      const parts = candidate.split(":").filter(Boolean);
+      const tail = text(parts.slice(2).join(":") || parts[parts.length - 1] || "");
+      if (tail) {
+        const tailParts = tail.split("_").filter(Boolean);
+        if (tailParts.length >= 2 && /^\d+$/.test(tailParts[0])) {
+          return text(tail);
+        }
+        return tail;
+      }
+    }
+    if (/^(facebook|instagram)_comment:/i.test(candidate)) {
+      const parts = candidate.split(":").filter(Boolean);
+      const maybePostId = text(parts[1] || "");
+      if (maybePostId) return maybePostId;
+    }
+    if (!isWrapperSocialCommentPostId(candidate)) {
+      return candidate;
+    }
+  }
+
+  return "";
+};
+
+const canonicalizeSocialCommentThreadPostId = ({ postId = "", platform = "" } = {}) => {
+  const safePostId = text(postId);
+  const normalizedPlatform = normalizePlatform(platform);
+  if (!safePostId) return "";
+  if (safePostId.startsWith("facebook_post:") || safePostId.startsWith("instagram_post:")) {
+    return text(safePostId.split(":").slice(1).join(":"));
+  }
+  if (safePostId.startsWith("social_comment:")) {
+    const parts = safePostId.split(":").filter(Boolean);
+    const tail = text(parts.slice(2).join(":") || parts[parts.length - 1] || "");
+    if (tail) return tail;
+  }
+  if (safePostId.startsWith("facebook_comment:") || safePostId.startsWith("instagram_comment:")) {
+    const parts = safePostId.split(":").filter(Boolean);
+    const maybePostId = text(parts[1] || "");
+    if (maybePostId) return maybePostId;
+  }
+  return safePostId;
+};
+
 const persistSocialCommentPostMedia = async ({ tenantId = null, channel = "", conversationId = "", metadata = {} } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const safeChannel = text(channel);
@@ -1318,7 +1383,54 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     `,
     [safeTenantId, safeLimit]
   );
-  return Promise.all((result.rows || []).map((row) => enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
+  const groupedPosts = new Map();
+  const sourceRows = result.rows || [];
+  for (const row of sourceRows) {
+    const canonicalPostId = resolveSocialCommentCanonicalPostId(row) || text(row.metadata?.post_id || row.post_id || row.conversation_id || row.external_conversation_id || "");
+    const key = canonicalPostId || text(row.conversation_id || row.external_conversation_id || row.post_id || "");
+    if (!groupedPosts.has(key)) {
+      groupedPosts.set(key, []);
+    }
+    groupedPosts.get(key).push(row);
+  }
+  const groupedRows = Array.from(groupedPosts.entries()).map(([key, rows]) => {
+    const sortedRows = [...rows].sort((a, b) => {
+      const aTime = new Date(a.last_comment_at || a.last_message_at || a.updated_at || a.created_at || 0).getTime();
+      const bTime = new Date(b.last_comment_at || b.last_message_at || b.updated_at || b.created_at || 0).getTime();
+      return bTime - aTime;
+    });
+    const primary = sortedRows[0] || rows[0] || {};
+    const commentsCount = rows.reduce((max, row) => Math.max(max, Number(row.comments_count || 0)), 0);
+    const newCommentsCount = rows.reduce((max, row) => Math.max(max, Number(row.new_comments_count || 0)), 0);
+    const latestActivity = sortedRows.reduce((latest, row) => {
+      const rowTime = row.last_comment_at || row.last_message_at || row.updated_at || row.created_at || null;
+      if (!latest) return rowTime;
+      if (!rowTime) return latest;
+      return new Date(rowTime).getTime() > new Date(latest).getTime() ? rowTime : latest;
+    }, primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null);
+    return {
+      ...primary,
+      canonical_post_id: key,
+      post_id: key || text(primary.post_id || ""),
+      conversation_id: text(primary.conversation_id || primary.external_conversation_id || ""),
+      comments_count: commentsCount,
+      new_comments_count: newCommentsCount,
+      last_comment_at: latestActivity || primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null,
+      last_message_at: latestActivity || primary.last_message_at || primary.last_comment_at || primary.updated_at || primary.created_at || null,
+      grouped_conversation_ids: rows.map((row) => text(row.conversation_id || row.external_conversation_id || "")).filter(Boolean),
+      grouped_row_count: rows.length,
+    };
+  }).sort((a, b) => {
+    const aTime = new Date(a.last_comment_at || a.last_message_at || a.updated_at || a.created_at || 0).getTime();
+    const bTime = new Date(b.last_comment_at || b.last_message_at || b.updated_at || b.created_at || 0).getTime();
+    return bTime - aTime;
+  });
+  console.warn("[social-comments:post-grouping-debug]", {
+    raw_rows: sourceRows.length,
+    grouped_posts: groupedRows.length,
+    sample_keys: groupedRows.slice(0, 10).map((row) => row.canonical_post_id || row.post_id || row.conversation_id || ""),
+  });
+  return Promise.all(groupedRows.map((row) => enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
 };
 
 const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", limit = 200 } = {}) => {
@@ -1532,21 +1644,23 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
   const channel = normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment";
-  const sessionId = (
-    safePostId.startsWith("facebook_comment:") ||
-    safePostId.startsWith("instagram_comment:") ||
-    safePostId.startsWith("social_comment:")
-  )
-    ? safePostId
-    : `${normalizedPlatform}_post:${safePostId}`;
+  const canonicalPostId = canonicalizeSocialCommentThreadPostId({ postId: safePostId, platform: normalizedPlatform });
+  const sessionIds = Array.from(new Set([
+    safePostId.startsWith("facebook_comment:") || safePostId.startsWith("instagram_comment:") || safePostId.startsWith("social_comment:")
+      ? safePostId
+      : `${normalizedPlatform}_post:${safePostId}`,
+    canonicalPostId ? `${normalizedPlatform}_post:${canonicalPostId}` : "",
+    canonicalPostId,
+  ].filter(Boolean)));
   console.warn("[social-comments:data-debug]", {
     scope: "service:listSocialCommentThreadComments:before",
     tenantId: safeTenantId,
     platform: normalizedPlatform,
     incomingPostId: safePostId,
-    sessionId,
-    whereSessionId: sessionId,
-    wherePostId: safePostId,
+    canonical_post_id: canonicalPostId,
+    sessionIds,
+    whereSessionId: sessionIds,
+    wherePostId: canonicalPostId || safePostId,
     whereRootCommentId: "",
   });
   const result = await db.query(
@@ -1567,19 +1681,24 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
      AND run.platform = $3::text
      AND run.comment_id = msg.comment_id
     WHERE msg.tenant_id = $1::bigint
-      AND msg.session_id = $2::text
+      AND (
+        msg.session_id = ANY($2::text[])
+        OR msg.post_id = $4::text
+        OR msg.post_id = ANY($2::text[])
+      )
       AND msg.message_type = 'comment_inbound'
     ORDER BY msg.created_at ASC, msg.id ASC
     `,
-    [safeTenantId, sessionId, normalizedPlatform]
+    [safeTenantId, sessionIds, normalizedPlatform, canonicalPostId || safePostId]
   );
   console.warn("[social-comments:data-debug]", {
     scope: "service:listSocialCommentThreadComments:after",
     tenantId: safeTenantId,
     platform: normalizedPlatform,
     incomingPostId: safePostId,
-    sessionId,
-    sqlParams: [safeTenantId, sessionId, normalizedPlatform],
+    canonical_post_id: canonicalPostId,
+    sessionIds,
+    sqlParams: [safeTenantId, sessionIds, normalizedPlatform, canonicalPostId || safePostId],
     returnedRows: result.rows?.length || 0,
   });
   return result.rows || [];
