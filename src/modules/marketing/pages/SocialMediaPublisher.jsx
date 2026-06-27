@@ -818,6 +818,11 @@ export default function SocialMediaPublisher() {
   }, [analyticsPosts]);
   const postsByDay = useMemo(() => buildPostCountsByDay(analyticsPosts), [analyticsPosts]);
   const maxPostsPerDay = Math.max(1, ...postsByDay.map((item) => item.total));
+  const historyActionButtonClass =
+    "inline-flex h-9 items-center gap-2 rounded-2xl px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50";
+  const historyNeutralButtonClass = `${historyActionButtonClass} border border-white/10 bg-white/[0.05] text-white hover:bg-white/[0.08]`;
+  const historyDangerButtonClass = `${historyActionButtonClass} border border-rose-400/20 bg-rose-400/10 text-rose-100 hover:bg-rose-400/15`;
+  const historyPrimaryButtonClass = `${historyActionButtonClass} bg-amber-400 font-black text-slate-950 hover:bg-amber-300`;
 
   const loadPosts = async () => {
     setLoading(true);
@@ -2154,12 +2159,12 @@ export default function SocialMediaPublisher() {
                     Total
                   </div>
                 </div>
-                <div className="mt-4 overflow-x-auto">
-                  <div className="flex min-w-[760px] items-end gap-2">
+                <div className="mt-4">
+                  <div className="grid grid-cols-7 gap-2">
                     {postsByDay.map((day) => {
                       const height = Math.max(8, Math.round((day.total / maxPostsPerDay) * HISTORY_CHART_HEIGHT));
                       return (
-                        <div key={day.key} className="flex min-w-[24px] flex-1 flex-col items-center gap-2">
+                        <div key={day.key} className="flex min-w-0 flex-col items-center gap-2">
                           <div className="flex h-[112px] w-full items-end justify-center rounded-2xl border border-white/5 bg-black/10 px-1 py-2">
                             <div
                               className="w-full rounded-t-2xl bg-gradient-to-t from-cyan-500 via-sky-400 to-emerald-300 shadow-lg shadow-cyan-500/20"
@@ -2254,17 +2259,97 @@ export default function SocialMediaPublisher() {
                 {t("marketing.socialPublisher.noHistory")}
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-[1180px] w-full border-separate border-spacing-y-3">
+              <>
+                <div className="space-y-3 md:hidden">
+                  {historyTablePosts.map((post) => {
+                  const isBusy = publishingId === post.id;
+                  const canPublishAgain = post.status === "draft" || post.status === "failed" || post.status === "scheduled" || post.status === "partial_success";
+                  const statusDetails = getHistoryStatusDetails(post.status, post.error_message);
+                  const firstCommentStatus = getHistoryStatusDetails(
+                    post.first_comment_status || (String(post.first_comment || "").trim() ? post.status : "skipped"),
+                    post.first_comment_error || (String(post.first_comment || "").trim() && String(post.status || "").toLowerCase() === "failed" ? post.error_message : "")
+                  );
+                  const templateLabel = deriveTemplateLabel(post);
+                  const platformLabel = getPrimaryPlatformLabel(post);
+                  const publishedAtLabel = post.published_at ? formatDateTime(post.published_at) : post.scheduled_at ? formatDateTime(post.scheduled_at) : "-";
+                  return (
+                    <article key={post.id} className="rounded-[1.5rem] border border-white/10 bg-slate-950/55 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-white">{platformLabel}</div>
+                          <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-slate-500">{templateLabel}</div>
+                        </div>
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${statusDetails.toneClass}`}>
+                          {statusDetails.label}
+                        </span>
+                      </div>
+
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Caption Preview</div>
+                          <div className="mt-2 line-clamp-3 break-words text-sm leading-6 text-slate-100">{post.caption || "No caption yet"}</div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Comment Preview</div>
+                          <div className="mt-2 line-clamp-3 break-words text-sm leading-6 text-slate-100">{String(post.first_comment || "").trim() || "-"}</div>
+                          <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${firstCommentStatus.toneClass}`}>
+                            {String(post.first_comment || "").trim() && firstCommentStatus.label === "Published ✓" ? "✓ First Comment" : firstCommentStatus.label}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Published</div>
+                          <div className="mt-2 text-sm font-semibold text-white">{publishedAtLabel}</div>
+                          <div className="mt-2 flex flex-wrap gap-2">
+                            {safeArray(post.platforms).map((platform) => (
+                              <span key={platform} className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300">
+                                {platform}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                          <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Actions</div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button type="button" onClick={() => handleViewHistoryPost(post)} className={historyNeutralButtonClass}>
+                              <Eye className="h-3.5 w-3.5" />
+                              View
+                            </button>
+                            <button type="button" onClick={() => handleDuplicateHistoryPost(post)} className={historyNeutralButtonClass}>
+                              <Copy className="h-3.5 w-3.5" />
+                              Duplicate
+                            </button>
+                            <button type="button" onClick={() => handleDeleteHistoryPost(post)} className={historyDangerButtonClass}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                              Delete
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handlePublishFromHistory(post)}
+                              disabled={isBusy || !canPublish || !canPublishAgain}
+                              className={historyPrimaryButtonClass}
+                            >
+                              {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Repeat2 className="h-3.5 w-3.5" />}
+                              Republish
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                  })}
+                </div>
+
+                <div className="hidden md:block">
+                  <table className="w-full table-fixed border-separate border-spacing-y-3">
                   <thead>
                     <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                      <th className="px-3">Platform</th>
-                      <th className="px-3">Template</th>
-                      <th className="px-3">Status</th>
-                      <th className="px-3">Caption</th>
-                      <th className="px-3">First Comment</th>
-                      <th className="px-3">Published At</th>
-                      <th className="px-3">Actions</th>
+                      <th className="w-[16%] px-3">Platform</th>
+                      <th className="w-[14%] px-3">Template</th>
+                      <th className="w-[12%] px-3">Status</th>
+                      <th className="w-[24%] px-3">Caption Preview</th>
+                      <th className="w-[20%] px-3">Comment Preview</th>
+                      <th className="w-[10%] px-3">Published</th>
+                      <th className="w-[14%] px-3">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2283,10 +2368,12 @@ export default function SocialMediaPublisher() {
                         <tr key={post.id} className="align-top">
                           <td className="px-3">
                             <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
-                              <div className="text-sm font-semibold text-white">{platformLabel}</div>
+                              <div className="truncate text-sm font-semibold text-white" title={platformLabel}>
+                                {platformLabel}
+                              </div>
                               <div className="mt-2 flex flex-wrap gap-2">
                                 {safeArray(post.platforms).map((platform) => (
-                                  <span key={platform} className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300">
+                                  <span key={platform} className="max-w-full truncate rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] uppercase tracking-[0.12em] text-slate-300" title={platform}>
                                     {platform}
                                   </span>
                                 ))}
@@ -2295,7 +2382,9 @@ export default function SocialMediaPublisher() {
                           </td>
                           <td className="px-3">
                             <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
-                              <div className="text-sm font-semibold text-white">{templateLabel}</div>
+                              <div className="truncate text-sm font-semibold text-white" title={templateLabel}>
+                                {templateLabel}
+                              </div>
                               <div className="mt-1 text-xs text-slate-500">Content template snapshot</div>
                             </div>
                           </td>
@@ -2310,7 +2399,7 @@ export default function SocialMediaPublisher() {
                           </td>
                           <td className="px-3">
                             <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
-                              <div className="max-w-[260px] whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                              <div className="line-clamp-3 break-words text-sm leading-6 text-slate-100" title={post.caption || ""}>
                                 {post.caption || "No caption yet"}
                               </div>
                               <div className="mt-3 text-[11px] uppercase tracking-[0.12em] text-slate-500">
@@ -2320,7 +2409,7 @@ export default function SocialMediaPublisher() {
                           </td>
                           <td className="px-3">
                             <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
-                              <div className="max-w-[280px] whitespace-pre-wrap break-words text-sm leading-6 text-slate-100">
+                              <div className="line-clamp-3 break-words text-sm leading-6 text-slate-100" title={String(post.first_comment || "").trim()}>
                                 {String(post.first_comment || "").trim() || "-"}
                               </div>
                               <div className={`mt-3 inline-flex rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${firstCommentStatus.toneClass}`}>
@@ -2336,7 +2425,9 @@ export default function SocialMediaPublisher() {
                           </td>
                           <td className="px-3">
                             <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3 text-sm text-white">
-                              {publishedAtLabel}
+                              <div className="truncate" title={publishedAtLabel}>
+                                {publishedAtLabel}
+                              </div>
                               <div className="mt-2 text-[11px] uppercase tracking-[0.12em] text-slate-500">
                                 {post.status === "scheduled" ? "Scheduled At" : "Published At"}
                               </div>
@@ -2348,7 +2439,7 @@ export default function SocialMediaPublisher() {
                                 <button
                                   type="button"
                                   onClick={() => handleViewHistoryPost(post)}
-                                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+                                  className={historyNeutralButtonClass}
                                 >
                                   <Eye className="h-3.5 w-3.5" />
                                   View
@@ -2356,7 +2447,7 @@ export default function SocialMediaPublisher() {
                                 <button
                                   type="button"
                                   onClick={() => handleDuplicateHistoryPost(post)}
-                                  className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white transition hover:bg-white/[0.08]"
+                                  className={historyNeutralButtonClass}
                                 >
                                   <Copy className="h-3.5 w-3.5" />
                                   Duplicate
@@ -2364,7 +2455,7 @@ export default function SocialMediaPublisher() {
                                 <button
                                   type="button"
                                   onClick={() => handleDeleteHistoryPost(post)}
-                                  className="inline-flex items-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/15"
+                                  className={historyDangerButtonClass}
                                 >
                                   <Trash2 className="h-3.5 w-3.5" />
                                   Delete
@@ -2373,7 +2464,7 @@ export default function SocialMediaPublisher() {
                                   type="button"
                                   onClick={() => handlePublishFromHistory(post)}
                                   disabled={isBusy || !canPublish || !canPublishAgain}
-                                  className="inline-flex items-center gap-2 rounded-2xl bg-amber-400 px-3 py-2 text-xs font-black text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50"
+                                  className={historyPrimaryButtonClass}
                                 >
                                   {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Repeat2 className="h-3.5 w-3.5" />}
                                   Republish
@@ -2385,8 +2476,9 @@ export default function SocialMediaPublisher() {
                       );
                     })}
                   </tbody>
-                </table>
-              </div>
+                  </table>
+                </div>
+              </>
             )}
           </section>
         </div>
