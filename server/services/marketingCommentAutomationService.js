@@ -702,17 +702,184 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       is_crosspost: isCrosspost,
     },
   });
+  const normalizedPlatform = trimString(platform || "").toLowerCase().includes("instagram") ? "instagram" : "facebook";
+  const pageId = trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || "");
   console.warn("[social-comments:private-reply-meta-call-debug]", {
     comment_id: graphCommentId,
-    graph_path: `/${encodeURIComponent(graphCommentId)}/private_replies`,
+    graph_path: normalizedPlatform === "facebook"
+      ? `/${encodeURIComponent(pageId)}/messages`
+      : `/${encodeURIComponent(graphCommentId)}/private_replies`,
     method: "POST",
-    payload_keys: ["message"],
-    page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
+    payload_keys: normalizedPlatform === "facebook" ? ["recipient", "message"] : ["message"],
+    page_id: pageId,
     token_present: Boolean(tokenStatus?.accessToken),
     meta_status: "",
     meta_error_message: "",
     resolved_comment_id: graphCommentId,
+    recipient_shape: normalizedPlatform === "facebook" ? "comment_id" : "",
   });
+  if (normalizedPlatform === "facebook") {
+    const fixedMessage = "تم الرد على حضرتك في الخاص ✅";
+    const endpoint = `/${encodeURIComponent(pageId)}/messages`;
+    const finalUrlWithoutToken = `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}${endpoint}`;
+    const requestBody = {
+      recipient: {
+        comment_id: graphCommentId,
+      },
+      message: {
+        text: fixedMessage,
+      },
+    };
+    console.warn("GRAPH_PRIVATE_REPLY_REQUEST", {
+      target_comment_id: graphCommentId,
+      graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+      graph_version: trimString(GRAPH_API_VERSION),
+      graph_path: endpoint,
+      token_delivery: "query",
+      body_shape: "recipient_comment_id_message_text_json",
+      recipient_shape: "comment_id",
+      final_url_without_token: finalUrlWithoutToken,
+    });
+    console.warn("[social-comments:private-reply-version-debug]", {
+      graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+      graph_version: trimString(GRAPH_API_VERSION),
+      graph_path: endpoint,
+      content_type: "application/json",
+      token_delivery: "query",
+      meta_status: "attempting",
+      meta_error_code: "",
+      meta_error_subcode: "",
+      meta_error_message: "",
+    });
+    try {
+      const accessToken = tokenStatus?.accessToken || getPublishingAccessToken(settings);
+      const target = new URL(finalUrlWithoutToken);
+      target.searchParams.set("access_token", accessToken);
+      const response = await fetch(target.toString(), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(requestBody),
+      });
+      const payload = await parseMetaResponse(response);
+      if (!response.ok) {
+        const error = new Error(getMetaErrorMessage(payload));
+        error.status = response.status;
+        error.metaResponse = payload;
+        throw error;
+      }
+      console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
+        target_comment_id: graphCommentId,
+        graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+        graph_version: trimString(GRAPH_API_VERSION),
+        graph_path: endpoint,
+        token_delivery: "query",
+        meta_status: "ok",
+        meta_error_code: "",
+        meta_error_subcode: "",
+        meta_error_message: "",
+      });
+      console.warn("[social-comments:private-reply-version-debug]", {
+        graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+        graph_version: trimString(GRAPH_API_VERSION),
+        graph_path: endpoint,
+        content_type: "application/json",
+        token_delivery: "query",
+        meta_status: "ok",
+        meta_error_code: "",
+        meta_error_subcode: "",
+        meta_error_message: "",
+      });
+      console.warn("[social-comments:private-reply-meta-call-debug]", {
+        comment_id: graphCommentId,
+        graph_path: endpoint,
+        method: "POST",
+        payload_keys: ["recipient", "message"],
+        page_id: pageId,
+        token_present: Boolean(accessToken),
+        meta_status: "ok",
+        meta_error_message: "",
+        payload_shape: "recipient_comment_id_message_text_json",
+        resolved_comment_id: graphCommentId,
+        token_delivery: "query",
+        final_url_without_token: finalUrlWithoutToken,
+        recipient_shape: "comment_id",
+      });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SENT", {
+        comment_id: graphCommentId,
+        page_id: pageId,
+        token_delivery: "query",
+      });
+      return payload;
+    } catch (error) {
+      const details = extractMetaErrorDetails(error);
+      console.warn("GRAPH_PRIVATE_REPLY_RESPONSE", {
+        target_comment_id: graphCommentId,
+        graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+        graph_version: trimString(GRAPH_API_VERSION),
+        graph_path: endpoint,
+        token_delivery: "query",
+        meta_status: String(error?.status || details.status || ""),
+        meta_error_code: details.code || "",
+        meta_error_subcode: details.subcode || "",
+        meta_error_message: details.message || "",
+      });
+      console.warn("[social-comments:private-reply-version-debug]", {
+        graph_base: getGraphBaseUrlForVersion(GRAPH_API_VERSION),
+        graph_version: trimString(GRAPH_API_VERSION),
+        graph_path: endpoint,
+        content_type: "application/json",
+        token_delivery: "query",
+        meta_status: String(error?.status || details.status || ""),
+        meta_error_code: details.code || "",
+        meta_error_subcode: details.subcode || "",
+        meta_error_message: details.message || "",
+      });
+      console.warn("[social-comments:private-reply-meta-call-debug]", {
+        comment_id: graphCommentId,
+        graph_path: endpoint,
+        method: "POST",
+        payload_keys: ["recipient", "message"],
+        page_id: pageId,
+        token_present: Boolean(tokenStatus?.accessToken || getPublishingAccessToken(settings)),
+        meta_status: String(error?.status || details.status || ""),
+        meta_error_message: String(error?.message || details.message || ""),
+        payload_shape: "recipient_comment_id_message_text_json",
+        resolved_comment_id: graphCommentId,
+        token_delivery: "query",
+        final_url_without_token: finalUrlWithoutToken,
+        recipient_shape: "comment_id",
+      });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_FAILED", {
+        comment_id: graphCommentId,
+        page_id: pageId,
+        token_delivery: "query",
+        status: error?.status || details.status || null,
+        message: details.message || error?.message || "",
+      });
+      const mappedCode = Number(details.code) === 100 && Number(details.subcode) === 33
+        ? "META_PRIVATE_REPLY_UNSUPPORTED_OR_PERMISSION_DENIED"
+        : "";
+      console.warn("[social-comments:private-reply-capability-debug]", {
+        token_me_id: capabilityDebug?.tokenMeId || "",
+        token_me_name: capabilityDebug?.tokenMeName || "",
+        page_id: pageId,
+        page_name: trimString(capabilityDebug?.pageName || settings?.page_name || settings?.facebook_page_name || ""),
+        comment_id: graphCommentId,
+        comment_probe_success: Boolean(capabilityDebug?.commentProbeSuccess),
+        can_reply_privately: capabilityDebug?.canReplyPrivately,
+        can_reply_privately_error: capabilityDebug?.canReplyPrivatelyError || "",
+        private_reply_status: String(error?.status || details.status || ""),
+        private_reply_error_code: details.code || "",
+        private_reply_error_subcode: details.subcode || "",
+        private_reply_error_message: details.message || "",
+      });
+      if (mappedCode) {
+        error.code = mappedCode;
+        error.publicCode = mappedCode;
+      }
+      throw error;
+    }
+  }
   const fixedMessage = "تم الرد على حضرتك في الخاص ✅";
   const endpoint = `/${encodeURIComponent(graphCommentId)}/private_replies`;
   const finalUrlWithoutToken = `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}${endpoint}`;
