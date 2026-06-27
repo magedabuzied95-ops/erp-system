@@ -4,6 +4,7 @@ import ensureMarketingSchema from "../utils/marketingSchema.js";
 
 const GRAPH_API_VERSION = "v19.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
+const GRAPH_API_PRIVATE_REPLY_VERSIONS = [GRAPH_API_VERSION, "v19.0", "v20.0", "v21.0"];
 
 const DEFAULT_KEYWORDS = ["بكام", "السعر", "سعر", "كام", "متاح", "موجود", "مقاس", "الوان", "لون", "price", "how much", "available", "size", "color"];
 const DEFAULT_PUBLIC_REPLY = "تم الرد على حضرتك في الرسائل ❤️";
@@ -334,23 +335,18 @@ const callMetaPost = async ({ businessId, endpoint, params, label }) => {
   throw error;
 };
 
-const callMetaPostWithShape = async ({ businessId, endpoint, label, contentType, body, bodyShape }) => {
+const getGraphBaseUrlForVersion = (version = GRAPH_API_VERSION) => `https://graph.facebook.com/${trimString(version || GRAPH_API_VERSION)}`;
+
+const callMetaPostWithShape = async ({ businessId, endpoint, label, contentType, body, bodyShape, graphVersion = GRAPH_API_VERSION, tokenDelivery = "form_body" }) => {
   const settings = await getSettingsRow(businessId);
   validateMetaToken(settings || {});
   const accessToken = getPublishingAccessToken(settings);
-  const target = new URL(`${GRAPH_API_BASE_URL}${endpoint}`);
-  let requestBody = body;
-  let requestHeaders = { "Content-Type": contentType };
-  if (contentType === "application/x-www-form-urlencoded") {
-    const params = body instanceof URLSearchParams ? new URLSearchParams(body) : new URLSearchParams(body || {});
-    params.set("access_token", accessToken);
-    requestBody = params;
-  } else {
-    target.searchParams.set("access_token", accessToken);
-    if (typeof body === "object" && body !== null && !(body instanceof String)) {
-      requestBody = JSON.stringify(body);
-    }
-  }
+  const target = new URL(`${getGraphBaseUrlForVersion(graphVersion)}${endpoint}`);
+  const params = body instanceof URLSearchParams ? new URLSearchParams(body) : new URLSearchParams(body || {});
+  if (tokenDelivery === "query") target.searchParams.set("access_token", accessToken);
+  else params.set("access_token", accessToken);
+  const requestBody = params;
+  const requestHeaders = { "Content-Type": contentType };
 
   const bodyPreview = requestBody instanceof URLSearchParams
     ? requestBody.toString()
@@ -361,9 +357,12 @@ const callMetaPostWithShape = async ({ businessId, endpoint, label, contentType,
 
   console.warn("[social-comments:private-reply-payload-shape-debug]", {
     graph_path: endpoint,
+    graph_base: getGraphBaseUrlForVersion(graphVersion),
+    graph_version: trimString(graphVersion || GRAPH_API_VERSION),
     method: "POST",
     content_type: contentType,
     body_shape: bodyShape,
+    token_delivery: tokenDelivery,
     body_preview: safeBodyPreview.slice(0, 500),
     label,
   });
@@ -378,12 +377,17 @@ const callMetaPostWithShape = async ({ businessId, endpoint, label, contentType,
   if (response.ok) {
     console.warn("[social-comments:private-reply-payload-shape-debug]", {
       graph_path: endpoint,
+      graph_base: getGraphBaseUrlForVersion(graphVersion),
+      graph_version: trimString(graphVersion || GRAPH_API_VERSION),
       method: "POST",
       content_type: contentType,
       body_shape: bodyShape,
+      token_delivery: tokenDelivery,
       body_preview: safeBodyPreview.slice(0, 500),
       label,
       meta_status: "ok",
+      meta_error_code: "",
+      meta_error_subcode: "",
       meta_error_message: "",
     });
     return payload;
@@ -394,12 +398,17 @@ const callMetaPostWithShape = async ({ businessId, endpoint, label, contentType,
   error.metaResponse = payload;
   console.warn("[social-comments:private-reply-payload-shape-debug]", {
     graph_path: endpoint,
+    graph_base: getGraphBaseUrlForVersion(graphVersion),
+    graph_version: trimString(graphVersion || GRAPH_API_VERSION),
     method: "POST",
     content_type: contentType,
     body_shape: bodyShape,
+    token_delivery: tokenDelivery,
     body_preview: safeBodyPreview.slice(0, 500),
     label,
     meta_status: String(response.status || ""),
+    meta_error_code: String(payload?.error?.code || ""),
+    meta_error_subcode: String(payload?.error?.error_subcode || payload?.error?.subcode || ""),
     meta_error_message: error.message || "",
   });
   throw error;
@@ -630,38 +639,72 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     meta_error_message: "",
   });
 
-  const attempts = [
+  const attempts = GRAPH_API_PRIVATE_REPLY_VERSIONS.map((version, index) => ({
+    version,
+    label: index === 0 ? "current default graph base" : `explicit ${version}`,
+    endpoint: `/${encodeURIComponent(commentId)}/private_replies`,
+    contentType: "application/x-www-form-urlencoded",
+    body: new URLSearchParams({ message: trimString(message) }),
+    tokenDelivery: "form_body",
+  }));
+
+  const versionAttempts = [
     {
-      shapeLabel: "A form message=text",
-      contentType: "application/x-www-form-urlencoded",
-      body: new URLSearchParams({ message: trimString(message) }),
+      version: GRAPH_API_VERSION,
+      shapeLabel: "current default graph base",
     },
     {
-      shapeLabel: "B json { message: text }",
-      contentType: "application/json",
-      body: { message: trimString(message) },
+      version: "v19.0",
+      shapeLabel: "explicit /v19.0",
     },
     {
-      shapeLabel: "C json { message: { text } }",
-      contentType: "application/json",
-      body: { message: { text: trimString(message) } },
+      version: "v20.0",
+      shapeLabel: "explicit /v20.0",
+    },
+    {
+      version: "v21.0",
+      shapeLabel: "explicit /v21.0",
     },
   ];
 
   let lastError = null;
-  for (const attempt of attempts) {
+  for (const attempt of versionAttempts) {
     try {
+      console.warn("[social-comments:private-reply-version-debug]", {
+        graph_base: getGraphBaseUrlForVersion(attempt.version),
+        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
+        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        content_type: "application/x-www-form-urlencoded",
+        token_delivery: "form_body",
+        meta_status: "attempting",
+        meta_error_code: "",
+        meta_error_subcode: "",
+        meta_error_message: "",
+      });
       const payload = await callMetaPostWithShape({
         businessId,
-        endpoint: graphPath,
+        endpoint: `/${encodeURIComponent(commentId)}/private_replies`,
         label: "private reply",
-        contentType: attempt.contentType,
-        body: attempt.body,
+        contentType: "application/x-www-form-urlencoded",
+        body: new URLSearchParams({ message: trimString(message) }),
         bodyShape: attempt.shapeLabel,
+        graphVersion: attempt.version,
+        tokenDelivery: "form_body",
+      });
+      console.warn("[social-comments:private-reply-version-debug]", {
+        graph_base: getGraphBaseUrlForVersion(attempt.version),
+        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
+        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        content_type: "application/x-www-form-urlencoded",
+        token_delivery: "form_body",
+        meta_status: "ok",
+        meta_error_code: "",
+        meta_error_subcode: "",
+        meta_error_message: "",
       });
       console.warn("[social-comments:private-reply-meta-call-debug]", {
         comment_id: trimString(commentId),
-        graph_path: graphPath,
+        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
         method: "POST",
         payload_keys: ["message"],
         page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
@@ -672,6 +715,18 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       });
       return payload;
     } catch (error) {
+      const details = extractMetaErrorDetails(error);
+      console.warn("[social-comments:private-reply-version-debug]", {
+        graph_base: getGraphBaseUrlForVersion(attempt.version),
+        graph_version: trimString(attempt.version || GRAPH_API_VERSION),
+        graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
+        content_type: "application/x-www-form-urlencoded",
+        token_delivery: "form_body",
+        meta_status: String(error?.status || details.status || ""),
+        meta_error_code: details.code || "",
+        meta_error_subcode: details.subcode || "",
+        meta_error_message: details.message || "",
+      });
       lastError = error;
     }
   }
@@ -682,14 +737,14 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     : "";
   console.warn("[social-comments:private-reply-meta-call-debug]", {
     comment_id: trimString(commentId),
-    graph_path: graphPath,
+    graph_path: `/${encodeURIComponent(commentId)}/private_replies`,
     method: "POST",
     payload_keys: ["message"],
     page_id: trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || ""),
     token_present: Boolean(tokenStatus?.accessToken),
     meta_status: String(lastError?.status || details.status || ""),
     meta_error_message: String(lastError?.message || details.message || ""),
-    payload_shape: "A form message=text | B json { message: text } | C json { message: { text } }",
+    payload_shape: "current default graph base | explicit /v19.0 | explicit /v20.0 | explicit /v21.0",
   });
   console.warn("[social-comments:private-reply-capability-debug]", {
     token_me_id: capabilityDebug?.tokenMeId || "",
