@@ -5,8 +5,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
 
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
@@ -62,9 +62,9 @@ const hashProductOgState = (product = {}) =>
 
 const uploadRoots = () => [
   process.env.UPLOAD_DIR,
-  path.join(__dirname, "..", "uploads"),
+  path.join(currentDir, "..", "uploads"),
   path.join(process.cwd(), "uploads"),
-  path.join(__dirname, "..", "..", "uploads"),
+  path.join(currentDir, "..", "..", "uploads"),
 ].filter(Boolean);
 
 const findExistingFile = async (candidates = []) => {

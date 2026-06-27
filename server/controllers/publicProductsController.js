@@ -28,8 +28,8 @@ import {
   storefrontProductsSql,
 } from "./storefrontController.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
 
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -434,9 +434,9 @@ const resolveStorefrontShellCandidates = () => {
   return [
     path.resolve(cwd, "dist", "index.html"),
     path.resolve(cwd, "index.html"),
-    path.resolve(__dirname, "..", "..", "dist", "index.html"),
-    path.resolve(__dirname, "..", "..", "index.html"),
-    path.resolve(__dirname, "..", "..", "..", "dist", "index.html"),
+    path.resolve(currentDir, "..", "..", "dist", "index.html"),
+    path.resolve(currentDir, "..", "..", "index.html"),
+    path.resolve(currentDir, "..", "..", "..", "dist", "index.html"),
   ];
 };
 
@@ -545,7 +545,7 @@ const loadStorefrontShell = async () => {
       const candidates = resolveStorefrontShellCandidates();
       console.info("[public-products] storefront shell resolution", {
         cwd: process.cwd(),
-        dirname: __dirname,
+        dirname: currentDir,
         candidates,
       });
       for (const candidate of candidates) {

@@ -3,10 +3,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
 
-require("dotenv").config({ path: path.join(__dirname, "../.env"), quiet: true });
+require("dotenv").config({ path: path.join(currentDir, "../.env"), quiet: true });
 
 let db = null;
 

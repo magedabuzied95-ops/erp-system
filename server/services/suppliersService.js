@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 
 import db from "../database/db.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
 
 const VALID_STATUSES = new Set(["active", "inactive"]);
 
@@ -47,7 +47,7 @@ const publicSupplier = (row = {}) => ({
 });
 
 export const ensureSuppliersSchema = async (clientOrPool = db) => {
-  const sqlPath = path.join(__dirname, "../database/suppliers_upgrade.sql");
+  const sqlPath = path.join(currentDir, "../database/suppliers_upgrade.sql");
   console.log("[migration] loading:", sqlPath);
   if (!fs.existsSync(sqlPath)) {
     console.warn("[migration] missing:", sqlPath);

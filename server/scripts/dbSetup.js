@@ -4,9 +4,9 @@ import path from "path";
 import { fileURLToPath } from "url";
 import db from "../database/db.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const schemaPath = path.join(__dirname, "../database/schema.sql");
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
+const schemaPath = path.join(currentDir, "../database/schema.sql");
 
 const run = async () => {
   console.log("[migration] loading:", schemaPath);

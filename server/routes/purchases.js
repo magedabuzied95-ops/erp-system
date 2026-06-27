@@ -17,8 +17,8 @@ import { ensureSmartReorderSchema, getSmartReorderSuggestions } from "../service
 import { createSystemNotification } from "../services/notificationsService.js";
 
 const router = express.Router();
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
 
 async function verifyPurchasePriceSyncWrite(payload = {}) {
   try {
@@ -144,7 +144,7 @@ const ensurePurchaseDraftMetadataSchema = async (client) => {
 };
 
 const ensurePurchaseItemCostSchema = async (client) => {
-  const sqlPath = path.join(__dirname, "../database/purchases_items_cost_fix.sql");
+  const sqlPath = path.join(currentDir, "../database/purchases_items_cost_fix.sql");
   console.log("[migration] loading:", sqlPath);
   if (!fs.existsSync(sqlPath)) {
     console.warn("[migration] missing:", sqlPath);

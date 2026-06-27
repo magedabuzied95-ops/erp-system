@@ -4,9 +4,9 @@ import { fileURLToPath } from "node:url";
 
 import { ensureLocalProductImageVariants } from "../services/productImageVariantService.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, "..", "..");
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
+const repoRoot = path.resolve(currentDir, "..", "..");
 const candidateRoots = [
   path.resolve(repoRoot, "uploads", "products"),
   path.resolve(repoRoot, "server", "uploads", "products"),
@@ -98,4 +98,3 @@ main().catch((error) => {
   });
   process.exitCode = 1;
 });
-

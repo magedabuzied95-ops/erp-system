@@ -6,9 +6,9 @@ import { fileURLToPath } from "node:url";
 import dotenv from "dotenv";
 import db from "../database/db.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const repoRoot = path.resolve(__dirname, "..", "..");
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
+const repoRoot = path.resolve(currentDir, "..", "..");
 const serverEnvPath = path.join(repoRoot, "server", ".env");
 const rootEnvPath = path.join(repoRoot, ".env");
 

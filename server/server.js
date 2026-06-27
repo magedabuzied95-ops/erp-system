@@ -29,11 +29,11 @@ import { ensureUsersLoginSchema } from "./controllers/authController.js";
 import { ensureInventoryCountSchema } from "./services/inventoryCountService.js";
 
 const require = createRequire(import.meta.url);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
 const packageJson = require("../package.json");
 
-require("dotenv").config({ path: require("path").join(__dirname, ".env"), quiet: true });
+require("dotenv").config({ path: path.join(currentDir, ".env"), quiet: true });
 
 const buildInfo = {
   version: packageJson.version || "0.0.0",
@@ -1592,8 +1592,8 @@ const uploadsStaticOptions = {
 };
 
 app.use("/uploads", express.static(path.join(process.cwd(), "uploads"), uploadsStaticOptions));
-app.use("/uploads", express.static(path.join(__dirname, "uploads"), uploadsStaticOptions));
-app.use("/uploads", express.static(path.join(__dirname, "..", "uploads"), uploadsStaticOptions));
+app.use("/uploads", express.static(path.join(currentDir, "uploads"), uploadsStaticOptions));
+app.use("/uploads", express.static(path.join(currentDir, "..", "uploads"), uploadsStaticOptions));
 
 /* =========================
    API ROUTES

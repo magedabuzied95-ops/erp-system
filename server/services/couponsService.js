@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 
 import db from "../database/db.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const currentFilePath = fileURLToPath(import.meta.url);
+const currentDir = path.dirname(currentFilePath);
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 const VALID_DISCOUNT_TYPES = new Set(["percentage", "fixed"]);
@@ -15,7 +15,7 @@ const VALID_CHANNELS = new Set(["offline", "website", "pos", "all"]);
 const VALID_SOURCES = new Set(["pos", "website", "manual"]);
 
 export const ensureCouponsSchema = async (clientOrPool = db) => {
-  const sqlPath = path.join(__dirname, "../database/coupons.sql");
+  const sqlPath = path.join(currentDir, "../database/coupons.sql");
   console.log("[migration] loading:", sqlPath);
   if (!fs.existsSync(sqlPath)) {
     console.warn("[migration] missing:", sqlPath);
