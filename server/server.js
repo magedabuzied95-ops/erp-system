@@ -554,7 +554,7 @@ const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueT
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
 const { runDueSocialPublisherPublishes } = await import("./services/socialPublisherPostsService.js");
 const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogService.js");
-const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
+const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
 const { socialCommentConversationId, materializeSocialCommentInboxConversation } = await import("./services/socialCommentAutomationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
@@ -653,6 +653,22 @@ app.use((req, res, next) => {
 
 app.get("/api/meta/webhook", handleMetaWebhookVerification);
 app.get("/api/meta/webhook-self-test", handleMetaWebhookSelfTest);
+app.get("/api/debug/meta-webhook-subscription", async (req, res) => {
+  try {
+    const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
+    const data = await getMetaWebhookSubscriptionDebugStatus({ tenantId, req });
+    return res.json({ success: true, data, ...data });
+  } catch (error) {
+    console.error("[meta-webhook-subscription-debug] load failed", {
+      message: error?.message || String(error),
+      stack: error?.stack || "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load Meta webhook subscription debug status",
+    });
+  }
+});
 app.get("/api/debug/meta-webhook-status", async (req, res) => {
   try {
     const tenantId = Number(req.query?.tenant_id || req.user?.tenant_id || 1) || 1;
@@ -1932,6 +1948,9 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
 const bootstrapServer = ({ skipStartupSyncs = false } = {}) =>
   new Promise((resolve) => {
     server.listen(PORT, HOST, () => {
+      console.log("[server] configured meta webhook callback url", {
+        expected_meta_webhook_url: getMetaWebhookUrl(),
+      });
       console.log("HTTP_LISTENER_READY", {
         host: HOST,
         port: PORT,

@@ -6484,6 +6484,47 @@ export const getMetaWebhookDebugStatus = async ({ tenantId, req = null } = {}) =
   };
 };
 
+export const getMetaWebhookSubscriptionDebugStatus = async ({ tenantId, req = null } = {}) => {
+  const scopedTenantId = numberOrNull(tenantId);
+  const config = await getMetaIntegrationConfig({ tenantId: scopedTenantId });
+  const pageId = text(config?.facebook_page_id || config?.page_id || "");
+  let tokenPresent = false;
+  let tokenError = "";
+  let resolvedToken = "";
+  let subscription = null;
+  if (config) {
+    try {
+      resolvedToken = getTokenForConfig(config);
+      tokenPresent = Boolean(resolvedToken);
+    } catch (error) {
+      tokenError = error?.message || "Unable to resolve Meta page token";
+    }
+    if (tokenPresent) {
+      subscription = await getPageSubscribedApps({ pageId, token: resolvedToken });
+    }
+  }
+  const subscribedFields = Array.isArray(subscription?.subscribed_fields) ? subscription.subscribed_fields : [];
+  const feedSubscribed = subscribedFields.includes("feed");
+  return {
+    tenant_id: scopedTenantId,
+    page_id: pageId,
+    callback_url: getMetaWebhookUrl(),
+    configured_webhook_url: getMetaWebhookUrl(),
+    token_present: tokenPresent,
+    token_error: tokenError || "",
+    subscribed_fields: subscribedFields,
+    feed_subscribed: feedSubscribed,
+    page_subscription_present: Boolean(subscription?.page_subscription_present),
+    app_installed: Boolean(subscription?.app_installed),
+    errors: [
+      ...(tokenError ? [tokenError] : []),
+      ...(subscription?.error ? [subscription.error] : []),
+    ],
+    subscription: subscription || {},
+    meta_integration_status: config || {},
+  };
+};
+
 export const getMetaPermissionsDebugStatus = async ({ tenantId, req = null } = {}) => {
   const scopedTenantId = numberOrNull(tenantId);
   const row = await getMetaIntegrationConfig({ tenantId: scopedTenantId });
