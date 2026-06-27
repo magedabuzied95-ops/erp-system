@@ -147,6 +147,46 @@ const isSmallNumericId = (value = "") => {
   return Boolean(candidate) && /^\d+$/.test(candidate) && candidate.length < 10;
 };
 
+const isWrapperSocialCommentId = (value = "") => {
+  const candidate = envText(value);
+  return Boolean(candidate) && (
+    candidate.startsWith("facebook_post:") ||
+    candidate.startsWith("social_comment:") ||
+    candidate.startsWith("facebook_comment:") ||
+    candidate.startsWith("instagram_comment:")
+  );
+};
+
+const selectPrivateReplyTargetId = ({ incomingCommentId = "", automationCommentId = "", rawPayloadValueCommentId = "", aiMessageCommentId = "", aiMessageExternalMessageId = "", aiMessageProviderMessageId = "", postId = "" } = {}) => {
+  const candidates = [
+    { source: "incoming_comment_id", value: envText(incomingCommentId || "") },
+    { source: "automation_comment_id", value: envText(automationCommentId || "") },
+    { source: "raw_payload_value_comment_id", value: envText(rawPayloadValueCommentId || "") },
+    { source: "ai_message_comment_id", value: envText(aiMessageCommentId || "") },
+    { source: "ai_message_external_message_id", value: envText(aiMessageExternalMessageId || "") },
+    { source: "ai_message_provider_message_id", value: envText(aiMessageProviderMessageId || "") },
+  ];
+  const rejectedSmallNumericIds = [];
+  const rejectedWrapperIds = [];
+  let selectedTargetId = "";
+  let rejectReason = "no_valid_meta_comment_id_for_private_reply";
+  for (const candidate of candidates) {
+    if (!candidate.value) continue;
+    if (isSmallNumericId(candidate.value)) {
+      rejectedSmallNumericIds.push(candidate.value);
+      continue;
+    }
+    if (candidate.value === envText(postId || "") || isWrapperSocialCommentId(candidate.value)) {
+      rejectedWrapperIds.push(candidate.value);
+      continue;
+    }
+    selectedTargetId = candidate.value;
+    rejectReason = "";
+    break;
+  }
+  return { selectedTargetId, rejectedSmallNumericIds, rejectedWrapperIds, rejectReason };
+};
+
 const collectPrivateMessageCommentIdCandidates = (conversation = {}, req = {}) => {
   const channelMetadata = conversation?.channel_metadata || {};
   return [
@@ -2520,77 +2560,29 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
   const messageRawPayload = messageRow?.raw_payload && typeof messageRow.raw_payload === "object" ? messageRow.raw_payload : {};
   const messageRawValue = messageRawPayload?.value && typeof messageRawPayload.value === "object" ? messageRawPayload.value : {};
 
-  const debugCandidateMap = {
-    ui_resolved_id: uiResolvedId,
-    ai_support_messages: {
-      id: envText(messageRow?.id || ""),
-      comment_id: envText(messageRow?.comment_id || ""),
-      external_message_id: envText(messageRow?.external_message_id || ""),
-      provider_message_id: envText(messageRow?.provider_message_id || ""),
-    },
-    automation: {
-      comment_id: envText(commentRun.comment_id || ""),
-      post_id: postId,
-      metadata_comment_id: envText(commentRun?.metadata?.comment_id || ""),
-      raw_payload_comment_id: envText(commentRun?.raw_payload?.value?.comment_id || commentRun?.raw_payload?.comment_id || ""),
-    },
-    raw_payload_value: {
-      comment_id: envText(payloadValue.comment_id || ""),
-      post_id: envText(payloadValue.post_id || ""),
-      parent_id: envText(payloadValue.parent_id || ""),
-      message_id: envText(payloadValue.message_id || ""),
-      comment_id_nested: envText(payloadValue.comment?.id || ""),
-      from_id: envText(payloadValue.from?.id || ""),
-      message_id_nested: envText(payloadValue.message?.id || ""),
-    },
-    message_raw_payload_value: {
-      comment_id: envText(messageRawValue.comment_id || ""),
-      post_id: envText(messageRawValue.post_id || ""),
-      parent_id: envText(messageRawValue.parent_id || ""),
-      message_id: envText(messageRawValue.message_id || ""),
-      comment_id_nested: envText(messageRawValue.comment?.id || ""),
-      from_id: envText(messageRawValue.from?.id || ""),
-      message_id_nested: envText(messageRawValue.message?.id || ""),
-    },
-  };
-
-  const rejectedSmallNumericIds = Object.entries({
-    ui_resolved_id: uiResolvedId,
-    automation_comment_id: commentRun.comment_id || "",
-    automation_post_id: postId,
-    raw_comment_id: payloadValue.comment_id || "",
-    raw_comment_id_nested: payloadValue.comment?.id || "",
-    raw_message_id: payloadValue.message_id || "",
-    raw_from_id: payloadValue.from?.id || "",
-    msg_comment_id: messageRow?.comment_id || "",
-    msg_external_message_id: messageRow?.external_message_id || "",
-    msg_provider_message_id: messageRow?.provider_message_id || "",
-    msg_raw_comment_id: messageRawValue.comment_id || "",
-    msg_raw_comment_id_nested: messageRawValue.comment?.id || "",
-    msg_raw_message_id: messageRawValue.message_id || "",
-    msg_raw_from_id: messageRawValue.from?.id || "",
-  }).filter(([, value]) => isSmallNumericId(value)).map(([, value]) => value);
-
-  const metaTargetId =
-    (envText(payloadValue.comment_id || "") && !isSmallNumericId(payloadValue.comment_id) && envText(payloadValue.comment_id) !== postId ? envText(payloadValue.comment_id) : "") ||
-    (envText(payloadValue.comment?.id || "") && !isSmallNumericId(payloadValue.comment?.id) && envText(payloadValue.comment?.id) !== postId ? envText(payloadValue.comment?.id) : "") ||
-    (envText(payloadValue.message_id || "") && !isSmallNumericId(payloadValue.message_id) && envText(payloadValue.message_id) !== postId ? envText(payloadValue.message_id) : "") ||
-    (envText(commentRun?.metadata?.comment_id || "") && !isSmallNumericId(commentRun?.metadata?.comment_id) && envText(commentRun?.metadata?.comment_id) !== postId ? envText(commentRun?.metadata?.comment_id) : "") ||
-    (envText(messageRawValue.comment_id || "") && !isSmallNumericId(messageRawValue.comment_id) && envText(messageRawValue.comment_id) !== postId ? envText(messageRawValue.comment_id) : "") ||
-    (envText(messageRawValue.comment?.id || "") && !isSmallNumericId(messageRawValue.comment?.id) && envText(messageRawValue.comment?.id) !== postId ? envText(messageRawValue.comment?.id) : "") ||
-    (envText(messageRawValue.message_id || "") && !isSmallNumericId(messageRawValue.message_id) && envText(messageRawValue.message_id) !== postId ? envText(messageRawValue.message_id) : "") ||
-    (envText(messageRow?.provider_message_id || "") && !isSmallNumericId(messageRow?.provider_message_id) && envText(messageRow?.provider_message_id) !== postId ? envText(messageRow?.provider_message_id) : "") ||
-    (envText(messageRow?.external_message_id || "") && !isSmallNumericId(messageRow?.external_message_id) && envText(messageRow?.external_message_id) !== postId ? envText(messageRow?.external_message_id) : "") ||
-    (envText(messageRow?.comment_id || "") && !isSmallNumericId(messageRow?.comment_id) && envText(messageRow?.comment_id) !== postId ? envText(messageRow?.comment_id) : "");
-
-  console.warn("[social-comments:private-reply-candidate-debug]", {
-    ...debugCandidateMap,
-    selected_meta_target_id: metaTargetId,
-    rejected_small_numeric_ids: rejectedSmallNumericIds,
-    post_id: postId,
+  const privateReplyTargetResolution = selectPrivateReplyTargetId({
+    incomingCommentId: uiResolvedId,
+    automationCommentId: envText(commentRun?.comment_id || ""),
+    rawPayloadValueCommentId: envText(payloadValue.comment_id || payloadValue.comment?.id || payloadValue.message_id || ""),
+    aiMessageCommentId: envText(messageRow?.comment_id || ""),
+    aiMessageExternalMessageId: envText(messageRow?.external_message_id || ""),
+    aiMessageProviderMessageId: envText(messageRow?.provider_message_id || ""),
+    postId,
   });
 
-  if (!metaTargetId) {
+  console.warn("[social-comments:private-reply-target-debug]", {
+    incoming_comment_id: uiResolvedId,
+    automation_comment_id: envText(commentRun?.comment_id || ""),
+    raw_payload_value_comment_id: envText(payloadValue.comment_id || payloadValue.comment?.id || payloadValue.message_id || ""),
+    ai_message_comment_id: envText(messageRow?.comment_id || ""),
+    post_id: postId,
+    selected_target_id: privateReplyTargetResolution.selectedTargetId,
+    reject_reason: privateReplyTargetResolution.rejectReason,
+    meta_response_error: "",
+    rejected_small_numeric_ids: privateReplyTargetResolution.rejectedSmallNumericIds,
+  });
+
+  if (!privateReplyTargetResolution.selectedTargetId) {
     return sendError(res, Object.assign(new Error("NO_VALID_META_COMMENT_ID_FOR_PRIVATE_REPLY"), { status: 409, code: "NO_VALID_META_COMMENT_ID_FOR_PRIVATE_REPLY" }), "NO_VALID_META_COMMENT_ID_FOR_PRIVATE_REPLY");
   }
 
@@ -2600,6 +2592,7 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
   const nowIso = new Date().toISOString();
 
   try {
+    const metaTargetId = privateReplyTargetResolution.selectedTargetId;
     const reply = await sendPrivateReply(platform, metaTargetId, messageText, tenantId);
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: envText(commentRun.session_id || commentRun.inbox_conversation_id || ""), at: nowIso });
     return res.status(201).json({
@@ -2611,6 +2604,17 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
       reply,
     });
   } catch (error) {
+    console.warn("[social-comments:private-reply-target-debug]", {
+      incoming_comment_id: uiResolvedId,
+      automation_comment_id: envText(commentRun?.comment_id || ""),
+      raw_payload_value_comment_id: envText(payloadValue.comment_id || payloadValue.comment?.id || payloadValue.message_id || ""),
+      ai_message_comment_id: envText(messageRow?.comment_id || ""),
+      post_id: postId,
+      selected_target_id: privateReplyTargetResolution.selectedTargetId,
+      reject_reason: privateReplyTargetResolution.rejectReason || "",
+      meta_response_error: error?.message || "",
+      rejected_small_numeric_ids: privateReplyTargetResolution.rejectedSmallNumericIds,
+    });
     return sendError(res, error, "Failed to send private message");
   }
 });

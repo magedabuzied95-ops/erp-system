@@ -372,7 +372,7 @@ const resolveSocialCommentCustomerName = (event = {}) => {
   const preferred = candidates.map(text).find((value) => value && !isGenericSocialCommentDisplayName(value));
   if (preferred) return preferred;
   const fallback = candidates.map(text).find(Boolean);
-  return fallback || "Customer";
+  return fallback || "";
 };
 
 const resolveSocialCommentAvatarUrl = (event = {}) =>
@@ -626,7 +626,7 @@ const resolveSocialCommentCustomerProfileId = async ({ tenantId = null, event = 
 
   const commenterName = resolveSocialCommentCustomerName(event);
   const nameParts = commenterName.split(/\s+/).filter(Boolean);
-  const firstName = nameParts[0] || commenterName || "Customer";
+  const firstName = nameParts[0] || commenterName || "";
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
   const inserted = await db.query(
     `
