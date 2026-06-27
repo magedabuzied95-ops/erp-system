@@ -1,5 +1,6 @@
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import { formatCurrency } from "../../../shared/lib/currency";
 import { normalizeBarcodePrintSettings, paginateBarcodeLabels, resolveBarcodePrintPaper } from "../../../../shared/barcodePrintSettings.js";
 import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 
@@ -63,6 +64,9 @@ const normalizeBarcode = (value, fallbackSeed = "") => {
 
 const firstText = (...values) =>
   values.map((value) => String(value || "").trim()).find(Boolean) || "";
+
+const formatLabelCurrency = (value) =>
+  formatCurrency(Math.round(Number(value || 0))).replace(/([.,٫]\d{2})(?=\s|$)/g, "");
 
 const truthyFlag = (value) => {
   if (typeof value === "boolean") return value;
@@ -477,12 +481,13 @@ export const buildBarcodePrintHtml = ({
   };
   const resolvedTemplate = String(template || LABEL_TEMPLATE_STANDARD).trim().toLowerCase();
   const baseSettings = normalizeBarcodePrintSettings({ ...printSettings, paperSize: sheetMode });
-  const normalizedSettings = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
+  const isLandscapeTemplate = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100;
+  const normalizedSettings = isLandscapeTemplate
     ? normalizeBarcodePrintSettings({
         ...baseSettings,
         paperSize: "custom",
-        customPaperWidthMm: 100,
-        customPaperHeightMm: 50,
+        customPaperWidthMm: 50,
+        customPaperHeightMm: 100,
         labelWidthMm: 100,
         labelHeightMm: 50,
         labelsPerRow: 1,
@@ -530,8 +535,8 @@ export const buildBarcodePrintHtml = ({
           marginLeftMm: 1.5,
         })
       : baseSettings;
-  const paper = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
-    ? { paperWidthMm: 100, paperHeightMm: 50, pageCss: "100mm 50mm" }
+  const paper = isLandscapeTemplate
+    ? { paperWidthMm: 50, paperHeightMm: 100, pageCss: "50mm 100mm" }
     : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
       ? { paperWidthMm: PREMIUM_RETAIL_LABEL_WIDTH_MM, paperHeightMm: PREMIUM_RETAIL_LABEL_HEIGHT_MM, pageCss: "50mm 100mm" }
     : resolvedTemplate === LABEL_TEMPLATE_THERMAL_PORTRAIT
@@ -543,12 +548,12 @@ export const buildBarcodePrintHtml = ({
   const imageWidthMm = normalizedSettings.showProductImage ? Math.max(18, Math.min(normalizedSettings.labelWidthMm * 0.36, 42)) : 0;
   const imageHeightMm = normalizedSettings.showProductImage ? Math.max(24, Math.min(normalizedSettings.labelHeightMm - 10, 54)) : 0;
   const barcodeWidth = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
-    ? Math.round(640 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100))
+    ? Math.round(720 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100))
     : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
       ? Math.round(PREMIUM_RETAIL_BARCODE_WIDTH * (Number(normalizedSettings.barcodeWidthScale || 100) / 100))
     : Math.round(420 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100));
   const barcodeHeight = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
-    ? Math.max(134, Number(normalizedSettings.barcodeHeight || 88))
+    ? Math.max(112, Number(normalizedSettings.barcodeHeight || 88))
     : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
       ? PREMIUM_RETAIL_BARCODE_HEIGHT
       : Number(normalizedSettings.barcodeHeight || 88);
@@ -570,31 +575,40 @@ export const buildBarcodePrintHtml = ({
       });
       if (resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
         return `
-          <article class="label thermal-landscape">
-            <div class="thermal-top ${normalizedSettings.showProductImage ? "" : "no-image"}">
-              ${normalizedSettings.showProductImage ? `
-                <div class="thermal-image">
-                  <div class="image-fallback" aria-hidden="true">
-                    <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-                      <path d="M3.27 6.96 12 12.01l8.73-5.05"/>
-                      <path d="M12 22.08V12"/>
-                    </svg>
-                  </div>
-                  ${safeImage ? `<img src="${safeImage}" alt="${item.productName}" onerror="this.style.display='none'" />` : ""}
+          <article class="landscape-label">
+            <div class="landscape-title">${escapeHtml(item.productName || "")}</div>
+            <div class="landscape-body">
+              <div class="landscape-image">
+                <div class="image-fallback" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                    <path d="M3.27 6.96 12 12.01l8.73-5.05"/>
+                    <path d="M12 22.08V12"/>
+                  </svg>
                 </div>
-              ` : ""}
-              <div class="thermal-details">
-                ${normalizedSettings.showProductName ? `<h2>${item.productName}</h2>` : ""}
-                ${normalizedSettings.showPrice ? `<div class="thermal-price">$${Number(item.salePrice || 0).toFixed(2)}</div>` : ""}
-                ${normalizedSettings.showSizeColor ? `<div class="thermal-size-color">${item.size} / ${item.color}</div>` : ""}
-                ${normalizedSettings.showSkuArticle ? `<div class="thermal-sku-top">${item.sku}</div>` : ""}
+                ${safeImage ? `<img src="${safeImage}" alt="${escapeHtml(item.productName || "")}" onerror="this.style.display='none'" />` : ""}
+              </div>
+              <div class="landscape-details">
+                <div class="landscape-size-badge">
+                  <span>${escapeHtml(printCopy.size || "Size")}</span>
+                  <strong>${escapeHtml(item.size || "ONE SIZE")}</strong>
+                </div>
+                <div class="landscape-meta-row">
+                  <div class="landscape-pill">
+                    <span>${escapeHtml(printCopy.color || "Color")}</span>
+                    <strong>${escapeHtml(item.color || "")}</strong>
+                  </div>
+                  <div class="landscape-pill">
+                    <span>${escapeHtml(printCopy.price || "Price")}</span>
+                    <strong>${escapeHtml(formatLabelCurrency(item.salePrice))}</strong>
+                  </div>
+                </div>
+                <div class="landscape-sku">${escapeHtml(item.sku || "")}</div>
               </div>
             </div>
-            <div class="thermal-barcode">
-              <div class="thermal-barcode-svg">${barcodeSvg}</div>
-              <div class="thermal-sku-bottom">${item.sku}</div>
-              ${buildSmartQrMarkup(item, { compact: true })}
+            <div class="landscape-barcode">
+              <div class="landscape-barcode-svg">${barcodeSvg}</div>
+              <div class="landscape-barcode-number">${escapeHtml(item.barcode || "")}</div>
             </div>
           </article>
         `;
@@ -681,11 +695,23 @@ export const buildBarcodePrintHtml = ({
     };
 
   const pageMarkup = pages
-    .map((pageLabels) => `
-      <section class="sheet ${resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 ? "premium-sheet premium-page" : ""}">
-        ${pageLabels.map((item) => buildLabelMarkup(item)).join("")}
-      </section>
-    `)
+    .map((pageLabels) => {
+      if (isLandscapeTemplate) {
+        const item = pageLabels[0];
+        return `
+          <section class="sheet landscape-page">
+            <div class="landscape-frame">
+              ${item ? buildLabelMarkup(item) : ""}
+            </div>
+          </section>
+        `;
+      }
+      return `
+        <section class="sheet ${resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 ? "premium-sheet premium-page" : ""}">
+          ${pageLabels.map((item) => buildLabelMarkup(item)).join("")}
+        </section>
+      `;
+    })
     .join("");
 
   return `
@@ -771,6 +797,181 @@ export const buildBarcodePrintHtml = ({
             min-height: ${paper.paperHeightMm}mm;
             page-break-after: always;
             break-after: page;
+          }
+          .landscape-page {
+            position: relative;
+            width: 50mm;
+            height: 100mm;
+            padding: 0;
+            overflow: hidden;
+            box-sizing: border-box;
+            display: block;
+            gap: 0;
+            page-break-after: always;
+            break-after: page;
+          }
+          .landscape-frame {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 100mm;
+            height: 50mm;
+            box-sizing: border-box;
+            transform: translate(-50%, -50%) rotate(90deg);
+            transform-origin: center center;
+          }
+          .landscape-label {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 1mm;
+            padding: 1.5mm;
+            overflow: hidden;
+            box-sizing: border-box;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #ffffff;
+            color: #111827;
+          }
+          .landscape-title {
+            margin: 0;
+            display: -webkit-box;
+            overflow: hidden;
+            -webkit-box-orient: vertical;
+            -webkit-line-clamp: 2;
+            font-size: 13px;
+            line-height: 1.04;
+            font-weight: 900;
+            color: #020617;
+          }
+          .landscape-body {
+            display: grid;
+            min-height: 0;
+            flex: 1;
+            gap: 1.5mm;
+            grid-template-columns: 40% 60%;
+          }
+          .landscape-image {
+            position: relative;
+            overflow: hidden;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f8fafc;
+            min-height: 0;
+          }
+          .landscape-image img {
+            width: 100%;
+            height: 100%;
+            display: block;
+            object-fit: contain;
+            object-position: center;
+            padding: 0.75mm;
+            background: #ffffff;
+          }
+          .landscape-details {
+            display: flex;
+            min-width: 0;
+            flex-direction: column;
+            gap: 1mm;
+            overflow: hidden;
+          }
+          .landscape-size-badge {
+            border: 1px solid #020617;
+            border-radius: 8px;
+            background: #020617;
+            color: #ffffff;
+            padding: 1mm 1.2mm;
+            text-align: center;
+          }
+          .landscape-size-badge span {
+            display: block;
+            font-size: 5px;
+            line-height: 1;
+            font-weight: 900;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #cbd5e1;
+          }
+          .landscape-size-badge strong {
+            display: block;
+            margin-top: 0.3mm;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font-size: 17px;
+            line-height: 1;
+            font-weight: 900;
+          }
+          .landscape-meta-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 1mm;
+            min-width: 0;
+          }
+          .landscape-pill {
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f4f4f5;
+            padding: 0.8mm 1mm;
+            color: #111827;
+          }
+          .landscape-pill span {
+            display: block;
+            font-size: 5px;
+            line-height: 1;
+            font-weight: 900;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: #64748b;
+          }
+          .landscape-pill strong {
+            display: block;
+            margin-top: 0.35mm;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font-size: 10px;
+            line-height: 1;
+            font-weight: 900;
+            color: #111827;
+          }
+          .landscape-sku {
+            margin-top: auto;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font-size: 8px;
+            line-height: 1;
+            font-weight: 800;
+            color: #64748b;
+          }
+          .landscape-barcode {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 0.4mm;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            background: #ffffff;
+            padding: 0.8mm 1mm 0.4mm;
+            overflow: hidden;
+          }
+          .landscape-barcode-svg {
+            width: 100%;
+            min-height: 14mm;
+          }
+          .landscape-barcode-svg svg {
+            width: 100%;
+            height: auto;
+            display: block;
+          }
+          .landscape-barcode-number {
+            text-align: center;
+            font-size: 8px;
+            line-height: 1;
+            font-weight: 900;
+            color: #111827;
           }
           .premium-sheet {
             width: 50mm;
@@ -1202,6 +1403,17 @@ export const buildBarcodePrintHtml = ({
             .sheet:last-child {
               page-break-after: auto;
               break-after: auto;
+            }
+            .landscape-page {
+              width: 50mm;
+              height: 100mm;
+              margin: 0;
+              box-shadow: none;
+              background: #ffffff;
+            }
+            .landscape-frame {
+              width: 100mm;
+              height: 50mm;
             }
             .label {
               box-shadow: none;

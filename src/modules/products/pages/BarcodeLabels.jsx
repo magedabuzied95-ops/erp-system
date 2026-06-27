@@ -45,6 +45,7 @@ const LABEL_TEMPLATE_STANDARD = "standard";
 const LABEL_TEMPLATE_THERMAL_PORTRAIT = "thermal_portrait";
 const LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100 = "thermal_landscape_50x100";
 const LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 = "premium_retail_50x100";
+const SINGLE_BARCODE_TEMPLATE_LABEL = "50x100 Landscape Label";
 const PREMIUM_RETAIL_LABEL_WIDTH_MM = 50;
 const PREMIUM_RETAIL_LABEL_HEIGHT_MM = 100;
 const PREMIUM_RETAIL_BARCODE_WIDTH = 680;
@@ -57,8 +58,8 @@ const resolveTemplatePrintContext = (template, settings, sheetMode) => {
     const landscapeSettings = normalizeBarcodePrintSettings({
       ...normalized,
       paperSize: "custom",
-      customPaperWidthMm: 100,
-      customPaperHeightMm: 50,
+      customPaperWidthMm: 50,
+      customPaperHeightMm: 100,
       labelWidthMm: 100,
       labelHeightMm: 50,
       labelsPerRow: 1,
@@ -75,9 +76,9 @@ const resolveTemplatePrintContext = (template, settings, sheetMode) => {
       template,
       printSettings: landscapeSettings,
       paper: {
-        paperWidthMm: 100,
-        paperHeightMm: 50,
-        pageCss: "100mm 50mm",
+        paperWidthMm: 50,
+        paperHeightMm: 100,
+        pageCss: "50mm 100mm",
       },
     };
   }
@@ -202,6 +203,9 @@ const safeText = (value, fallback = "") => {
   }
   return fallback;
 };
+
+const formatLabelCurrency = (value) =>
+  formatCurrency(Math.round(Number(value || 0))).replace(/([.,٫]\d{2})(?=\s|$)/g, "");
 
 const getProductImage = (product) =>
   product?.image_url ||
@@ -358,7 +362,7 @@ function BarcodeLabels() {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [sheetMode, setSheetMode] = useState("a4");
-  const [labelTemplate, setLabelTemplate] = useState(LABEL_TEMPLATE_STANDARD);
+  const [labelTemplate, setLabelTemplate] = useState(LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100);
   const [barcodePrintSettings, setBarcodePrintSettings] = useState(() => normalizeBarcodePrintSettings(BARCODE_PRINT_DEFAULTS));
   const [selectedQuantities, setSelectedQuantities] = useState({});
   const [activeProduct, setActiveProduct] = useState(null);
@@ -380,13 +384,8 @@ function BarcodeLabels() {
     [t]
   );
   const labelTemplates = useMemo(
-    () => [
-      { value: LABEL_TEMPLATE_STANDARD, label: language === "ar" ? "قياسي" : "Standard" },
-      { value: LABEL_TEMPLATE_THERMAL_PORTRAIT, label: language === "ar" ? "حراري طولي" : "Thermal Portrait" },
-      { value: LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100, label: language === "ar" ? "حراري عرضي 50×100" : "Thermal Landscape 50x100" },
-      { value: LABEL_TEMPLATE_PREMIUM_RETAIL_50X100, label: language === "ar" ? "بريميوم 50×100" : "Premium Retail 50x100" },
-    ],
-    [language]
+    () => [{ value: LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100, label: SINGLE_BARCODE_TEMPLATE_LABEL }],
+    []
   );
   const labelTemplateFieldLabel = language === "ar" ? "قالب الملصق" : "Label Template";
   const isLandscapeTemplate = labelTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100;
@@ -954,21 +953,15 @@ function BarcodeLabels() {
                     <div className="mb-2 px-1 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
                       {labelTemplateFieldLabel}
                     </div>
-                    <div className="grid gap-2 sm:grid-cols-3">
-                      {labelTemplates.map((template) => (
-                        <button
-                          key={template.value}
-                          type="button"
-                          onClick={() => setLabelTemplate(template.value)}
-                          className={`min-h-12 rounded-2xl border px-4 py-3 text-sm font-black transition ${
-                            labelTemplate === template.value
-                              ? "border-emerald-300/40 bg-emerald-500 text-black shadow-[0_0_24px_rgba(16,185,129,0.25)]"
-                              : "border-white/10 bg-black/30 text-zinc-100 hover:border-emerald-300/30 hover:bg-white/[0.08]"
-                          }`}
-                        >
-                          {template.label}
-                        </button>
-                      ))}
+                    <div className="rounded-[22px] border border-emerald-300/25 bg-emerald-500/10 px-4 py-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-200">
+                        {SINGLE_BARCODE_TEMPLATE_LABEL}
+                      </div>
+                      <div className="mt-1 text-sm font-semibold text-zinc-100/80">
+                        {language === "ar"
+                          ? "قالب واحد للطباعة على رول 50×100 مع محتوى Landscape."
+                          : "Single print template for 50x100 roll labels with landscape content."}
+                      </div>
                     </div>
                   </div>
 
@@ -1109,17 +1102,23 @@ function BarcodeLabels() {
             return (
               <div
                 key={`print-page-${pageIndex}`}
-                className="mx-auto mb-4 grid justify-start last:mb-0"
+                className={`mx-auto mb-4 grid justify-start last:mb-0 ${isLandscapeTemplate ? "w-full" : ""}`}
                 data-barcode-print-page
                 style={{
-                  width: `${Math.max(20, activePaper.paperWidthMm - activePrintSettings.marginLeftMm - activePrintSettings.marginRightMm)}mm`,
-                  gridTemplateColumns: `repeat(${Math.max(1, activePrintSettings.labelsPerRow)}, minmax(0, ${activePrintSettings.labelWidthMm}mm))`,
+                  width: isLandscapeTemplate
+                    ? "50mm"
+                    : `${Math.max(20, activePaper.paperWidthMm - activePrintSettings.marginLeftMm - activePrintSettings.marginRightMm)}mm`,
+                  maxWidth: isLandscapeTemplate ? "50mm" : undefined,
+                  gridTemplateColumns: isLandscapeTemplate
+                    ? "minmax(0, 1fr)"
+                    : `repeat(${Math.max(1, activePrintSettings.labelsPerRow)}, minmax(0, ${activePrintSettings.labelWidthMm}mm))`,
                   gap: `${activePrintSettings.gapMm}mm`,
-                  paddingTop: `${activePrintSettings.marginTopMm}mm`,
-                  paddingRight: `${activePrintSettings.marginRightMm}mm`,
-                  paddingBottom: `${activePrintSettings.marginBottomMm}mm`,
-                  paddingLeft: `${activePrintSettings.marginLeftMm}mm`,
-                  minHeight: `${activePaper.paperHeightMm}mm`,
+                  padding: isLandscapeTemplate ? 0 : undefined,
+                  paddingTop: isLandscapeTemplate ? 0 : `${activePrintSettings.marginTopMm}mm`,
+                  paddingRight: isLandscapeTemplate ? 0 : `${activePrintSettings.marginRightMm}mm`,
+                  paddingBottom: isLandscapeTemplate ? 0 : `${activePrintSettings.marginBottomMm}mm`,
+                  paddingLeft: isLandscapeTemplate ? 0 : `${activePrintSettings.marginLeftMm}mm`,
+                  minHeight: isLandscapeTemplate ? "100mm" : `${activePaper.paperHeightMm}mm`,
                   pageBreakAfter: isLastPage ? "auto" : "always",
                   breakAfter: isLastPage ? "auto" : "page",
                 }}
@@ -1434,54 +1433,110 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const imageUrl = item.imageUrl || item.resolvedImage;
   const safeImage = getSafeLabelImage(imageUrl, item);
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
+  const sizeValue = safeText(item.size, t("products.barcodeLabels.oneSize"));
+  const colorValue = safeText(item.color, t("products.barcodeLabels.default"));
+  const priceValue = formatLabelCurrency(item.salePrice);
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
-    width: Math.round(640 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
-    height: Math.max(134, Number(printSettings.barcodeHeight || 88)),
+    width: Math.round(720 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
+    height: Math.max(112, Number(printSettings.barcodeHeight || 88)),
     displayText: item.barcode,
   });
   const landscapeWidth = preview && !print ? "100%" : `${printSettings.labelWidthMm}mm`;
   const landscapeMinHeight = preview && !print ? "clamp(220px, 28vw, 320px)" : `${printSettings.labelHeightMm}mm`;
-
-  return (
+  const landscapeCard = (
     <article
-      className={`overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "rounded-[14px] p-[1.5mm] shadow-none" : "rounded-[20px] p-[2mm] shadow-[0_12px_30px_rgba(15,23,42,0.06)]"}`}
+      className="overflow-hidden border border-zinc-200 bg-white text-zinc-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)]"
       style={{ width: landscapeWidth, minHeight: landscapeMinHeight }}
     >
-      <div className="grid h-full grid-rows-[1.1fr_0.9fr] gap-[1.5mm]">
+      <div className="flex h-full flex-col gap-[1mm] p-[1.2mm]">
+        {printSettings.showProductName ? (
+          <h3 className="line-clamp-2 min-h-0 text-[13px] font-black leading-[1.05] text-zinc-950">
+            {productName}
+          </h3>
+        ) : null}
+
         <div
-          className="grid min-h-0 gap-[1.5mm]"
-          style={{ gridTemplateColumns: printSettings.showProductImage ? "32% 68%" : "minmax(0,1fr)" }}
+          className="grid min-h-0 flex-1 gap-[1.2mm]"
+          style={{ gridTemplateColumns: printSettings.showProductImage ? "40% 60%" : "minmax(0,1fr)" }}
         >
           {printSettings.showProductImage ? (
-            <div className="overflow-hidden rounded-[10px] border border-zinc-200 bg-zinc-50">
-              <ImageWithFallback src={safeImage} alt={productName} imageClassName="p-[1.5mm]" iconClassName="text-zinc-400" />
+            <div className="flex min-h-0 items-center justify-center overflow-hidden rounded-[8px] border border-zinc-200 bg-zinc-50 p-[0.9mm]">
+              <ImageWithFallback
+                src={safeImage}
+                alt={productName}
+                imageClassName="object-contain p-[0.5mm]"
+                iconClassName="text-zinc-400"
+              />
             </div>
           ) : null}
-          <div className="flex min-w-0 flex-col justify-between gap-[1mm] overflow-hidden">
-            {printSettings.showProductName ? (
-              <h3 className="line-clamp-2 text-[15px] font-black leading-[1.08] text-zinc-950">{productName}</h3>
-            ) : null}
-            {printSettings.showPrice ? (
-              <div className="text-[18px] font-black leading-none text-zinc-950">{formatCurrency(item.salePrice)}</div>
-            ) : null}
-            {printSettings.showSizeColor ? (
-              <div className="text-[12px] font-black leading-[1.2] text-zinc-900">
-                {[safeText(item.size), safeText(item.color)].filter(Boolean).join(" / ")}
+
+          <div className="flex min-w-0 flex-col gap-[0.9mm] overflow-hidden">
+            <div className="rounded-[8px] border border-zinc-950 bg-zinc-950 px-[1.2mm] py-[0.9mm] text-center text-white">
+              <div className="text-[5px] font-black uppercase leading-none tracking-[0.2em] text-zinc-300">
+                {t("products.barcodeLabels.size")}
               </div>
-            ) : null}
-            {printSettings.showSkuArticle ? (
-              <div className="truncate text-[10px] font-bold leading-none text-zinc-600">{item.sku}</div>
-            ) : null}
+              <div className="mt-[0.4mm] text-[17px] font-black leading-none">
+                {sizeValue}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-[1mm]">
+              <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[0.8mm] text-zinc-950">
+                <div className="text-[5px] font-black uppercase leading-none tracking-[0.2em] text-zinc-500">
+                  {t("products.barcodeLabels.color")}
+                </div>
+                <div className="mt-[0.35mm] truncate text-[10px] font-black uppercase leading-none">
+                  {colorValue}
+                </div>
+              </div>
+              <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[0.8mm] text-zinc-950">
+                <div className="text-[5px] font-black uppercase leading-none tracking-[0.2em] text-zinc-500">
+                  {t("products.barcodeLabels.price")}
+                </div>
+                <div className="mt-[0.35mm] truncate text-[13px] font-black leading-none">
+                  {priceValue}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-auto truncate text-[8px] font-bold leading-none text-zinc-500">
+              {item.sku}
+            </div>
           </div>
         </div>
 
-        <div className="flex min-h-0 flex-col items-center justify-center rounded-[10px] border border-zinc-200 bg-white px-[2.5mm] pb-[1.2mm] pt-[1.2mm]">
-          <div className="w-[94%] max-w-full" style={{ minHeight: "22.5mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
-          <div className="mt-[0.8mm] text-center text-[9px] font-black leading-none text-zinc-800">{item.sku}</div>
-          <SmartQrBlock item={item} compact />
+        <div className="rounded-[8px] border border-zinc-200 bg-white px-[1.2mm] pb-[0.6mm] pt-[0.8mm]">
+          <div className="w-full overflow-hidden" style={{ minHeight: "14mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+          <div className="mt-[0.5mm] text-center text-[8px] font-black leading-none text-zinc-800">
+            {item.barcode}
+          </div>
         </div>
       </div>
     </article>
+  );
+
+  if (!print) {
+    return landscapeCard;
+  }
+
+  return (
+    <div
+      className="relative overflow-hidden bg-white"
+      style={{ width: "50mm", height: "100mm", boxSizing: "border-box" }}
+    >
+      <div
+        className="absolute left-1/2 top-1/2 overflow-hidden"
+        style={{
+          width: "100mm",
+          height: "50mm",
+          transform: "translate(-50%, -50%) rotate(90deg)",
+          transformOrigin: "center center",
+          boxSizing: "border-box",
+        }}
+      >
+        {landscapeCard}
+      </div>
+    </div>
   );
 }
 
