@@ -93,14 +93,15 @@ export const registerBackgroundJobHandlers = () => {
       });
     }
 
-    if (String(row.dm_status || "").toLowerCase() === "sent") {
+    const currentPrivateReplyStatus = String(row.dm_status || "").toLowerCase();
+    if (currentPrivateReplyStatus === "sent" || currentPrivateReplyStatus === "sending") {
       console.log("[social-comments][private-reply] skipped", {
         tenant_id: tenantId,
         platform,
         comment_id: commentId,
-        reason: "already_sent",
+        reason: currentPrivateReplyStatus === "sending" ? "already_sending" : "already_sent",
       });
-      return { ok: true, skipped: true, reason: "already_sent" };
+      return { ok: true, skipped: true, reason: currentPrivateReplyStatus === "sending" ? "already_sending" : "already_sent" };
     }
 
     const settings = await getSocialAutomationSettings(tenantId).catch(() => ({}));
@@ -188,6 +189,13 @@ export const registerBackgroundJobHandlers = () => {
         meta_status: "ok",
         external_id: result?.id || result?.message_id || result?.reply_id || "",
       });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SENT", {
+        tenant_id: tenantId,
+        platform,
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        external_id: result?.id || result?.message_id || result?.reply_id || "",
+      });
       return result;
     } catch (error) {
       console.log("GRAPH_PRIVATE_REPLY_RESPONSE", {
@@ -222,6 +230,17 @@ export const registerBackgroundJobHandlers = () => {
         }).catch(() => {});
       }
       console.warn("[social-comments][private-reply] failed", {
+        tenant_id: tenantId,
+        platform,
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        status: error?.status || null,
+        message: messageText,
+        retryable,
+        attempt: job?.attemptsMade || 1,
+        max_attempts: job?.maxAttempts || 1,
+      });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_FAILED", {
         tenant_id: tenantId,
         platform,
         comment_id: commentId,

@@ -452,7 +452,7 @@ export const PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT = ({ row = {} } = {}
   const source = text(row.raw_payload?.source || row.automation_source || row.source || "").toLowerCase();
   const commentId = text(row.comment_id || "");
   const dmStatus = text(row.dm_status || row.automation_state?.private_reply?.status || "").toLowerCase();
-  const hasQueuedOrSent = ["queued", "sending", "sent"].includes(dmStatus);
+  const hasSendingOrSent = ["sending", "sent"].includes(dmStatus);
   const isPollComment = source === "meta_comment_poll";
   const compositeCommentId = Boolean(commentId && commentId.includes("_"));
   const commentTimestampDebug = debugParseCommentTimestamp(row);
@@ -460,7 +460,7 @@ export const PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT = ({ row = {} } = {}
   const ageMs = commentTimestamp ? Date.now() - commentTimestamp.getTime() : Number.POSITIVE_INFINITY;
   const recentEnough = ageMs <= 15 * 60 * 1000;
   const justSavedThisRun = Boolean(Number(row.id || 0)) && recentEnough;
-  const allowFromPoll = platform === "facebook" && isPollComment && compositeCommentId && (recentEnough || justSavedThisRun) && !hasQueuedOrSent;
+  const allowFromPoll = platform === "facebook" && isPollComment && compositeCommentId && (recentEnough || justSavedThisRun) && !hasSendingOrSent;
   console.log("POLL_COMMENT_AGE_DEBUG", {
     comment_id: commentId,
     created_time_raw: commentTimestampDebug.raw_created_time || "",
@@ -487,12 +487,12 @@ export const PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT = ({ row = {} } = {}
       ? "not_poll_comment"
       : platform !== "facebook"
         ? "non_facebook_platform"
-        : !compositeCommentId
+      : !compositeCommentId
           ? "non_composite_comment_id"
           : !recentEnough && !justSavedThisRun
             ? "poll_comment_too_old"
-            : hasQueuedOrSent
-              ? "private_reply_already_queued_or_sent"
+            : hasSendingOrSent
+              ? "private_reply_already_sending_or_sent"
               : "allowed",
   };
 };
