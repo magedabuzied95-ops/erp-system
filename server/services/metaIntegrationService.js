@@ -19674,6 +19674,12 @@ export const sendMetaInboxOutboundMessage = async ({
 
 export const processMetaWebhook = async ({ req } = {}) => {
   const payload = req.body || {};
+  console.log("[META_WEBHOOK_ENTRY]", {
+    object: payload?.object || "",
+    entry_count: Array.isArray(payload.entry) ? payload.entry.length : 0,
+    has_changes: Array.isArray(payload.entry) ? payload.entry.some((entry) => Array.isArray(entry?.changes) && entry.changes.length > 0) : false,
+    has_messaging: Array.isArray(payload.entry) ? payload.entry.some((entry) => Array.isArray(entry?.messaging) && entry.messaging.length > 0) : false,
+  });
   await recordMetaWebhookRawEvent({ req, payload, tenantId: 1 })
     .then((event) => {
       console.log("META_RAW_WEBHOOK_CAPTURED", {

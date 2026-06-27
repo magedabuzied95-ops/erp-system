@@ -2025,6 +2025,19 @@ export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null }
   const events = [];
   asArray(body.entry).forEach((entry) => {
     asArray(entry.changes).forEach((change) => {
+      const value = change.value || {};
+      console.log("[META_WEBHOOK_CHANGE_DEBUG]", {
+        object: text(body.object || ""),
+        field: text(change.field || ""),
+        item: text(value.item || ""),
+        verb: text(value.verb || ""),
+        post_id: text(value.post_id || value.media_id || value.id || entry.id || ""),
+        comment_id: text(value.comment_id || value.commentId || value.id || ""),
+        from_id: text(value.from?.id || value.from?.user_id || value.user_id || ""),
+        from_name: text(value.from?.name || value.from?.full_name || value.commenter_name || value.author_name || ""),
+        message: text(value.message || value.text || value.comment_text || value.message_text || ""),
+        raw_value_keys: Object.keys(value || {}),
+      });
       if (!isCommentChange(body, change)) return;
       console.log("[COMMENT_WEBHOOK_HIT]", {
         platform: normalizedPlatform(body),
@@ -2282,6 +2295,17 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         message: error?.message || "",
       });
     }
+    console.log("[META_WEBHOOK_COMMENT_STORED]", {
+      tenant_id: storedRow.tenant_id,
+      source: "webhook",
+      post_id: text(storedRow.post_id || ""),
+      comment_id: text(storedRow.comment_id || ""),
+      from_id: text(storedRow.commenter_id || ""),
+      from_name: text(storedRow.commenter_name || ""),
+      inserted_run: storedRow.id || null,
+      inserted_message: text(storedRow.original_comment_text || ""),
+      conversation_id: text(storedRow.inbox_conversation_id || ""),
+    });
     stored.push(storedRow);
   }
   return stored;
