@@ -4061,7 +4061,7 @@ const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
     endpoint: `/${encodeURIComponent(text(postId))}/comments`,
     token,
     params: {
-      fields: "id,message,from,created_time,parent",
+      fields: "id,message,from,created_time,parent,permalink_url,attachment,comment_count,like_count",
       limit: "50",
     },
   });

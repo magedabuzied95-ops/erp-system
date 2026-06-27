@@ -926,6 +926,16 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       });
     }
 
+    console.log("[social-comments:new-comment-ingest-debug]", {
+      source: normalized.raw_payload?.source === "meta_comment_poll" ? "poller" : "webhook",
+      post_id: postId,
+      comment_id: text(event.comment_id || ""),
+      message: commentText,
+      inserted_run: Boolean(result.rows[0]),
+      inserted_message: Boolean(inboundMessage.rows[0]),
+      conversation_id: sessionId,
+    });
+
     const commentsCountResult = await db.query(
       `
       SELECT COUNT(*)::int AS total_comments
