@@ -1297,7 +1297,7 @@ function ProductCards({ products = [] }) {
   );
 }
 
-const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect }) {
+const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect, onOpenCustomer360 }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const isSocialComment = isSocialCommentThread(item);
@@ -1324,22 +1324,57 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
         ? "border-white/10 bg-slate-950/80 hover:border-cyan-300/25 hover:bg-white/[0.045]"
         : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-white/[0.045]";
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(item)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(item);
+        }
+      }}
       className={`w-full rounded-2xl border px-3 py-2.5 text-left transition ${containerTone}`}
     >
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
           {avatarUrl ? (
-            <div className="relative h-11 w-11 overflow-hidden rounded-2xl ring-1 ring-white/10">
-              <img src={avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-              {isCommentThread ? (
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" />
-              ) : null}
-            </div>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenCustomer360?.(item, {
+                  customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                  source: "conversation_list",
+                  platform: channel,
+                });
+              }}
+              className="overflow-hidden rounded-2xl ring-1 ring-white/10 transition hover:ring-cyan-300/40"
+              aria-label={`Open customer details for ${customerName || "customer"}`}
+            >
+              <div className="relative h-11 w-11 overflow-hidden rounded-2xl">
+                <img src={avatarUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                {isCommentThread ? (
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-600/10 via-transparent to-black/25" />
+                ) : null}
+              </div>
+            </button>
           ) : (
-            <span className={`grid h-11 w-11 place-items-center rounded-2xl ${liveMeta ? "bg-cyan-300/15 text-cyan-100" : "bg-white/[0.07] text-slate-200"}`}><User className="h-5 w-5" /></span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenCustomer360?.(item, {
+                  customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                  source: "conversation_list",
+                  platform: channel,
+                });
+              }}
+              className={`grid h-11 w-11 place-items-center rounded-2xl transition ${liveMeta ? "bg-cyan-300/15 text-cyan-100 hover:bg-cyan-300/20" : "bg-white/[0.07] text-slate-200 hover:bg-white/[0.1]"}`}
+              aria-label={`Open customer details for ${customerName || "customer"}`}
+            >
+              <User className="h-5 w-5" />
+            </button>
           )}
           {unreadCount ? <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-slate-950 bg-rose-500" aria-hidden="true" /> : null}
         </div>
@@ -1348,7 +1383,20 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
             <div className="min-w-0">
               {inboxKind === "comment" ? (
                 <>
-                  <div className="line-clamp-1 text-[15px] font-black leading-5 text-white">{customerName}</div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenCustomer360?.(item, {
+                        customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                        source: "conversation_list",
+                        platform: channel,
+                      });
+                    }}
+                    className="line-clamp-1 text-left text-[15px] font-black leading-5 text-white hover:underline"
+                  >
+                    {customerName}
+                  </button>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
                       <span className="inline-flex items-center gap-1">
@@ -1362,7 +1410,20 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
                 </>
               ) : (
                 <>
-                  <div className="line-clamp-2 text-[15px] font-black leading-5 text-white">{customerName}</div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenCustomer360?.(item, {
+                        customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                        source: "conversation_list",
+                        platform: channel,
+                      });
+                    }}
+                    className="line-clamp-2 text-left text-[15px] font-black leading-5 text-white hover:underline"
+                  >
+                    {customerName}
+                  </button>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
                       <span className="inline-flex items-center gap-1">
@@ -1390,7 +1451,7 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
           {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">غير مقروء {unreadCount}</span></div> : null}
         </div>
       </div>
-    </button>
+    </div>
   );
 });
 
