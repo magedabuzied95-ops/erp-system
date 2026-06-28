@@ -1185,7 +1185,7 @@ const hydrateSocialCommentTimelineIdentity = async ({ tenantId = null, row = {},
   if (profileId) {
     const byId = await db.query(
       `
-      SELECT id, display_name, customer_name, facebook_name, messenger_name, profile_pic_url, avatar_url, external_customer_id
+      SELECT id, display_name, customer_name, facebook_name, messenger_name, profile_pic_url, external_customer_id
       FROM ai_customer_profiles
       WHERE tenant_id = $1::bigint
         AND id = $2::bigint
@@ -1197,7 +1197,7 @@ const hydrateSocialCommentTimelineIdentity = async ({ tenantId = null, row = {},
   } else if (commenterId) {
     const byExternal = await db.query(
       `
-      SELECT id, display_name, customer_name, facebook_name, messenger_name, profile_pic_url, avatar_url, external_customer_id
+      SELECT id, display_name, customer_name, facebook_name, messenger_name, profile_pic_url, external_customer_id
       FROM ai_customer_profiles
       WHERE tenant_id = $1::bigint
         AND external_customer_id = $2::text
@@ -1211,7 +1211,7 @@ const hydrateSocialCommentTimelineIdentity = async ({ tenantId = null, row = {},
     if (!profileRow && row.session_id) {
       const conversationProfile = await db.query(
         `
-        SELECT p.id, p.display_name, p.customer_name, p.facebook_name, p.messenger_name, p.profile_pic_url, p.avatar_url, p.external_customer_id
+        SELECT p.id, p.display_name, p.customer_name, p.facebook_name, p.messenger_name, p.profile_pic_url, p.external_customer_id
         FROM ai_channel_conversations c
         LEFT JOIN ai_customer_profiles p
           ON p.id = c.customer_profile_id
@@ -1228,7 +1228,7 @@ const hydrateSocialCommentTimelineIdentity = async ({ tenantId = null, row = {},
 
   if (profileRow) {
     hydrated.customer_name = hydrated.customer_name || firstText(profileRow.display_name, profileRow.customer_name, profileRow.facebook_name, profileRow.messenger_name);
-    hydrated.customer_avatar_url = hydrated.customer_avatar_url || firstText(profileRow.profile_pic_url, profileRow.avatar_url);
+    hydrated.customer_avatar_url = hydrated.customer_avatar_url || firstText(profileRow.profile_pic_url);
   }
 
   return hydrated;

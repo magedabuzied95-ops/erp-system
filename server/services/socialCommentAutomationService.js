@@ -821,11 +821,48 @@ const loadPostAutomationConfig = async ({ tenantId = null, platform = "", postId
   if (!safeTenantId || !safePostId || normalizedPlatform !== "facebook") {
     return null;
   }
+  const safeRow = metadataObject(row);
+  const rawPayload = metadataObject(safeRow.raw_payload || {});
+  const rawValue = metadataObject(rawPayload.value || {});
+  const lookupRow = {
+    ...safeRow,
+    post_id: safePostId,
+    platform_post_id: safeRow.platform_post_id || rawPayload.platform_post_id || rawPayload.external_post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || rawPayload.entry?.id || "",
+    wrapper_post_id: safeRow.wrapper_post_id || rawPayload.wrapper_post_id || "",
+    internal_post_id: safeRow.internal_post_id || rawPayload.internal_post_id || "",
+    source_post_id: safeRow.source_post_id || rawPayload.source_post_id || rawPayload.post_id || "",
+    metadata: {
+      ...metadataObject(safeRow.metadata || {}),
+      post_id: safeRow.metadata?.post_id || rawPayload.post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || "",
+      platform_post_id: safeRow.metadata?.platform_post_id || rawPayload.platform_post_id || rawPayload.external_post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || rawPayload.entry?.id || "",
+      external_post_id: safeRow.metadata?.external_post_id || rawPayload.external_post_id || "",
+      wrapper_post_id: safeRow.metadata?.wrapper_post_id || rawPayload.wrapper_post_id || "",
+      internal_post_id: safeRow.metadata?.internal_post_id || rawPayload.internal_post_id || "",
+    },
+    raw_payload: {
+      ...rawPayload,
+      post_id: rawPayload.post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || "",
+      platform_post_id: rawPayload.platform_post_id || rawPayload.external_post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || rawPayload.entry?.id || "",
+      external_post_id: rawPayload.external_post_id || "",
+      wrapper_post_id: rawPayload.wrapper_post_id || "",
+      internal_post_id: rawPayload.internal_post_id || "",
+    },
+  };
   const config = await getSocialCommentAutomationConfig({
     tenantId: safeTenantId,
     platform: normalizedPlatform,
     postId: safePostId,
-    row,
+    row: lookupRow,
+    post: {
+      ...lookupRow,
+      metadata: lookupRow.metadata,
+      post_id: lookupRow.post_id,
+      platform_post_id: lookupRow.platform_post_id,
+      wrapper_post_id: lookupRow.wrapper_post_id,
+      internal_post_id: lookupRow.internal_post_id,
+      source_post_id: lookupRow.source_post_id,
+      raw_payload: lookupRow.raw_payload,
+    },
   }).catch(() => null);
   return config?.persisted ? config : null;
 };
@@ -4449,6 +4486,18 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       postId: storedRow.post_id,
       row: storedRow,
     }).catch(() => null);
+    const renderedPrivateReplyTemplate = text(automationConfig?.message_templates?.privateReplyTemplate || "");
+    const renderedPrivateReplyFallback = text(storedRow.automation_state?.private_reply?.rendered_reply || "");
+    console.log("SOCIAL_COMMENT_AUTOMATION_CONFIG_LOADED", {
+      tenant_id: storedRow.tenant_id,
+      platform: storedRow.platform,
+      post_id: text(storedRow.post_id || ""),
+      comment_id: text(storedRow.comment_id || ""),
+      config_enabled: Boolean(automationConfig?.enabled),
+      matched_key: text(automationConfig?.lookup_matched_key || ""),
+      loaded_template: renderedPrivateReplyTemplate,
+      fallback_reason: automationConfig?.enabled ? "" : text(automationConfig?.lookup_matched_key ? "config_disabled_or_incomplete" : "no_config"),
+    });
     const privateReplyTrigger = isSupportedWebhookCommentTrigger(storedRow);
     debugSocialCommentsLog("[social-comments][private-reply] received", {
       tenant_id: storedRow.tenant_id,
@@ -4466,6 +4515,19 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
     const isFacebookComment = text(storedRow.platform || "").toLowerCase() === "facebook";
     const privateReplyEligible = isFacebookComment && Boolean(text(storedRow.comment_id || ""));
     const shouldQueuePrivateReply = privateReplyEligible && !automationConfig?.enabled && !["queued", "sending", "sent"].includes(privateReplyStatus);
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_TEMPLATE_STATE", {
+      tenant_id: storedRow.tenant_id,
+      platform: text(storedRow.platform || ""),
+      post_id: text(storedRow.post_id || ""),
+      comment_id: text(storedRow.comment_id || ""),
+      config_enabled: Boolean(automationConfig?.enabled),
+      loaded_template: renderedPrivateReplyTemplate,
+      rendered_template: renderedPrivateReplyFallback,
+      enqueue_template: shouldQueuePrivateReply ? renderedPrivateReplyFallback || renderedPrivateReplyTemplate || "" : "",
+      fallback_reason: !automationConfig?.enabled
+        ? (!automationConfig ? "no_config" : "config_disabled")
+        : "runtime_enabled",
+    });
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_REACHED", {
       storedRow_id: storedRow.id || null,
       comment_id: text(storedRow.comment_id || ""),
@@ -4491,6 +4553,8 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           requested: true,
           status: "queued",
           queued_at: new Date().toISOString(),
+          template: renderedPrivateReplyTemplate || renderedPrivateReplyFallback || "",
+          rendered_reply: renderedPrivateReplyFallback || renderedPrivateReplyTemplate || "",
         },
       };
       await persistSocialCommentAutomationState({
