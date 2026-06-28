@@ -1,4 +1,5 @@
 import express from "express";
+import db from "../database/db.js";
 import { protect } from "../middleware/authMiddleware.js";
 import {
   createProduct,
@@ -16,6 +17,8 @@ import {
 import { generateAiProductDataController } from "../controllers/aiProductDataController.js";
 import { suggestMirrorEditionName } from "../controllers/editionSuggestionsController.js";
 import { generateProductDescription, generateSocialPublisherCaption } from "../services/openaiProductDescriptionService.js";
+import { generateThermalArtwork } from "../services/thermalArtworkService.js";
+import { getTenantId, tenantContextMissingResponse } from "../utils/requestScope.js";
 
 const router = express.Router();
 
@@ -107,6 +110,155 @@ router.post("/generate-social-caption", protect, async (req, res) => {
       success: false,
       message: process.env.NODE_ENV === "production" ? "Social caption generation failed" : error?.message || "Social caption generation failed",
       caption: "",
+    });
+  }
+});
+router.post("/generate-ai-thermal-artwork", protect, async (req, res) => {
+  const startedAt = Date.now();
+  try {
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    if (!tenantId) {
+      return tenantContextMissingResponse(res);
+    }
+
+    const sourceImageUrl = String(req.body?.image_url || req.body?.source_image_url || req.body?.cover_image_url || "").trim();
+    const regenerate = req.body?.regenerate === true || String(req.body?.regenerate || "").toLowerCase() === "true";
+    const existingThermalImageUrl = String(req.body?.thermal_image_url || "").trim();
+    const productId = req.body?.product_id ?? req.body?.productId ?? null;
+
+    let productRow = null;
+    if (Number.isFinite(Number(productId)) && Number(productId) > 0) {
+      const result = await db.query(
+        `
+        SELECT id, tenant_id, name, image_url, product_image_url, thermal_image_url
+        FROM products
+        WHERE id = $1
+          AND tenant_id = $2
+        LIMIT 1
+        `,
+        [Number(productId), tenantId]
+      );
+      productRow = result.rows[0] || null;
+      if (!productRow) {
+        return res.status(404).json({
+          success: false,
+          message: "Product not found",
+        });
+      }
+    }
+
+    const result = await generateThermalArtwork({
+      sourceImageUrl: sourceImageUrl || productRow?.image_url || productRow?.product_image_url || "",
+      productId: productRow?.id || productId || null,
+      tenantId,
+      existingThermalImageUrl: existingThermalImageUrl || productRow?.thermal_image_url || "",
+      regenerate,
+      productName: productRow?.name || req.body?.product_name || req.body?.name || "",
+    });
+
+    console.log("[products] generate-ai-thermal-artwork end", {
+      durationMs: Date.now() - startedAt,
+      productId: productRow?.id || productId || "",
+      source: result.source,
+      cached: result.cached === true,
+      storage: result.storage || "",
+    });
+
+    return res.json({
+      success: true,
+      thermal_image_url: result.thermal_image_url || "",
+      source: result.source || "",
+      cached: Boolean(result.cached),
+      storage: result.storage || "",
+      updated: result.updated === true,
+      prompt: result.prompt || "",
+      model: result.model || "",
+    });
+  } catch (error) {
+    console.error("[products] generate-ai-thermal-artwork failed", {
+      durationMs: Date.now() - startedAt,
+      message: error?.message,
+      stack: error?.stack,
+    });
+    return res.status(500).json({
+      success: false,
+      message: process.env.NODE_ENV === "production" ? "Thermal artwork generation failed" : error?.message || "Thermal artwork generation failed",
+      thermal_image_url: "",
+    });
+  }
+});
+router.post("/:id/generate-ai-thermal-artwork", protect, async (req, res) => {
+  const startedAt = Date.now();
+  try {
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    if (!tenantId) {
+      return tenantContextMissingResponse(res);
+    }
+
+    const productId = Number(req.params.id || 0);
+    if (!Number.isFinite(productId) || productId <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid product id",
+      });
+    }
+
+    const productResult = await db.query(
+      `
+      SELECT id, tenant_id, name, image_url, product_image_url, thermal_image_url
+      FROM products
+      WHERE id = $1
+        AND tenant_id = $2
+      LIMIT 1
+      `,
+      [productId, tenantId]
+    );
+    const productRow = productResult.rows[0] || null;
+    if (!productRow) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    const regenerate = req.body?.regenerate === true || String(req.body?.regenerate || "").toLowerCase() === "true";
+    const result = await generateThermalArtwork({
+      sourceImageUrl: String(req.body?.image_url || productRow.image_url || productRow.product_image_url || "").trim(),
+      productId,
+      tenantId,
+      existingThermalImageUrl: String(req.body?.thermal_image_url || productRow.thermal_image_url || "").trim(),
+      regenerate,
+      productName: productRow.name || "",
+    });
+
+    console.log("[products] product thermal artwork generated", {
+      productId,
+      durationMs: Date.now() - startedAt,
+      source: result.source,
+      cached: result.cached === true,
+      updated: result.updated === true,
+    });
+
+    return res.json({
+      success: true,
+      thermal_image_url: result.thermal_image_url || "",
+      source: result.source || "",
+      cached: Boolean(result.cached),
+      storage: result.storage || "",
+      updated: result.updated === true,
+      prompt: result.prompt || "",
+      model: result.model || "",
+    });
+  } catch (error) {
+    console.error("[products] product thermal artwork generation failed", {
+      durationMs: Date.now() - startedAt,
+      message: error?.message,
+      stack: error?.stack,
+    });
+    return res.status(500).json({
+      success: false,
+      message: process.env.NODE_ENV === "production" ? "Thermal artwork generation failed" : error?.message || "Thermal artwork generation failed",
+      thermal_image_url: "",
     });
   }
 });

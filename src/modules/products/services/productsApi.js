@@ -281,6 +281,17 @@ export const generateSocialPublisherCaption = async (body) => {
   return response?.data || response || null;
 };
 
+export const generateThermalArtwork = async ({ productId = null, ...body } = {}) => {
+  const payload = {
+    ...body,
+    ...(productId ? { product_id: productId } : {}),
+  };
+  const response = productId
+    ? await api.post(`/products/${encodeURIComponent(productId)}/generate-ai-thermal-artwork`, payload, { timeoutMs: 120000 })
+    : await api.post("/products/generate-ai-thermal-artwork", payload, { timeoutMs: 120000 });
+  return response?.data || response || null;
+};
+
 export const deleteProduct = async (id) => api.delete(`/products/${id}`);
 
 export const getBrands = async () => unwrapArray(await api.get("/brands"));

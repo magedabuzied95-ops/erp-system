@@ -58,12 +58,12 @@ import {
   sortProductSizes,
 } from "../lib/variantBulkSizes";
 import { dedupeImages } from "../lib/dedupeImages";
-import { prepareThermalImage } from "../lib/thermalImageOptimizer";
 import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from "../../../shared/utils/colorNameFromImage";
 import {
   createProduct,
   generateAiProductData,
   generateProductDescription,
+  generateThermalArtwork,
   getManufacturers,
   getProductsWithVariants,
   normalizeVariantPayload,
@@ -82,6 +82,17 @@ const readFileAsDataUrl = (file) =>
     reader.onerror = reject;
     reader.readAsDataURL(file);
   });
+
+const resolveAssetUrl = (url) => {
+  const value = String(url || "").trim();
+  if (!value) return "";
+  if (value.startsWith("data:") || value.startsWith("blob:")) return value;
+  if (/^https?:\/\//i.test(value)) return value;
+  if (value.startsWith("/uploads/")) return value;
+  if (value.startsWith("uploads/")) return `/${value}`;
+  if (value.startsWith("/")) return value;
+  return `/uploads/products/${value}`;
+};
 
 const AI_PROGRESS_STEPS = ["جاري تحليل الصورة...", "جاري توليد تحسينات البحث...", "جاري توليد الأوصاف..."];
 
@@ -1526,16 +1537,19 @@ function CreateProduct() {
 
     try {
       setThermalImageGenerating(true);
-      const thermalDataUrl = await prepareThermalImage(coverImage);
-      if (!thermalDataUrl) throw new Error("Thermal image generation failed");
-      const thermalUrl = await uploadProductImageValue(thermalDataUrl, {
-        filename: `${String(name || "product").trim().replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 80) || "product"}-thermal.png`,
+      const result = await generateThermalArtwork({
+        image_url: coverImage,
+        thermal_image_url: thermalImageUrl,
+        regenerate: Boolean(thermalImageUrl),
+        product_name: name,
       });
+      const thermalUrl = String(result?.thermal_image_url || "").trim();
+      if (!thermalUrl) throw new Error("Thermal image generation failed");
       setThermalImageUrl(thermalUrl);
-      toast.success("Thermal image generated");
+      toast.success("AI thermal artwork generated");
     } catch (error) {
-      console.warn("[products:add] thermal image generation failed", error);
-      toast.error(error?.message || "Thermal image generation failed");
+      console.warn("[products:add] thermal artwork generation failed", error);
+      toast.error(error?.message || "Thermal artwork generation failed");
     } finally {
       setThermalImageGenerating(false);
     }
@@ -2415,8 +2429,32 @@ function CreateProduct() {
                       className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                      {thermalImageUrl ? "Regenerate Thermal Image" : "Generate Thermal Image"}
+                      {thermalImageUrl ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
                     </button>
+                  </div>
+
+                  <div className="mt-4 rounded-[24px] border border-white/8 bg-white/5 p-4">
+                    <p className="text-xs font-bold uppercase tracking-[0.18em] text-zinc-400">Original / AI Thermal</p>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <div className="rounded-[18px] border border-white/8 bg-zinc-950/70 p-2">
+                        <div className="flex h-28 items-center justify-center overflow-hidden rounded-[14px] bg-zinc-900">
+                          {coverImage ? (
+                            <img src={resolveAssetUrl(coverImage)} alt="Original product" className="h-full w-full object-contain" />
+                          ) : (
+                            <span className="text-[11px] font-semibold text-zinc-500">Original</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rounded-[18px] border border-white/8 bg-zinc-950/70 p-2">
+                        <div className="flex h-28 items-center justify-center overflow-hidden rounded-[14px] bg-zinc-900">
+                          {thermalImageUrl ? (
+                            <img src={resolveAssetUrl(thermalImageUrl)} alt="AI thermal artwork" className="h-full w-full object-contain" />
+                          ) : (
+                            <span className="text-[11px] font-semibold text-zinc-500">AI Thermal</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
