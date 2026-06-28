@@ -121,8 +121,6 @@ const prepareThermalImage = async (imageData) => {
     const luminances = new Float32Array(pixelCount);
     const histogram = new Uint32Array(256);
 
-    let minLuminance = 255;
-    let maxLuminance = 0;
     let luminanceSum = 0;
 
     for (let offset = 0, pixelIndex = 0; offset < sourceData.length; offset += 4, pixelIndex += 1) {
@@ -130,19 +128,12 @@ const prepareThermalImage = async (imageData) => {
       luminances[pixelIndex] = luminance;
       histogram[clampByte(luminance)] += 1;
       luminanceSum += luminance;
-      if (luminance < minLuminance) minLuminance = luminance;
-      if (luminance > maxLuminance) maxLuminance = luminance;
     }
 
     const averageLuminance = luminanceSum / Math.max(1, pixelCount);
-    const whiteProduct = THERMAL_WHITE_PROFILE && averageLuminance > 220;
-    const getLuminanceAt = (x, y) => {
-      const clampedX = Math.max(0, Math.min(canvas.width - 1, x));
-      const clampedY = Math.max(0, Math.min(canvas.height - 1, y));
-      return luminances[(clampedY * canvas.width) + clampedX] || 0;
-    };
-
-    const safePercentile = (percent) => {
+    const lowPercentile = 0.04;
+    const highPercentile = 0.96;
+    const findPercentile = (percent) => {
       const target = pixelCount * percent;
       let running = 0;
       for (let index = 0; index < histogram.length; index += 1) {
@@ -151,162 +142,54 @@ const prepareThermalImage = async (imageData) => {
       }
       return 255;
     };
-
-    const lowCut = safePercentile(0.02);
-    const highCut = Math.max(lowCut + 1, safePercentile(0.98));
+    const lowCut = findPercentile(lowPercentile);
+    const highCut = Math.max(lowCut + 1, findPercentile(highPercentile));
     const range = Math.max(1, highCut - lowCut);
-    const autoLevels = (value) => clampByte(((value - lowCut) / range) * 255);
 
-    const applyDarkProfile = () => {
-      const output = new Uint8ClampedArray(sourceData);
-      for (let offset = 0, pixelIndex = 0; offset < output.length; offset += 4, pixelIndex += 1) {
-        const luminance = luminances[pixelIndex];
-        const normalized = autoLevels(luminance);
-        const contrasted = clampByte((((normalized - 128) * 1.2) + 128) * 0.95);
-        const gammaAdjusted = clampByte(Math.pow(Math.max(0, Math.min(1, contrasted / 255)), 0.9) * 255);
-        const sourceR = sourceData[offset];
-        const sourceG = sourceData[offset + 1];
-        const sourceB = sourceData[offset + 2];
-        const sourceLum = Math.max(1, luminance);
-        const chromaScale = gammaAdjusted / sourceLum;
-        output[offset] = clampByte(sourceR * chromaScale);
-        output[offset + 1] = clampByte(sourceG * chromaScale);
-        output[offset + 2] = clampByte(sourceB * chromaScale);
-      }
-      return output;
+    const output = new Uint8ClampedArray(sourceData);
+    const width = canvas.width;
+    const height = canvas.height;
+    const gamma = 0.96;
+    const brightnessScale = 0.98;
+    const contrastScale = 1.15;
+    const sharpnessAmount = 0.1;
+
+    const getLuminanceAt = (x, y) => {
+      const clampedX = Math.max(0, Math.min(width - 1, x));
+      const clampedY = Math.max(0, Math.min(height - 1, y));
+      return luminances[(clampedY * width) + clampedX] || 0;
     };
 
-    const applyWhiteProfile = () => {
-      const base = new Uint8ClampedArray(sourceData);
-      const working = new Uint8ClampedArray(sourceData);
-      const width = canvas.width;
-      const height = canvas.height;
+    const getAutoLevel = (luminance) => clampByte(((luminance - lowCut) / range) * 255);
 
-      const writePixel = (buffer, index, r, g, b) => {
-        buffer[index] = r;
-        buffer[index + 1] = g;
-        buffer[index + 2] = b;
-      };
+    for (let offset = 0, pixelIndex = 0; offset < output.length; offset += 4, pixelIndex += 1) {
+      const luminance = luminances[pixelIndex];
+      const leveled = getAutoLevel(luminance);
+      const brightnessAdjusted = clampByte(leveled * brightnessScale);
+      const contrastAdjusted = clampByte((((brightnessAdjusted - 128) * contrastScale) + 128));
+      const gammaAdjusted = clampByte(Math.pow(Math.max(0, Math.min(1, contrastAdjusted / 255)), gamma) * 255);
 
-      for (let offset = 0; offset < working.length; offset += 4) {
-        const r = base[offset];
-        const g = base[offset + 1];
-        const b = base[offset + 2];
-        const luminance = (r * 0.299) + (g * 0.587) + (b * 0.114);
-        const normalized = autoLevels(luminance);
-        const darkened = clampByte(normalized * 0.9);
-        const contrasted = clampByte((((darkened - 128) * 1.35) + 128));
-        const gammaAdjusted = clampByte(Math.pow(Math.max(0, Math.min(1, contrasted / 255)), 0.88) * 255);
-        const sourceLum = Math.max(1, luminance);
-        const chromaScale = gammaAdjusted / sourceLum;
-        writePixel(working, offset, clampByte(r * chromaScale), clampByte(g * chromaScale), clampByte(b * chromaScale));
-        working[offset + 3] = base[offset + 3];
-      }
+      const blurred =
+        getLuminanceAt((pixelIndex % width) - 1, Math.floor(pixelIndex / width) - 1) +
+        getLuminanceAt(pixelIndex % width, Math.floor(pixelIndex / width) - 1) +
+        getLuminanceAt((pixelIndex % width) + 1, Math.floor(pixelIndex / width) - 1) +
+        getLuminanceAt((pixelIndex % width) - 1, Math.floor(pixelIndex / width)) +
+        luminance +
+        getLuminanceAt((pixelIndex % width) + 1, Math.floor(pixelIndex / width)) +
+        getLuminanceAt((pixelIndex % width) - 1, Math.floor(pixelIndex / width) + 1) +
+        getLuminanceAt(pixelIndex % width, Math.floor(pixelIndex / width) + 1) +
+        getLuminanceAt((pixelIndex % width) + 1, Math.floor(pixelIndex / width) + 1);
+      const localAverage = blurred / 9;
+      const sharpened = clampByte(gammaAdjusted + ((gammaAdjusted - localAverage) * sharpnessAmount));
+      const finalGray = clampByte(sharpened);
 
-      const blurred = new Uint8ClampedArray(working);
-      const kernel = [
-        1, 2, 1,
-        2, 4, 2,
-        1, 2, 1,
-      ];
-      let maxBlackDensity = 0;
-      const darkMask = new Float32Array(pixelCount);
-
-      for (let y = 0; y < height; y += 1) {
-        for (let x = 0; x < width; x += 1) {
-          let sumR = 0;
-          let sumG = 0;
-          let sumB = 0;
-          let weightSum = 0;
-          let kernelIndex = 0;
-          for (let ky = -1; ky <= 1; ky += 1) {
-            for (let kx = -1; kx <= 1; kx += 1) {
-              const px = Math.max(0, Math.min(width - 1, x + kx));
-              const py = Math.max(0, Math.min(height - 1, y + ky));
-              const sourceIndex = ((py * width) + px) * 4;
-              const weight = kernel[kernelIndex];
-              sumR += working[sourceIndex] * weight;
-              sumG += working[sourceIndex + 1] * weight;
-              sumB += working[sourceIndex + 2] * weight;
-              weightSum += weight;
-              kernelIndex += 1;
-            }
-          }
-          const index = ((y * width) + x) * 4;
-          const blurR = sumR / weightSum;
-          const blurG = sumG / weightSum;
-          const blurB = sumB / weightSum;
-          const localAverage = (
-            getLuminanceAt(x - 1, y) +
-            getLuminanceAt(x + 1, y) +
-            getLuminanceAt(x, y - 1) +
-            getLuminanceAt(x, y + 1) +
-            getLuminanceAt(x, y)
-          ) / 5;
-          const currentLum = getLuminanceAt(x, y);
-          const adaptiveThreshold = localAverage - 10;
-          const thresholdDelta = adaptiveThreshold - currentLum;
-          const thresholdBoost = thresholdDelta > 0 ? Math.min(0.22, thresholdDelta / 255) : 0;
-          const sharpenedR = clampByte((working[index] * 1.08) - (blurR * 0.08));
-          const sharpenedG = clampByte((working[index + 1] * 1.08) - (blurG * 0.08));
-          const sharpenedB = clampByte((working[index + 2] * 1.08) - (blurB * 0.08));
-          const localContrastBoost = clampByte((currentLum * 1.03) + ((currentLum - localAverage) * 0.18));
-          const boostedR = clampByte((sharpenedR * 0.82) + (localContrastBoost * 0.18));
-          const boostedG = clampByte((sharpenedG * 0.82) + (localContrastBoost * 0.18));
-          const boostedB = clampByte((sharpenedB * 0.82) + (localContrastBoost * 0.18));
-          const mix = thresholdBoost;
-          const finalR = clampByte((boostedR * (1 - mix)) + (40 * mix));
-          const finalG = clampByte((boostedG * (1 - mix)) + (40 * mix));
-          const finalB = clampByte((boostedB * (1 - mix)) + (40 * mix));
-
-          blurred[index] = finalR;
-          blurred[index + 1] = finalG;
-          blurred[index + 2] = finalB;
-          blurred[index + 3] = working[index + 3];
-        }
-      }
-
-      for (let offset = 0; offset < blurred.length; offset += 4) {
-        const currentLum = (blurred[offset] * 0.299) + (blurred[offset + 1] * 0.587) + (blurred[offset + 2] * 0.114);
-        const x = (offset / 4) % width;
-        const y = Math.floor((offset / 4) / width);
-        const gradient =
-          Math.abs(currentLum - getLuminanceAt(x - 1, y)) +
-          Math.abs(currentLum - getLuminanceAt(x + 1, y)) +
-          Math.abs(currentLum - getLuminanceAt(x, y - 1)) +
-          Math.abs(currentLum - getLuminanceAt(x, y + 1));
-        const edgeBoost = gradient > 18 ? Math.min(0.12, gradient / 400) : 0;
-        if (edgeBoost > 0) {
-          blurred[offset] = clampByte(blurred[offset] * (1 - edgeBoost));
-          blurred[offset + 1] = clampByte(blurred[offset + 1] * (1 - edgeBoost));
-          blurred[offset + 2] = clampByte(blurred[offset + 2] * (1 - edgeBoost));
-        }
-        const darkPixel = ((blurred[offset] + blurred[offset + 1] + blurred[offset + 2]) / 3) < 48 ? 1 : 0;
-        darkMask[offset / 4] = darkPixel;
-      }
-
-      const darkDensity = darkMask.reduce((sum, value) => sum + value, 0) / Math.max(1, darkMask.length);
-      if (darkDensity > 0.24) {
-        const soften = Math.max(0.72, 1 - ((darkDensity - 0.24) * 0.9));
-        for (let offset = 0; offset < blurred.length; offset += 4) {
-          blurred[offset] = clampByte((blurred[offset] * soften) + (sourceData[offset] * (1 - soften)));
-          blurred[offset + 1] = clampByte((blurred[offset + 1] * soften) + (sourceData[offset + 1] * (1 - soften)));
-          blurred[offset + 2] = clampByte((blurred[offset + 2] * soften) + (sourceData[offset + 2] * (1 - soften)));
-        }
-      }
-
-      return blurred;
-    };
-
-    let outputData = sourceData;
-    if (whiteProduct) {
-      outputData = applyWhiteProfile();
-    } else {
-      outputData = applyDarkProfile();
+      output[offset] = finalGray;
+      output[offset + 1] = finalGray;
+      output[offset + 2] = finalGray;
+      output[offset + 3] = sourceData[offset + 3];
     }
 
-    const outputBuffer = new ImageData(outputData, canvas.width, canvas.height);
-    context.putImageData(outputBuffer, 0, 0);
+    context.putImageData(new ImageData(output, width, height), 0, 0);
     return canvas.toDataURL("image/png");
   } catch {
     return "";
