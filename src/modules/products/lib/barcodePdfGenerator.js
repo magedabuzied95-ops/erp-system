@@ -192,6 +192,10 @@ const fitTextSize = (doc, text, maxWidth, fontSize, minFontSize = 3.8) => {
 const renderLabelPage = async (doc, item = {}, index = 0) => {
   const { page, image, title, sizeBadge, articleBox, colorBox, barcode } = BARCODE_LABEL_LAYOUT;
   const productName = normalizeLabelText(item.productName || item.name || item.title || `Label ${index + 1}`);
+  console.log("RENDER_LABEL_PAGE_V3_USED", {
+    productName,
+    layoutVersion: "v3-final-layout-2026-06-29",
+  });
   const sizeValue = normalizeLabelText(item.size || item.variantSize || item.labelSize || "ONE SIZE");
   const rawColorValue = normalizeLabelText(item.color || item.variantColor || item.labelColor || "");
   const colorValue = /[\u0600-\u06FF]/.test(rawColorValue) ? rawColorValue : rawColorValue.toUpperCase();
@@ -208,7 +212,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setDrawColor(226, 232, 240);
   doc.rect(0.4, 0.4, page.width - 0.8, page.height - 0.8, "S");
 
-  await drawImageOrPlaceholder(doc, item, image.x, image.y, image.w, image.h);
+  await drawImageOrPlaceholder(doc, item, image.x + 10, image.y, image.w, image.h);
 
   const titleLines = toTextLines(doc, productName, title.w, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
   const titleLinesToRender = titleLines.slice(0, thermalLayout.titleMaxLines);
@@ -222,14 +226,14 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
     doc.text(line, title.x, title.y + (lineIndex * thermalLayout.titleLineStepMm), { maxWidth: title.w });
   });
 
-  drawRoundedRect(doc, sizeBadge.x, sizeBadge.y, thermalLayout.sizeBadgeWidth, thermalLayout.sizeBadgeHeight, 1.8, [2, 6, 23]);
+  drawRoundedRect(doc, sizeBadge.x + 15, sizeBadge.y, thermalLayout.sizeBadgeWidth, thermalLayout.sizeBadgeHeight, 1.8, [2, 6, 23]);
   doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(thermalLayout.sizeLabelFontSize);
-  doc.text("SIZE", sizeBadge.x + thermalLayout.sizeBadgeWidth / 2, sizeBadge.y + 3.5, { align: "center" });
+  doc.text("SIZE", sizeBadge.x + 15 + thermalLayout.sizeBadgeWidth / 2, sizeBadge.y + 3.5, { align: "center" });
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(thermalLayout.sizeValueFontSize);
-  doc.text(sizeValue, sizeBadge.x + thermalLayout.sizeBadgeWidth / 2, sizeBadge.y + 9.0, { align: "center" });
+  doc.text(sizeValue, sizeBadge.x + 15 + thermalLayout.sizeBadgeWidth / 2, sizeBadge.y + 9.0, { align: "center" });
 
   if (showArticleBox) {
     drawRoundedRect(doc, articleBox.x, articleBox.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [244, 244, 245], [226, 232, 240]);
@@ -247,7 +251,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setFontSize(thermalLayout.colorLabelFontSize);
   doc.text("COLOR", colorBox.x + colorBox.w / 2, colorBox.y + 2.2, { align: "center" });
   doc.setTextColor(15, 23, 42);
-  doc.setFontSize(thermalLayout.colorValueFontSize);
+  doc.setFontSize(thermalLayout.colorValueFontSize * 0.5);
   doc.text(colorValue || "-", colorBox.x + colorBox.w / 2, colorBox.y + 5.3, { align: "center", maxWidth: colorBox.w - 2 });
 
   if (!showArticleBox) {

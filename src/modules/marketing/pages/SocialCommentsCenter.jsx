@@ -108,22 +108,25 @@ const findPostFromParams = (items = [], { postId = "", commentId = "", platform 
   const normalizedPageId = clean(pageId);
   const normalizedPostId = clean(postId);
   const normalizedCommentId = clean(commentId);
+  const hasExplicitSelection = Boolean(normalizedPostId || normalizedCommentId || normalizedPageId || normalizedPlatform);
   const list = Array.isArray(items) ? items.filter(Boolean) : [];
 
-  return (
-    list.find((item) => {
-      const itemPlatform = clean(item?.platform || item?.source_platform || "").toLowerCase();
-      const itemPageId = clean(item?.page_id || item?.metadata?.page_id || item?.channel_metadata?.page_id || "");
-      const itemPostId = clean(item?.post_id || item?.conversation_id || item?.id || "");
-      const itemCommentId = clean(item?.comment_id || item?.metadata?.comment_id || item?.channel_metadata?.comment_id || "");
+  const matched = list.find((item) => {
+    const itemPlatform = clean(item?.platform || item?.source_platform || "").toLowerCase();
+    const itemPageId = clean(item?.page_id || item?.metadata?.page_id || item?.channel_metadata?.page_id || "");
+    const itemPostId = clean(item?.post_id || item?.conversation_id || item?.id || "");
+    const itemCommentId = clean(item?.comment_id || item?.metadata?.comment_id || item?.channel_metadata?.comment_id || "");
 
-      if (normalizedPostId && matchesValue(itemPostId, normalizedPostId)) return true;
-      if (normalizedCommentId && matchesValue(itemCommentId, normalizedCommentId)) return true;
-      if (normalizedPageId && matchesValue(itemPageId, normalizedPageId)) return true;
-      if (normalizedPlatform && itemPlatform && itemPlatform.includes(normalizedPlatform)) return true;
-      return false;
-    }) || list[0] || null
-  );
+    if (normalizedPostId && matchesValue(itemPostId, normalizedPostId)) return true;
+    if (normalizedCommentId && matchesValue(itemCommentId, normalizedCommentId)) return true;
+    if (normalizedPageId && matchesValue(itemPageId, normalizedPageId)) return true;
+    if (normalizedPlatform && itemPlatform && itemPlatform.includes(normalizedPlatform)) return true;
+    return false;
+  }) || null;
+
+  if (matched) return matched;
+  if (hasExplicitSelection) return null;
+  return list[0] || null;
 };
 
 function SocialCommentsCenter() {
@@ -157,7 +160,9 @@ function SocialCommentsCenter() {
   const [performanceSummaryError, setPerformanceSummaryError] = useState("");
   const [performanceSummaryLoading, setPerformanceSummaryLoading] = useState(false);
   const [socketPatchCount, setSocketPatchCount] = useState(0);
+  const [resolvedPostByUrl, setResolvedPostByUrl] = useState(null);
   const lastSelectionRef = useRef("");
+  const requestedPostIdRef = useRef("");
   const renderedRowsWarnRef = useRef({ lastCount: 0, lastWarnAt: 0 });
 
   const openCustomerDrawer = useCallback((customer = {}, context = {}) => {
@@ -425,7 +430,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
     () => findPostFromParams(items, routeSelection),
     [items, routeSelection]
   );
-  const activePost = selectedPostFromParams || selectedPost || null;
+  const activePost = postIdParam ? (resolvedPostByUrl || selectedPostFromParams || null) : (selectedPostFromParams || selectedPost || null);
 
   useEffect(() => {
     if (!selectedPostFromParams) return;
@@ -435,6 +440,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
 
   useEffect(() => {
     if (!items.length) return;
+    if (postIdParam) return;
     const nextPost = selectedPostFromParams || items[0] || null;
     if (!nextPost) return;
     const nextIdentity = socialPostIdentity(nextPost);
@@ -452,6 +458,86 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
       setSearchParams(nextParams, { replace: true });
     }
   }, [items, postIdParam, searchParams, selectedPostIdentity, selectedPostFromParams, setSearchParams, tenantId]);
+
+  useEffect(() => {
+    if (!postIdParam) {
+      requestedPostIdRef.current = "";
+      setResolvedPostByUrl(null);
+      return;
+    }
+
+    const matchedPost = Array.isArray(items)
+      ? items.find((item) => {
+          const itemPostId = clean(item?.post_id || item?.conversation_id || item?.id || "");
+          return Boolean(itemPostId && itemPostId === postIdParam);
+        }) || null
+      : null;
+
+    if (matchedPost) {
+      const selected_post_id = clean(matchedPost?.post_id || matchedPost?.conversation_id || matchedPost?.id || "");
+      setResolvedPostByUrl(matchedPost);
+      requestedPostIdRef.current = "";
+      console.info("SOCIAL_UI_SELECTED_POST_RESOLVED", {
+        url_post_id: postIdParam,
+        selected_post_id,
+        active_post_id: selected_post_id,
+        source: "list",
+      });
+      return;
+    }
+
+    if (requestedPostIdRef.current === postIdParam) return;
+    requestedPostIdRef.current = postIdParam;
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const payload = await api.get(`/social-comments/posts/${encodeURIComponent(postIdParam)}/comments`, {
+          params: { tenant_id: tenantId, platform: platformParam || undefined },
+          perfComponent: "SocialCommentsCenter.postById",
+        });
+        if (cancelled) return;
+        const postPayload = payload?.post || payload?.data?.post || payload?.data || null;
+        const resolvedPost = postPayload ? normalizePost(postPayload) : null;
+        const selected_post_id = clean(resolvedPost?.postId || resolvedPost?.post_id || resolvedPost?.conversationId || resolvedPost?.id || "");
+        if (!resolvedPost || !selected_post_id) {
+          console.info("SOCIAL_UI_SELECTED_POST_RESOLVED", {
+            url_post_id: postIdParam,
+            selected_post_id: "",
+            active_post_id: "",
+            source: "fallback",
+          });
+          return;
+        }
+        setResolvedPostByUrl(resolvedPost);
+        setItems((current) => {
+          const existing = Array.isArray(current)
+            ? current.some((item) => clean(item?.post_id || item?.conversation_id || item?.id || "") === selected_post_id)
+            : false;
+          return existing ? current : [resolvedPost, ...current];
+        });
+        console.info("SOCIAL_UI_SELECTED_POST_RESOLVED", {
+          url_post_id: postIdParam,
+          selected_post_id,
+          active_post_id: selected_post_id,
+          source: "fallback",
+        });
+      } catch (error) {
+        if (cancelled) return;
+        console.warn("SOCIAL_UI_SELECTED_POST_RESOLVED", {
+          url_post_id: postIdParam,
+          selected_post_id: "",
+          active_post_id: "",
+          source: "fallback",
+          message: error?.message || String(error),
+        });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [items, platformParam, postIdParam, tenantId]);
 
   useEffect(() => {
     if (!activePost) return;
@@ -704,7 +790,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
               items={items}
               loading={loading}
               error={error}
-              selectedPost={selectedPostFromParams || selectedPost || null}
+              selectedPost={activePost || selectedPostFromParams || selectedPost || null}
               selectedThread={selectedThread}
               selectedTemplate={selectedTemplate}
               globalSettings={globalSettings}

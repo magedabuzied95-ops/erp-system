@@ -591,6 +591,8 @@ function BarcodeLabels() {
     }
 
     try {
+      console.log("USING_PDF_GENERATOR_FILE", "src/modules/products/lib/barcodePdfGenerator.js");
+      console.log("PDF_LAYOUT_VERSION", "v3-final-layout-2026-06-29");
       const result = await generateBarcodeLabelsPdf(expandedLabels, {
         title: t("products.barcodeLabels.labelSheetTitle"),
         filename: `barcode-labels-${Date.now()}.pdf`,
