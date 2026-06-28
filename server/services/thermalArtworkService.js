@@ -87,6 +87,17 @@ const readImageBuffer = async (value = "") => {
   };
 };
 
+const readUrlBuffer = async (url = "") => {
+  const safeUrl = String(url || "").trim();
+  if (!safeUrl) return null;
+  const response = await fetch(safeUrl);
+  if (!response.ok) return null;
+  return {
+    buffer: Buffer.from(await response.arrayBuffer()),
+    mimetype: response.headers.get("content-type") || "image/png",
+  };
+};
+
 const normalizeSourceImage = async (value = "") => {
   const image = await readImageBuffer(value);
   if (!image?.buffer) return null;
@@ -259,15 +270,24 @@ export const generateThermalArtwork = async ({
       quality: "high",
       size: "1024x1024",
       n: 1,
-      response_format: "b64_json",
     });
 
-    const imageBase64 = response?.data?.[0]?.b64_json || "";
-    if (!imageBase64) {
+    const imageResult = response?.data?.[0] || null;
+    const base64Image = imageResult?.b64_json || "";
+    const imageUrl = imageResult?.url || "";
+
+    let generatedBuffer = null;
+    if (base64Image) {
+      generatedBuffer = Buffer.from(base64Image, "base64");
+    } else if (imageUrl) {
+      const downloaded = await readUrlBuffer(imageUrl);
+      generatedBuffer = downloaded?.buffer || null;
+    }
+
+    if (!generatedBuffer?.length) {
       throw new Error("OpenAI did not return thermal artwork image data");
     }
 
-    const generatedBuffer = Buffer.from(imageBase64, "base64");
     const stored = await saveThermalArtworkAsset({
       buffer: generatedBuffer,
       productId,
