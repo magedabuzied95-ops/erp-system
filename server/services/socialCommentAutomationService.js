@@ -708,74 +708,83 @@ const upsertSocialCommentAutomationRunAudit = async ({
     config: diagnostics?.config || null,
     productContext: diagnostics?.product_context || null,
   });
-  const result = await db.query(
-    `
-    INSERT INTO social_comment_automation_run_audits (
-      tenant_id,
-      platform,
-      post_id,
-      comment_id,
-      status,
-      skipped_reason,
-      matched_config_key,
-      resolved_post_id,
-      resolved_platform_post_id,
-      resolved_product_id,
-      duplicate_reason,
-      config_found,
-      config_enabled,
-      step_results,
-      product_link,
-      checkout_link,
-      guidance_mode,
-      created_at,
-      updated_at
-    )
-    VALUES (
-      $1::bigint,
-      $2::text,
-      $3::text,
-      $4::text,
-      $5::text,
-      $6::text,
-      $7::text,
-      $8::text,
-      $9::text,
-      $10::bigint,
-      $11::text,
-      $12::boolean,
-      $13::boolean,
-      $14::jsonb,
-      $15::text,
-      $16::text,
-      $17::text,
-      'website_checkout',
-      CURRENT_TIMESTAMP,
-      CURRENT_TIMESTAMP
-    )
-    RETURNING *
-    `,
-    [
-      safeTenantId,
-      text(platform || row.platform || "facebook"),
-      safePostId,
-      safeCommentId,
-      text(status || "duplicate_skipped") || "duplicate_skipped",
-      safeDiagnostics.skipped_reason || text(skippedReason || ""),
-      safeDiagnostics.matched_config_key,
-      safeDiagnostics.resolved_post_id || safePostId,
-      safeDiagnostics.resolved_platform_post_id || safePostId,
-      safeDiagnostics.resolved_product_id,
-      safeDiagnostics.duplicate_reason || text(skippedReason || "duplicate_comment_automation"),
-      safeDiagnostics.config_found,
-      safeDiagnostics.config_enabled,
-      JSON.stringify(asArray(stepResults)),
-      text(productLink || row.product_link || row.metadata?.product_link || ""),
-      text(checkoutLink || row.checkout_link || row.metadata?.checkout_link || ""),
-      text(row.guidance_mode || "website_checkout") || "website_checkout",
-    ]
-  );
-  return result.rows?.[0] || null;
+  try {
+    const result = await db.query(
+      `
+      INSERT INTO social_comment_automation_run_audits (
+        tenant_id,
+        platform,
+        post_id,
+        comment_id,
+        status,
+        skipped_reason,
+        matched_config_key,
+        resolved_post_id,
+        resolved_platform_post_id,
+        resolved_product_id,
+        duplicate_reason,
+        config_found,
+        config_enabled,
+        step_results,
+        product_link,
+        checkout_link,
+        guidance_mode,
+        created_at
+      )
+      VALUES (
+        $1::bigint,
+        $2::text,
+        $3::text,
+        $4::text,
+        $5::text,
+        $6::text,
+        $7::text,
+        $8::text,
+        $9::text,
+        $10::bigint,
+        $11::text,
+        $12::boolean,
+        $13::boolean,
+        $14::jsonb,
+        $15::text,
+        $16::text,
+        $17::text,
+        CURRENT_TIMESTAMP
+      )
+      RETURNING *
+      `,
+      [
+        safeTenantId,
+        text(platform || row.platform || "facebook"),
+        safePostId,
+        safeCommentId,
+        text(status || "duplicate_skipped") || "duplicate_skipped",
+        safeDiagnostics.skipped_reason || text(skippedReason || ""),
+        safeDiagnostics.matched_config_key,
+        safeDiagnostics.resolved_post_id || safePostId,
+        safeDiagnostics.resolved_platform_post_id || safePostId,
+        safeDiagnostics.resolved_product_id,
+        safeDiagnostics.duplicate_reason || text(skippedReason || "duplicate_comment_automation"),
+        safeDiagnostics.config_found,
+        safeDiagnostics.config_enabled,
+        JSON.stringify(asArray(stepResults)),
+        text(productLink || row.product_link || row.metadata?.product_link || ""),
+        text(checkoutLink || row.checkout_link || row.metadata?.checkout_link || ""),
+        text(row.guidance_mode || "website_checkout") || "website_checkout",
+      ]
+    );
+    return result.rows?.[0] || null;
+  } catch (error) {
+    debugSocialCommentsWarn("SOCIAL_COMMENT_AUTOMATION_RUN_AUDIT_WRITE_FAILED", {
+      tenant_id: safeTenantId,
+      platform: text(platform || row.platform || "facebook"),
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      status: text(status || "duplicate_skipped") || "duplicate_skipped",
+      message: error?.message || "",
+    });
+    return null;
+  }
 };
 
 const findSocialCommentAutomationRunByKey = async ({
