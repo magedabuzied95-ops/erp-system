@@ -172,6 +172,7 @@ function SocialCommentsCenter() {
   const lastSelectionRef = useRef("");
   const requestedPostIdRef = useRef("");
   const renderedRowsWarnRef = useRef({ lastCount: 0, lastWarnAt: 0 });
+  const isUrlLockedPost = Boolean(postIdParam);
 
   const openCustomerDrawer = useCallback((customer = {}, context = {}) => {
     const customerProfile = customer?.customer_profile || customer?.profile || {};
@@ -435,20 +436,26 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   }, []);
 
   const selectedPostFromParams = useMemo(
-    () => (postIdParam ? findPostFromParams(items, routeSelection) : null),
-    [items, postIdParam, routeSelection]
+    () => (isUrlLockedPost ? findPostFromParams(items, routeSelection) : null),
+    [isUrlLockedPost, items, routeSelection]
   );
-  const activePost = postIdParam ? (resolvedPostByUrl || selectedPostFromParams || selectedPost || null) : (selectedPost || selectedPostFromParams || null);
+  const activePost = useMemo(() => {
+    if (isUrlLockedPost) {
+      return normalizeSocialPostDisplay(resolvedPostByUrl || selectedPost || selectedPostFromParams || null);
+    }
+    return selectedPost || selectedPostFromParams || null;
+  }, [isUrlLockedPost, resolvedPostByUrl, selectedPost, selectedPostFromParams]);
 
   useEffect(() => {
     if (!selectedPostFromParams) return;
     if (selectedPostIdentity === socialPostIdentity(selectedPostFromParams)) return;
+    if (isUrlLockedPost && resolvedPostByUrl) return;
     setSelectedPost(normalizeSocialPostDisplay(selectedPostFromParams));
-  }, [selectedPostFromParams, selectedPostIdentity]);
+  }, [isUrlLockedPost, resolvedPostByUrl, selectedPostFromParams, selectedPostIdentity]);
 
   useEffect(() => {
     if (!items.length) return;
-    if (postIdParam) return;
+    if (isUrlLockedPost) return;
     const nextPost = selectedPostFromParams || selectedPost || items[0] || null;
     if (!nextPost) return;
     const nextIdentity = socialPostIdentity(nextPost);
@@ -465,10 +472,10 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
       }
       setSearchParams(nextParams, { replace: true });
     }
-  }, [items, postIdParam, searchParams, selectedPost, selectedPostIdentity, selectedPostFromParams, setSearchParams, tenantId]);
+  }, [isUrlLockedPost, items, searchParams, selectedPost, selectedPostIdentity, selectedPostFromParams, setSearchParams, tenantId]);
 
   useEffect(() => {
-    if (!postIdParam) {
+    if (!isUrlLockedPost) {
       requestedPostIdRef.current = "";
       setResolvedPostByUrl(null);
       return;
@@ -546,7 +553,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
     return () => {
       cancelled = true;
     };
-  }, [items, platformParam, postIdParam, tenantId]);
+  }, [isUrlLockedPost, items, platformParam, postIdParam, tenantId]);
 
   const selectedPostDisplay = useMemo(() => normalizeSocialPostDisplay(activePost || selectedPostFromParams || selectedPost || {}), [activePost, selectedPost, selectedPostFromParams]);
 

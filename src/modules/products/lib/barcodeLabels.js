@@ -998,7 +998,7 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const productName = String(item?.productName || "").trim();
   const sizeValue = String(item?.size || "ONE SIZE").trim() || "ONE SIZE";
   const colorValue = formatDisplayColor(item?.color || "");
-  const skuValue = String(item?.sku || "").trim();
+  const skuValue = String(item?.article_code || item?.articleCode || "").trim();
   const barcodeValue = String(item?.barcode || "").trim();
   const imageUrl = String(item?.imageUrl || item?.resolvedImage || "").trim();
   const hasArticleBox = Boolean(skuValue);
@@ -1032,13 +1032,13 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
       <text x="${sizeCell.x + (layout.sizeBadgeWidth / 2)}" y="${sizeCell.y + 9.3}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.432}" font-weight="900">${escapeHtml(sizeValue)}</text>
       ${hasArticleBox ? `
       <rect x="${articleCell.x}" y="${articleCell.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 3.2}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${layout.articleLabelFontSize * 0.42}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.sku || "ARTICLE/SKU")}</text>
+      <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 3.2}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${layout.articleLabelFontSize * 0.42}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.sku || "ARTICLE CODE")}</text>
       <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 9.3}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
       ` : ""}
 
       <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <text x="${colorCell.x + (colorCell.w / 2)}" y="${colorCell.y + 2.7}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.58}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
-      <text x="${colorCell.x + (colorCell.w / 2)}" y="${colorCell.y + 5.9}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorValueFontSize * 0.35}" font-weight="900">${escapeHtml(colorValue)}</text>
+      <text x="${colorCell.x + 1.2}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.58}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
+      <text x="${colorCell.x + colorCell.w - 1.2}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="end" dominant-baseline="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.34}" font-weight="900">${escapeHtml(colorValue)}</text>
 
       ${hasArticleBox ? "" : `<text x="${layout.page.width / 2}" y="${barcodeCell.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}
