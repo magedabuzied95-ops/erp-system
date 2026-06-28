@@ -27,7 +27,7 @@ import {
   normalizeAutomationConfig,
   serializeAutomationDraft,
 } from "./socialAutomation/automationEngine.js";
-import { CommentTimelineCard, getSocialCommentTimestamp } from "./socialCommentTimeline.jsx";
+import { CommentTimelineCard, getSocialCommentRealTimestamp } from "./socialCommentTimeline.jsx";
 
 import { useRef } from "react";
 
@@ -128,7 +128,7 @@ const normalizeComment = (raw) => {
       metadata.profile_pic ||
       ""
   );
-  const createdAt = getSocialCommentTimestamp({ ...comment, raw: comment });
+  const createdAt = getSocialCommentRealTimestamp({ ...comment, raw: comment }).timestamp;
   return {
     id: clean(comment.comment_id || comment.id || comment.external_message_id || comment.provider_message_id || metadata.comment_id || ""),
     message: clean(comment.comment_text || comment.customer_message || comment.message || comment.text || comment.message_text || comment.original_comment_text || metadata.comment_text || metadata.customer_message || metadata.message || ""),
@@ -590,6 +590,7 @@ function SocialCommentsWorkspace({
   const [expandedCaption, setExpandedCaption] = useState(false);
   const [automationDrawerPostKey, setAutomationDrawerPostKey] = useState("");
   const [productLinksDrawerPostKey, setProductLinksDrawerPostKey] = useState("");
+  const [productLinksDrawerPostSnapshot, setProductLinksDrawerPostSnapshot] = useState(null);
   const [automationDrafts, setAutomationDrafts] = useState({});
   const [automationLoadingKey, setAutomationLoadingKey] = useState("");
   const [automationSavingKey, setAutomationSavingKey] = useState("");
@@ -772,8 +773,23 @@ function SocialCommentsWorkspace({
   const productLinksDrawerPost = useMemo(() => {
     const drawerKey = clean(productLinksDrawerPostKey);
     if (!drawerKey) return null;
-    return normalizedPosts.find((item) => postKey(item) === drawerKey) || (drawerKey === activePostKey ? activePostDetails : null);
-  }, [activePostDetails, activePostKey, normalizedPosts, productLinksDrawerPostKey]);
+    return (
+      productLinksDrawerPostSnapshot ||
+      normalizedPosts.find((item) => postKey(item) === drawerKey) ||
+      (drawerKey === activePostKey ? activePostDetails : null)
+    );
+  }, [activePostDetails, activePostKey, normalizedPosts, productLinksDrawerPostKey, productLinksDrawerPostSnapshot]);
+
+  useEffect(() => {
+    if (!productLinksDrawerPostKey) return;
+    console.info("DRAWER_OPEN_STATE", {
+      open: Boolean(productLinksDrawerPostKey),
+      drawerPostKey: clean(productLinksDrawerPostKey),
+      hasSnapshot: Boolean(productLinksDrawerPostSnapshot),
+      resolvedPostKey: clean(productLinksDrawerPost?.canonicalPostId || productLinksDrawerPost?.platformPostId || productLinksDrawerPost?.conversationId || productLinksDrawerPost?.postId || productLinksDrawerPost?.id || ""),
+      activePostKey,
+    });
+  }, [activePostKey, productLinksDrawerPost, productLinksDrawerPostKey, productLinksDrawerPostSnapshot]);
 
   const updateAutomationDraft = (patch = {}) => {
     const drawerKey = clean(automationDrawerPostKey || activePostKey);
@@ -913,6 +929,30 @@ function SocialCommentsWorkspace({
   const handleOpenProductLinksDrawer = (post = null, key = "") => {
     const drawerPostKey = clean(key || postKey(post || activePostDetails || activePost || {}));
     if (!drawerPostKey) return;
+    console.info("LINK_PRODUCTS_CLICK", {
+      drawerPostKey,
+      clickedPostKey: clean(postKey(post || {})),
+      activePostKey,
+      activeItemId: clean(activePostDetails?.conversationId || activePostDetails?.postId || activePostDetails?.id || ""),
+      selectedPostKey: clean(postKey(selectedPost || {})),
+    });
+    console.info("SELECTED_POST", {
+      selectedPost: selectedPost
+        ? {
+            key: clean(postKey(selectedPost || {})),
+            platform: clean(selectedPost?.platform || ""),
+            postId: clean(selectedPost?.postId || selectedPost?.post_id || selectedPost?.conversationId || selectedPost?.conversation_id || selectedPost?.id || ""),
+          }
+        : null,
+      activePost: activePostDetails
+        ? {
+            key: clean(postKey(activePostDetails || {})),
+            platform: clean(activePostDetails?.platform || ""),
+            postId: clean(activePostDetails?.postId || activePostDetails?.post_id || activePostDetails?.conversationId || activePostDetails?.conversation_id || activePostDetails?.id || ""),
+          }
+        : null,
+    });
+    setProductLinksDrawerPostSnapshot(post ? normalizePost(post) : null);
     setProductLinksDrawerPostKey(drawerPostKey);
   };
 
@@ -2085,7 +2125,10 @@ function SocialCommentsWorkspace({
         open={Boolean(productLinksDrawerPostKey)}
         post={productLinksDrawerPost || activePostDetails || activePost}
         tenantId={resolvedTenantId}
-        onClose={() => setProductLinksDrawerPostKey("")}
+        onClose={() => {
+          setProductLinksDrawerPostKey("");
+          setProductLinksDrawerPostSnapshot(null);
+        }}
         onSaved={handleRefresh}
       />
     </section>
