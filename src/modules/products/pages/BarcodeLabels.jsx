@@ -406,22 +406,6 @@ function BarcodeLabels() {
         : normalizeBarcodePrintSettings(BARCODE_PRINT_DEFAULTS);
       setBarcodePrintSettings(nextPrintSettings);
       setSheetMode(barcodeSheetModeFromPaperSize(nextPrintSettings.paperSize));
-      console.log("[barcode-labels] api products:", baseProducts?.map?.((item) => ({
-        id: item?.id,
-        name: item?.name,
-        image_url: item?.image_url,
-        stock: item?.stock,
-      })) || baseProducts);
-      console.log("[barcode-labels] api variant rows:", variantRows?.map?.((item) => ({
-        product_id: item?.product_id ?? item?.id,
-        variant_id: item?.variant_id,
-        color: item?.color,
-        size: item?.size,
-        image_url: item?.image_url,
-        variant_image_url: item?.variant_image_url,
-        color_image_url: item?.color_image_url,
-        product_image_url: item?.product_image_url,
-      })) || variantRows);
       const flattenedVariantRows = flattenVariantRows(variantRows);
 
       setProducts(baseProducts);
@@ -477,7 +461,6 @@ function BarcodeLabels() {
         setActiveProductNotice("");
       }
     } catch (err) {
-      console.log(err);
       setError(t("products.barcodeLabels.loadProductsFailed"));
       toast.error(t("products.barcodeLabels.loadFailed"));
       setCatalog([]);
@@ -552,16 +535,6 @@ function BarcodeLabels() {
     [includeSmartProductQr, isBarcodeShopMode, selectedItems]
   );
 
-  console.log("[barcode-shop] mode/productId", { mode, productId });
-  console.log("[barcode-shop] selectedProduct", selectedProduct);
-  console.log(
-    "[barcode-shop] qrIdentifier",
-    selectedProduct?.slug ||
-      selectedProduct?.canonical_slug ||
-      (selectedProduct?.id ? String(selectedProduct.id) : "")
-  );
-  console.log("[barcode-shop] selectedProductVariants", selectedProductVariants);
-
   const expandedLabels = useMemo(() => expandLabelCopies(qrReadyItems), [qrReadyItems]);
   const templateContext = useMemo(
     () => resolveTemplatePrintContext(labelTemplate, barcodePrintSettings, sheetMode),
@@ -580,44 +553,6 @@ function BarcodeLabels() {
     () => paginateBarcodeLabels(expandedLabels, activePrintSettings.labelsPerPage),
     [expandedLabels, activePrintSettings.labelsPerPage]
   );
-
-  useEffect(() => {
-    if (!isPremiumRetailTemplate) return;
-    console.info("[barcode-print:selected-template]", labelTemplate);
-    console.info("[barcode-print:paper-width]", activePaper.paperWidthMm);
-    console.info("[barcode-print:paper-height]", activePaper.paperHeightMm);
-    console.info("[barcode-print:label-width]", activePrintSettings.labelWidthMm);
-    console.info("[barcode-print:label-height]", activePrintSettings.labelHeightMm);
-    console.info("[barcode-print:preview-orientation]", "outer:portrait-stock | inner:portrait-label");
-    console.info("[barcode-print:print-orientation]", "outer:portrait-stock | inner:portrait-label");
-  }, [
-    activePaper.paperHeightMm,
-    activePaper.paperWidthMm,
-    activePrintSettings.labelHeightMm,
-    activePrintSettings.labelWidthMm,
-    isPremiumRetailTemplate,
-    labelTemplate,
-  ]);
-
-  useEffect(() => {
-    if (!qrReadyItems.length) return;
-    console.log(
-      "[barcode-labels] final label items:",
-      qrReadyItems.map((item) => ({
-        productName: item.productName,
-        color: item.color,
-        size: item.size,
-        barcode: item.barcode,
-        barcodeSource: item.barcodeSource || "",
-        variantImage: item.sourceVariantImage,
-        productImage: item.sourceProductImage,
-        resolvedImage: item.imageUrl || item.resolvedImage,
-        quantity: item.quantity,
-        smartQrUrl: item.smartQrUrl || "",
-        showSmartProductQr: Boolean(item.showSmartProductQr),
-      }))
-    );
-  }, [qrReadyItems]);
 
   const totals = useMemo(
     () => ({
@@ -660,13 +595,6 @@ function BarcodeLabels() {
         filename: `barcode-labels-${Date.now()}.pdf`,
       });
       const pdfBlob = result?.blob;
-      const debug = {
-        expandedLabelsLength: expandedLabels.length,
-        pdfBlobSize: pdfBlob?.size ?? 0,
-        ...result?.debug,
-      };
-      console.log("[PDF DEBUG]", debug);
-      alert(JSON.stringify(debug, null, 2));
       const url = URL.createObjectURL(pdfBlob);
       const popup = window.open(url, "_blank", "noopener,noreferrer");
       if (!popup) {
@@ -676,7 +604,7 @@ function BarcodeLabels() {
       }
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (error) {
-      console.error("[barcode-pdf] generation failed", error);
+      console.warn("[barcode-pdf] generation failed", error);
       toast.error(t("products.barcodeLabels.popupBlocked"));
     }
   };
@@ -1254,30 +1182,6 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
     height: PREMIUM_RETAIL_BARCODE_HEIGHT,
     displayText: item.barcode,
   });
-  useEffect(() => {
-    const measure = () => {
-      const root = document.querySelector('[data-premium-label-root="true"]');
-      if (!root) return;
-      const pxToMm = (px) => Number(((Number(px) || 0) * 25.4 / 96).toFixed(2));
-      const getHeight = (selector) => {
-        const node = root.querySelector(selector);
-        return node ? pxToMm(node.getBoundingClientRect().height) : 0;
-      };
-      const rootRect = root.getBoundingClientRect();
-      console.log("[premium-layout-heights]", {
-        imageSectionHeight: getHeight('[data-premium-label-part="image"]'),
-        titleHeight: getHeight('[data-premium-label-part="title"]'),
-        priceHeight: getHeight('[data-premium-label-part="price"]'),
-        sizeColorHeight: getHeight('[data-premium-label-part="size-color"]'),
-        barcodeHeight: getHeight('[data-premium-label-part="barcode"]'),
-        skuHeight: getHeight('[data-premium-label-part="sku"]'),
-        totalLabelHeight: pxToMm(rootRect.height),
-      });
-    };
-    const timer = window.setTimeout(measure, 0);
-    return () => window.clearTimeout(timer);
-  }, [item.barcodeValue, item.color, item.productName, item.salePrice, item.size, item.sku, printSettings.barcodeWidthScale, safeImage]);
-
   return (
     <article
       className={`relative grid overflow-hidden border border-zinc-200 bg-white text-zinc-900 ${print ? "shadow-none" : "shadow-[0_12px_30px_rgba(15,23,42,0.08)]"}`}

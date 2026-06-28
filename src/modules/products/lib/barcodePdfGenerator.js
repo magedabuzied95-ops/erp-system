@@ -6,6 +6,8 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
 const ENABLE_THERMAL_IMAGE_OPTIMIZER = true;
 const THERMAL_WHITE_PROFILE = true;
+const THERMAL_IMAGE_OPTIMIZER_VERSION = "v3-conservative";
+const thermalImageCache = new Map();
 
 const escapeString = (value = "") =>
   String(value ?? "")
@@ -99,99 +101,126 @@ const loadCanvasImage = async (src) =>
 
 const clampByte = (value) => Math.max(0, Math.min(255, Math.round(value)));
 
-const prepareThermalImage = async (imageData) => {
+const prepareThermalImage = async (imageData, cacheKey = "") => {
   if (!ENABLE_THERMAL_IMAGE_OPTIMIZER || !imageData || typeof document === "undefined") {
     return "";
   }
 
-  try {
-    const image = await loadCanvasImage(imageData);
-    const canvas = document.createElement("canvas");
-    canvas.width = image.naturalWidth || image.width || 0;
-    canvas.height = image.naturalHeight || image.height || 0;
-    if (!canvas.width || !canvas.height) return "";
+  const safeCacheKey = normalizeLabelText(cacheKey);
+  if (safeCacheKey && thermalImageCache.has(safeCacheKey)) {
+    return thermalImageCache.get(safeCacheKey) || "";
+  }
 
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) return "";
+  const cachePromise = (async () => {
+    try {
+      const image = await loadCanvasImage(imageData);
+      const canvas = document.createElement("canvas");
+      canvas.width = image.naturalWidth || image.width || 0;
+      canvas.height = image.naturalHeight || image.height || 0;
+      if (!canvas.width || !canvas.height) return "";
 
-    context.drawImage(image, 0, 0, canvas.width, canvas.height);
-    const sourceBuffer = context.getImageData(0, 0, canvas.width, canvas.height);
-    const sourceData = sourceBuffer.data;
-    const pixelCount = sourceData.length / 4;
-    const luminances = new Float32Array(pixelCount);
-    const histogram = new Uint32Array(256);
+      const context = canvas.getContext("2d", { willReadFrequently: true });
+      if (!context) return "";
 
-    let luminanceSum = 0;
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const sourceBuffer = context.getImageData(0, 0, canvas.width, canvas.height);
+      const sourceData = sourceBuffer.data;
+      const pixelCount = sourceData.length / 4;
+      const luminances = new Float32Array(pixelCount);
+      const histogram = new Uint32Array(256);
 
-    for (let offset = 0, pixelIndex = 0; offset < sourceData.length; offset += 4, pixelIndex += 1) {
-      const luminance = (sourceData[offset] * 0.299) + (sourceData[offset + 1] * 0.587) + (sourceData[offset + 2] * 0.114);
-      luminances[pixelIndex] = luminance;
-      histogram[clampByte(luminance)] += 1;
-      luminanceSum += luminance;
-    }
+      let luminanceSum = 0;
 
-    const averageLuminance = luminanceSum / Math.max(1, pixelCount);
-    const lowPercentile = 0.04;
-    const highPercentile = 0.96;
-    const findPercentile = (percent) => {
-      const target = pixelCount * percent;
-      let running = 0;
-      for (let index = 0; index < histogram.length; index += 1) {
-        running += histogram[index];
-        if (running >= target) return index;
+      for (let offset = 0, pixelIndex = 0; offset < sourceData.length; offset += 4, pixelIndex += 1) {
+        const luminance = (sourceData[offset] * 0.299) + (sourceData[offset + 1] * 0.587) + (sourceData[offset + 2] * 0.114);
+        luminances[pixelIndex] = luminance;
+        histogram[clampByte(luminance)] += 1;
+        luminanceSum += luminance;
       }
-      return 255;
-    };
-    const lowCut = findPercentile(lowPercentile);
-    const highCut = Math.max(lowCut + 1, findPercentile(highPercentile));
-    const range = Math.max(1, highCut - lowCut);
 
-    const output = new Uint8ClampedArray(sourceData);
-    const width = canvas.width;
-    const height = canvas.height;
-    const gamma = 0.96;
-    const brightnessScale = 0.98;
-    const contrastScale = 1.15;
-    const sharpnessAmount = 0.1;
+      const lowPercentile = 0.04;
+      const highPercentile = 0.96;
+      const findPercentile = (percent) => {
+        const target = pixelCount * percent;
+        let running = 0;
+        for (let index = 0; index < histogram.length; index += 1) {
+          running += histogram[index];
+          if (running >= target) return index;
+        }
+        return 255;
+      };
+      const lowCut = findPercentile(lowPercentile);
+      const highCut = Math.max(lowCut + 1, findPercentile(highPercentile));
+      const range = Math.max(1, highCut - lowCut);
 
-    const getLuminanceAt = (x, y) => {
-      const clampedX = Math.max(0, Math.min(width - 1, x));
-      const clampedY = Math.max(0, Math.min(height - 1, y));
-      return luminances[(clampedY * width) + clampedX] || 0;
-    };
+      const output = new Uint8ClampedArray(sourceData);
+      const width = canvas.width;
+      const height = canvas.height;
+      const gamma = 0.96;
+      const brightnessScale = 0.98;
+      const contrastScale = 1.15;
+      const sharpnessAmount = 0.1;
 
-    const getAutoLevel = (luminance) => clampByte(((luminance - lowCut) / range) * 255);
+      const getLuminanceAt = (x, y) => {
+        const clampedX = Math.max(0, Math.min(width - 1, x));
+        const clampedY = Math.max(0, Math.min(height - 1, y));
+        return luminances[(clampedY * width) + clampedX] || 0;
+      };
 
-    for (let offset = 0, pixelIndex = 0; offset < output.length; offset += 4, pixelIndex += 1) {
-      const luminance = luminances[pixelIndex];
-      const leveled = getAutoLevel(luminance);
-      const brightnessAdjusted = clampByte(leveled * brightnessScale);
-      const contrastAdjusted = clampByte((((brightnessAdjusted - 128) * contrastScale) + 128));
-      const gammaAdjusted = clampByte(Math.pow(Math.max(0, Math.min(1, contrastAdjusted / 255)), gamma) * 255);
+      const getAutoLevel = (luminance) => clampByte(((luminance - lowCut) / range) * 255);
 
-      const blurred =
-        getLuminanceAt((pixelIndex % width) - 1, Math.floor(pixelIndex / width) - 1) +
-        getLuminanceAt(pixelIndex % width, Math.floor(pixelIndex / width) - 1) +
-        getLuminanceAt((pixelIndex % width) + 1, Math.floor(pixelIndex / width) - 1) +
-        getLuminanceAt((pixelIndex % width) - 1, Math.floor(pixelIndex / width)) +
-        luminance +
-        getLuminanceAt((pixelIndex % width) + 1, Math.floor(pixelIndex / width)) +
-        getLuminanceAt((pixelIndex % width) - 1, Math.floor(pixelIndex / width) + 1) +
-        getLuminanceAt(pixelIndex % width, Math.floor(pixelIndex / width) + 1) +
-        getLuminanceAt((pixelIndex % width) + 1, Math.floor(pixelIndex / width) + 1);
-      const localAverage = blurred / 9;
-      const sharpened = clampByte(gammaAdjusted + ((gammaAdjusted - localAverage) * sharpnessAmount));
-      const finalGray = clampByte(sharpened);
+      for (let offset = 0, pixelIndex = 0; offset < output.length; offset += 4, pixelIndex += 1) {
+        const luminance = luminances[pixelIndex];
+        const leveled = getAutoLevel(luminance);
+        const brightnessAdjusted = clampByte(leveled * brightnessScale);
+        const contrastAdjusted = clampByte((((brightnessAdjusted - 128) * contrastScale) + 128));
+        const gammaAdjusted = clampByte(Math.pow(Math.max(0, Math.min(1, contrastAdjusted / 255)), gamma) * 255);
 
-      output[offset] = finalGray;
-      output[offset + 1] = finalGray;
-      output[offset + 2] = finalGray;
-      output[offset + 3] = sourceData[offset + 3];
+        const currentX = pixelIndex % width;
+        const currentY = Math.floor(pixelIndex / width);
+        const blurred =
+          getLuminanceAt(currentX - 1, currentY - 1) +
+          getLuminanceAt(currentX, currentY - 1) +
+          getLuminanceAt(currentX + 1, currentY - 1) +
+          getLuminanceAt(currentX - 1, currentY) +
+          luminance +
+          getLuminanceAt(currentX + 1, currentY) +
+          getLuminanceAt(currentX - 1, currentY + 1) +
+          getLuminanceAt(currentX, currentY + 1) +
+          getLuminanceAt(currentX + 1, currentY + 1);
+        const localAverage = blurred / 9;
+        const sharpened = clampByte(gammaAdjusted + ((gammaAdjusted - localAverage) * sharpnessAmount));
+        const finalGray = clampByte(sharpened);
+
+        output[offset] = finalGray;
+        output[offset + 1] = finalGray;
+        output[offset + 2] = finalGray;
+        output[offset + 3] = sourceData[offset + 3];
+      }
+
+      context.putImageData(new ImageData(output, width, height), 0, 0);
+      return canvas.toDataURL("image/png");
+    } catch (error) {
+      console.warn("[barcode-pdf] thermal image optimizer failed", error);
+      return "";
     }
+  })();
 
-    context.putImageData(new ImageData(output, width, height), 0, 0);
-    return canvas.toDataURL("image/png");
-  } catch {
+  if (safeCacheKey) {
+    thermalImageCache.set(safeCacheKey, cachePromise);
+  }
+
+  try {
+    const result = await cachePromise;
+    if (safeCacheKey) {
+      thermalImageCache.set(safeCacheKey, result);
+    }
+    return result;
+  } catch (error) {
+    if (safeCacheKey) {
+      thermalImageCache.delete(safeCacheKey);
+    }
+    console.warn("[barcode-pdf] thermal image optimizer failed", error);
     return "";
   }
 };
@@ -258,7 +287,8 @@ const drawImageOrPlaceholder = async (doc, item, x, y, w, h) => {
   doc.roundedRect(x, y, w, h, 2, 2, "FD");
   if (imageData) {
     try {
-      const optimizedImageData = await prepareThermalImage(imageData);
+      const cacheKey = `${url || imageData}|${THERMAL_IMAGE_OPTIMIZER_VERSION}`;
+      const optimizedImageData = await prepareThermalImage(imageData, cacheKey);
       const finalImageData = optimizedImageData || imageData;
       const format = finalImageData.startsWith("data:image/png") ? "PNG" : "JPEG";
       doc.addImage(finalImageData, format, x, y, w, h, undefined, "FAST");
@@ -269,7 +299,7 @@ const drawImageOrPlaceholder = async (doc, item, x, y, w, h) => {
         doc.addImage(imageData, format, x, y, w, h, undefined, "FAST");
         return true;
       } catch {
-        // Fall through to placeholder.
+        console.warn("[barcode-pdf] failed to add image", { url });
       }
     }
   }
@@ -295,12 +325,6 @@ const drawRoundedRect = (doc, x, y, w, h, radius = 1.5, fill = null, stroke = nu
 };
 
 const renderLabelPage = async (doc, item = {}, index = 0) => {
-  if (index === 0) {
-    console.log("[PDF] page size", {
-      width: doc.internal.pageSize.getWidth(),
-      height: doc.internal.pageSize.getHeight(),
-    });
-  }
   const logicalPageWidth = 100;
   const logicalPageHeight = 50;
   const imageX = 2;
@@ -402,18 +426,12 @@ export async function generateBarcodeLabelsPdf(labels = [], options = {}) {
     author: APP_NAME,
   });
 
-  console.log("[PDF] labels.length =", labels.length);
-
   const pageCount = Array.isArray(labels) ? labels.length : 0;
   for (let index = 0; index < pageCount; index += 1) {
     if (index > 0) doc.addPage();
     // eslint-disable-next-line no-await-in-loop
-    console.log("[PDF] rendering page", index, labels[index]);
     await renderLabelPage(doc, labels[index] || {}, index);
-    console.log("[PDF] page rendered", index);
   }
-
-  console.log("[PDF] total pages =", doc.getNumberOfPages());
 
   const blob = doc.output("blob");
   const debug = {
