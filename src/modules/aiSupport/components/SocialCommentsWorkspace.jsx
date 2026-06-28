@@ -27,7 +27,7 @@ import {
   normalizeAutomationConfig,
   serializeAutomationDraft,
 } from "./socialAutomation/automationEngine.js";
-import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
+import { CommentTimelineCard, getSocialCommentTimestamp } from "./socialCommentTimeline.jsx";
 
 import { useRef } from "react";
 
@@ -128,7 +128,7 @@ const normalizeComment = (raw) => {
       metadata.profile_pic ||
       ""
   );
-  const createdAt = clean(comment.created_at || comment.createdTime || comment.created_time || metadata.created_at || metadata.createdTime || metadata.created_time || "");
+  const createdAt = getSocialCommentTimestamp({ ...comment, raw: comment });
   return {
     id: clean(comment.comment_id || comment.id || comment.external_message_id || comment.provider_message_id || metadata.comment_id || ""),
     message: clean(comment.comment_text || comment.customer_message || comment.message || comment.text || comment.message_text || comment.original_comment_text || metadata.comment_text || metadata.customer_message || metadata.message || ""),
