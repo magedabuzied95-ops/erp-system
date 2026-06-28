@@ -80,44 +80,6 @@ const loadImageDataUrl = async (url) => {
   }
 };
 
-const createClockwiseMapper = (logicalPageWidth, logicalPageHeight) => ({
-  mapRect: (x, y, w, h) => ({
-    x: y,
-    y: logicalPageWidth - x - w,
-    w: h,
-    h: w,
-  }),
-  mapPoint: (x, y) => ({
-    x: y,
-    y: logicalPageWidth - x,
-  }),
-  logicalPageWidth,
-  logicalPageHeight,
-});
-
-const drawMappedRect = (doc, mapper, x, y, w, h, mode = "S") => {
-  const mapped = mapper.mapRect(x, y, w, h);
-  doc.rect(mapped.x, mapped.y, mapped.w, mapped.h, mode);
-};
-
-const drawMappedRoundedRect = (doc, mapper, x, y, w, h, radius = 1.5, fill = null, stroke = null) => {
-  if (fill) {
-    const [r, g, b] = fill;
-    doc.setFillColor(r, g, b);
-  }
-  if (stroke) {
-    const [r, g, b] = stroke;
-    doc.setDrawColor(r, g, b);
-  }
-  const mapped = mapper.mapRect(x, y, w, h);
-  doc.roundedRect(mapped.x, mapped.y, mapped.w, mapped.h, radius, radius, fill && stroke ? "FD" : fill ? "F" : "S");
-};
-
-const drawMappedText = (doc, mapper, text, x, y, options = {}) => {
-  const mapped = mapper.mapPoint(x, y);
-  doc.text(text, mapped.x, mapped.y, options);
-};
-
 const getCode128Bars = (value, widthMm, heightMm) => {
   const barcode = normalizeLabelText(value);
   const quietZone = 2.8;
@@ -163,46 +125,36 @@ const getCode128Bars = (value, widthMm, heightMm) => {
   };
 };
 
-const drawBarcode = (doc, mapper, value, x, y, width, height) => {
+const drawBarcode = (doc, value, x, y, width, height) => {
   const { barcode, rects } = getCode128Bars(value, width, height);
   doc.setFillColor(17, 24, 39);
   rects.forEach((rect) => {
-    const mapped = mapper.mapRect(x + rect.x, y + rect.y, rect.w, rect.h);
-    doc.rect(mapped.x, mapped.y, mapped.w, mapped.h, "F");
+    doc.rect(x + rect.x, y + rect.y, rect.w, rect.h, "F");
   });
   return barcode;
 };
 
-const drawImageOrPlaceholder = async (doc, mapper, item, x, y, w, h) => {
+const drawImageOrPlaceholder = async (doc, item, x, y, w, h) => {
   const url = getLabelImageUrl(item);
   const imageData = await loadImageDataUrl(url);
   if (imageData) {
     try {
       const format = imageData.startsWith("data:image/png") ? "PNG" : "JPEG";
-      const mapped = mapper.mapRect(x, y, w, h);
-      doc.addImage(imageData, format, mapped.x, mapped.y, mapped.w, mapped.h, undefined, "FAST");
+      doc.addImage(imageData, format, x, y, w, h, undefined, "FAST");
       return true;
     } catch {
-      try {
-        const mapped = mapper.mapRect(x, y, w, h);
-        doc.addImage(imageData, format, mapped.x, mapped.y, mapped.w, mapped.h, undefined, "FAST");
-        return true;
-      } catch {
-        // Fall through to placeholder.
-      }
+      // Fall through to placeholder.
     }
   }
 
   doc.setDrawColor(226, 232, 240);
   doc.setFillColor(248, 250, 252);
-  const mapped = mapper.mapRect(x, y, w, h);
-  doc.roundedRect(mapped.x, mapped.y, mapped.w, mapped.h, 2, 2, "FD");
+  doc.roundedRect(x, y, w, h, 2, 2, "FD");
   doc.setTextColor(100, 116, 139);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
   const label = "No Image";
-  const labelPoint = mapper.mapPoint(x + w / 2, y + h / 2 + 1);
-  doc.text(label, labelPoint.x, labelPoint.y, { align: "center", baseline: "middle" });
+  doc.text(label, x + w / 2, y + h / 2 + 1, { align: "center", baseline: "middle" });
   return false;
 };
 
@@ -215,7 +167,6 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   }
   const logicalPageWidth = 100;
   const logicalPageHeight = 50;
-  const mapper = createClockwiseMapper(logicalPageWidth, logicalPageHeight);
   const imageX = 2;
   const imageY = 3.2;
   const imageW = 35.5;
@@ -254,58 +205,58 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   }
 
   doc.setFillColor(255, 255, 255);
-  drawMappedRect(doc, mapper, 0, 0, logicalPageWidth, logicalPageHeight, "F");
+  doc.rect(0, 0, logicalPageWidth, logicalPageHeight, "F");
   doc.setDrawColor(226, 232, 240);
-  drawMappedRect(doc, mapper, 0.4, 0.4, logicalPageWidth - 0.8, logicalPageHeight - 0.8, "S");
+  doc.rect(0.4, 0.4, logicalPageWidth - 0.8, logicalPageHeight - 0.8, "S");
 
-  await drawImageOrPlaceholder(doc, mapper, item, imageX, imageY, imageW, imageH);
+  await drawImageOrPlaceholder(doc, item, imageX, imageY, imageW, imageH);
 
   const titleLines = toTextLines(doc, productName, titleW, 2, 10);
   doc.setTextColor(2, 6, 23);
   doc.setFont("helvetica", "bold");
   titleLines.forEach((line, lineIndex) => {
     doc.setFontSize(lineIndex === 0 ? 10 : 9);
-    drawMappedText(doc, mapper, line, titleX, titleY + (lineIndex * 5.0), { maxWidth: titleW });
+    doc.text(line, titleX, titleY + (lineIndex * 5.0), { maxWidth: titleW });
   });
 
-  drawMappedRoundedRect(doc, mapper, sizeBadgeX, sizeBadgeY, sizeBadgeW, sizeBadgeH, 1.8, [2, 6, 23]);
+  drawRoundedRect(doc, sizeBadgeX, sizeBadgeY, sizeBadgeW, sizeBadgeH, 1.8, [2, 6, 23]);
   doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6.6);
-  drawMappedText(doc, mapper, "SIZE", sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 3.5, { align: "center" });
+  doc.text("SIZE", sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 3.5, { align: "center" });
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(16);
-  drawMappedText(doc, mapper, sizeValue, sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 8.4, { align: "center" });
+  doc.text(sizeValue, sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 8.4, { align: "center" });
 
-  drawMappedRoundedRect(doc, mapper, colorBoxX, colorBoxY, colorBoxW, colorBoxH, 1, [244, 244, 245], [226, 232, 240]);
-  drawMappedRoundedRect(doc, mapper, priceBoxX, priceBoxY, priceBoxW, priceBoxH, 1, [244, 244, 245], [226, 232, 240]);
+  drawRoundedRect(doc, colorBoxX, colorBoxY, colorBoxW, colorBoxH, 1, [244, 244, 245], [226, 232, 240]);
+  drawRoundedRect(doc, priceBoxX, priceBoxY, priceBoxW, priceBoxH, 1, [244, 244, 245], [226, 232, 240]);
   doc.setTextColor(100, 116, 139);
   doc.setFontSize(5.5);
-  drawMappedText(doc, mapper, "COLOR", colorBoxX + colorBoxW / 2, colorBoxY + 2.2, { align: "center" });
-  drawMappedText(doc, mapper, "PRICE", priceBoxX + priceBoxW / 2, priceBoxY + 2.2, { align: "center" });
+  doc.text("COLOR", colorBoxX + colorBoxW / 2, colorBoxY + 2.2, { align: "center" });
+  doc.text("PRICE", priceBoxX + priceBoxW / 2, priceBoxY + 2.2, { align: "center" });
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(8.6);
-  drawMappedText(doc, mapper, colorValue || "-", colorBoxX + colorBoxW / 2, colorBoxY + 5.2, { align: "center" });
+  doc.text(colorValue || "-", colorBoxX + colorBoxW / 2, colorBoxY + 5.2, { align: "center" });
   doc.setFontSize(9.4);
-  drawMappedText(doc, mapper, priceValue, priceBoxX + priceBoxW / 2, priceBoxY + 5.2, { align: "center" });
+  doc.text(priceValue, priceBoxX + priceBoxW / 2, priceBoxY + 5.2, { align: "center" });
 
   doc.setTextColor(100, 116, 139);
   doc.setFontSize(5.4);
-  drawMappedText(doc, mapper, skuValue, titleX, skuY, { maxWidth: titleW });
+  doc.text(skuValue, titleX, skuY, { maxWidth: titleW });
 
-  const barcodeText = drawBarcode(doc, mapper, barcodeValue, barcodeX, barcodeY, barcodeW, barcodeH);
+  const barcodeText = drawBarcode(doc, barcodeValue, barcodeX, barcodeY, barcodeW, barcodeH);
   doc.setTextColor(15, 23, 42);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(7.2);
-  drawMappedText(doc, mapper, barcodeText, logicalPageWidth / 2, barcodeNumberY, { align: "center" });
+  doc.text(barcodeText, logicalPageWidth / 2, barcodeNumberY, { align: "center" });
 };
 
 export async function generateBarcodeLabelsPdf(labels = [], options = {}) {
   const title = normalizeLabelText(options.title || options.filename || "Barcode Labels", "Barcode Labels");
   const doc = new jsPDF({
-    orientation: "portrait",
+    orientation: "landscape",
     unit: "mm",
-    format: [50, 100],
+    format: [100, 50],
     compress: true,
   });
 
