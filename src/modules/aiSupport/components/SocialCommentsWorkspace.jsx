@@ -170,8 +170,8 @@ const normalizePost = (raw) => {
       0
   ) || 0;
   const primaryLinkedProduct = post.primary_linked_product || post.primary_product || metadata.primary_linked_product || metadata.primary_product || linkedProducts[0] || null;
-  const mappedProductName = clean(primaryLinkedProduct?.name || primaryLinkedProduct?.product_name || "");
-  const mappedProductPrice = clean(primaryLinkedProduct?.sale_price || primaryLinkedProduct?.price || primaryLinkedProduct?.selling_price || "");
+  const mappedProductName = clean(primaryLinkedProduct?.name || primaryLinkedProduct?.title || primaryLinkedProduct?.product_name || "");
+  const mappedProductPrice = clean(primaryLinkedProduct?.final_price || primaryLinkedProduct?.sale_price || primaryLinkedProduct?.price || primaryLinkedProduct?.selling_price || "");
   const mappedProductSizes = Array.isArray(primaryLinkedProduct?.available_sizes)
     ? primaryLinkedProduct.available_sizes.join(", ")
     : clean(primaryLinkedProduct?.sizes || "");
@@ -232,7 +232,7 @@ const normalizePost = (raw) => {
     publishedAt: clean(post.published_at || post.created_time || post.created_at || post.posted_at || metadata.published_at || metadata.created_time || metadata.created_at || metadata.posted_at || ""),
     lastActivity: clean(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || ""),
     autoReplyEnabled: Boolean(post.auto_reply_enabled || post.template_enabled || post.auto_reply_mode || metadata.auto_reply_enabled || metadata.template_enabled || metadata.auto_reply_mode),
-    productName: clean(post.product_name || metadata.product_name || mappedProductName || ""),
+    productName: clean(post.product_name || post.product_title || metadata.product_name || metadata.product_title || mappedProductName || ""),
     productId: clean(post.product_id || metadata.product_id || primaryLinkedProduct?.id || primaryLinkedProduct?.product_id || ""),
     product_id: clean(post.product_id || metadata.product_id || primaryLinkedProduct?.id || primaryLinkedProduct?.product_id || ""),
     productPrice: clean(post.product_price || metadata.product_price || mappedProductPrice || ""),
@@ -560,17 +560,24 @@ function SocialCommentsWorkspace({
   const normalizedPosts = useMemo(
     () =>
       [...(Array.isArray(items) ? items.filter(Boolean) : [])]
-        .map((post) => normalizePost(post))
+        .map((post) => {
+          const normalized = normalizePost(post);
+          const override = productMappingOverrides[postKey(normalized)];
+          return override ? normalizePost({ ...(normalized.raw || post || {}), ...override }) : normalized;
+        })
         .sort((left, right) => new Date(right.lastActivity || 0).getTime() - new Date(left.lastActivity || 0).getTime()),
-    [items]
+    [items, productMappingOverrides]
   );
 
-  const activePost = normalizePost(selectedPost || normalizedPosts[0] || null);
+  const selectedPostKey = clean(postKey(normalizePost(selectedPost || {})));
+  const activePost = normalizedPosts.find((item) => postKey(item) === selectedPostKey) || normalizePost(selectedPost || normalizedPosts[0] || null);
   const activePostKey = clean(postKey(activePost));
   const activeThread = selectedThread || { post: null, comments: [], loading: false, error: "" };
   const comments = useMemo(() => (Array.isArray(activeThread.comments) ? activeThread.comments.filter(Boolean) : []), [activeThread.comments]);
   const normalizedComments = useMemo(() => comments.map((comment) => normalizeComment(comment)).filter(Boolean), [comments]);
-  const activePostDetails = normalizePost(activeThread.post || activePost || null);
+  const activeThreadPostKey = clean(postKey(normalizePost(activeThread.post || {})));
+  const activeThreadPost = normalizedPosts.find((item) => postKey(item) === activeThreadPostKey) || normalizePost(activeThread.post || null);
+  const activePostDetails = normalizePost(activeThreadPost || activePost || null);
 
   const [selectedCommentKey, setSelectedCommentKey] = useState(() => clean(initialSelectedCommentId));
   const [replyDraft, setReplyDraft] = useState("");
@@ -591,6 +598,7 @@ function SocialCommentsWorkspace({
   const [automationDrawerPostKey, setAutomationDrawerPostKey] = useState("");
   const [productLinksDrawerPostKey, setProductLinksDrawerPostKey] = useState("");
   const [productLinksDrawerPostSnapshot, setProductLinksDrawerPostSnapshot] = useState(null);
+  const [productMappingOverrides, setProductMappingOverrides] = useState({});
   const [automationDrafts, setAutomationDrafts] = useState({});
   const [automationLoadingKey, setAutomationLoadingKey] = useState("");
   const [automationSavingKey, setAutomationSavingKey] = useState("");
@@ -1110,6 +1118,28 @@ function SocialCommentsWorkspace({
       notify("rose", error?.message || "تعذر تحديث التعليقات");
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  const handleProductLinksSaved = async (payload = {}) => {
+    const postId = clean(payload?.post_id || payload?.postId || productLinksDrawerPostKey || activePostKey);
+    const linkedProducts = Array.isArray(payload?.linked_products) ? payload.linked_products : [];
+    const primaryProduct = payload?.primary_product || payload?.primary_linked_product || linkedProducts[0] || null;
+    if (postId) {
+      const nextOverride = {
+        ...payload,
+        linked_products: linkedProducts,
+        linked_products_count: Number(payload?.count ?? payload?.linked_products_count ?? linkedProducts.length ?? 0) || 0,
+        primary_product: primaryProduct,
+        primary_linked_product: primaryProduct,
+      };
+      setProductMappingOverrides((current) => ({
+        ...current,
+        [postId]: nextOverride,
+      }));
+    }
+    if (onRefresh) {
+      void Promise.resolve(onRefresh());
     }
   };
 
@@ -2129,7 +2159,7 @@ function SocialCommentsWorkspace({
           setProductLinksDrawerPostKey("");
           setProductLinksDrawerPostSnapshot(null);
         }}
-        onSaved={handleRefresh}
+        onSaved={handleProductLinksSaved}
       />
     </section>
   );
