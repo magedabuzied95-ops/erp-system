@@ -4,6 +4,7 @@ import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { fetchMetaPostPreviewDetails } from "./metaIntegrationService.js";
 import { likeComment, replyToComment, renderTemplate } from "./marketingCommentAutomationService.js";
 import { getMappings } from "./postProductMappingService.js";
+import { emitSocialCommentNew, emitSocialCommentUpdated, emitSocialReplyStatus } from "./socialRealtimeService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -115,6 +116,7 @@ const ensureSocialCommentsCenterSchema = async () => {
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_post_auto_reply_templates_lookup ON social_post_auto_reply_templates (tenant_id, platform, post_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_post_automation_configs_lookup ON social_comment_post_automation_configs (tenant_id, post_id, platform)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_lookup ON social_comment_auto_reply_runs (tenant_id, platform, comment_id)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_list ON social_comment_automation_runs (tenant_id, platform, updated_at DESC, id DESC)`);
 };
 
 const normalizePlatform = (value = "") => (lower(value) === "instagram" ? "instagram" : "facebook");
@@ -1068,7 +1070,12 @@ const saveSocialAutoReplySettings = async ({ tenantId = null, payload = {} } = {
     `,
     [safeTenantId, merged.generic_enabled, merged.generic_like_enabled, merged.generic_reply_enabled, merged.generic_template, merged.mode]
   );
-  return result.rows?.[0] || null;
+  const row = result.rows?.[0] || null;
+  if (row) {
+    emitSocialReplyStatus(row);
+    emitSocialCommentUpdated(row);
+  }
+  return row;
 };
 
 const getSocialPostAutoReplyTemplate = async ({ tenantId = null, platform = "facebook", postId = "" } = {}) => {
@@ -1807,7 +1814,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
         COUNT(*)::int AS comments_count,
         COUNT(*) FILTER (WHERE msg.created_at > COALESCE(c.read_at, s.read_at))::int AS new_comments_count,
         MAX(NULLIF(msg.comment_created_time, '')) AS real_comment_created_time,
-        MAX(NULLIF(msg.comment_created_time, '')) AS last_comment_at,
+        MAX(msg.created_at) AS last_comment_at,
         MAX(msg.created_at) AS msg_created_at,
         (ARRAY_AGG(msg.customer_message ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_comment_text,
         (ARRAY_AGG(msg.customer_name ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_commenter_name,
@@ -1906,8 +1913,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
   const platformClause = normalizedPlatform === "facebook" || normalizedPlatform === "instagram"
     ? `AND c.channel = '${normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"}'`
     : "";
-  const result = await db.query(
-    `
+  const postsSql = `
     SELECT
       c.tenant_id,
       c.channel,
@@ -2052,7 +2058,15 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       ${platformClause}
     ORDER BY COALESCE(agg.last_comment_at, c.last_message_at, c.updated_at) DESC, c.updated_at DESC
     LIMIT $2
-    `,
+    `;
+  console.log("SOCIAL_COMMENTS_POSTS_SQL", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    limit: safeLimit,
+    sql: postsSql,
+  });
+  const result = await db.query(
+    postsSql,
     [safeTenantId, safeLimit]
   );
   const groupedPosts = new Map();
@@ -2446,6 +2460,160 @@ const resolveSocialCommentAutoReplyDecision = async ({ tenantId = null, platform
     reply_enabled: replyEnabled,
     mode: SOCIAL_AUTO_REPLY_MODES.has(mode) ? mode : "manual_approval",
     context,
+  };
+};
+
+let socialCommentAutomationRunColumnsPromise = null;
+
+const getSocialCommentAutomationRunColumns = async () => {
+  if (!socialCommentAutomationRunColumnsPromise) {
+    socialCommentAutomationRunColumnsPromise = db
+      .query(
+        `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'social_comment_automation_runs'
+        `
+      )
+      .then((result) => new Set((result.rows || []).map((row) => lower(row.column_name))))
+      .catch(() => new Set());
+  }
+  return socialCommentAutomationRunColumnsPromise;
+};
+
+const encodeFastListCursor = ({ activityAt = "", id = "" } = {}) => {
+  const payload = JSON.stringify({ activity_at: text(activityAt), id: text(id) });
+  return Buffer.from(payload, "utf8").toString("base64url");
+};
+
+const decodeFastListCursor = (cursor = "") => {
+  const raw = text(cursor);
+  if (!raw) return { activityAt: "", id: "" };
+  try {
+    const parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
+    return {
+      activityAt: text(parsed.activity_at || parsed.activityAt || ""),
+      id: text(parsed.id || ""),
+    };
+  } catch {
+    return { activityAt: "", id: "" };
+  }
+};
+
+const normalizeSocialCommentFastListRow = (row = {}) => {
+  const status = text(row.status || row.action_taken || row.public_reply_status || row.dm_status || "pending") || "pending";
+  const automationStatus = text(
+    row.automation_status ||
+      row.reply_status ||
+      row.public_reply_status ||
+      row.dm_status ||
+      row.like_status ||
+      row.action_taken ||
+      row.status ||
+      ""
+  );
+  const activityAt = text(row.last_activity_at || row.updated_at || row.processed_at || row.created_at || "");
+  const unread = !["ignored", "processed", "closed", "resolved"].includes(lower(status)) && !["sent", "delivered"].includes(lower(automationStatus));
+  return {
+    id: text(row.id || ""),
+    platform: text(row.platform || "facebook") || "facebook",
+    post_id: text(row.post_id || ""),
+    external_comment_id: text(row.external_comment_id || row.comment_id || ""),
+    customer_name: text(row.customer_name || row.commenter_name || "Customer") || "Customer",
+    customer_avatar_url: text(row.customer_avatar_url || row.commenter_profile_picture_url || ""),
+    message_preview: text(row.message_preview || row.original_comment_text || row.comment_text || row.message || "").slice(0, 160),
+    last_activity_at: activityAt,
+    status,
+    automation_status: automationStatus,
+    product_id: row.product_id_text ? row.product_id_text : row.product_id ?? row.resolved_product_id ?? null,
+    product_name: text(row.product_name || ""),
+    unread,
+  };
+};
+
+export const listSocialCommentCenterFastList = async ({ tenantId = null, platform = "", status = "", limit = 30, cursor = "" } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  if (!safeTenantId) return { items: [], next_cursor: "" };
+  await ensureSocialCommentsCenterSchema();
+  const normalizedPlatform = normalizePlatform(platform);
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 30));
+  const safeCursor = decodeFastListCursor(cursor);
+  const columns = await getSocialCommentAutomationRunColumns();
+  const hasStatusColumn = columns.has("status");
+  const hasResolvedProductIdColumn = columns.has("resolved_product_id");
+  const hasRawPayloadColumn = columns.has("raw_payload");
+  const whereClauses = ["tenant_id = $1::bigint"];
+  const params = [safeTenantId];
+  if (normalizedPlatform === "facebook" || normalizedPlatform === "instagram") {
+    whereClauses.push("platform = $2::text");
+    params.push(normalizedPlatform);
+  }
+  if (status) {
+    const statusParamIndex = params.length + 1;
+    whereClauses.push(
+      hasStatusColumn
+        ? `LOWER(COALESCE(NULLIF(status, ''), NULLIF(action_taken, ''), NULLIF(public_reply_status, ''), NULLIF(dm_status, ''), '')) = LOWER($${statusParamIndex}::text)`
+        : `LOWER(COALESCE(NULLIF(action_taken, ''), NULLIF(public_reply_status, ''), NULLIF(dm_status, ''), '')) = LOWER($${statusParamIndex}::text)`
+    );
+    params.push(text(status));
+  }
+  if (safeCursor.activityAt && safeCursor.id) {
+    const cursorParamIndex = params.length + 1;
+    whereClauses.push(`(COALESCE(updated_at, processed_at, created_at), id) < ($${cursorParamIndex}::timestamp, $${cursorParamIndex + 1}::bigint)`);
+    params.push(safeCursor.activityAt, Number(safeCursor.id) || 0);
+  }
+  const result = await db.query(
+    `
+    WITH source_rows AS (
+      SELECT
+        id,
+        platform,
+        post_id,
+        comment_id,
+        commenter_name,
+        commenter_profile_picture_url,
+        original_comment_text,
+        action_taken,
+        public_reply_status,
+        dm_status,
+        like_status,
+        created_at,
+        updated_at,
+        processed_at,
+        ${hasStatusColumn ? "status" : "NULL::text AS status"},
+        ${hasResolvedProductIdColumn ? "resolved_product_id" : "NULL::bigint AS resolved_product_id"},
+        ${hasRawPayloadColumn ? "COALESCE(raw_payload, '{}'::jsonb) AS raw_payload" : "'{}'::jsonb AS raw_payload"},
+        COALESCE(automation_state, '{}'::jsonb) AS automation_state,
+        COALESCE(updated_at, processed_at, created_at) AS last_activity_at
+      FROM social_comment_automation_runs
+      WHERE ${whereClauses.join(" AND ")}
+    )
+    SELECT
+      source_rows.id,
+      source_rows.platform,
+      source_rows.post_id,
+      source_rows.comment_id,
+      COALESCE(NULLIF(source_rows.commenter_name, ''), 'Customer') AS customer_name,
+      COALESCE(NULLIF(source_rows.commenter_profile_picture_url, ''), '') AS customer_avatar_url,
+      COALESCE(NULLIF(source_rows.original_comment_text, ''), NULLIF(source_rows.raw_payload->>'message', ''), NULLIF(source_rows.raw_payload->>'comment_text', ''), '') AS message_preview,
+      source_rows.last_activity_at,
+      COALESCE(NULLIF(source_rows.status, ''), NULLIF(source_rows.action_taken, ''), NULLIF(source_rows.public_reply_status, ''), NULLIF(source_rows.dm_status, ''), 'pending') AS status,
+      COALESCE(NULLIF(source_rows.public_reply_status, ''), NULLIF(source_rows.dm_status, ''), NULLIF(source_rows.like_status, ''), NULLIF(source_rows.action_taken, ''), NULLIF(source_rows.status, ''), '') AS automation_status,
+      COALESCE(NULLIF(source_rows.raw_payload->'product_context'->>'product_id', ''), NULLIF(source_rows.automation_state->'product_context'->>'product_id', ''), NULLIF(source_rows.resolved_product_id::text, '')) AS product_id_text,
+      COALESCE(NULLIF(source_rows.raw_payload->'product_context'->>'product_name', ''), NULLIF(source_rows.automation_state->'product_context'->>'product_name', ''), '') AS product_name
+    FROM source_rows
+    ORDER BY source_rows.last_activity_at DESC, source_rows.id DESC
+    LIMIT $${params.length + 1}
+    `,
+    [...params, safeLimit + 1]
+  );
+  const items = (result.rows || []).map(normalizeSocialCommentFastListRow);
+  const nextItems = items.slice(0, safeLimit);
+  const lastItem = nextItems[nextItems.length - 1] || null;
+  return {
+    items: nextItems,
+    next_cursor: items.length > safeLimit && lastItem?.last_activity_at && lastItem?.id ? encodeFastListCursor({ activityAt: lastItem.last_activity_at, id: lastItem.id }) : "",
   };
 };
 
