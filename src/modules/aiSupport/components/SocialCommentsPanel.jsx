@@ -1,6 +1,6 @@
 import { memo, useMemo } from "react";
 import { ExternalLink, MessageSquareText, RefreshCw, User } from "lucide-react";
-import { CommentTimelineCard } from "./socialCommentTimeline.js";
+import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
 
 const clean = (value = "") => String(value ?? "").trim();
 

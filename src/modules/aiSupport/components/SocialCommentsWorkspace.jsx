@@ -26,7 +26,7 @@ import {
   normalizeAutomationConfig,
   serializeAutomationDraft,
 } from "./socialAutomation/automationEngine.js";
-import { CommentTimelineCard } from "./socialCommentTimeline.js";
+import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
 
 const clean = (value = "") => String(value ?? "").trim();
 
@@ -1510,20 +1510,14 @@ function SocialCommentsWorkspace({
 
                     {visibleComments.map((comment) => {
                       const key = comment.id;
-                      const replyStatus = clean(replyStatusOverrides[key] || comment.replyStatus || "");
-                      const status = replyStatus === "sent" || replyStatus === "failed" ? replyStatus : clean(getCommentClassification(comment));
-                      const avatar = resolveCommentCustomerAvatar(comment);
-                      const name = resolveCommentCustomerName(comment);
                       const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
-                      const text = getCommentText(comment) || "بدون نص";
-                      const tags = getCommentTags(comment);
                       const busy = isBusy(key);
                       const privateMessageSupported = supportsPrivateMessage(comment, activePostPlatform);
                       const privateMessageStatus = clean(privateMessageStatusOverrides[key] || "");
 
                       return (
                         <CommentTimelineCard
-                          key={key || `${comment.createdTime || ""}:${name}`}
+                          key={key || `${comment.createdTime || ""}:comment`}
                           comment={comment}
                           selected={key === selectedCommentKey}
                           onSelect={() => setSelectedCommentKey(key)}
