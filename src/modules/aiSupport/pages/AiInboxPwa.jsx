@@ -40,6 +40,7 @@ import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import TranscriptMessage from "../components/TranscriptMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
+import { SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 
@@ -637,10 +638,14 @@ const commentThreadPostTime = (conversation = {}) =>
     conversation?.channel_metadata?.post_created_time,
     conversation?.metadata?.post_created_time,
     conversation?.post_created_time,
-    conversation?.channel_metadata?.last_comment_at,
-    conversation?.metadata?.last_comment_at,
-    conversation?.last_activity_at,
-    conversation?.last_message_at
+    conversation?.real_comment_created_time,
+    conversation?.comment_created_time,
+    conversation?.latest_comment?.created_time,
+    conversation?.last_comment?.created_time,
+    conversation?.channel_metadata?.real_comment_created_time,
+    conversation?.metadata?.real_comment_created_time,
+    conversation?.channel_metadata?.comment_created_time,
+    conversation?.metadata?.comment_created_time
   );
 
 const commentThreadDisplayName = (conversation = {}) =>
@@ -726,6 +731,9 @@ const relativeTime = (value) => {
 function getPwaCardTimeValue(conversation) {
   if (isSocialCommentThread(conversation) || getInboxItemKind(conversation) === "comment") {
     return (
+      conversation?.channel_metadata?.post_created_time ||
+      conversation?.metadata?.post_created_time ||
+      conversation?.post_created_time ||
       conversation?.real_comment_created_time ||
       conversation?.comment_created_time ||
       conversation?.latest_comment?.created_time ||
@@ -749,6 +757,16 @@ function renderPwaCardTime(conversation) {
   const value = getPwaCardTimeValue(conversation);
 
   if (isSocialCommentThread(conversation) || getInboxItemKind(conversation) === "comment") {
+    if (import.meta.env.DEV) {
+      console.log("AI_POST_TIME_RENDER", {
+        post_id: conversation?.post_id,
+        comment_id: conversation?.comment_id,
+        post_created_time: conversation?.post_created_time || conversation?.channel_metadata?.post_created_time || conversation?.metadata?.post_created_time || "",
+        real_comment_created_time: conversation?.real_comment_created_time || "",
+        comment_created_time: conversation?.comment_created_time || "",
+        rendered_label: value ? relativeTime(value) : "Unknown",
+      });
+    }
     return value ? relativeTime(value) : "Unknown";
   }
 
@@ -911,6 +929,17 @@ const normalizeFastSocialCommentItem = (item = {}) => {
     last_comment_at: clean(item?.last_comment_at || activityAt),
     last_commenter_name: clean(item?.last_commenter_name || item?.customer_name || "Customer"),
     last_commenter_id: clean(item?.last_commenter_id || externalCommentId || item?.comment_id || item?.id || ""),
+    post_created_time: clean(
+      item?.post_created_time ||
+        item?.channel_metadata?.post_created_time ||
+        item?.metadata?.post_created_time ||
+        item?.metadata?.post?.created_time ||
+        item?.raw_payload?.post_created_time ||
+        item?.raw_payload?.metadata?.post_created_time ||
+        item?.raw_payload?.value?.post_created_time ||
+        item?.raw_payload?.value?.post?.created_time ||
+        ""
+    ),
     real_comment_created_time: clean(item?.real_comment_created_time || activityAt),
     reply_status: clean(item?.reply_status || status || automationStatus || ""),
     auto_reply_mode: clean(item?.auto_reply_mode || automationStatus || ""),
@@ -953,6 +982,7 @@ const mergeFastSocialCommentItem = (current = {}, patch = {}) => {
     last_comment_at: patch.last_comment_at || patch.last_activity_at || current.last_comment_at || current.last_activity_at || "",
     last_commenter_name: patch.last_commenter_name || patch.customer_name || current.last_commenter_name || current.customer_name || "",
     last_commenter_id: patch.last_commenter_id || patch.external_comment_id || current.last_commenter_id || current.external_comment_id || "",
+    post_created_time: patch.post_created_time || current.post_created_time || patch.channel_metadata?.post_created_time || patch.metadata?.post_created_time || "",
     real_comment_created_time: patch.real_comment_created_time || patch.last_activity_at || current.real_comment_created_time || current.last_activity_at || "",
     unread: patch.unread ?? current.unread,
     status: patch.status || current.status || "",
@@ -968,6 +998,20 @@ const mergeFastSocialCommentItem = (current = {}, patch = {}) => {
     unread: patch.unread != null ? Boolean(patch.unread) : Boolean(merged.unread),
   };
 };
+
+const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
+  clean(left.id) === clean(right.id) &&
+  clean(left.post_id) === clean(right.post_id) &&
+  clean(left.external_comment_id) === clean(right.external_comment_id) &&
+  clean(left.customer_name) === clean(right.customer_name) &&
+  clean(left.customer_avatar_url) === clean(right.customer_avatar_url) &&
+  clean(left.message_preview) === clean(right.message_preview) &&
+  clean(left.last_activity_at) === clean(right.last_activity_at) &&
+  clean(left.status) === clean(right.status) &&
+  clean(left.automation_status) === clean(right.automation_status) &&
+  clean(left.product_id) === clean(right.product_id) &&
+  clean(left.product_name) === clean(right.product_name) &&
+  Boolean(left.unread) === Boolean(right.unread);
 
 const mergeConversationSummaryRefresh = (currentConversation = {}, nextConversation = {}) => {
   if (!currentConversation) return nextConversation;
@@ -2853,9 +2897,13 @@ export default function AiInboxPwa() {
               new_comments_count: undefined,
             })
           : normalizedPayload;
+        if (matchIndex >= 0 && fastSocialCommentItemsEqual(currentItems[matchIndex], nextItem)) {
+          return current;
+        }
         const nextItems = matchIndex >= 0
           ? [nextItem, ...currentItems.filter((_, index) => index !== matchIndex)]
           : [nextItem, ...currentItems];
+        if (nextItems.length === currentItems.length && nextItems.every((item, index) => item === currentItems[index])) return current;
 
         return {
           ...current,
@@ -4739,19 +4787,13 @@ export default function AiInboxPwa() {
                       </div>
                     ) : null}
                     {selectedSocialThread.comments.map((comment, index) => {
-                      const commentId = clean(comment.comment_id || comment.id || "");
-                      const commentText = clean(comment.original_comment_text || comment.comment_text || comment.message_text || comment.text || comment.message || "");
-                      const commenterName = clean(comment.commenter_name || comment.customer_name || comment.from_name || "مستخدم مجهول");
-                      const commenterAvatar = clean(comment.customer_avatar_url || comment.avatar_url || comment.profile_pic || "");
-                      const commentMetadata = comment?.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
-                      const latestComment = comment?.latest_comment || commentMetadata?.latest_comment || comment?.last_comment || commentMetadata?.last_comment || null;
                       const commentPlatform = clean(comment.platform || selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook");
                       if (import.meta.env.DEV && index === 0 && commentPlatform.toLowerCase().includes("facebook")) {
                         console.log({
                           post_id: clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || ""),
-                          comment_id: commentId,
-                          latest_comment: latestComment,
-                          metadata: commentMetadata,
+                          comment_id: clean(comment.comment_id || comment.id || ""),
+                          latest_comment: comment?.latest_comment || null,
+                          metadata: comment?.metadata || {},
                           created_at: comment.created_at || "",
                           updated_at: comment.updated_at || "",
                           last_comment_at: comment.last_comment_at || "",
@@ -4760,130 +4802,52 @@ export default function AiInboxPwa() {
                           source_created_time: comment.source_created_time || "",
                         });
                       }
-                      const timestampResolution = getSocialCommentRealTimestamp(comment);
-                      const commentTime = clean(timestampResolution.timestamp || "");
-                      if (import.meta.env.DEV) {
-                        console.info("AI_INBOX_SOCIAL_COMMENT_TIMESTAMP_RESOLVED", {
-                          post_id: clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || ""),
-                          comment_id: commentId,
-                          rendered_time: commentTime || "Unknown",
-                          raw_timestamp: timestampResolution.timestamp || "",
-                          selected_source_field: timestampResolution.sourceField || "",
-                          source: timestampResolution.timestamp ? "real_comment_timestamp" : "missing",
-                        });
-                      }
-                      const commentStatus = clean(comment.classification_label || comment.reply_status || comment.auto_reply_mode || "pending");
-                      const commentPostId = clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || "");
-                      const commentPageId = clean(comment.page_id || selectedSocialThread?.post?.page_id || selectedPost?.page_id || "");
-                      const commentParentId = clean(comment.parent_comment_id || comment.parentId || comment.parent_id || "");
-                      const commentCustomerProfileId = clean(comment.customer_profile_id || comment.customerProfileId || "");
-                      const commentSourceLabel = "Comment";
-                      const automationStatus = clean(comment.automation_status || comment.reply_status || comment.auto_reply_mode || selectedSocialThreadStatusLabel || "waiting");
-                      const privateReplyStatus = clean(comment.private_reply_status || comment.dm_status || selectedSocialThread?.post?.dm_status || "");
-                      const lastAiAction = clean(comment.last_ai_action || comment.ai_last_action || "");
-                      const productContext = clean(comment.product_name || comment.product_name || selectedPost?.product_name || selectedPost?.product_id || "");
-                      const actionBusy = socialActionLoading === `reply:${commentId}` || socialActionLoading === `private:${commentId}` || socialActionLoading === `ignore:${commentId}`;
                       return (
-                        <CommentTimelineCard
-                          key={commentId || comment.created_at || commentText}
+                        <SocialCommentsWorkspaceCommentRow
+                          key={clean(comment.comment_id || comment.id || comment.created_at || `${index}`)}
                           comment={{
                             ...comment,
-                            id: commentId,
-                            comment_id: commentId,
-                            post_id: commentPostId,
-                            parent_comment_id: commentParentId,
-                            page_id: commentPageId,
                             platform: commentPlatform,
-                            customer_name: commenterName,
-                            customerName: commenterName,
-                            customer_avatar_url: commenterAvatar,
-                            customer_profile_id: commentCustomerProfileId,
-                            automation_status: automationStatus,
-                            private_reply_status: privateReplyStatus,
-                            last_ai_action: lastAiAction,
-                            product_name: productContext,
                           }}
-                          fallbackPlatform={commentPlatform}
-                          className="bg-white"
-                          onCustomerSelect={(rawComment, data) =>
+                          selectedCommentKey=""
+                          highlightedCommentKey=""
+                          activePostPlatform={commentPlatform}
+                          replyDraft={replyDraft}
+                          previewReply={previewReply}
+                          suggestedReply={suggestedReply}
+                          replyLoadingKey={socialActionLoading.startsWith("reply:") ? socialActionLoading.slice("reply:".length) : ""}
+                          privateMessageLoadingKey={socialActionLoading.startsWith("private:") ? socialActionLoading.slice("private:".length) : ""}
+                          privateMessageStatus={clean(comment.private_reply_status || comment.dm_status || selectedSocialThread?.post?.dm_status || "")}
+                          leadLoadingKey=""
+                          ignoreLoadingKey={socialActionLoading.startsWith("ignore:") ? socialActionLoading.slice("ignore:".length) : ""}
+                          onSelectCustomer={(rawComment, data) =>
                             openCustomerDrawer(
                               {
                                 ...rawComment,
-                                customer_name: commenterName,
-                                customer_avatar_url: commenterAvatar,
-                                customer_profile_id: commentCustomerProfileId,
+                                customer_name: clean(comment.commenter_name || comment.customer_name || comment.from_name || "مستخدم مجهول"),
+                                customer_avatar_url: clean(comment.customer_avatar_url || comment.avatar_url || comment.profile_pic || ""),
+                                customer_profile_id: clean(comment.customer_profile_id || comment.customerProfileId || ""),
                                 platform: commentPlatform,
-                                post_id: commentPostId,
-                                page_id: commentPageId,
+                                post_id: clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || ""),
+                                page_id: clean(comment.page_id || selectedSocialThread?.post?.page_id || selectedPost?.page_id || ""),
                               },
                               {
                                 source: "pwa_social_comment",
                                 platform: commentPlatform,
-                                postId: commentPostId,
-                                commentId,
-                                pageId: commentPageId,
-                                summary: data?.text || commentText,
-                                lastActiveAt: commentTime,
-                                customerName: commenterName,
+                                postId: clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || ""),
+                                commentId: clean(comment.comment_id || comment.id || ""),
+                                pageId: clean(comment.page_id || selectedSocialThread?.post?.page_id || selectedPost?.page_id || ""),
+                                summary: data?.text || clean(comment.original_comment_text || comment.comment_text || comment.message_text || comment.text || comment.message || ""),
+                                lastActiveAt: clean(getSocialCommentRealTimestamp(comment).timestamp || ""),
+                                customerName: clean(comment.commenter_name || comment.customer_name || comment.from_name || "مستخدم مجهول"),
                               }
                             )
                           }
-                        >
-                          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                            {[
-                              ["source", commentSourceLabel],
-                              ["post_id", commentPostId],
-                              ["comment_id", commentId],
-                              ["parent_comment_id", commentParentId],
-                              ["page_id", commentPageId],
-                              ["customer_profile_id", commentCustomerProfileId],
-                              ["automation_status", automationStatus],
-                              ["private_reply_status", privateReplyStatus],
-                              ["last_ai_action", lastAiAction],
-                              ["product_context", productContext],
-                            ]
-                              .filter(([, value]) => Boolean(value))
-                              .map(([label, value]) => (
-                                <div key={`${commentId}-${label}`} className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2">
-                                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
-                                  <div className="mt-1 truncate text-xs font-black text-white">{value}</div>
-                                </div>
-                              ))}
-                          </div>
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            <button
-                              type="button"
-                              onClick={() => void sendSelectedSocialCommentAction(comment, "reply")}
-                              disabled={actionBusy}
-                              className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
-                            >
-                              {socialActionLoading === `reply:${commentId}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                              رد على التعليق
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void sendSelectedSocialCommentAction(comment, "private_message")}
-                              disabled={actionBusy}
-                              className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
-                            >
-                              {socialActionLoading === `private:${commentId}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquareText className="h-4 w-4" />}
-                              إرسال رسالة خاصة
-                            </button>
-                            <button type="button" disabled className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-500 disabled:opacity-60">
-                              <ShoppingBag className="h-4 w-4" />
-                              إنشاء Lead
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void sendSelectedSocialCommentAction(comment, "ignore")}
-                              disabled={actionBusy}
-                              className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-50"
-                            >
-                              <ShieldBan className="h-4 w-4" />
-                              تجاهل
-                            </button>
-                          </div>
-                        </CommentTimelineCard>
+                          onReply={sendSelectedSocialCommentAction}
+                          onPrivateMessage={sendSelectedSocialCommentAction}
+                          onCreateLead={() => {}}
+                          onIgnore={sendSelectedSocialCommentAction}
+                        />
                       );
                     })}
                   </div>

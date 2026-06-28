@@ -184,6 +184,16 @@ const normalizePost = (raw) => {
   const mappedProductColors = Array.isArray(primaryLinkedProduct?.available_colors)
     ? primaryLinkedProduct.available_colors.join(", ")
     : clean(primaryLinkedProduct?.colors || "");
+  const postCreatedTime = clean(
+    post.post_created_time ||
+      post.marketing_published_at ||
+      post.marketing_created_time ||
+      metadata.post_created_time ||
+      metadata.created_time ||
+      metadata.post?.created_time ||
+      metadata.post?.updated_time ||
+      ""
+  );
   return {
     id: clean(post.canonical_post_id || post.platform_post_id || post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
     postId: clean(post.canonical_post_id || post.platform_post_id || post.post_id || post.id || metadata.post_id || ""),
@@ -235,7 +245,7 @@ const normalizePost = (raw) => {
     newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),
     likesCount: parseOptionalCount(post.likes_count, post.like_count, post.reactions_count, post.total_likes, metadata.likes_count, metadata.like_count, metadata.reactions_count, metadata.total_likes),
     sharesCount: parseOptionalCount(post.shares_count, post.share_count, metadata.shares_count, metadata.share_count),
-    publishedAt: clean(post.published_at || post.created_time || post.created_at || post.posted_at || metadata.published_at || metadata.created_time || metadata.created_at || metadata.posted_at || ""),
+    publishedAt: clean(postCreatedTime || post.published_at || post.created_time || post.created_at || post.posted_at || metadata.published_at || metadata.created_time || metadata.created_at || metadata.posted_at || ""),
     lastActivity: clean(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || ""),
     autoReplyEnabled: Boolean(post.auto_reply_enabled || post.template_enabled || post.auto_reply_mode || metadata.auto_reply_enabled || metadata.template_enabled || metadata.auto_reply_mode),
     productName: clean(post.product_name || post.product_title || metadata.product_name || metadata.product_title || mappingSummary.primary_product_name || mappedProductName || ""),
@@ -250,6 +260,12 @@ const normalizePost = (raw) => {
     productLink: clean(post.product_link || post.product_storefront_url || post.product_url || metadata.product_link || metadata.product_storefront_url || metadata.product_url || primaryLinkedProduct?.product_url || ""),
     storeAddress: clean(post.store_address || metadata.store_address || ""),
     shippingTime: clean(post.shipping_time || metadata.shipping_time || ""),
+    postCreatedTime,
+    post_created_time: postCreatedTime,
+    realCommentCreatedTime: clean(post.real_comment_created_time || metadata.real_comment_created_time || ""),
+    real_comment_created_time: clean(post.real_comment_created_time || metadata.real_comment_created_time || ""),
+    commentCreatedTime: clean(post.comment_created_time || metadata.comment_created_time || ""),
+    comment_created_time: clean(post.comment_created_time || metadata.comment_created_time || ""),
     linkedProductsCount,
     linked_products_count: linkedProductsCount,
     linkedProducts,
@@ -577,6 +593,158 @@ const getPostLinkedProducts = (post = {}) => {
   };
 };
 
+const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceCommentRow({
+  comment = {},
+  selectedCommentKey = "",
+  highlightedCommentKey = "",
+  activePostPlatform = "facebook",
+  replyDraft = "",
+  previewReply = "",
+  suggestedReply = "",
+  replyLoadingKey = "",
+  privateMessageLoadingKey = "",
+  privateMessageStatus = "",
+  leadLoadingKey = "",
+  ignoreLoadingKey = "",
+  onSelectComment,
+  onSelectCustomer,
+  onReply,
+  onPrivateMessage,
+  onCreateLead,
+  onIgnore,
+  registerCommentNode,
+}) {
+  const key = clean(comment.id || "");
+  const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
+  const busy = Boolean(replyLoadingKey === key || privateMessageLoadingKey === key || leadLoadingKey === key || ignoreLoadingKey === key);
+  const privateMessageSupported = supportsPrivateMessage(comment, activePostPlatform);
+  const isHighlighted = highlightedCommentKey === key;
+  const nextReplyText = clean(replyDraft || previewReply || suggestedReply);
+  const handleSelect = useCallback(() => onSelectComment?.(key), [key, onSelectComment]);
+  const handleReply = useCallback(
+    (event) => {
+      event.stopPropagation();
+      onReply?.(comment, nextReplyText);
+    },
+    [comment, nextReplyText, onReply]
+  );
+  const handlePrivateMessage = useCallback(
+    (event) => {
+      event.stopPropagation();
+      onPrivateMessage?.(comment, nextReplyText);
+    },
+    [comment, nextReplyText, onPrivateMessage]
+  );
+  const handleCreateLead = useCallback(
+    (event) => {
+      event.stopPropagation();
+      onCreateLead?.(comment);
+    },
+    [comment, onCreateLead]
+  );
+  const handleIgnore = useCallback(
+    (event) => {
+      event.stopPropagation();
+      onIgnore?.(comment);
+    },
+    [comment, onIgnore]
+  );
+  const setCommentRef = useCallback((node) => registerCommentNode?.(key, node), [key, registerCommentNode]);
+  const cardComment = useMemo(
+    () => ({
+      ...comment,
+      id: key,
+      comment_id: key,
+      post_id: clean(comment.post_id || ""),
+      parent_comment_id: clean(comment.parent_comment_id || comment.parentId || comment.parent_id || ""),
+      page_id: clean(comment.page_id || ""),
+      platform: clean(comment.platform || activePostPlatform || "facebook"),
+      customer_name: clean(comment.customer_name || comment.commenter_name || comment.from?.name || ""),
+      customerName: clean(comment.customer_name || comment.commenter_name || comment.from?.name || ""),
+      customer_avatar_url: clean(comment.customer_avatar_url || comment.commenter_profile_picture_url || pictureUrlFrom(comment.from?.picture) || ""),
+      customer_profile_id: clean(comment.customer_profile_id || comment.customerProfileId || ""),
+      automation_status: clean(comment.automation_status || comment.reply_status || comment.auto_reply_mode || ""),
+      private_reply_status: clean(comment.private_reply_status || comment.dm_status || ""),
+      last_ai_action: clean(comment.last_ai_action || comment.ai_last_action || ""),
+      product_name: clean(comment.product_name || ""),
+    }),
+    [activePostPlatform, comment, key]
+  );
+
+  return (
+    <div
+      ref={setCommentRef}
+      className={`rounded-[22px] transition ${isHighlighted ? "ring-2 ring-cyan-300/70 ring-offset-2 ring-offset-slate-950" : ""}`}
+    >
+      <CommentTimelineCard
+        comment={cardComment}
+        selected={key === selectedCommentKey || isHighlighted}
+        onSelect={handleSelect}
+        onCustomerSelect={onSelectCustomer}
+      >
+        {attachmentPreview ? (
+          <a
+            href={attachmentPreview}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-3 block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+          >
+            <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
+              <img src={attachmentPreview} alt="" className="h-full w-full object-cover" loading="lazy" />
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent" />
+              <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-100">
+                Media
+              </span>
+            </div>
+          </a>
+        ) : null}
+
+        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+          <button
+            type="button"
+            onClick={handleReply}
+            disabled={busy || !nextReplyText || Boolean(replyLoadingKey)}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 shadow-[0_6px_18px_rgba(34,211,238,0.18)] disabled:opacity-50"
+          >
+            {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+            Reply
+          </button>
+          <button
+            type="button"
+            onClick={handlePrivateMessage}
+            disabled={busy || !privateMessageSupported || !nextReplyText || Boolean(privateMessageLoadingKey)}
+            title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+          >
+            {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+            {privateMessageStatus === "sent" ? "Sent" : "Private Message"}
+          </button>
+          <button
+            type="button"
+            onClick={handleCreateLead}
+            disabled={busy}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+          >
+            {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+            Create Lead
+          </button>
+          <button
+            type="button"
+            onClick={handleIgnore}
+            disabled={busy}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
+          >
+            {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
+            Ignore
+          </button>
+        </div>
+      </CommentTimelineCard>
+    </div>
+  );
+});
+
+export { SocialCommentsWorkspaceCommentRow };
+
 function SocialCommentsWorkspace({
   items = [],
   loading = false,
@@ -717,7 +885,7 @@ function SocialCommentsWorkspace({
 
   const activeTemplate = templateDraft || selectedTemplate?.template || null;
   const currentGlobalSettings = globalDraft || globalSettings;
-  const visibleComments = normalizedComments.filter((comment) => !ignoredCommentKeys.has(comment.id));
+  const visibleComments = useMemo(() => normalizedComments.filter((comment) => !ignoredCommentKeys.has(comment.id)), [ignoredCommentKeys, normalizedComments]);
   const displayComments = useMemo(() => {
     if (!optimisticCommentEntries.length) return visibleComments;
     return [...optimisticCommentEntries, ...visibleComments];
@@ -732,6 +900,11 @@ function SocialCommentsWorkspace({
     [commentWindowSize, displayComments]
   );
   const hasMoreComments = displayComments.length > commentsToRender.length;
+  const registerCommentNode = useCallback((key, node) => {
+    if (!key) return;
+    if (node) commentRefs.current.set(key, node);
+    else commentRefs.current.delete(key);
+  }, []);
 
   useEffect(() => {
     if (!visibleComments.length) {
@@ -834,7 +1007,17 @@ function SocialCommentsWorkspace({
   const activePostPostId = clean(activePostDetails?.postId || activePostDetails?.id || activePostKey);
   const activePostConversationId = clean(activePostDetails?.conversationId || activePostDetails?.sessionId || activePostDetails?.id || activePostKey);
   const activeTemplateEnabled = Boolean(activeTemplate?.enabled);
-  const activePostPublishedAt = clean(activePostDetails?.publishedAt || activePostDetails?.createdAt || activePostDetails?.lastActivity || "");
+  const activePostPublishedAt = clean(
+    activePostDetails?.postCreatedTime ||
+      activePostDetails?.post_created_time ||
+      activePostDetails?.publishedAt ||
+      activePostDetails?.published_at ||
+      activePostDetails?.realCommentCreatedTime ||
+      activePostDetails?.real_comment_created_time ||
+      activePostDetails?.commentCreatedTime ||
+      activePostDetails?.comment_created_time ||
+      ""
+  );
   const activePostLikes = activePostDetails?.likesCount;
   const activePostShares = activePostDetails?.sharesCount;
   const activePostMediaBadge = resolvePostMediaBadge(activePostDetails) || postTypeMeta(activePostDetails);
@@ -856,6 +1039,30 @@ function SocialCommentsWorkspace({
       (drawerKey === activePostKey ? activePostDetails : null)
     );
   }, [activePostDetails, activePostKey, normalizedPosts, productLinksDrawerPostKey, productLinksDrawerPostSnapshot]);
+
+  const getPostVisibleTime = useCallback((post = {}) => {
+    const time = clean(
+      post?.postCreatedTime ||
+        post?.post_created_time ||
+        post?.publishedAt ||
+        post?.published_at ||
+        post?.realCommentCreatedTime ||
+        post?.real_comment_created_time ||
+        post?.commentCreatedTime ||
+        post?.comment_created_time ||
+        ""
+    );
+    if (import.meta.env.DEV) {
+      console.log("AI_POST_TIME_RENDER", {
+        post_id: clean(post?.postId || post?.post_id || post?.id || ""),
+        post_created_time: clean(post?.postCreatedTime || post?.post_created_time || ""),
+        real_comment_created_time: clean(post?.realCommentCreatedTime || post?.real_comment_created_time || ""),
+        comment_created_time: clean(post?.commentCreatedTime || post?.comment_created_time || ""),
+        rendered_label: time ? absoluteTime(time) : "Unknown",
+      });
+    }
+    return time;
+  }, []);
 
   useEffect(() => {
     if (!productLinksDrawerPostKey) return;
@@ -1699,10 +1906,15 @@ function SocialCommentsWorkspace({
                               </button>
                             </div>
                             <div className="mt-2 text-[11px] font-medium text-slate-400">
-                              <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
-                                <Clock3 className="h-3.5 w-3.5" />
-                                {absoluteTime(post.lastActivity)}
-                              </span>
+                              {(() => {
+                                const visibleTime = getPostVisibleTime(post);
+                                return (
+                                  <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
+                                    <Clock3 className="h-3.5 w-3.5" />
+                                    {visibleTime ? absoluteTime(visibleTime) : "Unknown"}
+                                  </span>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>
@@ -1790,10 +2002,15 @@ function SocialCommentsWorkspace({
                             </button>
                           </div>
                           <div className="mt-2 text-[11px] font-medium text-slate-400">
-                            <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
-                              <Clock3 className="h-3.5 w-3.5" />
-                              {absoluteTime(post.lastActivity)}
-                            </span>
+                            {(() => {
+                              const visibleTime = getPostVisibleTime(post);
+                              return (
+                                <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
+                                  <Clock3 className="h-3.5 w-3.5" />
+                                  {visibleTime ? absoluteTime(visibleTime) : "Unknown"}
+                                </span>
+                              );
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -2037,102 +2254,30 @@ function SocialCommentsWorkspace({
                       </div>
                     ) : null}
 
-                    {commentsToRender.map((comment) => {
-                      const key = comment.id;
-                      const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
-                      const busy = isBusy(key);
-                      const privateMessageSupported = supportsPrivateMessage(comment, activePostPlatform);
-                      const privateMessageStatus = clean(privateMessageStatusOverrides[key] || "");
-                      const isHighlighted = highlightedCommentKey === key;
-
-                      return (
-                        <div
-                          key={key || `${comment.createdTime || ""}:comment`}
-                          ref={(node) => {
-                            if (!key) return;
-                            if (node) commentRefs.current.set(key, node);
-                            else commentRefs.current.delete(key);
-                          }}
-                          className={`rounded-[22px] transition ${isHighlighted ? "ring-2 ring-cyan-300/70 ring-offset-2 ring-offset-slate-950" : ""}`}
-                        >
-                          <CommentTimelineCard
-                            comment={comment}
-                            selected={key === selectedCommentKey || isHighlighted}
-                            onSelect={() => setSelectedCommentKey(key)}
-                            onCustomerSelect={onSelectCustomer}
-                          >
-                            {attachmentPreview ? (
-                              <a
-                                href={attachmentPreview}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="mt-3 block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-                              >
-                                <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
-                                  <img src={attachmentPreview} alt="" className="h-full w-full object-cover" loading="lazy" />
-                                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent" />
-                                  <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-100">
-                                    Media
-                                  </span>
-                                </div>
-                              </a>
-                            ) : null}
-
-                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void submitReply(comment, replyDraft || previewReply || suggestedReply);
-                                }}
-                                disabled={busy || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 shadow-[0_6px_18px_rgba(34,211,238,0.18)] disabled:opacity-50"
-                              >
-                                {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                Reply
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void submitPrivateMessage(comment, replyDraft || previewReply || suggestedReply);
-                                }}
-                                disabled={busy || !privateMessageSupported || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
-                                title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
-                              >
-                                {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-                                {privateMessageStatus === "sent" ? "Sent" : "Private Message"}
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void handleCreateLead(comment);
-                                }}
-                                disabled={busy}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
-                              >
-                                {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
-                                Create Lead
-                              </button>
-                              <button
-                                type="button"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  void handleIgnoreComment(comment);
-                                }}
-                                disabled={busy}
-                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
-                              >
-                                {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
-                                Ignore
-                              </button>
-                            </div>
-                          </CommentTimelineCard>
-                        </div>
-                      );
-                    })}
+                    {commentsToRender.map((comment) => (
+                      <SocialCommentsWorkspaceCommentRow
+                        key={comment.id || `${comment.createdTime || ""}:comment`}
+                        comment={comment}
+                        selectedCommentKey={selectedCommentKey}
+                        highlightedCommentKey={highlightedCommentKey}
+                        activePostPlatform={activePostPlatform}
+                        replyDraft={replyDraft}
+                        previewReply={previewReply}
+                        suggestedReply={suggestedReply}
+                        replyLoadingKey={replyLoadingKey}
+                        privateMessageLoadingKey={privateMessageLoadingKey}
+                        privateMessageStatus={clean(privateMessageStatusOverrides[comment.id] || "")}
+                        leadLoadingKey={leadLoadingKey}
+                        ignoreLoadingKey={ignoreLoadingKey}
+                        onSelectComment={setSelectedCommentKey}
+                        onSelectCustomer={onSelectCustomer}
+                        onReply={submitReply}
+                        onPrivateMessage={submitPrivateMessage}
+                        onCreateLead={handleCreateLead}
+                        onIgnore={handleIgnoreComment}
+                        registerCommentNode={registerCommentNode}
+                      />
+                    ))}
                   </div>
 
                   <div className="rounded-[24px] border border-white/10 bg-slate-950/70 p-3">

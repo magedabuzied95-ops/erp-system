@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo } from "react";
 import { Clock3, ExternalLink, MessageSquareText, RefreshCw, User } from "lucide-react";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
@@ -81,6 +81,131 @@ const postMatches = (item = {}, filter = "all") => {
 const sortValueComment = (item = {}) => new Date(item.created_at || 0).getTime() || 0;
 const sortValuePost = (item = {}) => new Date(item.real_comment_created_time || 0).getTime() || 0;
 
+const getPostVisibleTime = (item = {}) =>
+  clean(
+    item.post_created_time ||
+      item.postCreatedTime ||
+      item.real_comment_created_time ||
+      item.realCommentCreatedTime ||
+      item.comment_created_time ||
+      item.commentCreatedTime ||
+      ""
+  );
+
+const socialCommentItemKey = (item = {}) =>
+  clean(item.id || item.conversation_id || item.comment_id || item.post_id || `${item.platform || "social"}:${item.post_id || item.comment_id || ""}`);
+
+const socialCommentItemsEqual = (left = {}, right = {}) =>
+  clean(left.id) === clean(right.id) &&
+  clean(left.post_id) === clean(right.post_id) &&
+  clean(left.external_comment_id) === clean(right.external_comment_id) &&
+  clean(left.customer_name) === clean(right.customer_name) &&
+  clean(left.customer_avatar_url) === clean(right.customer_avatar_url) &&
+  clean(left.message_preview) === clean(right.message_preview) &&
+  clean(left.last_activity_at) === clean(right.last_activity_at) &&
+  clean(left.status) === clean(right.status) &&
+  clean(left.automation_status) === clean(right.automation_status) &&
+  clean(left.product_id) === clean(right.product_id) &&
+  clean(left.product_name) === clean(right.product_name) &&
+  Boolean(left.unread) === Boolean(right.unread);
+
+const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ item = {}, active = false, onSelectItem }) {
+  const platform = platformMeta(item.platform);
+  const itemKey = socialCommentItemKey(item);
+  const title = clean(item.post_message || item.post_caption || item.last_message || item.last_comment_text || "Post");
+  const subtitle = clean(item.last_comment_text || item.last_message || item.post_caption || item.post_message || "");
+  const thumb = clean(item.thumbnail_url || "");
+  const handleSelect = useCallback(() => onSelectItem?.(item, itemKey), [item, itemKey, onSelectItem]);
+  const handleKeyDown = useCallback(
+    (event) => {
+      if (event.key === "Enter" || event.key === " ") onSelectItem?.(item, itemKey);
+    },
+    [item, itemKey, onSelectItem]
+  );
+
+  return (
+    <article
+      role={onSelectItem ? "button" : undefined}
+      tabIndex={onSelectItem ? 0 : undefined}
+      onClick={onSelectItem ? handleSelect : undefined}
+      onKeyDown={onSelectItem ? handleKeyDown : undefined}
+      className={`rounded-2xl border p-3 transition shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${
+        active ? "border-slate-300 ring-1 ring-slate-200" : "border-slate-200 hover:border-slate-300"
+      }`}
+      style={{ minHeight: "176px" }}
+    >
+      <div className="flex gap-3">
+        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+          {thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-2">
+            <div className="min-w-0 flex-1">
+              <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{title}</div>
+              <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-slate-500">{subtitle || "No description"}</div>
+            </div>
+            <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${platform.className}`}>
+              <User className="h-3.5 w-3.5" />
+              {platform.label}
+            </span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{Number(item.comments_count || 0)} comments</span>
+            <span className={`rounded-full border px-2.5 py-1 ${item.new_comments_count > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-slate-200 bg-white text-slate-600"}`}>{Number(item.new_comments_count || 0)} new</span>
+            <span className={`rounded-full border px-2.5 py-1 ${toneClass(item.auto_reply_mode || item.session_status || "human_review")}`}>{clean(item.auto_reply_mode || item.session_status || item.reply_status || "manual").replace(/_/g, " ")}</span>
+            {item.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
+            {subtitle ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">{" "}{subtitle}</span> : null}
+            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
+              <Clock3 className="h-3.5 w-3.5" />
+              {(() => {
+                const time = getPostVisibleTime(item);
+                if (import.meta.env.DEV) {
+                  console.log("AI_POST_TIME_RENDER", {
+                    post_id: clean(item.post_id || item.postId || item.id || ""),
+                    post_created_time: clean(item.post_created_time || item.postCreatedTime || ""),
+                    real_comment_created_time: clean(item.real_comment_created_time || item.realCommentCreatedTime || ""),
+                    comment_created_time: clean(item.comment_created_time || item.commentCreatedTime || ""),
+                    rendered_label: time ? absoluteTime(time) : "Unknown",
+                  });
+                }
+                return time ? absoluteTime(time) : "Unknown";
+              })()}
+            </span>
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+});
+
+const SocialCommentsPanelCommentRow = memo(function SocialCommentsPanelCommentRow({
+  item = {},
+  active = false,
+  onSelectItem,
+  fallbackPlatform = "facebook",
+}) {
+  const itemKey = socialCommentItemKey(item);
+  const permalink = clean(item.post_permalink);
+  const handleSelect = useCallback(() => onSelectItem?.(item, itemKey), [item, itemKey, onSelectItem]);
+  return (
+    <CommentTimelineCard comment={item} selected={active} onSelect={onSelectItem ? handleSelect : undefined} fallbackPlatform={fallbackPlatform}>
+      {permalink ? (
+        <a
+          href={permalink}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-700"
+        >
+          Open comment
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      ) : null}
+    </CommentTimelineCard>
+  );
+});
+
 function SocialCommentsPanel({
   items = [],
   loading = false,
@@ -97,6 +222,10 @@ function SocialCommentsPanel({
   loadingMore = false,
 }) {
   const filters = mode === "posts" ? POST_FILTERS : COMMENT_FILTERS;
+  const handleFilterChange = useCallback((itemKey) => onFilterChange?.(itemKey), [onFilterChange]);
+  const handleRefresh = useCallback(() => onRefresh?.(), [onRefresh]);
+  const handleLoadMore = useCallback(() => onLoadMore?.(), [onLoadMore]);
+  const handleSelectItem = useCallback((item, itemKey) => onSelectItem?.(item, itemKey), [onSelectItem]);
   const filteredItems = useMemo(
     () =>
       [...items]
@@ -139,7 +268,7 @@ function SocialCommentsPanel({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onRefresh}
+            onClick={handleRefresh}
             disabled={loading}
             className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-900 disabled:opacity-50"
           >
@@ -161,7 +290,7 @@ function SocialCommentsPanel({
             <button
               key={item.key}
               type="button"
-              onClick={() => onFilterChange?.(item.key)}
+              onClick={() => handleFilterChange(item.key)}
               className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black transition ${
                 active ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
               }`}
@@ -187,176 +316,25 @@ function SocialCommentsPanel({
                 estimateSize={mode === "posts" ? 190 : 180}
                 overscan={8}
                 className="max-h-[26rem]"
-                itemKey={(item, index) => clean(item.id || item.conversation_id || item.comment_id || item.post_id || index)}
-                renderItem={(item) => {
-                  const platform = platformMeta(item.platform);
-                  const itemKey = clean(item.id || item.conversation_id || item.comment_id || item.post_id || `${item.platform || "social"}:${item.post_id || item.comment_id || ""}`);
-                  const active = clean(selectedItemId) === itemKey;
+              itemKey={(item, index) => clean(item.id || item.conversation_id || item.comment_id || item.post_id || index)}
+              renderItem={(item) => {
                   if (mode === "posts") {
-                    const title = clean(item.post_message || item.post_caption || item.last_message || item.last_comment_text || "Post");
-                    const subtitle = clean(item.last_comment_text || item.last_message || item.post_caption || item.post_message || "");
-                    const thumb = clean(item.thumbnail_url || "");
-                    return (
-                      <article
-                        role={onSelectItem ? "button" : undefined}
-                        tabIndex={onSelectItem ? 0 : undefined}
-                        onClick={onSelectItem ? () => onSelectItem(item, itemKey) : undefined}
-                        onKeyDown={
-                          onSelectItem
-                            ? (event) => {
-                                if (event.key === "Enter" || event.key === " ") onSelectItem(item, itemKey);
-                              }
-                            : undefined
-                        }
-                        className={`rounded-2xl border p-3 transition shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${
-                          active ? "border-slate-300 ring-1 ring-slate-200" : "border-slate-200 hover:border-slate-300"
-                        }`}
-                        style={{ minHeight: "176px" }}
-                      >
-                        <div className="flex gap-3">
-                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                            {thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="min-w-0 flex-1">
-                                <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{title}</div>
-                                <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-slate-500">{subtitle || "No description"}</div>
-                              </div>
-                              <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${platform.className}`}>
-                                <User className="h-3.5 w-3.5" />
-                                {platform.label}
-                              </span>
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
-                              <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{Number(item.comments_count || 0)} comments</span>
-                              <span className={`rounded-full border px-2.5 py-1 ${item.new_comments_count > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-slate-200 bg-white text-slate-600"}`}>{Number(item.new_comments_count || 0)} new</span>
-                              <span className={`rounded-full border px-2.5 py-1 ${toneClass(item.auto_reply_mode || item.session_status || "human_review")}`}>{clean(item.auto_reply_mode || item.session_status || item.reply_status || "manual").replace(/_/g, " ")}</span>
-                              {item.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
-                            </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
-                              {subtitle ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">{" "}{subtitle}</span> : null}
-                              <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
-                                <Clock3 className="h-3.5 w-3.5" />
-                                {item.real_comment_created_time ? absoluteTime(item.real_comment_created_time) : "Unknown"}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </article>
-                    );
+                    return <SocialCommentsPanelPostRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} />;
                   }
-                  const permalink = clean(item.post_permalink);
-                  return (
-                    <CommentTimelineCard
-                      comment={item}
-                      selected={active}
-                      onSelect={onSelectItem ? () => onSelectItem(item, itemKey) : undefined}
-                      fallbackPlatform={item.platform || "facebook"}
-                    >
-                      {permalink ? (
-                        <a
-                          href={permalink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-700"
-                        >
-                          Open comment
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      ) : null}
-                    </CommentTimelineCard>
-                  );
+                  return <SocialCommentsPanelCommentRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} fallbackPlatform={item.platform || "facebook"} />;
                 }}
               />
             ) : filteredItems.slice(0, 50).map((item) => {
-              const platform = platformMeta(item.platform);
-              const itemKey = clean(item.id || item.conversation_id || item.comment_id || item.post_id || `${item.platform || "social"}:${item.post_id || item.comment_id || ""}`);
-              const active = clean(selectedItemId) === itemKey;
-
               if (mode === "posts") {
-                const title = clean(item.post_message || item.post_caption || item.last_message || item.last_comment_text || "Post");
-                const subtitle = clean(item.last_comment_text || item.last_message || item.post_caption || item.post_message || "");
-                const thumb = clean(item.thumbnail_url || "");
-                return (
-                  <article
-                    key={itemKey}
-                    role={onSelectItem ? "button" : undefined}
-                    tabIndex={onSelectItem ? 0 : undefined}
-                    onClick={onSelectItem ? () => onSelectItem(item, itemKey) : undefined}
-                    onKeyDown={
-                      onSelectItem
-                        ? (event) => {
-                            if (event.key === "Enter" || event.key === " ") onSelectItem(item, itemKey);
-                          }
-                        : undefined
-                    }
-                    className={`rounded-2xl border p-3 transition shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${
-                      active ? "border-slate-300 ring-1 ring-slate-200" : "border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex gap-3">
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-                        {thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{title}</div>
-                            <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-slate-500">{subtitle || "No description"}</div>
-                          </div>
-                          <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${platform.className}`}>
-                            <User className="h-3.5 w-3.5" />
-                            {platform.label}
-                          </span>
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
-                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{Number(item.comments_count || 0)} comments</span>
-                          <span className={`rounded-full border px-2.5 py-1 ${item.new_comments_count > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-slate-200 bg-white text-slate-600"}`}>{Number(item.new_comments_count || 0)} new</span>
-                          <span className={`rounded-full border px-2.5 py-1 ${toneClass(item.auto_reply_mode || item.session_status || "human_review")}`}>{clean(item.auto_reply_mode || item.session_status || item.reply_status || "manual").replace(/_/g, " ")}</span>
-                          {item.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
-                        </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
-                          {subtitle ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">{" "}{subtitle}</span> : null}
-                          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
-                            <Clock3 className="h-3.5 w-3.5" />
-                            {item.real_comment_created_time ? absoluteTime(item.real_comment_created_time) : "Unknown"}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </article>
-                );
+                return <SocialCommentsPanelPostRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} />;
               }
-
-              const permalink = clean(item.post_permalink);
-              return (
-                <CommentTimelineCard
-                  key={itemKey}
-                  comment={item}
-                  selected={active}
-                  onSelect={onSelectItem ? () => onSelectItem(item, itemKey) : undefined}
-                  fallbackPlatform={item.platform || "facebook"}
-                >
-                  {permalink ? (
-                    <a
-                      href={permalink}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-700"
-                    >
-                      Open comment
-                      <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  ) : null}
-                </CommentTimelineCard>
-              );
+              return <SocialCommentsPanelCommentRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} fallbackPlatform={item.platform || "facebook"} />;
             })}
             {onLoadMore && nextCursor ? (
               <div className="flex justify-center pt-2">
                 <button
                   type="button"
-                  onClick={onLoadMore}
+                  onClick={handleLoadMore}
                   disabled={loadingMore}
                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-900 disabled:opacity-50"
                 >

@@ -466,6 +466,61 @@ const resolvePostPreviewLink = (row = {}) => {
   );
 };
 
+const resolveTimestampFromPermalinkUrl = (value = "") => {
+  const permalink = text(value);
+  if (!permalink) return "";
+  try {
+    const url = new URL(permalink, "https://example.com");
+    const candidates = [
+      url.searchParams.get("created_time"),
+      url.searchParams.get("post_created_time"),
+      url.searchParams.get("timestamp"),
+      url.searchParams.get("created_at"),
+    ]
+      .map((entry) => text(entry))
+      .filter(Boolean);
+    return candidates[0] || "";
+  } catch {
+    return "";
+  }
+};
+
+const resolveSocialCommentPostCreatedTime = ({ row = {}, metadata = {}, postMeta = {} } = {}) => {
+  const safeRow = metadataObject(row || {});
+  const safeMetadata = metadataObject(metadata || {});
+  const safePostMeta = metadataObject(postMeta || {});
+  return firstText(
+    safeRow.post_created_time,
+    safeRow.marketing_published_at,
+    safeRow.marketing_created_time,
+    safeRow.marketing_post_created_time,
+    safePostMeta.post_created_time,
+    safePostMeta.marketing_published_at,
+    safePostMeta.marketing_created_time,
+    safePostMeta.marketing_post_created_time,
+    safeMetadata.post_created_time,
+    safeMetadata.created_time,
+    safeMetadata.post?.created_time,
+    safeMetadata.post?.updated_time,
+    safeRow.metadata_post_created_time,
+    safeRow.metadata_post_object_created_time,
+    safeRow.raw_payload?.post_created_time,
+    safeRow.raw_payload?.metadata?.post_created_time,
+    safeRow.raw_payload?.value?.post_created_time,
+    safeRow.raw_payload?.value?.post?.created_time,
+    safeRow.raw_payload?.metadata?.post?.created_time,
+    resolveTimestampFromPermalinkUrl(
+      safeRow.post_permalink_url ||
+        safeRow.permalink_url ||
+        safeMetadata.permalink_url ||
+        safeMetadata.post_permalink_url ||
+        safeRow.raw_payload?.permalink_url ||
+        safeRow.raw_payload?.value?.permalink_url ||
+        ""
+    )
+  );
+};
+
 const isWrapperSocialCommentPostId = (value = "") => /^(social_comment|facebook_comment|instagram_comment):/i.test(text(value));
 
 const resolveSocialCommentGraphPostId = (row = {}) => {
@@ -779,6 +834,21 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     : null;
   const appendMappingSummary = (value = {}) => ({
     ...value,
+    marketing_published_at: text(value.marketing_published_at || safeRow.marketing_published_at || ""),
+    marketing_created_time: text(value.marketing_created_time || safeRow.marketing_created_time || ""),
+    marketing_post_created_time: text(value.marketing_post_created_time || safeRow.marketing_post_created_time || ""),
+    metadata_post_created_time: text(value.metadata_post_created_time || safeRow.metadata_post_created_time || metadata.post_created_time || ""),
+    metadata_post_object_created_time: text(value.metadata_post_object_created_time || safeRow.metadata_post_object_created_time || metadata.post?.created_time || metadata.post?.updated_time || ""),
+    post_created_time: resolveSocialCommentPostCreatedTime({
+      row: { ...safeRow, ...value },
+      metadata,
+      postMeta: {
+        marketing_published_at: value.marketing_published_at || safeRow.marketing_published_at || "",
+        marketing_created_time: value.marketing_created_time || safeRow.marketing_created_time || "",
+        marketing_post_created_time: value.marketing_post_created_time || safeRow.marketing_post_created_time || "",
+        post_created_time: value.post_created_time || safeRow.post_created_time || "",
+      },
+    }),
     linked_products: mappingSummary?.linked_products || [],
     primary_linked_product: mappingSummary?.primary_product || null,
     primary_product: mappingSummary?.primary_product || null,
@@ -1930,6 +2000,8 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
       COALESCE(c.metadata->>'post_message', c.metadata->>'message', '') AS post_message,
       COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
       COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
+      COALESCE(c.metadata->>'post_created_time', '') AS metadata_post_created_time,
+      COALESCE(c.metadata->'post'->>'created_time', c.metadata->'post'->>'updated_time', '') AS metadata_post_object_created_time,
       COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
       runmeta.automation_run_post_id,
@@ -1951,6 +2023,10 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
       prod.product_storefront_url,
       prod.product_sizes,
       prod.product_colors,
+      postmeta.marketing_published_at,
+      postmeta.marketing_created_time,
+      postmeta.marketing_post_created_time,
+      postmeta.post_created_time,
       reply.like_status,
       reply.reply_status,
       reply.auto_reply_mode,
@@ -1969,6 +2045,27 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
         AND r.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
         AND r.inbox_conversation_id = c.external_conversation_id
     ) runmeta ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT
+        mp.published_at AS marketing_published_at,
+        mp.created_time AS marketing_created_time,
+        mp.post_created_time AS marketing_post_created_time,
+        COALESCE(mp.published_at, mp.created_time, mp.post_created_time) AS post_created_time
+      FROM marketing_posts mp
+      WHERE mp.tenant_id = c.tenant_id
+        AND (
+          mp.platform_post_id = c.metadata->>'post_id'
+          OR mp.external_post_id = c.metadata->>'post_id'
+          OR mp.platform_post_id = c.metadata->>'platform_post_id'
+          OR mp.external_post_id = c.metadata->>'platform_post_id'
+          OR mp.platform_post_id = c.metadata->>'external_post_id'
+          OR mp.external_post_id = c.metadata->>'external_post_id'
+          OR mp.platform_post_id = c.external_conversation_id
+          OR mp.external_post_id = c.external_conversation_id
+        )
+      ORDER BY mp.published_at DESC NULLS LAST, mp.created_time DESC NULLS LAST, mp.post_created_time DESC NULLS LAST, mp.updated_at DESC, mp.created_at DESC, mp.id DESC
+      LIMIT 1
+    ) postmeta ON TRUE
     LEFT JOIN LATERAL (
       SELECT
         COUNT(*)::int AS comments_count,
@@ -2084,6 +2181,8 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       COALESCE(c.metadata->>'post_message', c.metadata->>'message', '') AS post_message,
       COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
       COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
+      COALESCE(c.metadata->>'post_created_time', '') AS metadata_post_created_time,
+      COALESCE(c.metadata->'post'->>'created_time', c.metadata->'post'->>'updated_time', '') AS metadata_post_object_created_time,
       COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
       runmeta.automation_run_post_id,
@@ -2108,6 +2207,10 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       prod.product_storefront_url,
       prod.product_sizes,
       prod.product_colors,
+      postmeta.marketing_published_at,
+      postmeta.marketing_created_time,
+      postmeta.marketing_post_created_time,
+      postmeta.post_created_time,
       reply.like_status,
       reply.reply_status,
       reply.auto_reply_mode,
@@ -2127,6 +2230,27 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
         AND r.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
         AND r.inbox_conversation_id = c.external_conversation_id
     ) runmeta ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT
+        mp.published_at AS marketing_published_at,
+        mp.created_time AS marketing_created_time,
+        mp.post_created_time AS marketing_post_created_time,
+        COALESCE(mp.published_at, mp.created_time, mp.post_created_time) AS post_created_time
+      FROM marketing_posts mp
+      WHERE mp.tenant_id = c.tenant_id
+        AND (
+          mp.platform_post_id = c.metadata->>'post_id'
+          OR mp.external_post_id = c.metadata->>'post_id'
+          OR mp.platform_post_id = c.metadata->>'platform_post_id'
+          OR mp.external_post_id = c.metadata->>'platform_post_id'
+          OR mp.platform_post_id = c.metadata->>'external_post_id'
+          OR mp.external_post_id = c.metadata->>'external_post_id'
+          OR mp.platform_post_id = c.external_conversation_id
+          OR mp.external_post_id = c.external_conversation_id
+        )
+      ORDER BY mp.published_at DESC NULLS LAST, mp.created_time DESC NULLS LAST, mp.post_created_time DESC NULLS LAST, mp.updated_at DESC, mp.created_at DESC, mp.id DESC
+      LIMIT 1
+    ) postmeta ON TRUE
     LEFT JOIN LATERAL (
       SELECT
         COUNT(*)::int AS comments_count,
@@ -2675,6 +2799,15 @@ const normalizeSocialCommentFastListRow = (row = {}) => {
       ""
   );
   const activityAt = text(row.last_activity_at || row.updated_at || row.processed_at || row.created_at || "");
+  const postCreatedTime = text(
+    row.post_created_time ||
+      row.raw_payload?.post_created_time ||
+      row.raw_payload?.metadata?.post_created_time ||
+      row.raw_payload?.value?.post_created_time ||
+      row.raw_payload?.value?.post?.created_time ||
+      row.raw_payload?.metadata?.post?.created_time ||
+      ""
+  );
   const unread = !["ignored", "processed", "closed", "resolved"].includes(lower(status)) && !["sent", "delivered"].includes(lower(automationStatus));
   return {
     id: text(row.id || ""),
@@ -2685,6 +2818,7 @@ const normalizeSocialCommentFastListRow = (row = {}) => {
     customer_avatar_url: text(row.customer_avatar_url || row.commenter_profile_picture_url || ""),
     message_preview: text(row.message_preview || row.original_comment_text || row.comment_text || row.message || "").slice(0, 160),
     last_activity_at: activityAt,
+    post_created_time: postCreatedTime,
     status,
     automation_status: automationStatus,
     product_id: row.product_id_text ? row.product_id_text : row.product_id ?? row.resolved_product_id ?? null,
@@ -2752,6 +2886,7 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
         ${hasStatusColumn ? "status" : "NULL::text AS status"},
         ${hasResolvedProductIdColumn ? "resolved_product_id" : "NULL::bigint AS resolved_product_id"},
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(original_comment_text, ''), NULLIF(raw_payload->>'message', ''), NULLIF(raw_payload->>'comment_text', ''), '')" : "COALESCE(NULLIF(original_comment_text, ''), '')"} AS message_preview,
+        ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->>'post_created_time', ''), NULLIF(raw_payload->'value'->'post'->>'created_time', ''), NULLIF(raw_payload->'metadata'->>'post_created_time', ''))" : "NULL::text"} AS post_created_time,
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'product_context'->>'product_id', ''), NULLIF(resolved_product_id::text, ''))" : "NULLIF(resolved_product_id::text, '')"} AS product_id_text,
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'product_context'->>'product_name', ''), '')" : "''"} AS product_name,
         COALESCE(updated_at, processed_at, created_at) AS last_activity_at
@@ -2767,6 +2902,7 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
       COALESCE(NULLIF(source_rows.commenter_profile_picture_url, ''), '') AS customer_avatar_url,
       source_rows.message_preview,
       source_rows.last_activity_at,
+      source_rows.post_created_time,
       COALESCE(NULLIF(source_rows.status, ''), NULLIF(source_rows.action_taken, ''), NULLIF(source_rows.public_reply_status, ''), NULLIF(source_rows.dm_status, ''), 'pending') AS status,
       COALESCE(NULLIF(source_rows.public_reply_status, ''), NULLIF(source_rows.dm_status, ''), NULLIF(source_rows.like_status, ''), NULLIF(source_rows.action_taken, ''), NULLIF(source_rows.status, ''), '') AS automation_status,
       source_rows.product_id_text,
