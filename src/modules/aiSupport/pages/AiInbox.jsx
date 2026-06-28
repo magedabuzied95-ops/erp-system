@@ -64,6 +64,7 @@ import TranscriptMessage from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
 import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
+import { getSocialCommentTimestamp } from "../components/socialCommentTimeline.jsx";
 import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -308,7 +309,7 @@ const normalizeSocialCommentThreadComment = (raw) => {
     customerAvatar: String(comment.avatar || comment.customer_avatar || comment.customer_avatar_url || comment.commenter_profile_picture_url || comment.avatar_url || comment.profile_pic || metadata.avatar || metadata.customer_avatar || "").trim(),
     classification: String(comment.classification_label || comment.classification || comment.intent || metadata.classification_label || metadata.classification || metadata.intent || "Question").trim(),
     replyStatus: String(comment.reply_status || metadata.reply_status || "pending").trim(),
-    createdTime: String(comment.created_time || comment.created_at || comment.processed_at || metadata.created_time || metadata.created_at || metadata.processed_at || "").trim(),
+    createdTime: getSocialCommentTimestamp(comment),
     metadata,
     postId: String(comment.post_id || comment.conversation_post_id || comment.thread_post_id || metadata.post_id || "").trim(),
     platform: String(comment.platform || metadata.platform || "").trim(),
@@ -888,6 +889,26 @@ const leadConversationDisplayName = (conversation = {}) => {
     conversation.phone,
     "Lead"
   );
+};
+
+const conversationPreview = (conversation = {}) => {
+  const latestCards = normalizeProductCardsValue(
+    conversation.last_product_cards ||
+      conversation.latest_product_cards ||
+      conversation.channel_metadata?.last_product_cards
+  );
+  const preview = clean(
+    conversation.latest_message_preview ||
+      conversation.last_message_preview ||
+      conversation.latest_message ||
+      conversation.last_message ||
+      conversation.last_customer_message ||
+      conversation.customer_message_preview
+  );
+  if (preview) return preview;
+  if (latestCards.length) return productCardPreviewText(latestCards) || "Product card sent";
+  const latestMessage = [...uniqueMessages(conversation.messages)].reverse().find((message) => clean(message.customer_message || message.message_text || message.text || message.body || message.content || message.caption || ""));
+  return clean(latestMessage?.customer_message || latestMessage?.message_text || latestMessage?.text || latestMessage?.body || latestMessage?.content || latestMessage?.caption || "");
 };
 
 const buildLeadPrivateMessageText = (conversation = {}, comment = {}) => {
