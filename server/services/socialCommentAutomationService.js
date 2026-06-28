@@ -30,6 +30,97 @@ const debugSocialCommentsWarn = (...args) => {
 };
 let fetchMetaPostPreviewDetailsLoaderPromise = null;
 
+const normalizeAutomationRunDiagnostics = (value = {}) => {
+  const resolvedProductId = Number(value.resolved_product_id ?? value.product_id ?? null);
+  return {
+    skipped_reason: text(value.skipped_reason || ""),
+    matched_config_key: text(value.matched_config_key || ""),
+    resolved_post_id: text(value.resolved_post_id || ""),
+    resolved_platform_post_id: text(value.resolved_platform_post_id || ""),
+    resolved_product_id: Number.isFinite(resolvedProductId) && resolvedProductId > 0 ? Math.trunc(resolvedProductId) : null,
+    duplicate_reason: text(value.duplicate_reason || ""),
+    config_found: Boolean(value.config_found),
+    config_enabled: Boolean(value.config_enabled),
+    raw_runtime_context:
+      value.raw_runtime_context && typeof value.raw_runtime_context === "object" && !Array.isArray(value.raw_runtime_context)
+        ? value.raw_runtime_context
+        : {},
+  };
+};
+
+const logAutomationSkipReason = (payload = {}) => {
+  debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_SKIP_REASON", payload);
+};
+
+const buildRuntimeContextSnapshot = ({ row = {}, config = null, productContext = null, stepResults = [], summary = null } = {}) => ({
+  row: {
+    tenant_id: row.tenant_id ?? null,
+    platform: text(row.platform || ""),
+    channel: text(row.channel || ""),
+    post_id: text(row.post_id || ""),
+    comment_id: text(row.comment_id || ""),
+    commenter_name: text(row.commenter_name || row.customer_name || ""),
+    original_comment_text: text(row.original_comment_text || ""),
+  },
+  config: config
+    ? {
+        id: config.id ?? null,
+        post_id: text(config.post_id || ""),
+        platform: text(config.platform || ""),
+        template_key: text(config.template_key || ""),
+        enabled: Boolean(config.enabled),
+        persisted: Boolean(config.persisted),
+        product_id: config.product_id ?? null,
+      }
+    : null,
+  product: productContext
+    ? {
+        found: Boolean(productContext.found),
+        product_id: productContext.product_id ?? null,
+        product_name: text(productContext.product_name || ""),
+        source: text(productContext.source || ""),
+      }
+    : null,
+  summary: summary
+    ? {
+        status: text(summary.status || ""),
+        errorMessage: text(summary.errorMessage || ""),
+      }
+    : null,
+  step_results: asArray(stepResults),
+});
+
+const buildAutomationRunDiagnostics = ({
+  row = {},
+  config = null,
+  productContext = null,
+  skippedReason = "",
+  duplicateReason = "",
+  rawRuntimeContext = {},
+} = {}) => {
+  const resolvedPostId = text(config?.post_id || row.post_id || row.metadata?.post_id || row.raw_payload?.post_id || "");
+  const resolvedPlatformPostId = text(row.post_id || row.metadata?.post_id || row.raw_payload?.post_id || config?.post_id || "");
+  const resolvedProductId = Number(
+    productContext?.product_id ??
+    config?.product_id ??
+    row.product_id ??
+    row.metadata?.product_id ??
+    row.raw_payload?.product_id ??
+    null
+  );
+  return normalizeAutomationRunDiagnostics({
+    skipped_reason: skippedReason,
+    matched_config_key: text(config?.template_key || row.matched_config_key || ""),
+    resolved_post_id: resolvedPostId,
+    resolved_platform_post_id: resolvedPlatformPostId,
+    resolved_product_id: Number.isFinite(resolvedProductId) && resolvedProductId > 0 ? Math.trunc(resolvedProductId) : null,
+    duplicate_reason: duplicateReason,
+    config_found: Boolean(config?.persisted),
+    config_enabled: Boolean(config?.enabled),
+    raw_runtime_context: rawRuntimeContext,
+  });
+};
+
 const loadFetchMetaPostPreviewDetails = async () => {
   if (!fetchMetaPostPreviewDetailsLoaderPromise) {
     fetchMetaPostPreviewDetailsLoaderPromise = import("./metaIntegrationService.js").then((module) => module.fetchMetaPostPreviewDetails);
@@ -434,6 +525,7 @@ export const upsertSocialCommentAutomationRunSummary = async ({
   status = "skipped",
   stepResults = [],
   errorMessage = "",
+  diagnostics = {},
   row = {},
 } = {}) => {
   const safeTenantId = Number(tenantId || row.tenant_id || 0);
@@ -444,6 +536,14 @@ export const upsertSocialCommentAutomationRunSummary = async ({
   const summary = summarizeAutomationStepResults(stepResults);
   const finalStatus = text(status || summary.status || "skipped") || "skipped";
   const finalErrorMessage = text(errorMessage || summary.errorMessage || "");
+  const safeDiagnostics = buildAutomationRunDiagnostics({
+    row,
+    skippedReason: diagnostics?.skipped_reason || row.skipped_reason || row.metadata?.skipped_reason || "",
+    duplicateReason: diagnostics?.duplicate_reason || row.duplicate_reason || row.metadata?.duplicate_reason || "",
+    rawRuntimeContext: diagnostics?.raw_runtime_context || {},
+    config: diagnostics?.config || null,
+    productContext: diagnostics?.product_context || null,
+  });
   const result = await db.query(
     `
     INSERT INTO social_comment_automation_runs (
@@ -461,6 +561,14 @@ export const upsertSocialCommentAutomationRunSummary = async ({
       status,
       step_results,
       config_id,
+      skipped_reason,
+      matched_config_key,
+      resolved_post_id,
+      resolved_platform_post_id,
+      resolved_product_id,
+      duplicate_reason,
+      config_found,
+      config_enabled,
       error_message,
       processed_at,
       created_at,
@@ -482,8 +590,16 @@ export const upsertSocialCommentAutomationRunSummary = async ({
       $13::jsonb,
       $14::bigint,
       $15::text,
+      $16::text,
+      $17::text,
+      $18::text,
+      $19::bigint,
+      $20::text,
+      $21::boolean,
+      $22::boolean,
+      $23::text,
       CURRENT_TIMESTAMP,
-      COALESCE($16::timestamp, CURRENT_TIMESTAMP),
+      COALESCE($24::timestamp, CURRENT_TIMESTAMP),
       CURRENT_TIMESTAMP
     )
     ON CONFLICT (tenant_id, platform, comment_id) DO UPDATE SET
@@ -497,6 +613,14 @@ export const upsertSocialCommentAutomationRunSummary = async ({
       status = COALESCE(NULLIF(EXCLUDED.status, ''), social_comment_automation_runs.status),
       step_results = COALESCE(EXCLUDED.step_results, social_comment_automation_runs.step_results),
       config_id = COALESCE(EXCLUDED.config_id, social_comment_automation_runs.config_id),
+      skipped_reason = COALESCE(NULLIF(EXCLUDED.skipped_reason, ''), social_comment_automation_runs.skipped_reason),
+      matched_config_key = COALESCE(NULLIF(EXCLUDED.matched_config_key, ''), social_comment_automation_runs.matched_config_key),
+      resolved_post_id = COALESCE(NULLIF(EXCLUDED.resolved_post_id, ''), social_comment_automation_runs.resolved_post_id),
+      resolved_platform_post_id = COALESCE(NULLIF(EXCLUDED.resolved_platform_post_id, ''), social_comment_automation_runs.resolved_platform_post_id),
+      resolved_product_id = COALESCE(EXCLUDED.resolved_product_id, social_comment_automation_runs.resolved_product_id),
+      duplicate_reason = COALESCE(NULLIF(EXCLUDED.duplicate_reason, ''), social_comment_automation_runs.duplicate_reason),
+      config_found = EXCLUDED.config_found,
+      config_enabled = EXCLUDED.config_enabled,
       error_message = COALESCE(NULLIF(EXCLUDED.error_message, ''), social_comment_automation_runs.error_message),
       processed_at = COALESCE(social_comment_automation_runs.processed_at, EXCLUDED.processed_at),
       updated_at = CURRENT_TIMESTAMP
@@ -522,17 +646,32 @@ export const upsertSocialCommentAutomationRunSummary = async ({
           status: finalStatus,
           step_results: summary.normalized,
           error_message: finalErrorMessage,
-          skipped_reason: text(row.skipped_reason || row.metadata?.skipped_reason || ""),
-          duplicate_reason: text(row.duplicate_reason || row.metadata?.duplicate_reason || ""),
+          skipped_reason: safeDiagnostics.skipped_reason,
+          matched_config_key: safeDiagnostics.matched_config_key,
+          resolved_post_id: safeDiagnostics.resolved_post_id,
+          resolved_platform_post_id: safeDiagnostics.resolved_platform_post_id,
+          resolved_product_id: safeDiagnostics.resolved_product_id,
+          duplicate_reason: safeDiagnostics.duplicate_reason,
+          config_found: safeDiagnostics.config_found,
+          config_enabled: safeDiagnostics.config_enabled,
           product_link: text(row.product_link || row.metadata?.product_link || row.metadata?.website_product_link || ""),
           checkout_link: text(row.checkout_link || row.metadata?.checkout_link || ""),
           guidance_mode: text(row.guidance_mode || row.metadata?.guidance_mode || "website_checkout") || "website_checkout",
+          raw_runtime_context: safeDiagnostics.raw_runtime_context,
           updated_at: new Date().toISOString(),
         },
       }),
       finalStatus,
       JSON.stringify(summary.normalized),
       configId ?? null,
+      safeDiagnostics.skipped_reason,
+      safeDiagnostics.matched_config_key,
+      safeDiagnostics.resolved_post_id,
+      safeDiagnostics.resolved_platform_post_id,
+      safeDiagnostics.resolved_product_id,
+      safeDiagnostics.duplicate_reason,
+      safeDiagnostics.config_found,
+      safeDiagnostics.config_enabled,
       finalErrorMessage,
       row.created_at || null,
     ]
@@ -550,6 +689,7 @@ const upsertSocialCommentAutomationRunAudit = async ({
   stepResults = [],
   productLink = "",
   checkoutLink = "",
+  diagnostics = {},
   row = {},
 } = {}) => {
   const safeTenantId = Number(tenantId || row.tenant_id || 0);
@@ -557,6 +697,14 @@ const upsertSocialCommentAutomationRunAudit = async ({
   const safeCommentId = text(commentId || row.comment_id || "");
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
   await ensureSocialCommentAutomationSchema();
+  const safeDiagnostics = buildAutomationRunDiagnostics({
+    row,
+    skippedReason,
+    duplicateReason: diagnostics?.duplicate_reason || skippedReason || "duplicate_comment_automation",
+    rawRuntimeContext: diagnostics?.raw_runtime_context || {},
+    config: diagnostics?.config || null,
+    productContext: diagnostics?.product_context || null,
+  });
   const result = await db.query(
     `
     INSERT INTO social_comment_automation_run_audits (
@@ -566,6 +714,13 @@ const upsertSocialCommentAutomationRunAudit = async ({
       comment_id,
       status,
       skipped_reason,
+      matched_config_key,
+      resolved_post_id,
+      resolved_platform_post_id,
+      resolved_product_id,
+      duplicate_reason,
+      config_found,
+      config_enabled,
       step_results,
       product_link,
       checkout_link,
@@ -580,9 +735,17 @@ const upsertSocialCommentAutomationRunAudit = async ({
       $4::text,
       $5::text,
       $6::text,
-      $7::jsonb,
+      $7::text,
       $8::text,
       $9::text,
+      $10::bigint,
+      $11::text,
+      $12::boolean,
+      $13::boolean,
+      $14::jsonb,
+      $15::text,
+      $16::text,
+      $17::text,
       'website_checkout',
       CURRENT_TIMESTAMP,
       CURRENT_TIMESTAMP
@@ -595,10 +758,18 @@ const upsertSocialCommentAutomationRunAudit = async ({
       safePostId,
       safeCommentId,
       text(status || "duplicate_skipped") || "duplicate_skipped",
-      text(skippedReason || ""),
+      safeDiagnostics.skipped_reason || text(skippedReason || ""),
+      safeDiagnostics.matched_config_key,
+      safeDiagnostics.resolved_post_id || safePostId,
+      safeDiagnostics.resolved_platform_post_id || safePostId,
+      safeDiagnostics.resolved_product_id,
+      safeDiagnostics.duplicate_reason || text(skippedReason || "duplicate_comment_automation"),
+      safeDiagnostics.config_found,
+      safeDiagnostics.config_enabled,
       JSON.stringify(asArray(stepResults)),
       text(productLink || row.product_link || row.metadata?.product_link || ""),
       text(checkoutLink || row.checkout_link || row.metadata?.checkout_link || ""),
+      text(row.guidance_mode || "website_checkout") || "website_checkout",
     ]
   );
   return result.rows?.[0] || null;
@@ -642,11 +813,9 @@ const loadPostAutomationConfig = async ({ tenantId = null, platform = "", postId
     tenantId: safeTenantId,
     platform: normalizedPlatform,
     postId: safePostId,
+    row,
   }).catch(() => null);
-  if (!config?.persisted) {
-    return null;
-  }
-  return config;
+  return config?.persisted ? config : null;
 };
 
 const buildAutomationTemplateContext = ({ row = {}, productContext = {}, websiteLinks = {} } = {}) => {
@@ -704,6 +873,33 @@ const buildAutomationTemplateContext = ({ row = {}, productContext = {}, website
     variants: availableSizes,
     stock_status: stockStatus,
     stockStatus,
+  };
+};
+
+const buildFallbackSocialCommentProductContext = ({ row = {} } = {}) => {
+  const fallbackProductLink = buildAutomationPublicUrl("/shop") || buildAutomationPublicUrl("/shop/products");
+  return {
+    found: false,
+    source: "fallback",
+    platform: text(row.platform || "facebook") || "facebook",
+    post_id: text(row.post_id || row.metadata?.post_id || ""),
+    product_id: null,
+    product_name: "المنتج",
+    price: text(row.product_price || row.price || ""),
+    sale_price: text(row.sale_price || row.product_sale_price || ""),
+    selling_price: text(row.selling_price || row.product_selling_price || row.product_price || row.price || ""),
+    sizes: [],
+    available_sizes: [],
+    colors: [],
+    stock_status: "يرجى مراجعة التوفر من الموقع",
+    product_url: fallbackProductLink,
+    product_link: fallbackProductLink,
+    checkout_link: buildAutomationPublicUrl("/shop/checkout"),
+    checkout_url: buildAutomationPublicUrl("/shop/checkout"),
+    variant_id: "",
+    color: "",
+    size: "",
+    candidate_post_ids: [],
   };
 };
 
@@ -977,16 +1173,148 @@ const executeSocialCommentAutomationRuntime = async ({
   const safeRow = row || {};
   const stepResults = [];
   const currentPrivateReplyStatus = text(safeRow.dm_status || safeRow.automation_state?.private_reply?.status || "").toLowerCase();
+  const buildCurrentDiagnostics = ({ skippedReason = "", duplicateReason = "", rawRuntimeContext = null, configOverride = config, productContextOverride = productContext } = {}) =>
+    buildAutomationRunDiagnostics({
+      row: safeRow,
+      config: configOverride || null,
+      productContext: productContextOverride || null,
+      skippedReason,
+      duplicateReason,
+      rawRuntimeContext: rawRuntimeContext || buildRuntimeContextSnapshot({
+        row: safeRow,
+        config: configOverride || null,
+        productContext: productContextOverride || null,
+        stepResults,
+      }),
+    });
 
-  if (!safeTenantId || !safePostId || !safeCommentId || normalizedPlatform !== "facebook") {
-    console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
-      tenant_id: safeTenantId || null,
+  if (!safeTenantId) {
+    const diagnostics = buildCurrentDiagnostics({ skippedReason: "invalid_tenant" });
+    await upsertSocialCommentAutomationRunSummary({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: safePostId,
+      commentId: safeCommentId,
+      status: "skipped",
+      stepResults: [{ step: "automation", status: "skipped", reason: "invalid_tenant" }],
+      errorMessage: "invalid_tenant",
+      diagnostics,
+      row: safeRow,
+    }).catch(() => {});
+    logAutomationSkipReason({
+      skipped_reason: "invalid_tenant",
+      comment_id: safeCommentId,
+      post_id: safePostId,
+      platform_post_id: text(safeRow.post_id || safeRow.metadata?.post_id || safeRow.raw_payload?.post_id || safePostId),
+      config_found: diagnostics.config_found,
+      config_enabled: diagnostics.config_enabled,
+      resolved_product_id: diagnostics.resolved_product_id,
+      duplicate_reason: diagnostics.duplicate_reason,
+    });
+    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+      tenant_id: null,
       platform: normalizedPlatform,
       post_id: safePostId,
       comment_id: safeCommentId,
-      reason: !safeTenantId ? "invalid_tenant" : !safePostId ? "missing_post_id" : !safeCommentId ? "missing_comment_id" : "non_facebook_platform",
+      reason: "invalid_tenant",
     });
-    return { applied: false, skipped: true, reason: "invalid_input", row: safeRow, step_results: stepResults };
+    return { applied: false, skipped: true, reason: "invalid_tenant", row: safeRow, step_results: stepResults };
+  }
+  if (!safePostId) {
+    const diagnostics = buildCurrentDiagnostics({ skippedReason: "post_mismatch" });
+    await upsertSocialCommentAutomationRunSummary({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: safePostId,
+      commentId: safeCommentId,
+      status: "skipped",
+      stepResults: [{ step: "automation", status: "skipped", reason: "post_mismatch" }],
+      errorMessage: "post_mismatch",
+      diagnostics,
+      row: safeRow,
+    }).catch(() => {});
+    logAutomationSkipReason({
+      skipped_reason: "post_mismatch",
+      comment_id: safeCommentId,
+      post_id: null,
+      platform_post_id: text(safeRow.post_id || safeRow.metadata?.post_id || safeRow.raw_payload?.post_id || ""),
+      config_found: diagnostics.config_found,
+      config_enabled: diagnostics.config_enabled,
+      resolved_product_id: diagnostics.resolved_product_id,
+      duplicate_reason: diagnostics.duplicate_reason,
+    });
+    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: null,
+      comment_id: safeCommentId,
+      reason: "missing_post_id",
+    });
+    return { applied: false, skipped: true, reason: "missing_post_id", row: safeRow, step_results: stepResults };
+  }
+  if (!safeCommentId) {
+    const diagnostics = buildCurrentDiagnostics({ skippedReason: "missing_comment_id" });
+    await upsertSocialCommentAutomationRunSummary({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: safePostId,
+      commentId: safeCommentId,
+      status: "skipped",
+      stepResults: [{ step: "automation", status: "skipped", reason: "missing_comment_id" }],
+      errorMessage: "missing_comment_id",
+      diagnostics,
+      row: safeRow,
+    }).catch(() => {});
+    logAutomationSkipReason({
+      skipped_reason: "missing_comment_id",
+      comment_id: null,
+      post_id: safePostId,
+      platform_post_id: text(safeRow.post_id || safeRow.metadata?.post_id || safeRow.raw_payload?.post_id || safePostId),
+      config_found: diagnostics.config_found,
+      config_enabled: diagnostics.config_enabled,
+      resolved_product_id: diagnostics.resolved_product_id,
+      duplicate_reason: diagnostics.duplicate_reason,
+    });
+    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: null,
+      reason: "missing_comment_id",
+    });
+    return { applied: false, skipped: true, reason: "missing_comment_id", row: safeRow, step_results: stepResults };
+  }
+  if (normalizedPlatform !== "facebook") {
+    const diagnostics = buildCurrentDiagnostics({ skippedReason: "unsupported_platform" });
+    await upsertSocialCommentAutomationRunSummary({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: safePostId,
+      commentId: safeCommentId,
+      status: "skipped",
+      stepResults: [{ step: "automation", status: "skipped", reason: "unsupported_platform" }],
+      errorMessage: "unsupported_platform",
+      diagnostics,
+      row: safeRow,
+    }).catch(() => {});
+    logAutomationSkipReason({
+      skipped_reason: "unsupported_platform",
+      comment_id: safeCommentId,
+      post_id: safePostId,
+      platform_post_id: text(safeRow.post_id || safeRow.metadata?.post_id || safeRow.raw_payload?.post_id || safePostId),
+      config_found: diagnostics.config_found,
+      config_enabled: diagnostics.config_enabled,
+      resolved_product_id: diagnostics.resolved_product_id,
+      duplicate_reason: diagnostics.duplicate_reason,
+    });
+    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      reason: "unsupported_platform",
+    });
+    return { applied: false, skipped: true, reason: "unsupported_platform", row: safeRow, step_results: stepResults };
   }
 
   const existingDuplicateRun = await findSocialCommentAutomationRunByKey({
@@ -1015,8 +1343,33 @@ const executeSocialCommentAutomationRuntime = async ({
       stepResults: duplicateStepResults,
       productLink: text(existingDuplicateRun.metadata?.product_link || existingDuplicateRun.metadata?.website_product_link || ""),
       checkoutLink: text(existingDuplicateRun.metadata?.checkout_link || ""),
+      diagnostics: {
+        duplicate_reason: "duplicate_comment_automation",
+        skipped_reason: "duplicate_comment_automation",
+      },
       row: existingDuplicateRun,
     }).catch(() => {});
+    const duplicateDiagnostics = buildAutomationRunDiagnostics({
+      row: existingDuplicateRun,
+      skippedReason: "duplicate_comment_automation",
+      duplicateReason: "duplicate_comment_automation",
+      rawRuntimeContext: buildRuntimeContextSnapshot({
+        row: existingDuplicateRun,
+        config: null,
+        productContext: null,
+        stepResults: duplicateStepResults,
+      }),
+    });
+    logAutomationSkipReason({
+      skipped_reason: "duplicate_comment_automation",
+      comment_id: safeCommentId,
+      post_id: safePostId,
+      platform_post_id: text(existingDuplicateRun.post_id || existingDuplicateRun.metadata?.post_id || safePostId),
+      config_found: duplicateDiagnostics.config_found,
+      config_enabled: duplicateDiagnostics.config_enabled,
+      resolved_product_id: duplicateDiagnostics.resolved_product_id,
+      duplicate_reason: duplicateDiagnostics.duplicate_reason,
+    });
     debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
       tenant_id: safeTenantId,
       platform: normalizedPlatform,
@@ -1043,7 +1396,29 @@ const executeSocialCommentAutomationRuntime = async ({
   }
 
   if (!config) {
-    console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+    const diagnostics = buildCurrentDiagnostics({ skippedReason: "no_config" });
+    await upsertSocialCommentAutomationRunSummary({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: safePostId,
+      commentId: safeCommentId,
+      status: "skipped",
+      stepResults: [{ step: "automation", status: "skipped", reason: "no_config" }],
+      errorMessage: "no_config",
+      diagnostics,
+      row: safeRow,
+    }).catch(() => {});
+    logAutomationSkipReason({
+      skipped_reason: "no_config",
+      comment_id: safeCommentId,
+      post_id: safePostId,
+      platform_post_id: text(safeRow.post_id || safeRow.metadata?.post_id || safeRow.raw_payload?.post_id || safePostId),
+      config_found: diagnostics.config_found,
+      config_enabled: diagnostics.config_enabled,
+      resolved_product_id: diagnostics.resolved_product_id,
+      duplicate_reason: diagnostics.duplicate_reason,
+    });
+    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
       tenant_id: safeTenantId,
       platform: normalizedPlatform,
       post_id: safePostId,
@@ -1054,6 +1429,7 @@ const executeSocialCommentAutomationRuntime = async ({
   }
 
   if (!config.enabled) {
+    const diagnostics = buildCurrentDiagnostics({ skippedReason: "config_disabled" });
     await upsertSocialCommentAutomationRunSummary({
       tenantId: safeTenantId,
       platform: normalizedPlatform,
@@ -1062,21 +1438,48 @@ const executeSocialCommentAutomationRuntime = async ({
       configId: config.id ?? null,
       customerName: safeRow.commenter_name || safeRow.customer_name || "",
       status: "skipped",
-      stepResults: [{ step: "automation", status: "skipped", reason: "automation_disabled" }],
-      errorMessage: "automation_disabled",
+      stepResults: [{ step: "automation", status: "skipped", reason: "config_disabled" }],
+      errorMessage: "config_disabled",
+      diagnostics,
       row: safeRow,
     }).catch(() => {});
-    console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+    logAutomationSkipReason({
+      skipped_reason: "config_disabled",
+      comment_id: safeCommentId,
+      post_id: safePostId,
+      platform_post_id: text(safeRow.post_id || safeRow.metadata?.post_id || safeRow.raw_payload?.post_id || safePostId),
+      config_found: diagnostics.config_found,
+      config_enabled: diagnostics.config_enabled,
+      resolved_product_id: diagnostics.resolved_product_id,
+      duplicate_reason: diagnostics.duplicate_reason,
+    });
+    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
       tenant_id: safeTenantId,
       platform: normalizedPlatform,
       post_id: safePostId,
       comment_id: safeCommentId,
-      reason: "automation_disabled",
+      reason: "config_disabled",
     });
-    return { applied: false, skipped: true, reason: "automation_disabled", row: safeRow, step_results: stepResults };
+    return { applied: false, skipped: true, reason: "config_disabled", row: safeRow, step_results: stepResults };
   }
 
-  if (!productContext?.found) {
+  if (config.lookup_matched_key && config.lookup_matched_key !== "post_id") {
+    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_LOOKUP_MATCH", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      reason: "post_id_mismatch",
+      matched_key: config.lookup_matched_key,
+      matched_post_id: config.lookup_matched_post_id || text(config.post_id || ""),
+      candidate_post_ids: asArray(config.lookup_candidate_post_ids || []),
+    });
+  }
+
+  const hasProductContext = Boolean(productContext?.found);
+  const effectiveProductContext = hasProductContext ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
+  if (!hasProductContext) {
+    const diagnostics = buildCurrentDiagnostics({ skippedReason: "product_not_found", productContextOverride: effectiveProductContext });
     await upsertSocialCommentAutomationRunSummary({
       tenantId: safeTenantId,
       platform: normalizedPlatform,
@@ -1087,31 +1490,43 @@ const executeSocialCommentAutomationRuntime = async ({
       status: "skipped",
       stepResults: [{ step: "automation", status: "skipped", reason: "product_not_found" }],
       errorMessage: "product_not_found",
+      diagnostics,
       row: safeRow,
     }).catch(() => {});
-    console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+    logAutomationSkipReason({
+      skipped_reason: "product_not_found",
+      comment_id: safeCommentId,
+      post_id: safePostId,
+      platform_post_id: text(safeRow.post_id || safeRow.metadata?.post_id || safeRow.raw_payload?.post_id || safePostId),
+      config_found: diagnostics.config_found,
+      config_enabled: diagnostics.config_enabled,
+      resolved_product_id: diagnostics.resolved_product_id,
+      duplicate_reason: diagnostics.duplicate_reason,
+    });
+    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_CONTEXT_FALLBACK", {
       tenant_id: safeTenantId,
       platform: normalizedPlatform,
       post_id: safePostId,
       comment_id: safeCommentId,
-      reason: "product_not_found",
+      reason: "product_not_mapped",
+      fallback_product_name: effectiveProductContext.product_name,
+      fallback_product_link: effectiveProductContext.product_link,
     });
-    return { applied: false, skipped: true, reason: "product_not_found", row: safeRow, step_results: stepResults };
   }
 
   const websiteLinks = await resolveAutomationWebsiteLinks({
     tenantId: safeTenantId,
     row: safeRow,
-    productContext: productContext || {},
+    productContext: effectiveProductContext || {},
   }).catch(() => ({
-    product_link: buildAutomationPublicUrl("/shop/products"),
-    product_url: buildAutomationPublicUrl("/shop/products"),
+    product_link: effectiveProductContext?.product_link || buildAutomationPublicUrl("/shop"),
+    product_url: effectiveProductContext?.product_url || buildAutomationPublicUrl("/shop"),
     checkout_link: buildAutomationPublicUrl("/shop/checkout"),
     checkout_url: buildAutomationPublicUrl("/shop/checkout"),
-    available_sizes: asArray(productContext?.sizes || safeRow.sizes || safeRow.product_sizes || []).map((value) => text(value)).filter(Boolean),
-    stock_status: text(productContext?.stock_status || safeRow.stock_status || ""),
+    available_sizes: asArray(effectiveProductContext?.sizes || safeRow.sizes || safeRow.product_sizes || []).map((value) => text(value)).filter(Boolean),
+    stock_status: text(effectiveProductContext?.stock_status || safeRow.stock_status || ""),
   }));
-  const templateContext = buildAutomationTemplateContext({ row: safeRow, productContext: productContext || {}, websiteLinks });
+  const templateContext = buildAutomationTemplateContext({ row: safeRow, productContext: effectiveProductContext || {}, websiteLinks });
   const publicReplyTemplate = text(config.message_templates?.publicReplyTemplate || "");
   const privateReplyTemplate = text(config.message_templates?.privateReplyTemplate || "");
   const aiOpeningPrompt = text(config.message_templates?.aiOpeningPrompt || "");
@@ -1146,6 +1561,8 @@ const executeSocialCommentAutomationRuntime = async ({
     config_enabled: Boolean(config.enabled),
     template_key: text(config.template_key || ""),
     product_id: config.product_id || null,
+    product_found: hasProductContext,
+    matched_key: config.lookup_matched_key || "post_id",
   });
 
   const persistedRuntimeState = {
@@ -1154,6 +1571,7 @@ const executeSocialCommentAutomationRuntime = async ({
       enabled: true,
       template_key: text(config.template_key || ""),
       product_id: config.product_id || null,
+      product_found: hasProductContext,
       post_id: safePostId,
       platform: normalizedPlatform,
       ai_opening_prompt: renderedAiOpeningPrompt || aiOpeningPrompt,
@@ -1320,7 +1738,7 @@ const executeSocialCommentAutomationRuntime = async ({
             commenter_name: automationCommenter.commenterName || safeRow.commenter_name || "",
             commenter_profile_picture_url: automationCommenter.commenterAvatarUrl || safeRow.commenter_profile_picture_url || "",
           },
-          productContext: productContext || {},
+          productContext: effectiveProductContext || {},
           templateContext,
           websiteLinks,
         });
@@ -1338,7 +1756,7 @@ const executeSocialCommentAutomationRuntime = async ({
             answer: text(websiteCheckoutGuidance),
             detected_intent: "comment_automation_follow_up",
             confidence: 0.92,
-            suggested_products: productContext?.found ? [productContext] : [],
+            suggested_products: hasProductContext ? [productContext] : [],
             ai_order: null,
           },
         });
@@ -1355,11 +1773,11 @@ const executeSocialCommentAutomationRuntime = async ({
             commenter_id: automationCommenter.commenterId || safeRow.commenter_id || safeCommentId,
             commenter_name: automationCommenter.commenterName || safeRow.commenter_name || "",
             commenter_profile_picture_url: automationCommenter.commenterAvatarUrl || safeRow.commenter_profile_picture_url || "",
-            product_id: productContext?.product_id || safeRow.product_id || "",
-            product_name: productContext?.product_name || safeRow.product_name || "",
+            product_id: effectiveProductContext?.product_id || safeRow.product_id || "",
+            product_name: effectiveProductContext?.product_name || safeRow.product_name || "",
             product_url: automationWebsiteProductLink || templateContext.productUrl || "",
           },
-          productContext: productContext || {},
+          productContext: effectiveProductContext || {},
           websiteProductLink: automationWebsiteProductLink || templateContext.productUrl || "",
           checkoutLink: automationWebsiteCheckoutLink || "",
           aiHandling: true,
@@ -1433,7 +1851,7 @@ const executeSocialCommentAutomationRuntime = async ({
             commenter_name: automationCommenter.commenterName || safeRow.commenter_name || "",
             commenter_profile_picture_url: automationCommenter.commenterAvatarUrl || safeRow.commenter_profile_picture_url || "",
           },
-          productContext: productContext || {},
+          productContext: effectiveProductContext || {},
           templateContext,
           websiteLinks,
         });
@@ -1451,7 +1869,7 @@ const executeSocialCommentAutomationRuntime = async ({
             answer: text(websiteCheckoutGuidance),
             detected_intent: "comment_automation_lead",
             confidence: 0.91,
-            suggested_products: productContext?.found ? [productContext] : [],
+            suggested_products: hasProductContext ? [productContext] : [],
             ai_order: null,
           },
         });
@@ -1556,6 +1974,10 @@ const executeSocialCommentAutomationRuntime = async ({
   }
 
   const summary = summarizeAutomationStepResults(stepResults);
+  const hasExecutedStep = stepResults.some((item) => ["sent", "queued", "failed", "created", "linked", "success"].includes(text(item?.status || "")));
+  const finalStatus = !hasProductContext && hasExecutedStep && summary.status === "success"
+    ? "partial_success"
+    : summary.status;
   await upsertSocialCommentAutomationRunSummary({
     tenantId: safeTenantId,
     platform: normalizedPlatform,
@@ -1563,17 +1985,29 @@ const executeSocialCommentAutomationRuntime = async ({
     commentId: safeCommentId,
     configId: config.id ?? null,
     customerName: templateContext.customerName || safeRow.commenter_name || safeRow.customer_name || "",
-    status: summary.status,
+    status: finalStatus,
     stepResults,
     errorMessage: summary.errorMessage,
+    diagnostics: {
+      config,
+      product_context: effectiveProductContext,
+      raw_runtime_context: buildRuntimeContextSnapshot({
+        row: safeRow,
+        config,
+        productContext: effectiveProductContext,
+        stepResults,
+        summary,
+      }),
+    },
     row: {
       ...safeRow,
       automation_state: persistedRuntimeState,
-      status: summary.status,
+      status: finalStatus,
       error_message: summary.errorMessage,
       product_link: automationWebsiteProductLink || templateContext.productUrl || "",
       checkout_link: automationWebsiteCheckoutLink || "",
       guidance_mode: "website_checkout",
+      skipped_reason: finalStatus === "skipped" ? text(safeRow.skipped_reason || "") : "",
     },
   }).catch(() => {});
 
@@ -3564,6 +3998,14 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
           error_code TEXT NULL,
           automation_state JSONB NOT NULL DEFAULT '{}'::jsonb,
           raw_payload JSONB NOT NULL DEFAULT '{}'::jsonb,
+          skipped_reason TEXT NOT NULL DEFAULT '',
+          matched_config_key TEXT NOT NULL DEFAULT '',
+          resolved_post_id TEXT NOT NULL DEFAULT '',
+          resolved_platform_post_id TEXT NOT NULL DEFAULT '',
+          resolved_product_id BIGINT NULL,
+          duplicate_reason TEXT NOT NULL DEFAULT '',
+          config_found BOOLEAN NOT NULL DEFAULT FALSE,
+          config_enabled BOOLEAN NOT NULL DEFAULT FALSE,
           processed_at TIMESTAMP NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -3580,6 +4022,14 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS step_results JSONB NOT NULL DEFAULT '[]'::jsonb`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS error_message TEXT NULL`);
       await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS automation_state JSONB NOT NULL DEFAULT '{}'::jsonb`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS skipped_reason TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS matched_config_key TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS resolved_post_id TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS resolved_platform_post_id TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS resolved_product_id BIGINT NULL`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS duplicate_reason TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS config_found BOOLEAN NOT NULL DEFAULT FALSE`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_runs ADD COLUMN IF NOT EXISTS config_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`
         CREATE TABLE IF NOT EXISTS social_comment_automation_run_audits (
           id BIGSERIAL PRIMARY KEY,
@@ -3589,6 +4039,13 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
           comment_id TEXT NOT NULL DEFAULT '',
           status TEXT NOT NULL DEFAULT 'duplicate_skipped',
           skipped_reason TEXT NOT NULL DEFAULT '',
+          matched_config_key TEXT NOT NULL DEFAULT '',
+          resolved_post_id TEXT NOT NULL DEFAULT '',
+          resolved_platform_post_id TEXT NOT NULL DEFAULT '',
+          resolved_product_id BIGINT NULL,
+          duplicate_reason TEXT NOT NULL DEFAULT '',
+          config_found BOOLEAN NOT NULL DEFAULT FALSE,
+          config_enabled BOOLEAN NOT NULL DEFAULT FALSE,
           step_results JSONB NOT NULL DEFAULT '[]'::jsonb,
           product_link TEXT NOT NULL DEFAULT '',
           checkout_link TEXT NOT NULL DEFAULT '',
@@ -3597,6 +4054,13 @@ export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => 
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         )
       `);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_run_audits ADD COLUMN IF NOT EXISTS matched_config_key TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_run_audits ADD COLUMN IF NOT EXISTS resolved_post_id TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_run_audits ADD COLUMN IF NOT EXISTS resolved_platform_post_id TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_run_audits ADD COLUMN IF NOT EXISTS resolved_product_id BIGINT NULL`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_run_audits ADD COLUMN IF NOT EXISTS duplicate_reason TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_run_audits ADD COLUMN IF NOT EXISTS config_found BOOLEAN NOT NULL DEFAULT FALSE`);
+      await clientOrPool.query(`ALTER TABLE social_comment_automation_run_audits ADD COLUMN IF NOT EXISTS config_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_run_audits_tenant_created ON social_comment_automation_run_audits (tenant_id, created_at DESC)`);
       await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_run_audits_tenant_platform_post ON social_comment_automation_run_audits (tenant_id, platform, post_id, created_at DESC)`);
     })();
@@ -4233,6 +4697,11 @@ const mapSocialCommentAutomationAuditRowToRecentRow = (row = {}) => {
   const productLink = text(row.product_link || row.metadata?.product_link || "");
   const checkoutLink = text(row.checkout_link || row.metadata?.checkout_link || "");
   const skippedReason = text(row.skipped_reason || row.error_message || "duplicate_comment_automation");
+  const matchedConfigKey = text(row.matched_config_key || row.metadata?.matched_config_key || "");
+  const resolvedPostId = text(row.resolved_post_id || row.metadata?.resolved_post_id || row.post_id || "");
+  const resolvedPlatformPostId = text(row.resolved_platform_post_id || row.metadata?.resolved_platform_post_id || row.post_id || "");
+  const resolvedProductId = row.resolved_product_id ?? row.metadata?.resolved_product_id ?? null;
+  const duplicateReason = text(row.duplicate_reason || row.metadata?.duplicate_reason || skippedReason || "");
   return {
     id: `audit:${row.id ?? row.comment_id ?? crypto.randomUUID()}`,
     tenant_id: row.tenant_id ?? null,
@@ -4250,6 +4719,13 @@ const mapSocialCommentAutomationAuditRowToRecentRow = (row = {}) => {
     }],
     error_message: skippedReason,
     skipped_reason: skippedReason,
+    matched_config_key: matchedConfigKey,
+    resolved_post_id: resolvedPostId,
+    resolved_platform_post_id: resolvedPlatformPostId,
+    resolved_product_id: resolvedProductId,
+    duplicate_reason: duplicateReason,
+    config_found: Boolean(row.config_found),
+    config_enabled: Boolean(row.config_enabled),
     product_link: productLink,
     checkout_link: checkoutLink,
     guidance_mode: text(row.guidance_mode || "website_checkout") || "website_checkout",
@@ -4259,10 +4735,27 @@ const mapSocialCommentAutomationAuditRowToRecentRow = (row = {}) => {
       runtime_monitor: {
         status: text(row.status || "duplicate_skipped") || "duplicate_skipped",
         skipped_reason: skippedReason,
+        matched_config_key: matchedConfigKey,
+        resolved_post_id: resolvedPostId,
+        resolved_platform_post_id: resolvedPlatformPostId,
+        resolved_product_id: resolvedProductId,
+        duplicate_reason: duplicateReason,
+        config_found: Boolean(row.config_found),
+        config_enabled: Boolean(row.config_enabled),
         step_results: stepResults,
         product_link: productLink,
         checkout_link: checkoutLink,
         guidance_mode: text(row.guidance_mode || "website_checkout") || "website_checkout",
+        raw_runtime_context: {
+          step_results: stepResults,
+          post_id: resolvedPostId,
+          platform_post_id: resolvedPlatformPostId,
+          matched_config_key: matchedConfigKey,
+          resolved_product_id: resolvedProductId,
+          config_found: Boolean(row.config_found),
+          config_enabled: Boolean(row.config_enabled),
+          duplicate_reason: duplicateReason,
+        },
       },
     },
   };

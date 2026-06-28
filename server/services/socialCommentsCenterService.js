@@ -1165,6 +1165,39 @@ const normalizeSocialCommentAutomationConfigRow = (row = {}, defaults = {}) => (
   persisted: Boolean(row.id),
 });
 
+const collectSocialCommentAutomationConfigCandidates = ({ postId = "", row = {}, post = {} } = {}) => {
+  const candidates = [];
+  const seen = new Set();
+  const push = (key, value) => {
+    const candidateValue = text(value);
+    if (!candidateValue || seen.has(candidateValue)) return;
+    seen.add(candidateValue);
+    candidates.push({ key, value: candidateValue });
+  };
+  const safeRow = metadataObject(row);
+  const safePost = metadataObject(post);
+  const safeRowMetadata = metadataObject(safeRow.metadata || {});
+  const safePostMetadata = metadataObject(safePost.metadata || {});
+  push("post_id", postId || safeRow.post_id || safePost.post_id || safeRowMetadata.post_id || safePostMetadata.post_id || "");
+  push("platform_post_id", safeRow.platform_post_id || safeRowMetadata.platform_post_id || safePost.platform_post_id || safePostMetadata.platform_post_id || safeRowMetadata.external_post_id || safePostMetadata.external_post_id || "");
+  push("wrapper_post_id", safeRow.wrapper_post_id || safeRowMetadata.wrapper_post_id || safePost.wrapper_post_id || safePostMetadata.wrapper_post_id || "");
+  push("internal_post_id", safeRow.internal_post_id || safeRowMetadata.internal_post_id || safePost.internal_post_id || safePostMetadata.internal_post_id || "");
+  push("source_post_id", safeRow.source_post_id || safeRowMetadata.source_post_id || safePost.source_post_id || safePostMetadata.source_post_id || "");
+  push("metadata.post_id", safeRowMetadata.post_id || safePostMetadata.post_id || "");
+  push("metadata.platform_post_id", safeRowMetadata.platform_post_id || safePostMetadata.platform_post_id || "");
+  push("metadata.external_post_id", safeRowMetadata.external_post_id || safePostMetadata.external_post_id || "");
+  push("raw_payload.post_id", safeRow.raw_payload?.post_id || safePost.raw_payload?.post_id || "");
+  push("raw_payload.platform_post_id", safeRow.raw_payload?.platform_post_id || safePost.raw_payload?.platform_post_id || "");
+  push("raw_payload.value.post_id", safeRow.raw_payload?.value?.post_id || safePost.raw_payload?.value?.post_id || "");
+  push("raw_payload.value.media_id", safeRow.raw_payload?.value?.media_id || safePost.raw_payload?.value?.media_id || "");
+  push("raw_payload.value.post.id", safeRow.raw_payload?.value?.post?.id || safePost.raw_payload?.value?.post?.id || "");
+  push("raw_payload.value.post.post_id", safeRow.raw_payload?.value?.post?.post_id || safePost.raw_payload?.value?.post?.post_id || "");
+  push("conversation_id", safeRow.conversation_id || safePost.conversation_id || "");
+  push("external_conversation_id", safeRow.external_conversation_id || safePost.external_conversation_id || "");
+  push("metadata.conversation_id", safeRowMetadata.conversation_id || safePostMetadata.conversation_id || "");
+  return candidates;
+};
+
 const resolveSocialCommentAutomationDefaultConfig = async ({ tenantId = null, platform = "", postId = "" } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const safePostId = text(postId);
@@ -1197,29 +1230,47 @@ const resolveSocialCommentAutomationDefaultConfig = async ({ tenantId = null, pl
   };
 };
 
-export const getSocialCommentAutomationConfig = async ({ tenantId = null, platform = "", postId = "" } = {}) => {
+export const getSocialCommentAutomationConfig = async ({ tenantId = null, platform = "", postId = "", row = {}, post = {} } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const safePostId = text(postId);
-  if (!safeTenantId || !safePostId) return null;
+  if (!safeTenantId && !metadataObject(row)?.tenant_id) return null;
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
+  const candidateEntries = collectSocialCommentAutomationConfigCandidates({ postId: safePostId, row, post });
+  const candidatePostIds = Array.from(new Set(candidateEntries.map((entry) => entry.value).filter(Boolean)));
+  if (!candidatePostIds.length) {
+    return resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
+  }
   const result = await db.query(
     `
     SELECT *
     FROM social_comment_post_automation_configs
     WHERE tenant_id = $1::bigint
-      AND post_id = $2::text
-      AND platform = $3::text
-    LIMIT 1
+      AND platform = $2::text
+      AND post_id = ANY($3::text[])
+    ORDER BY updated_at DESC, created_at DESC, id DESC
     `,
-    [safeTenantId, safePostId, normalizedPlatform]
+    [safeTenantId, normalizedPlatform, candidatePostIds]
   );
-  const row = result.rows?.[0] || null;
-  if (row) {
+  const configRow = result.rows?.[0] || null;
+  if (configRow) {
     const defaults = await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
-    return normalizeSocialCommentAutomationConfigRow(row, defaults);
+    const matchedEntry = candidateEntries.find((entry) => text(configRow.post_id) === entry.value) || null;
+    return {
+      ...normalizeSocialCommentAutomationConfigRow(configRow, defaults),
+      lookup_matched_key: matchedEntry?.key || "post_id",
+      lookup_matched_post_id: matchedEntry?.value || text(configRow.post_id || safePostId),
+      lookup_candidate_post_ids: candidateEntries.map((entry) => ({ key: entry.key, value: entry.value })),
+      lookup_source: matchedEntry?.key && matchedEntry.key !== "post_id" ? "variant" : "exact",
+    };
   }
-  return resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
+  return {
+    ...(await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId })),
+    lookup_matched_key: "",
+    lookup_matched_post_id: "",
+    lookup_candidate_post_ids: candidateEntries.map((entry) => ({ key: entry.key, value: entry.value })),
+    lookup_source: "default",
+  };
 };
 
 export const upsertSocialCommentAutomationConfig = async ({ tenantId = null, platform = "", postId = "", payload = {} } = {}) => {
