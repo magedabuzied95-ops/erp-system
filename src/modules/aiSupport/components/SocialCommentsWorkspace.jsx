@@ -1,4 +1,4 @@
-﻿import { memo, useEffect, useMemo, useState } from "react";
+﻿import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   Bot,
@@ -2144,5 +2144,3 @@ function QuickActionButton({ label, onClick, disabled }) {
 }
 
 export default memo(SocialCommentsWorkspace);
-
-
