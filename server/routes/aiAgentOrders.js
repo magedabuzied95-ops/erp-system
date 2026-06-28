@@ -2357,6 +2357,7 @@ router.get("/social-comments/recent", protect, permit("settings", "view"), async
     return res.json({
       success: true,
       items: rows.map((row) => ({
+        runtime_monitor: row.automation_state?.runtime_monitor || {},
         id: row.id,
         platform: row.platform,
         channel: row.channel,
@@ -2368,6 +2369,14 @@ router.get("/social-comments/recent", protect, permit("settings", "view"), async
         classification_label: row.classification_label,
         classification_score: row.classification_score,
         action_taken: row.action_taken,
+        skipped_reason: row.skipped_reason || row.automation_state?.runtime_monitor?.skipped_reason || "",
+        matched_config_key: row.matched_config_key || row.automation_state?.runtime_monitor?.matched_config_key || "",
+        resolved_post_id: row.resolved_post_id || row.automation_state?.runtime_monitor?.resolved_post_id || row.post_id || "",
+        resolved_platform_post_id: row.resolved_platform_post_id || row.automation_state?.runtime_monitor?.resolved_platform_post_id || row.post_id || "",
+        resolved_product_id: row.resolved_product_id ?? row.automation_state?.runtime_monitor?.resolved_product_id ?? null,
+        duplicate_reason: row.duplicate_reason || row.automation_state?.runtime_monitor?.duplicate_reason || "",
+        config_found: Boolean(row.config_found ?? row.automation_state?.runtime_monitor?.config_found ?? false),
+        config_enabled: Boolean(row.config_enabled ?? row.automation_state?.runtime_monitor?.config_enabled ?? false),
         created_at: row.created_at,
         raw_payload: row.raw_payload,
       })),
@@ -4223,7 +4232,7 @@ router.post("/conversations/:conversationId/messages/:messageId/correction", pro
 
     const messagesPayload = await loadAiInboxMessages({ tenantId, conversationId, limit: 100 }).catch(() => ({ messages: [] }));
     const messages = Array.isArray(messagesPayload.messages) ? messagesPayload.messages : [];
-    const messageIndex = messages.findIndex((item) => correctionMessageLookupKey(item) === messageId || text(item?.id) === messageId);
+    const messageIndex = messages.findIndex((item) => correctionMessageLookupKey(item) === messageId || String(item?.id ?? "").trim() === messageId);
     const sourceMessage = messageIndex >= 0 ? messages[messageIndex] : null;
 
     const customerQuestion =

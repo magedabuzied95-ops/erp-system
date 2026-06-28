@@ -26,6 +26,7 @@ import {
   normalizeAutomationConfig,
   serializeAutomationDraft,
 } from "./socialAutomation/automationEngine.js";
+import { CommentTimelineCard } from "./socialCommentTimeline.js";
 
 const clean = (value = "") => String(value ?? "").trim();
 
@@ -1517,140 +1518,85 @@ function SocialCommentsWorkspace({
                       const text = getCommentText(comment) || "بدون نص";
                       const tags = getCommentTags(comment);
                       const busy = isBusy(key);
-                      const selected = key === selectedCommentKey;
                       const privateMessageSupported = supportsPrivateMessage(comment, activePostPlatform);
                       const privateMessageStatus = clean(privateMessageStatusOverrides[key] || "");
 
                       return (
-                        <article
+                        <CommentTimelineCard
                           key={key || `${comment.createdTime || ""}:${name}`}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => setSelectedCommentKey(key)}
-                          onKeyDown={(event) => {
-                            if (event.key === "Enter" || event.key === " ") setSelectedCommentKey(key);
-                          }}
-                          className={`rounded-[22px] border p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition ${
-                            selected ? "border-cyan-300/50 bg-gradient-to-br from-cyan-300/15 to-slate-950/55 ring-1 ring-cyan-300/15" : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-slate-950/75"
-                          }`}
-                          >
-                          <div className="flex items-start gap-3.5">
-                            {avatar ? (
-                              <img src={avatar} alt={name} className="h-12 w-12 shrink-0 rounded-full object-cover ring-1 ring-white/10" loading="lazy" />
-                            ) : name ? (
-                              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300/20 to-white/[0.04] text-sm font-black text-cyan-100 ring-1 ring-white/10">
-                                {initialsFromName(name)}
-                              </span>
-                            ) : (
-                              <span className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-cyan-300/20 to-white/[0.04] ring-1 ring-white/10">
-                                <UserRound className="h-5 w-5 text-cyan-100" />
-                              </span>
-                            )}
-
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="truncate text-[15px] font-black leading-6 text-white">{name}</div>
-                                  <div className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
-                                    <Clock3 className="h-3.5 w-3.5" />
-                                    {absoluteTime(comment.createdTime)}
-                                  </div>
-                                </div>
-                                <div className="flex flex-wrap gap-1.5">
-                                  <span
-                                    className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${
-                                      status === "sent"
-                                        ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
-                                        : status === "failed"
-                                          ? "border-rose-300/20 bg-rose-400/10 text-rose-100"
-                                          : "border-white/10 bg-white/[0.04] text-slate-300"
-                                    }`}
-                                  >
-                                    {labelText(status)}
-                                  </span>
-                                  {getCommentTags(comment).map((tag) => (
-                                    <span key={tag} className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
+                          comment={comment}
+                          selected={key === selectedCommentKey}
+                          onSelect={() => setSelectedCommentKey(key)}
+                        >
+                          {attachmentPreview ? (
+                            <a
+                              href={attachmentPreview}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="mt-3 block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                            >
+                              <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
+                                <img src={attachmentPreview} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent" />
+                                <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-100">
+                                  Media
+                                </span>
                               </div>
+                            </a>
+                          ) : null}
 
-                              <div className="mt-2 rounded-2xl border border-white/5 bg-white/[0.03] p-3 text-sm leading-7 text-slate-100">
-                                <div className="whitespace-pre-wrap">{text}</div>
-
-                                {attachmentPreview ? (
-                                  <a
-                                    href={attachmentPreview}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="mt-3 block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-                                  >
-                                    <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
-                                      <img src={attachmentPreview} alt="" className="h-full w-full object-cover" loading="lazy" />
-                                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent" />
-                                      <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-100">
-                                        Media
-                                      </span>
-                                    </div>
-                                  </a>
-                                ) : null}
-                              </div>
-
-                              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void submitReply(comment, replyDraft || previewReply || suggestedReply);
-                                  }}
-                                  disabled={busy || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)}
-                                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 shadow-[0_6px_18px_rgba(34,211,238,0.18)] disabled:opacity-50"
-                                >
-                                  {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                  Reply
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void submitPrivateMessage(comment, replyDraft || previewReply || suggestedReply);
-                                  }}
-                                  disabled={busy || !privateMessageSupported || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
-                                  title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
-                                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
-                                >
-                                  {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-                                  {privateMessageStatus === "sent" ? "Sent" : "Private Message"}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void handleCreateLead(comment);
-                                  }}
-                                  disabled={busy}
-                                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
-                                >
-                                  {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
-                                  Create Lead
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    void handleIgnoreComment(comment);
-                                  }}
-                                  disabled={busy}
-                                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
-                                >
-                                  {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
-                                  Ignore
-                                </button>
-                              </div>
-                            </div>
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void submitReply(comment, replyDraft || previewReply || suggestedReply);
+                              }}
+                              disabled={busy || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)}
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 shadow-[0_6px_18px_rgba(34,211,238,0.18)] disabled:opacity-50"
+                            >
+                              {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                              Reply
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void submitPrivateMessage(comment, replyDraft || previewReply || suggestedReply);
+                              }}
+                              disabled={busy || !privateMessageSupported || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
+                              title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+                            >
+                              {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                              {privateMessageStatus === "sent" ? "Sent" : "Private Message"}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleCreateLead(comment);
+                              }}
+                              disabled={busy}
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+                            >
+                              {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+                              Create Lead
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                void handleIgnoreComment(comment);
+                              }}
+                              disabled={busy}
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
+                            >
+                              {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
+                              Ignore
+                            </button>
                           </div>
-                        </article>
+                        </CommentTimelineCard>
                       );
                     })}
                   </div>

@@ -128,8 +128,16 @@ router.get("/automation/:postId/runs", protect, permit("settings", "view"), asyn
     return res.json({
       success: true,
       items: runs.map((run) => {
+        const runtimeMonitor = run.automation_state?.runtime_monitor || {};
         const status = run.status || run.automation_state?.runtime_monitor?.status || "skipped";
-        const skippedReason = run.skipped_reason || run.automation_state?.runtime_monitor?.skipped_reason || "";
+        const skippedReason = run.skipped_reason || runtimeMonitor.skipped_reason || "";
+        const matchedConfigKey = run.matched_config_key || runtimeMonitor.matched_config_key || "";
+        const resolvedPostId = run.resolved_post_id || runtimeMonitor.resolved_post_id || run.post_id || "";
+        const resolvedPlatformPostId = run.resolved_platform_post_id || runtimeMonitor.resolved_platform_post_id || run.post_id || "";
+        const resolvedProductId = run.resolved_product_id ?? runtimeMonitor.resolved_product_id ?? null;
+        const duplicateReason = run.duplicate_reason || runtimeMonitor.duplicate_reason || "";
+        const configFound = Boolean(run.config_found ?? runtimeMonitor.config_found ?? false);
+        const configEnabled = Boolean(run.config_enabled ?? runtimeMonitor.config_enabled ?? false);
         return {
           id: run.id,
           tenant_id: run.tenant_id,
@@ -142,11 +150,19 @@ router.get("/automation/:postId/runs", protect, permit("settings", "view"), asyn
           error_message: run.error_message || run.error_code || "",
           customer_name: run.commenter_name || run.customer_name || "",
           skipped_reason: skippedReason,
+          matched_config_key: matchedConfigKey,
+          resolved_post_id: resolvedPostId,
+          resolved_platform_post_id: resolvedPlatformPostId,
+          resolved_product_id: resolvedProductId,
+          duplicate_reason: duplicateReason,
+          config_found: configFound,
+          config_enabled: configEnabled,
           product_link: run.product_link || run.automation_state?.runtime_monitor?.product_link || "",
           checkout_link: run.checkout_link || run.automation_state?.runtime_monitor?.checkout_link || "",
           guidance_mode: run.guidance_mode || run.automation_state?.runtime_monitor?.guidance_mode || "",
+          raw_runtime_context: runtimeMonitor.raw_runtime_context || runtimeMonitor || {},
+          runtime_monitor: runtimeMonitor,
           would_run: Boolean(run.would_run ?? run.automation_state?.runtime_monitor?.would_run ?? (status !== "duplicate_skipped" && skippedReason !== "duplicate_comment_automation")),
-          duplicate_reason: run.duplicate_reason || run.automation_state?.runtime_monitor?.duplicate_reason || "",
           created_at: run.created_at || null,
           updated_at: run.updated_at || null,
         };

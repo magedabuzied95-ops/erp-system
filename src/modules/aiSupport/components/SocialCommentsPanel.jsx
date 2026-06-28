@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
 import { ExternalLink, MessageSquareText, RefreshCw, User } from "lucide-react";
+import { CommentTimelineCard } from "./socialCommentTimeline.js";
 
 const clean = (value = "") => String(value ?? "").trim();
 
@@ -241,57 +242,27 @@ function SocialCommentsPanel({
                 );
               }
 
-              const label = COMMENT_LABELS[clean(item.classification_label).toLowerCase()] || clean(item.classification_label) || "غير مصنف";
               const permalink = clean(item.post_permalink);
-              const commentText = clean(item.original_comment_text || "");
               return (
-                <article
+                <CommentTimelineCard
                   key={itemKey}
-                  role={onSelectItem ? "button" : undefined}
-                  tabIndex={onSelectItem ? 0 : undefined}
-                  onClick={onSelectItem ? () => onSelectItem(item, itemKey) : undefined}
-                  onKeyDown={onSelectItem ? (event) => { if (event.key === "Enter" || event.key === " ") onSelectItem(item, itemKey); } : undefined}
-                  className={`rounded-2xl border bg-slate-950/60 p-3 transition ${active ? "border-cyan-300/40 ring-1 ring-cyan-300/20" : "border-white/10 hover:border-cyan-300/20 hover:bg-slate-950/70"}`}
+                  comment={item}
+                  selected={active}
+                  onSelect={onSelectItem ? () => onSelectItem(item, itemKey) : undefined}
+                  fallbackPlatform={item.platform || "facebook"}
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div className="flex min-w-0 items-center gap-2">
-                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black ${platform.className}`}>
-                        <User className="h-3.5 w-3.5" />
-                        {platform.label}
-                      </span>
-                      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black ${toneClass(item.classification_label)}`}>
-                        {label}
-                      </span>
-                    </div>
-                    {item.action_taken ? (
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
-                        {clean(item.action_taken)}
-                      </span>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-3 flex items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate text-sm font-black text-white">{clean(item.commenter_name) || "مستخدم مجهول"}</div>
-                      <div className="mt-1 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-slate-300">{commentText || "بدون نص"}</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-400">
-                    {permalink ? (
-                      <a
-                        href={permalink}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-cyan-100"
-                      >
-                        فتح المنشور
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    ) : null}
-                    {item.created_at ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">{absoluteTime(item.created_at)}</span> : null}
-                  </div>
-                </article>
+                  {permalink ? (
+                    <a
+                      href={permalink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-cyan-100"
+                    >
+                      Open comment
+                      <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
+                  ) : null}
+                </CommentTimelineCard>
               );
             })}
           </div>

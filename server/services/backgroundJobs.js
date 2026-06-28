@@ -145,6 +145,11 @@ export const registerBackgroundJobHandlers = () => {
     if (platform === "facebook" && !productContext) {
       productContext = await resolveSocialCommentPublishedProductContext({ tenantId, row }).catch(() => null);
     }
+    const runtimePrivateReplyMessage = String(
+      row.automation_state?.private_reply?.rendered_reply ||
+      row.automation_state?.private_reply?.message ||
+      ""
+    ).trim();
     const fallbackMessage = buildSocialCommentSuggestedReply({
       classificationLabel: row.classification_label || "",
       commenterName: row.commenter_name || "",
@@ -152,7 +157,7 @@ export const registerBackgroundJobHandlers = () => {
       postPermalink: row.post_permalink || row.post_permalink_url || "",
     });
     const template = String(settings?.private_message_template || "").trim();
-    const message = productContext?.found
+    const message = runtimePrivateReplyMessage || (productContext?.found
       ? buildProductAwarePrivateReply({ row, productContext, settings })
       : (renderTemplate(template || fallbackMessage, {
           commenter_name: row.commenter_name || "",
@@ -160,7 +165,7 @@ export const registerBackgroundJobHandlers = () => {
           post_permalink: row.post_permalink || row.post_permalink_url || "",
           post_id: row.post_id || postId || "",
           platform,
-        }).trim() || fallbackMessage);
+        }).trim() || fallbackMessage));
 
     debugSocialCommentsLog("[social-comments][private-reply] sending", {
       tenant_id: tenantId,

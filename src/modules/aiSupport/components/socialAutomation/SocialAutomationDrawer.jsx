@@ -85,6 +85,41 @@ export default function SocialAutomationDrawer({
     if (safeStatus === "skipped") return "border-white/10 bg-white/[0.04] text-slate-200";
     return "border-white/10 bg-white/[0.04] text-slate-200";
   };
+  const skipReasonLabels = {
+    no_config: "No config",
+    automation_disabled: "Config disabled",
+    config_disabled: "Config disabled",
+    duplicate_comment_automation: "Duplicate",
+    product_not_found: "Product not mapped",
+    post_mismatch: "Post mismatch",
+    missing_comment_id: "Missing comment id",
+    unsupported_platform: "Unsupported platform",
+    missing_post_id: "Post mismatch",
+    invalid_tenant: "Invalid tenant",
+  };
+  const formatSkipReason = (value = "") => skipReasonLabels[clean(value)] || clean(value) || "Skipped";
+  const formatResolvedProduct = (run = {}) => {
+    const productId = run.resolved_product_id ?? run.runtime_monitor?.resolved_product_id ?? run.automation_state?.runtime_monitor?.resolved_product_id ?? null;
+    return productId === null || productId === undefined || productId === "" ? "—" : `#${productId}`;
+  };
+  const formatStepList = (steps = [], kind = "executed") => {
+    const safeSteps = Array.isArray(steps) ? steps : [];
+    const filtered = safeSteps.filter((item) => {
+      const status = clean(item?.status || "").toLowerCase();
+      return kind === "executed"
+        ? ["sent", "queued", "created", "linked", "success"].includes(status)
+        : status === "skipped" || status === "failed";
+    });
+    if (!filtered.length) return "—";
+    return filtered
+      .map((item) => {
+        const step = stepLabelMap[String(item?.step || "")] || String(item?.step || "step");
+        const status = clean(item?.status || "skipped");
+        const reason = clean(item?.reason || "");
+        return reason ? `${step} (${status}: ${reason})` : `${step} (${status})`;
+      })
+      .join(", ");
+  };
 
   if (!open) return null;
 
@@ -195,7 +230,9 @@ export default function SocialAutomationDrawer({
                           onClick={async () => {
                             try {
                               await navigator.clipboard.writeText(testResult.product_link);
-                            } catch {}
+                            } catch (error) {
+                              void error;
+                            }
                           }}
                           className="inline-flex items-center gap-1.5 rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-cyan-100"
                         >
@@ -230,7 +267,6 @@ export default function SocialAutomationDrawer({
                     runs.slice(0, 5).map((run, index) => {
                       const stepResults = Array.isArray(run.step_results) ? run.step_results : [];
                       const runStatus = clean(run.status || "skipped").toLowerCase();
-                      const websiteLink = clean(run.product_link || run.checkout_link || "");
                       return (
                         <div key={`${run.id || run.comment_id || index}`} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -254,9 +290,9 @@ export default function SocialAutomationDrawer({
                             })}
                           </div>
                           <div className="mt-2 grid gap-1 text-[11px] text-slate-400">
-                            {run.skipped_reason ? (
+                            {runStatus.includes("skip") ? (
                               <div className="rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 py-1.5 text-amber-100">
-                                {run.skipped_reason}
+                                Skip Reason: {formatSkipReason(run.skipped_reason || run.duplicate_reason || "")}
                               </div>
                             ) : null}
                             {(() => {
@@ -284,7 +320,9 @@ export default function SocialAutomationDrawer({
                                         onClick={async () => {
                                           try {
                                             await navigator.clipboard.writeText(websiteLink);
-                                          } catch {}
+                                          } catch (error) {
+                                            void error;
+                                          }
                                         }}
                                         className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200"
                                       >
@@ -306,6 +344,50 @@ export default function SocialAutomationDrawer({
                               );
                             })()}
                           </div>
+                          <details className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                            <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100">
+                              View Runtime Details
+                            </summary>
+                            <div className="mt-3 grid gap-3 text-xs text-slate-200">
+                              <div className="grid gap-2 sm:grid-cols-2">
+                                <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Automation Config</div>
+                                  <div className={`mt-2 inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${run.config_found ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-rose-300/20 bg-rose-400/10 text-rose-100"}`}>
+                                    {run.config_found ? "Found" : "Missing"}
+                                  </div>
+                                  <div className="mt-2 text-slate-300">Enabled: {run.config_enabled ? "Yes" : "No"}</div>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Matched Key</div>
+                                  <div className="mt-2 break-words text-slate-100">{clean(run.matched_config_key || run.runtime_monitor?.matched_config_key || run.automation_state?.runtime_monitor?.matched_config_key || "—") || "—"}</div>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Resolved Product</div>
+                                  <div className="mt-2 text-slate-100">{formatResolvedProduct(run)}</div>
+                                </div>
+                                <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Skipped Reason</div>
+                                  <div className="mt-2 text-slate-100">{formatSkipReason(run.skipped_reason || run.duplicate_reason || "")}</div>
+                                </div>
+                              </div>
+                              <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Executed Steps</div>
+                                <div className="mt-2 text-slate-200">{formatStepList(stepResults, "executed")}</div>
+                              </div>
+                              <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Skipped Steps</div>
+                                <div className="mt-2 text-slate-200">{formatStepList(stepResults, "skipped")}</div>
+                              </div>
+                              <details className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
+                                <summary className="cursor-pointer list-none text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+                                  Raw Runtime Context
+                                </summary>
+                                <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-words text-[11px] leading-5 text-slate-300">
+                                  {JSON.stringify(run.raw_runtime_context || run.runtime_monitor || run.automation_state?.runtime_monitor || {}, null, 2)}
+                                </pre>
+                              </details>
+                            </div>
+                          </details>
                           <div className="mt-2 text-[11px] text-slate-500">{run.created_at ? new Date(run.created_at).toLocaleString("ar-EG") : "—"}</div>
                           {run.error_message ? <div className="mt-2 rounded-xl border border-rose-300/20 bg-rose-400/10 p-2 text-xs text-rose-100">{run.error_message}</div> : null}
                         </div>

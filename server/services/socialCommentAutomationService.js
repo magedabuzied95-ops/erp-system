@@ -104,20 +104,22 @@ const buildAutomationRunDiagnostics = ({
     productContext?.product_id ??
     config?.product_id ??
     row.product_id ??
+    row.resolved_product_id ??
     row.metadata?.product_id ??
     row.raw_payload?.product_id ??
     null
   );
+  const rowRuntimeMonitor = row.automation_state?.runtime_monitor || {};
   return normalizeAutomationRunDiagnostics({
     skipped_reason: skippedReason,
-    matched_config_key: text(config?.template_key || row.matched_config_key || ""),
+    matched_config_key: text(config?.template_key || row.matched_config_key || rowRuntimeMonitor.matched_config_key || ""),
     resolved_post_id: resolvedPostId,
     resolved_platform_post_id: resolvedPlatformPostId,
     resolved_product_id: Number.isFinite(resolvedProductId) && resolvedProductId > 0 ? Math.trunc(resolvedProductId) : null,
     duplicate_reason: duplicateReason,
-    config_found: Boolean(config?.persisted),
-    config_enabled: Boolean(config?.enabled),
-    raw_runtime_context: rawRuntimeContext,
+    config_found: Boolean(config?.persisted ?? row.config_found ?? rowRuntimeMonitor.config_found ?? false),
+    config_enabled: Boolean(config?.enabled ?? row.config_enabled ?? rowRuntimeMonitor.config_enabled ?? false),
+    raw_runtime_context: rawRuntimeContext || rowRuntimeMonitor.raw_runtime_context || {},
   });
 };
 
