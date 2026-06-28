@@ -37,6 +37,7 @@ import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/s
 import { formatCurrency } from "../../../shared/lib/currency";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
+import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import TranscriptMessage from "../components/TranscriptMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { CommentTimelineCard } from "../components/socialCommentTimeline.jsx";
@@ -2127,6 +2128,7 @@ export default function AiInboxPwa() {
   const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
   const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
   const [socialActionLoading, setSocialActionLoading] = useState("");
+  const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const mainScrollRef = useRef(null);
   const conversationHeaderRef = useRef(null);
   const menuButtonRef = useRef(null);
@@ -2152,6 +2154,45 @@ export default function AiInboxPwa() {
     mark_read_local_update: 0,
   });
   const scheduleRefreshRef = useRef(null);
+
+  const openCustomerDrawer = useCallback((customer = {}, context = {}) => {
+    const customerProfile = customer?.customer_profile || customer?.profile || {};
+    const customerId = clean(
+      customer.customer_profile_id ||
+        customer.customerProfileId ||
+        customer.external_customer_id ||
+        customerProfile.id ||
+        customer.id ||
+        customer.commenter_id ||
+        customer.profile_id ||
+        ""
+    );
+    setCustomerDrawer({
+      open: true,
+      customer: {
+        ...customer,
+        id: customerId,
+        customer_name:
+          clean(customer.customer_name || customer.commenter_name || customer.author_name || customer.from_name || customerProfile.name || customerProfile.display_name || "") ||
+          "Customer",
+        customer_avatar_url: clean(customer.customer_avatar_url || customer.commenter_profile_picture_url || customerProfile.avatar_url || customerProfile.profile_pic_url || ""),
+        platform: clean(customer.platform || context.platform || customerProfile.platform || ""),
+        customer_profile: customerProfile,
+        external_customer_id: clean(customer.external_customer_id || customerProfile.external_customer_id || ""),
+      },
+      customerId,
+      context: {
+        platform: clean(context.platform || customer.platform || ""),
+        postId: clean(context.postId || customer.post_id || customer.postId || ""),
+        commentId: clean(context.commentId || customer.comment_id || customer.commentId || ""),
+        pageId: clean(context.pageId || customer.page_id || customer.pageId || ""),
+        source: clean(context.source || customer.source || "conversation"),
+        lastActiveAt: clean(context.lastActiveAt || customer.last_message_at || customer.last_activity_at || customer.updated_at || ""),
+        summary: clean(context.summary || customer.latest_message_preview || customer.summary || ""),
+        customerName: clean(customer.customer_name || customer.commenter_name || customer.author_name || customer.from_name || ""),
+      },
+    });
+  }, []);
 
   const tab = useMemo(() => {
     const value = new URLSearchParams(location.search).get("tab");
@@ -4410,6 +4451,29 @@ export default function AiInboxPwa() {
                           }}
                           fallbackPlatform={commentPlatform}
                           className="bg-white"
+                          onCustomerSelect={(rawComment, data) =>
+                            openCustomerDrawer(
+                              {
+                                ...rawComment,
+                                customer_name: commenterName,
+                                customer_avatar_url: commenterAvatar,
+                                customer_profile_id: commentCustomerProfileId,
+                                platform: commentPlatform,
+                                post_id: commentPostId,
+                                page_id: commentPageId,
+                              },
+                              {
+                                source: "pwa_social_comment",
+                                platform: commentPlatform,
+                                postId: commentPostId,
+                                commentId,
+                                pageId: commentPageId,
+                                summary: data?.text || commentText,
+                                lastActiveAt: commentTime,
+                                customerName: commenterName,
+                              }
+                            )
+                          }
                         >
                           <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                             {[
@@ -4501,19 +4565,55 @@ export default function AiInboxPwa() {
                   <ChevronLeft className="h-5 w-5" />
                 </button>
                 {selectedAvatar ? (
-                  <img
-                    src={selectedAvatar}
-                    alt={isCommentConversation(selectedConversation || {}) ? commentThreadDisplayName(selectedConversation || {}) : conversationName(selectedConversation)}
-                    className="h-10 w-10 shrink-0 rounded-full object-cover ring-1 ring-slate-200"
-                    loading="lazy"
-                  />
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openCustomerDrawer(selectedConversation || {}, {
+                        customerId: clean(selectedConversation?.customer_profile_id || selectedConversation?.customerProfileId || selectedConversation?.external_customer_id || selectedConversation?.customer_profile?.id || selectedConversation?.id || ""),
+                        source: "pwa_header",
+                        platform: clean(selectedConversation?.platform || selectedConversation?.channel || selectedConversation?.source || ""),
+                      })
+                    }
+                    className="overflow-hidden rounded-full ring-1 ring-slate-200 transition hover:ring-cyan-300/40"
+                    aria-label="Open customer details"
+                  >
+                    <img
+                      src={selectedAvatar}
+                      alt={isCommentConversation(selectedConversation || {}) ? commentThreadDisplayName(selectedConversation || {}) : conversationName(selectedConversation)}
+                      className="h-10 w-10 shrink-0 rounded-full object-cover"
+                      loading="lazy"
+                    />
+                  </button>
                 ) : (
-                  <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openCustomerDrawer(selectedConversation || {}, {
+                        customerId: clean(selectedConversation?.customer_profile_id || selectedConversation?.customerProfileId || selectedConversation?.external_customer_id || selectedConversation?.customer_profile?.id || selectedConversation?.id || ""),
+                        source: "pwa_header",
+                        platform: clean(selectedConversation?.platform || selectedConversation?.channel || selectedConversation?.source || ""),
+                      })
+                    }
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-slate-200 text-slate-600 transition hover:bg-slate-300"
+                    aria-label="Open customer details"
+                  >
                     <UserRound className="h-4.5 w-4.5" />
-                  </span>
+                  </button>
                 )}
                 <div className="min-w-0">
-                  <div className="truncate text-[15px] font-semibold leading-5 text-slate-900">{isCommentConversation(selectedConversation || {}) ? commentThreadDisplayName(selectedConversation || {}) : conversationName(selectedConversation)}</div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openCustomerDrawer(selectedConversation || {}, {
+                        customerId: clean(selectedConversation?.customer_profile_id || selectedConversation?.customerProfileId || selectedConversation?.external_customer_id || selectedConversation?.customer_profile?.id || selectedConversation?.id || ""),
+                        source: "pwa_header",
+                        platform: clean(selectedConversation?.platform || selectedConversation?.channel || selectedConversation?.source || ""),
+                      })
+                    }
+                    className="truncate text-left text-[15px] font-semibold leading-5 text-slate-900 hover:underline"
+                  >
+                    {isCommentConversation(selectedConversation || {}) ? commentThreadDisplayName(selectedConversation || {}) : conversationName(selectedConversation)}
+                  </button>
                   <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
                       <SelectedChannelIcon className={`h-3 w-3 ${isSocialCommentThread(selectedConversation || {}) ? "text-blue-600" : "text-cyan-600"}`} />
@@ -4997,6 +5097,14 @@ export default function AiInboxPwa() {
           sizeMode={availableBySizePickerConfig.sizeMode}
           allowMultiple={availableBySizePickerConfig.allowMultiple}
           mode="inlineFullscreen"
+        />
+        <Customer360Drawer
+          open={customerDrawer.open}
+          onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
+          customer={customerDrawer.customer}
+          customerId={customerDrawer.customerId}
+          context={customerDrawer.context}
+          title="Customer 360"
         />
       </div>
     </div>

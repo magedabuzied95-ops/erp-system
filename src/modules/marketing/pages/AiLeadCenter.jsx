@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import AiMarketingCenterNav from "../components/AiMarketingCenterNav";
+import Customer360Drawer from "../../aiSupport/components/Customer360Drawer.jsx";
 
 const PLATFORM_OPTIONS = [
   { key: "all", label: "All", tone: "zinc" },
@@ -244,6 +245,33 @@ export default function AiLeadCenter() {
   const [assignedFilter, setAssignedFilter] = useState("all");
   const [timeFilter, setTimeFilter] = useState("all");
   const [selectedLeadId, setSelectedLeadId] = useState("");
+  const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
+
+  const openCustomerDrawer = (lead = {}) => {
+    const conversation = lead.conversation || {};
+    const customerProfile = conversation.customer_profile || {};
+    const customerId = clean(conversation.customer_profile_id || conversation.customerProfileId || conversation.external_customer_id || customerProfile.id || conversation.id || lead.id || "");
+    setCustomerDrawer({
+      open: true,
+      customerId,
+      customer: {
+        ...conversation,
+        id: customerId,
+        customer_name: clean(lead.customer || conversation.customer_name || customerProfile.name || customerProfile.display_name || ""),
+        customer_avatar_url: clean(conversation.customer_avatar_url || customerProfile.avatar_url || customerProfile.profile_pic_url || ""),
+        platform: clean(lead.platform || conversation.platform || conversation.channel || conversation.source || ""),
+        customer_profile: customerProfile,
+        external_customer_id: clean(conversation.external_customer_id || customerProfile.external_customer_id || ""),
+      },
+      context: {
+        platform: clean(lead.platform || conversation.platform || conversation.channel || conversation.source || ""),
+        summary: clean(lead.summary || conversation.latest_message_preview || conversation.summary || ""),
+        lastActiveAt: clean(lead.updatedAt || conversation.last_message_at || conversation.last_activity_at || conversation.updated_at || ""),
+        source: "lead_center",
+        customerName: clean(lead.customer || conversation.customer_name || ""),
+      },
+    });
+  };
 
   const loadLeads = async ({ silent = false } = {}) => {
     if (!tenantId) {
@@ -600,7 +628,9 @@ export default function AiLeadCenter() {
               {selectedLead ? (
                 <div className="mt-4 space-y-3">
                   <div className="rounded-3xl border border-white/10 bg-black/20 p-4">
-                    <div className="text-lg font-black text-white">{selectedLead.customer}</div>
+                    <button type="button" onClick={() => openCustomerDrawer(selectedLead)} className="text-left text-lg font-black text-white hover:underline">
+                      {selectedLead.customer}
+                    </button>
                     <div className="mt-1 text-sm text-slate-400">{selectedLead.platformLabel} · {selectedLead.assignedAi}</div>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-2">
@@ -645,6 +675,14 @@ export default function AiLeadCenter() {
             </section>
           </aside>
         </div>
+        <Customer360Drawer
+          open={customerDrawer.open}
+          onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
+          customer={customerDrawer.customer}
+          customerId={customerDrawer.customerId}
+          context={customerDrawer.context}
+          title="Customer 360"
+        />
       </div>
     </div>
   );
