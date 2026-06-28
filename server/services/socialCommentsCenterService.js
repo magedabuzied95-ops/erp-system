@@ -2048,9 +2048,9 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
     LEFT JOIN LATERAL (
       SELECT
         mp.published_at AS marketing_published_at,
-        mp.created_time AS marketing_created_time,
+        mp.created_at AS marketing_created_time,
         mp.post_created_time AS marketing_post_created_time,
-        COALESCE(mp.published_at, mp.created_time, mp.post_created_time) AS post_created_time
+        COALESCE(mp.published_at, mp.created_at, mp.post_created_time, mp.updated_at) AS post_created_time
       FROM marketing_posts mp
       WHERE mp.tenant_id = c.tenant_id
         AND (
@@ -2063,7 +2063,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
           OR mp.platform_post_id = c.external_conversation_id
           OR mp.external_post_id = c.external_conversation_id
         )
-      ORDER BY mp.published_at DESC NULLS LAST, mp.created_time DESC NULLS LAST, mp.post_created_time DESC NULLS LAST, mp.updated_at DESC, mp.created_at DESC, mp.id DESC
+      ORDER BY mp.published_at DESC NULLS LAST, mp.created_at DESC NULLS LAST, mp.post_created_time DESC NULLS LAST, mp.updated_at DESC, mp.id DESC
       LIMIT 1
     ) postmeta ON TRUE
     LEFT JOIN LATERAL (
@@ -2233,9 +2233,9 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     LEFT JOIN LATERAL (
       SELECT
         mp.published_at AS marketing_published_at,
-        mp.created_time AS marketing_created_time,
+        mp.created_at AS marketing_created_time,
         mp.post_created_time AS marketing_post_created_time,
-        COALESCE(mp.published_at, mp.created_time, mp.post_created_time) AS post_created_time
+        COALESCE(mp.published_at, mp.created_at, mp.post_created_time, mp.updated_at) AS post_created_time
       FROM marketing_posts mp
       WHERE mp.tenant_id = c.tenant_id
         AND (
@@ -2248,7 +2248,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
           OR mp.platform_post_id = c.external_conversation_id
           OR mp.external_post_id = c.external_conversation_id
         )
-      ORDER BY mp.published_at DESC NULLS LAST, mp.created_time DESC NULLS LAST, mp.post_created_time DESC NULLS LAST, mp.updated_at DESC, mp.created_at DESC, mp.id DESC
+      ORDER BY mp.published_at DESC NULLS LAST, mp.created_at DESC NULLS LAST, mp.post_created_time DESC NULLS LAST, mp.updated_at DESC, mp.id DESC
       LIMIT 1
     ) postmeta ON TRUE
     LEFT JOIN LATERAL (
