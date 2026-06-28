@@ -1452,8 +1452,24 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
   const normalizedPlatform = normalizePlatform(platform);
   const candidateEntries = collectSocialCommentAutomationConfigCandidates({ postId: safePostId, row, post });
   const candidatePostIds = Array.from(new Set(candidateEntries.map((entry) => entry.value).filter(Boolean)));
+  console.log("CONFIG_LOOKUP_INPUT", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    incoming_post_id: safePostId,
+    incoming_platform_post_id: text(row?.platform_post_id || post?.platform_post_id || row?.metadata?.platform_post_id || post?.metadata?.platform_post_id || row?.raw_payload?.platform_post_id || post?.raw_payload?.platform_post_id || ""),
+    incoming_wrapper_post_id: text(row?.wrapper_post_id || post?.wrapper_post_id || row?.metadata?.wrapper_post_id || post?.metadata?.wrapper_post_id || ""),
+    incoming_internal_post_id: text(row?.internal_post_id || post?.internal_post_id || row?.metadata?.internal_post_id || post?.metadata?.internal_post_id || ""),
+    candidate_keys: candidateEntries.map((entry) => ({ key: entry.key, value: entry.value })),
+  });
   if (!candidatePostIds.length) {
-    return resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
+    const fallbackConfig = await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
+    console.log("CONFIG_LOOKUP_RESULT", {
+      matched_key: "",
+      config_id: fallbackConfig?.id || null,
+      enabled: Boolean(fallbackConfig?.enabled),
+      template_key: text(fallbackConfig?.template_key || ""),
+    });
+    return fallbackConfig;
   }
   const result = await db.query(
     `
@@ -1470,21 +1486,35 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
   if (configRow) {
     const defaults = await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
     const matchedEntry = candidateEntries.find((entry) => text(configRow.post_id) === entry.value) || null;
-    return {
+    const normalizedConfig = {
       ...normalizeSocialCommentAutomationConfigRow(configRow, defaults),
       lookup_matched_key: matchedEntry?.key || "post_id",
       lookup_matched_post_id: matchedEntry?.value || text(configRow.post_id || safePostId),
       lookup_candidate_post_ids: candidateEntries.map((entry) => ({ key: entry.key, value: entry.value })),
       lookup_source: matchedEntry?.key && matchedEntry.key !== "post_id" ? "variant" : "exact",
     };
+    console.log("CONFIG_LOOKUP_RESULT", {
+      matched_key: normalizedConfig.lookup_matched_key || "post_id",
+      config_id: normalizedConfig.id || null,
+      enabled: Boolean(normalizedConfig.enabled),
+      template_key: text(normalizedConfig.template_key || ""),
+    });
+    return normalizedConfig;
   }
-  return {
+  const fallbackConfig = {
     ...(await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId })),
     lookup_matched_key: "",
     lookup_matched_post_id: "",
     lookup_candidate_post_ids: candidateEntries.map((entry) => ({ key: entry.key, value: entry.value })),
     lookup_source: "default",
   };
+  console.log("CONFIG_LOOKUP_RESULT", {
+    matched_key: "",
+    config_id: fallbackConfig?.id || null,
+    enabled: Boolean(fallbackConfig?.enabled),
+    template_key: text(fallbackConfig?.template_key || ""),
+  });
+  return fallbackConfig;
 };
 
 export const upsertSocialCommentAutomationConfig = async ({ tenantId = null, platform = "", postId = "", payload = {} } = {}) => {
