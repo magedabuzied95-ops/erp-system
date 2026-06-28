@@ -24,13 +24,13 @@ import {
   buildSelectedLabelItems,
   expandLabelCopies,
   getBarcodeSvg,
-  getLabelImageUrl,
   getLabelIdentity,
   getLabelPriceInfo,
   getLabelQuantity,
   buildProductLabelItems,
   buildBarcodeShopLabelItem,
   buildSmartProductQrUrl,
+  resolveBarcodeLabelImage,
 } from "../lib/barcodeLabels";
 import { generateBarcodeLabelsPdf } from "../lib/barcodePdfGenerator";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -986,7 +986,7 @@ function ProductCard({ product, selectedQuantities, onQuantityChange, sheetMode 
     <article className="rounded-[28px] border border-white/10 bg-zinc-950/90 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <div className="flex h-28 w-full items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5 lg:h-32 lg:w-32 lg:flex-shrink-0">
-          <ImageWithFallback src={resolveAssetUrl(getLabelImageUrl(product, variants[0]))} alt={safeText(product.name, t("products.barcodeLabels.product"))} />
+          <ImageWithFallback src={resolveAssetUrl(resolveBarcodeLabelImage({ ...product, ...(variants[0] || {}) }))} alt={safeText(product.name, t("products.barcodeLabels.product"))} />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -1008,7 +1008,7 @@ function ProductCard({ product, selectedQuantities, onQuantityChange, sheetMode 
             {variants.map((variant, index) => {
               const key = getLabelIdentity(product, variant);
               const quantity = getLabelQuantity(selectedQuantities[key]);
-              const imageUrl = getLabelImageUrl(product, variant);
+              const imageUrl = resolveBarcodeLabelImage({ ...product, ...(variant || {}) });
 
               return (
                 <VariantRow
@@ -1121,7 +1121,7 @@ function LabelCard({ item, printSettings, template = LABEL_TEMPLATE_STANDARD, pr
     return <PremiumRetailLabel item={item} printSettings={printSettings} preview={preview} />;
   }
   const { t } = useTranslation();
-  const imageUrl = item.imageUrl || item.resolvedImage;
+  const imageUrl = resolveBarcodeLabelImage(item);
   const safeImage = getSafeLabelImage(imageUrl, item);
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
   const metaItems = [
@@ -1172,7 +1172,7 @@ function LabelCard({ item, printSettings, template = LABEL_TEMPLATE_STANDARD, pr
 
 function PremiumRetailLabel({ item, printSettings, print = false }) {
   const { t } = useTranslation();
-  const imageUrl = item.imageUrl || item.resolvedImage;
+  const imageUrl = resolveBarcodeLabelImage(item);
   const safeImage = getSafeLabelImage(imageUrl, item);
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
   const sizeValue = safeText(item.size, t("products.barcodeLabels.oneSize"));
@@ -1238,7 +1238,7 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
 
 function ThermalLandscapeLabel({ item, printSettings, print = false, preview = false }) {
   const { t } = useTranslation();
-  const imageUrl = item.imageUrl || item.resolvedImage;
+  const imageUrl = resolveBarcodeLabelImage(item);
   const safeImage = getSafeLabelImage(imageUrl, item);
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
   const sizeValue = safeText(item.size, t("products.barcodeLabels.oneSize"));
@@ -1356,7 +1356,7 @@ function PrintLabel({ item, printSettings, template = LABEL_TEMPLATE_STANDARD })
     return <PremiumRetailLabel item={item} printSettings={printSettings} print />;
   }
   const { t } = useTranslation();
-  const imageUrl = item.imageUrl || item.resolvedImage;
+  const imageUrl = resolveBarcodeLabelImage(item);
   const safeImage = getSafeLabelImage(imageUrl, item);
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
   const metaItems = [

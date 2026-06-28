@@ -28,6 +28,18 @@ function resolveAssetUrl(url) {
   return resolveProductImageUrl(url);
 }
 
+export const resolveBarcodeLabelImage = (item = {}) =>
+  firstText(
+    item?.color_thermal_image_url,
+    item?.variant_color_thermal_image_url,
+    item?.thermal_image_url,
+    item?.product_thermal_image_url,
+    item?.colorPrimaryImageUrl,
+    item?.color_image_url,
+    item?.image_url,
+    item?.product_image_url
+  );
+
 const resolveStorefrontOrigin = () => {
   const configured = String(
     import.meta.env.VITE_PUBLIC_STOREFRONT_URL ||
@@ -127,50 +139,62 @@ const resolveProductFirstLabelPrice = (product = {}, variant = {}) => {
 };
 
 export const getLabelImageUrl = (product, variant = null, colorGroup = null) => {
-  const variantImage =
-    firstText(
+  return resolveBarcodeLabelImage({
+    ...product,
+    ...variant,
+    colorPrimaryImageUrl: firstText(
       variant?.variant_image_url,
       variant?.color_image_url,
       variant?.image_url,
       variant?.image,
       variant?.colorGroup?.image_url,
       colorGroup?.image_url
-    );
-  const productImage = firstText(
-    product?.product_image_url,
-    product?.image_url,
-    product?.image,
-    product?.photo_url,
-    product?.thumbnail_url
-  );
-  const resolvedImage = variantImage || productImage;
-
-  console.log("[barcode-labels] variant image fields", {
-    productId: product?.id ?? product?.product_id,
-    variantId: variant?.variant_id ?? variant?.id,
-    color: variant?.color,
-    size: variant?.size,
-    image_url: variant?.image_url,
-    variant_image_url: variant?.variant_image_url,
-    color_image_url: variant?.color_image_url,
-    colorGroupImage: colorGroup?.image_url || variant?.colorGroup?.image_url,
-    product_image_url: product?.product_image_url,
-    product_image: product?.image_url,
+    ),
+    color_image_url: firstText(
+      variant?.color_image_url,
+      variant?.variant_image_url,
+      variant?.image_url,
+      variant?.image,
+      variant?.colorGroup?.image_url,
+      colorGroup?.image_url
+    ),
+    product_image_url: firstText(
+      product?.product_image_url,
+      product?.image_url,
+      product?.image,
+      product?.photo_url,
+      product?.thumbnail_url
+    ),
+    thermal_image_url: firstText(
+      variant?.thermal_image_url,
+      variant?.thermalImageUrl,
+      variant?.colorGroup?.thermal_image_url,
+      variant?.colorGroup?.thermalImageUrl,
+      colorGroup?.thermal_image_url,
+      colorGroup?.thermalImageUrl,
+      product?.thermal_image_url,
+      product?.thermalImageUrl
+    ),
+    product_thermal_image_url: firstText(product?.thermal_image_url, product?.thermalImageUrl),
+    variant_color_thermal_image_url: firstText(
+      variant?.thermal_image_url,
+      variant?.thermalImageUrl,
+      variant?.colorGroup?.thermal_image_url,
+      variant?.colorGroup?.thermalImageUrl,
+      colorGroup?.thermal_image_url,
+      colorGroup?.thermalImageUrl
+    ),
+    color_thermal_image_url: firstText(
+      variant?.color_thermal_image_url,
+      variant?.variant_color_thermal_image_url,
+      variant?.thermal_image_url,
+      variant?.thermalImageUrl,
+      variant?.colorGroup?.thermal_image_url,
+      variant?.colorGroup?.thermalImageUrl,
+      colorGroup?.thermal_image_url,
+      colorGroup?.thermalImageUrl
+    ),
   });
-  console.log("[barcode-labels] resolved image url", {
-    productId: product?.id ?? product?.product_id,
-    variantId: variant?.variant_id ?? variant?.id,
-    color: variant?.color,
-    resolvedImage,
-  });
-  console.log("[barcode-labels] product id / variant id / color / resolved image", {
-    productId: product?.id ?? product?.product_id,
-    variantId: variant?.variant_id ?? variant?.id,
-    color: variant?.color,
-    resolvedImage,
-  });
-
-  return resolvedImage;
 };
 
 const getSafeLabelImageUrl = (item) => {
@@ -410,23 +434,28 @@ export const buildSmartProductQrUrl = ({ productId, variantId = null, colorId = 
 export const buildLabelItem = (product, variant = null, quantity = 1) => {
   const displayBarcodeInfo = resolveLabelDisplayBarcode(product, variant);
   const displayBarcode = displayBarcodeInfo.value;
-  const sourceVariantImage = firstText(variant?.variant_image_url, variant?.color_image_url, variant?.image_url, variant?.image);
+  const sourceVariantImage = firstText(variant?.variant_image_url, variant?.color_image_url, variant?.image_url, variant?.image, variant?.colorGroup?.image_url);
   const sourceProductImage = firstText(product?.product_image_url, product?.image_url, product?.image, product?.photo_url, product?.thumbnail_url);
-  const sourceVariantThermalImage = firstText(variant?.thermal_image_url, variant?.thermalImageUrl, variant?.colorGroup?.thermal_image_url, variant?.colorGroup?.thermalImageUrl);
+  const sourceVariantThermalImage = firstText(
+    variant?.color_thermal_image_url,
+    variant?.variant_color_thermal_image_url,
+    variant?.thermal_image_url,
+    variant?.thermalImageUrl,
+    variant?.colorGroup?.thermal_image_url,
+    variant?.colorGroup?.thermalImageUrl
+  );
   const sourceProductThermalImage = firstText(product?.thermal_image_url, product?.thermalImageUrl);
-  const resolvedImage = getLabelImageUrl(product, variant);
-  console.log("[barcode-labels] label item image", {
-    productId: product?.id ?? product?.product_id,
-    variantId: variant?.variant_id ?? variant?.id,
-    key: getLabelIdentity(product, variant),
-    productName: product?.name,
-    color: variant?.color || product?.color,
-    size: variant?.size || product?.size,
-    sourceVariantImage,
-    sourceProductImage,
-    sourceVariantThermalImage,
-    sourceProductThermalImage,
-    resolvedImage,
+  const resolvedImage = resolveBarcodeLabelImage({
+    ...product,
+    ...variant,
+    colorPrimaryImageUrl: sourceVariantImage,
+    color_image_url: sourceVariantImage,
+    image_url: sourceVariantImage,
+    product_image_url: sourceProductImage,
+    thermal_image_url: sourceVariantThermalImage || sourceProductThermalImage,
+    product_thermal_image_url: sourceProductThermalImage,
+    variant_color_thermal_image_url: sourceVariantThermalImage,
+    color_thermal_image_url: sourceVariantThermalImage,
   });
   console.info("[barcode-labels] label barcode source", {
     productId: product?.id ?? product?.product_id,
@@ -460,8 +489,14 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     sourceProductImage,
     sourceVariantThermalImage,
     sourceProductThermalImage,
+    color_thermal_image_url: sourceVariantThermalImage || "",
+    variant_color_thermal_image_url: sourceVariantThermalImage || "",
+    thermal_image_url: sourceVariantThermalImage || sourceProductThermalImage || "",
+    product_thermal_image_url: sourceProductThermalImage || "",
+    colorPrimaryImageUrl: sourceVariantImage || "",
+    color_image_url: sourceVariantImage || "",
     resolvedImage,
-    imageUrl: sourceVariantImage || sourceProductImage || resolvedImage,
+    imageUrl: resolvedImage,
     thermalImageUrl: sourceVariantThermalImage || sourceProductThermalImage || "",
     productThermalImageUrl: sourceProductThermalImage || "",
     colorThermalImageUrl: sourceVariantThermalImage || "",
@@ -547,6 +582,26 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantF
   const variantId = variantFallback?.variant_id ?? variantFallback?.id ?? null;
   const colorId = variantFallback?.color_id ?? variantFallback?.colorId ?? null;
   const priceInfo = getProductFirstLabelPriceInfo(product, variantFallback);
+  const productImage = firstText(product?.product_image_url, product?.image_url, product?.image, product?.photo_url, product?.thumbnail_url);
+  const thermalImage = firstText(
+    variantFallback?.color_thermal_image_url,
+    variantFallback?.variant_color_thermal_image_url,
+    variantFallback?.thermal_image_url,
+    product?.thermal_image_url,
+    product?.thermalImageUrl
+  );
+  const resolvedImage = resolveBarcodeLabelImage({
+    ...product,
+    ...variantFallback,
+    colorPrimaryImageUrl: firstText(variantFallback?.variant_image_url, variantFallback?.color_image_url, variantFallback?.image_url, variantFallback?.image),
+    color_image_url: firstText(variantFallback?.color_image_url, variantFallback?.variant_image_url, variantFallback?.image_url, variantFallback?.image),
+    image_url: firstText(variantFallback?.variant_image_url, variantFallback?.color_image_url, variantFallback?.image_url, variantFallback?.image),
+    product_image_url: productImage,
+    thermal_image_url: thermalImage,
+    product_thermal_image_url: firstText(product?.thermal_image_url, product?.thermalImageUrl),
+    color_thermal_image_url: thermalImage,
+    variant_color_thermal_image_url: thermalImage,
+  });
   return {
     key: `barcode-shop:${product.id}`,
     productId: product.id,
@@ -564,8 +619,17 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantF
     comparePrice: priceInfo.comparePrice,
     saleActive: priceInfo.saleActive,
     priceSource: priceInfo.saleActive || priceInfo.price > 0 ? "product-first" : "none",
-    thermalImageUrl: product?.thermal_image_url || product?.thermalImageUrl || "",
-    imageUrl: product.product_image_url || product.image_url || "",
+    thermalImageUrl: thermalImage || "",
+    thermal_image_url: thermalImage || "",
+    product_thermal_image_url: firstText(product?.thermal_image_url, product?.thermalImageUrl) || "",
+    color_thermal_image_url: thermalImage || "",
+    variant_color_thermal_image_url: thermalImage || "",
+    colorPrimaryImageUrl: firstText(variantFallback?.variant_image_url, variantFallback?.color_image_url, variantFallback?.image_url, variantFallback?.image) || "",
+    color_image_url: firstText(variantFallback?.color_image_url, variantFallback?.variant_image_url, variantFallback?.image_url, variantFallback?.image) || "",
+    imageUrl: resolvedImage,
+    resolvedImage,
+    product_image_url: productImage,
+    productImageUrl: productImage,
     companyName: product.companyName || APP_NAME,
     quantity: getLabelQuantity(quantity) || 1,
     smartQrUrl: buildSmartProductQrUrl({ productId: product.id, variantId, colorId }),

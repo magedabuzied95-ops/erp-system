@@ -3,9 +3,9 @@ import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
-import { loadImageDataUrl, prepareThermalImage as prepareThermalImageSource, THERMAL_IMAGE_OPTIMIZER_VERSION } from "./thermalImageOptimizer";
+import { loadImageDataUrl } from "./thermalImageOptimizer";
+import { resolveBarcodeLabelImage } from "./barcodeLabels";
 
-const ENABLE_THERMAL_IMAGE_OPTIMIZER = true;
 const thermalImageCache = new Map();
 
 const escapeString = (value = "") =>
@@ -57,64 +57,21 @@ const getLabelBarcodeValue = (item = {}) =>
     `SKU-${item.id ?? item.productId ?? "0000"}`
   );
 
-const getLabelThermalImageUrl = (item = {}) =>
-  resolveProductImageUrl(
-    normalizeLabelText(
-      item.variantThermalImageUrl ||
-        item.colorThermalImageUrl ||
-        item.thermal_image_url ||
-        item.thermalImageUrl ||
-        item.productThermalImageUrl ||
-        ""
-    )
-  );
+const getLabelImageUrl = (item = {}) => resolveProductImageUrl(normalizeLabelText(resolveBarcodeLabelImage(item)));
 
-const getLabelOriginalImageUrl = (item = {}) =>
-  resolveProductImageUrl(
-    normalizeLabelText(
-      item.variantColorImageUrl ||
-        item.colorPrimaryImageUrl ||
-        item.productImageUrl ||
-        item.product_image_url ||
-        item.imageUrl ||
-        item.resolvedImage ||
-        item.thumbnail_url ||
-        item.image ||
-        ""
-    )
-  );
-
-const prepareThermalImage = async (imageData, cacheKey = "") => {
-  if (!ENABLE_THERMAL_IMAGE_OPTIMIZER || !imageData || typeof document === "undefined") {
-    return "";
+const loadCachedImageDataUrl = async (imageUrl = "") => {
+  const resolvedUrl = resolveProductImageUrl(normalizeLabelText(imageUrl));
+  if (!resolvedUrl) return "";
+  if (thermalImageCache.has(resolvedUrl)) {
+    return thermalImageCache.get(resolvedUrl);
   }
-
-  const safeCacheKey = normalizeLabelText(cacheKey);
-  if (safeCacheKey && thermalImageCache.has(safeCacheKey)) {
-    return thermalImageCache.get(safeCacheKey) || "";
-  }
-
-  const cachePromise = (async () => {
-    return prepareThermalImageSource(imageData);
-  })();
-
-  if (safeCacheKey) {
-    thermalImageCache.set(safeCacheKey, cachePromise);
-  }
-
-  try {
-    const result = await cachePromise;
-    if (safeCacheKey) {
-      thermalImageCache.set(safeCacheKey, result);
-    }
-    return result;
-  } catch (error) {
-    if (safeCacheKey) {
-      thermalImageCache.delete(safeCacheKey);
-    }
-    console.warn("[barcode-pdf] thermal image optimizer failed", error);
-    return "";
-  }
+  const promise = loadImageDataUrl(resolvedUrl)
+    .then((value) => value || "")
+    .catch(() => "");
+  thermalImageCache.set(resolvedUrl, promise);
+  const result = await promise;
+  thermalImageCache.set(resolvedUrl, result);
+  return result;
 };
 
 const getCode128Bars = (value, widthMm, heightMm) => {
@@ -172,41 +129,19 @@ const drawBarcode = (doc, value, x, y, width, height) => {
 };
 
 const drawImageOrPlaceholder = async (doc, item, x, y, w, h) => {
-  const thermalUrl = getLabelThermalImageUrl(item);
-  const originalUrl = getLabelOriginalImageUrl(item);
+  const sourceUrl = getLabelImageUrl(item);
   doc.setFillColor(245, 245, 245);
   doc.setDrawColor(160, 160, 160);
   doc.roundedRect(x, y, w, h, 2, 2, "FD");
-  if (thermalUrl) {
+  if (sourceUrl) {
     try {
-      const thermalImageData = await loadImageDataUrl(thermalUrl);
-      if (!thermalImageData) throw new Error("Failed to load thermal image");
-      const format = thermalImageData.startsWith("data:image/png") ? "PNG" : "JPEG";
-      doc.addImage(thermalImageData, format, x, y, w, h, undefined, "FAST");
+      const imageData = await loadCachedImageDataUrl(sourceUrl);
+      if (!imageData) throw new Error("Failed to load image");
+      const format = imageData.startsWith("data:image/png") ? "PNG" : "JPEG";
+      doc.addImage(imageData, format, x, y, w, h, undefined, "FAST");
       return true;
     } catch {
-      // Fall back to the original image path below.
-    }
-  }
-
-  if (originalUrl) {
-    try {
-      const cacheKey = `${originalUrl}|${THERMAL_IMAGE_OPTIMIZER_VERSION}`;
-      const optimizedImageData = await prepareThermalImage(originalUrl, cacheKey);
-      if (!optimizedImageData) throw new Error("Failed to optimize original image");
-      const format = optimizedImageData.startsWith("data:image/png") ? "PNG" : "JPEG";
-      doc.addImage(optimizedImageData, format, x, y, w, h, undefined, "FAST");
-      return true;
-    } catch {
-      try {
-        const imageData = await loadImageDataUrl(originalUrl);
-        if (!imageData) throw new Error("Failed to load original image");
-        const format = imageData.startsWith("data:image/png") ? "PNG" : "JPEG";
-        doc.addImage(imageData, format, x, y, w, h, undefined, "FAST");
-        return true;
-      } catch {
-        console.warn("[barcode-pdf] failed to add image", { url: originalUrl || thermalUrl });
-      }
+      console.warn("[barcode-pdf] failed to add image", { url: sourceUrl });
     }
   }
 

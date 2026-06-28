@@ -854,6 +854,7 @@ const normalizeProductRow = (row = {}) => {
   const thermalImageUrl = row.thermal_image_url || "";
   const image = row.image || "";
   const galleryImages = normalizeGalleryImages(row.gallery_images);
+  const variantColorThermalImageUrl = row.variant_color_thermal_image_url || row.color_thermal_image_url || row.thermal_image_url || "";
   return ({
   ...row,
   selling_price: regularPrice,
@@ -920,6 +921,9 @@ const normalizeProductRow = (row = {}) => {
   thumbnail_url: thumbnailUrl,
   photo_url: photoUrl,
   thermal_image_url: thermalImageUrl,
+  variant_color_thermal_image_url: variantColorThermalImageUrl,
+  color_thermal_image_url: row.color_thermal_image_url || variantColorThermalImageUrl,
+  product_thermal_image_url: row.product_thermal_image_url || thermalImageUrl,
   image,
   product_image_url: row.product_image_url || thumbnailUrl || imageUrl || photoUrl || image || "",
   gallery_images: galleryImages,
@@ -1157,6 +1161,11 @@ const deriveColorGroupsFromVariants = (variants = []) => {
         color_name: color,
         color_value: color,
         image_url: variant?.image_url || "",
+        colorPrimaryImageUrl: variant?.colorPrimaryImageUrl || variant?.image_url || "",
+        color_image_url: variant?.color_image_url || variant?.image_url || "",
+        thermal_image_url: variant?.thermal_image_url || variant?.variant_color_thermal_image_url || variant?.color_thermal_image_url || "",
+        color_thermal_image_url: variant?.color_thermal_image_url || variant?.variant_color_thermal_image_url || variant?.thermal_image_url || "",
+        variant_color_thermal_image_url: variant?.variant_color_thermal_image_url || variant?.color_thermal_image_url || variant?.thermal_image_url || "",
       });
     }
   }
@@ -2309,6 +2318,12 @@ export const getProductByQrToken = async (req, res) => {
         colorMap.set(key, {
           color,
           image_url: variant.primary_image_url || variant.image_url || first.product_image_url || "",
+          colorPrimaryImageUrl: variant.primary_image_url || variant.image_url || first.product_image_url || "",
+          color_image_url: variant.color_image_url || variant.primary_image_url || variant.image_url || first.product_image_url || "",
+          thermal_image_url: variant.thermal_image_url || variant.variant_color_thermal_image_url || variant.color_thermal_image_url || first.thermal_image_url || "",
+          color_thermal_image_url: variant.color_thermal_image_url || variant.variant_color_thermal_image_url || variant.thermal_image_url || first.thermal_image_url || "",
+          variant_color_thermal_image_url: variant.variant_color_thermal_image_url || variant.color_thermal_image_url || variant.thermal_image_url || first.thermal_image_url || "",
+          product_thermal_image_url: first.thermal_image_url || "",
           images: variant.images || [],
           sizes: [],
         });
@@ -2332,6 +2347,12 @@ export const getProductByQrToken = async (req, res) => {
         available: Number(variant.stock || 0) > 0,
         image_url: variant.primary_image_url || variant.image_url || first.product_image_url || "",
         variant_image_url: variant.primary_image_url || variant.image_url || "",
+        colorPrimaryImageUrl: variant.primary_image_url || variant.image_url || first.product_image_url || "",
+        color_image_url: variant.color_image_url || variant.primary_image_url || variant.image_url || "",
+        thermal_image_url: variant.thermal_image_url || variant.variant_color_thermal_image_url || variant.color_thermal_image_url || first.thermal_image_url || "",
+        color_thermal_image_url: variant.color_thermal_image_url || variant.variant_color_thermal_image_url || variant.thermal_image_url || first.thermal_image_url || "",
+        variant_color_thermal_image_url: variant.variant_color_thermal_image_url || variant.color_thermal_image_url || variant.thermal_image_url || first.thermal_image_url || "",
+        product_thermal_image_url: first.thermal_image_url || "",
         images: variant.images || [],
       });
     });

@@ -427,6 +427,11 @@ export const attachVariantImages = (variants = [], imageBundle = null) => {
       image_url: variant.image_url || primary?.image_url || "",
       variant_image_url: variant.variant_image_url || primary?.image_url || variant.image_url || "",
       color_image_url: variant.color_image_url || primary?.image_url || variant.image_url || "",
+      colorPrimaryImageUrl: variant.colorPrimaryImageUrl || primary?.image_url || variant.image_url || "",
+      thermal_image_url: variant.thermal_image_url || variant.variant_color_thermal_image_url || variant.color_thermal_image_url || "",
+      color_thermal_image_url: variant.color_thermal_image_url || variant.variant_color_thermal_image_url || variant.thermal_image_url || "",
+      variant_color_thermal_image_url: variant.variant_color_thermal_image_url || variant.color_thermal_image_url || variant.thermal_image_url || "",
+      product_thermal_image_url: variant.product_thermal_image_url || "",
       primary_image_url: primary?.image_url || variant.image_url || "",
     };
   });
@@ -443,6 +448,12 @@ export const attachGroupedColorImages = (colors = [], imageBundle = null) => {
       ...color,
       images: uniqueImages,
       image_url: color.image_url || primary?.image_url || "",
+      colorPrimaryImageUrl: color.colorPrimaryImageUrl || primary?.image_url || color.image_url || "",
+      color_image_url: color.color_image_url || primary?.image_url || color.image_url || "",
+      thermal_image_url: color.thermal_image_url || color.variant_color_thermal_image_url || color.color_thermal_image_url || "",
+      color_thermal_image_url: color.color_thermal_image_url || color.variant_color_thermal_image_url || color.thermal_image_url || "",
+      variant_color_thermal_image_url: color.variant_color_thermal_image_url || color.color_thermal_image_url || color.thermal_image_url || "",
+      product_thermal_image_url: color.product_thermal_image_url || "",
       primary_image_url: primary?.image_url || color.image_url || "",
     };
   });
