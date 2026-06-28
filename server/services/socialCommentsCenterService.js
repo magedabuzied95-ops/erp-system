@@ -3,6 +3,7 @@ import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { fetchMetaPostPreviewDetails } from "./metaIntegrationService.js";
 import { likeComment, replyToComment, renderTemplate } from "./marketingCommentAutomationService.js";
+import { getMappings } from "./postProductMappingService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -93,6 +94,20 @@ const ensureSocialCommentsCenterSchema = async () => {
       sent_at TIMESTAMP NULL,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       UNIQUE (tenant_id, platform, comment_id)
+    )
+  `);
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS marketing_post_product_links (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NOT NULL,
+      platform TEXT NOT NULL,
+      platform_post_id TEXT NOT NULL,
+      product_id BIGINT NOT NULL,
+      priority INTEGER NOT NULL DEFAULT 1,
+      is_primary BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (tenant_id, platform, platform_post_id, product_id)
     )
   `);
   await db.query(`ALTER TABLE IF EXISTS social_comment_auto_reply_runs ADD COLUMN IF NOT EXISTS reply_status TEXT NOT NULL DEFAULT 'pending'`);
@@ -596,6 +611,18 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   const currentDetails = resolvePostThumbnailDetails(safeRow);
   const currentHasThumbnail = Boolean(currentDetails.has_thumbnail);
   const shouldLogMediaBackfill = !currentHasThumbnail;
+  const mappingSummary = postId && tenantId
+    ? await getMappings({ tenantId, platform, postId, row: safeRow, post: safeRow }).catch(() => null)
+    : null;
+  const appendMappingSummary = (value = {}) => ({
+    ...value,
+    linked_products: mappingSummary?.linked_products || [],
+    primary_linked_product: mappingSummary?.primary_product || null,
+    primary_product: mappingSummary?.primary_product || null,
+    linked_products_count: Number(mappingSummary?.count || 0) || 0,
+    product_links_count: Number(mappingSummary?.count || 0) || 0,
+    mapping_summary: mappingSummary || null,
+  });
   const hasAnyMediaBefore = Boolean(
     currentDetails.has_thumbnail ||
     currentDetails.thumbnail_url ||
@@ -621,7 +648,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   const unsupportedGraphMedia = currentDetails.reason_if_missing === "deprecated_status_no_graph_media" || lower(metadata.media_enrichment_status) === "unsupported_deprecated_status";
   const needsGraph = !currentDetails.has_thumbnail || !resolvePostPreviewCaption(safeRow) || !resolvePostPreviewLink(safeRow);
   if (!tenantId || !postId || !needsGraph) {
-    return {
+    return appendMappingSummary({
       ...safeRow,
       had_thumbnail_before: currentHasThumbnail,
       thumbnail_url: currentDetails.thumbnail_url,
@@ -647,7 +674,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       reel_id_from_permalink: "",
       reel_thumbnail_present: false,
       object_id_thumbnail_present: false,
-    };
+    });
   }
   const permalinkUrl = safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "";
   const graphLookupFallbackPostIds = Array.from(new Set([
@@ -733,7 +760,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
             error_message: text(graphErrorMessage || graphPost?.reason_if_missing || ""),
           });
         }
-        return {
+        return appendMappingSummary({
           ...safeRow,
           metadata: fallbackMetadata,
           had_thumbnail_before: currentHasThumbnail,
@@ -761,7 +788,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           reel_id_from_permalink: "",
           reel_thumbnail_present: false,
           object_id_thumbnail_present: false,
-        };
+        });
       }
       if (graphUnsupported) {
         const unsupportedMetadata = {
@@ -792,7 +819,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
             error_message: text(graphErrorMessage || graphPost?.reason_if_missing || ""),
           });
         }
-        return {
+        return appendMappingSummary({
           ...safeRow,
           metadata: unsupportedMetadata,
           had_thumbnail_before: currentHasThumbnail,
@@ -813,9 +840,9 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           reel_id_from_permalink: "",
           reel_thumbnail_present: false,
           object_id_thumbnail_present: false,
-        };
+        });
       }
-      return {
+      return appendMappingSummary({
         ...safeRow,
         had_thumbnail_before: currentHasThumbnail,
         thumbnail_url: currentDetails.thumbnail_url,
@@ -835,7 +862,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         reel_id_from_permalink: "",
         reel_thumbnail_present: false,
         object_id_thumbnail_present: false,
-      };
+      });
     }
     const nextMetadata = {
       ...metadata,

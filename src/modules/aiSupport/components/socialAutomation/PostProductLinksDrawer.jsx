@@ -1,0 +1,528 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { GripVertical, Loader2, Plus, RefreshCw, Search, Star, Trash2, X } from "lucide-react";
+import toast from "react-hot-toast";
+
+import {
+  getPostProductLinks,
+  removePostProductLink,
+  savePostProductLinks,
+  searchStorefrontProducts,
+} from "../../services/postProductMappingApi.js";
+
+const clean = (value = "") => String(value ?? "").trim();
+
+const normalizeProduct = (raw = {}) => {
+  const image = clean(raw.image_url || raw.product_image_url || raw.cover_image_url || raw.primary_media_url || raw.thumbnail_url || raw.image || "");
+  const stock = Number(raw.stock ?? raw.total_stock ?? raw.available_stock ?? raw.stock_quantity ?? 0);
+  return {
+    id: Number(raw.id ?? raw.product_id ?? 0) || 0,
+    name: clean(raw.name || raw.product_name || "Product"),
+    brand: clean(raw.brand_name || raw.brand || raw.manufacturer_name || raw.manufacturer || ""),
+    image_url: image,
+    price: Number(raw.price ?? raw.selling_price ?? raw.current_price ?? raw.regular_price ?? 0) || 0,
+    sale_price: Number(raw.sale_price ?? 0) || 0,
+    stock,
+    stock_status: stock > 0 ? "In stock" : "Out of stock",
+    slug: clean(raw.slug || raw.canonical_slug || ""),
+    product_url: clean(raw.product_url || ""),
+  };
+};
+
+const priceText = (product = {}) => {
+  const price = Number(product.sale_price || product.price || 0);
+  if (!Number.isFinite(price) || price <= 0) return "—";
+  return price.toLocaleString("en-US");
+};
+
+const platformLabel = (value = "") => {
+  const key = clean(value).toLowerCase();
+  if (key.includes("instagram")) return "Instagram";
+  if (key.includes("whatsapp")) return "WhatsApp";
+  if (key.includes("web")) return "Web";
+  return "Facebook";
+};
+
+const postTypeLabel = (post = {}) => {
+  const rawType = clean(post?.raw?.post_type || post?.raw?.type || post?.raw?.story_type || post?.raw?.content_type || post?.postType || post?.post_type || "");
+  if (!rawType) return "";
+  const key = rawType.toLowerCase();
+  if (key.includes("reel")) return "Reel";
+  if (key.includes("story")) return "Story";
+  if (key.includes("video")) return "Video";
+  return "Post";
+};
+
+const postImage = (post = {}) =>
+  clean(post?.thumbnailUrl || post?.thumbnail_url || post?.postThumbnail || post?.post_thumbnail || post?.product_image_url || post?.image_url || post?.image || "");
+
+export default function PostProductLinksDrawer({
+  open = false,
+  post = null,
+  tenantId = "",
+  onClose,
+  onSaved,
+}) {
+  const safePostId = clean(post?.canonicalPostId || post?.canonical_post_id || post?.postId || post?.post_id || post?.id || post?.conversationId || post?.conversation_id || "");
+  const safePlatform = clean(post?.platform || "facebook").toLowerCase() || "facebook";
+  const [initialLoading, setInitialLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
+  const [searchError, setSearchError] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchPage, setSearchPage] = useState(0);
+  const [searchHasMore, setSearchHasMore] = useState(true);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchItems, setSearchItems] = useState([]);
+  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [primaryProductId, setPrimaryProductId] = useState(null);
+  const [draggedId, setDraggedId] = useState(null);
+  const scrollRef = useRef(null);
+  const searchTimerRef = useRef(null);
+
+  const selectedIdSet = useMemo(() => new Set(selectedProducts.map((item) => Number(item.id)).filter(Boolean)), [selectedProducts]);
+  const selectedCount = selectedProducts.length;
+  const primaryProduct = useMemo(
+    () => selectedProducts.find((item) => Number(item.id) === Number(primaryProductId)) || selectedProducts[0] || null,
+    [primaryProductId, selectedProducts]
+  );
+
+  const notify = (tone, message) => {
+    const text = clean(message);
+    if (!text) return;
+    if (tone === "rose") return toast.error(text);
+    if (tone === "amber") return toast(text, { icon: "⚠️" });
+    if (tone === "emerald") return toast.success(text);
+    return toast(text);
+  };
+
+  const resetSearch = () => {
+    setSearchItems([]);
+    setSearchPage(0);
+    setSearchHasMore(true);
+    setSearchError("");
+  };
+
+  const loadSearch = async ({ reset = false } = {}) => {
+    if (!open || !safePostId) return;
+    if (searchLoading) return;
+    const nextPage = reset ? 0 : searchPage;
+    setSearchLoading(true);
+    setSearchError("");
+    try {
+      const payload = await searchStorefrontProducts({
+        query: searchTerm,
+        offset: nextPage * 20,
+        limit: 20,
+      });
+      const items = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload?.products) ? payload.products : [];
+      const normalized = items.map(normalizeProduct).filter((item) => item.id);
+      setSearchItems((current) => (reset ? normalized : [...current, ...normalized]));
+      setSearchPage((current) => (reset ? 1 : current + 1));
+      setSearchHasMore(normalized.length >= 20);
+    } catch (error) {
+      setSearchError(error?.message || "تعذر تحميل المنتجات");
+      setSearchHasMore(false);
+    } finally {
+      setSearchLoading(false);
+    }
+  };
+
+  const loadMappings = async () => {
+    if (!open || !safePostId) return;
+    setInitialLoading(true);
+    setLoadError("");
+    try {
+      const payload = await getPostProductLinks({
+        postId: safePostId,
+        platform: safePlatform,
+        tenantId,
+      });
+      const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
+      setSelectedProducts(mapped);
+      const primaryId = Number(payload?.primary_product?.id || payload?.primary_product?.product_id || mapped[0]?.id || 0) || null;
+      setPrimaryProductId(primaryId);
+    } catch (error) {
+      setLoadError(error?.message || "تعذر تحميل روابط المنتجات");
+      setSelectedProducts([]);
+      setPrimaryProductId(null);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    setSearchTerm("");
+    resetSearch();
+    void loadMappings();
+    void loadSearch({ reset: true });
+    return () => {
+      if (searchTimerRef.current) window.clearTimeout(searchTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, safePostId, safePlatform, tenantId]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    if (searchTimerRef.current) window.clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = window.setTimeout(() => {
+      resetSearch();
+      void loadSearch({ reset: true });
+    }, 250);
+    return () => {
+      if (searchTimerRef.current) window.clearTimeout(searchTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm]);
+
+  const handleToggleProduct = (product = {}) => {
+    const safeId = Number(product.id || 0);
+    if (!safeId) return;
+    setSelectedProducts((current) => {
+      const exists = current.some((item) => Number(item.id) === safeId);
+      if (exists) {
+        const next = current.filter((item) => Number(item.id) !== safeId);
+        if (Number(primaryProductId) === safeId) {
+          setPrimaryProductId(next[0]?.id || null);
+        }
+        return next;
+      }
+      const next = [...current, product];
+      if (!primaryProductId) setPrimaryProductId(safeId);
+      return next;
+    });
+  };
+
+  const handleRemoveSelected = (productId = null) => {
+    const safeId = Number(productId || 0);
+    if (!safeId) return;
+    setSelectedProducts((current) => {
+      const next = current.filter((item) => Number(item.id) !== safeId);
+      if (Number(primaryProductId) === safeId) {
+        setPrimaryProductId(next[0]?.id || null);
+      }
+      return next;
+    });
+  };
+
+  const reorderSelected = (fromId, toId) => {
+    const fromIndex = selectedProducts.findIndex((item) => Number(item.id) === Number(fromId));
+    const toIndex = selectedProducts.findIndex((item) => Number(item.id) === Number(toId));
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return;
+    const next = [...selectedProducts];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setSelectedProducts(next);
+  };
+
+  const handleSave = async () => {
+    if (!safePostId) return;
+    setSaving(true);
+    try {
+      const payload = await savePostProductLinks({
+        postId: safePostId,
+        platform: safePlatform,
+        tenantId,
+        productIds: selectedProducts.map((item) => item.id),
+        primaryProductId: primaryProductId || selectedProducts[0]?.id || null,
+      });
+      const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
+      setSelectedProducts(mapped);
+      const primaryId = Number(payload?.primary_product?.id || payload?.primary_product?.product_id || mapped[0]?.id || 0) || null;
+      setPrimaryProductId(primaryId);
+      notify("emerald", "تم حفظ ربط المنتجات");
+      await Promise.resolve(onSaved?.(payload));
+    } catch (error) {
+      notify("rose", error?.message || "تعذر حفظ ربط المنتجات");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleRemoveAll = async () => {
+    if (!safePostId) return;
+    const confirmed = window.confirm("Remove all linked products from this post?");
+    if (!confirmed) return;
+    setSaving(true);
+    try {
+      await removePostProductLink({
+        postId: safePostId,
+        platform: safePlatform,
+        tenantId,
+      });
+      setSelectedProducts([]);
+      setPrimaryProductId(null);
+      notify("emerald", "تمت إزالة روابط المنتجات");
+      await Promise.resolve(onSaved?.());
+    } catch (error) {
+      notify("rose", error?.message || "تعذر إزالة روابط المنتجات");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleScrollSearch = (event) => {
+    const node = event.currentTarget;
+    if (!node || searchLoading || !searchHasMore) return;
+    const remaining = node.scrollHeight - node.scrollTop - node.clientHeight;
+    if (remaining > 240) return;
+    void loadSearch();
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[80]">
+      <button type="button" aria-label="Close product links drawer" onClick={onClose} className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" />
+
+      <aside className="absolute right-0 top-0 flex h-full w-full max-w-[58rem] flex-col overflow-hidden border-l border-white/10 bg-slate-950 shadow-[0_24px_80px_rgba(0,0,0,0.32)] max-[768px]:left-0 max-[768px]:top-auto max-[768px]:h-[92vh] max-[768px]:max-w-none max-[768px]:rounded-t-[28px]">
+        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
+          <div className="min-w-0">
+            <div className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-100">Link Products</div>
+            <div className="mt-1 text-lg font-black text-white">{clean(post?.caption || post?.title || "Social post")}</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">
+                {platformLabel(safePlatform)}
+              </span>
+              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200">
+                {postTypeLabel(post) || "Post"}
+              </span>
+              <span className={`rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] ${selectedCount > 0 ? "border-emerald-300/20 bg-emerald-400/10 text-emerald-100" : "border-amber-300/20 bg-amber-400/10 text-amber-100"}`}>
+                {selectedCount > 0 ? "✓ Linked Products" : "⚠ No Product Linked"}
+              </span>
+            </div>
+          </div>
+
+          <button type="button" onClick={onClose} className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200">
+            <X className="h-4 w-4" />
+            Close
+          </button>
+        </div>
+
+        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
+          {loadError ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm text-rose-100">{loadError}</div> : null}
+
+          <div className="grid min-h-0 flex-1 gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+            <section className="flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03]">
+              <div className="border-b border-white/10 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Search ERP Products</div>
+                    <div className="mt-1 text-sm font-black text-white">Infinite search</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => void loadSearch({ reset: true })}
+                    className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${searchLoading ? "animate-spin" : ""}`} />
+                    Refresh
+                  </button>
+                </div>
+                <div className="mt-3 flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2">
+                  <Search className="h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(event) => setSearchTerm(event.target.value)}
+                    placeholder="Search by name, brand, SKU..."
+                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                  />
+                </div>
+              </div>
+
+              <div ref={scrollRef} onScroll={handleScrollSearch} className="min-h-0 flex-1 overflow-y-auto p-3">
+                {searchError ? <div className="mb-3 rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm text-rose-100">{searchError}</div> : null}
+                {searchLoading && !searchItems.length ? (
+                  <div className="grid min-h-[14rem] place-items-center rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] text-slate-400">
+                    <div className="flex items-center gap-2 text-sm font-black">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading products...
+                    </div>
+                  </div>
+                ) : null}
+
+                {!searchLoading && !searchItems.length ? (
+                  <div className="grid min-h-[14rem] place-items-center rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] px-6 text-center text-slate-400">
+                    <div>
+                      <div className="text-sm font-black text-white">No products yet</div>
+                      <div className="mt-1 text-xs text-slate-500">Type to search ERP products and add them to this post.</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-2">
+                  {searchItems.map((item) => {
+                    const active = selectedIdSet.has(Number(item.id));
+                    return (
+                      <article key={item.id} className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
+                        <div className="flex gap-3">
+                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-slate-900">
+                            {item.image_url ? (
+                              <img src={item.image_url} alt="" className="h-full w-full object-cover" loading="lazy" />
+                            ) : (
+                              <div className="grid h-full w-full place-items-center text-slate-500">—</div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="line-clamp-2 text-sm font-black leading-6 text-white">{item.name}</div>
+                                <div className="mt-1 text-[11px] text-slate-400">{item.brand || "ERP Product"}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleToggleProduct(item)}
+                                className={`inline-flex h-8 items-center gap-2 rounded-xl px-3 text-[11px] font-black ${
+                                  active
+                                    ? "border border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                                    : "border border-cyan-300/20 bg-cyan-400/10 text-cyan-100"
+                                }`}
+                              >
+                                {active ? "Added" : <><Plus className="h-3.5 w-3.5" /> Add</>}
+                              </button>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">Price {priceText(item)}</span>
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{item.stock_status}</span>
+                              {item.slug ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{item.slug}</span> : null}
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+
+                {searchHasMore ? (
+                  <button
+                    type="button"
+                    onClick={() => void loadSearch()}
+                    disabled={searchLoading}
+                    className="mt-3 inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+                  >
+                    {searchLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    Load more
+                  </button>
+                ) : null}
+              </div>
+            </section>
+
+            <section className="flex min-h-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03]">
+              <div className="border-b border-white/10 p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Selected Products</div>
+                <div className="mt-1 text-sm font-black text-white">Drag to reorder, choose primary</div>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                {initialLoading ? (
+                  <div className="grid min-h-[14rem] place-items-center rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] text-slate-400">
+                    <div className="flex items-center gap-2 text-sm font-black">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading current links...
+                    </div>
+                  </div>
+                ) : null}
+
+                {!initialLoading && !selectedProducts.length ? (
+                  <div className="grid min-h-[14rem] place-items-center rounded-[22px] border border-dashed border-white/10 bg-white/[0.02] px-6 text-center text-slate-400">
+                    <div>
+                      <div className="text-sm font-black text-white">No linked products</div>
+                      <div className="mt-1 text-xs text-slate-500">Add one or more ERP products from the search panel.</div>
+                    </div>
+                  </div>
+                ) : null}
+
+                <div className="grid gap-2">
+                  {selectedProducts.map((item, index) => {
+                    const isPrimary = Number(item.id) === Number(primaryProductId || primaryProduct?.id || 0);
+                    return (
+                      <div
+                        key={item.id}
+                        draggable
+                        onDragStart={() => setDraggedId(item.id)}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => {
+                          if (draggedId && draggedId !== item.id) reorderSelected(draggedId, item.id);
+                          setDraggedId(null);
+                        }}
+                        className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="mt-1 text-slate-500">
+                            <GripVertical className="h-4 w-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="line-clamp-2 text-sm font-black leading-6 text-white">{item.name}</div>
+                                <div className="mt-1 text-[11px] text-slate-400">{item.brand || "ERP Product"}</div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveSelected(item.id)}
+                                className="inline-flex h-8 items-center gap-2 rounded-xl border border-rose-300/20 bg-rose-400/10 px-3 text-[11px] font-black text-rose-100"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                                Remove
+                              </button>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">Price {priceText(item)}</span>
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{item.stock_status}</span>
+                              <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1"># {index + 1}</span>
+                            </div>
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setPrimaryProductId(item.id)}
+                                className={`inline-flex h-8 items-center gap-2 rounded-xl px-3 text-[11px] font-black ${
+                                  isPrimary
+                                    ? "border border-emerald-300/20 bg-emerald-400/10 text-emerald-100"
+                                    : "border border-white/10 bg-white/[0.04] text-slate-200"
+                                }`}
+                              >
+                                <Star className="h-3.5 w-3.5" />
+                                {isPrimary ? "Primary" : "Set Primary"}
+                              </button>
+                              {isPrimary ? <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-emerald-100">Primary</span> : null}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="border-t border-white/10 p-3">
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleSave()}
+                    disabled={saving || !safePostId}
+                    className="inline-flex h-10 items-center gap-2 rounded-xl bg-cyan-300 px-4 text-xs font-black text-slate-950 disabled:opacity-50"
+                  >
+                    {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Star className="h-4 w-4" />}
+                    Save
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRemoveAll()}
+                    disabled={saving || !selectedProducts.length}
+                    className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 text-xs font-black text-slate-200 disabled:opacity-50"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Remove
+                  </button>
+                </div>
+                <div className="text-xs text-slate-400">
+                  {primaryProduct ? `Primary product: ${primaryProduct.name}` : "Primary product will default to the first selected item."}
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </aside>
+    </div>
+  );
+}

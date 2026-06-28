@@ -10,6 +10,7 @@ import { createOrUpdateLeadOpportunity } from "./aiInboxLeadActionsService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
 import { getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
+import { resolveMappedProducts, resolvePrimaryProduct } from "./postProductMappingService.js";
 import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import {
@@ -2129,6 +2130,49 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       reason: "missing_post_id",
       platform,
       candidate_post_ids: [],
+    };
+  }
+
+  const mappedProducts = await resolveMappedProducts({
+    tenantId: safeTenantId,
+    platform,
+    postId: candidatePostIds[0] || "",
+    row,
+    post: row,
+  }).catch(() => []);
+  if (mappedProducts.length) {
+    const primaryMappedProduct = await resolvePrimaryProduct({
+      tenantId: safeTenantId,
+      platform,
+      postId: candidatePostIds[0] || "",
+      row,
+      post: row,
+    }).catch(() => null) || mappedProducts[0];
+    return {
+      found: true,
+      source: "marketing_post_product_links",
+      reason: "mapped_products",
+      platform,
+      post_id: text(primaryMappedProduct?.platform_post_id || candidatePostIds[0] || ""),
+      product_id: text(primaryMappedProduct?.product_id || ""),
+      product_name: text(primaryMappedProduct?.name || ""),
+      price: text(primaryMappedProduct?.sale_price || primaryMappedProduct?.price || ""),
+      sale_price: text(primaryMappedProduct?.sale_price || ""),
+      selling_price: text(primaryMappedProduct?.selling_price || primaryMappedProduct?.price || ""),
+      sizes: Array.isArray(primaryMappedProduct?.available_sizes) ? primaryMappedProduct.available_sizes : [],
+      available_sizes: Array.isArray(primaryMappedProduct?.available_sizes) ? primaryMappedProduct.available_sizes : [],
+      colors: Array.isArray(primaryMappedProduct?.available_colors) ? primaryMappedProduct.available_colors : [],
+      available_colors: Array.isArray(primaryMappedProduct?.available_colors) ? primaryMappedProduct.available_colors : [],
+      stock_status: text(primaryMappedProduct?.stock_status || (Number(primaryMappedProduct?.stock || 0) > 0 ? "in_stock" : "out_of_stock")),
+      product_url: text(primaryMappedProduct?.product_url || ""),
+      variant_id: "",
+      color: "",
+      size: "",
+      mapped_media_id: "",
+      candidate_post_ids: candidatePostIds,
+      mapped_products: mappedProducts,
+      linked_products_count: mappedProducts.length,
+      primary_product: primaryMappedProduct,
     };
   }
 
