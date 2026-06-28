@@ -112,7 +112,7 @@ router.get("/fast-list", protect, permit("settings", "view"), async (req, res) =
   const platform = String(req.query?.platform || "").trim();
   const status = String(req.query?.status || "").trim();
   const cursor = String(req.query?.cursor || "").trim();
-  const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 30) || 30));
+  const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 20) || 20));
   const startedAt = Date.now();
   let rowsCount = 0;
   console.log("SOCIAL_FAST_LIST_REQUEST", {
@@ -148,14 +148,25 @@ router.get("/fast-list", protect, permit("settings", "view"), async (req, res) =
     });
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment fast list" });
   } finally {
+    const duration_ms = Date.now() - startedAt;
     console.log("SOCIAL_FAST_LIST_TIMING", {
       tenant_id: tenantId,
       platform,
       status,
       limit,
-      duration_ms: Date.now() - startedAt,
+      duration_ms,
       rows_count: rowsCount,
     });
+    if (duration_ms > 150) {
+      console.warn("SOCIAL_FAST_LIST_SLOW", {
+        tenant_id: tenantId,
+        platform,
+        status,
+        limit,
+        duration_ms,
+        rows_count: rowsCount,
+      });
+    }
   }
 });
 

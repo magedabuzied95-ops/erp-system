@@ -2599,12 +2599,12 @@ const normalizeSocialCommentFastListRow = (row = {}) => {
   };
 };
 
-export const listSocialCommentCenterFastList = async ({ tenantId = null, platform = "", status = "", limit = 30, cursor = "" } = {}) => {
+export const listSocialCommentCenterFastList = async ({ tenantId = null, platform = "", status = "", limit = 20, cursor = "" } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   if (!safeTenantId) return { items: [], next_cursor: "" };
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
-  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 30));
+  const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
   const safeCursor = decodeFastListCursor(cursor);
   const cacheKey = buildSocialFastListCacheKey({ tenantId: safeTenantId, platform: normalizedPlatform, status, limit: safeLimit, cursor: safeCursor.activityAt && safeCursor.id ? cursor : "" });
   pruneSocialFastListCache();

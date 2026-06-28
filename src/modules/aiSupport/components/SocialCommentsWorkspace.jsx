@@ -19,6 +19,7 @@ import {
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+import { VirtualList } from "../../../shared/components/VirtualList";
 import SocialAutomationDrawer from "./socialAutomation/SocialAutomationDrawer.jsx";
 import PostProductLinksDrawer from "./socialAutomation/PostProductLinksDrawer.jsx";
 import {
@@ -32,6 +33,7 @@ import { CommentTimelineCard, getSocialCommentRealTimestamp } from "./socialComm
 import { useRef } from "react";
 
 const clean = (value = "") => String(value ?? "").trim();
+const DEBUG_SOCIAL_PERF = false;
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -594,6 +596,9 @@ function SocialCommentsWorkspace({
   onSelectCustomer,
   tenantId = "",
   initialSelectedCommentId = "",
+  nextCursor = "",
+  onLoadMore,
+  loadingMore = false,
 }) {
   const resolvedTenantId = clean(tenantId || selectedPost?.tenant_id || selectedPost?.tenantId || selectedThread?.post?.tenant_id || selectedThread?.post?.tenantId || "");
   const [selectedCommentKey, setSelectedCommentKey] = useState(() => clean(initialSelectedCommentId));
@@ -627,6 +632,7 @@ function SocialCommentsWorkspace({
   const [automationTestResult, setAutomationTestResult] = useState(null);
   const [automationSavedConfigs, setAutomationSavedConfigs] = useState({});
   const [highlightedCommentKey, setHighlightedCommentKey] = useState("");
+  const [optimisticCommentEntries, setOptimisticCommentEntries] = useState([]);
   const [globalDraft, setGlobalDraft] = useState(() => ({
     generic_enabled: false,
     generic_like_enabled: true,
@@ -704,11 +710,16 @@ function SocialCommentsWorkspace({
     setPreviewReply("");
     setReplyDraft("");
     setHighlightedCommentKey("");
+    setOptimisticCommentEntries([]);
   }, [activePostKey, initialSelectedCommentId]);
 
   const activeTemplate = templateDraft || selectedTemplate?.template || null;
   const currentGlobalSettings = globalDraft || globalSettings;
   const visibleComments = normalizedComments.filter((comment) => !ignoredCommentKeys.has(comment.id));
+  const displayComments = useMemo(() => {
+    if (!optimisticCommentEntries.length) return visibleComments;
+    return [...optimisticCommentEntries, ...visibleComments];
+  }, [optimisticCommentEntries, visibleComments]);
   const selectedVisibleComment =
     visibleComments.find((comment) => comment.id === clean(selectedCommentKey)) ||
     visibleComments[0] ||
@@ -1310,6 +1321,32 @@ function SocialCommentsWorkspace({
     }
   };
 
+  const upsertOptimisticCommentEntry = useCallback((comment = {}, patch = {}) => {
+    const commentId = clean(comment?.id || comment?.comment_id || comment?.external_comment_id || "");
+    if (!commentId) return;
+    setOptimisticCommentEntries((current) => {
+      const nextEntry = {
+        ...comment,
+        ...patch,
+        id: commentId,
+        comment_id: commentId,
+        external_comment_id: commentId,
+        created_at: patch.created_at || comment.created_at || new Date().toISOString(),
+        updated_at: patch.updated_at || comment.updated_at || new Date().toISOString(),
+        automation_status: patch.automation_status || comment.automation_status || "pending",
+        reply_status: patch.reply_status || comment.reply_status || "pending",
+        __optimistic: true,
+      };
+      const index = current.findIndex((item) => clean(item.id) === commentId);
+      if (index >= 0) {
+        const next = [...current];
+        next[index] = { ...next[index], ...nextEntry };
+        return next;
+      }
+      return [nextEntry, ...current];
+    });
+  }, []);
+
   const submitReply = async (comment = actionableComment, replyText = replyDraft) => {
     const actionId = resolveSocialCommentActionId(comment);
     const messageText = clean(replyText || suggestedReply);
@@ -1330,16 +1367,36 @@ function SocialCommentsWorkspace({
       notify("amber", "اكتب الرد أولًا");
       return;
     }
+    upsertOptimisticCommentEntry(comment, {
+      reply_status: "pending",
+      automation_status: "pending",
+      reply_text: messageText,
+      message_text: messageText,
+      rendered_reply: messageText,
+      last_message: messageText,
+      last_comment_text: messageText,
+      last_activity_at: new Date().toISOString(),
+    });
     setReplyLoadingKey(actionId);
     try {
       await api.post(`/ai-inbox/comments/${encodeURIComponent(actionId)}/reply`, {
         reply_text: messageText,
       });
       setReplyStatusOverrides((current) => ({ ...current, [actionId]: "sent" }));
+      upsertOptimisticCommentEntry(comment, {
+        reply_status: "sent",
+        automation_status: "sent",
+        updated_at: new Date().toISOString(),
+      });
       notify("emerald", "تم إرسال الرد");
-      await Promise.resolve(onRefresh?.());
     } catch (error) {
       setReplyStatusOverrides((current) => ({ ...current, [actionId]: "failed" }));
+      upsertOptimisticCommentEntry(comment, {
+        reply_status: "failed",
+        automation_status: "failed",
+        error_message: error?.message || "Reply failed",
+        updated_at: new Date().toISOString(),
+      });
       notify("rose", error?.message || "تعذر إرسال الرد");
     } finally {
       setReplyLoadingKey("");
@@ -1379,6 +1436,14 @@ function SocialCommentsWorkspace({
     }
     if (loadingKey) setSelectedCommentKey(loadingKey);
     setPrivateMessageLoadingKey(loadingKey || actionId);
+    upsertOptimisticCommentEntry(clickedComment || {}, {
+      reply_status: "pending",
+      automation_status: "pending",
+      private_reply_status: "pending",
+      message_text: finalMessage,
+      rendered_private_reply: finalMessage,
+      last_activity_at: new Date().toISOString(),
+    });
     try {
       await api.post(`/ai-inbox/comments/${encodeURIComponent(actionId)}/private-message`, {
         message: finalMessage,
@@ -1387,11 +1452,23 @@ function SocialCommentsWorkspace({
       });
       const statusKey = loadingKey || actionId;
       setPrivateMessageStatusOverrides((current) => ({ ...current, [statusKey]: "sent" }));
+      upsertOptimisticCommentEntry(clickedComment || {}, {
+        reply_status: "sent",
+        automation_status: "sent",
+        private_reply_status: "sent",
+        updated_at: new Date().toISOString(),
+      });
       notify("emerald", "تم إرسال الرسالة الخاصة");
-      await Promise.resolve(onRefresh?.());
     } catch (error) {
       const statusKey = loadingKey || actionId;
       setPrivateMessageStatusOverrides((current) => ({ ...current, [statusKey]: "failed" }));
+      upsertOptimisticCommentEntry(clickedComment || {}, {
+        reply_status: "failed",
+        automation_status: "failed",
+        private_reply_status: "failed",
+        error_message: error?.message || "Private message failed",
+        updated_at: new Date().toISOString(),
+      });
       notify("rose", error?.message || "إرسال رسالة خاصة من التعليق يحتاج صلاحية/دعم Meta، استخدم فتح البوست مؤقتًا.");
     } finally {
       const statusKey = loadingKey || actionId;
@@ -1446,6 +1523,8 @@ function SocialCommentsWorkspace({
   };
 
   const firstMatchingComment = (predicate) => visibleComments.find(predicate) || actionableComment || null;
+  const useVirtualPosts = normalizedPosts.length > 50;
+  const useVirtualComments = displayComments.length > 50;
 
   const renderCommentTags = (comment = {}) => {
     const tags = getCommentTags(comment);

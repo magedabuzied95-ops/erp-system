@@ -821,24 +821,45 @@ const findSocialCommentAutomationRunByKey = async ({
   platform = "",
   postId = "",
   commentId = "",
+  currentRunId = null,
+  currentCreatedAt = null,
 } = {}) => {
   const safeTenantId = Number(tenantId || 0);
   const safePostId = text(postId || "");
   const safeCommentId = text(commentId || "");
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId || !safePostId) return null;
   await ensureSocialCommentAutomationSchema();
+  const safeCurrentRunId = Number(currentRunId || 0) || null;
+  const safeCurrentCreatedAt = text(currentCreatedAt || "");
+  const duplicateStatuses = ["processing", "queued", "success", "partial_success", "failed"];
+  const conditions = [
+    `tenant_id = $1::bigint`,
+    `platform = $2::text`,
+    `comment_id = $3::text`,
+    `post_id = $4::text`,
+    `COALESCE(NULLIF(status, ''), 'skipped') = ANY($5::text[])`,
+  ];
+  const params = [safeTenantId, text(platform || "facebook"), safeCommentId, safePostId, duplicateStatuses];
+  if (safeCurrentRunId) {
+    conditions.push(`id <> $6::bigint`);
+    params.push(safeCurrentRunId);
+  }
+  const currentCreatedAtClause = safeCurrentCreatedAt ? `AND created_at < $${params.length + 1}::timestamp` : "";
+  if (safeCurrentRunId && safeCurrentCreatedAt) {
+    params.push(safeCurrentCreatedAt);
+  } else if (safeCurrentCreatedAt) {
+    params.push(safeCurrentCreatedAt);
+  }
   const result = await db.query(
     `
     SELECT *
     FROM social_comment_automation_runs
-    WHERE tenant_id = $1::bigint
-      AND platform = $2::text
-      AND comment_id = $3::text
-      AND post_id = $4::text
+    WHERE ${conditions.join(" AND ")}
+      ${currentCreatedAtClause}
     ORDER BY created_at DESC, id DESC
     LIMIT 1
     `,
-    [safeTenantId, text(platform || "facebook"), safeCommentId, safePostId]
+    params
   );
   return result.rows?.[0] || null;
 };
@@ -1250,6 +1271,7 @@ const executeSocialCommentAutomationRuntime = async ({
   postId = "",
   commentId = "",
   row = {},
+  currentRunId = null,
   productContext = null,
   config = null,
 } = {}) => {
@@ -1258,6 +1280,23 @@ const executeSocialCommentAutomationRuntime = async ({
   const safePostId = text(postId || row.post_id || "");
   const safeCommentId = text(commentId || row.comment_id || "");
   const safeRow = row || {};
+  const safeCurrentRunId = (() => {
+    const candidateId = Number(currentRunId || safeRow.id || 0);
+    if (!Number.isFinite(candidateId) || candidateId <= 0) return null;
+    const looksLikeAutomationRun = Boolean(
+      safeRow &&
+      typeof safeRow === "object" &&
+      (
+        Object.prototype.hasOwnProperty.call(safeRow, "status") ||
+        Object.prototype.hasOwnProperty.call(safeRow, "step_results") ||
+        Object.prototype.hasOwnProperty.call(safeRow, "skipped_reason") ||
+        Object.prototype.hasOwnProperty.call(safeRow, "automation_state")
+      )
+    );
+    return looksLikeAutomationRun ? candidateId : null;
+  })();
+  const safeCurrentCreatedAt = text(safeRow.created_at || safeRow.processed_at || "");
+  const runtimeSource = text(safeRow.raw_payload?.source || safeRow.source || "");
   const stepResults = [];
   const currentPrivateReplyStatus = text(safeRow.dm_status || safeRow.automation_state?.private_reply?.status || "").toLowerCase();
   const buildCurrentDiagnostics = ({ skippedReason = "", duplicateReason = "", rawRuntimeContext = null, configOverride = config, productContextOverride = productContext } = {}) =>
@@ -1409,8 +1448,26 @@ const executeSocialCommentAutomationRuntime = async ({
     platform: normalizedPlatform,
     postId: safePostId,
     commentId: safeCommentId,
+    currentRunId: safeCurrentRunId,
+    currentCreatedAt: safeCurrentCreatedAt,
   }).catch(() => null);
-  if (existingDuplicateRun) {
+  const existingDuplicateStatus = text(existingDuplicateRun?.status || "").toLowerCase();
+  const isDuplicateCandidate = ["processing", "queued", "success", "partial_success", "failed"].includes(existingDuplicateStatus);
+  const isDuplicateRun = Boolean(existingDuplicateRun && isDuplicateCandidate && (!safeCurrentRunId || Number(existingDuplicateRun.id || 0) !== safeCurrentRunId));
+  console.info("SOCIAL_COMMENT_AUTOMATION_DEDUPE_CHECK", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    current_run_id: safeCurrentRunId,
+    existing_run_id: existingDuplicateRun?.id || null,
+    existing_status: existingDuplicateStatus,
+    created_at: text(existingDuplicateRun?.created_at || ""),
+    private_reply_status: currentPrivateReplyStatus || text(existingDuplicateRun?.dm_status || existingDuplicateRun?.automation_state?.private_reply?.status || ""),
+    source: runtimeSource || text(existingDuplicateRun?.raw_payload?.source || existingDuplicateRun?.source || ""),
+    is_current_run: Boolean(safeCurrentRunId && existingDuplicateRun && Number(existingDuplicateRun.id || 0) === safeCurrentRunId),
+  });
+  if (isDuplicateRun) {
     const duplicateStepResults = [{
       step: "automation",
       status: "skipped",
@@ -1765,7 +1822,7 @@ const executeSocialCommentAutomationRuntime = async ({
     console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", result);
   }
 
-  const privateReplySkippedReason = ["queued", "sending", "sent"].includes(currentPrivateReplyStatus)
+  const privateReplySkippedReason = ["queued", "sending"].includes(currentPrivateReplyStatus)
     ? `private_reply_status_${currentPrivateReplyStatus}`
     : "";
   if (!privateReplyEnabled) {
@@ -3215,6 +3272,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       postId,
       commentId: text(event.comment_id || savedRunRow?.comment_id || ""),
       row: savedRunRow || {},
+      currentRunId: savedRunRow?.id || null,
       productContext: runtimeProductContext,
       config: automationConfig,
     }).catch((error) => {
@@ -4811,6 +4869,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         postId: storedRow.post_id,
         commentId: text(storedRow.comment_id || ""),
         row: storedRow,
+        currentRunId: storedRow?.id || null,
         productContext: runtimeProductContext,
         config: automationConfig,
       }).catch((error) => {

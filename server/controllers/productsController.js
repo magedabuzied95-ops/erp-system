@@ -2820,6 +2820,8 @@ export const updateProduct = async (req, res) => {
     await ensureProductSchema();
     await ensureProductVariantSchema();
     await ensureProductVariantManufacturerColumn();
+    const productColumns = await getTableColumns(client, "products");
+    const supportsThermalImageUrl = productColumns.has("thermal_image_url");
     const {
       name,
         description,
@@ -3091,8 +3093,8 @@ export const updateProduct = async (req, res) => {
         tax_rate = COALESCE($51, 0),
         low_stock_tracking_mode = COALESCE($52, low_stock_tracking_mode),
         product_low_stock_threshold = COALESCE($53, product_low_stock_threshold),
-        minimum_distinct_sizes_required = COALESCE($54, minimum_distinct_sizes_required),
-        thermal_image_url = CASE WHEN $60 THEN $61 ELSE thermal_image_url END
+        minimum_distinct_sizes_required = COALESCE($54, minimum_distinct_sizes_required)${supportsThermalImageUrl ? `,
+        thermal_image_url = CASE WHEN $60 THEN $61 ELSE thermal_image_url END` : ""}
       WHERE id = $56
         AND tenant_id = $58
       RETURNING *
@@ -3159,8 +3161,7 @@ export const updateProduct = async (req, res) => {
         productPricingProvided,
         tenantId,
         normalizedStorefrontVisible,
-        thermalImageUrlProvided,
-        thermal_image_url || "",
+        ...(supportsThermalImageUrl ? [thermalImageUrlProvided, thermal_image_url || ""] : []),
       ]
     );
     if (updated.rows.length === 0) {
@@ -3267,18 +3268,42 @@ export const updateProduct = async (req, res) => {
           return colorKey && activeColorKeys.has(colorKey);
         })
       : [];
+    const sanitizeColorImageGroupForPersistence = (group = {}) => {
+      const { thermal_image_url: _thermalImageUrl, thermalImageUrl: _thermalArtworkUrl, ...safeGroup } = group || {};
+      const safeImages = Array.isArray(safeGroup.images)
+        ? safeGroup.images.map((image) => {
+            if (!image || typeof image !== "object") return image;
+            const {
+              thermal_image_url: _imageThermalImageUrl,
+              thermalImageUrl: _imageThermalArtworkUrl,
+              ...safeImage
+            } = image;
+            return safeImage;
+          })
+        : safeGroup.images;
+      return {
+        ...safeGroup,
+        images: safeImages,
+      };
+    };
+    const persistedColorImages = activeColorImages.map(sanitizeColorImageGroupForPersistence);
     const activeVariantImagePayloads = variantImagePayloads.filter((entry) => {
       const variantId = Number(entry?.variant_id ?? entry?.variantId ?? entry?.id ?? 0);
       if (Number.isFinite(variantId) && deletedVariantIdSet.has(variantId)) return false;
       const colorKey = String(entry?.color_name || entry?.colorName || entry?.color_value || entry?.colorValue || entry?.color || "").trim().toLowerCase();
       return !colorKey || activeColorKeys.has(colorKey);
     });
+    const persistedVariantImagePayloads = activeVariantImagePayloads.map((entry) => {
+      if (!entry || typeof entry !== "object") return entry;
+      const { thermal_image_url: _thermalImageUrl, thermalImageUrl: _thermalArtworkUrl, ...safeEntry } = entry;
+      return safeEntry;
+    });
 
     const persistedVariantImageRows = await replaceProductVariantImages(client, {
       tenantId,
       productId,
-      variants: [...variantsToSave, ...activeVariantImagePayloads],
-      colorImages: activeColorImages,
+      variants: [...variantsToSave, ...persistedVariantImagePayloads],
+      colorImages: persistedColorImages,
     });
 
     const imageBundleMap = await loadProductVariantImages(client, [productId]).catch(() => new Map());
@@ -3326,6 +3351,14 @@ export const updateProduct = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("PRODUCT_UPDATE_FAILED", {
+      message: error?.message,
+      stack: error?.stack,
+      code: error?.code,
+      detail: error?.detail,
+      constraint: error?.constraint,
+      column: error?.column,
+    });
     if (transactionStarted) {
       try {
         await client.query("ROLLBACK");
