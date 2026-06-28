@@ -40,7 +40,7 @@ import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import TranscriptMessage from "../components/TranscriptMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
-import { CommentTimelineCard, resolveSocialCommentTimestamp } from "../components/socialCommentTimeline.jsx";
+import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -4416,14 +4416,16 @@ export default function AiInboxPwa() {
                       const commentText = clean(comment.original_comment_text || comment.comment_text || comment.message_text || comment.text || comment.message || "");
                       const commenterName = clean(comment.commenter_name || comment.customer_name || comment.from_name || "مستخدم مجهول");
                       const commenterAvatar = clean(comment.customer_avatar_url || comment.avatar_url || comment.profile_pic || "");
-                      const timestampResolution = resolveSocialCommentTimestamp(comment);
+                      const timestampResolution = getSocialCommentRealTimestamp(comment);
                       const commentTime = clean(timestampResolution.timestamp || "");
                       if (import.meta.env.DEV) {
                         console.info("AI_INBOX_SOCIAL_COMMENT_TIMESTAMP_RESOLVED", {
                           post_id: clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || ""),
                           comment_id: commentId,
-                          selected_timestamp: commentTime,
+                          rendered_time: commentTime || "Unknown",
+                          raw_timestamp: timestampResolution.timestamp || "",
                           selected_source_field: timestampResolution.sourceField || "",
+                          source: timestampResolution.timestamp ? "real_comment_timestamp" : "missing",
                         });
                       }
                       const commentStatus = clean(comment.classification_label || comment.reply_status || comment.auto_reply_mode || "pending");

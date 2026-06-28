@@ -41,6 +41,70 @@ const pickTimestamp = (candidates = []) => {
   return { timestamp: "", sourceField: "" };
 };
 
+const timestampAgeMinutes = (timestamp, now = Date.now()) => {
+  if (!timestamp) return Number.POSITIVE_INFINITY;
+  const time = new Date(timestamp).getTime();
+  if (!Number.isFinite(time)) return Number.POSITIVE_INFINITY;
+  return Math.max(0, (now - time) / 60000);
+};
+
+const isGenericTimestampSource = (sourceField = "") => {
+  const key = clean(sourceField).toLowerCase();
+  return ["updated_at", "created_at", "last_activity_at", "saved_at", "materialized_at"].some((field) => key === field || key.endsWith(`.${field}`));
+};
+
+export const getSocialCommentRealTimestamp = (item = {}) => {
+  const metadata = item?.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata) ? item.metadata : {};
+  const latestComment =
+    item?.latest_comment ||
+    metadata?.latest_comment ||
+    item?.last_comment ||
+    metadata?.last_comment ||
+    {};
+
+  const candidates = [
+    ["latest_comment.created_time", latestComment?.created_time],
+    ["latest_comment.created_at", latestComment?.created_at],
+    ["latest_comment.timestamp", latestComment?.timestamp],
+    ["latest_comment_created_time", item?.latest_comment_created_time],
+    ["latest_comment_at", item?.latest_comment_at],
+    ["last_comment_at", item?.last_comment_at],
+    ["comment_created_time", item?.comment_created_time],
+    ["facebook_comment_created_time", item?.facebook_comment_created_time],
+    ["instagram_comment_created_time", item?.instagram_comment_created_time],
+    ["metadata.latest_comment_created_time", metadata?.latest_comment_created_time],
+    ["metadata.latest_comment_at", metadata?.latest_comment_at],
+    ["metadata.last_comment_at", metadata?.last_comment_at],
+    ["metadata.comment_created_time", metadata?.comment_created_time],
+    ["metadata.created_time", metadata?.created_time],
+    ["metadata.facebook_comment_created_time", metadata?.facebook_comment_created_time],
+    ["metadata.instagram_comment_created_time", metadata?.instagram_comment_created_time],
+    ["source_created_time", item?.source_created_time],
+    ["metadata.source_created_time", metadata?.source_created_time],
+    ["latest_comment.created_time", metadata?.latest_comment?.created_time],
+    ["latest_comment.created_at", metadata?.latest_comment?.created_at],
+    ["latest_comment.timestamp", metadata?.latest_comment?.timestamp],
+    ["last_comment.created_time", metadata?.last_comment?.created_time],
+    ["last_comment.created_at", metadata?.last_comment?.created_at],
+    ["last_comment.timestamp", metadata?.last_comment?.timestamp],
+    ["item.updated_at", item?.updated_at],
+    ["item.created_at", item?.created_at],
+  ];
+
+  const { timestamp: selectedTimestamp, sourceField: selectedSourceField } = pickTimestamp(candidates);
+  if (!selectedTimestamp) return { timestamp: "", sourceField: "" };
+
+  if (isGenericTimestampSource(selectedSourceField) && timestampAgeMinutes(selectedTimestamp) < 5) {
+    const metadataCandidates = candidates.filter(([sourceField]) => !isGenericTimestampSource(sourceField));
+    const { timestamp: metadataTimestamp, sourceField: metadataSourceField } = pickTimestamp(metadataCandidates);
+    if (metadataTimestamp) {
+      return { timestamp: metadataTimestamp, sourceField: metadataSourceField };
+    }
+  }
+
+  return { timestamp: selectedTimestamp, sourceField: selectedSourceField };
+};
+
 const isValidDate = (value) => {
   const date = new Date(value);
   return !Number.isNaN(date.getTime());
@@ -126,73 +190,7 @@ const deriveLeadState = (source = "") => {
   return "pending";
 };
 
-export const resolveSocialCommentTimestamp = (comment = {}) => {
-  const raw = comment && typeof comment === "object" ? comment.raw || comment : {};
-  const metadata = raw.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
-  const latestComment =
-    [
-      comment.latest_comment,
-      comment.latestComment,
-      raw.latest_comment,
-      raw.latestComment,
-      metadata.latest_comment,
-      metadata.latestComment,
-    ].find((value) => value && typeof value === "object" && !Array.isArray(value)) || {};
-  const lastComment =
-    [
-      comment.last_comment,
-      comment.lastComment,
-      raw.last_comment,
-      raw.lastComment,
-      metadata.last_comment,
-      metadata.lastComment,
-    ].find((value) => value && typeof value === "object" && !Array.isArray(value)) || {};
-
-  return pickTimestamp([
-    ["latest_comment.created_time", latestComment.created_time],
-    ["latest_comment.created_at", latestComment.created_at],
-    ["latest_comment.createdTime", latestComment.createdTime],
-    ["last_comment.created_time", lastComment.created_time],
-    ["last_comment.created_at", lastComment.created_at],
-    ["last_comment.createdTime", lastComment.createdTime],
-    ["latest_comment_at", comment.latest_comment_at],
-    ["last_comment_at", comment.last_comment_at],
-    ["comment_created_time", comment.comment_created_time],
-    ["last_activity_at", comment.last_activity_at],
-    ["updated_at", comment.updated_at],
-    ["created_at", comment.created_at],
-    ["created_time", comment.created_time],
-    ["createdTime", comment.createdTime],
-    ["raw.latest_comment.created_time", raw.latest_comment?.created_time],
-    ["raw.latest_comment.created_at", raw.latest_comment?.created_at],
-    ["raw.latest_comment.createdTime", raw.latest_comment?.createdTime],
-    ["raw.last_comment.created_time", raw.last_comment?.created_time],
-    ["raw.last_comment.created_at", raw.last_comment?.created_at],
-    ["raw.last_comment.createdTime", raw.last_comment?.createdTime],
-    ["raw.latest_comment_at", raw.latest_comment_at],
-    ["raw.last_comment_at", raw.last_comment_at],
-    ["raw.comment_created_time", raw.comment_created_time],
-    ["raw.last_activity_at", raw.last_activity_at],
-    ["raw.updated_at", raw.updated_at],
-    ["raw.created_at", raw.created_at],
-    ["raw.created_time", raw.created_time],
-    ["raw.createdTime", raw.createdTime],
-    ["metadata.latest_comment.created_time", metadata.latest_comment?.created_time],
-    ["metadata.latest_comment.created_at", metadata.latest_comment?.created_at],
-    ["metadata.latest_comment.createdTime", metadata.latest_comment?.createdTime],
-    ["metadata.last_comment.created_time", metadata.last_comment?.created_time],
-    ["metadata.last_comment.created_at", metadata.last_comment?.created_at],
-    ["metadata.last_comment.createdTime", metadata.last_comment?.createdTime],
-    ["metadata.latest_comment_at", metadata.latest_comment_at],
-    ["metadata.last_comment_at", metadata.last_comment_at],
-    ["metadata.comment_created_time", metadata.comment_created_time],
-    ["metadata.last_activity_at", metadata.last_activity_at],
-    ["metadata.updated_at", metadata.updated_at],
-    ["metadata.created_at", metadata.created_at],
-    ["metadata.created_time", metadata.created_time],
-    ["metadata.createdTime", metadata.createdTime],
-  ]);
-};
+export const resolveSocialCommentTimestamp = (comment = {}) => getSocialCommentRealTimestamp(comment);
 
 export const getSocialCommentTimestamp = (comment = {}) => resolveSocialCommentTimestamp(comment).timestamp;
 

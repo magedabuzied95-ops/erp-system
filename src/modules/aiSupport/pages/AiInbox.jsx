@@ -64,7 +64,7 @@ import TranscriptMessage from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
 import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
-import { getSocialCommentTimestamp } from "../components/socialCommentTimeline.jsx";
+import { getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -309,7 +309,7 @@ const normalizeSocialCommentThreadComment = (raw) => {
     customerAvatar: String(comment.avatar || comment.customer_avatar || comment.customer_avatar_url || comment.commenter_profile_picture_url || comment.avatar_url || comment.profile_pic || metadata.avatar || metadata.customer_avatar || "").trim(),
     classification: String(comment.classification_label || comment.classification || comment.intent || metadata.classification_label || metadata.classification || metadata.intent || "Question").trim(),
     replyStatus: String(comment.reply_status || metadata.reply_status || "pending").trim(),
-    createdTime: getSocialCommentTimestamp(comment),
+    createdTime: getSocialCommentRealTimestamp(comment).timestamp,
     metadata,
     postId: String(comment.post_id || comment.conversation_post_id || comment.thread_post_id || metadata.post_id || "").trim(),
     platform: String(comment.platform || metadata.platform || "").trim(),
