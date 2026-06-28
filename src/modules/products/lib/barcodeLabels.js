@@ -743,10 +743,10 @@ const formatDisplayColor = (value = "") => {
 
 export const BARCODE_LABEL_LAYOUT = Object.freeze({
   page: { width: 100, height: 50 },
-  image: { x: 2, y: 3.2, w: 43.6, h: 33.8 },
-  title: { x: 40.5, y: 5.6, w: 56.5, fontSize: 13, lineHeight: 1.1, lineStepMm: 5.3, maxLines: 2 },
+  image: { x: 2, y: 3.2, w: 47.0, h: 36.4 },
+  title: { x: 40.5, y: 5.6, w: 56.5, fontSize: 11.7, lineHeight: 1.16, lineStepMm: 4.9, maxLines: 2 },
   sizeBadge: {
-    x: 40.5,
+    x: 44.8,
     y: 13.6,
     w: 30.8,
     wWithArticle: 16.0,
@@ -755,15 +755,15 @@ export const BARCODE_LABEL_LAYOUT = Object.freeze({
     valueFontSize: 25,
   },
   articleBox: {
-    x: 57.0,
+    x: 61.2,
     y: 13.6,
-    w: 30.2,
+    w: 27.8,
     h: 13.0,
     labelFontSize: 3.9,
-    valueFontSize: 12,
+    valueFontSize: 11.5,
     valueFontSizeCompact: 10,
   },
-  colorBox: { x: 40.5, y: 28.3, w: 43.0, h: 6.8, labelFontSize: 3.8, valueFontSize: 13.0 },
+  colorBox: { x: 40.5, y: 28.3, w: 43.0, h: 6.8, labelFontSize: 3.5, valueFontSize: 13.0 },
   barcode: { x: 5, y: 39.8, w: 90, h: 7.0, textY: 48.8, fontSize: 7.2 },
   articleLabelFontSize: 3.9,
 });
@@ -819,7 +819,7 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   });
 
   const productText = productLines.length
-    ? productLines.map((line, index) => `<text x="${BARCODE_LABEL_LAYOUT.title.x}" y="${BARCODE_LABEL_LAYOUT.title.y + (index * 5.8)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? layout.titleFontSize * 0.46 : layout.titleFontSize * 0.4}" font-weight="900">${escapeHtml(line)}</text>`).join("")
+    ? productLines.map((line, index) => `<text x="${BARCODE_LABEL_LAYOUT.title.x}" y="${BARCODE_LABEL_LAYOUT.title.y + (index * layout.titleLineStepMm)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? layout.titleFontSize * 0.46 : layout.titleFontSize * 0.4}" font-weight="900">${escapeHtml(line)}</text>`).join("")
     : `<text x="${BARCODE_LABEL_LAYOUT.title.x}" y="${BARCODE_LABEL_LAYOUT.title.y}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleFontSize * 0.46}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
 
   return `

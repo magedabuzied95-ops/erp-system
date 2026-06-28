@@ -1275,6 +1275,13 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
     minHeight: `${thermalLayout.colorBoxHeight}mm`,
     padding: "0.65mm 1mm",
   };
+  const articleValueStyle = {
+    fontSize: `${articleValue.length > 10 ? thermalLayout.articleFontSizeCompact : thermalLayout.articleFontSize}px`,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    maxWidth: "100%",
+  };
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
     width: Math.round(720 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
     height: Math.max(112, Number(printSettings.barcodeHeight || 88)),
@@ -1301,14 +1308,12 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
           className="grid min-h-0 flex-1 gap-[1.2mm]"
           style={{
             gridTemplateColumns: printSettings.showProductImage
-              ? showArticleBox
-                ? `${thermalLayout.imageWidth * 0.44}mm minmax(0, 1fr)`
-                : `${thermalLayout.imageWidth * 0.48}mm minmax(0, 1fr)`
+              ? `${thermalLayout.imageWidth}mm minmax(0, 1fr)`
               : "minmax(0,1fr)",
           }}
         >
           {printSettings.showProductImage ? (
-            <div className="flex min-h-0 items-center justify-center overflow-hidden rounded-[8px] border border-zinc-200 bg-zinc-50" style={{ minHeight: `${thermalLayout.imageHeight}mm`, padding: "1.05mm" }}>
+            <div className="flex min-h-0 items-center justify-center overflow-hidden rounded-[8px] border border-zinc-200 bg-zinc-50" style={{ minHeight: `${thermalLayout.imageHeight}mm`, padding: "0.85mm" }}>
               <ImageWithFallback
                 src={safeImage}
                 alt={productName}
@@ -1343,7 +1348,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                   </div>
                   <div
                     className="mt-[0.35mm] truncate font-black leading-none"
-                    style={{ fontSize: articleValue.length > 14 ? `${thermalLayout.articleFontSizeCompact}px` : `${thermalLayout.articleFontSize}px` }}
+                    style={articleValueStyle}
                   >
                     {articleValue}
                   </div>
@@ -1355,7 +1360,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
               <div className="font-black uppercase leading-none tracking-[0.22em] text-zinc-500" style={{ fontSize: `${thermalLayout.colorLabelFontSize}px` }}>
                 {t("products.barcodeLabels.color")}
               </div>
-              <div className="mt-[0.25mm] truncate font-black uppercase leading-none" style={{ fontSize: `${thermalLayout.colorValueFontSize}px` }}>
+              <div className="mt-[0.55mm] truncate font-black uppercase leading-none" style={{ fontSize: `${thermalLayout.colorValueFontSize}px` }}>
                 {colorValue}
               </div>
             </div>
