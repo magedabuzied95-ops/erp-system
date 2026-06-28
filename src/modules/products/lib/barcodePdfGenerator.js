@@ -170,6 +170,23 @@ const drawImageOrPlaceholder = async (doc, item, x, y, w, h) => {
   return false;
 };
 
+const withLandscapeRotation = async (doc, drawFn) => {
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  doc.saveGraphicsState();
+  doc.setCurrentTransformationMatrix(new doc.Matrix(0, 1, -1, 0, pageWidth, 0));
+
+  try {
+    await drawFn({
+      pageWidth: pageHeight,
+      pageHeight: pageWidth,
+    });
+  } finally {
+    doc.restoreGraphicsState();
+  }
+};
+
 const renderLabelPage = async (doc, item = {}, index = 0) => {
   if (index === 0) {
     console.log("[PDF] page size", {
@@ -177,91 +194,90 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
       height: doc.internal.pageSize.getHeight(),
     });
   }
-  const pageWidth = doc.internal.pageSize.getWidth();
-  const pageHeight = doc.internal.pageSize.getHeight();
-  const margin = 2;
-  const imageX = 2;
-  const imageY = 3.2;
-  const imageW = 35.5;
-  const imageH = 30.0;
-  const titleX = 40.5;
-  const titleY = 6;
-  const titleW = 57.5;
-  const sizeBadgeX = 40.5;
-  const sizeBadgeY = 14.0;
-  const sizeBadgeW = 20.5;
-  const sizeBadgeH = 11.5;
-  const colorBoxX = 40.5;
-  const colorBoxY = 27.8;
-  const colorBoxW = 15.2;
-  const colorBoxH = 6.8;
-  const priceBoxX = 55.9;
-  const priceBoxY = 27.8;
-  const priceBoxW = 15.2;
-  const priceBoxH = 6.8;
-  const skuY = 39.2;
-  const barcodeX = 5;
-  const barcodeY = 39.1;
-  const barcodeW = 90;
-  const barcodeH = 7.0;
-  const barcodeNumberY = 48.8;
+  await withLandscapeRotation(doc, async ({ pageWidth, pageHeight }) => {
+    const imageX = 2;
+    const imageY = 3.2;
+    const imageW = 35.5;
+    const imageH = 30.0;
+    const titleX = 40.5;
+    const titleY = 6;
+    const titleW = 57.5;
+    const sizeBadgeX = 40.5;
+    const sizeBadgeY = 14.0;
+    const sizeBadgeW = 20.5;
+    const sizeBadgeH = 11.5;
+    const colorBoxX = 40.5;
+    const colorBoxY = 27.8;
+    const colorBoxW = 15.2;
+    const colorBoxH = 6.8;
+    const priceBoxX = 55.9;
+    const priceBoxY = 27.8;
+    const priceBoxW = 15.2;
+    const priceBoxH = 6.8;
+    const skuY = 39.2;
+    const barcodeX = 5;
+    const barcodeY = 39.1;
+    const barcodeW = 90;
+    const barcodeH = 7.0;
+    const barcodeNumberY = 48.8;
 
-  const productName = normalizeLabelText(item.productName || item.name || item.title || `Label ${index + 1}`);
-  const sizeValue = normalizeLabelText(item.size || item.variantSize || item.labelSize || "ONE SIZE");
-  const colorValue = normalizeLabelText(item.color || item.variantColor || item.labelColor || "");
-  const numericPrice = Number(item.salePrice ?? item.price ?? item.displayPrice ?? 0);
-  const priceValue = `EGP ${Math.round(Number.isFinite(numericPrice) ? numericPrice : 0)}`;
-  const skuValue = normalizeLabelText(item.sku || item.article || item.variantSku || "");
-  const barcodeValue = getLabelBarcodeValue(item);
-  if (typeof doc.setR2L === "function") {
-    doc.setR2L(isArabicText(productName));
-  }
+    const productName = normalizeLabelText(item.productName || item.name || item.title || `Label ${index + 1}`);
+    const sizeValue = normalizeLabelText(item.size || item.variantSize || item.labelSize || "ONE SIZE");
+    const colorValue = normalizeLabelText(item.color || item.variantColor || item.labelColor || "");
+    const numericPrice = Number(item.salePrice ?? item.price ?? item.displayPrice ?? 0);
+    const priceValue = `EGP ${Math.round(Number.isFinite(numericPrice) ? numericPrice : 0)}`;
+    const skuValue = normalizeLabelText(item.sku || item.article || item.variantSku || "");
+    const barcodeValue = getLabelBarcodeValue(item);
+    if (typeof doc.setR2L === "function") {
+      doc.setR2L(isArabicText(productName));
+    }
 
-  doc.setFillColor(255, 255, 255);
-  doc.rect(0, 0, pageWidth, pageHeight, "F");
-  doc.setDrawColor(226, 232, 240);
-  doc.rect(0.4, 0.4, pageWidth - 0.8, pageHeight - 0.8, "S");
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, pageWidth, pageHeight, "F");
+    doc.setDrawColor(226, 232, 240);
+    doc.rect(0.4, 0.4, pageWidth - 0.8, pageHeight - 0.8, "S");
 
-  await drawImageOrPlaceholder(doc, item, imageX, imageY, imageW, imageH);
+    await drawImageOrPlaceholder(doc, item, imageX, imageY, imageW, imageH);
 
-  const titleLines = toTextLines(doc, productName, titleW, 2, 10);
-  doc.setTextColor(2, 6, 23);
-  doc.setFont("helvetica", "bold");
-  titleLines.forEach((line, lineIndex) => {
-    doc.setFontSize(lineIndex === 0 ? 10 : 9);
-    doc.text(line, titleX, titleY + (lineIndex * 5.0), { maxWidth: titleW });
+    const titleLines = toTextLines(doc, productName, titleW, 2, 10);
+    doc.setTextColor(2, 6, 23);
+    doc.setFont("helvetica", "bold");
+    titleLines.forEach((line, lineIndex) => {
+      doc.setFontSize(lineIndex === 0 ? 10 : 9);
+      doc.text(line, titleX, titleY + (lineIndex * 5.0), { maxWidth: titleW });
+    });
+
+    drawRoundedRect(doc, sizeBadgeX, sizeBadgeY, sizeBadgeW, sizeBadgeH, 1.8, [2, 6, 23]);
+    doc.setTextColor(203, 213, 225);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(6.6);
+    doc.text("SIZE", sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 3.5, { align: "center" });
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.text(sizeValue, sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 8.4, { align: "center" });
+
+    drawRoundedRect(doc, colorBoxX, colorBoxY, colorBoxW, colorBoxH, 1, [244, 244, 245], [226, 232, 240]);
+    drawRoundedRect(doc, priceBoxX, priceBoxY, priceBoxW, priceBoxH, 1, [244, 244, 245], [226, 232, 240]);
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(5.5);
+    doc.text("COLOR", colorBoxX + colorBoxW / 2, colorBoxY + 2.2, { align: "center" });
+    doc.text("PRICE", priceBoxX + priceBoxW / 2, priceBoxY + 2.2, { align: "center" });
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(8.6);
+    doc.text(colorValue || "-", colorBoxX + colorBoxW / 2, colorBoxY + 5.2, { align: "center" });
+    doc.setFontSize(9.4);
+    doc.text(priceValue, priceBoxX + priceBoxW / 2, priceBoxY + 5.2, { align: "center" });
+
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(5.4);
+    doc.text(skuValue, titleX, skuY, { maxWidth: titleW });
+
+    const barcodeText = drawBarcode(doc, barcodeValue, barcodeX, barcodeY, barcodeW, barcodeH);
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.2);
+    doc.text(barcodeText, pageWidth / 2, barcodeNumberY, { align: "center" });
   });
-
-  drawRoundedRect(doc, sizeBadgeX, sizeBadgeY, sizeBadgeW, sizeBadgeH, 1.8, [2, 6, 23]);
-  doc.setTextColor(203, 213, 225);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.6);
-  doc.text("SIZE", sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 3.5, { align: "center" });
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.text(sizeValue, sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 8.4, { align: "center" });
-
-  drawRoundedRect(doc, colorBoxX, colorBoxY, colorBoxW, colorBoxH, 1, [244, 244, 245], [226, 232, 240]);
-  drawRoundedRect(doc, priceBoxX, priceBoxY, priceBoxW, priceBoxH, 1, [244, 244, 245], [226, 232, 240]);
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(5.5);
-  doc.text("COLOR", colorBoxX + colorBoxW / 2, colorBoxY + 2.2, { align: "center" });
-  doc.text("PRICE", priceBoxX + priceBoxW / 2, priceBoxY + 2.2, { align: "center" });
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(8.6);
-  doc.text(colorValue || "-", colorBoxX + colorBoxW / 2, colorBoxY + 5.2, { align: "center" });
-  doc.setFontSize(9.4);
-  doc.text(priceValue, priceBoxX + priceBoxW / 2, priceBoxY + 5.2, { align: "center" });
-
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(5.4);
-  doc.text(skuValue, titleX, skuY, { maxWidth: titleW });
-
-  const barcodeText = drawBarcode(doc, barcodeValue, barcodeX, barcodeY, barcodeW, barcodeH);
-  doc.setTextColor(15, 23, 42);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.2);
-  doc.text(barcodeText, pageWidth / 2, barcodeNumberY, { align: "center" });
 };
 
 export async function generateBarcodeLabelsPdf(labels = [], options = {}) {
@@ -269,7 +285,7 @@ export async function generateBarcodeLabelsPdf(labels = [], options = {}) {
   const doc = new jsPDF({
     orientation: "portrait",
     unit: "mm",
-    format: [100, 50],
+    format: [50, 100],
     compress: true,
   });
 
