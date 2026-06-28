@@ -723,6 +723,38 @@ const relativeTime = (value) => {
   return `${diffDays}d`;
 };
 
+function getPwaCardTimeValue(conversation) {
+  if (isSocialCommentThread(conversation) || getInboxItemKind(conversation) === "comment") {
+    return (
+      conversation?.real_comment_created_time ||
+      conversation?.comment_created_time ||
+      conversation?.latest_comment?.created_time ||
+      conversation?.last_comment?.created_time ||
+      conversation?.metadata?.real_comment_created_time ||
+      conversation?.metadata?.comment_created_time ||
+      null
+    );
+  }
+
+  return (
+    conversation?.last_activity_at ||
+    conversation?.last_message_at ||
+    conversation?.updated_at ||
+    conversation?.created_at ||
+    null
+  );
+}
+
+function renderPwaCardTime(conversation) {
+  const value = getPwaCardTimeValue(conversation);
+
+  if (isSocialCommentThread(conversation) || getInboxItemKind(conversation) === "comment") {
+    return value ? relativeTime(value) : "Unknown";
+  }
+
+  return relativeTime(value);
+}
+
 const relativeSeenLabel = (value) => {
   const label = relativeTime(value);
   return label ? `Last seen ${label}` : "No recent activity";
@@ -1349,7 +1381,19 @@ function ConversationListItem({ conversation, active, onSelect }) {
   const commenterName = isCommentThread ? commentThreadCommenterName(conversation) : "";
   const preview = isCommentThread ? commentThreadLastComment(conversation) || "No comments yet" : conversationPreview(conversation) || "No messages yet";
   const commentCount = isCommentThread ? commentThreadCommentCount(conversation) : 0;
-  const lastActivity = relativeTime(conversation.last_activity_at || conversation.last_message_at || conversation.updated_at);
+  const lastActivity = renderPwaCardTime(conversation);
+  if (import.meta.env.DEV && (isSocialCommentThread(conversation) || getInboxItemKind(conversation) === "comment")) {
+    console.log("AI_INBOX_PWA_VISIBLE_TIME_FIELD", {
+      post_id: conversation?.post_id,
+      comment_id: conversation?.comment_id,
+      real_comment_created_time: conversation?.real_comment_created_time,
+      comment_created_time: conversation?.comment_created_time,
+      last_activity_at: conversation?.last_activity_at,
+      updated_at: conversation?.updated_at,
+      rendered_time_source: getPwaCardTimeValue(conversation),
+      rendered_label: renderPwaCardTime(conversation),
+    });
+  }
   const postTime = isCommentThread ? commentThreadPostTime(conversation) : "";
   const unread = unreadCount > 0;
   return (
@@ -2035,7 +2079,7 @@ function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLe
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                       <span>{getConversationSourceLabel(conversation)}</span>
                       <span className="h-1 w-1 rounded-full bg-slate-300" />
-                      <span>{relativeTime(conversation.last_activity_at || conversation.updated_at)}</span>
+                      <span>{renderPwaCardTime(conversation)}</span>
                     </div>
                   </div>
                   <PwaChip tone={leadStatusTone(status)}>{leadStatusLabel(status)}</PwaChip>
