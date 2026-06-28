@@ -57,17 +57,35 @@ const parseRequestBody = (body = null) => {
   }
 };
 
-const flattenValidationMessages = (value) => {
+const safeJsonStringify = (value) => {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch (error) {
+    return JSON.stringify(
+      {
+        serialization_error: error?.message || String(error),
+        value_type: Array.isArray(value) ? "array" : typeof value,
+      },
+      null,
+      2
+    );
+  }
+};
+
+const toLogString = (value) => {
+  if (value === undefined) return "undefined";
+  if (typeof value === "string") return value;
+  return safeJsonStringify(value);
+};
+
+const extractValidationErrors = (value) => {
   if (value === null || value === undefined) return null;
   if (Array.isArray(value)) {
-    return value.flatMap((entry) => {
-      const nested = flattenValidationMessages(entry);
-      return nested === null ? [] : Array.isArray(nested) ? nested : [nested];
-    });
+    return value.map((entry) => extractValidationErrors(entry));
   }
   if (typeof value === "object") {
     return Object.fromEntries(
-      Object.entries(value).map(([key, entry]) => [key, flattenValidationMessages(entry)])
+      Object.entries(value).map(([key, entry]) => [key, extractValidationErrors(entry)])
     );
   }
   return value;
@@ -83,13 +101,21 @@ const logRequestDetails = (label, { url = "", options = {} } = {}) => {
 };
 
 const logResponseDetails = (label, response = {}) => {
-  const payload = response?.data ?? response ?? null;
+  const data = response?.data ?? null;
+  const message = data?.message ?? response?.message ?? null;
+  const errors = data?.errors ?? response?.errors ?? response?.error ?? null;
+  const validation = data?.validation ?? response?.validation ?? null;
+  const validationErrors = extractValidationErrors(validation ?? errors ?? message ?? null);
+  const responseNode = response?.response ?? data?.response ?? null;
+  const fullPayload = response?.data !== undefined ? response.data : response;
   console.log(label, {
-    data: payload,
-    message: payload?.message ?? response?.message ?? null,
-    validation_errors: flattenValidationMessages(payload?.validation ?? payload?.errors ?? payload?.message ?? null),
-    errors: payload?.errors ?? response?.errors ?? null,
-    response_message: response?.message ?? null,
+    data: toLogString(data),
+    message: toLogString(message),
+    errors: toLogString(errors),
+    validation: toLogString(validation),
+    validation_errors: toLogString(validationErrors),
+    response: toLogString(responseNode),
+    full_json: toLogString(fullPayload),
   });
 };
 
@@ -219,13 +245,22 @@ const evolutionRequest = async (path, options = {}) => {
 const getWebhookSetEndpoint = (instanceName = "") => `/webhook/set/${encodeURIComponent(trim(instanceName))}`;
 
 const logWebhookResponse = (label, response = {}) => {
-  const data = response?.data ?? response ?? null;
+  const data = response?.data ?? null;
+  const message = data?.message ?? response?.message ?? null;
+  const errors = data?.errors ?? response?.errors ?? response?.error ?? null;
+  const validation = data?.validation ?? response?.validation ?? null;
+  const validationErrors = extractValidationErrors(validation ?? errors ?? message ?? null);
+  const responseNode = response?.response ?? data?.response ?? null;
+  const fullPayload = response?.data !== undefined ? response.data : response;
   console.log(label, {
-    data,
-    message: data?.message ?? response?.message ?? null,
-    validation_errors: flattenValidationMessages(data?.validation ?? data?.errors ?? data?.message ?? null),
-    errors: data?.errors ?? response?.errors ?? response?.error ?? null,
-    raw: response ?? null,
+    data: toLogString(data),
+    message: toLogString(message),
+    errors: toLogString(errors),
+    validation: toLogString(validation),
+    validation_errors: toLogString(validationErrors),
+    response: toLogString(responseNode),
+    full_json: toLogString(fullPayload),
+    raw: toLogString(response),
   });
 };
 
