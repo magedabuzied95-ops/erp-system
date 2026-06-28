@@ -1260,7 +1260,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
     >
       <div className="flex h-full flex-col gap-[1mm] p-[1.2mm]">
         {printSettings.showProductName ? (
-          <h3 className="line-clamp-2 min-h-0 text-[15px] font-black leading-[1.02] text-zinc-950">
+          <h3 className="min-h-[2.5em] line-clamp-2 text-[13px] font-black leading-[1.04] text-zinc-950">
             {productName}
           </h3>
         ) : null}
@@ -1280,9 +1280,9 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             </div>
           ) : null}
 
-          <div className="flex min-w-0 flex-col gap-[0.9mm] overflow-hidden">
-            <div className="grid min-w-0 gap-[0.8mm]" style={{ gridTemplateColumns: showArticleBox ? "1fr 1fr" : "1fr" }}>
-              <div className="rounded-[8px] border border-zinc-950 bg-zinc-950 px-[1.2mm] py-[0.9mm] text-center text-white">
+          <div className="flex min-w-0 flex-col gap-[0.8mm] overflow-hidden">
+            <div className="grid min-w-0 gap-[0.8mm]" style={{ gridTemplateColumns: showArticleBox ? "minmax(0, 0.92fr) minmax(0, 1.3fr)" : "1fr" }}>
+              <div className="min-w-0 rounded-[8px] border border-zinc-950 bg-zinc-950 px-[1.1mm] py-[0.9mm] text-center text-white">
                 <div className="text-[3.6px] font-black uppercase leading-none tracking-[0.22em] text-zinc-300">
                   {t("products.barcodeLabels.size")}
                 </div>
@@ -1292,22 +1292,25 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
               </div>
 
               {showArticleBox ? (
-                <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[0.8mm] text-center text-zinc-950">
+                <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[0.8mm] text-center text-zinc-950">
                   <div className="text-[3.6px] font-black uppercase leading-none tracking-[0.22em] text-zinc-500">
                     {t("products.barcodeLabels.sku", "ARTICLE/SKU")}
                   </div>
-                  <div className="mt-[0.35mm] truncate text-[12px] font-black leading-none">
+                  <div
+                    className="mt-[0.35mm] truncate font-black leading-none"
+                    style={{ fontSize: articleValue.length > 14 ? "10px" : "12px" }}
+                  >
                     {articleValue}
                   </div>
                 </div>
               ) : null}
             </div>
 
-            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[0.8mm] text-center text-zinc-950">
-              <div className="text-[3.6px] font-black uppercase leading-none tracking-[0.22em] text-zinc-500">
+            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[0.65mm] text-center text-zinc-950">
+              <div className="text-[3.1px] font-black uppercase leading-none tracking-[0.22em] text-zinc-500">
                 {t("products.barcodeLabels.color")}
               </div>
-              <div className="mt-[0.35mm] truncate text-[12px] font-black uppercase leading-none">
+              <div className="mt-[0.25mm] truncate text-[13px] font-black uppercase leading-none">
                 {colorValue}
               </div>
             </div>

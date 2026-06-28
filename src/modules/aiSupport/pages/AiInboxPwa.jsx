@@ -4436,6 +4436,43 @@ export default function AiInboxPwa() {
     }
   }, [headers, refreshAfterSocialAutomation, selectedSocialPost?.conversation_id, selectedSocialPost?.id, selectedSocialPost?.platform, selectedSocialPost?.post_id, selectedSocialTemplate.template?.template, selectedSocialTemplate.template?.privateReplyTemplate, selectedSocialThread?.post?.private_reply_text, selectedSocialThread?.post?.reply_text, selectedSocialThread?.post?.rendered_private_reply, selectedSocialThread?.post?.rendered_reply, socialReplySettings.generic_template, socketHealthy, tenantId]);
 
+  const handleSocialCommentCustomerSelect = useCallback(
+    (rawComment = {}, data = {}) => {
+      const commentPlatform = clean(rawComment.platform || selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook");
+      const commentId = clean(rawComment.comment_id || rawComment.id || "");
+      const commentPostId = clean(rawComment.post_id || rawComment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || "");
+      const commentPageId = clean(rawComment.page_id || selectedSocialThread?.post?.page_id || selectedPost?.page_id || "");
+      const commenterName = clean(rawComment.customer_name || rawComment.commenter_name || rawComment.from_name || "مستخدم مجهول");
+      const commenterAvatar = clean(rawComment.customer_avatar_url || rawComment.avatar_url || rawComment.profile_pic || "");
+      openCustomerDrawer(
+        {
+          ...rawComment,
+          customer_name: commenterName,
+          customer_avatar_url: commenterAvatar,
+          customer_profile_id: clean(rawComment.customer_profile_id || rawComment.customerProfileId || ""),
+          platform: commentPlatform,
+          post_id: commentPostId,
+          page_id: commentPageId,
+        },
+        {
+          source: "pwa_social_comment",
+          platform: commentPlatform,
+          postId: commentPostId,
+          commentId,
+          pageId: commentPageId,
+          summary: data?.text || clean(rawComment.original_comment_text || rawComment.comment_text || rawComment.message_text || rawComment.text || rawComment.message || ""),
+          lastActiveAt: clean(getSocialCommentRealTimestamp(rawComment).timestamp || ""),
+          customerName: commenterName,
+        }
+      );
+    },
+    [openCustomerDrawer, selectedPost?.conversation_id, selectedPost?.page_id, selectedPost?.platform, selectedPost?.post_id, selectedSocialThread?.post?.page_id, selectedSocialThread?.post?.platform, selectedSocialThread?.post?.post_id]
+  );
+  const handleSocialCommentReply = useCallback((comment = {}) => sendSelectedSocialCommentAction(comment, "reply"), [sendSelectedSocialCommentAction]);
+  const handleSocialCommentPrivateMessage = useCallback((comment = {}) => sendSelectedSocialCommentAction(comment, "private_message"), [sendSelectedSocialCommentAction]);
+  const handleSocialCommentIgnore = useCallback((comment = {}) => sendSelectedSocialCommentAction(comment, "ignore"), [sendSelectedSocialCommentAction]);
+  const handleSocialCommentCreateLead = useCallback(() => {}, []);
+
   const installApp = useCallback(async () => {
     if (!installPrompt) return;
     await installPrompt.prompt();
@@ -4820,33 +4857,11 @@ export default function AiInboxPwa() {
                           privateMessageStatus={clean(comment.private_reply_status || comment.dm_status || selectedSocialThread?.post?.dm_status || "")}
                           leadLoadingKey=""
                           ignoreLoadingKey={socialActionLoading.startsWith("ignore:") ? socialActionLoading.slice("ignore:".length) : ""}
-                          onSelectCustomer={(rawComment, data) =>
-                            openCustomerDrawer(
-                              {
-                                ...rawComment,
-                                customer_name: clean(comment.commenter_name || comment.customer_name || comment.from_name || "مستخدم مجهول"),
-                                customer_avatar_url: clean(comment.customer_avatar_url || comment.avatar_url || comment.profile_pic || ""),
-                                customer_profile_id: clean(comment.customer_profile_id || comment.customerProfileId || ""),
-                                platform: commentPlatform,
-                                post_id: clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || ""),
-                                page_id: clean(comment.page_id || selectedSocialThread?.post?.page_id || selectedPost?.page_id || ""),
-                              },
-                              {
-                                source: "pwa_social_comment",
-                                platform: commentPlatform,
-                                postId: clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || ""),
-                                commentId: clean(comment.comment_id || comment.id || ""),
-                                pageId: clean(comment.page_id || selectedSocialThread?.post?.page_id || selectedPost?.page_id || ""),
-                                summary: data?.text || clean(comment.original_comment_text || comment.comment_text || comment.message_text || comment.text || comment.message || ""),
-                                lastActiveAt: clean(getSocialCommentRealTimestamp(comment).timestamp || ""),
-                                customerName: clean(comment.commenter_name || comment.customer_name || comment.from_name || "مستخدم مجهول"),
-                              }
-                            )
-                          }
-                          onReply={sendSelectedSocialCommentAction}
-                          onPrivateMessage={sendSelectedSocialCommentAction}
-                          onCreateLead={() => {}}
-                          onIgnore={sendSelectedSocialCommentAction}
+                          onSelectCustomer={handleSocialCommentCustomerSelect}
+                          onReply={handleSocialCommentReply}
+                          onPrivateMessage={handleSocialCommentPrivateMessage}
+                          onCreateLead={handleSocialCommentCreateLead}
+                          onIgnore={handleSocialCommentIgnore}
                         />
                       );
                     })}

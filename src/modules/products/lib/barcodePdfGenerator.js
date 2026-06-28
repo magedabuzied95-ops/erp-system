@@ -165,6 +165,19 @@ const drawRoundedRect = (doc, x, y, w, h, radius = 1.5, fill = null, stroke = nu
   doc.roundedRect(x, y, w, h, radius, radius, fill && stroke ? "FD" : fill ? "F" : "S");
 };
 
+const fitTextSize = (doc, text, maxWidth, fontSize, minFontSize = 3.8) => {
+  const value = String(text || "").trim();
+  if (!value) return minFontSize;
+  let currentSize = fontSize;
+  doc.setFont("helvetica", "bold");
+  while (currentSize > minFontSize) {
+    doc.setFontSize(currentSize);
+    if (doc.getTextWidth(value) <= maxWidth) return currentSize;
+    currentSize -= 0.2;
+  }
+  return minFontSize;
+};
+
 const renderLabelPage = async (doc, item = {}, index = 0) => {
   const logicalPageWidth = 100;
   const logicalPageHeight = 50;
@@ -175,31 +188,30 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   const titleX = 40.5;
   const titleY = 5.6;
   const titleW = 56.5;
-  const sizeBadgeX = 40.5;
-  const sizeBadgeY = 13.6;
-  const sizeBadgeW = 17.8;
-  const sizeBadgeH = 13.2;
-  const articleBoxX = 58.8;
-  const articleBoxY = 13.6;
-  const articleBoxW = 24.6;
-  const articleBoxH = 13.2;
-  const colorBoxX = 40.5;
-  const colorBoxY = 28.3;
-  const colorBoxW = 43.0;
-  const colorBoxH = 7.1;
-  const skuY = 38.8;
-  const barcodeX = 5;
-  const barcodeY = 39.8;
-  const barcodeW = 90;
-  const barcodeH = 7.0;
-  const barcodeNumberY = 48.8;
-
   const productName = normalizeLabelText(item.productName || item.name || item.title || `Label ${index + 1}`);
   const sizeValue = normalizeLabelText(item.size || item.variantSize || item.labelSize || "ONE SIZE");
   const rawColorValue = normalizeLabelText(item.color || item.variantColor || item.labelColor || "");
   const colorValue = /[\u0600-\u06FF]/.test(rawColorValue) ? rawColorValue : rawColorValue.toUpperCase();
   const skuValue = normalizeLabelText(item.sku || item.article || item.variantSku || "");
   const showArticleBox = Boolean(skuValue);
+  const sizeBadgeX = 40.5;
+  const sizeBadgeY = 13.6;
+  const sizeBadgeW = showArticleBox ? 16.0 : 30.8;
+  const sizeBadgeH = 13.2;
+  const articleBoxX = 57.0;
+  const articleBoxY = 13.6;
+  const articleBoxW = 30.2;
+  const articleBoxH = 13.2;
+  const colorBoxX = 40.5;
+  const colorBoxY = 28.3;
+  const colorBoxW = 43.0;
+  const colorBoxH = 6.7;
+  const skuY = 38.8;
+  const barcodeX = 5;
+  const barcodeY = 39.8;
+  const barcodeW = 90;
+  const barcodeH = 7.0;
+  const barcodeNumberY = 48.8;
   const barcodeValue = getLabelBarcodeValue(item);
   if (typeof doc.setR2L === "function") {
     doc.setR2L(isArabicText(productName));
@@ -216,14 +228,14 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setTextColor(2, 6, 23);
   doc.setFont("helvetica", "bold");
   titleLines.forEach((line, lineIndex) => {
-    doc.setFontSize(lineIndex === 0 ? 14.4 : 12.1);
+    doc.setFontSize(lineIndex === 0 ? 13.0 : 11.1);
     doc.text(line, titleX, titleY + (lineIndex * 5.0), { maxWidth: titleW });
   });
 
   drawRoundedRect(doc, sizeBadgeX, sizeBadgeY, sizeBadgeW, sizeBadgeH, 1.8, [2, 6, 23]);
   doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(4.3);
+  doc.setFontSize(4.1);
   doc.text("SIZE", sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 3.5, { align: "center" });
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(25);
@@ -232,20 +244,21 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   if (showArticleBox) {
     drawRoundedRect(doc, articleBoxX, articleBoxY, articleBoxW, articleBoxH, 1, [244, 244, 245], [226, 232, 240]);
     doc.setTextColor(100, 116, 139);
-    doc.setFontSize(4.3);
+    doc.setFontSize(3.9);
     doc.text("ARTICLE/SKU", articleBoxX + articleBoxW / 2, articleBoxY + 3.5, { align: "center" });
     doc.setTextColor(15, 23, 42);
-    doc.setFontSize(11.8);
-    doc.text(skuValue, articleBoxX + articleBoxW / 2, articleBoxY + 8.8, { align: "center", maxWidth: articleBoxW - 2 });
+    const skuFontSize = fitTextSize(doc, skuValue, articleBoxW - 2, 11.8, 9.4);
+    doc.setFontSize(skuFontSize);
+    doc.text(skuValue, articleBoxX + articleBoxW / 2, articleBoxY + 8.8, { align: "center" });
   }
 
   drawRoundedRect(doc, colorBoxX, colorBoxY, colorBoxW, colorBoxH, 1, [244, 244, 245], [226, 232, 240]);
   doc.setTextColor(100, 116, 139);
-  doc.setFontSize(4.3);
+  doc.setFontSize(3.8);
   doc.text("COLOR", colorBoxX + colorBoxW / 2, colorBoxY + 2.2, { align: "center" });
   doc.setTextColor(15, 23, 42);
-  doc.setFontSize(12.4);
-  doc.text(colorValue || "-", colorBoxX + colorBoxW / 2, colorBoxY + 5.8, { align: "center", maxWidth: colorBoxW - 2 });
+  doc.setFontSize(13.0);
+  doc.text(colorValue || "-", colorBoxX + colorBoxW / 2, colorBoxY + 5.3, { align: "center", maxWidth: colorBoxW - 2 });
 
   if (!showArticleBox) {
     doc.setTextColor(15, 23, 42);

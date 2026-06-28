@@ -195,8 +195,22 @@ function SocialCommentsCenter() {
         lastActiveAt: clean(context.lastActiveAt || customer.created_at || customer.updated_at || ""),
         summary: clean(context.summary || customer.comment_text || customer.message || ""),
         customerName: clean(customer.customer_name || customer.commenter_name || customer.author_name || customer.from_name || ""),
-      },
-    });
+    },
+  });
+
+const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
+  clean(left.id) === clean(right.id) &&
+  clean(left.post_id) === clean(right.post_id) &&
+  clean(left.external_comment_id) === clean(right.external_comment_id) &&
+  clean(left.customer_name) === clean(right.customer_name) &&
+  clean(left.customer_avatar_url) === clean(right.customer_avatar_url) &&
+  clean(left.message_preview) === clean(right.message_preview) &&
+  clean(left.last_activity_at) === clean(right.last_activity_at) &&
+  clean(left.status) === clean(right.status) &&
+  clean(left.automation_status) === clean(right.automation_status) &&
+  clean(left.product_id) === clean(right.product_id) &&
+  clean(left.product_name) === clean(right.product_name) &&
+  Boolean(left.unread) === Boolean(right.unread);
   }, []);
 
   const selectedPostIdentity = useMemo(() => socialPostIdentity(selectedPost || {}), [selectedPost]);
@@ -369,10 +383,13 @@ function SocialCommentsCenter() {
         if (matchOnly && matchIndex < 0) return currentItems;
 
         const nextItem = matchIndex >= 0 ? mergeFastSocialCommentItem(currentItems[matchIndex], normalizedPayload) : normalizedPayload;
+        if (matchIndex >= 0 && fastSocialCommentItemsEqual(currentItems[matchIndex], nextItem)) {
+          return currentItems;
+        }
         const nextItems = matchIndex >= 0
           ? [nextItem, ...currentItems.filter((_, index) => index !== matchIndex)]
           : [nextItem, ...currentItems];
-        return nextItems.slice(0, 100);
+        return nextItems.length === currentItems.length && nextItems.every((item, index) => item === currentItems[index]) ? currentItems : nextItems.slice(0, 100);
       });
     };
 
