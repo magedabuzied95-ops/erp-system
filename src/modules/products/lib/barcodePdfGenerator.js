@@ -158,6 +158,18 @@ const drawImageOrPlaceholder = async (doc, item, x, y, w, h) => {
   return false;
 };
 
+const drawRoundedRect = (doc, x, y, w, h, radius = 1.5, fill = null, stroke = null) => {
+  if (fill) {
+    const [r, g, b] = fill;
+    doc.setFillColor(r, g, b);
+  }
+  if (stroke) {
+    const [r, g, b] = stroke;
+    doc.setDrawColor(r, g, b);
+  }
+  doc.roundedRect(x, y, w, h, radius, radius, fill && stroke ? "FD" : fill ? "F" : "S");
+};
+
 const renderLabelPage = async (doc, item = {}, index = 0) => {
   if (index === 0) {
     console.log("[PDF] page size", {
