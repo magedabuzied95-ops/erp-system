@@ -1008,6 +1008,15 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   clean(left.message_preview) === clean(right.message_preview) &&
   clean(left.last_activity_at) === clean(right.last_activity_at) &&
   clean(left.status) === clean(right.status) &&
+  clean(left.reply_status) === clean(right.reply_status) &&
+  clean(left.auto_reply_mode) === clean(right.auto_reply_mode) &&
+  clean(left.session_status) === clean(right.session_status) &&
+  clean(left.replyStatus) === clean(right.replyStatus) &&
+  clean(left.autoReplyMode) === clean(right.autoReplyMode) &&
+  clean(left.sessionStatus) === clean(right.sessionStatus) &&
+  clean(left.public_reply_status) === clean(right.public_reply_status) &&
+  clean(left.dm_status) === clean(right.dm_status) &&
+  clean(left.like_status) === clean(right.like_status) &&
   clean(left.automation_status) === clean(right.automation_status) &&
   clean(left.product_id) === clean(right.product_id) &&
   clean(left.product_name) === clean(right.product_name) &&
