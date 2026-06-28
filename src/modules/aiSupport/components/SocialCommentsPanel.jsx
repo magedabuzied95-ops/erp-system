@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { Clock3, ExternalLink, MessageSquareText, RefreshCw, User } from "lucide-react";
 import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
 
