@@ -2047,27 +2047,6 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
     ) runmeta ON TRUE
     LEFT JOIN LATERAL (
       SELECT
-        mp.published_at AS marketing_published_at,
-        mp.created_at AS marketing_created_time,
-        mp.post_created_time AS marketing_post_created_time,
-        COALESCE(mp.published_at, mp.created_at, mp.post_created_time, mp.updated_at) AS post_created_time
-      FROM marketing_posts mp
-      WHERE mp.tenant_id = c.tenant_id
-        AND (
-          mp.platform_post_id = c.metadata->>'post_id'
-          OR mp.external_post_id = c.metadata->>'post_id'
-          OR mp.platform_post_id = c.metadata->>'platform_post_id'
-          OR mp.external_post_id = c.metadata->>'platform_post_id'
-          OR mp.platform_post_id = c.metadata->>'external_post_id'
-          OR mp.external_post_id = c.metadata->>'external_post_id'
-          OR mp.platform_post_id = c.external_conversation_id
-          OR mp.external_post_id = c.external_conversation_id
-        )
-      ORDER BY mp.published_at DESC NULLS LAST, mp.created_at DESC NULLS LAST, mp.post_created_time DESC NULLS LAST, mp.updated_at DESC, mp.id DESC
-      LIMIT 1
-    ) postmeta ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT
         COUNT(*)::int AS comments_count,
         COUNT(*) FILTER (WHERE msg.created_at > COALESCE(c.read_at, s.read_at))::int AS new_comments_count,
         MAX(NULLIF(msg.comment_created_time, '')) AS real_comment_created_time,
@@ -2081,6 +2060,26 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
         AND msg.session_id = c.external_conversation_id
         AND msg.message_type = 'comment_inbound'
     ) agg ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT
+        mp.published_at AS marketing_published_at,
+        mp.created_at AS marketing_created_time,
+        COALESCE(mp.published_at, mp.created_at, mp.updated_at, agg.real_comment_created_time) AS post_created_time
+      FROM marketing_posts mp
+      WHERE mp.tenant_id = c.tenant_id
+        AND (
+          mp.platform_post_id = c.metadata->>'post_id'
+          OR mp.external_post_id = c.metadata->>'post_id'
+          OR mp.platform_post_id = c.metadata->>'platform_post_id'
+          OR mp.external_post_id = c.metadata->>'platform_post_id'
+          OR mp.platform_post_id = c.metadata->>'external_post_id'
+          OR mp.external_post_id = c.metadata->>'external_post_id'
+          OR mp.platform_post_id = c.external_conversation_id
+          OR mp.external_post_id = c.external_conversation_id
+        )
+      ORDER BY mp.published_at DESC NULLS LAST, mp.created_at DESC NULLS LAST, mp.updated_at DESC NULLS LAST, mp.id DESC
+      LIMIT 1
+    ) postmeta ON TRUE
     LEFT JOIN LATERAL (
       SELECT
         (ARRAY_AGG(run.like_status ORDER BY run.created_at DESC, run.id DESC))[1] AS like_status,
@@ -2232,27 +2231,6 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     ) runmeta ON TRUE
     LEFT JOIN LATERAL (
       SELECT
-        mp.published_at AS marketing_published_at,
-        mp.created_at AS marketing_created_time,
-        mp.post_created_time AS marketing_post_created_time,
-        COALESCE(mp.published_at, mp.created_at, mp.post_created_time, mp.updated_at) AS post_created_time
-      FROM marketing_posts mp
-      WHERE mp.tenant_id = c.tenant_id
-        AND (
-          mp.platform_post_id = c.metadata->>'post_id'
-          OR mp.external_post_id = c.metadata->>'post_id'
-          OR mp.platform_post_id = c.metadata->>'platform_post_id'
-          OR mp.external_post_id = c.metadata->>'platform_post_id'
-          OR mp.platform_post_id = c.metadata->>'external_post_id'
-          OR mp.external_post_id = c.metadata->>'external_post_id'
-          OR mp.platform_post_id = c.external_conversation_id
-          OR mp.external_post_id = c.external_conversation_id
-        )
-      ORDER BY mp.published_at DESC NULLS LAST, mp.created_at DESC NULLS LAST, mp.post_created_time DESC NULLS LAST, mp.updated_at DESC, mp.id DESC
-      LIMIT 1
-    ) postmeta ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT
         COUNT(*)::int AS comments_count,
         COUNT(*) FILTER (WHERE msg.created_at > COALESCE(c.read_at, s.read_at))::int AS new_comments_count,
         MAX(NULLIF(msg.comment_created_time, '')) AS real_comment_created_time,
@@ -2267,6 +2245,26 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
         AND msg.session_id = c.external_conversation_id
         AND msg.message_type = 'comment_inbound'
     ) agg ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT
+        mp.published_at AS marketing_published_at,
+        mp.created_at AS marketing_created_time,
+        COALESCE(mp.published_at, mp.created_at, mp.updated_at, agg.real_comment_created_time) AS post_created_time
+      FROM marketing_posts mp
+      WHERE mp.tenant_id = c.tenant_id
+        AND (
+          mp.platform_post_id = c.metadata->>'post_id'
+          OR mp.external_post_id = c.metadata->>'post_id'
+          OR mp.platform_post_id = c.metadata->>'platform_post_id'
+          OR mp.external_post_id = c.metadata->>'platform_post_id'
+          OR mp.platform_post_id = c.metadata->>'external_post_id'
+          OR mp.external_post_id = c.metadata->>'external_post_id'
+          OR mp.platform_post_id = c.external_conversation_id
+          OR mp.external_post_id = c.external_conversation_id
+        )
+      ORDER BY mp.published_at DESC NULLS LAST, mp.created_at DESC NULLS LAST, mp.updated_at DESC NULLS LAST, mp.id DESC
+      LIMIT 1
+    ) postmeta ON TRUE
     LEFT JOIN LATERAL (
       SELECT
         (ARRAY_AGG(run.like_status ORDER BY run.created_at DESC, run.id DESC))[1] AS like_status,
