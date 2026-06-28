@@ -7,7 +7,7 @@ const clean = (value = "") => String(value ?? "").trim();
 const absoluteTime = (value) => {
   if (!value) return "";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return clean(value);
+  if (Number.isNaN(date.getTime())) return "Unknown";
   return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 };
 
@@ -77,7 +77,7 @@ const postMatches = (item = {}, filter = "all") => {
 };
 
 const sortValueComment = (item = {}) => new Date(item.created_at || 0).getTime() || 0;
-const sortValuePost = (item = {}) => new Date(item.last_activity_at || item.last_comment_at || item.last_message_at || item.updated_at || item.created_at || 0).getTime() || 0;
+const sortValuePost = (item = {}) => new Date(item.real_comment_created_time || 0).getTime() || 0;
 
 function SocialCommentsPanel({
   items = [],
@@ -215,12 +215,10 @@ function SocialCommentsPanel({
                         </div>
                         <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
                           {subtitle ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">{" "}{subtitle}</span> : null}
-                          {item.last_activity_at ? (
-                            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
-                              <Clock3 className="h-3.5 w-3.5" />
-                              {absoluteTime(item.last_activity_at)}
-                            </span>
-                          ) : null}
+                          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
+                            <Clock3 className="h-3.5 w-3.5" />
+                            {item.real_comment_created_time ? absoluteTime(item.real_comment_created_time) : "Unknown"}
+                          </span>
                         </div>
                       </div>
                     </div>

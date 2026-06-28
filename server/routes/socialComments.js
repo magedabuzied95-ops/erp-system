@@ -72,6 +72,17 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
       });
     }
     const posts = await listSocialCommentPosts({ tenantId, platform, limit: req.query?.limit || 50 });
+    console.log("AI_INBOX_SOCIAL_COMMENT_TIME_PAYLOAD", {
+      tenant_id: tenantId,
+      platform,
+      sample: posts.slice(0, 3).map((post) => ({
+        post_id: post.post_id || post.conversation_id || "",
+        comment_id: post.comment_id || post.last_comment_id || "",
+        msg_created_at: post.msg_created_at || "",
+        comment_created_time: post.comment_created_time || post.last_comment_at || "",
+        real_comment_created_time: post.real_comment_created_time || post.last_comment_at || "",
+      })),
+    });
     if (String(req.query?.debug || "") === "1") {
       console.log("[social-comments-posts-debug]", {
         tenant_id: tenantId,

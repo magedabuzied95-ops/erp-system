@@ -846,7 +846,7 @@ const socialPostMatchesFilter = (item = {}, filter = "all") => {
   return true;
 };
 
-const socialPostSortValue = (item = {}) => new Date(item.last_activity_at || item.last_comment_at || item.last_message_at || item.updated_at || item.created_at || 0).getTime() || 0;
+const socialPostSortValue = (item = {}) => new Date(item.real_comment_created_time || 0).getTime() || 0;
 
 const mergeConversationSummaryRefresh = (currentConversation = {}, nextConversation = {}) => {
   if (!currentConversation) return nextConversation;
@@ -2349,6 +2349,25 @@ export default function AiInboxPwa() {
           if (seq !== requestSeqRef.current) return;
           const items = asArray(postsPayload.posts || postsPayload.items);
           const status = Number(postsPayload?.__status || 200) || 200;
+          if (import.meta.env.DEV) {
+            console.log(
+              "AI_INBOX_PWA_RAW_COMMENT_ITEM",
+              items.slice(0, 3).map((item) => ({
+                id: item?.id || "",
+                post_id: item?.post_id || "",
+                comment_id: item?.comment_id || "",
+                created_at: item?.created_at || "",
+                updated_at: item?.updated_at || "",
+                last_activity_at: item?.last_activity_at || "",
+                latest_comment_at: item?.latest_comment_at || "",
+                last_comment_at: item?.last_comment_at || "",
+                comment_created_time: item?.comment_created_time || "",
+                latest_comment: item?.latest_comment || null,
+                last_comment: item?.last_comment || null,
+                metadata: item?.metadata || null,
+              }))
+            );
+          }
           setSocialComments({ items, loading: false, error: "" });
           setSocialReplySettings({
             generic_enabled: Boolean(settingsPayload?.settings?.generic_enabled),
@@ -4411,11 +4430,28 @@ export default function AiInboxPwa() {
                         لا توجد تعليقات سوشيال حاليًا
                       </div>
                     ) : null}
-                    {selectedSocialThread.comments.map((comment) => {
+                    {selectedSocialThread.comments.map((comment, index) => {
                       const commentId = clean(comment.comment_id || comment.id || "");
                       const commentText = clean(comment.original_comment_text || comment.comment_text || comment.message_text || comment.text || comment.message || "");
                       const commenterName = clean(comment.commenter_name || comment.customer_name || comment.from_name || "مستخدم مجهول");
                       const commenterAvatar = clean(comment.customer_avatar_url || comment.avatar_url || comment.profile_pic || "");
+                      const commentMetadata = comment?.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
+                      const latestComment = comment?.latest_comment || commentMetadata?.latest_comment || comment?.last_comment || commentMetadata?.last_comment || null;
+                      const commentPlatform = clean(comment.platform || selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook");
+                      if (import.meta.env.DEV && index === 0 && commentPlatform.toLowerCase().includes("facebook")) {
+                        console.log({
+                          post_id: clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || ""),
+                          comment_id: commentId,
+                          latest_comment: latestComment,
+                          metadata: commentMetadata,
+                          created_at: comment.created_at || "",
+                          updated_at: comment.updated_at || "",
+                          last_comment_at: comment.last_comment_at || "",
+                          latest_comment_at: comment.latest_comment_at || "",
+                          comment_created_time: comment.comment_created_time || "",
+                          source_created_time: comment.source_created_time || "",
+                        });
+                      }
                       const timestampResolution = getSocialCommentRealTimestamp(comment);
                       const commentTime = clean(timestampResolution.timestamp || "");
                       if (import.meta.env.DEV) {
@@ -4430,7 +4466,6 @@ export default function AiInboxPwa() {
                       }
                       const commentStatus = clean(comment.classification_label || comment.reply_status || comment.auto_reply_mode || "pending");
                       const commentPostId = clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || "");
-                      const commentPlatform = clean(comment.platform || selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook");
                       const commentPageId = clean(comment.page_id || selectedSocialThread?.post?.page_id || selectedPost?.page_id || "");
                       const commentParentId = clean(comment.parent_comment_id || comment.parentId || comment.parent_id || "");
                       const commentCustomerProfileId = clean(comment.customer_profile_id || comment.customerProfileId || "");

@@ -1806,11 +1806,13 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
       SELECT
         COUNT(*)::int AS comments_count,
         COUNT(*) FILTER (WHERE msg.created_at > COALESCE(c.read_at, s.read_at))::int AS new_comments_count,
-        MAX(COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))) AS last_comment_at,
-        (ARRAY_AGG(msg.customer_message ORDER BY COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_comment_text,
-        (ARRAY_AGG(msg.customer_name ORDER BY COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_commenter_name,
-        (ARRAY_AGG(msg.commenter_id ORDER BY COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_commenter_id,
-        (ARRAY_AGG(msg.comment_id ORDER BY COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_comment_id
+        MAX(NULLIF(msg.comment_created_time, '')) AS real_comment_created_time,
+        MAX(NULLIF(msg.comment_created_time, '')) AS last_comment_at,
+        MAX(msg.created_at) AS msg_created_at,
+        (ARRAY_AGG(msg.customer_message ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_comment_text,
+        (ARRAY_AGG(msg.customer_name ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_commenter_name,
+        (ARRAY_AGG(msg.commenter_id ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_commenter_id,
+        (ARRAY_AGG(msg.comment_id ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_comment_id
       FROM ai_support_messages msg
       WHERE msg.tenant_id = c.tenant_id
         AND msg.session_id = c.external_conversation_id
@@ -1972,11 +1974,13 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       SELECT
         COUNT(*)::int AS comments_count,
         COUNT(*) FILTER (WHERE msg.created_at > COALESCE(c.read_at, s.read_at))::int AS new_comments_count,
-        MAX(COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))) AS last_comment_at,
-        (ARRAY_AGG(msg.customer_message ORDER BY COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_comment_text,
-        (ARRAY_AGG(msg.customer_name ORDER BY COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_commenter_name,
-        (ARRAY_AGG(msg.commenter_id ORDER BY COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_commenter_id,
-        (ARRAY_AGG(msg.comment_id ORDER BY COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_comment_id
+        MAX(NULLIF(msg.comment_created_time, '')) AS real_comment_created_time,
+        MAX(NULLIF(msg.comment_created_time, '')) AS last_comment_at,
+        MAX(msg.created_at) AS msg_created_at,
+        (ARRAY_AGG(msg.customer_message ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_comment_text,
+        (ARRAY_AGG(msg.customer_name ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_commenter_name,
+        (ARRAY_AGG(msg.commenter_id ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_commenter_id,
+        (ARRAY_AGG(msg.comment_id ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_comment_id
       FROM ai_support_messages msg
       WHERE msg.tenant_id = c.tenant_id
         AND msg.session_id = c.external_conversation_id
@@ -2094,6 +2098,8 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       canonical_post_id: key,
       post_id: key || text(primary.post_id || ""),
       conversation_id: key || text(primary.conversation_id || primary.external_conversation_id || ""),
+      comment_created_time: primary.real_comment_created_time || primary.comment_created_time || null,
+      real_comment_created_time: primary.real_comment_created_time || primary.comment_created_time || null,
       comments_count: commentsCount,
       new_comments_count: newCommentsCount,
       last_comment_at: latestActivity || primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null,
@@ -2377,7 +2383,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
         OR msg.post_id LIKE ANY($3::text[])
       )
       AND msg.message_type = 'comment_inbound'
-    ORDER BY COALESCE(msg.created_at, to_timestamp(NULLIF(msg.comment_created_time, ''), 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) ASC, msg.id ASC
+    ORDER BY NULLIF(msg.comment_created_time, '') ASC NULLS LAST, msg.created_at ASC, msg.id ASC
     `,
     [safeTenantId, sessionIds, sessionPatterns, canonicalPostId || safePostId]
   );
