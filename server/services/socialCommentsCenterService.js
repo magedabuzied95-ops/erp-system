@@ -53,7 +53,12 @@ const SOCIAL_AUTO_REPLY_DEFAULTS = {
 
 const SOCIAL_AUTO_REPLY_MODES = new Set(["off", "draft", "manual_approval", "full_auto"]);
 const SOCIAL_FAST_LIST_CACHE_TTL_MS = 4000;
+const SOCIAL_FAST_LIST_METRICS_WINDOW = 120;
 const socialFastListCache = new Map();
+const socialFastListDurationsMs = [];
+let socialFastListCacheHits = 0;
+let socialFastListCacheMisses = 0;
+let socialFastListSlowCount = 0;
 
 const normalizeSocialFastListCacheKeyPart = (value = "") => text(value).toLowerCase();
 
@@ -78,6 +83,48 @@ const pruneSocialFastListCache = () => {
       socialFastListCache.delete(cacheKey);
     }
   }
+};
+
+const pushRollingMetric = (collection, value, limit = SOCIAL_FAST_LIST_METRICS_WINDOW) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return;
+  collection.push(numeric);
+  while (collection.length > limit) collection.shift();
+};
+
+const summarizeRollingMetric = (collection = []) => {
+  const values = collection.filter((value) => Number.isFinite(Number(value))).map((value) => Number(value));
+  if (!values.length) {
+    return { avg: 0, p95: 0 };
+  }
+  const sorted = [...values].sort((left, right) => left - right);
+  const total = sorted.reduce((sum, value) => sum + value, 0);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * 0.95) - 1));
+  return {
+    avg: Number((total / sorted.length).toFixed(2)),
+    p95: Number(sorted[index].toFixed(2)),
+  };
+};
+
+const recordSocialFastListMetric = ({ durationMs = 0, cacheHit = false } = {}) => {
+  const safeDurationMs = Number(durationMs) || 0;
+  pushRollingMetric(socialFastListDurationsMs, safeDurationMs);
+  if (cacheHit) socialFastListCacheHits += 1;
+  else socialFastListCacheMisses += 1;
+  if (safeDurationMs > 150) socialFastListSlowCount += 1;
+};
+
+export const getSocialCommentsPerformanceMetrics = () => {
+  const { avg, p95 } = summarizeRollingMetric(socialFastListDurationsMs);
+  const totalCacheLookups = socialFastListCacheHits + socialFastListCacheMisses;
+  return {
+    fast_list_avg_ms: avg,
+    fast_list_p95_ms: p95,
+    slow_fast_list_count: socialFastListSlowCount,
+    fast_list_cache_hits: socialFastListCacheHits,
+    fast_list_cache_misses: socialFastListCacheMisses,
+    cache_hit_rate: totalCacheLookups ? Number((socialFastListCacheHits / totalCacheLookups).toFixed(4)) : 0,
+  };
 };
 
 export const invalidateSocialCommentCenterFastListCache = ({ tenantId = null } = {}) => {
@@ -2608,8 +2655,10 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
   const safeCursor = decodeFastListCursor(cursor);
   const cacheKey = buildSocialFastListCacheKey({ tenantId: safeTenantId, platform: normalizedPlatform, status, limit: safeLimit, cursor: safeCursor.activityAt && safeCursor.id ? cursor : "" });
   pruneSocialFastListCache();
+  const startedAt = Date.now();
   const cachedResult = socialFastListCache.get(cacheKey);
   if (cachedResult && cachedResult.expiresAt > Date.now()) {
+    recordSocialFastListMetric({ durationMs: Date.now() - startedAt, cacheHit: true });
     return cloneSocialFastListResult(cachedResult.value);
   }
   const columns = await getSocialCommentAutomationRunColumns();
@@ -2692,6 +2741,7 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
     expiresAt: Date.now() + SOCIAL_FAST_LIST_CACHE_TTL_MS,
     value: cloneSocialFastListResult(resultPayload),
   });
+  recordSocialFastListMetric({ durationMs: Date.now() - startedAt, cacheHit: false });
   return resultPayload;
 };
 

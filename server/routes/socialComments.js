@@ -16,6 +16,7 @@ import {
   loadSocialCommentPost,
   processSocialCommentAutoReply,
   listSocialCommentCenterFastList,
+  getSocialCommentsPerformanceMetrics,
   saveSocialAutoReplySettings,
   saveSocialPostAutoReplyTemplate,
   ensureSocialCommentsCenterSchema,
@@ -27,6 +28,7 @@ import {
   saveMappings as savePostProductMappings,
 } from "../services/postProductMappingService.js";
 import postProductMappingService from "../services/postProductMappingService.js";
+import { getSocialRealtimeMetrics } from "../services/socialRealtimeService.js";
 import {
   listRecentSocialCommentAutomationRuns as listSocialCommentAutomationRuns,
   testSocialCommentAutomationRuntime,
@@ -181,6 +183,28 @@ router.get("/jobs/status", protect, permit("settings", "view"), async (_req, res
     return res.status(error?.status || 500).json({
       success: false,
       message: error?.message || "Failed to load social comment job queue status",
+    });
+  }
+});
+
+router.get("/performance/summary", protect, permit("settings", "view"), async (_req, res) => {
+  try {
+    const fastListMetrics = getSocialCommentsPerformanceMetrics();
+    const jobStatus = getSocialCommentJobQueueStatus();
+    const realtimeMetrics = getSocialRealtimeMetrics();
+    return res.json({
+      success: true,
+      ...fastListMetrics,
+      queue_length: jobStatus.queue_length || 0,
+      active_jobs: jobStatus.active_jobs || 0,
+      job_avg_ms: jobStatus.job_avg_ms || 0,
+      job_failed_count: jobStatus.failed_count || 0,
+      socket_emit_count: realtimeMetrics.socket_emit_count || 0,
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load social comments performance summary",
     });
   }
 });

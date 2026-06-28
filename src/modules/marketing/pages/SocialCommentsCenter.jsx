@@ -153,7 +153,12 @@ function SocialCommentsCenter() {
   });
   const [targetCommentMissing, setTargetCommentMissing] = useState(false);
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
+  const [performanceSummary, setPerformanceSummary] = useState(null);
+  const [performanceSummaryError, setPerformanceSummaryError] = useState("");
+  const [performanceSummaryLoading, setPerformanceSummaryLoading] = useState(false);
+  const [socketPatchCount, setSocketPatchCount] = useState(0);
   const lastSelectionRef = useRef("");
+  const renderedRowsWarnRef = useRef({ lastCount: 0, lastWarnAt: 0 });
 
   const openCustomerDrawer = useCallback((customer = {}, context = {}) => {
     const customerProfile = customer?.customer_profile || customer?.profile || {};
@@ -289,12 +294,68 @@ function SocialCommentsCenter() {
   }, [loadGlobalSettings, loadPosts]);
 
   useEffect(() => {
+    if (!DEBUG_SOCIAL_PERF || !tenantId) return undefined;
+
+    let cancelled = false;
+    const loadPerformanceSummary = async () => {
+      try {
+        const payload = await api.get("/social-comments/performance/summary", {
+          params: { tenant_id: tenantId },
+          perfComponent: "SocialCommentsCenter.performanceSummary",
+        });
+        if (cancelled) return;
+        setPerformanceSummary(payload || null);
+        setPerformanceSummaryError("");
+      } catch (error) {
+        if (cancelled) return;
+        setPerformanceSummaryError(error?.message || "Failed to load social comments performance summary");
+      } finally {
+        if (!cancelled) setPerformanceSummaryLoading(false);
+      }
+    };
+
+    setPerformanceSummaryLoading(true);
+    void loadPerformanceSummary();
+    const intervalId = window.setInterval(() => {
+      void loadPerformanceSummary();
+    }, 5000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [tenantId]);
+
+  useEffect(() => {
     if (!DEBUG_SOCIAL_PERF) return;
     console.log("[SocialCommentsCenter][rendered-rows]", {
       count: items.length,
       next_cursor: Boolean(nextCursor),
     });
   }, [items.length, nextCursor]);
+
+  useEffect(() => {
+    if (items.length <= 100) {
+      renderedRowsWarnRef.current.lastCount = items.length;
+      return;
+    }
+    const now = Date.now();
+    const previousCount = Number(renderedRowsWarnRef.current.lastCount || 0);
+    const lastWarnAt = Number(renderedRowsWarnRef.current.lastWarnAt || 0);
+    const crossedThreshold = previousCount <= 100;
+    const throttled = now - lastWarnAt < 60_000;
+    if (!crossedThreshold && throttled) {
+      renderedRowsWarnRef.current.lastCount = items.length;
+      return;
+    }
+    renderedRowsWarnRef.current.lastCount = items.length;
+    renderedRowsWarnRef.current.lastWarnAt = now;
+    console.warn("SOCIAL_UI_TOO_MANY_RENDERED_ROWS", {
+      tenant_id: tenantId,
+      rendered_rows: items.length,
+      next_cursor: Boolean(nextCursor),
+    });
+  }, [items.length, nextCursor, tenantId]);
 
   useEffect(() => {
     if (!ENABLE_SOCIAL_FAST_CENTER) return undefined;
@@ -315,21 +376,19 @@ function SocialCommentsCenter() {
       });
     };
 
-    let socketPatchCount = 0;
     const offNew = subscribeRealtime("social_comment:new", (payload = {}) => {
-      if (DEBUG_SOCIAL_PERF) socketPatchCount += 1;
+      if (DEBUG_SOCIAL_PERF) setSocketPatchCount((current) => current + 1);
       patchSocialComment(payload, { matchOnly: false });
     });
     const offUpdated = subscribeRealtime("social_comment:updated", (payload = {}) => {
-      if (DEBUG_SOCIAL_PERF) socketPatchCount += 1;
+      if (DEBUG_SOCIAL_PERF) setSocketPatchCount((current) => current + 1);
       patchSocialComment(payload, { matchOnly: true });
     });
     const offReplyStatus = subscribeRealtime("social_comment:reply_status", (payload = {}) => {
-      if (DEBUG_SOCIAL_PERF) socketPatchCount += 1;
+      if (DEBUG_SOCIAL_PERF) setSocketPatchCount((current) => current + 1);
       patchSocialComment(payload, { matchOnly: true });
     });
     return () => {
-      if (DEBUG_SOCIAL_PERF) console.log("[SocialCommentsCenter][socket-patch-count]", socketPatchCount);
       offNew();
       offUpdated();
       offReplyStatus();
@@ -375,6 +434,7 @@ function SocialCommentsCenter() {
 
     let cancelled = false;
     const detailPerfLabel = "SocialCommentsCenter.detailLoad";
+    const detailStartedAt = Date.now();
     if (DEBUG_SOCIAL_PERF) console.time(detailPerfLabel);
     setSelectedThread((current) => ({ ...current, loading: true, error: "" }));
     setSelectedTemplate((current) => ({ ...current, loading: true, error: "" }));
@@ -454,6 +514,15 @@ function SocialCommentsCenter() {
       }
     })().finally(() => {
       if (DEBUG_SOCIAL_PERF) console.timeEnd(detailPerfLabel);
+      const detailDurationMs = Date.now() - detailStartedAt;
+      if (detailDurationMs > 300 && !cancelled) {
+        console.warn("SOCIAL_UI_SLOW_DETAIL_LOAD", {
+          tenant_id: tenantId,
+          post_id: postId,
+          platform: platformValue,
+          duration_ms: detailDurationMs,
+        });
+      }
     });
 
     return () => {
@@ -515,6 +584,77 @@ function SocialCommentsCenter() {
           <div className="flex items-center gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-black text-amber-700">
             <AlertCircle className="h-4 w-4 shrink-0" />
             <span>{missingCommentMessage}</span>
+          </div>
+        ) : null}
+
+        {DEBUG_SOCIAL_PERF ? (
+          <div className="rounded-3xl border border-cyan-200 bg-cyan-50 px-4 py-4 text-cyan-950 shadow-[0_12px_30px_rgba(6,182,212,0.08)]">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-cyan-700">Social Performance</div>
+                <div className="mt-1 text-sm font-black text-cyan-950">Admin debug summary</div>
+              </div>
+              <div className="text-[11px] font-black uppercase tracking-[0.12em] text-cyan-700">
+                {performanceSummaryLoading ? "Loading..." : "Live"}
+              </div>
+            </div>
+
+            {performanceSummaryError ? (
+              <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800">
+                {performanceSummaryError}
+              </div>
+            ) : null}
+
+            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Fast list avg ms</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{performanceSummary?.fast_list_avg_ms ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Fast list p95 ms</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{performanceSummary?.fast_list_p95_ms ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Cache hit rate</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{Math.round((Number(performanceSummary?.cache_hit_rate || 0) * 100))}%</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Slow fast-list</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{performanceSummary?.slow_fast_list_count ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Queue length</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{performanceSummary?.queue_length ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Active jobs</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{performanceSummary?.active_jobs ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Job avg ms</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{performanceSummary?.job_avg_ms ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Socket emits</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{performanceSummary?.socket_emit_count ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Rendered rows</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{items.length}</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Socket patches</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{socketPatchCount}</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Cache hits</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{performanceSummary?.fast_list_cache_hits ?? 0}</div>
+              </div>
+              <div className="rounded-2xl border border-cyan-200 bg-white px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-[0.16em] text-cyan-700">Cache misses</div>
+                <div className="mt-1 text-lg font-black text-cyan-950">{performanceSummary?.fast_list_cache_misses ?? 0}</div>
+              </div>
+            </div>
           </div>
         ) : null}
 

@@ -19,6 +19,7 @@ const truncate = (value = "", length = 160) => {
 };
 
 const missingSocketLoggedEvents = new Set();
+let socialRealtimeEmitCount = 0;
 
 const logSocketMissing = (eventName) => {
   if (missingSocketLoggedEvents.has(eventName)) return;
@@ -89,6 +90,7 @@ const buildSocialRealtimePayload = (payload = {}) => {
 };
 
 const emitSocialRealtimeEvent = (eventName, payload = {}) => {
+  socialRealtimeEmitCount += 1;
   if (!io) {
     logSocketMissing(eventName);
     return;
@@ -118,3 +120,6 @@ const emitSocialRealtimeEvent = (eventName, payload = {}) => {
 export const emitSocialCommentNew = (payload = {}) => emitSocialRealtimeEvent("social_comment:new", payload);
 export const emitSocialCommentUpdated = (payload = {}) => emitSocialRealtimeEvent("social_comment:updated", payload);
 export const emitSocialReplyStatus = (payload = {}) => emitSocialRealtimeEvent("social_comment:reply_status", payload);
+export const getSocialRealtimeMetrics = () => ({
+  socket_emit_count: socialRealtimeEmitCount,
+});

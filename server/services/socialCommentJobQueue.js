@@ -1,5 +1,6 @@
 const MAX_CONCURRENCY = 2;
 const MAX_RETRIES = 3;
+const JOB_METRICS_WINDOW = 120;
 
 const queue = [];
 let activeJobs = 0;
@@ -7,6 +8,7 @@ let processedCount = 0;
 let failedCount = 0;
 let retryCount = 0;
 let droppedCount = 0;
+const jobDurationsMs = [];
 let pumpScheduled = false;
 let nextWakeTimer = null;
 
@@ -32,6 +34,27 @@ const getJobContext = (job = {}) => ({
   comment_id: job.comment_id,
   external_comment_id: job.external_comment_id,
 });
+
+const pushRollingMetric = (collection, value, limit = JOB_METRICS_WINDOW) => {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return;
+  collection.push(numeric);
+  while (collection.length > limit) collection.shift();
+};
+
+const summarizeRollingMetric = (collection = []) => {
+  const values = collection.filter((value) => Number.isFinite(Number(value))).map((value) => Number(value));
+  if (!values.length) {
+    return { avg: 0, p95: 0 };
+  }
+  const sorted = [...values].sort((left, right) => left - right);
+  const total = sorted.reduce((sum, value) => sum + value, 0);
+  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(sorted.length * 0.95) - 1));
+  return {
+    avg: Number((total / sorted.length).toFixed(2)),
+    p95: Number(sorted[index].toFixed(2)),
+  };
+};
 
 const schedulePump = (delayMs = 0) => {
   if (pumpScheduled) return;
@@ -151,6 +174,7 @@ const pumpQueue = async () => {
     });
 
     void (async () => {
+      const startedAt = Date.now();
       try {
         await processSocialCommentJob(job);
         processedCount += 1;
@@ -206,6 +230,7 @@ const pumpQueue = async () => {
           });
         }
       } finally {
+        pushRollingMetric(jobDurationsMs, Date.now() - startedAt);
         activeJobs = Math.max(0, activeJobs - 1);
         if (queue.length > 0) schedulePump(0);
       }
@@ -254,4 +279,6 @@ export const getSocialCommentJobQueueStatus = () => ({
   failed_count: failedCount,
   retry_count: retryCount,
   dropped_count: droppedCount,
+  job_avg_ms: summarizeRollingMetric(jobDurationsMs).avg,
+  job_p95_ms: summarizeRollingMetric(jobDurationsMs).p95,
 });
