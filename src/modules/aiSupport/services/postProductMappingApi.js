@@ -36,23 +36,53 @@ export const getPostProductLinks = async ({ postId = "", platform = "", tenantId
 };
 
 export const savePostProductLinks = async ({ postId = "", platform = "", tenantId = "", productIds = [], primaryProductId = null, timeoutMs = 15000 } = {}) => {
-  const response = await api.put(
-    `/social-comments/posts/${encodeURIComponent(clean(postId))}/product-links`,
-    {
-      platform: clean(platform),
-      tenant_id: clean(tenantId),
-      product_ids: Array.isArray(productIds) ? productIds : [],
-      primary_product_id: primaryProductId,
-    },
-    { timeoutMs }
-  );
-  const data = unwrapObject(response);
-  return {
-    ...data,
-    linked_products: unwrapList(data),
-    primary_product: data?.primary_product || null,
-    count: Number(data?.count || unwrapList(data).length || 0) || 0,
-  };
+  const safePostId = clean(postId);
+  const safePlatform = clean(platform);
+  const safeTenantId = clean(tenantId);
+  const normalizedProductIds = Array.isArray(productIds)
+    ? Array.from(new Set(productIds.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)))
+    : [];
+  console.info("PRODUCT_LINKS_API_SAVE_REQUEST", {
+    postId: safePostId,
+    platform: safePlatform,
+    tenantId: safeTenantId,
+    productIds: normalizedProductIds,
+    primaryProductId,
+  });
+  try {
+    const response = await api.put(
+      `/social-comments/posts/${encodeURIComponent(safePostId)}/product-links`,
+      {
+        platform: safePlatform,
+        tenant_id: safeTenantId,
+        product_ids: normalizedProductIds,
+        primary_product_id: primaryProductId,
+      },
+      { timeoutMs }
+    );
+    const data = unwrapObject(response);
+    console.info("PRODUCT_LINKS_API_SAVE_RESPONSE", {
+      postId: safePostId,
+      platform: safePlatform,
+      status: response?.__status ?? response?.status ?? 200,
+      count: Number(data?.count || unwrapList(data).length || 0) || 0,
+    });
+    return {
+      ...data,
+      linked_products: unwrapList(data),
+      primary_product: data?.primary_product || null,
+      count: Number(data?.count || unwrapList(data).length || 0) || 0,
+    };
+  } catch (error) {
+    console.error("PRODUCT_LINKS_API_SAVE_ERROR", {
+      postId: safePostId,
+      platform: safePlatform,
+      status: error?.status || error?.responseBody?.status || null,
+      message: error?.message || "Failed to save product links",
+      responseBody: error?.responseBody || null,
+    });
+    throw error;
+  }
 };
 
 export const removePostProductLink = async ({ postId = "", platform = "", tenantId = "", productId = null, timeoutMs = 15000 } = {}) => {

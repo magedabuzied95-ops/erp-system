@@ -361,27 +361,37 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
     const tenantId = toTenantId(req);
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
+    const rawProductIds = Array.isArray(req.body?.product_ids)
+      ? req.body.product_ids
+      : Array.isArray(req.body?.productIds)
+        ? req.body.productIds
+        : Array.isArray(req.body?.products)
+          ? req.body.products
+          : [];
+    const productIds = rawProductIds
+      .map((item) => {
+        if (item && typeof item === "object") {
+          return Number(item.id ?? item.product_id ?? item.productId ?? 0) || 0;
+        }
+        return Number(item) || 0;
+      })
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const primaryProductId = req.body?.primary_product_id ?? req.body?.primaryProductId ?? null;
     console.info("POST_PRODUCT_LINKS_SAVE_REQUEST", {
       tenant_id: tenantId,
       platform: String(platform || "").trim() || "facebook",
       selected_post_id: requestedPostId,
       canonical_post_id: "",
       platform_post_id: "",
-      product_ids: Array.isArray(req.body?.product_ids)
-        ? req.body.product_ids
-        : Array.isArray(req.body?.productIds)
-          ? req.body.productIds
-          : [],
+      product_ids: productIds,
+      primary_product_id: primaryProductId,
     });
+    if (!productIds.length) {
+      return res.status(400).json({ success: false, message: "No product ids received" });
+    }
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
     const canonicalPostId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
     const postId = canonicalPostId;
-    const productIds = Array.isArray(req.body?.product_ids)
-      ? req.body.product_ids
-      : Array.isArray(req.body?.productIds)
-        ? req.body.productIds
-        : [];
-    const primaryProductId = req.body?.primary_product_id ?? req.body?.primaryProductId ?? null;
     const mapping = await savePostProductMappings({
       tenantId,
       platform,

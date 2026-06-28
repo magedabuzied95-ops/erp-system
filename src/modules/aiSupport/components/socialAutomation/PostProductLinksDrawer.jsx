@@ -226,14 +226,28 @@ export default function PostProductLinksDrawer({
 
   const handleSave = async () => {
     if (!safePostId) return;
+    const selectedProductIds = selectedProducts
+      .map((item) => Number(item?.id ?? item?.product_id ?? 0))
+      .filter((value) => Number.isFinite(value) && value > 0);
+    const safePrimaryProductId = Number(primaryProductId || selectedProductIds[0] || 0) || null;
+    console.info("PRODUCT_LINKS_FRONTEND_SAVE_CLICK", {
+      postId: safePostId,
+      platform: safePlatform,
+      selectedProductIds,
+      primaryProductId: safePrimaryProductId,
+    });
+    if (!selectedProductIds.length) {
+      notify("amber", "اختر منتجًا واحدًا على الأقل قبل الحفظ");
+      return;
+    }
     setSaving(true);
     try {
       const payload = await savePostProductLinks({
         postId: safePostId,
         platform: safePlatform,
         tenantId,
-        productIds: selectedProducts.map((item) => item.id),
-        primaryProductId: primaryProductId || selectedProducts[0]?.id || null,
+        productIds: selectedProductIds,
+        primaryProductId: safePrimaryProductId,
       });
       const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
       setSelectedProducts(mapped);
