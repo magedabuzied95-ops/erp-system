@@ -118,6 +118,8 @@ const evolutionRequest = async (path, options = {}) => {
   }
 };
 
+const getWebhookSetEndpoint = (instanceName = "") => `/webhook/set/${encodeURIComponent(trim(instanceName))}`;
+
 const normalizeWebhookResponse = (response = {}) => ({
   message: response?.message ?? "",
   errors: response?.errors ?? response?.error ?? null,
@@ -324,41 +326,37 @@ const updateWebhookByRecordId = async ({ current, webhookRecord, desiredUrl }) =
     webhook_base64: false,
   };
 
-  const updateCandidates = [
-    `/webhook/set/${encodeURIComponent(current.instanceName)}`,
-    "/webhook/instance",
-    "/webhook/instance/",
-    `/webhook/instance/${encodeURIComponent(current.instanceName)}`,
-  ].filter(Boolean);
+  const updateEndpoint = getWebhookSetEndpoint(current.instanceName);
+  console.log("[evolution-webhook-sync:webhook-update-endpoint]", {
+    endpoint: updateEndpoint,
+    instance_name: current.instanceName,
+    webhook_record_id: webhookId || "",
+  });
 
-  let lastError = null;
-  for (const path of updateCandidates) {
-    console.log("[evolution-webhook-sync:webhook-payload]", {
-      url: path,
-      body: updateBody,
-      webhook_record_id: webhookId || "",
+  console.log("[evolution-webhook-sync:webhook-payload]", {
+    url: updateEndpoint,
+    body: updateBody,
+    webhook_record_id: webhookId || "",
+  });
+  try {
+    const response = await evolutionRequest(updateEndpoint, {
+      method: "POST",
+      body: JSON.stringify(updateBody),
     });
-    try {
-      const response = await evolutionRequest(path, {
-        method: "POST",
-        body: JSON.stringify(updateBody),
-      });
-      logWebhookResponse("[evolution-webhook-sync:webhook-response]", response);
-      return { response, path, webhookId };
-    } catch (error) {
-      lastError = error;
-      console.warn("[evolution-webhook-sync:webhook-update-failed]", {
-        endpoint: path,
-        status: error?.status || "",
-        message: error?.message || String(error),
-      });
-      logWebhookResponse("[evolution-webhook-sync:webhook-response]", error?.data || {});
-    }
+    logWebhookResponse("[evolution-webhook-sync:webhook-response]", response);
+    return { response, path: updateEndpoint, webhookId };
+  } catch (error) {
+    console.warn("[evolution-webhook-sync:webhook-update-failed]", {
+      endpoint: updateEndpoint,
+      status: error?.status || "",
+      message: error?.message || String(error),
+    });
+    logWebhookResponse("[evolution-webhook-sync:webhook-response]", error?.data || {});
   }
 
-  const error = lastError || new Error("Unable to update Evolution webhook");
+  const error = new Error("Unable to update Evolution webhook");
   error.recreateInstruction = `If Evolution rejects the webhook update routes, recreate qr-test2 after setting WEBHOOK_GLOBAL_URL=${desiredUrl} and restart the instance/container.`;
-  return { response: null, path: "", webhookId, error };
+  return { response: null, path: updateEndpoint, webhookId, error };
 };
 
 export const syncEvolutionWebhookOnStartup = async () => {

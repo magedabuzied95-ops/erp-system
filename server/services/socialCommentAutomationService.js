@@ -4228,8 +4228,16 @@ export const executeSocialCommentAutomation = async ({
 };
 
 let socialCommentSchemaReadyPromise = null;
+const isSocialCommentAutomationSchemaInitEnabled = () => {
+  const flag = String(process.env.ENABLE_SOCIAL_COMMENT_SCHEMA_INIT || process.env.ENABLE_SCHEMA_MIGRATIONS || "").toLowerCase();
+  if (["1", "true", "yes", "on"].includes(flag)) return true;
+  return String(process.env.NODE_ENV || "").toLowerCase() !== "production";
+};
 
 export const ensureSocialCommentAutomationSchema = async (clientOrPool = db) => {
+  if (!isSocialCommentAutomationSchemaInitEnabled()) {
+    return { skipped: true, reason: "schema_init_disabled" };
+  }
   if (!socialCommentSchemaReadyPromise) {
     socialCommentSchemaReadyPromise = (async () => {
       await clientOrPool.query(`
