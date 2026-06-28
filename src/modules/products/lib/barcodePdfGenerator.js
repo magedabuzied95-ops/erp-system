@@ -170,36 +170,36 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   const logicalPageHeight = 50;
   const imageX = 2;
   const imageY = 3.2;
-  const imageW = 35.5;
-  const imageH = 30.0;
+  const imageW = 43.2;
+  const imageH = 34.0;
   const titleX = 40.5;
-  const titleY = 6;
-  const titleW = 57.5;
+  const titleY = 5.6;
+  const titleW = 56.5;
   const sizeBadgeX = 40.5;
-  const sizeBadgeY = 14.0;
-  const sizeBadgeW = 20.5;
-  const sizeBadgeH = 11.5;
+  const sizeBadgeY = 13.6;
+  const sizeBadgeW = 17.8;
+  const sizeBadgeH = 13.2;
+  const articleBoxX = 58.8;
+  const articleBoxY = 13.6;
+  const articleBoxW = 24.6;
+  const articleBoxH = 13.2;
   const colorBoxX = 40.5;
-  const colorBoxY = 27.8;
-  const colorBoxW = 15.2;
-  const colorBoxH = 6.8;
-  const priceBoxX = 55.9;
-  const priceBoxY = 27.8;
-  const priceBoxW = 15.2;
-  const priceBoxH = 6.8;
-  const skuY = 39.2;
+  const colorBoxY = 28.3;
+  const colorBoxW = 43.0;
+  const colorBoxH = 7.1;
+  const skuY = 38.8;
   const barcodeX = 5;
-  const barcodeY = 39.1;
+  const barcodeY = 39.8;
   const barcodeW = 90;
   const barcodeH = 7.0;
   const barcodeNumberY = 48.8;
 
   const productName = normalizeLabelText(item.productName || item.name || item.title || `Label ${index + 1}`);
   const sizeValue = normalizeLabelText(item.size || item.variantSize || item.labelSize || "ONE SIZE");
-  const colorValue = normalizeLabelText(item.color || item.variantColor || item.labelColor || "");
-  const numericPrice = Number(item.salePrice ?? item.price ?? item.displayPrice ?? 0);
-  const priceValue = `EGP ${Math.round(Number.isFinite(numericPrice) ? numericPrice : 0)}`;
+  const rawColorValue = normalizeLabelText(item.color || item.variantColor || item.labelColor || "");
+  const colorValue = /[\u0600-\u06FF]/.test(rawColorValue) ? rawColorValue : rawColorValue.toUpperCase();
   const skuValue = normalizeLabelText(item.sku || item.article || item.variantSku || "");
+  const showArticleBox = Boolean(skuValue);
   const barcodeValue = getLabelBarcodeValue(item);
   if (typeof doc.setR2L === "function") {
     doc.setR2L(isArabicText(productName));
@@ -212,38 +212,49 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
 
   await drawImageOrPlaceholder(doc, item, imageX, imageY, imageW, imageH);
 
-  const titleLines = toTextLines(doc, productName, titleW, 2, 10);
+  const titleLines = toTextLines(doc, productName, titleW, 2, 12);
   doc.setTextColor(2, 6, 23);
   doc.setFont("helvetica", "bold");
   titleLines.forEach((line, lineIndex) => {
-    doc.setFontSize(lineIndex === 0 ? 10 : 9);
+    doc.setFontSize(lineIndex === 0 ? 14.4 : 12.1);
     doc.text(line, titleX, titleY + (lineIndex * 5.0), { maxWidth: titleW });
   });
 
   drawRoundedRect(doc, sizeBadgeX, sizeBadgeY, sizeBadgeW, sizeBadgeH, 1.8, [2, 6, 23]);
   doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(6.6);
+  doc.setFontSize(4.3);
   doc.text("SIZE", sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 3.5, { align: "center" });
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(16);
-  doc.text(sizeValue, sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 8.4, { align: "center" });
+  doc.setFontSize(25);
+  doc.text(sizeValue, sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 9.0, { align: "center" });
+
+  if (showArticleBox) {
+    drawRoundedRect(doc, articleBoxX, articleBoxY, articleBoxW, articleBoxH, 1, [244, 244, 245], [226, 232, 240]);
+    doc.setTextColor(100, 116, 139);
+    doc.setFontSize(4.3);
+    doc.text("ARTICLE/SKU", articleBoxX + articleBoxW / 2, articleBoxY + 3.5, { align: "center" });
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(11.8);
+    doc.text(skuValue, articleBoxX + articleBoxW / 2, articleBoxY + 8.8, { align: "center", maxWidth: articleBoxW - 2 });
+  }
 
   drawRoundedRect(doc, colorBoxX, colorBoxY, colorBoxW, colorBoxH, 1, [244, 244, 245], [226, 232, 240]);
-  drawRoundedRect(doc, priceBoxX, priceBoxY, priceBoxW, priceBoxH, 1, [244, 244, 245], [226, 232, 240]);
   doc.setTextColor(100, 116, 139);
-  doc.setFontSize(5.5);
+  doc.setFontSize(4.3);
   doc.text("COLOR", colorBoxX + colorBoxW / 2, colorBoxY + 2.2, { align: "center" });
-  doc.text("PRICE", priceBoxX + priceBoxW / 2, priceBoxY + 2.2, { align: "center" });
   doc.setTextColor(15, 23, 42);
-  doc.setFontSize(8.6);
-  doc.text(colorValue || "-", colorBoxX + colorBoxW / 2, colorBoxY + 5.2, { align: "center" });
-  doc.setFontSize(9.4);
-  doc.text(priceValue, priceBoxX + priceBoxW / 2, priceBoxY + 5.2, { align: "center" });
+  doc.setFontSize(12.4);
+  doc.text(colorValue || "-", colorBoxX + colorBoxW / 2, colorBoxY + 5.8, { align: "center", maxWidth: colorBoxW - 2 });
 
-  doc.setTextColor(100, 116, 139);
-  doc.setFontSize(5.4);
-  doc.text(skuValue, titleX, skuY, { maxWidth: titleW });
+  if (!showArticleBox) {
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(10.4);
+    if (skuValue) {
+      doc.setFont("helvetica", "bold");
+      doc.text(skuValue, logicalPageWidth / 2, skuY, { align: "center", maxWidth: titleW });
+    }
+  }
 
   const barcodeText = drawBarcode(doc, barcodeValue, barcodeX, barcodeY, barcodeW, barcodeH);
   doc.setTextColor(15, 23, 42);

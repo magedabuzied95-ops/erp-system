@@ -734,48 +734,57 @@ const splitSvgText = (value = "", maxLineLength = 24, maxLines = 2) => {
   return clipped;
 };
 
+const formatDisplayColor = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (/[\u0600-\u06FF]/.test(text)) return text;
+  return text.toUpperCase();
+};
+
 export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const productName = String(item?.productName || "").trim();
-  const productLines = splitSvgText(productName, 28, 2);
+  const productLines = splitSvgText(productName, 22, 2);
   const sizeValue = String(item?.size || "ONE SIZE").trim() || "ONE SIZE";
-  const colorValue = String(item?.color || "").trim();
-  const priceValue = formatLabelCurrency(item?.salePrice);
+  const colorValue = formatDisplayColor(item?.color || "");
   const skuValue = String(item?.sku || "").trim();
   const barcodeValue = String(item?.barcode || "").trim();
   const imageUrl = String(item?.imageUrl || item?.resolvedImage || "").trim();
+  const hasArticleBox = Boolean(skuValue);
   const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, {
     width: 92,
     height: 8,
     displayText: barcodeValue,
-    barTop: 39,
+    barTop: 40,
     barHeight: 6.8,
   });
 
   const productText = productLines.length
-    ? productLines.map((line, index) => `<text x="40" y="${7.5 + (index * 5.6)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? 4.8 : 4.4}" font-weight="900">${escapeHtml(line)}</text>`).join("")
-    : `<text x="40" y="7.5" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="4.8" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
+    ? productLines.map((line, index) => `<text x="40" y="${7.1 + (index * 5.8)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? 6.5 : 5.7}" font-weight="900">${escapeHtml(line)}</text>`).join("")
+    : `<text x="40" y="7.1" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="6.5" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
 
   return `
     <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
       <rect x="0" y="0" width="100" height="50" fill="#ffffff" />
       <rect x="0.4" y="0.4" width="99.2" height="49.2" fill="none" stroke="#e2e8f0" stroke-width="0.25" />
 
-      ${imageUrl ? `<image href="${escapeHtml(imageUrl)}" x="2" y="3.5" width="38" height="29" preserveAspectRatio="xMidYMid meet" />` : `<rect x="2" y="3.5" width="38" height="29" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.25" />`}
+      ${imageUrl ? `<image href="${escapeHtml(imageUrl)}" x="2" y="3.2" width="43.6" height="33.8" preserveAspectRatio="xMidYMid meet" />` : `<rect x="2" y="3.2" width="43.6" height="33.8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.25" />`}
 
       ${productText}
 
-      <rect x="39.5" y="14.2" width="20.5" height="11.8" rx="1.8" fill="#020617" />
-      <text x="49.75" y="18" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="2.2" font-weight="900" letter-spacing="0.28">${escapeHtml(printCopy.size || "SIZE")}</text>
-      <text x="49.75" y="23" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="6.8" font-weight="900">${escapeHtml(sizeValue)}</text>
+      <rect x="39.5" y="13.6" width="${hasArticleBox ? 17.8 : 25.8}" height="13" rx="1.8" fill="#020617" />
+      <text x="${39.5 + (hasArticleBox ? 8.9 : 12.9)}" y="16.8" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="1.65" font-weight="900" letter-spacing="0.28">${escapeHtml(printCopy.size || "SIZE")}</text>
+      <text x="${39.5 + (hasArticleBox ? 8.9 : 12.9)}" y="22.9" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="10.8" font-weight="900">${escapeHtml(sizeValue)}</text>
+      ${hasArticleBox ? `
+      <rect x="57.9" y="13.6" width="22.8" height="13" rx="1.8" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
+      <text x="69.3" y="16.8" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="1.65" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.sku || "ARTICLE/SKU")}</text>
+      <text x="69.3" y="22.9" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.8" font-weight="900">${escapeHtml(skuValue)}</text>
+      ` : ""}
 
-      <rect x="39.5" y="27.8" width="15.2" height="6.8" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <rect x="55.4" y="27.8" width="15.2" height="6.8" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <text x="47.1" y="30" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.1" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
-      <text x="47.1" y="33.3" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3.3" font-weight="900">${escapeHtml(colorValue)}</text>
-      <text x="63" y="30" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.1" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.price || "PRICE")}</text>
-      <text x="63" y="33.3" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3.7" font-weight="900">${escapeHtml(priceValue)}</text>
+      <rect x="39.5" y="28.2" width="41.2" height="7.2" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
+      <text x="60.1" y="31.1" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.2" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
+      <text x="60.1" y="34.5" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.8" font-weight="900">${escapeHtml(colorValue)}</text>
 
-      <text x="40" y="39.1" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="2.45" font-weight="800">${escapeHtml(skuValue)}</text>
+      ${hasArticleBox ? "" : `<text x="50" y="38.7" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}
       <text x="50" y="49" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="900">${escapeHtml(barcodeValue)}</text>
     </svg>
