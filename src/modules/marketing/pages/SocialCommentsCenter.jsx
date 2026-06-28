@@ -137,6 +137,8 @@ function SocialCommentsCenter() {
   const pageIdParam = clean(searchParams.get("pageId") || searchParams.get("page_id") || "");
 
   const [items, setItems] = useState([]);
+  const [nextCursor, setNextCursor] = useState("");
+  const [loadingMore, setLoadingMore] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedPost, setSelectedPost] = useState(null);
@@ -203,7 +205,7 @@ function SocialCommentsCenter() {
     [commentIdParam, pageIdParam, platformParam, postIdParam]
   );
 
-  const loadPosts = useCallback(async ({ silent = false } = {}) => {
+  const loadPosts = useCallback(async ({ silent = false, cursor = "", append = false } = {}) => {
     if (!tenantId) return;
     if (!silent) setLoading(true);
     setError("");
@@ -214,7 +216,7 @@ function SocialCommentsCenter() {
       if (ENABLE_SOCIAL_FAST_CENTER) {
         try {
           payload = await api.get("/social-comments/fast-list", {
-            params: { tenant_id: tenantId, limit: 50 },
+            params: { tenant_id: tenantId, limit: 20, cursor },
             perfComponent: "SocialCommentsCenter.fastList",
           });
         } catch (fastError) {
@@ -239,7 +241,8 @@ function SocialCommentsCenter() {
             : Array.isArray(payload)
               ? payload
               : [];
-      setItems(nextItems);
+      setItems((current) => (append ? [...current, ...nextItems] : nextItems));
+      setNextCursor(clean(payload?.next_cursor || payload?.data?.next_cursor || ""));
     } catch (loadError) {
       setError(loadError?.message || "Failed to load social comments");
       if (!silent) {
@@ -250,6 +253,16 @@ function SocialCommentsCenter() {
       if (!silent) setLoading(false);
     }
   }, [tenantId]);
+
+  const loadMorePosts = useCallback(async () => {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      await loadPosts({ silent: true, cursor: nextCursor, append: true });
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [loadPosts, loadingMore, nextCursor]);
 
   const loadGlobalSettings = useCallback(async () => {
     if (!tenantId) return;
@@ -276,6 +289,14 @@ function SocialCommentsCenter() {
   }, [loadGlobalSettings, loadPosts]);
 
   useEffect(() => {
+    if (!DEBUG_SOCIAL_PERF) return;
+    console.log("[SocialCommentsCenter][rendered-rows]", {
+      count: items.length,
+      next_cursor: Boolean(nextCursor),
+    });
+  }, [items.length, nextCursor]);
+
+  useEffect(() => {
     if (!ENABLE_SOCIAL_FAST_CENTER) return undefined;
     const patchSocialComment = (payload = {}, { matchOnly = false } = {}) => {
       const normalizedPayload = normalizeFastSocialCommentItem(payload);
@@ -294,16 +315,21 @@ function SocialCommentsCenter() {
       });
     };
 
+    let socketPatchCount = 0;
     const offNew = subscribeRealtime("social_comment:new", (payload = {}) => {
+      if (DEBUG_SOCIAL_PERF) socketPatchCount += 1;
       patchSocialComment(payload, { matchOnly: false });
     });
     const offUpdated = subscribeRealtime("social_comment:updated", (payload = {}) => {
+      if (DEBUG_SOCIAL_PERF) socketPatchCount += 1;
       patchSocialComment(payload, { matchOnly: true });
     });
     const offReplyStatus = subscribeRealtime("social_comment:reply_status", (payload = {}) => {
+      if (DEBUG_SOCIAL_PERF) socketPatchCount += 1;
       patchSocialComment(payload, { matchOnly: true });
     });
     return () => {
+      if (DEBUG_SOCIAL_PERF) console.log("[SocialCommentsCenter][socket-patch-count]", socketPatchCount);
       offNew();
       offUpdated();
       offReplyStatus();
@@ -348,6 +374,8 @@ function SocialCommentsCenter() {
     if (!postId) return;
 
     let cancelled = false;
+    const detailPerfLabel = "SocialCommentsCenter.detailLoad";
+    if (DEBUG_SOCIAL_PERF) console.time(detailPerfLabel);
     setSelectedThread((current) => ({ ...current, loading: true, error: "" }));
     setSelectedTemplate((current) => ({ ...current, loading: true, error: "" }));
     setTargetCommentMissing(false);
@@ -424,7 +452,9 @@ function SocialCommentsCenter() {
           error: loadError?.message || "تعذر تحميل القالب",
         });
       }
-    })();
+    })().finally(() => {
+      if (DEBUG_SOCIAL_PERF) console.timeEnd(detailPerfLabel);
+    });
 
     return () => {
       cancelled = true;
@@ -517,6 +547,9 @@ function SocialCommentsCenter() {
               onSelectCustomer={openCustomerDrawer}
               tenantId={tenantId}
               initialSelectedCommentId={commentIdParam}
+              nextCursor={nextCursor}
+              onLoadMore={loadMorePosts}
+              loadingMore={loadingMore}
             />
           )}
         </div>

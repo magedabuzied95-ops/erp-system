@@ -2204,7 +2204,9 @@ export default function AiInboxPwa() {
   const [userIsNearBottom, setUserIsNearBottom] = useState(true);
   const [aiAssistantGlobalEnabled, setAiAssistantGlobalEnabled] = useState(true);
   const [aiAssistantGlobalSaving, setAiAssistantGlobalSaving] = useState(false);
-  const [socialComments, setSocialComments] = useState({ items: [], loading: false, error: "" });
+  const [socialComments, setSocialComments] = useState({ items: [], loading: false, error: "", next_cursor: "" });
+  const [socialCommentsCursor, setSocialCommentsCursor] = useState("");
+  const [socialCommentsLoadingMore, setSocialCommentsLoadingMore] = useState(false);
   const [socialReplySettings, setSocialReplySettings] = useState({
     generic_enabled: false,
     generic_like_enabled: true,
@@ -2341,11 +2343,11 @@ export default function AiInboxPwa() {
   }, [productLoading, products.length]);
 
   const loadSocialComments = useCallback(
-    async ({ silent = false, seq = requestSeqRef.current } = {}) => {
+    async ({ silent = false, seq = requestSeqRef.current, cursor = "", append = false } = {}) => {
       if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
       setSocialCommentsDebug((current) => ({ ...current, error: "" }));
 
-      const fastRequestUrl = `/api/social-comments/fast-list?tenant_id=${encodeURIComponent(tenantId)}&limit=30`;
+      const fastRequestUrl = `/api/social-comments/fast-list?tenant_id=${encodeURIComponent(tenantId)}&limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
       const legacyRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=50`;
       const perfLabel = "AiInboxPwa.socialCommentsFastList";
       if (DEBUG_SOCIAL_PERF) console.time(perfLabel);
@@ -2361,7 +2363,7 @@ export default function AiInboxPwa() {
         if (ENABLE_SOCIAL_FAST_CENTER) {
           try {
             const payload = await api.get("/social-comments/fast-list", {
-              params: { tenant_id: tenantId, limit: 30 },
+              params: { tenant_id: tenantId, limit: 20, cursor },
               headers,
               perfComponent: "AiInboxPwa.socialCommentsFastList",
             });
@@ -2389,7 +2391,13 @@ export default function AiInboxPwa() {
         if (seq !== requestSeqRef.current) return;
         const rawItems = asArray(payload?.items || payload?.posts || payload?.data?.items || payload);
         const items = fast ? rawItems.map(normalizeFastSocialCommentItem) : rawItems;
-        setSocialComments({ items, loading: false, error: "" });
+        setSocialComments((current) => ({
+          items: append ? [...asArray(current.items), ...items] : items,
+          loading: false,
+          error: "",
+          next_cursor: clean(payload?.next_cursor || payload?.data?.next_cursor || ""),
+        }));
+        setSocialCommentsCursor(clean(payload?.next_cursor || payload?.data?.next_cursor || ""));
         setSocialReplySettings({
           generic_enabled: Boolean(settingsPayload?.settings?.generic_enabled),
           generic_like_enabled: settingsPayload?.settings?.generic_like_enabled !== false,
@@ -2412,6 +2420,7 @@ export default function AiInboxPwa() {
           items: silent && Array.isArray(current.items) ? current.items : [],
           loading: false,
           error: message,
+          next_cursor: current?.next_cursor || "",
         }));
         setSocialCommentsDebug({
           request_url: ENABLE_SOCIAL_FAST_CENTER ? fastRequestUrl : legacyRequestUrl,
@@ -2426,6 +2435,17 @@ export default function AiInboxPwa() {
     },
     [headers, tenantId]
   );
+
+  const loadMoreSocialComments = useCallback(async () => {
+    if (!socialCommentsCursor || socialCommentsLoadingMore) return;
+    setSocialCommentsLoadingMore(true);
+    try {
+      const seq = requestSeqRef.current;
+      await loadSocialComments({ silent: true, seq, cursor: socialCommentsCursor, append: true });
+    } finally {
+      setSocialCommentsLoadingMore(false);
+    }
+  }, [loadSocialComments, socialCommentsCursor, socialCommentsLoadingMore]);
 
   const loadConversations = useCallback(
     async ({ silent = false } = {}) => {
@@ -2973,6 +2993,15 @@ export default function AiInboxPwa() {
   }, [isSocialMode, selectedSocialPost, selectedSocialThread.comments.length, selectedSocialThread?.post?.dm_status, selectedSocialThread?.post?.last_ai_action, selectedSocialThreadStatusLabel]);
 
   useEffect(() => {
+    if (!DEBUG_SOCIAL_PERF) return;
+    console.log("[AiInboxPwa][rendered-rows]", {
+      social_comments: socialComments.items.length,
+      selected_social_comments: selectedSocialThread.comments.length,
+      next_cursor: Boolean(socialCommentsCursor),
+    });
+  }, [selectedSocialThread.comments.length, socialComments.items.length, socialCommentsCursor]);
+
+  useEffect(() => {
     if (!isSocialMode) {
       if (selectedSocialThread.post || selectedSocialThread.comments.length || selectedSocialTemplate.template) {
         setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
@@ -2989,6 +3018,8 @@ export default function AiInboxPwa() {
     let cancelled = false;
     setSelectedSocialThread((current) => ({ ...current, loading: true, error: "" }));
     setSelectedSocialTemplate((current) => ({ ...current, loading: true, error: "" }));
+    const detailPerfLabel = "AiInboxPwa.socialCommentThread";
+    if (DEBUG_SOCIAL_PERF) console.time(detailPerfLabel);
     void (async () => {
       try {
         const platformValue = clean(selectedSocialPost?.platform || "");
@@ -3035,6 +3066,8 @@ export default function AiInboxPwa() {
           loading: false,
           error: error?.message || "تعذر تحميل القالب",
         });
+      } finally {
+        if (DEBUG_SOCIAL_PERF) console.timeEnd(detailPerfLabel);
       }
     })();
     return () => {
@@ -4147,7 +4180,41 @@ export default function AiInboxPwa() {
       socialReplySettings.generic_template ||
       "تم الرد على حضرتك في الخاص ✅"
     );
+    const optimisticTimestamp = new Date().toISOString();
+    const optimisticMessage = {
+      id: `optimistic:${action}:${commentId}:${optimisticTimestamp}`,
+      comment_id: commentId,
+      post_id: postId,
+      platform,
+      customer_name: clean(comment?.customer_name || selectedSocialPost?.customer_name || "Customer"),
+      customer_avatar_url: clean(comment?.customer_avatar_url || selectedSocialPost?.customer_avatar_url || ""),
+      original_comment_text: action === "private_message" ? privateReplyText : publicReplyText,
+      comment_text: action === "private_message" ? privateReplyText : publicReplyText,
+      message_text: action === "private_message" ? privateReplyText : publicReplyText,
+      reply_status: "pending",
+      automation_status: "pending",
+      created_at: optimisticTimestamp,
+      updated_at: optimisticTimestamp,
+      __optimistic: true,
+    };
     setSocialActionLoading(`${normalizedAction}:${commentId}`);
+    setSelectedSocialThread((current) => ({
+      ...current,
+      comments: [optimisticMessage, ...asArray(current.comments)],
+    }));
+    setSocialComments((current) => {
+      const currentItems = asArray(current.items);
+      const matchIndex = currentItems.findIndex((item) => fastSocialCommentItemMatches(item, { id: commentId, comment_id: commentId, external_comment_id: commentId, post_id: postId }));
+      if (matchIndex < 0) return current;
+      const nextItem = {
+        ...currentItems[matchIndex],
+        reply_status: "pending",
+        automation_status: "pending",
+        last_activity_at: optimisticTimestamp,
+      };
+      const nextItems = [nextItem, ...currentItems.filter((_, index) => index !== matchIndex)];
+      return { ...current, items: nextItems };
+    });
     try {
       if (action === "ignore") {
         await api.post(
@@ -4213,6 +4280,22 @@ export default function AiInboxPwa() {
           source: "pwa",
         });
       }
+      setSelectedSocialThread((current) => ({
+        ...current,
+        comments: asArray(current.comments).map((entry) =>
+          clean(entry?.comment_id || entry?.id || "") === commentId && entry?.__optimistic
+            ? { ...entry, reply_status: "sent", automation_status: "sent", updated_at: new Date().toISOString() }
+            : entry
+        ),
+      }));
+      setSocialComments((current) => ({
+        ...current,
+        items: asArray(current.items).map((item) =>
+          fastSocialCommentItemMatches(item, { id: commentId, comment_id: commentId, external_comment_id: commentId, post_id: postId })
+            ? { ...item, reply_status: "sent", automation_status: "sent", last_activity_at: new Date().toISOString() }
+            : item
+        ),
+      }));
       await refreshAfterSocialAutomation(action, { comment_id: commentId, post_id: postId, platform });
     } catch (err) {
       if (action === "private_message") {
@@ -4239,6 +4322,22 @@ export default function AiInboxPwa() {
           message: err?.message || String(err),
         });
       }
+      setSelectedSocialThread((current) => ({
+        ...current,
+        comments: asArray(current.comments).map((entry) =>
+          clean(entry?.comment_id || entry?.id || "") === commentId && entry?.__optimistic
+            ? { ...entry, reply_status: "failed", automation_status: "failed", error_message: err?.message || "failed" }
+            : entry
+        ),
+      }));
+      setSocialComments((current) => ({
+        ...current,
+        items: asArray(current.items).map((item) =>
+          fastSocialCommentItemMatches(item, { id: commentId, comment_id: commentId, external_comment_id: commentId, post_id: postId })
+            ? { ...item, reply_status: "failed", automation_status: "failed" }
+            : item
+        ),
+      }));
       toast.error(err?.message || "تعذر تنفيذ إجراء التعليق");
     } finally {
       setSocialActionLoading("");
@@ -4417,6 +4516,9 @@ export default function AiInboxPwa() {
                 }}
                 onFilterChange={setSocialCommentsFilter}
                 onRefresh={() => void loadConversations({ silent: true })}
+                nextCursor={socialCommentsCursor}
+                onLoadMore={loadMoreSocialComments}
+                loadingMore={socialCommentsLoadingMore}
               />
             </div>
           </aside>

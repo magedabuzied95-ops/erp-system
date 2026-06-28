@@ -632,6 +632,7 @@ function SocialCommentsWorkspace({
   const [automationTestResult, setAutomationTestResult] = useState(null);
   const [automationSavedConfigs, setAutomationSavedConfigs] = useState({});
   const [highlightedCommentKey, setHighlightedCommentKey] = useState("");
+  const [commentWindowSize, setCommentWindowSize] = useState(50);
   const [optimisticCommentEntries, setOptimisticCommentEntries] = useState([]);
   const [globalDraft, setGlobalDraft] = useState(() => ({
     generic_enabled: false,
@@ -710,6 +711,7 @@ function SocialCommentsWorkspace({
     setPreviewReply("");
     setReplyDraft("");
     setHighlightedCommentKey("");
+    setCommentWindowSize(50);
     setOptimisticCommentEntries([]);
   }, [activePostKey, initialSelectedCommentId]);
 
@@ -725,6 +727,11 @@ function SocialCommentsWorkspace({
     visibleComments[0] ||
     null;
   const actionableComment = selectedVisibleComment || null;
+  const commentsToRender = useMemo(
+    () => displayComments.slice(0, Math.max(50, commentWindowSize)),
+    [commentWindowSize, displayComments]
+  );
+  const hasMoreComments = displayComments.length > commentsToRender.length;
 
   useEffect(() => {
     if (!visibleComments.length) {
@@ -743,6 +750,17 @@ function SocialCommentsWorkspace({
       setSelectedCommentKey(nextKey);
     }
   }, [initialSelectedCommentId, selectedCommentKey, visibleComments]);
+
+  useEffect(() => {
+    const targetKey = clean(selectedCommentKey);
+    if (!targetKey) return;
+
+    const targetIndex = displayComments.findIndex((comment) => comment.id === targetKey);
+    if (targetIndex < 0) return;
+    if (targetIndex < commentWindowSize) return;
+
+    setCommentWindowSize((current) => Math.max(current, targetIndex + 1));
+  }, [commentWindowSize, displayComments, selectedCommentKey]);
 
   useEffect(() => {
     const targetKey = clean(selectedCommentKey);
@@ -767,7 +785,7 @@ function SocialCommentsWorkspace({
         window.clearTimeout(highlightTimerRef.current);
       }
     };
-  }, [selectedCommentKey, visibleComments.length]);
+  }, [commentWindowSize, commentsToRender.length, selectedCommentKey]);
 
   const activeSuggestedReply = useMemo(
     () =>
@@ -1524,7 +1542,14 @@ function SocialCommentsWorkspace({
 
   const firstMatchingComment = (predicate) => visibleComments.find(predicate) || actionableComment || null;
   const useVirtualPosts = normalizedPosts.length > 50;
-  const useVirtualComments = displayComments.length > 50;
+
+  useEffect(() => {
+    if (!DEBUG_SOCIAL_PERF) return;
+    console.log("[SocialCommentsWorkspace][rendered-rows]", {
+      posts: useVirtualPosts ? 50 : normalizedPosts.length,
+      comments: commentsToRender.length,
+    });
+  }, [commentsToRender.length, normalizedPosts.length, useVirtualPosts]);
 
   const renderCommentTags = (comment = {}) => {
     const tags = getCommentTags(comment);
@@ -1587,98 +1612,209 @@ function SocialCommentsWorkspace({
             ) : null}
 
             <div className="space-y-1.5">
-              {normalizedPosts.map((post) => {
-                const key = postKey(post);
-                const active = activePostKey === key;
-                const meta = platformMeta(post.platform);
-                const thumb = post.thumbnailUrl;
-                return (
-                  <article
-                    key={key}
-                    role={onSelectPost ? "button" : undefined}
-                    tabIndex={onSelectPost ? 0 : undefined}
-                    onClick={onSelectPost ? () => onSelectPost(post.raw, key) : undefined}
-                    onKeyDown={
-                      onSelectPost
-                        ? (event) => {
-                            if (event.key === "Enter" || event.key === " ") onSelectPost(post.raw, key);
-                          }
-                        : undefined
-                    }
-                    className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(15,23,42,0.04)] ${
-                      active
-                        ? "border-[#CBD5E1] bg-white ring-1 ring-slate-200"
-                        : "border-[#E2E8F0] bg-white hover:border-slate-300"
-                    }`}
-                  >
-                    <div className="flex gap-3">
-                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-slate-50">
-                        {thumb ? (
-                          <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
-                        ) : (
-                          <div className="grid h-full w-full place-items-center bg-slate-50 text-slate-400">
-                            <div className="flex flex-col items-center gap-1">
-                              <ImageIcon className="h-4 w-4" />
-                              <span className="rounded-full border border-[#E2E8F0] bg-white px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-500">
-                                لا توجد صورة
+              {useVirtualPosts ? (
+                <VirtualList
+                  items={normalizedPosts}
+                  estimateSize={176}
+                  overscan={8}
+                  className="max-h-[calc(100vh-14rem)] overflow-y-auto pr-1"
+                  itemKey={(post, index) => postKey(post) || index}
+                  renderItem={(post) => {
+                    const key = postKey(post);
+                    const active = activePostKey === key;
+                    const meta = platformMeta(post.platform);
+                    const thumb = post.thumbnailUrl;
+                    return (
+                      <article
+                        key={key}
+                        role={onSelectPost ? "button" : undefined}
+                        tabIndex={onSelectPost ? 0 : undefined}
+                        onClick={onSelectPost ? () => onSelectPost(post.raw, key) : undefined}
+                        onKeyDown={
+                          onSelectPost
+                            ? (event) => {
+                                if (event.key === "Enter" || event.key === " ") onSelectPost(post.raw, key);
+                              }
+                            : undefined
+                        }
+                        className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(15,23,42,0.04)] ${
+                          active ? "border-[#CBD5E1] bg-white ring-1 ring-slate-200" : "border-[#E2E8F0] bg-white hover:border-slate-300"
+                        }`}
+                        style={{ minHeight: "176px" }}
+                      >
+                        <div className="flex gap-3">
+                          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-slate-50">
+                            {thumb ? (
+                              <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
+                            ) : (
+                              <div className="grid h-full w-full place-items-center bg-slate-50 text-slate-400">
+                                <div className="flex flex-col items-center gap-1">
+                                  <ImageIcon className="h-4 w-4" />
+                                  <span className="rounded-full border border-[#E2E8F0] bg-white px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-500">
+                                    لا توجد صورة
+                                  </span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{post.caption || "Post"}</div>
+                              </div>
+                              <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
+                            </div>
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+                              <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{post.commentsCount} comments</span>
+                              <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-[#E2E8F0] bg-white text-slate-600"}`}>{post.newCount} new</span>
+                              {post.linkedProductsCount > 0 ? (
+                                <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-700">
+                                  ✓ {post.primaryLinkedProduct?.name || "Linked Product"}
+                                  {post.linkedProductsCount > 1 ? ` +${post.linkedProductsCount - 1}` : ""}
+                                </span>
+                              ) : (
+                                <span className="rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-amber-700">⚠ No Product Linked</span>
+                              )}
+                              {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
+                              {post.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleOpenAutomationDrawer(post, key);
+                                }}
+                                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700"
+                              >
+                                Automation
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleOpenProductLinksDrawer(post, key);
+                                }}
+                                className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700"
+                              >
+                                Link Products
+                              </button>
+                            </div>
+                            <div className="mt-2 text-[11px] font-medium text-slate-400">
+                              <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
+                                <Clock3 className="h-3.5 w-3.5" />
+                                {absoluteTime(post.lastActivity)}
                               </span>
                             </div>
                           </div>
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{post.caption || "Post"}</div>
-                          </div>
-                          <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
-                          <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{post.commentsCount} comments</span>
-                          <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-[#E2E8F0] bg-white text-slate-600"}`}>{post.newCount} new</span>
-                          {post.linkedProductsCount > 0 ? (
-                            <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-700">
-                              ✓ {post.primaryLinkedProduct?.name || "Linked Product"}
-                              {post.linkedProductsCount > 1 ? ` +${post.linkedProductsCount - 1}` : ""}
-                            </span>
+                      </article>
+                    );
+                  }}
+                />
+              ) : (
+                normalizedPosts.map((post) => {
+                  const key = postKey(post);
+                  const active = activePostKey === key;
+                  const meta = platformMeta(post.platform);
+                  const thumb = post.thumbnailUrl;
+                  return (
+                    <article
+                      key={key}
+                      role={onSelectPost ? "button" : undefined}
+                      tabIndex={onSelectPost ? 0 : undefined}
+                      onClick={onSelectPost ? () => onSelectPost(post.raw, key) : undefined}
+                      onKeyDown={
+                        onSelectPost
+                          ? (event) => {
+                              if (event.key === "Enter" || event.key === " ") onSelectPost(post.raw, key);
+                            }
+                          : undefined
+                      }
+                      className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(15,23,42,0.04)] ${
+                        active ? "border-[#CBD5E1] bg-white ring-1 ring-slate-200" : "border-[#E2E8F0] bg-white hover:border-slate-300"
+                      }`}
+                    >
+                      <div className="flex gap-3">
+                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-slate-50">
+                          {thumb ? (
+                            <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
                           ) : (
-                            <span className="rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-amber-700">⚠ No Product Linked</span>
+                            <div className="grid h-full w-full place-items-center bg-slate-50 text-slate-400">
+                              <div className="flex flex-col items-center gap-1">
+                                <ImageIcon className="h-4 w-4" />
+                                <span className="rounded-full border border-[#E2E8F0] bg-white px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-500">
+                                  لا توجد صورة
+                                </span>
+                              </div>
+                            </div>
                           )}
-                          {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
-                          {post.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleOpenAutomationDrawer(post, key);
-                            }}
-                            className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700"
-                          >
-                            Automation
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              handleOpenProductLinksDrawer(post, key);
-                            }}
-                            className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700"
-                          >
-                            Link Products
-                          </button>
                         </div>
-                        <div className="mt-2 text-[11px] font-medium text-slate-400">
-                          <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
-                            <Clock3 className="h-3.5 w-3.5" />
-                            {absoluteTime(post.lastActivity)}
-                          </span>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{post.caption || "Post"}</div>
+                            </div>
+                            <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+                            <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{post.commentsCount} comments</span>
+                            <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-[#E2E8F0] bg-white text-slate-600"}`}>{post.newCount} new</span>
+                            {post.linkedProductsCount > 0 ? (
+                              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-700">
+                                ✓ {post.primaryLinkedProduct?.name || "Linked Product"}
+                                {post.linkedProductsCount > 1 ? ` +${post.linkedProductsCount - 1}` : ""}
+                              </span>
+                            ) : (
+                              <span className="rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-amber-700">⚠ No Product Linked</span>
+                            )}
+                            {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
+                            {post.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleOpenAutomationDrawer(post, key);
+                              }}
+                              className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700"
+                            >
+                              Automation
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleOpenProductLinksDrawer(post, key);
+                              }}
+                              className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700"
+                            >
+                              Link Products
+                            </button>
+                          </div>
+                          <div className="mt-2 text-[11px] font-medium text-slate-400">
+                            <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
+                              <Clock3 className="h-3.5 w-3.5" />
+                              {absoluteTime(post.lastActivity)}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </article>
-                );
-              })}
+                    </article>
+                  );
+                })
+              )}
             </div>
+            {onLoadMore && nextCursor ? (
+              <div className="flex justify-center pt-2">
+                <button
+                  type="button"
+                  onClick={onLoadMore}
+                  disabled={loadingMore}
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-900 shadow-sm disabled:opacity-50"
+                >
+                  {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Load more
+                </button>
+              </div>
+            ) : null}
           </div>
         </aside>
 
@@ -1855,9 +1991,21 @@ function SocialCommentsWorkspace({
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Comments Timeline</div>
-                      <div className="mt-1 text-sm font-black text-white">{visibleComments.length} comments</div>
+                      <div className="mt-1 text-sm font-black text-white">{displayComments.length} comments</div>
                       <div className="mt-1 text-xs text-slate-500">Showing the latest social thread activity</div>
                     </div>
+                    {hasMoreComments ? (
+                      <button
+                        type="button"
+                        onClick={() => setCommentWindowSize((current) => Math.min(displayComments.length, current + 50))}
+                        className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200"
+                      >
+                        Load older comments
+                        <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px]">
+                          +{Math.min(50, displayComments.length - commentsToRender.length)}
+                        </span>
+                      </button>
+                    ) : null}
                     {activeThread.loading ? <Loader2 className="h-4 w-4 animate-spin text-slate-300" /> : null}
                   </div>
 
@@ -1866,7 +2014,18 @@ function SocialCommentsWorkspace({
                   ) : null}
 
                   <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
-                    {!visibleComments.length && !activeThread.loading ? (
+                    {activeThread.loading && !commentsToRender.length ? (
+                      <div className="grid min-h-[18rem] place-items-center rounded-[22px] border border-dashed border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.02] p-6 text-center">
+                        <div className="space-y-3">
+                          <div className="mx-auto h-4 w-40 rounded-full bg-white/10" />
+                          <div className="mx-auto h-3 w-56 rounded-full bg-white/10" />
+                          <div className="mx-auto h-3 w-48 rounded-full bg-white/10" />
+                          <div className="mx-auto mt-4 h-12 w-12 animate-pulse rounded-2xl border border-white/10 bg-white/[0.05]" />
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {!displayComments.length && !activeThread.loading ? (
                       <div className="grid min-h-[18rem] place-items-center rounded-[22px] border border-dashed border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.02] p-6 text-center">
                         <div>
                           <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-400">
@@ -1878,7 +2037,7 @@ function SocialCommentsWorkspace({
                       </div>
                     ) : null}
 
-                    {visibleComments.map((comment) => {
+                    {commentsToRender.map((comment) => {
                       const key = comment.id;
                       const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
                       const busy = isBusy(key);
