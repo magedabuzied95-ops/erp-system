@@ -12,24 +12,33 @@ import {
 const clean = (value = "") => String(value ?? "").trim();
 
 const normalizeProduct = (raw = {}) => {
-  const image = clean(raw.image_url || raw.product_image_url || raw.cover_image_url || raw.primary_media_url || raw.thumbnail_url || raw.image || "");
-  const stock = Number(raw.stock ?? raw.total_stock ?? raw.available_stock ?? raw.stock_quantity ?? 0);
+  const image = clean(raw.image_url || raw.product_image_url || raw.cover_image_url || raw.primary_media_url || raw.thumbnail_url || raw.thumbnailUrl || raw.image || raw.main_image || raw.variant_image_url || "");
+  const stock = Number(raw.total_stock ?? raw.available_stock ?? raw.available_quantity ?? raw.stock_quantity ?? raw.quantity ?? raw.stock ?? 0);
   return {
     id: Number(raw.id ?? raw.product_id ?? 0) || 0,
-    name: clean(raw.name || raw.product_name || "Product"),
+    name: clean(raw.name || raw.title || raw.product_name || "Product"),
+    title: clean(raw.title || raw.name || raw.product_name || "Product"),
     brand: clean(raw.brand_name || raw.brand || raw.manufacturer_name || raw.manufacturer || ""),
     image_url: image,
-    price: Number(raw.price ?? raw.selling_price ?? raw.current_price ?? raw.regular_price ?? 0) || 0,
-    sale_price: Number(raw.sale_price ?? 0) || 0,
+    price: Number(raw.final_price ?? raw.sale_price ?? raw.price ?? raw.selling_price ?? raw.regular_price ?? 0) || 0,
+    sale_price: Number(raw.sale_price ?? raw.final_price ?? raw.price ?? raw.selling_price ?? 0) || 0,
+    final_price: Number(raw.final_price ?? raw.sale_price ?? raw.price ?? raw.selling_price ?? 0) || 0,
+    selling_price: Number(raw.selling_price ?? raw.price ?? raw.final_price ?? raw.sale_price ?? 0) || 0,
+    regular_price: Number(raw.regular_price ?? raw.price ?? raw.final_price ?? raw.sale_price ?? 0) || 0,
     stock,
-    stock_status: stock > 0 ? "In stock" : "Out of stock",
+    total_stock: Number(raw.total_stock ?? stock ?? 0) || 0,
+    available_stock: Number(raw.available_stock ?? stock ?? 0) || 0,
+    stock_status: stock > 0 ? "IN STOCK" : "OUT OF STOCK",
+    availability: stock > 0 ? "IN STOCK" : "OUT OF STOCK",
     slug: clean(raw.slug || raw.canonical_slug || ""),
-    product_url: clean(raw.product_url || ""),
+    sku: clean(raw.sku || raw.article_code || raw.sku_code || ""),
+    product_url: clean(raw.product_url || raw.storefront_url || raw.storefrontUrl || raw.url || ""),
+    storefront_url: clean(raw.storefront_url || raw.storefrontUrl || raw.product_url || raw.url || ""),
   };
 };
 
 const priceText = (product = {}) => {
-  const price = Number(product.sale_price || product.price || 0);
+  const price = Number(product.final_price || product.sale_price || product.price || product.selling_price || product.regular_price || 0);
   if (!Number.isFinite(price) || price <= 0) return "—";
   return price.toLocaleString("en-US");
 };

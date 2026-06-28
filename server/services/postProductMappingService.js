@@ -10,6 +10,182 @@ const isNotEmpty = (value = "") => Boolean(text(value));
 
 const firstText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
 
+const firstNumber = (...values) => {
+  for (const value of values) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return 0;
+};
+
+const resolveImageUrl = (value = "") => {
+  if (!value) return "";
+  if (typeof value === "string") return text(value);
+  if (typeof value === "object") {
+    return text(value.secure_url || value.image_url || value.url || value.path || value.image || "");
+  }
+  return "";
+};
+
+const resolveProductUrl = (product = {}) =>
+  firstText(
+    product.product_url,
+    product.storefront_url,
+    product.storefrontUrl,
+    product.url,
+    product.permalink_url,
+    product.permalinkUrl
+  );
+
+const resolveVariantStock = (variant = {}) => {
+  const candidates = [
+    variant.available_quantity,
+    variant.available_stock,
+    variant.quantity,
+    variant.stock,
+  ];
+  for (const candidate of candidates) {
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed) && parsed >= 0) return parsed;
+  }
+  const availability = text(variant.in_stock ?? variant.is_in_stock ?? variant.availability ?? variant.stock_status ?? variant.status).toLowerCase();
+  if (["true", "available", "in_stock", "in stock", "active"].includes(availability)) return 1;
+  return 0;
+};
+
+const resolveVariantPrice = (variant = {}) =>
+  firstNumber(
+    variant.final_price,
+    variant.sale_price,
+    variant.price,
+    variant.selling_price,
+    variant.regular_price
+  );
+
+const resolveProductPrice = (product = {}) =>
+  firstNumber(
+    product.final_price,
+    product.sale_price,
+    product.price,
+    product.selling_price,
+    product.regular_price
+  );
+
+const resolveVariantImageUrl = (variant = {}) =>
+  firstText(
+    resolveImageUrl(variant.image_url),
+    resolveImageUrl(variant.product_image_url),
+    resolveImageUrl(variant.cover_image_url),
+    resolveImageUrl(variant.primary_media_url),
+    resolveImageUrl(variant.thumbnail_url),
+    resolveImageUrl(variant.image),
+    resolveImageUrl(variant.main_image),
+    resolveImageUrl(variant.variant_image_url)
+  );
+
+const pickHydratedVariant = (variants = []) => {
+  const list = Array.isArray(variants) ? variants.filter((variant) => variant && typeof variant === "object") : [];
+  const sorted = [...list].sort((left, right) => {
+    const leftStock = resolveVariantStock(left);
+    const rightStock = resolveVariantStock(right);
+    if (leftStock !== rightStock) return rightStock - leftStock;
+    const leftPrice = resolveVariantPrice(left);
+    const rightPrice = resolveVariantPrice(right);
+    if (leftPrice !== rightPrice) return leftPrice - rightPrice;
+    return String(left.id || left.variant_id || "").localeCompare(String(right.id || right.variant_id || ""));
+  });
+  return sorted[0] || null;
+};
+
+const hydrateProduct = (product = {}, variants = []) => {
+  const safeProduct = product && typeof product === "object" ? product : {};
+  const safeVariants = Array.isArray(variants) ? variants.filter((variant) => variant && typeof variant === "object") : [];
+  const primaryVariant = pickHydratedVariant(safeVariants);
+  const totalStock = safeVariants.length
+    ? safeVariants.reduce((sum, variant) => sum + resolveVariantStock(variant), 0)
+    : firstNumber(safeProduct.total_stock, safeProduct.available_stock, safeProduct.stock);
+  const productPrice = resolveProductPrice(safeProduct);
+  const variantPrice = primaryVariant ? resolveVariantPrice(primaryVariant) : 0;
+  const finalPrice = variantPrice || productPrice;
+  const salePrice = firstNumber(primaryVariant?.sale_price, safeProduct.sale_price);
+  const imageUrl = firstText(
+    resolveVariantImageUrl(primaryVariant || {}),
+    resolveImageUrl(safeProduct.image_url),
+    resolveImageUrl(safeProduct.product_image_url),
+    resolveImageUrl(safeProduct.cover_image_url),
+    resolveImageUrl(safeProduct.primary_media_url),
+    resolveImageUrl(safeProduct.thumbnail_url),
+    resolveImageUrl(safeProduct.image),
+    resolveImageUrl(safeProduct.main_image)
+  );
+  const productUrl = resolveProductUrl(safeProduct) || (text(safeProduct.slug || safeProduct.canonical_slug) ? `/shop/product/${encodeURIComponent(text(safeProduct.slug || safeProduct.canonical_slug))}` : "");
+  const sku = firstText(primaryVariant?.sku, safeProduct.sku, safeProduct.article_code, safeProduct.sku_code);
+  const stockStatus = totalStock > 0 ? "in_stock" : "out_of_stock";
+  const brandName = text(safeProduct.brand_name || safeProduct.brand || safeProduct.manufacturer_name || safeProduct.manufacturer || "");
+  const normalizedVariants = safeVariants.map((variant) => ({
+    ...variant,
+    id: variant.id ?? variant.variant_id ?? null,
+    product_id: variant.product_id ?? safeProduct.id ?? safeProduct.product_id ?? null,
+    image_url: resolveVariantImageUrl(variant),
+    price: firstNumber(variant.price, variant.final_price, variant.sale_price, variant.selling_price, variant.regular_price) || null,
+    final_price: firstNumber(variant.final_price, variant.sale_price, variant.price, variant.selling_price, variant.regular_price) || null,
+    sale_price: firstNumber(variant.sale_price, variant.final_price, variant.price, variant.selling_price, variant.regular_price) || null,
+    stock: resolveVariantStock(variant),
+    available_stock: resolveVariantStock(variant),
+    total_stock: resolveVariantStock(variant),
+    stock_status: resolveVariantStock(variant) > 0 ? "in_stock" : "out_of_stock",
+  }));
+  return {
+    ...safeProduct,
+    id: safeProduct.id ?? safeProduct.product_id ?? null,
+    product_id: safeProduct.product_id ?? safeProduct.id ?? null,
+    title: text(safeProduct.title || safeProduct.name || safeProduct.product_name || ""),
+    name: text(safeProduct.name || safeProduct.title || safeProduct.product_name || ""),
+    image_url: imageUrl,
+    price: productPrice || finalPrice || null,
+    final_price: finalPrice || null,
+    sale_price: salePrice || null,
+    brand: brandName,
+    brand_name: brandName,
+    sku,
+    slug: text(safeProduct.slug || safeProduct.canonical_slug || ""),
+    total_stock: totalStock,
+    available_stock: totalStock,
+    stock: totalStock,
+    stock_status: stockStatus,
+    product_url: productUrl,
+    storefront_url: productUrl,
+    variants: normalizedVariants,
+    product_variants: normalizedVariants,
+    selected_variant: primaryVariant ? {
+      ...primaryVariant,
+      id: primaryVariant.id ?? primaryVariant.variant_id ?? null,
+      product_id: primaryVariant.product_id ?? safeProduct.id ?? safeProduct.product_id ?? null,
+      image_url: resolveVariantImageUrl(primaryVariant),
+      price: firstNumber(primaryVariant.price, primaryVariant.final_price, primaryVariant.sale_price, primaryVariant.selling_price, primaryVariant.regular_price) || null,
+      final_price: firstNumber(primaryVariant.final_price, primaryVariant.sale_price, primaryVariant.price, primaryVariant.selling_price, primaryVariant.regular_price) || null,
+      sale_price: firstNumber(primaryVariant.sale_price, primaryVariant.final_price, primaryVariant.price, primaryVariant.selling_price, primaryVariant.regular_price) || null,
+      stock: resolveVariantStock(primaryVariant),
+      available_stock: resolveVariantStock(primaryVariant),
+      total_stock: resolveVariantStock(primaryVariant),
+      stock_status: resolveVariantStock(primaryVariant) > 0 ? "in_stock" : "out_of_stock",
+    } : null,
+    matched_variant: primaryVariant ? {
+      ...primaryVariant,
+      id: primaryVariant.id ?? primaryVariant.variant_id ?? null,
+      product_id: primaryVariant.product_id ?? safeProduct.id ?? safeProduct.product_id ?? null,
+      image_url: resolveVariantImageUrl(primaryVariant),
+      price: firstNumber(primaryVariant.price, primaryVariant.final_price, primaryVariant.sale_price, primaryVariant.selling_price, primaryVariant.regular_price) || null,
+      final_price: firstNumber(primaryVariant.final_price, primaryVariant.sale_price, primaryVariant.price, primaryVariant.selling_price, primaryVariant.regular_price) || null,
+      sale_price: firstNumber(primaryVariant.sale_price, primaryVariant.final_price, primaryVariant.price, primaryVariant.selling_price, primaryVariant.regular_price) || null,
+      stock: resolveVariantStock(primaryVariant),
+      available_stock: resolveVariantStock(primaryVariant),
+      total_stock: resolveVariantStock(primaryVariant),
+      stock_status: resolveVariantStock(primaryVariant) > 0 ? "in_stock" : "out_of_stock",
+    } : null,
+  };
+};
+
 const getPostIdentityCandidates = ({ postId = "", row = {}, post = {} } = {}) => {
   const safeRow = row && typeof row === "object" ? row : {};
   const safePost = post && typeof post === "object" ? post : {};
@@ -152,31 +328,7 @@ const fetchProductsByIds = async ({ tenantId = null, productIds = [] } = {}) => 
   const safeProductIds = Array.from(new Set((Array.isArray(productIds) ? productIds : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)));
   if (!safeTenantId || !safeProductIds.length) return [];
   const query = `
-    SELECT
-      p.id,
-      p.name,
-      p.slug,
-      p.canonical_slug,
-      p.image_url,
-      p.price,
-      p.sale_price,
-      p.selling_price,
-      p.stock,
-      p.tenant_id,
-      b.name AS brand_name,
-      b.slug AS brand_slug,
-      COALESCE((
-        SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
-        FROM product_variants v
-        WHERE v.tenant_id = p.tenant_id
-          AND v.product_id = p.id
-      ), '') AS product_sizes,
-      COALESCE((
-        SELECT string_agg(DISTINCT NULLIF(v.color, ''), ', ' ORDER BY NULLIF(v.color, ''))
-        FROM product_variants v
-        WHERE v.tenant_id = p.tenant_id
-          AND v.product_id = p.id
-      ), '') AS product_colors
+    SELECT p.*, b.name AS brand_name, b.slug AS brand_slug
     FROM products p
     LEFT JOIN brands b ON b.id = p.brand_id
     WHERE p.tenant_id = $1::bigint
@@ -186,6 +338,23 @@ const fetchProductsByIds = async ({ tenantId = null, productIds = [] } = {}) => 
   const primaryRows = await db.query(query, [safeTenantId, safeProductIds]).catch(() => ({ rows: [] }));
   if (primaryRows.rows?.length) return primaryRows.rows;
   const fallbackRows = await db.query(query.replace("WHERE p.tenant_id = $1::bigint", "WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)"), [null, safeProductIds]).catch(() => ({ rows: [] }));
+  return fallbackRows.rows || [];
+};
+
+const fetchVariantsByProductIds = async ({ tenantId = null, productIds = [] } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const safeProductIds = Array.from(new Set((Array.isArray(productIds) ? productIds : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)));
+  if (!safeTenantId || !safeProductIds.length) return [];
+  const query = `
+    SELECT *
+    FROM product_variants
+    WHERE tenant_id = $1::bigint
+      AND product_id = ANY($2::bigint[])
+    ORDER BY product_id ASC, id ASC
+  `;
+  const primaryRows = await db.query(query, [safeTenantId, safeProductIds]).catch(() => ({ rows: [] }));
+  if (primaryRows.rows?.length) return primaryRows.rows;
+  const fallbackRows = await db.query(query.replace("WHERE tenant_id = $1::bigint", "WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)"), [null, safeProductIds]).catch(() => ({ rows: [] }));
   return fallbackRows.rows || [];
 };
 
@@ -218,6 +387,12 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
 const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = {}, postId = "" } = {}) => {
   const rows = await fetchLinkRows({ tenantId, platform, post, postId });
   if (!rows.length) {
+    console.info("POST_PRODUCT_LINKS_READBACK", {
+      tenant_id: toTenantId(tenantId) || null,
+      platform: normalizePlatform(platform || post?.platform || ""),
+      post_id: getPlatformPostId({ tenantId, platform, post, postId }),
+      count: 0,
+    });
     return {
       linked_products: [],
       primary_product: null,
@@ -232,21 +407,47 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
     tenantId,
     productIds: rows.map((row) => row.product_id),
   });
+  const variants = await fetchVariantsByProductIds({
+    tenantId,
+    productIds: rows.map((row) => row.product_id),
+  });
+  const variantsByProductId = new Map();
+  for (const variant of variants) {
+    const key = String(variant.product_id || "");
+    if (!key) continue;
+    const current = variantsByProductId.get(key) || [];
+    current.push(variant);
+    variantsByProductId.set(key, current);
+  }
   const productById = new Map(products.map((product) => [String(product.id), product]));
   const linkedProducts = rows.map((row) => {
-    const product = normalizeProductRow({
-      ...(productById.get(String(row.product_id)) || {}),
-      id: row.product_id,
-      product_id: row.product_id,
-      platform: row.platform,
-      platform_post_id: row.platform_post_id || row.post_id || row.media_id || "",
-      priority: row.priority,
-      is_primary: row.is_primary,
-      created_at: row.created_at,
-      updated_at: row.updated_at,
+    const product = productById.get(String(row.product_id)) || {};
+    const hydrated = hydrateProduct(
+      {
+        ...product,
+        id: row.product_id,
+        product_id: row.product_id,
+        platform: row.platform,
+        platform_post_id: row.platform_post_id || row.post_id || row.media_id || "",
+        priority: row.priority,
+        is_primary: row.is_primary,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+      },
+      variantsByProductId.get(String(row.product_id)) || []
+    );
+    console.info("POST_PRODUCT_LINKS_HYDRATED_PRODUCT", {
+      tenant_id: toTenantId(tenantId) || null,
+      platform: normalizePlatform(row.platform || platform || ""),
+      post_id: getPlatformPostId({ tenantId, platform, post, postId }),
+      product_id: hydrated.product_id || hydrated.id || null,
+      total_stock: hydrated.total_stock,
+      stock_status: hydrated.stock_status,
+      price: hydrated.price,
+      final_price: hydrated.final_price,
     });
     return {
-      ...product,
+      ...hydrated,
       priority: Number(row.priority ?? 1) || 1,
       is_primary: Boolean(row.is_primary),
       platform: normalizePlatform(row.platform || platform || ""),
@@ -257,6 +458,13 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
   });
 
   const primaryProduct = linkedProducts.find((item) => item.is_primary) || linkedProducts[0] || null;
+  console.info("POST_PRODUCT_LINKS_READBACK", {
+    tenant_id: toTenantId(tenantId) || null,
+    platform: normalizePlatform(platform || post?.platform || ""),
+    post_id: getPlatformPostId({ tenantId, platform, post, postId }),
+    count: linkedProducts.length,
+    primary_product_id: primaryProduct?.product_id || primaryProduct?.id || null,
+  });
   return {
     linked_products: linkedProducts,
     primary_product: primaryProduct,
@@ -368,6 +576,14 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     }
 
     await client.query("COMMIT");
+    console.info("POST_PRODUCT_LINKS_SAVED", {
+      tenant_id: safeTenantId || null,
+      platform: normalizedPlatform,
+      post_id: platformPostId,
+      product_ids: safeProductIds,
+      primary_product_id: primaryId,
+      count: safeProductIds.length,
+    });
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
