@@ -446,11 +446,13 @@ const readWebhookRecord = async (current) => {
 const updateWebhookByRecordId = async ({ current, webhookRecord, desiredUrl }) => {
   const webhookId = webhookRecordIdFrom(webhookRecord);
   const updateBody = {
-    enabled: true,
-    url: desiredUrl,
-    events: requiredWebhookEvents,
-    webhookByEvents: false,
-    webhookBase64: false,
+    webhook: {
+      enabled: true,
+      url: desiredUrl,
+      events: requiredWebhookEvents,
+      webhookByEvents: false,
+      webhookBase64: false,
+    },
   };
 
   const updateEndpoint = getWebhookSetEndpoint(current.instanceName);
