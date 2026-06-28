@@ -44,6 +44,14 @@ import ProductCardPicker from "../components/ProductCardPicker";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
+const firstNonEmpty = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    const normalized = String(value).trim();
+    if (normalized) return normalized;
+  }
+  return "";
+};
 const money = (value) => formatCurrency(Number(value || 0));
 const normalizeKey = (value = "") => clean(value).toLowerCase();
 const normalizeValidationSummary = (value = {}) => {
