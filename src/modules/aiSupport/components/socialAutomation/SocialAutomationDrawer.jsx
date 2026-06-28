@@ -21,6 +21,7 @@ export default function SocialAutomationDrawer({
   runsLoading = false,
   runsError = "",
   testResult = null,
+  savedConfig = null,
   onClose,
   onSaveDraft,
   onResetDraft,
@@ -38,6 +39,8 @@ export default function SocialAutomationDrawer({
     ],
     [post?.commentsCount, post?.likesCount, post?.sharesCount]
   );
+  const savedConfigId = clean(savedConfig?.config_id || savedConfig?.id || "");
+  const savedPostId = clean(savedConfig?.saved_post_id || savedConfig?.post_id || "");
 
   const timelineState = useMemo(
     () => ({
@@ -185,6 +188,18 @@ export default function SocialAutomationDrawer({
               </span>
             )}
           </div>
+
+          {savedConfigId || savedPostId ? (
+            <div className="mb-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 text-xs text-slate-200">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Saved Config</div>
+              <div className="mt-2 grid gap-1 sm:grid-cols-2">
+                <div>config_id: <span className="font-black text-white">{savedConfigId || "—"}</span></div>
+                <div>post_id: <span className="font-black text-white">{savedPostId || "—"}</span></div>
+                <div>enabled: <span className="font-black text-white">{savedConfig?.enabled ? "true" : "false"}</span></div>
+                <div>template_key: <span className="font-black text-white">{clean(savedConfig?.template_key || "—") || "—"}</span></div>
+              </div>
+            </div>
+          ) : null}
 
           <div className="grid gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
             <div className="grid gap-3">

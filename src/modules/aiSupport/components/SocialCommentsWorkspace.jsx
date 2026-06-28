@@ -20,6 +20,7 @@ import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
 import SocialAutomationDrawer from "./socialAutomation/SocialAutomationDrawer.jsx";
+import PostProductLinksDrawer from "./socialAutomation/PostProductLinksDrawer.jsx";
 import {
   applyAutomationTemplate,
   buildAutomationDraft,
@@ -155,9 +156,33 @@ const normalizePost = (raw) => {
   const post = raw || {};
   const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
   const attachmentImage = getAttachmentImage(post);
+  const linkedProducts = Array.isArray(post.linked_products)
+    ? post.linked_products
+    : Array.isArray(metadata.linked_products)
+      ? metadata.linked_products
+      : [];
+  const linkedProductsCount = Number(
+    post.linked_products_count ??
+      post.product_links_count ??
+      metadata.linked_products_count ??
+      metadata.product_links_count ??
+      linkedProducts.length ??
+      0
+  ) || 0;
+  const primaryLinkedProduct = post.primary_linked_product || post.primary_product || metadata.primary_linked_product || metadata.primary_product || linkedProducts[0] || null;
+  const mappedProductName = clean(primaryLinkedProduct?.name || primaryLinkedProduct?.product_name || "");
+  const mappedProductPrice = clean(primaryLinkedProduct?.sale_price || primaryLinkedProduct?.price || primaryLinkedProduct?.selling_price || "");
+  const mappedProductSizes = Array.isArray(primaryLinkedProduct?.available_sizes)
+    ? primaryLinkedProduct.available_sizes.join(", ")
+    : clean(primaryLinkedProduct?.sizes || "");
+  const mappedProductColors = Array.isArray(primaryLinkedProduct?.available_colors)
+    ? primaryLinkedProduct.available_colors.join(", ")
+    : clean(primaryLinkedProduct?.colors || "");
   return {
-    id: clean(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
-    postId: clean(post.post_id || post.id || metadata.post_id || ""),
+    id: clean(post.canonical_post_id || post.platform_post_id || post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
+    postId: clean(post.canonical_post_id || post.platform_post_id || post.post_id || post.id || metadata.post_id || ""),
+    platformPostId: clean(post.platform_post_id || metadata.platform_post_id || post.post_id || ""),
+    canonicalPostId: clean(post.canonical_post_id || metadata.canonical_post_id || post.platform_post_id || post.post_id || ""),
     conversationId: clean(post.conversation_id || post.session_id || post.conversation_key || post.thread_id || metadata.conversation_id || ""),
     sessionId: clean(post.session_id || metadata.session_id || ""),
     platform: clean(post.platform || metadata.platform || "facebook").toLowerCase(),
@@ -207,24 +232,30 @@ const normalizePost = (raw) => {
     publishedAt: clean(post.published_at || post.created_time || post.created_at || post.posted_at || metadata.published_at || metadata.created_time || metadata.created_at || metadata.posted_at || ""),
     lastActivity: clean(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || ""),
     autoReplyEnabled: Boolean(post.auto_reply_enabled || post.template_enabled || post.auto_reply_mode || metadata.auto_reply_enabled || metadata.template_enabled || metadata.auto_reply_mode),
-    productName: clean(post.product_name || metadata.product_name || ""),
-    productId: clean(post.product_id || metadata.product_id || ""),
-    product_id: clean(post.product_id || metadata.product_id || ""),
-    productPrice: clean(post.product_price || metadata.product_price || ""),
-    productSalePrice: clean(post.product_sale_price || metadata.product_sale_price || ""),
-    productSizes: clean(post.product_sizes || metadata.product_sizes || ""),
-    productColors: clean(post.product_colors || metadata.product_colors || ""),
-    productStock: clean(post.product_stock || metadata.product_stock || ""),
-    productVariantCount: clean(post.product_variant_count || metadata.product_variant_count || ""),
-    productLink: clean(post.product_link || post.product_storefront_url || post.product_url || metadata.product_link || metadata.product_storefront_url || metadata.product_url || ""),
+    productName: clean(post.product_name || metadata.product_name || mappedProductName || ""),
+    productId: clean(post.product_id || metadata.product_id || primaryLinkedProduct?.id || primaryLinkedProduct?.product_id || ""),
+    product_id: clean(post.product_id || metadata.product_id || primaryLinkedProduct?.id || primaryLinkedProduct?.product_id || ""),
+    productPrice: clean(post.product_price || metadata.product_price || mappedProductPrice || ""),
+    productSalePrice: clean(post.product_sale_price || metadata.product_sale_price || clean(primaryLinkedProduct?.sale_price || "")),
+    productSizes: clean(post.product_sizes || metadata.product_sizes || mappedProductSizes || ""),
+    productColors: clean(post.product_colors || metadata.product_colors || mappedProductColors || ""),
+    productStock: clean(post.product_stock || metadata.product_stock || primaryLinkedProduct?.stock || ""),
+    productVariantCount: clean(post.product_variant_count || metadata.product_variant_count || linkedProductsCount || ""),
+    productLink: clean(post.product_link || post.product_storefront_url || post.product_url || metadata.product_link || metadata.product_storefront_url || metadata.product_url || primaryLinkedProduct?.product_url || ""),
     storeAddress: clean(post.store_address || metadata.store_address || ""),
     shippingTime: clean(post.shipping_time || metadata.shipping_time || ""),
+    linkedProductsCount,
+    linked_products_count: linkedProductsCount,
+    linkedProducts,
+    linked_products: linkedProducts,
+    primaryLinkedProduct,
+    primary_linked_product: primaryLinkedProduct,
     attachmentImage,
     raw: post,
   };
 };
 
-const postKey = (item = {}) => clean(item?.conversationId || item?.postId || item?.id || "");
+const postKey = (item = {}) => clean(item?.canonicalPostId || item?.platformPostId || item?.conversationId || item?.postId || item?.id || "");
 
 const commentKey = (item = {}) => clean(item?.id || "");
 
@@ -557,6 +588,7 @@ function SocialCommentsWorkspace({
   const [replyStatusOverrides, setReplyStatusOverrides] = useState({});
   const [expandedCaption, setExpandedCaption] = useState(false);
   const [automationDrawerPostKey, setAutomationDrawerPostKey] = useState("");
+  const [productLinksDrawerPostKey, setProductLinksDrawerPostKey] = useState("");
   const [automationDrafts, setAutomationDrafts] = useState({});
   const [automationLoadingKey, setAutomationLoadingKey] = useState("");
   const [automationSavingKey, setAutomationSavingKey] = useState("");
@@ -566,6 +598,7 @@ function SocialCommentsWorkspace({
   const [automationRunsError, setAutomationRunsError] = useState("");
   const [automationTesting, setAutomationTesting] = useState(false);
   const [automationTestResult, setAutomationTestResult] = useState(null);
+  const [automationSavedConfigs, setAutomationSavedConfigs] = useState({});
   const [highlightedCommentKey, setHighlightedCommentKey] = useState("");
   const [globalDraft, setGlobalDraft] = useState(() => ({
     generic_enabled: false,
@@ -735,6 +768,11 @@ function SocialCommentsWorkspace({
   const activeAutomationDraft =
     automationDrafts[activeAutomationDraftKey] ||
     buildAutomationDraft(automationDrawerPost || activePostDetails || activePost || {});
+  const productLinksDrawerPost = useMemo(() => {
+    const drawerKey = clean(productLinksDrawerPostKey);
+    if (!drawerKey) return null;
+    return normalizedPosts.find((item) => postKey(item) === drawerKey) || (drawerKey === activePostKey ? activePostDetails : null);
+  }, [activePostDetails, activePostKey, normalizedPosts, productLinksDrawerPostKey]);
 
   const updateAutomationDraft = (patch = {}) => {
     const drawerKey = clean(automationDrawerPostKey || activePostKey);
@@ -813,6 +851,36 @@ function SocialCommentsWorkspace({
     }
   };
 
+  const loadAutomationConfig = useCallback(
+    async (drawerKey = "", postForAutomation = {}) => {
+      const key = clean(drawerKey || automationDrawerPostKey || activePostKey);
+      if (!key) return null;
+      const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
+      const payload = await api.get(`/social-comments/automation/${encodeURIComponent(key)}`, {
+        params: { tenant_id: resolvedTenantId, platform: platformForAutomation },
+      });
+      const config = payload?.config || payload?.data || payload || {};
+      const normalized = normalizeAutomationConfig(config, postForAutomation);
+      const savedConfig = {
+        config_id: clean(config?.id || config?.config_id || ""),
+        tenant_id: clean(config?.tenant_id || resolvedTenantId || ""),
+        platform: clean(config?.platform || platformForAutomation || "facebook") || "facebook",
+        saved_post_id: clean(config?.post_id || key),
+        enabled: Boolean(config?.enabled),
+        template_key: clean(config?.template_key || normalized.templateId || ""),
+        settings: config?.settings || {},
+        message_templates: config?.message_templates || {},
+        raw: config,
+      };
+      setAutomationSavedConfigs((current) => ({
+        ...current,
+        [key]: savedConfig,
+      }));
+      return { normalized, savedConfig };
+    },
+    [activePostKey, activePostPlatform, automationDrawerPostKey, resolvedTenantId]
+  );
+
   const handleAutomationSaveLocal = () => {
     const drawerKey = clean(automationDrawerPostKey || activePostKey);
     if (!drawerKey) return;
@@ -841,6 +909,12 @@ function SocialCommentsWorkspace({
     setAutomationDrawerPostKey(drawerPostKey);
   };
 
+  const handleOpenProductLinksDrawer = (post = null, key = "") => {
+    const drawerPostKey = clean(key || postKey(post || activePostDetails || activePost || {}));
+    if (!drawerPostKey) return;
+    setProductLinksDrawerPostKey(drawerPostKey);
+  };
+
   useEffect(() => {
     const drawerKey = clean(automationDrawerPostKey);
     if (!drawerKey) return;
@@ -863,14 +937,10 @@ function SocialCommentsWorkspace({
       [drawerKey]: current[drawerKey] || fallbackDraft,
     }));
 
-    api
-      .get(`/social-comments/automation/${encodeURIComponent(drawerKey)}`, {
-        params: { tenant_id: resolvedTenantId, platform: platformForAutomation },
-      })
-      .then((payload) => {
-        if (cancelled) return;
-        const config = payload?.config || payload?.data || payload || {};
-        const normalized = normalizeAutomationConfig(config, postForAutomation);
+    loadAutomationConfig(drawerKey, postForAutomation)
+      .then(({ normalized, savedConfig }) => {
+        if (cancelled || !normalized) return;
+        const config = savedConfig?.raw || {};
         setAutomationDrafts((current) => ({
           ...current,
           [drawerKey]: {
@@ -897,7 +967,7 @@ function SocialCommentsWorkspace({
     return () => {
       cancelled = true;
     };
-  }, [automationDrawerPostKey, automationDrawerPost?.id, automationDrawerPost?.postId, activePostKey, activePostPlatform, resolvedTenantId]);
+  }, [activePost, activePostKey, activePostPlatform, automationDrawerPost, automationDrawerPostKey, loadAutomationConfig, resolvedTenantId]);
 
   useEffect(() => {
     const drawerKey = clean(automationDrawerPostKey);
@@ -926,17 +996,31 @@ function SocialCommentsWorkspace({
       });
       const savedConfig = response?.config || response?.data || response || {};
       const normalized = normalizeAutomationConfig(savedConfig, postForAutomation);
+      const verification = await loadAutomationConfig(drawerKey, postForAutomation);
+      if (!verification?.normalized) {
+        throw new Error("Failed to read back saved automation config");
+      }
+      const verifiedDraft = verification.normalized;
+      const verifiedSavedConfig = verification.savedConfig;
       setAutomationDrafts((current) => ({
         ...current,
         [drawerKey]: {
           ...draft,
+          ...verifiedDraft,
           ...normalized,
           productId: clean(savedConfig?.product_id || savedConfig?.productId || draft.productId || postForAutomation?.productId || ""),
           product_id: clean(savedConfig?.product_id || savedConfig?.productId || draft.productId || postForAutomation?.productId || ""),
         },
       }));
+      if (verifiedSavedConfig) {
+        setAutomationSavedConfigs((current) => ({
+          ...current,
+          [drawerKey]: verifiedSavedConfig,
+        }));
+      }
       void handleAutomationLoadRuns(drawerKey);
       notify("emerald", "تم حفظ إعدادات الأتمتة");
+      await Promise.resolve(onRefresh?.());
     } catch (error) {
       setAutomationLoadErrors((current) => ({
         ...current,
@@ -1362,6 +1446,14 @@ function SocialCommentsWorkspace({
                         <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
                           <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{post.commentsCount} comments</span>
                           <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-[#E2E8F0] bg-white text-slate-600"}`}>{post.newCount} new</span>
+                          {post.linkedProductsCount > 0 ? (
+                            <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-700">
+                              ✓ {post.primaryLinkedProduct?.name || "Linked Product"}
+                              {post.linkedProductsCount > 1 ? ` +${post.linkedProductsCount - 1}` : ""}
+                            </span>
+                          ) : (
+                            <span className="rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-amber-700">⚠ No Product Linked</span>
+                          )}
                           {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
                           {post.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
                           <button
@@ -1373,6 +1465,16 @@ function SocialCommentsWorkspace({
                             className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700"
                           >
                             Automation
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              handleOpenProductLinksDrawer(post, key);
+                            }}
+                            className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700"
+                          >
+                            Link Products
                           </button>
                         </div>
                         <div className="mt-2 text-[11px] font-medium text-slate-400">
@@ -1417,6 +1519,17 @@ function SocialCommentsWorkspace({
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
                       {activePost.newCount || 0} new
                     </span>
+                    {activePostDetails?.linkedProductsCount > 0 ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                        ✓ Linked Products
+                        {activePostDetails?.primaryLinkedProduct?.name ? ` · ${activePostDetails.primaryLinkedProduct.name}` : ""}
+                        {activePostDetails?.linkedProductsCount > 1 ? ` +${activePostDetails.linkedProductsCount - 1}` : ""}
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
+                        ⚠ No Product Linked
+                      </span>
+                    )}
                   </div>
                 </div>
                 <button
@@ -1958,12 +2071,20 @@ function SocialCommentsWorkspace({
         runsError={automationRunsError}
         testing={automationTesting}
         testResult={automationTestResult}
+        savedConfig={automationSavedConfigs[clean(automationDrawerPostKey)] || null}
         onClose={() => setAutomationDrawerPostKey("")}
         onSaveDraft={handleAutomationSaveLocal}
         onResetDraft={handleAutomationReset}
         onUpdateDraft={updateAutomationDraft}
         onSelectTemplate={handleAutomationSelectTemplate}
         onTestAutomation={handleAutomationTest}
+      />
+      <PostProductLinksDrawer
+        open={Boolean(productLinksDrawerPostKey)}
+        post={productLinksDrawerPost || activePostDetails || activePost}
+        tenantId={resolvedTenantId}
+        onClose={() => setProductLinksDrawerPostKey("")}
+        onSaved={handleRefresh}
       />
     </section>
   );

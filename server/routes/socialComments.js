@@ -20,6 +20,11 @@ import {
   ensureSocialCommentsCenterSchema,
 } from "../services/socialCommentsCenterService.js";
 import {
+  getMappings as getPostProductMappings,
+  removeMapping as removePostProductMapping,
+  saveMappings as savePostProductMappings,
+} from "../services/postProductMappingService.js";
+import {
   listRecentSocialCommentAutomationRuns as listSocialCommentAutomationRuns,
   testSocialCommentAutomationRuntime,
 } from "../services/socialCommentAutomationService.js";
@@ -125,16 +130,57 @@ router.put("/automation/:postId", protect, permit("settings", "edit"), async (re
         conversation_id: post?.conversation_id || "",
       },
     });
+    const savedPostId = String(config?.post_id || canonicalPostId || requestedPostId || "").trim();
+    const savedPlatform = String(config?.platform || platform || post?.platform || "").trim() || "facebook";
+    const readback = await db.query(
+      `
+      SELECT *
+      FROM social_comment_post_automation_configs
+      WHERE tenant_id = $1::bigint
+        AND platform = $2::text
+        AND post_id = $3::text
+      LIMIT 1
+      `,
+      [tenantId, savedPlatform, savedPostId]
+    );
+    const readbackRow = readback.rows?.[0] || null;
+    if (!readbackRow) {
+      throw Object.assign(new Error("Failed to verify saved automation config"), { status: 500 });
+    }
+    const readbackConfig = await getSocialCommentAutomationConfig({
+      tenantId,
+      platform: savedPlatform,
+      postId: savedPostId,
+      row: readbackRow,
+      post: {
+        post_id: savedPostId,
+        canonical_post_id: savedPostId,
+      },
+    });
     console.log("AUTOMATION_CONFIG_SAVED", {
-      config_id: config?.id || null,
+      config_id: readbackConfig?.id || config?.id || null,
       tenant_id: tenantId,
-      platform,
-      saved_post_id: String(config?.post_id || canonicalPostId || ""),
+      platform: savedPlatform,
+      saved_post_id: savedPostId,
+      enabled: Boolean(readbackConfig?.enabled),
+      template_key: String(readbackConfig?.template_key || ""),
+      settings: readbackConfig?.settings || {},
+      message_templates: readbackConfig?.message_templates || {},
       selected_post_id: requestedPostId,
       canonical_post_id: canonicalPostId,
       conversation_id: String(post?.conversation_id || post?.external_conversation_id || ""),
     });
-    return res.json({ success: true, config });
+    console.log("AUTOMATION_CONFIG_READBACK", {
+      config_id: readbackConfig?.id || null,
+      tenant_id: tenantId,
+      platform,
+      saved_post_id: savedPostId,
+      enabled: Boolean(readbackConfig?.enabled),
+      template_key: String(readbackConfig?.template_key || ""),
+      settings: readbackConfig?.settings || {},
+      message_templates: readbackConfig?.message_templates || {},
+    });
+    return res.json({ success: true, config: readbackConfig });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to save social comment automation config" });
   }
@@ -209,6 +255,92 @@ router.post("/automation/:postId/test", protect, permit("settings", "view"), asy
     return res.json({ success: true, result });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to test social comment automation" });
+  }
+});
+
+router.get("/posts/:postId/product-links", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const requestedPostId = String(req.params.postId || "").trim();
+    const platform = String(req.query?.platform || req.body?.platform || "").trim();
+    const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
+    const postId = String(post?.canonical_post_id || post?.post_id || requestedPostId || "").trim();
+    const mapping = await getPostProductMappings({ tenantId, platform, postId, row: post || {}, post: post || {} });
+    return res.json({
+      success: true,
+      linked_products: mapping?.linked_products || [],
+      primary_product: mapping?.primary_product || null,
+      count: Number(mapping?.count || 0) || 0,
+      post_id: postId,
+      platform: String(mapping?.platform || platform || "facebook").trim() || "facebook",
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load product links" });
+  }
+});
+
+router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const requestedPostId = String(req.params.postId || "").trim();
+    const platform = String(req.body?.platform || req.query?.platform || "").trim();
+    const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
+    const postId = String(post?.canonical_post_id || post?.post_id || requestedPostId || "").trim();
+    const productIds = Array.isArray(req.body?.product_ids)
+      ? req.body.product_ids
+      : Array.isArray(req.body?.productIds)
+        ? req.body.productIds
+        : [];
+    const primaryProductId = req.body?.primary_product_id ?? req.body?.primaryProductId ?? null;
+    const mapping = await savePostProductMappings({
+      tenantId,
+      platform,
+      postId,
+      row: post || {},
+      post: post || {},
+      productIds,
+      primaryProductId,
+      userId: req.user?.id || req.user?.user_id || null,
+    });
+    return res.json({
+      success: true,
+      linked_products: mapping?.linked_products || [],
+      primary_product: mapping?.primary_product || null,
+      count: Number(mapping?.count || 0) || 0,
+      post_id: postId,
+      platform: String(mapping?.platform || platform || "facebook").trim() || "facebook",
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to save product links" });
+  }
+});
+
+router.delete("/posts/:postId/product-links", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const requestedPostId = String(req.params.postId || "").trim();
+    const platform = String(req.body?.platform || req.query?.platform || "").trim();
+    const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
+    const postId = String(post?.canonical_post_id || post?.post_id || requestedPostId || "").trim();
+    const productId = req.body?.product_id ?? req.body?.productId ?? req.query?.product_id ?? req.query?.productId ?? null;
+    const mapping = await removePostProductMapping({
+      tenantId,
+      platform,
+      postId,
+      row: post || {},
+      post: post || {},
+      productId,
+    });
+    return res.json({
+      success: true,
+      linked_products: mapping?.linked_products || [],
+      primary_product: mapping?.primary_product || null,
+      count: Number(mapping?.count || 0) || 0,
+      post_id: postId,
+      platform: String(mapping?.platform || platform || "facebook").trim() || "facebook",
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to remove product links" });
   }
 });
 
