@@ -27,6 +27,33 @@ const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMME
 const debugSocialCommentsLog = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.log(...args);
 };
+let socialRealtimeEmittersPromise = null;
+const getSocialRealtimeEmitters = async () => {
+  if (!socialRealtimeEmittersPromise) {
+    socialRealtimeEmittersPromise = import("./socialRealtimeService.js")
+      .then((module) => ({
+        emitSocialCommentNew: module.emitSocialCommentNew || (() => {}),
+        emitSocialCommentUpdated: module.emitSocialCommentUpdated || (() => {}),
+        emitSocialReplyStatus: module.emitSocialReplyStatus || (() => {}),
+      }))
+      .catch((error) => {
+        if (isSocialCommentsDebugEnabled()) {
+          console.warn("SOCIAL_REALTIME_IMPORT_FAILED", {
+            message: error?.message || String(error || ""),
+          });
+        }
+        return {
+          emitSocialCommentNew: () => {},
+          emitSocialCommentUpdated: () => {},
+          emitSocialReplyStatus: () => {},
+        };
+      });
+  }
+  return socialRealtimeEmittersPromise;
+};
+const emitSocialCommentNew = (payload = {}) => { void getSocialRealtimeEmitters().then(({ emitSocialCommentNew: emit }) => emit(payload)); };
+const emitSocialCommentUpdated = (payload = {}) => { void getSocialRealtimeEmitters().then(({ emitSocialCommentUpdated: emit }) => emit(payload)); };
+const emitSocialReplyStatus = (payload = {}) => { void getSocialRealtimeEmitters().then(({ emitSocialReplyStatus: emit }) => emit(payload)); };
 const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
 };
@@ -1134,7 +1161,11 @@ const upsertAutomationInboxConversation = async ({
       JSON.stringify(metadata),
     ]
   );
-  return result.rows[0] || null;
+  const savedRow = result.rows[0] || null;
+  if (savedRow) {
+    emitSocialCommentUpdated(savedRow);
+  }
+  return savedRow;
 };
 
 const buildAutomationProfileMetadata = ({ row = {}, productContext = {}, templateContext = {}, websiteLinks = {} } = {}) => {
@@ -3733,7 +3764,14 @@ export const persistSocialCommentAutomationState = async ({
     ).catch(() => {});
   }
 
-  return result.rows[0] || null;
+  const row = result.rows[0] || null;
+  if (row) {
+    emitSocialCommentUpdated(row);
+    if (text(publicReplyStatus || dmStatus || likeStatus || "")) {
+      emitSocialReplyStatus(row);
+    }
+  }
+  return row;
 };
 
 const appendSocialCommentAutomationTranscript = async ({
@@ -4532,6 +4570,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         raw_payload: normalized.raw_payload || {},
       };
     }
+    emitSocialCommentNew(storedRow);
     const productContext = await resolveSocialCommentPublishedProductContext({
       tenantId: storedRow.tenant_id,
       row: storedRow,
@@ -4750,17 +4789,18 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           event: storedRow,
           suggestedReply: "",
         });
-        if (materialized?.session_id) {
-          storedRow.inbox_conversation_id = materialized.session_id;
-          await db.query(
-            `
-            UPDATE social_comment_automation_runs
+          if (materialized?.session_id) {
+            storedRow.inbox_conversation_id = materialized.session_id;
+            await db.query(
+              `
+              UPDATE social_comment_automation_runs
             SET inbox_conversation_id = $3::text,
                 updated_at = CURRENT_TIMESTAMP
             WHERE tenant_id = $1::bigint AND platform = $2::text AND comment_id = $4::text
             `,
             [storedRow.tenant_id, storedRow.platform, materialized.session_id, storedRow.comment_id]
           );
+          emitSocialCommentUpdated(storedRow);
         }
       } catch (error) {
         socialCommentsError("[social-comments] inbox conversation materialize failed", {
@@ -4795,6 +4835,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
               `,
               [storedRow.tenant_id, storedRow.platform, materialized.session_id, storedRow.comment_id]
             );
+            emitSocialCommentUpdated(storedRow);
           }
           const automationResult = await executeSocialCommentAutomation({
             tenantId: storedRow.tenant_id,
@@ -4812,6 +4853,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
             storedRow.error_code = automationResult.row.error_code || storedRow.error_code;
             storedRow.automation_state = automationResult.row.automation_state || storedRow.automation_state;
             storedRow.inbox_conversation_id = automationResult.row.inbox_conversation_id || storedRow.inbox_conversation_id;
+            emitSocialCommentUpdated(storedRow);
           }
         } catch (error) {
           socialCommentsError("[social-comments] lead conversation materialize failed", {
@@ -4831,6 +4873,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
             `,
             [storedRow.tenant_id, storedRow.platform, storedRow.error_code, storedRow.comment_id]
           ).catch(() => {});
+          emitSocialCommentUpdated(storedRow);
         }
       }
       if (!automationRuntimeApplied) {

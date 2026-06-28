@@ -4,7 +4,6 @@ import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { fetchMetaPostPreviewDetails } from "./metaIntegrationService.js";
 import { likeComment, replyToComment, renderTemplate } from "./marketingCommentAutomationService.js";
 import { getMappings } from "./postProductMappingService.js";
-import { emitSocialCommentNew, emitSocialCommentUpdated, emitSocialReplyStatus } from "./socialRealtimeService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -12,6 +11,30 @@ const asArray = (value) => (Array.isArray(value) ? value : []);
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
+};
+let socialRealtimeEmittersPromise = null;
+const getSocialRealtimeEmitters = async () => {
+  if (!socialRealtimeEmittersPromise) {
+    socialRealtimeEmittersPromise = import("./socialRealtimeService.js")
+      .then((module) => ({
+        emitSocialCommentNew: module.emitSocialCommentNew || (() => {}),
+        emitSocialCommentUpdated: module.emitSocialCommentUpdated || (() => {}),
+        emitSocialReplyStatus: module.emitSocialReplyStatus || (() => {}),
+      }))
+      .catch((error) => {
+        if (isSocialCommentsDebugEnabled()) {
+          console.warn("SOCIAL_REALTIME_IMPORT_FAILED", {
+            message: error?.message || String(error || ""),
+          });
+        }
+        return {
+          emitSocialCommentNew: () => {},
+          emitSocialCommentUpdated: () => {},
+          emitSocialReplyStatus: () => {},
+        };
+      });
+  }
+  return socialRealtimeEmittersPromise;
 };
 const toBool = (value, fallback = false) => {
   if (value === null || typeof value === "undefined" || value === "") return fallback;
@@ -1072,8 +1095,10 @@ const saveSocialAutoReplySettings = async ({ tenantId = null, payload = {} } = {
   );
   const row = result.rows?.[0] || null;
   if (row) {
-    emitSocialReplyStatus(row);
-    emitSocialCommentUpdated(row);
+    void getSocialRealtimeEmitters().then(({ emitSocialReplyStatus, emitSocialCommentUpdated }) => {
+      emitSocialReplyStatus(row);
+      emitSocialCommentUpdated(row);
+    });
   }
   return row;
 };
