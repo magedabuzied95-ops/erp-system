@@ -67,6 +67,15 @@ const clearStaleApiOverrides = () => {
 clearStaleApiOverrides();
 installChunkLoadRecovery();
 
+if (typeof globalThis !== "undefined") {
+  if (typeof globalThis.updateUIState !== "function") {
+    globalThis.updateUIState = () => {};
+  }
+  if (typeof globalThis.updateUiState !== "function") {
+    globalThis.updateUiState = globalThis.updateUIState;
+  }
+}
+
 if (import.meta.env.DEV) {
   console.debug("[runtime] resolved URLs", {
     apiBaseUrl: API_BASE_URL,
