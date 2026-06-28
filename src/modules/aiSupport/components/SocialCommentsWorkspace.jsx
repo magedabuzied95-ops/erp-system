@@ -28,6 +28,8 @@ import {
 } from "./socialAutomation/automationEngine.js";
 import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
 
+import { useRef } from "react";
+
 const clean = (value = "") => String(value ?? "").trim();
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
@@ -520,6 +522,7 @@ function SocialCommentsWorkspace({
   onRefresh,
   onSelectPost,
   tenantId = "",
+  initialSelectedCommentId = "",
 }) {
   const resolvedTenantId = clean(tenantId || selectedPost?.tenant_id || selectedPost?.tenantId || selectedThread?.post?.tenant_id || selectedThread?.post?.tenantId || "");
   const normalizedPosts = useMemo(
@@ -537,7 +540,7 @@ function SocialCommentsWorkspace({
   const normalizedComments = useMemo(() => comments.map((comment) => normalizeComment(comment)).filter(Boolean), [comments]);
   const activePostDetails = normalizePost(activeThread.post || activePost || null);
 
-  const [selectedCommentKey, setSelectedCommentKey] = useState("");
+  const [selectedCommentKey, setSelectedCommentKey] = useState(() => clean(initialSelectedCommentId));
   const [replyDraft, setReplyDraft] = useState("");
   const [previewReply, setPreviewReply] = useState("");
   const [ignoredCommentKeys, setIgnoredCommentKeys] = useState(() => new Set());
@@ -563,6 +566,7 @@ function SocialCommentsWorkspace({
   const [automationRunsError, setAutomationRunsError] = useState("");
   const [automationTesting, setAutomationTesting] = useState(false);
   const [automationTestResult, setAutomationTestResult] = useState(null);
+  const [highlightedCommentKey, setHighlightedCommentKey] = useState("");
   const [globalDraft, setGlobalDraft] = useState(() => ({
     generic_enabled: false,
     generic_like_enabled: true,
@@ -572,6 +576,9 @@ function SocialCommentsWorkspace({
     ...(globalSettings || {}),
   }));
   const [templateDraft, setTemplateDraft] = useState(() => selectedTemplate?.template || null);
+  const commentRefs = useRef(new Map());
+  const composerRef = useRef(null);
+  const highlightTimerRef = useRef(null);
 
   useEffect(() => {
     setGlobalDraft({
@@ -602,11 +609,19 @@ function SocialCommentsWorkspace({
   ]);
 
   useEffect(() => {
+    const nextSelected = clean(initialSelectedCommentId);
+    if (nextSelected && nextSelected !== selectedCommentKey) {
+      setSelectedCommentKey(nextSelected);
+    }
+  }, [initialSelectedCommentId, selectedCommentKey]);
+
+  useEffect(() => {
     setIgnoredCommentKeys(new Set());
-    setSelectedCommentKey("");
+    setSelectedCommentKey(clean(initialSelectedCommentId));
     setPreviewReply("");
     setReplyDraft("");
-  }, [activePostKey]);
+    setHighlightedCommentKey("");
+  }, [activePostKey, initialSelectedCommentId]);
 
   const activeTemplate = templateDraft || selectedTemplate?.template || null;
   const currentGlobalSettings = globalDraft || globalSettings;
@@ -620,9 +635,12 @@ function SocialCommentsWorkspace({
   useEffect(() => {
     if (!visibleComments.length) {
       setSelectedCommentKey("");
+      setHighlightedCommentKey("");
       return;
     }
-      const nextSelected =
+    const preferredKey = clean(initialSelectedCommentId || selectedCommentKey);
+    const nextSelected =
+      visibleComments.find((comment) => comment.id === preferredKey) ||
       visibleComments.find((comment) => comment.id === clean(selectedCommentKey)) ||
       visibleComments[0] ||
       null;
@@ -630,7 +648,32 @@ function SocialCommentsWorkspace({
     if (nextKey && nextKey !== selectedCommentKey) {
       setSelectedCommentKey(nextKey);
     }
-  }, [selectedCommentKey, visibleComments]);
+  }, [initialSelectedCommentId, selectedCommentKey, visibleComments]);
+
+  useEffect(() => {
+    const targetKey = clean(selectedCommentKey);
+    if (!targetKey) return undefined;
+    const targetNode = commentRefs.current.get(targetKey);
+    if (!targetNode) return undefined;
+
+    targetNode.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlightedCommentKey(targetKey);
+    if (highlightTimerRef.current) {
+      window.clearTimeout(highlightTimerRef.current);
+    }
+    highlightTimerRef.current = window.setTimeout(() => {
+      setHighlightedCommentKey((current) => (current === targetKey ? "" : current));
+    }, 2500);
+    window.requestAnimationFrame(() => {
+      composerRef.current?.focus?.();
+    });
+
+    return () => {
+      if (highlightTimerRef.current) {
+        window.clearTimeout(highlightTimerRef.current);
+      }
+    };
+  }, [selectedCommentKey, visibleComments.length]);
 
   const activeSuggestedReply = useMemo(
     () =>
@@ -1538,83 +1581,93 @@ function SocialCommentsWorkspace({
                       const busy = isBusy(key);
                       const privateMessageSupported = supportsPrivateMessage(comment, activePostPlatform);
                       const privateMessageStatus = clean(privateMessageStatusOverrides[key] || "");
+                      const isHighlighted = highlightedCommentKey === key;
 
                       return (
-                        <CommentTimelineCard
+                        <div
                           key={key || `${comment.createdTime || ""}:comment`}
-                          comment={comment}
-                          selected={key === selectedCommentKey}
-                          onSelect={() => setSelectedCommentKey(key)}
+                          ref={(node) => {
+                            if (!key) return;
+                            if (node) commentRefs.current.set(key, node);
+                            else commentRefs.current.delete(key);
+                          }}
+                          className={`rounded-[22px] transition ${isHighlighted ? "ring-2 ring-cyan-300/70 ring-offset-2 ring-offset-slate-950" : ""}`}
                         >
-                          {attachmentPreview ? (
-                            <a
-                              href={attachmentPreview}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="mt-3 block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
-                            >
-                              <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
-                                <img src={attachmentPreview} alt="" className="h-full w-full object-cover" loading="lazy" />
-                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent" />
-                                <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-100">
-                                  Media
-                                </span>
-                              </div>
-                            </a>
-                          ) : null}
+                          <CommentTimelineCard
+                            comment={comment}
+                            selected={key === selectedCommentKey || isHighlighted}
+                            onSelect={() => setSelectedCommentKey(key)}
+                          >
+                            {attachmentPreview ? (
+                              <a
+                                href={attachmentPreview}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="mt-3 block overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] shadow-[0_8px_24px_rgba(0,0,0,0.12)]"
+                              >
+                                <div className="relative aspect-[16/9] w-full overflow-hidden bg-slate-900">
+                                  <img src={attachmentPreview} alt="" className="h-full w-full object-cover" loading="lazy" />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-slate-950/40 to-transparent" />
+                                  <span className="absolute left-3 top-3 rounded-full border border-white/10 bg-slate-950/75 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-100">
+                                    Media
+                                  </span>
+                                </div>
+                              </a>
+                            ) : null}
 
-                          <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void submitReply(comment, replyDraft || previewReply || suggestedReply);
-                              }}
-                              disabled={busy || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)}
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 shadow-[0_6px_18px_rgba(34,211,238,0.18)] disabled:opacity-50"
-                            >
-                              {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                              Reply
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void submitPrivateMessage(comment, replyDraft || previewReply || suggestedReply);
-                              }}
-                              disabled={busy || !privateMessageSupported || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
-                              title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
-                            >
-                              {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
-                              {privateMessageStatus === "sent" ? "Sent" : "Private Message"}
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void handleCreateLead(comment);
-                              }}
-                              disabled={busy}
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
-                            >
-                              {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
-                              Create Lead
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(event) => {
-                                event.stopPropagation();
-                                void handleIgnoreComment(comment);
-                              }}
-                              disabled={busy}
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
-                            >
-                              {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
-                              Ignore
-                            </button>
-                          </div>
-                        </CommentTimelineCard>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void submitReply(comment, replyDraft || previewReply || suggestedReply);
+                                }}
+                                disabled={busy || !clean(replyDraft || previewReply || suggestedReply) || Boolean(replyLoadingKey)}
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-cyan-300 px-3 text-xs font-black text-slate-950 shadow-[0_6px_18px_rgba(34,211,238,0.18)] disabled:opacity-50"
+                              >
+                                {replyLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                                Reply
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void submitPrivateMessage(comment, replyDraft || previewReply || suggestedReply);
+                                }}
+                                disabled={busy || !privateMessageSupported || !clean(replyDraft || previewReply || suggestedReply) || Boolean(privateMessageLoadingKey)}
+                                title={privateMessageSupported ? "" : "Private messages are only supported for Facebook and Instagram comments"}
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+                              >
+                                {privateMessageLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageCircle className="h-4 w-4" />}
+                                {privateMessageStatus === "sent" ? "Sent" : "Private Message"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void handleCreateLead(comment);
+                                }}
+                                disabled={busy}
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-200 disabled:opacity-50"
+                              >
+                                {leadLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShoppingBag className="h-4 w-4" />}
+                                Create Lead
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void handleIgnoreComment(comment);
+                                }}
+                                disabled={busy}
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-300 disabled:opacity-50"
+                              >
+                                {ignoreLoadingKey === key ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldBan className="h-4 w-4" />}
+                                Ignore
+                              </button>
+                            </div>
+                          </CommentTimelineCard>
+                        </div>
                       );
                     })}
                   </div>
@@ -1648,6 +1701,7 @@ function SocialCommentsWorkspace({
                     </div>
 
                     <textarea
+                      ref={composerRef}
                       value={replyDraft}
                       onChange={(event) => setReplyDraft(event.target.value)}
                       rows={4}

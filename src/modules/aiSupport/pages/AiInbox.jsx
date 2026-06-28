@@ -354,6 +354,22 @@ const filters = [
   { key: "needs_reply", label: "Needs Reply" },
 ];
 
+const MESSAGE_PLATFORM_FILTERS = [
+  { key: "all", label: "All Messages" },
+  { key: "messenger", label: "Messenger" },
+  { key: "instagram", label: "Instagram" },
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "web", label: "Web" },
+  { key: "tiktok", label: "TikTok" },
+];
+
+const COMMENT_PLATFORM_FILTERS = [
+  { key: "all", label: "All Comments" },
+  { key: "facebook", label: "Facebook" },
+  { key: "instagram", label: "Instagram" },
+  { key: "tiktok", label: "TikTok" },
+];
+
 const leadFilters = [
   { key: "all", label: "الكل" },
   { key: "ready_to_buy", label: "جاهز للشراء" },
@@ -467,6 +483,7 @@ const isWhatsappChannel = (value = "") => clean(value).toLowerCase() === "whatsa
 const socialCommentsDebugEnabled = () =>
   import.meta.env.DEV ||
   ["1", "true", "yes", "on"].includes(String(import.meta.env.VITE_AI_SUPPORT_SOCIAL_COMMENTS_DEBUG || import.meta.env.VITE_AI_SUPPORT_DEBUG || "").toLowerCase());
+const DEBUG_SOCIAL_COMMENTS = socialCommentsDebugEnabled();
 const canViewAiDebugPanel = (user = {}) => {
   const role = clean(user.role || user.role_name || user.user_role || user.type).toLowerCase();
   return Boolean(
@@ -712,11 +729,44 @@ const isSocialCommentThread = (item = {}) => {
     source === "social_comments" ||
     channel === "facebook_comment" ||
     channel === "instagram_comment" ||
-    Boolean(commentId && postId)
+    Boolean(commentId || postId || channelMetadata.comment_id || channelMetadata.post_id || metadata.comment_id || metadata.post_id)
   );
 };
 
-const isMessageThread = (item = {}) => !isSocialCommentThread(item);
+const getMessagePlatform = (item = {}) => {
+  if (isSocialCommentThread(item)) return "";
+  const source = clean(item?.channel || item?.source || item?.provider || item?.platform || item?.source_platform || "").toLowerCase();
+  if (source.includes("facebook_messenger") || source.includes("messenger")) return "messenger";
+  if (source.includes("instagram_dm") || source.includes("instagram")) return "instagram";
+  if (source.includes("whatsapp")) return "whatsapp";
+  if (source.includes("web") || source.includes("website")) return "web";
+  if (source.includes("tiktok_dm") || source.includes("tiktok")) return "tiktok";
+  return "web";
+};
+
+const matchesMessagePlatform = (item = {}, activeMessagePlatformFilter = "all") => {
+  if (activeMessagePlatformFilter === "all") return true;
+  if (isSocialCommentThread(item)) return false;
+  return getMessagePlatform(item) === activeMessagePlatformFilter;
+};
+
+const getCommentPlatform = (item = {}) => {
+  if (!isSocialCommentThread(item)) return "";
+  const platform = clean(item?.platform || item?.metadata?.platform || item?.channel_metadata?.platform || "").toLowerCase();
+  const source = clean(item?.channel || item?.source || item?.provider || item?.platform || item?.metadata?.platform || item?.source_platform || "").toLowerCase();
+  if (platform === "facebook" || source.includes("facebook")) return "facebook";
+  if (platform === "instagram" || source.includes("instagram")) return "instagram";
+  if (platform === "tiktok" || source.includes("tiktok")) return "tiktok";
+  return platform || "facebook";
+};
+
+const matchesCommentPlatform = (item = {}, activeCommentPlatformFilter = "all") => {
+  if (activeCommentPlatformFilter === "all") return true;
+  if (!isSocialCommentThread(item)) return false;
+  return getCommentPlatform(item) === activeCommentPlatformFilter;
+};
+
+const isMessageThread = (item = {}) => !isSocialCommentThread(item) && Boolean(getMessagePlatform(item));
 
 const getInboxItemKind = (item = {}) => (isSocialCommentThread(item) ? "comment" : "message");
 
@@ -903,6 +953,21 @@ const getConversationSourceLabel = (item = {}) => {
 };
 
 const getConversationSourceIcon = (item = {}) => (isSocialCommentThread(item) ? MessageSquareText : FaFacebookMessenger);
+
+const buildSocialCommentsCenterUrl = (item = {}, tenantId = "") => {
+  const params = new URLSearchParams();
+  const postId = clean(item?.post_id || item?.conversation_post_id || item?.thread_post_id || item?.conversation_id || item?.id || socialCommentIdentity(item) || "");
+  const commentId = clean(item?.comment_id || item?.external_comment_id || item?.provider_comment_id || item?.metadata?.comment_id || item?.channel_metadata?.comment_id || "");
+  const platform = clean(item?.platform || item?.source_platform || item?.channel || item?.source || "");
+  const pageId = clean(item?.page_id || item?.metadata?.page_id || item?.channel_metadata?.page_id || "");
+
+  if (postId) params.set("postId", postId);
+  if (commentId) params.set("commentId", commentId);
+  if (platform) params.set("platform", platform);
+  if (clean(tenantId)) params.set("tenant", clean(tenantId));
+  if (pageId) params.set("pageId", pageId);
+  return `/marketing/social-comments${params.toString() ? `?${params.toString()}` : ""}`;
+};
 const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
   if (isMessengerConversation(source)) {
@@ -3347,6 +3412,8 @@ export default function AiInbox() {
   const realtimeStatus = useRealtimeStatus();
   const socketHealthy = realtimeStatus.connected && !realtimeStatus.connecting;
   const [filter, setFilter] = useState("all");
+  const [messagePlatformFilter, setMessagePlatformFilter] = useState("all");
+  const [commentPlatformFilter, setCommentPlatformFilter] = useState("all");
   const [leadFilter, setLeadFilter] = useState("all");
   const [leadSort, setLeadSort] = useState("recent");
   const [channelFilter, setChannelFilter] = useState("all");
@@ -3777,8 +3844,8 @@ export default function AiInbox() {
     };
     const matchesInboxFilter = (conversation = {}) => {
       if (filter === "all") return true;
-      if (filter === "messages") return isMessageThread(conversation);
-      if (filter === "comments") return isSocialCommentThread(conversation);
+      if (filter === "messages") return isMessageThread(conversation) && matchesMessagePlatform(conversation, messagePlatformFilter);
+      if (filter === "comments") return isSocialCommentThread(conversation) && matchesCommentPlatform(conversation, commentPlatformFilter);
       if (filter === "needs_reply") {
         const status = clean(
           conversation.needs_human ||
@@ -3803,7 +3870,7 @@ export default function AiInbox() {
       return clean(b.session_id || b.conversation_key || b.conversation_id || "").localeCompare(clean(a.session_id || a.conversation_key || a.conversation_id || ""));
     });
     return sorted;
-  }, [channelFilter, conversations, filter, inboxSection, leadFilter, leadSort]);
+  }, [channelFilter, commentPlatformFilter, conversations, filter, inboxSection, leadFilter, leadSort, messagePlatformFilter]);
   const visibleConversations = useMemo(
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
@@ -4161,13 +4228,29 @@ export default function AiInbox() {
     if (!scroller) return;
     setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
   }, []);
+  const openSocialCommentThread = useCallback((item = {}) => {
+    const nextUrl = buildSocialCommentsCenterUrl(item, tenantId);
+    setSelectedSocialCommentId(socialCommentIdentity(item));
+    setSelectedSessionId("");
+    console.info("AI_INBOX_OPEN_SOCIAL_COMMENT", {
+      post_id: clean(item?.post_id || item?.conversation_post_id || item?.thread_post_id || socialCommentIdentity(item) || ""),
+      comment_id: clean(item?.comment_id || item?.external_comment_id || item?.provider_comment_id || item?.metadata?.comment_id || item?.channel_metadata?.comment_id || ""),
+      platform: clean(item?.platform || item?.source_platform || item?.channel || item?.source || ""),
+      tenant: clean(tenantId),
+      page_id: clean(item?.page_id || item?.metadata?.page_id || item?.channel_metadata?.page_id || ""),
+      customer_name: clean(item?.customer_name || item?.commenter_name || item?.author_name || item?.from_name || item?.metadata?.customer_name || item?.metadata?.commenter_name || ""),
+      url: nextUrl,
+    });
+    navigate(nextUrl);
+    setMobileView("chat");
+    setReplyText("");
+    setUnseenSessions((current) => current.filter((id) => id !== clean(item?.conversation_key || item?.session_id || item?.conversation_id || socialCommentIdentity(item) || "")));
+  }, [navigate, socialCommentIdentity, tenantId]);
+
   const handleSelectConversation = useCallback((item) => {
     const kind = getInboxItemKind(item);
     if (kind === "comment") {
-      const nextPostId = socialCommentIdentity(item);
-      setSelectedSocialCommentId(nextPostId);
-      setSelectedSessionId("");
-      updateUrlState({ nextTab: "social_comments", nextConversationId: "", nextPostId });
+      openSocialCommentThread(item);
     } else {
       const identifiers = conversationIdentifiers(item);
       const nextConversationId = identifiers.sessionId || identifiers.conversationKey || identifiers.conversationId || "";
@@ -4175,10 +4258,7 @@ export default function AiInbox() {
       setSelectedSocialCommentId("");
       updateUrlState({ nextConversationId, nextTab: "conversations" });
     }
-    setMobileView("chat");
-    setReplyText("");
-    setUnseenSessions((current) => current.filter((id) => id !== clean(item?.conversation_key || item?.session_id || item?.conversation_id || socialCommentIdentity(item) || "")));
-  }, [socialCommentIdentity, updateUrlState]);
+  }, [openSocialCommentThread, socialCommentIdentity, updateUrlState]);
   useEffect(() => {
     if (inboxSection === "conversations" && selectedConversation?.session_id) {
       selectedConversationCacheRef.current = selectedConversation;
@@ -5907,11 +5987,7 @@ export default function AiInbox() {
         selectedTemplate={selectedSocialTemplate}
         globalSettings={socialReplySettings}
         onRefresh={() => void loadAll({ silent: true })}
-        onSelectPost={(item, itemKey) => {
-          setSelectedSocialCommentId(itemKey);
-          setSelectedSessionId("");
-          setMobileView("chat");
-        }}
+        onSelectPost={openSocialCommentThread}
         onGlobalSettingsChange={setSocialReplySettings}
         onSaveGlobalSettings={saveSocialReplySettings}
         onTemplateChange={setSelectedSocialTemplate}
@@ -6221,11 +6297,7 @@ export default function AiInbox() {
                     selectedTemplate={selectedSocialTemplate}
                     globalSettings={socialReplySettings}
                     onRefresh={() => void loadAll({ silent: true })}
-                    onSelectPost={(item, itemKey) => {
-                      setSelectedSocialCommentId(itemKey);
-                      setSelectedSessionId("");
-                      setMobileView("chat");
-                    }}
+                    onSelectPost={openSocialCommentThread}
                     onGlobalSettingsChange={setSocialReplySettings}
                     onSaveGlobalSettings={saveSocialReplySettings}
                     onTemplateChange={setSelectedSocialTemplate}
@@ -6527,9 +6599,48 @@ export default function AiInbox() {
           <div className="mt-3 flex flex-col gap-3">
             <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0">
               {filters.map((item) => (
-                <button key={item.key} type="button" onClick={() => setFilter(item.key)} className={`h-10 shrink-0 rounded-xl px-3 text-xs font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}>{item.label}</button>
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => {
+                    setFilter(item.key);
+                    if (item.key !== "messages") setMessagePlatformFilter("all");
+                    if (item.key !== "comments") setCommentPlatformFilter("all");
+                  }}
+                  className={`h-10 shrink-0 rounded-xl px-3 text-xs font-black transition ${filter === item.key ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"}`}
+                >
+                  {item.label}
+                </button>
               ))}
             </div>
+            {filter === "messages" ? (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {MESSAGE_PLATFORM_FILTERS.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setMessagePlatformFilter(item.key)}
+                    className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black transition ${messagePlatformFilter === item.key ? "bg-white text-slate-950" : "border border-white/10 bg-white/[0.04] text-white hover:border-white/20"}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            {filter === "comments" ? (
+              <div className="flex gap-2 overflow-x-auto pb-1">
+                {COMMENT_PLATFORM_FILTERS.map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setCommentPlatformFilter(item.key)}
+                    className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black transition ${commentPlatformFilter === item.key ? "bg-white text-slate-950" : "border border-white/10 bg-white/[0.04] text-white hover:border-white/20"}`}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرشحات العملاء المحتملين</span>
               <div className="flex gap-2 overflow-x-auto pb-1">
