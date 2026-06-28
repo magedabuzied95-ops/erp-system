@@ -443,6 +443,63 @@ const isCommentConversation = (conversation = {}) => {
   return channel === "facebook_comment" || channel === "instagram_comment" || threadKind === "comment" || source.includes("_comment");
 };
 
+const getConversationThreadMetadata = (item = {}) => {
+  const channelMetadata = item?.channel_metadata && typeof item.channel_metadata === "object" && !Array.isArray(item.channel_metadata) ? item.channel_metadata : {};
+  const metadata = item?.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata) ? item.metadata : {};
+  return { channelMetadata, metadata };
+};
+
+const isSocialCommentThread = (item = {}) => {
+  const { channelMetadata, metadata } = getConversationThreadMetadata(item);
+  const channel = normalizeConversationChannel(item);
+  const source = clean(item?.channel || item?.source || item?.provider || item?.platform || channel || metadata.source || metadata.source_type || "").toLowerCase();
+  const threadKind = clean(item?.thread_kind || channelMetadata.thread_kind || metadata.thread_kind || "").toLowerCase();
+  const sourceType = clean(item?.source_type || channelMetadata.source_type || metadata.source_type || metadata.sourceType || "").toLowerCase();
+  const commentId = clean(
+    item?.comment_id ||
+      item?.external_comment_id ||
+      item?.provider_comment_id ||
+      channelMetadata.comment_id ||
+      metadata.comment_id ||
+      metadata.external_comment_id ||
+      metadata.provider_comment_id ||
+      ""
+  );
+  const postId = clean(
+    item?.post_id ||
+      item?.conversation_post_id ||
+      item?.thread_post_id ||
+      channelMetadata.post_id ||
+      metadata.post_id ||
+      ""
+  );
+  return (
+    threadKind === "social_comment" ||
+    threadKind === "comment" ||
+    sourceType === "social_comment" ||
+    source === "social_comments" ||
+    channel === "facebook_comment" ||
+    channel === "instagram_comment" ||
+    Boolean(commentId && postId)
+  );
+};
+
+const getConversationSourceLabel = (item = {}) => {
+  const { channelMetadata, metadata } = getConversationThreadMetadata(item);
+  const platform = clean(item?.platform || item?.source_platform || item?.channel || item?.source || channelMetadata.platform || metadata.platform || "").toLowerCase();
+  if (isSocialCommentThread(item)) {
+    if (platform.includes("instagram")) return "Instagram Comment";
+    if (platform.includes("facebook")) return "Facebook Comment";
+    return "Comment";
+  }
+  return channelMeta(item?.channel || item?.source || item?.provider || item?.platform || "").label;
+};
+
+const getConversationSourceIcon = (item = {}) => {
+  const meta = channelMeta(item?.channel || item?.source || item?.provider || item?.platform || "");
+  return isSocialCommentThread(item) ? MessageSquareText : meta.icon;
+};
+
 const commentThreadPostUrl = (conversation = {}) =>
   firstNonEmpty(
     conversation?.channel_metadata?.comment_url,
@@ -1121,10 +1178,11 @@ function MessageText({ text = "" }) {
 }
 
 function ConversationListItem({ conversation, active, onSelect }) {
-  const meta = channelMeta(conversation.channel || conversation.source);
-  const Icon = meta.icon;
+  const isSocialComment = isSocialCommentThread(conversation);
+  const sourceLabel = getConversationSourceLabel(conversation);
+  const SourceIcon = getConversationSourceIcon(conversation);
   const unreadCount = conversationUnreadCount(conversation);
-  const isCommentThread = isCommentConversation(conversation);
+  const isCommentThread = isCommentConversation(conversation) || isSocialComment;
   const avatar = isCommentThread ? commentThreadPostImageUrl(conversation) : customerAvatarUrl(conversation);
   const title = isCommentThread ? commentThreadDisplayName(conversation) : conversationName(conversation);
   const preview = isCommentThread ? commentThreadLastComment(conversation) || "No comments yet" : conversationPreview(conversation) || "No messages yet";
@@ -1165,8 +1223,8 @@ function ConversationListItem({ conversation, active, onSelect }) {
             <div className={`line-clamp-2 text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}>{title}</div>
             <div className="mt-1 flex items-center gap-1.5">
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
-                <Icon className={`h-3 w-3 ${active ? "text-white" : meta.tone}`} />
-                {meta.label}
+                <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-600" : channelMeta(conversation.channel || conversation.source).tone}`} />
+                {sourceLabel}
               </span>
               {isCommentThread ? (
                 <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-blue-50 text-blue-700"}`}>
@@ -1785,7 +1843,6 @@ function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLe
         <div className="space-y-2">
           {filtered.map((conversation) => {
             const status = conversationLeadStatus(conversation);
-            const meta = channelMeta(conversation.channel || conversation.source);
             return (
               <button
                 key={conversation.conversation_key}
@@ -1797,7 +1854,7 @@ function LeadsView({ conversations, onOpenConversation, search, leadFilter, onLe
                   <div className="min-w-0">
                     <div className="truncate text-sm font-semibold text-slate-900">{conversationName(conversation)}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      <span>{meta.label}</span>
+                      <span>{getConversationSourceLabel(conversation)}</span>
                       <span className="h-1 w-1 rounded-full bg-slate-300" />
                       <span>{relativeTime(conversation.last_activity_at || conversation.updated_at)}</span>
                     </div>
@@ -3831,8 +3888,8 @@ export default function AiInboxPwa() {
   const contentScreen = isConversationMode && Boolean(selectedConversation);
   const fullscreenConversation = Boolean(isFullscreenConversation && contentScreen);
   const showComposer = contentScreen;
-  const selectedMeta = channelMeta(selectedConversation?.channel || selectedConversation?.source || "");
-  const SelectedChannelIcon = selectedMeta.icon;
+  const selectedMetaLabel = getConversationSourceLabel(selectedConversation || {});
+  const SelectedChannelIcon = getConversationSourceIcon(selectedConversation || {});
   const currentLeadStatus = conversationLeadStatus(selectedConversation || {});
   const selectedWorkflowStatus = conversationWorkflowStatus(selectedConversation || {});
   const selectedConversationAiEnabled = isConversationAiEnabled(selectedConversation || {});
@@ -4297,8 +4354,8 @@ export default function AiInboxPwa() {
                   <div className="truncate text-[15px] font-semibold leading-5 text-slate-900">{isCommentConversation(selectedConversation || {}) ? commentThreadDisplayName(selectedConversation || {}) : conversationName(selectedConversation)}</div>
                   <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
-                      <SelectedChannelIcon className={`h-3 w-3 ${selectedMeta.tone}`} />
-                      {selectedMeta.label}
+                      <SelectedChannelIcon className={`h-3 w-3 ${isSocialCommentThread(selectedConversation || {}) ? "text-blue-600" : "text-cyan-600"}`} />
+                      {selectedMetaLabel}
                     </span>
                     {selectedWorkflowStatus === "human_takeover" ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-1.5 py-0.5 font-medium text-amber-700">

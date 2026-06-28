@@ -677,6 +677,47 @@ const isCommentConversation = (conversation = {}) => {
   return channel === "facebook_comment" || channel === "instagram_comment" || threadKind === "comment" || source.includes("_comment");
 };
 
+const getConversationThreadMetadata = (item = {}) => {
+  const channelMetadata = item?.channel_metadata && typeof item.channel_metadata === "object" && !Array.isArray(item.channel_metadata) ? item.channel_metadata : {};
+  const metadata = item?.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata) ? item.metadata : {};
+  return { channelMetadata, metadata };
+};
+
+const isSocialCommentThread = (item = {}) => {
+  const { channelMetadata, metadata } = getConversationThreadMetadata(item);
+  const channel = normalizeConversationChannel(item);
+  const source = clean(item?.channel || item?.source || item?.provider || item?.platform || channel || metadata.source || metadata.source_type || "").toLowerCase();
+  const threadKind = clean(item?.thread_kind || channelMetadata.thread_kind || metadata.thread_kind || "").toLowerCase();
+  const sourceType = clean(item?.source_type || channelMetadata.source_type || metadata.source_type || metadata.sourceType || "").toLowerCase();
+  const commentId = clean(
+    item?.comment_id ||
+      item?.external_comment_id ||
+      item?.provider_comment_id ||
+      channelMetadata.comment_id ||
+      metadata.comment_id ||
+      metadata.external_comment_id ||
+      metadata.provider_comment_id ||
+      ""
+  );
+  const postId = clean(
+    item?.post_id ||
+      item?.conversation_post_id ||
+      item?.thread_post_id ||
+      channelMetadata.post_id ||
+      metadata.post_id ||
+      ""
+  );
+  return (
+    threadKind === "social_comment" ||
+    threadKind === "comment" ||
+    sourceType === "social_comment" ||
+    source === "social_comments" ||
+    channel === "facebook_comment" ||
+    channel === "instagram_comment" ||
+    Boolean(commentId && postId)
+  );
+};
+
 const commentConversationPostUrl = (conversation = {}) =>
   firstNonEmpty(
     conversation?.channel_metadata?.comment_url,
@@ -834,6 +875,19 @@ const leadSourceLabel = (conversation = {}) => {
   if (key === "instagram_comment") return "Instagram Comment";
   return "Messenger";
 };
+
+const getConversationSourceLabel = (item = {}) => {
+  const { channelMetadata, metadata } = getConversationThreadMetadata(item);
+  const platform = clean(item?.platform || item?.source_platform || item?.channel || item?.source || channelMetadata.platform || metadata.platform || "").toLowerCase();
+  if (isSocialCommentThread(item)) {
+    if (platform.includes("instagram")) return "Instagram Comment";
+    if (platform.includes("facebook")) return "Facebook Comment";
+    return "Comment";
+  }
+  return leadSourceLabel(item);
+};
+
+const getConversationSourceIcon = (item = {}) => (isSocialCommentThread(item) ? MessageSquareText : FaFacebookMessenger);
 const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
   if (isMessengerConversation(source)) {
@@ -1164,7 +1218,10 @@ function ProductCards({ products = [] }) {
 const ConversationListItem = memo(function ConversationListItem({ item, active, unseen, onSelect }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
-  const isCommentThread = isCommentConversation(item);
+  const isSocialComment = isSocialCommentThread(item);
+  const isCommentThread = isCommentConversation(item) || isSocialComment;
+  const sourceLabel = getConversationSourceLabel(item);
+  const SourceIcon = getConversationSourceIcon(item);
   const customerName = isCommentThread
     ? commentThreadDisplayName(item)
     : isMessengerConversation(item)
@@ -1204,10 +1261,15 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <div className="line-clamp-2 text-[15px] font-black leading-5 text-white">{customerName}</div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                <Pill tone={isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
+          <div className="min-w-0">
+            <div className="line-clamp-2 text-[15px] font-black leading-5 text-white">{customerName}</div>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
+                <span className="inline-flex items-center gap-1">
+                  <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-200" : liveMeta ? "text-cyan-200" : "text-slate-500"}`} />
+                  {sourceLabel}
+                </span>
+              </Pill>
                 {isCommentThread ? (
                   <Pill tone="blue">{commentCount ? `${commentCount} تعليق` : "تعليق"}</Pill>
                 ) : null}
@@ -1323,6 +1385,9 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
 const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
+  const isSocialComment = isSocialCommentThread(item);
+  const sourceLabel = getConversationSourceLabel(item);
+  const SourceIcon = getConversationSourceIcon(item);
   const customerName = getConversationDisplayName(item) || "Customer";
   const avatarUrl = customerAvatarUrl(item);
   const unreadCount = Number(item.unread_count || item.unread || 0);
@@ -1353,7 +1418,12 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
             <div className="min-w-0">
               <div className="truncate text-[14px] font-black leading-5 text-white">{customerName}</div>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                <Pill tone={isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
+                <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
+                  <span className="inline-flex items-center gap-1">
+                    <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-200" : liveMeta ? "text-cyan-200" : "text-slate-500"}`} />
+                    {sourceLabel}
+                  </span>
+                </Pill>
               </div>
             </div>
             <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
@@ -1389,6 +1459,9 @@ function InboxChatHeader({
       ? messengerDisplayName(conversation)
       : getConversationDisplayName(conversation);
   const channel = conversation.channel || conversation.source || "web_chat";
+  const isSocialComment = isSocialCommentThread(conversation);
+  const sourceLabel = getConversationSourceLabel(conversation);
+  const SourceIcon = getConversationSourceIcon(conversation);
   const conversationAiEnabled = isConversationAiEnabled(conversation);
   const aiTone = status === "human_takeover"
     ? "border-amber-300/20 bg-amber-400/10 text-amber-100"
@@ -1422,7 +1495,12 @@ function InboxChatHeader({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <div className="truncate text-[17px] font-black leading-5 text-white">{name}</div>
-              <Pill tone={isWhatsappChannel(channel) ? "emerald" : channel.includes("instagram") ? "rose" : channel.includes("messenger") ? "cyan" : "zinc"}>{channelBadgeLabel(channel)}</Pill>
+              <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : channel.includes("instagram") ? "rose" : channel.includes("messenger") ? "cyan" : "zinc"}>
+                <span className="inline-flex items-center gap-1">
+                  <SourceIcon className={`h-3 w-3 ${isSocialComment ? "text-blue-100" : channel.includes("instagram") ? "text-rose-100" : channel.includes("messenger") ? "text-cyan-100" : "text-slate-100"}`} />
+                  {sourceLabel}
+                </span>
+              </Pill>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-2">
               <label className={`inline-flex items-center gap-2 rounded-2xl border px-3 py-1.5 ${leadStatusClass}`}>
@@ -2727,7 +2805,7 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
   const avatarUrl = customerAvatarUrl(conversation);
   const crmLabel = profile.id ? `#${profile.id}` : "";
   const channel = conversation?.channel || conversation?.source || "web_chat";
-  const channelName = channelBadgeLabel(channel);
+  const channelName = getConversationSourceLabel(conversation);
   const cityName = clean(profile.city || profile.city_area || "");
   const lastOrder = asArray(profile.previous_orders)[0] || conversation?.last_order || conversation?.order || null;
   const confirmationMeta = confirmationStatusMeta(lastOrder?.status);
