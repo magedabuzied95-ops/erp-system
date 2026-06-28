@@ -412,6 +412,8 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
   const displayBarcode = displayBarcodeInfo.value;
   const sourceVariantImage = firstText(variant?.variant_image_url, variant?.color_image_url, variant?.image_url, variant?.image);
   const sourceProductImage = firstText(product?.product_image_url, product?.image_url, product?.image, product?.photo_url, product?.thumbnail_url);
+  const sourceVariantThermalImage = firstText(variant?.thermal_image_url, variant?.thermalImageUrl, variant?.colorGroup?.thermal_image_url, variant?.colorGroup?.thermalImageUrl);
+  const sourceProductThermalImage = firstText(product?.thermal_image_url, product?.thermalImageUrl);
   const resolvedImage = getLabelImageUrl(product, variant);
   console.log("[barcode-labels] label item image", {
     productId: product?.id ?? product?.product_id,
@@ -422,6 +424,8 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     size: variant?.size || product?.size,
     sourceVariantImage,
     sourceProductImage,
+    sourceVariantThermalImage,
+    sourceProductThermalImage,
     resolvedImage,
   });
   console.info("[barcode-labels] label barcode source", {
@@ -454,8 +458,17 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     stock: Number(variant?.stock ?? product?.stock ?? 0),
     sourceVariantImage,
     sourceProductImage,
+    sourceVariantThermalImage,
+    sourceProductThermalImage,
     resolvedImage,
-    imageUrl: resolvedImage,
+    imageUrl: sourceVariantImage || sourceProductImage || resolvedImage,
+    thermalImageUrl: sourceVariantThermalImage || sourceProductThermalImage || "",
+    productThermalImageUrl: sourceProductThermalImage || "",
+    colorThermalImageUrl: sourceVariantThermalImage || "",
+    variantThermalImageUrl: sourceVariantThermalImage || "",
+    colorPrimaryImageUrl: sourceVariantImage || "",
+    variantColorImageUrl: sourceVariantImage || "",
+    productImageUrl: sourceProductImage || "",
     companyName: product?.companyName || APP_NAME,
     companyTagline: product?.companyTagline || "Retail barcode label system",
     quantity: getLabelQuantity(quantity),
@@ -551,6 +564,7 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantF
     comparePrice: priceInfo.comparePrice,
     saleActive: priceInfo.saleActive,
     priceSource: priceInfo.saleActive || priceInfo.price > 0 ? "product-first" : "none",
+    thermalImageUrl: product?.thermal_image_url || product?.thermalImageUrl || "",
     imageUrl: product.product_image_url || product.image_url || "",
     companyName: product.companyName || APP_NAME,
     quantity: getLabelQuantity(quantity) || 1,

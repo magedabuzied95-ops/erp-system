@@ -59,12 +59,29 @@ const getLabelBarcodeValue = (item = {}) =>
 
 const getLabelThermalImageUrl = (item = {}) =>
   resolveProductImageUrl(
-    normalizeLabelText(item.thermal_image_url || item.thermalImageUrl || "")
+    normalizeLabelText(
+      item.variantThermalImageUrl ||
+        item.colorThermalImageUrl ||
+        item.thermal_image_url ||
+        item.thermalImageUrl ||
+        item.productThermalImageUrl ||
+        ""
+    )
   );
 
 const getLabelOriginalImageUrl = (item = {}) =>
   resolveProductImageUrl(
-    normalizeLabelText(item.imageUrl || item.resolvedImage || item.product_image_url || item.thumbnail_url || item.image || "")
+    normalizeLabelText(
+      item.variantColorImageUrl ||
+        item.colorPrimaryImageUrl ||
+        item.productImageUrl ||
+        item.product_image_url ||
+        item.imageUrl ||
+        item.resolvedImage ||
+        item.thumbnail_url ||
+        item.image ||
+        ""
+    )
   );
 
 const prepareThermalImage = async (imageData, cacheKey = "") => {

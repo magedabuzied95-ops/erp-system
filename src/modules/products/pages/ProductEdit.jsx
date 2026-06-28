@@ -172,6 +172,7 @@ const createEmptyColorGroup = (defaults = {}) => ({
   edition_slug: formatFieldValue(defaults.edition_slug || slugifyEdition(defaults.edition_name || "")),
   imagePreview: formatFieldValue(defaults.imagePreview),
   image_url: formatFieldValue(defaults.image_url),
+  thermal_image_url: formatFieldValue(defaults.thermal_image_url),
   images: Array.isArray(defaults.images) ? defaults.images : [],
   sizes: Array.isArray(defaults.sizes) ? defaults.sizes : [createEmptySizeRow()],
 });
@@ -215,6 +216,13 @@ const getPrimaryColorImage = (group = {}) => {
   const images = normalizeColorImages(group.images);
   const primary = images.find((item) => item.is_primary) || images[0] || null;
   return primary?.image_url || group.image_url || group.imagePreview || "";
+};
+
+const getThermalArtworkSourceImage = (fallbackImage = "", colorGroup = null, groups = []) => {
+  const selectedGroup = colorGroup || groups.find((group) => String(group?.color || "").trim()) || null;
+  const groupImage = selectedGroup ? getPrimaryColorImage(selectedGroup) : "";
+  const firstGroupImage = Array.isArray(groups) ? getPrimaryColorImage(groups.find((group) => getPrimaryColorImage(group)) || {}) : "";
+  return String(groupImage || firstGroupImage || fallbackImage || "").trim();
 };
 
 const getGroupSizeCount = (group) => {
@@ -1854,8 +1862,9 @@ function ProductEdit() {
     }
   };
 
-  const handleGenerateThermalImage = async () => {
-    if (!coverImage) {
+  const handleGenerateThermalImage = async ({ colorGroup = null } = {}) => {
+    const thermalSourceImage = getThermalArtworkSourceImage(coverImage, colorGroup, colorGroups);
+    if (!thermalSourceImage) {
       toast.error(t("products.editor.uploadMainImageFirst"));
       return;
     }
@@ -1864,13 +1873,25 @@ function ProductEdit() {
       setThermalImageGenerating(true);
       const result = await generateThermalArtwork({
         productId: product.id,
-        image_url: coverImage,
-        thermal_image_url: thermalImageUrl,
-        regenerate: Boolean(thermalImageUrl),
+        image_url: thermalSourceImage,
+        thermal_image_url: colorGroup?.thermal_image_url || thermalImageUrl,
+        regenerate: Boolean(colorGroup?.thermal_image_url || thermalImageUrl),
         product_name: product.name,
       });
       const thermalUrl = String(result?.thermal_image_url || "").trim();
       if (!thermalUrl) throw new Error("Thermal image generation failed");
+      if (colorGroup?.id) {
+        setColorGroups((prev) =>
+          prev.map((group) =>
+            group.id === colorGroup.id
+              ? {
+                  ...group,
+                  thermal_image_url: thermalUrl,
+                }
+              : group
+          )
+        );
+      }
       setThermalImageUrl(thermalUrl);
       toast.success("AI thermal artwork generated");
     } catch (error) {
@@ -2882,7 +2903,7 @@ function ProductEdit() {
                   <button
                     type="button"
                     onClick={handleGenerateThermalImage}
-                    disabled={thermalImageGenerating || !coverImage}
+                    disabled={thermalImageGenerating || !getThermalArtworkSourceImage(coverImage, null, colorGroups)}
                     className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
@@ -3294,6 +3315,43 @@ function ProductEdit() {
                           }}
                         />
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => handleGenerateThermalImage({ colorGroup: group })}
+                        disabled={thermalImageGenerating || !getPrimaryColorImage(group)}
+                        className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[12px] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {thermalImageGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                        {group.thermal_image_url ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
+                      </button>
+                      <div className="grid w-full max-w-[520px] grid-cols-2 gap-2">
+                        <div className="rounded-[12px] border border-white/10 bg-zinc-950/70 p-2">
+                          <div className="flex h-20 items-center justify-center overflow-hidden rounded-[10px] bg-zinc-900">
+                            {getPrimaryColorImage(group) ? (
+                              <img
+                                src={resolveAssetUrl(getPrimaryColorImage(group))}
+                                alt={`${group.color || `Color ${groupIndex + 1}`} original`}
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <span className="text-[10px] font-semibold text-zinc-500">Original color image</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="rounded-[12px] border border-white/10 bg-zinc-950/70 p-2">
+                          <div className="flex h-20 items-center justify-center overflow-hidden rounded-[10px] bg-zinc-900">
+                            {group.thermal_image_url ? (
+                              <img
+                                src={resolveAssetUrl(group.thermal_image_url)}
+                                alt={`${group.color || `Color ${groupIndex + 1}`} AI thermal artwork`}
+                                className="h-full w-full object-contain"
+                              />
+                            ) : (
+                              <span className="text-[10px] font-semibold text-zinc-500">AI Thermal Artwork</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
                       <div className="grid w-full max-w-[520px] grid-cols-[repeat(auto-fill,minmax(88px,96px))] gap-2.5">
                         {normalizeColorImages(group.images).map((image, imageIndex) => (
                           <ImageThumbnailActions
