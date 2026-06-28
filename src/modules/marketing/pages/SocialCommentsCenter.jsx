@@ -7,7 +7,7 @@ import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStora
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { subscribeRealtime } from "../../../shared/realtime/socketStore";
 import Customer360Drawer from "../../aiSupport/components/Customer360Drawer.jsx";
-import SocialCommentsWorkspace from "../../aiSupport/components/SocialCommentsWorkspace.jsx";
+import SocialCommentsWorkspace, { normalizeSocialPostDisplay } from "../../aiSupport/components/SocialCommentsWorkspace.jsx";
 
 const clean = (value = "") => String(value ?? "").trim();
 const ENABLE_SOCIAL_FAST_CENTER = true;
@@ -131,7 +131,10 @@ const findPostFromParams = (items = [], { postId = "", commentId = "", platform 
   }) || null;
 
   if (matched) return matched;
-  return list[0] || null;
+  if (!normalizedPostId && !normalizedCommentId && !normalizedPageId && !normalizedPlatform) {
+    return list[0] || null;
+  }
+  return null;
 };
 
 function SocialCommentsCenter() {
@@ -432,25 +435,25 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   }, []);
 
   const selectedPostFromParams = useMemo(
-    () => findPostFromParams(items, routeSelection),
-    [items, routeSelection]
+    () => (postIdParam ? findPostFromParams(items, routeSelection) : null),
+    [items, postIdParam, routeSelection]
   );
-  const activePost = postIdParam ? (resolvedPostByUrl || selectedPostFromParams || null) : (selectedPostFromParams || selectedPost || null);
+  const activePost = postIdParam ? (resolvedPostByUrl || selectedPostFromParams || selectedPost || null) : (selectedPost || selectedPostFromParams || null);
 
   useEffect(() => {
     if (!selectedPostFromParams) return;
     if (selectedPostIdentity === socialPostIdentity(selectedPostFromParams)) return;
-    setSelectedPost(selectedPostFromParams);
+    setSelectedPost(normalizeSocialPostDisplay(selectedPostFromParams));
   }, [selectedPostFromParams, selectedPostIdentity]);
 
   useEffect(() => {
     if (!items.length) return;
     if (postIdParam) return;
-    const nextPost = selectedPostFromParams || items[0] || null;
+    const nextPost = selectedPostFromParams || selectedPost || items[0] || null;
     if (!nextPost) return;
     const nextIdentity = socialPostIdentity(nextPost);
     if (!selectedPostIdentity) {
-      setSelectedPost(nextPost);
+      setSelectedPost(normalizeSocialPostDisplay(nextPost));
     }
     if (!postIdParam && nextIdentity) {
       const nextParams = new URLSearchParams(searchParams);
@@ -462,7 +465,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
       }
       setSearchParams(nextParams, { replace: true });
     }
-  }, [items, postIdParam, searchParams, selectedPostIdentity, selectedPostFromParams, setSearchParams, tenantId]);
+  }, [items, postIdParam, searchParams, selectedPost, selectedPostIdentity, selectedPostFromParams, setSearchParams, tenantId]);
 
   useEffect(() => {
     if (!postIdParam) {
@@ -479,8 +482,9 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
       : null;
 
     if (matchedPost) {
-      const selected_post_id = clean(matchedPost?.post_id || matchedPost?.conversation_id || matchedPost?.id || "");
-      setResolvedPostByUrl(matchedPost);
+      const hydratedPost = normalizeSocialPostDisplay(matchedPost);
+      const selected_post_id = clean(hydratedPost?.postId || hydratedPost?.post_id || hydratedPost?.conversationId || hydratedPost?.id || "");
+      setResolvedPostByUrl(hydratedPost);
       requestedPostIdRef.current = "";
       console.info("SOCIAL_UI_SELECTED_POST_RESOLVED", {
         url_post_id: postIdParam,
@@ -503,7 +507,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
         });
         if (cancelled) return;
         const postPayload = payload?.post || payload?.data?.post || payload?.data || null;
-        const resolvedPost = postPayload ? normalizePost(postPayload) : null;
+        const resolvedPost = postPayload ? normalizeSocialPostDisplay(postPayload) : null;
         const selected_post_id = clean(resolvedPost?.postId || resolvedPost?.post_id || resolvedPost?.conversationId || resolvedPost?.id || "");
         if (!resolvedPost || !selected_post_id) {
           console.info("SOCIAL_UI_SELECTED_POST_RESOLVED", {
@@ -543,6 +547,19 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
       cancelled = true;
     };
   }, [items, platformParam, postIdParam, tenantId]);
+
+  const selectedPostDisplay = useMemo(() => normalizeSocialPostDisplay(activePost || selectedPostFromParams || selectedPost || {}), [activePost, selectedPost, selectedPostFromParams]);
+
+  useEffect(() => {
+    if (!activePost) return;
+    console.info("SOCIAL_UI_POST_DISPLAY_FIELDS", {
+      post_id: clean(activePost?.post_id || activePost?.conversation_id || activePost?.id || ""),
+      displayText: Boolean(selectedPostDisplay.displayText),
+      displayImage: Boolean(selectedPostDisplay.displayImage),
+      displayPermalink: Boolean(selectedPostDisplay.displayPermalink),
+      displayCreatedAt: Boolean(selectedPostDisplay.displayCreatedAt),
+    });
+  }, [activePost, selectedPostDisplay]);
 
   useEffect(() => {
     if (!activePost) return;
@@ -665,7 +682,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
     if (nextPageId) nextParams.set("pageId", nextPageId);
     if (tenantId) nextParams.set("tenant", tenantId);
     setSearchParams(nextParams, { replace: false });
-    setSelectedPost(item);
+    setSelectedPost(normalizeSocialPostDisplay(item));
     setTargetCommentMissing(false);
   }, [platformParam, searchParams, setSearchParams, tenantId]);
 

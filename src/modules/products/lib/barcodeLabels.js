@@ -842,6 +842,29 @@ const buildThermalLandscapeCellLayout = (hasArticleBox = false) => {
   });
 };
 
+export const getBoxTextLayout = (cell = {}, options = {}) => {
+  const cellY = Number(cell?.y || 0);
+  const topPaddingMm = Number(options.topPaddingMm ?? 1.5);
+  const labelGapMm = Number(options.labelGapMm ?? 1.0);
+  const labelFontSize = Number(options.labelFontSize ?? 4);
+  const valueFontSize = Number(options.valueFontSize ?? 10);
+  const valueFontSizeCompact = Number(options.valueFontSizeCompact ?? valueFontSize);
+  const labelTextY = cellY + topPaddingMm + Math.max(1.5, labelFontSize * 0.55);
+  const valueTopMm = cellY + topPaddingMm + Math.max(3.0, labelFontSize * 0.95) + labelGapMm;
+  const valueTextY = valueTopMm + Math.min(4.5, Math.max(2.6, valueFontSize * 0.28));
+  return Object.freeze({
+    topPaddingMm,
+    labelGapMm,
+    labelFontSize,
+    valueFontSize,
+    valueFontSizeCompact,
+    labelTopMm: cellY + topPaddingMm,
+    valueTopMm,
+    labelTextY,
+    valueTextY,
+  });
+};
+
 export const BARCODE_LABEL_LAYOUT = Object.freeze({
   page: THERMAL_LANDSCAPE_PAGE,
   image: { x: THERMAL_LANDSCAPE_MARGIN_MM, y: 3, w: THERMAL_LANDSCAPE_IMAGE_WIDTH_MM, h: THERMAL_LANDSCAPE_TITLE_HEIGHT_MM + THERMAL_LANDSCAPE_SIZE_HEIGHT_MM + THERMAL_LANDSCAPE_COLOR_HEIGHT_MM + (THERMAL_LANDSCAPE_ROW_GAP_MM * 2) },

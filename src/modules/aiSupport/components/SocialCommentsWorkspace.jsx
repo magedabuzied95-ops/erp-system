@@ -278,6 +278,107 @@ const normalizePost = (raw) => {
   };
 };
 
+const normalizeSocialPostDisplay = (raw = {}) => {
+  const normalized = normalizePost(raw);
+  const post = normalized.raw && typeof normalized.raw === "object" ? normalized.raw : raw || {};
+  const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
+  const displayTextCandidates = [
+    post.post_text,
+    post.message,
+    post.caption,
+    post.text,
+    post.description,
+    post.post_caption,
+    post.post_message,
+    post.last_message,
+    metadata.post_text,
+    metadata.message,
+    metadata.caption,
+    metadata.text,
+    metadata.description,
+    metadata.post_caption,
+    metadata.post_message,
+    normalized.caption,
+  ]
+    .map(clean)
+    .filter(Boolean)
+    .filter((value) => value !== "منشور بدون نص");
+  const displayImageCandidates = [
+    post.post_image_url,
+    post.media_url,
+    post.full_picture,
+    post.post_full_picture,
+    post.picture,
+    post.image_url,
+    post.image,
+    post.thumbnail_url,
+    post.thumbnailUrl,
+    post.post_thumbnail,
+    post.postThumbnail,
+    metadata.post_image_url,
+    metadata.media_url,
+    metadata.full_picture,
+    metadata.post_full_picture,
+    metadata.picture,
+    metadata.image_url,
+    metadata.image,
+    metadata.thumbnail_url,
+    metadata.post_thumbnail,
+    normalized.thumbnailUrl,
+  ]
+    .map(clean)
+    .filter(Boolean);
+  const displayPermalinkCandidates = [
+    post.permalink_url,
+    post.post_permalink_url,
+    post.post_permalink,
+    post.post_url,
+    metadata.permalink_url,
+    metadata.post_permalink_url,
+    metadata.post_permalink,
+    metadata.post_url,
+    normalized.permalinkUrl,
+  ]
+    .map(clean)
+    .filter(Boolean);
+  const displayCreatedAtCandidates = [
+    post.created_at,
+    post.created_time,
+    post.post_created_time,
+    post.published_at,
+    post.publishedAt,
+    post.marketing_published_at,
+    post.marketing_created_time,
+    metadata.created_at,
+    metadata.created_time,
+    metadata.post_created_time,
+    metadata.published_at,
+    metadata.post?.created_time,
+    metadata.post?.updated_time,
+    normalized.postCreatedTime,
+    normalized.publishedAt,
+  ]
+    .map(clean)
+    .filter(Boolean);
+  return {
+    ...normalized,
+    displayText: displayTextCandidates[0] || "",
+    displayImage: displayImageCandidates[0] || "",
+    displayPermalink: displayPermalinkCandidates[0] || "",
+    displayCreatedAt: displayCreatedAtCandidates[0] || "",
+    displayCommentCount: Number(
+      post.comments_count ||
+        post.comment_count ||
+        post.total_comments ||
+        metadata.comments_count ||
+        metadata.comment_count ||
+        metadata.total_comments ||
+        normalized.commentsCount ||
+        0
+    ) || 0,
+  };
+};
+
 const postKey = (item = {}) => clean(item?.canonicalPostId || item?.platformPostId || item?.conversationId || item?.postId || item?.id || "");
 
 const commentKey = (item = {}) => clean(item?.id || "");
@@ -743,7 +844,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
   );
 });
 
-export { SocialCommentsWorkspaceCommentRow };
+export { SocialCommentsWorkspaceCommentRow, normalizeSocialPostDisplay };
 
 function SocialCommentsWorkspace({
   items = [],
@@ -835,6 +936,7 @@ function SocialCommentsWorkspace({
   const activeThreadPostKey = clean(postKey(normalizePost(activeThread.post || {})));
   const activeThreadPost = normalizedPosts.find((item) => postKey(item) === activeThreadPostKey) || normalizePost(activeThread.post || null);
   const activePostDetails = normalizePost(activeThreadPost || activePost || null);
+  const activePostDisplay = useMemo(() => normalizeSocialPostDisplay(activeThreadPost || activePostDetails || activePost || {}), [activeThreadPost, activePostDetails, activePost]);
   const activeDisplayPost = activeThreadPost || activePostDetails || activePost || {};
   const activeDisplayLinkedProducts = getPostLinkedProducts(activeDisplayPost);
 
@@ -979,28 +1081,9 @@ function SocialCommentsWorkspace({
 
   const suggestedReply = previewReply || activeSuggestedReply || "";
   const activePrivateMessageStatus = clean(privateMessageStatusOverrides[actionableComment?.id] || "");
-  const activePostImage = clean(
-    activePostDetails?.thumbnailUrl ||
-      activePostDetails?.raw?.thumbnailUrl ||
-      activePostDetails?.raw?.thumbnail_url ||
-      activePostDetails?.raw?.postThumbnail ||
-      activePostDetails?.raw?.post_thumbnail ||
-      activePostDetails?.raw?.postFullPicture ||
-      activePostDetails?.raw?.post_full_picture ||
-      activePostDetails?.raw?.attachmentImage ||
-      activePostDetails?.raw?.attachment_image ||
-      activePostDetails?.raw?.fullPicture ||
-      activePostDetails?.raw?.full_picture ||
-      activePostDetails?.raw?.picture ||
-      activePostDetails?.raw?.mediaUrl ||
-      activePostDetails?.raw?.media_url ||
-      activePostDetails?.raw?.imageUrl ||
-      activePostDetails?.raw?.image_url ||
-      activePostDetails?.raw?.image ||
-      ""
-  );
-  const activePostCaption = clean(activePostDetails?.caption || "");
-  const activePostLink = clean(activePostDetails?.permalinkUrl || "");
+  const activePostImage = clean(activePostDisplay?.displayImage || activePostDetails?.thumbnailUrl || "");
+  const activePostCaption = clean(activePostDisplay?.displayText || activePostDetails?.caption || "");
+  const activePostLink = clean(activePostDisplay?.displayPermalink || activePostDetails?.permalinkUrl || "");
   const activePlatform = platformMeta(activePostDetails?.platform || activePost?.platform || "");
   const activePostType = postTypeMeta(activePostDetails);
   const activePostPlatform = clean(activePostDetails?.platform || activePost?.platform || "facebook").toLowerCase();
@@ -1008,7 +1091,8 @@ function SocialCommentsWorkspace({
   const activePostConversationId = clean(activePostDetails?.conversationId || activePostDetails?.sessionId || activePostDetails?.id || activePostKey);
   const activeTemplateEnabled = Boolean(activeTemplate?.enabled);
   const activePostPublishedAt = clean(
-    activePostDetails?.postCreatedTime ||
+    activePostDisplay?.displayCreatedAt ||
+      activePostDetails?.postCreatedTime ||
       activePostDetails?.post_created_time ||
       activePostDetails?.publishedAt ||
       activePostDetails?.published_at ||
@@ -2049,7 +2133,7 @@ function SocialCommentsWorkspace({
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     {activePostType ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostType.className}`}>{activePostType.label}</span> : null}
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
-                      {activePost.commentsCount || 0} comments
+                      {activePostDisplay?.displayCommentCount || activePost.commentsCount || 0} comments
                     </span>
                     {activePostPublishedAt ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
@@ -2087,6 +2171,7 @@ function SocialCommentsWorkspace({
                   type="button"
                   onClick={handleOpenPost}
                   disabled={!activePostLink || openingPost}
+                  title={activePostLink ? "" : "No permalink"}
                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-900 shadow-sm disabled:opacity-50"
                 >
                   {openingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
@@ -2142,9 +2227,9 @@ function SocialCommentsWorkspace({
                   <div className="space-y-4 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Post Summary</div>
-                        <div className="mt-2 text-sm leading-7 text-slate-700">
-                          <p className={expandedCaption ? "whitespace-pre-wrap" : "line-clamp-2 whitespace-pre-wrap"}>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Post Summary</div>
+                      <div className="mt-2 text-sm leading-7 text-slate-700">
+                        <p className={expandedCaption ? "whitespace-pre-wrap" : "line-clamp-2 whitespace-pre-wrap"}>
                             {activePostCaption || "لا يوجد وصف للمنشور"}
                           </p>
                           {activePostCaption && activePostCaption.length > 140 ? (

@@ -4,7 +4,7 @@ import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { loadImageDataUrl } from "./thermalImageOptimizer";
-import { BARCODE_LABEL_LAYOUT, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage } from "./barcodeLabels";
+import { BARCODE_LABEL_LAYOUT, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage } from "./barcodeLabels";
 
 const thermalImageCache = new Map();
 
@@ -226,29 +226,48 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(thermalLayout.sizeLabelFontSize);
-  doc.text("SIZE", sizeCell.x + thermalLayout.sizeBadgeWidth / 2, sizeCell.y + 3.5, { align: "center" });
+  const sizeTextLayout = getBoxTextLayout(sizeCell, {
+    topPaddingMm: 1.5,
+    labelGapMm: 1.0,
+    labelFontSize: thermalLayout.sizeLabelFontSize,
+    valueFontSize: thermalLayout.sizeValueFontSize,
+  });
+  doc.text("SIZE", sizeCell.x + thermalLayout.sizeBadgeWidth / 2, sizeTextLayout.labelTextY, { align: "center" });
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(thermalLayout.sizeValueFontSize);
-  doc.text(sizeValue, sizeCell.x + thermalLayout.sizeBadgeWidth / 2, sizeCell.y + 9.0, { align: "center" });
+  doc.text(sizeValue, sizeCell.x + thermalLayout.sizeBadgeWidth / 2, sizeTextLayout.valueTextY, { align: "center" });
 
   if (showArticleBox) {
     drawRoundedRect(doc, articleCell.x, articleCell.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [244, 244, 245], [226, 232, 240]);
     doc.setTextColor(100, 116, 139);
-    doc.setFontSize(thermalLayout.colorLabelFontSize);
-    doc.text("ARTICLE/SKU", articleCell.x + thermalLayout.articleBoxWidth / 2, articleCell.y + 3.5, { align: "center" });
+    const articleTextLayout = getBoxTextLayout(articleCell, {
+      topPaddingMm: 1.5,
+      labelGapMm: 1.0,
+      labelFontSize: thermalLayout.articleLabelFontSize,
+      valueFontSize: thermalLayout.articleFontSize,
+      valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
+    });
+    doc.setFontSize(thermalLayout.articleLabelFontSize);
+    doc.text("ARTICLE/SKU", articleCell.x + thermalLayout.articleBoxWidth / 2, articleTextLayout.labelTextY, { align: "center" });
     doc.setTextColor(15, 23, 42);
     const skuFontSize = fitTextSize(doc, skuValue, thermalLayout.articleBoxWidth - 2, thermalLayout.articleFontSize, thermalLayout.articleFontSizeCompact);
     doc.setFontSize(skuFontSize);
-    doc.text(skuValue, articleCell.x + thermalLayout.articleBoxWidth / 2, articleCell.y + 8.8, { align: "center" });
+    doc.text(skuValue, articleCell.x + thermalLayout.articleBoxWidth / 2, articleTextLayout.valueTextY, { align: "center" });
   }
 
   drawRoundedRect(doc, colorCell.x, colorCell.y, colorCell.w, colorCell.h, 1, [244, 244, 245], [226, 232, 240]);
   doc.setTextColor(100, 116, 139);
   doc.setFontSize(thermalLayout.colorLabelFontSize);
-  doc.text("COLOR", colorCell.x + colorCell.w / 2, colorCell.y + 2.2, { align: "center" });
+  const colorTextLayout = getBoxTextLayout(colorCell, {
+    topPaddingMm: 1.5,
+    labelGapMm: 1.0,
+    labelFontSize: thermalLayout.colorLabelFontSize,
+    valueFontSize: thermalLayout.colorValueFontSize,
+  });
+  doc.text("COLOR", colorCell.x + colorCell.w / 2, colorTextLayout.labelTextY, { align: "center" });
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(thermalLayout.colorValueFontSize);
-  doc.text(colorValue || "-", colorCell.x + colorCell.w / 2, colorCell.y + 5.3, { align: "center", maxWidth: colorCell.w - 2 });
+  doc.text(colorValue || "-", colorCell.x + colorCell.w / 2, colorTextLayout.valueTextY, { align: "center", maxWidth: colorCell.w - 2 });
 
   if (!showArticleBox) {
     doc.setTextColor(15, 23, 42);
