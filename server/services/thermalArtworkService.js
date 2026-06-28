@@ -244,20 +244,24 @@ const generateBinaryThermalArtwork = async (sourceBuffer) => {
     .toBuffer();
 };
 
-const updateThermalRecord = async ({ entityType = "product", productId = null, variantId = null, tenantId = null, thermalImageUrl = "", thermalImageStatus = "ready" } = {}) => {
+const updateThermalRecord = async ({ entityType = "product", productId = null, variantId = null, tenantId = null, thermalImageUrl = "", thermalImageStatus = "ready", thermalImageError = "" } = {}) => {
   const safeUrl = normalizeText(thermalImageUrl);
   const safeStatus = normalizeText(thermalImageStatus) || "ready";
+  const safeError = normalizeText(thermalImageError);
+  const safeGeneratedAtSql = safeStatus === "ready" ? "NOW()" : "NULL";
   if (entityType === "variant" && variantId) {
     await db.query(
       `
       UPDATE product_variants
       SET thermal_image_url = $1,
           thermal_image_status = $2,
+          thermal_image_generated_at = ${safeGeneratedAtSql},
+          thermal_image_error = $3,
           updated_at = NOW()
-      WHERE id = $3
-        AND ($4::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $4::bigint)
+      WHERE id = $4
+        AND ($5::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $5::bigint)
       `,
-      [safeUrl, safeStatus, variantId, tenantId]
+      [safeUrl, safeStatus, safeError, variantId, tenantId]
     );
     return;
   }
@@ -268,11 +272,13 @@ const updateThermalRecord = async ({ entityType = "product", productId = null, v
       UPDATE products
       SET thermal_image_url = $1,
           thermal_image_status = $2,
+          thermal_image_generated_at = ${safeGeneratedAtSql},
+          thermal_image_error = $3,
           updated_at = NOW()
-      WHERE id = $3
-        AND ($4::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $4::bigint)
+      WHERE id = $4
+        AND ($5::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $5::bigint)
       `,
-      [safeUrl, safeStatus, productId, tenantId]
+      [safeUrl, safeStatus, safeError, productId, tenantId]
     );
   }
 };
@@ -411,6 +417,7 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       tenantId,
       thermalImageUrl: "",
       thermalImageStatus: "failed",
+      thermalImageError: error?.message || String(error),
     }).catch(() => {});
 
     console.error("THERMAL_IMAGE_JOB_FAILED", {
@@ -449,4 +456,3 @@ export const generateThermalArtwork = async (options = {}) =>
     entityType: "product",
     ...options,
   });
-

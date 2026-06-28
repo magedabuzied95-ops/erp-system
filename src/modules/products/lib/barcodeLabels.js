@@ -71,12 +71,7 @@ const normalizeThermalImageStatus = (value = "") => {
   return ["pending", "processing", "ready", "failed"].includes(status) ? status : "";
 };
 
-const isThermalImageReady = (status = "", thermalImageUrl = "") => {
-  const normalizedStatus = normalizeThermalImageStatus(status);
-  if (normalizedStatus === "ready") return true;
-  if (!normalizedStatus && String(thermalImageUrl || "").trim()) return true;
-  return false;
-};
+const isThermalImageReady = (status = "") => normalizeThermalImageStatus(status) === "ready";
 
 export const getThermalImageStatus = (item = {}) =>
   normalizeThermalImageStatus(
@@ -103,10 +98,8 @@ const resolveThermalAwareImage = (item = {}) => {
     firstText(item?.product_thermal_image_status, item?.productThermalImageStatus)
   );
 
-  if (variantThermalUrl && isThermalImageReady(variantThermalStatus, variantThermalUrl)) return variantThermalUrl;
-  if (productThermalUrl && isThermalImageReady(productThermalStatus, productThermalUrl)) return productThermalUrl;
-  if (variantThermalUrl && !variantThermalStatus) return variantThermalUrl;
-  if (productThermalUrl && !productThermalStatus) return productThermalUrl;
+  if (variantThermalUrl && isThermalImageReady(variantThermalStatus)) return variantThermalUrl;
+  if (productThermalUrl && isThermalImageReady(productThermalStatus)) return productThermalUrl;
   return "";
 };
 

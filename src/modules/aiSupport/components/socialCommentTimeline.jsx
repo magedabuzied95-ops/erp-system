@@ -382,6 +382,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
   fallbackPlatform = "facebook",
   className = "",
   children = null,
+  ...rest
 }) {
   const data = resolveCommentTimelineData(comment, fallbackPlatform);
   const hasAvatar = Boolean(data.customerAvatarUrl);
@@ -403,6 +404,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
       tabIndex={interactive ? 0 : undefined}
       onClick={interactive ? () => onSelect(comment, data.key) : undefined}
       onKeyDown={handleKeyDown}
+      {...rest}
       className={[
         "rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition",
         selected ? "ring-1 ring-slate-300" : "hover:border-slate-300 hover:shadow-[0_12px_36px_rgba(15,23,42,0.08)]",

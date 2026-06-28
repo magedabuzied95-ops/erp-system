@@ -69,6 +69,7 @@ import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { toast } from "react-hot-toast";
+import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
@@ -3690,6 +3691,9 @@ export default function AiInbox() {
   const [userIsNearBottom, setUserIsNearBottom] = useState(true);
   const pollIntervalRef = useRef(null);
   const requestSeqRef = useRef(0);
+  const socialWorkspaceLoadSeqRef = useRef(0);
+  const socialWorkspaceLoadStartRef = useRef(0);
+  const socialWorkspaceLoadKeyRef = useRef("");
   const isRefreshingRef = useRef(false);
   const isLoadingOlderRef = useRef(false);
   const isHydratingConversationRef = useRef(false);
@@ -4270,6 +4274,15 @@ export default function AiInbox() {
       return;
     }
     let cancelled = false;
+    const workspaceSeq = ++socialWorkspaceLoadSeqRef.current;
+    const perfStart = typeof window !== "undefined" && window.performance?.now ? window.performance.now() : Date.now();
+    socialWorkspaceLoadStartRef.current = perfStart;
+    const workspaceCacheKey = socialWorkspaceCacheKey({
+      tenantId,
+      postId,
+      platform: selectedSocialCommentPlatform,
+    });
+    socialWorkspaceLoadKeyRef.current = workspaceCacheKey;
     setSelectedSocialThread((current) => ({
       ...current,
       loading: true,
@@ -4280,47 +4293,111 @@ export default function AiInbox() {
       loading: true,
       error: "",
     }));
+    const logPerf = (label, startedAt = perfStart) => {
+      if (!DEBUG_SOCIAL_COMMENTS) return;
+      const now = typeof window !== "undefined" && window.performance?.now ? window.performance.now() : Date.now();
+      console.log(label, {
+        tenant_id: clean(tenantId),
+        post_id: postId,
+        platform: selectedSocialCommentPlatform,
+        duration_ms: Math.max(0, Math.round(now - startedAt)),
+      });
+    };
+    if (typeof window !== "undefined") {
+      window.requestAnimationFrame(() => {
+        if (cancelled || workspaceSeq !== socialWorkspaceLoadSeqRef.current) return;
+        logPerf("WORKSPACE_STAGE_1_MS");
+        logPerf("WORKSPACE_STAGE_3_MS");
+      });
+    }
+    const cachedWorkspace = ENABLE_SOCIAL_FAST_CENTER ? readSocialWorkspaceCache(workspaceCacheKey) : null;
+    if (cachedWorkspace?.thread) {
+      setSelectedSocialThread({
+        post: normalizeSocialCommentPost(cachedWorkspace.thread.post || selectedSocialCommentPost || null),
+        comments: asArray(cachedWorkspace.thread.comments).filter(Boolean).map((comment) => normalizeSocialCommentThreadComment(comment)),
+        loading: false,
+        error: "",
+      });
+    }
+    if (cachedWorkspace?.template) {
+      setSelectedSocialTemplate({
+        template: cachedWorkspace.template.template || null,
+        loading: false,
+        error: "",
+      });
+    }
     void (async () => {
       try {
         const platformValue = selectedSocialCommentPlatform;
-        const [threadPayload, templatePayload] = await Promise.all([
-          api.get(`/social-comments/posts/${encodeURIComponent(postId)}/comments`, {
-            params: {
-              tenant_id: tenantId,
-              platform: platformValue,
-            },
-            headers,
-            perfComponent: "AiInbox.socialCommentThread",
-          }),
-          api.get(`/social-comments/posts/${encodeURIComponent(postId)}/template`, {
-            params: {
-              tenant_id: tenantId,
-              platform: platformValue,
-            },
-            headers,
-            perfComponent: "AiInbox.socialCommentTemplate",
-          }).catch(() => ({ template: null })),
-        ]);
-        if (cancelled) return;
+        const threadData = cachedWorkspace?.thread
+          ? cachedWorkspace.thread
+          : await api.get(`/social-comments/posts/${encodeURIComponent(postId)}/comments`, {
+              params: {
+                tenant_id: tenantId,
+                platform: platformValue,
+              },
+              headers,
+              perfComponent: "AiInbox.socialCommentThread",
+            }).then((threadPayload) => {
+              const nextThread = {
+                post: threadPayload.post || selectedSocialCommentPost || null,
+                comments: asArray(threadPayload.comments).filter(Boolean).map((comment) => normalizeSocialCommentThreadComment(comment)),
+              };
+              const currentCache = readSocialWorkspaceCache(workspaceCacheKey) || {};
+              primeSocialWorkspaceCache(workspaceCacheKey, {
+                ...currentCache,
+                thread: nextThread,
+              });
+              logPerf("WORKSPACE_STAGE_2_MS");
+              return nextThread;
+            });
+        if (cancelled || workspaceSeq !== socialWorkspaceLoadSeqRef.current) return;
         setSelectedSocialThread({
-          post: normalizeSocialCommentPost(threadPayload.post || selectedSocialCommentPost || null),
-          comments: asArray(threadPayload.comments).filter(Boolean).map((comment) => normalizeSocialCommentThreadComment(comment)),
-          loading: false,
-          error: "",
-        });
-        setSelectedSocialTemplate({
-          template: templatePayload.template || null,
+          post: normalizeSocialCommentPost(threadData.post || selectedSocialCommentPost || null),
+          comments: asArray(threadData.comments).filter(Boolean).map((comment) => normalizeSocialCommentThreadComment(comment)),
           loading: false,
           error: "",
         });
       } catch (error) {
-        if (cancelled) return;
+        if (cancelled || workspaceSeq !== socialWorkspaceLoadSeqRef.current) return;
         setSelectedSocialThread({
           post: selectedSocialCommentPost,
           comments: [],
           loading: false,
           error: error?.message || "تعذر تحميل تفاصيل البوست",
         });
+      }
+    })();
+    void (async () => {
+      try {
+        const platformValue = selectedSocialCommentPlatform;
+        const templateData = cachedWorkspace?.template
+          ? cachedWorkspace.template
+          : await api.get(`/social-comments/posts/${encodeURIComponent(postId)}/template`, {
+              params: {
+                tenant_id: tenantId,
+                platform: platformValue,
+              },
+              headers,
+              perfComponent: "AiInbox.socialCommentTemplate",
+            }).then((templatePayload) => {
+              const nextTemplate = { template: templatePayload.template || null };
+              const currentCache = readSocialWorkspaceCache(workspaceCacheKey) || {};
+              primeSocialWorkspaceCache(workspaceCacheKey, {
+                ...currentCache,
+                template: nextTemplate,
+              });
+              logPerf("WORKSPACE_STAGE_4_MS");
+              return nextTemplate;
+            }).catch(() => ({ template: null }));
+        if (cancelled || workspaceSeq !== socialWorkspaceLoadSeqRef.current) return;
+        setSelectedSocialTemplate({
+          template: templateData.template || null,
+          loading: false,
+          error: "",
+        });
+      } catch (error) {
+        if (cancelled || workspaceSeq !== socialWorkspaceLoadSeqRef.current) return;
         setSelectedSocialTemplate({
           template: null,
           loading: false,
@@ -4332,6 +4409,31 @@ export default function AiInbox() {
       cancelled = true;
     };
   }, [headers, isSocialMode, selectedSocialCommentPlatform, selectedSocialCommentPost, selectedSocialCommentPostId, tenantId]);
+
+  useEffect(() => {
+    if (!DEBUG_SOCIAL_COMMENTS || !isSocialMode || !selectedSocialCommentPostId) return;
+    if (selectedSocialThread.loading || selectedSocialTemplate.loading) return;
+    const activeKey = socialWorkspaceCacheKey({
+      tenantId,
+      postId: selectedSocialCommentPostId,
+      platform: selectedSocialCommentPlatform,
+    });
+    if (!activeKey || socialWorkspaceLoadKeyRef.current !== activeKey) return;
+    const now = typeof window !== "undefined" && window.performance?.now ? window.performance.now() : Date.now();
+    console.log("WORKSPACE_STAGE_5_MS", {
+      tenant_id: clean(tenantId),
+      post_id: selectedSocialCommentPostId,
+      platform: selectedSocialCommentPlatform,
+      duration_ms: Math.max(0, Math.round(now - socialWorkspaceLoadStartRef.current)),
+    });
+    console.log("WORKSPACE_TOTAL_VISIBLE_MS", {
+      tenant_id: clean(tenantId),
+      post_id: selectedSocialCommentPostId,
+      platform: selectedSocialCommentPlatform,
+      duration_ms: Math.max(0, Math.round(now - socialWorkspaceLoadStartRef.current)),
+    });
+    socialWorkspaceLoadKeyRef.current = "";
+  }, [isSocialMode, selectedSocialCommentPlatform, selectedSocialCommentPostId, selectedSocialTemplate.loading, selectedSocialThread.loading, tenantId]);
   const saveSocialReplySettings = async () => {
     try {
       const payload = await api.post(
@@ -6241,15 +6343,26 @@ export default function AiInbox() {
         onRefresh={() => void loadAll({ silent: true })}
         onSelectPost={openSocialCommentThread}
         onGlobalSettingsChange={setSocialReplySettings}
-        onSaveGlobalSettings={saveSocialReplySettings}
-        onTemplateChange={setSelectedSocialTemplate}
-        onSaveTemplate={saveSocialPostTemplate}
-        onCommentAction={handleSocialCommentAction}
-        onSelectCustomer={openCustomerDrawer}
-        selectedPostId={selectedSocialCommentPostId}
-        actionLoading={socialCommentActionLoading}
-        tenantId={tenantId}
-      />
+                  onSaveGlobalSettings={saveSocialReplySettings}
+                  onTemplateChange={setSelectedSocialTemplate}
+                  onSaveTemplate={saveSocialPostTemplate}
+                  onCommentAction={handleSocialCommentAction}
+                  onSelectCustomer={openCustomerDrawer}
+                  onPrefetchPost={(item) => {
+                    const postId = clean(item?.post_id || item?.conversation_id || item?.id || "");
+                    if (!ENABLE_SOCIAL_FAST_CENTER || !postId) return;
+                    void prefetchSocialWorkspace({
+                      api,
+                      headers,
+                      tenantId,
+                      postId,
+                      platform: clean(item?.platform || ""),
+                    });
+                  }}
+                  selectedPostId={selectedSocialCommentPostId}
+                  actionLoading={socialCommentActionLoading}
+                  tenantId={tenantId}
+                />
   );
 
   if (isAnalyticsMode) {

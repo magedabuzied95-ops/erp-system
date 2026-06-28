@@ -862,6 +862,7 @@ function SocialCommentsWorkspace({
   },
   onRefresh,
   onSelectPost,
+  onPrefetchPost,
   onSelectCustomer,
   tenantId = "",
   initialSelectedCommentId = "",
@@ -1915,12 +1916,27 @@ function SocialCommentsWorkspace({
                     const active = activePostKey === key;
                     const meta = platformMeta(post.platform);
                     const thumb = post.thumbnailUrl;
+                    let hoverTimer = null;
+                    const schedulePrefetch = () => {
+                      if (!onPrefetchPost) return;
+                      if (hoverTimer) window.clearTimeout(hoverTimer);
+                      hoverTimer = window.setTimeout(() => onPrefetchPost(post.raw || post, key), 300);
+                    };
+                    const clearPrefetch = () => {
+                      if (!hoverTimer) return;
+                      window.clearTimeout(hoverTimer);
+                      hoverTimer = null;
+                    };
                     return (
                       <article
                         key={key}
                         role={onSelectPost ? "button" : undefined}
                         tabIndex={onSelectPost ? 0 : undefined}
                         onClick={onSelectPost ? () => onSelectPost(post.raw, key) : undefined}
+                        onMouseEnter={onPrefetchPost ? schedulePrefetch : undefined}
+                        onMouseLeave={onPrefetchPost ? clearPrefetch : undefined}
+                        onFocus={onPrefetchPost ? schedulePrefetch : undefined}
+                        onBlur={onPrefetchPost ? clearPrefetch : undefined}
                         onKeyDown={
                           onSelectPost
                             ? (event) => {
@@ -2012,12 +2028,27 @@ function SocialCommentsWorkspace({
                   const active = activePostKey === key;
                   const meta = platformMeta(post.platform);
                   const thumb = post.thumbnailUrl;
+                  let hoverTimer = null;
+                  const schedulePrefetch = () => {
+                    if (!onPrefetchPost) return;
+                    if (hoverTimer) window.clearTimeout(hoverTimer);
+                    hoverTimer = window.setTimeout(() => onPrefetchPost(post.raw || post, key), 300);
+                  };
+                  const clearPrefetch = () => {
+                    if (!hoverTimer) return;
+                    window.clearTimeout(hoverTimer);
+                    hoverTimer = null;
+                  };
                   return (
                     <article
                       key={key}
                       role={onSelectPost ? "button" : undefined}
                       tabIndex={onSelectPost ? 0 : undefined}
                       onClick={onSelectPost ? () => onSelectPost(post.raw, key) : undefined}
+                      onMouseEnter={onPrefetchPost ? schedulePrefetch : undefined}
+                      onMouseLeave={onPrefetchPost ? clearPrefetch : undefined}
+                      onFocus={onPrefetchPost ? schedulePrefetch : undefined}
+                      onBlur={onPrefetchPost ? clearPrefetch : undefined}
                       onKeyDown={
                         onSelectPost
                           ? (event) => {

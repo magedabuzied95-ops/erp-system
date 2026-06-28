@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { Clock3, ExternalLink, MessageSquareText, RefreshCw, User } from "lucide-react";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
@@ -118,19 +118,30 @@ const socialCommentItemsEqual = (left = {}, right = {}) =>
   clean(left.product_name) === clean(right.product_name) &&
   Boolean(left.unread) === Boolean(right.unread);
 
-const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ item = {}, active = false, onSelectItem }) {
+const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ item = {}, active = false, onSelectItem, onPrefetchItem }) {
   const platform = platformMeta(item.platform);
   const itemKey = socialCommentItemKey(item);
   const title = clean(item.post_message || item.post_caption || item.last_message || item.last_comment_text || "Post");
   const subtitle = clean(item.last_comment_text || item.last_message || item.post_caption || item.post_message || "");
   const thumb = clean(item.thumbnail_url || "");
   const handleSelect = useCallback(() => onSelectItem?.(item, itemKey), [item, itemKey, onSelectItem]);
+  const hoverTimerRef = useRef(null);
   const handleKeyDown = useCallback(
     (event) => {
       if (event.key === "Enter" || event.key === " ") onSelectItem?.(item, itemKey);
     },
     [item, itemKey, onSelectItem]
   );
+  const schedulePrefetch = useCallback(() => {
+    if (!onPrefetchItem) return;
+    if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = window.setTimeout(() => onPrefetchItem?.(item, itemKey), 300);
+  }, [item, itemKey, onPrefetchItem]);
+  const clearPrefetch = useCallback(() => {
+    if (!hoverTimerRef.current) return;
+    window.clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = null;
+  }, []);
 
   return (
     <article
@@ -138,6 +149,10 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
       tabIndex={onSelectItem ? 0 : undefined}
       onClick={onSelectItem ? handleSelect : undefined}
       onKeyDown={onSelectItem ? handleKeyDown : undefined}
+      onMouseEnter={onPrefetchItem ? schedulePrefetch : undefined}
+      onMouseLeave={onPrefetchItem ? clearPrefetch : undefined}
+      onFocus={onPrefetchItem ? schedulePrefetch : undefined}
+      onBlur={onPrefetchItem ? clearPrefetch : undefined}
       className={`rounded-2xl border p-3 transition shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${
         active ? "border-slate-300 ring-1 ring-slate-200" : "border-slate-200 hover:border-slate-300"
       }`}
@@ -193,13 +208,34 @@ const SocialCommentsPanelCommentRow = memo(function SocialCommentsPanelCommentRo
   item = {},
   active = false,
   onSelectItem,
+  onPrefetchItem,
   fallbackPlatform = "facebook",
 }) {
   const itemKey = socialCommentItemKey(item);
   const permalink = clean(item.post_permalink);
   const handleSelect = useCallback(() => onSelectItem?.(item, itemKey), [item, itemKey, onSelectItem]);
+  const hoverTimerRef = useRef(null);
+  const schedulePrefetch = useCallback(() => {
+    if (!onPrefetchItem) return;
+    if (hoverTimerRef.current) window.clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = window.setTimeout(() => onPrefetchItem?.(item, itemKey), 300);
+  }, [item, itemKey, onPrefetchItem]);
+  const clearPrefetch = useCallback(() => {
+    if (!hoverTimerRef.current) return;
+    window.clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = null;
+  }, []);
   return (
-    <CommentTimelineCard comment={item} selected={active} onSelect={onSelectItem ? handleSelect : undefined} fallbackPlatform={fallbackPlatform}>
+    <CommentTimelineCard
+      comment={item}
+      selected={active}
+      onSelect={onSelectItem ? handleSelect : undefined}
+      onMouseEnter={onPrefetchItem ? schedulePrefetch : undefined}
+      onMouseLeave={onPrefetchItem ? clearPrefetch : undefined}
+      onFocus={onPrefetchItem ? schedulePrefetch : undefined}
+      onBlur={onPrefetchItem ? clearPrefetch : undefined}
+      fallbackPlatform={fallbackPlatform}
+    >
       {permalink ? (
         <a
           href={permalink}
@@ -229,6 +265,7 @@ function SocialCommentsPanel({
   onLoadMore,
   nextCursor = "",
   loadingMore = false,
+  onPrefetchItem,
 }) {
   const filters = mode === "posts" ? POST_FILTERS : COMMENT_FILTERS;
   const handleFilterChange = useCallback((itemKey) => onFilterChange?.(itemKey), [onFilterChange]);
@@ -328,16 +365,16 @@ function SocialCommentsPanel({
               itemKey={(item, index) => clean(item.id || item.conversation_id || item.comment_id || item.post_id || index)}
               renderItem={(item) => {
                   if (mode === "posts") {
-                    return <SocialCommentsPanelPostRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} />;
+                    return <SocialCommentsPanelPostRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} />;
                   }
-                  return <SocialCommentsPanelCommentRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} fallbackPlatform={item.platform || "facebook"} />;
+                  return <SocialCommentsPanelCommentRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} fallbackPlatform={item.platform || "facebook"} />;
                 }}
               />
             ) : filteredItems.slice(0, 50).map((item) => {
               if (mode === "posts") {
-                return <SocialCommentsPanelPostRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} />;
+                return <SocialCommentsPanelPostRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} />;
               }
-              return <SocialCommentsPanelCommentRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} fallbackPlatform={item.platform || "facebook"} />;
+              return <SocialCommentsPanelCommentRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} fallbackPlatform={item.platform || "facebook"} />;
             })}
             {onLoadMore && nextCursor ? (
               <div className="flex justify-center pt-2">

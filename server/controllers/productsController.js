@@ -648,6 +648,8 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS thumbnail_url TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS thermal_image_url TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS thermal_image_status TEXT NOT NULL DEFAULT 'pending',
+            ADD COLUMN IF NOT EXISTS thermal_image_generated_at TIMESTAMP NULL,
+            ADD COLUMN IF NOT EXISTS thermal_image_error TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS gallery_images JSONB NOT NULL DEFAULT '[]'::jsonb,
             ADD COLUMN IF NOT EXISTS variation_mode VARCHAR(30) NOT NULL DEFAULT 'full_variations',
             ADD COLUMN IF NOT EXISTS fixed_size_label VARCHAR(80) DEFAULT '',
@@ -792,6 +794,8 @@ export const ensureProductVariantSchema = async () => {
       ADD COLUMN IF NOT EXISTS thumbnail_url TEXT DEFAULT '',
       ADD COLUMN IF NOT EXISTS thermal_image_url TEXT DEFAULT '',
       ADD COLUMN IF NOT EXISTS thermal_image_status TEXT NOT NULL DEFAULT 'pending',
+      ADD COLUMN IF NOT EXISTS thermal_image_generated_at TIMESTAMP NULL,
+      ADD COLUMN IF NOT EXISTS thermal_image_error TEXT DEFAULT '',
       ADD COLUMN IF NOT EXISTS cost_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -867,6 +871,14 @@ const normalizeThermalImageStatus = (value, thermalImageUrl = "") => {
   return String(thermalImageUrl || "").trim() ? "ready" : "pending";
 };
 
+const normalizeThermalTimestamp = (value) => {
+  if (!value) return null;
+  const text = String(value).trim();
+  return text ? text : null;
+};
+
+const normalizeThermalError = (value) => String(value || "").trim();
+
 const normalizeProductRow = (row = {}) => {
   const regularPrice = firstPositiveNumber(row.selling_price, row.regular_price, row.price, row.sale_price);
   const audiences = normalizeProductAudiences(row.audiences, row.product_audiences, row.gender);
@@ -875,6 +887,8 @@ const normalizeProductRow = (row = {}) => {
   const photoUrl = row.photo_url || "";
   const thermalImageUrl = row.thermal_image_url || "";
   const thermalImageStatus = normalizeThermalImageStatus(row.thermal_image_status, thermalImageUrl);
+  const thermalImageGeneratedAt = normalizeThermalTimestamp(row.thermal_image_generated_at);
+  const thermalImageError = normalizeThermalError(row.thermal_image_error);
   const image = row.image || "";
   const galleryImages = normalizeGalleryImages(row.gallery_images);
   const variantColorThermalImageUrl = row.variant_color_thermal_image_url || row.color_thermal_image_url || row.thermal_image_url || "";
@@ -945,6 +959,8 @@ const normalizeProductRow = (row = {}) => {
   photo_url: photoUrl,
   thermal_image_url: thermalImageUrl,
   thermal_image_status: thermalImageStatus,
+  thermal_image_generated_at: thermalImageGeneratedAt,
+  thermal_image_error: thermalImageError,
   variant_color_thermal_image_url: variantColorThermalImageUrl,
   color_thermal_image_url: row.color_thermal_image_url || variantColorThermalImageUrl,
   product_thermal_image_url: row.product_thermal_image_url || thermalImageUrl,
@@ -1053,6 +1069,8 @@ const normalizeVariantRow = (row = {}) => {
   const regularPrice = firstPositiveNumber(row.variant_selling_price, row.selling_price, row.regular_price, row.variant_price, row.variant_sale_price, row.price);
   const thermalImageUrl = row.thermal_image_url || "";
   const thermalImageStatus = normalizeThermalImageStatus(row.thermal_image_status, thermalImageUrl);
+  const thermalImageGeneratedAt = normalizeThermalTimestamp(row.thermal_image_generated_at);
+  const thermalImageError = normalizeThermalError(row.thermal_image_error);
   return ({
   ...row,
   selling_price: regularPrice,
@@ -1099,6 +1117,8 @@ const normalizeVariantRow = (row = {}) => {
     "",
   thermal_image_url: thermalImageUrl,
   thermal_image_status: thermalImageStatus,
+  thermal_image_generated_at: thermalImageGeneratedAt,
+  thermal_image_error: thermalImageError,
   thermalImageStatus,
   sku: row.variant_sku || row.sku || "",
   barcode: row.variant_barcode || row.barcode || "",
@@ -1732,6 +1752,11 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
     throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
   }
   const normalizedVariantImageUrl = String(variant.image_url || variant.variant_image_url || variant.color_image_url || variant.image || "").trim();
+  const normalizedThermalImageUrl = String(variant.thermal_image_url || variant.variant_thermal_image_url || variant.color_thermal_image_url || "").trim();
+  const nextVariantThermalImageStatus = normalizedVariantImageUrl ? "pending" : normalizedThermalImageUrl ? "ready" : "pending";
+  const nextVariantThermalImageUrl = normalizedVariantImageUrl ? "" : normalizedThermalImageUrl;
+  const nextVariantThermalImageGeneratedAt = normalizedVariantImageUrl ? null : normalizedThermalImageUrl ? new Date().toISOString() : null;
+  const nextVariantThermalImageError = "";
   const nextVariant = {
     ...variant,
     sku: await makeUniqueSku(client, {
@@ -1759,6 +1784,8 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       image_url,
       thermal_image_url,
       thermal_image_status,
+      thermal_image_generated_at,
+      thermal_image_error,
       cost_price,
       price,
       sale_price,
@@ -1768,7 +1795,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       is_active,
       deleted_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULLIF($11, ''), $12, $13, 'pending', $14, $15, $16, $17, $18, $19, TRUE, NULL)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULLIF($11, ''), $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, TRUE, NULL)
     RETURNING *
     `,
     [
@@ -1784,7 +1811,10 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       nextVariant.barcode,
       nextVariant.article_code || "",
       normalizedVariantImageUrl,
-      "",
+      nextVariantThermalImageUrl,
+      nextVariantThermalImageStatus,
+      nextVariantThermalImageGeneratedAt,
+      nextVariantThermalImageError,
       nextVariant.purchase_price,
       nextVariant.price,
       nextVariant.sale_price,
@@ -1825,7 +1855,7 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
   };
   const currentResult = await client.query(
     `
-    SELECT id, product_id, stock, tenant_id, image_url, thermal_image_url, thermal_image_status
+    SELECT id, product_id, stock, tenant_id, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error
     FROM product_variants
     WHERE id = $1
       AND product_id = $2
@@ -1860,6 +1890,18 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
   const nextVariantThermalImageStatus = imageChanged
     ? "pending"
     : normalizeThermalImageStatus(currentVariantRow.thermal_image_status, currentVariantRow.thermal_image_url || "");
+  const nextVariantThermalImageGeneratedAt = imageChanged ? null : normalizeThermalTimestamp(currentVariantRow.thermal_image_generated_at);
+  const nextVariantThermalImageError = imageChanged ? "" : normalizeThermalError(currentVariantRow.thermal_image_error);
+  if (imageChanged) {
+    console.log("THERMAL_IMAGE_STALE_RESET", {
+      entityType: "variant",
+      productId,
+      variantId: resolvedVariantId,
+      tenantId,
+      previousImageUrl: currentImageUrl,
+      nextImageUrl: nextVariantImageUrl,
+    });
+  }
   const updated = await client.query(
     `
     UPDATE product_variants
@@ -1876,17 +1918,19 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       image_url = $10,
       thermal_image_url = $11,
       thermal_image_status = $12,
-      cost_price = $13,
-      price = $14,
-      sale_price = $15,
-      edition_name = $16,
-      edition_slug = $17,
-      default_purchase_qty = COALESCE($18, default_purchase_qty),
+      thermal_image_generated_at = $13,
+      thermal_image_error = $14,
+      cost_price = $15,
+      price = $16,
+      sale_price = $17,
+      edition_name = $18,
+      edition_slug = $19,
+      default_purchase_qty = COALESCE($20, default_purchase_qty),
       is_active = TRUE,
       deleted_at = NULL
-    WHERE id = $19
-      AND product_id = $20
-      AND tenant_id = $21
+    WHERE id = $21
+      AND product_id = $22
+      AND ($23::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $23::bigint)
     RETURNING *
     `,
     [
@@ -1902,6 +1946,8 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       nextVariantImageUrl,
       nextVariantThermalImageUrl,
       nextVariantThermalImageStatus,
+      nextVariantThermalImageGeneratedAt,
+      nextVariantThermalImageError,
       nextVariant.purchase_price,
       nextVariant.price,
       nextVariant.sale_price,
@@ -2711,6 +2757,8 @@ export const createProduct = async (req, res) => {
     const normalizedThermalImageUrl = String(thermal_image_url || "").trim();
     const nextThermalImageStatus = normalizedProductImageUrl ? "pending" : normalizedThermalImageUrl ? "ready" : "pending";
     const nextThermalImageUrl = normalizedProductImageUrl ? "" : normalizedThermalImageUrl;
+    const nextThermalImageGeneratedAt = normalizedProductImageUrl ? null : normalizedThermalImageUrl ? new Date().toISOString() : null;
+    const nextThermalImageError = "";
     const insertColumns = [
       "tenant_id",
       "name",
@@ -2757,6 +2805,8 @@ export const createProduct = async (req, res) => {
       "image_url",
       "thermal_image_url",
       "thermal_image_status",
+      "thermal_image_generated_at",
+      "thermal_image_error",
       "gallery_images",
       "variation_mode",
       "fixed_size_label",
@@ -2819,6 +2869,8 @@ export const createProduct = async (req, res) => {
       normalizedProductImageUrl,
       nextThermalImageUrl,
       nextThermalImageStatus,
+      nextThermalImageGeneratedAt,
+      nextThermalImageError,
       JSON.stringify(normalizedGalleryImages),
       normalizedVariationMode,
       normalizedFixedSizeLabel,
@@ -3124,16 +3176,22 @@ export const updateProduct = async (req, res) => {
     const thermalImageUrlProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "thermal_image_url");
     const normalizedProductImageUrl = String(image_url || "").trim();
     const normalizedThermalImageUrl = String(thermal_image_url || "").trim();
-    const nextThermalImageStatus = imageUrlProvided && normalizedProductImageUrl
+    let nextThermalImageStatus = imageUrlProvided && normalizedProductImageUrl
       ? "pending"
       : thermalImageUrlProvided
         ? "ready"
         : null;
-    const nextThermalImageUrl = imageUrlProvided && normalizedProductImageUrl
+    let nextThermalImageUrl = imageUrlProvided && normalizedProductImageUrl
       ? ""
       : thermalImageUrlProvided
         ? normalizedThermalImageUrl
         : null;
+    let nextThermalImageGeneratedAt = imageUrlProvided && normalizedProductImageUrl
+      ? null
+      : thermalImageUrlProvided
+        ? new Date().toISOString()
+        : null;
+    let nextThermalImageError = thermalImageUrlProvided ? "" : null;
     const galleryImagesProvided =
       Object.prototype.hasOwnProperty.call(req.body || {}, "gallery_images") ||
       Object.prototype.hasOwnProperty.call(req.body || {}, "gallery");
@@ -3166,6 +3224,46 @@ export const updateProduct = async (req, res) => {
     await client.query("BEGIN");
     transactionStarted = true;
     const productId = req.params.id;
+    const currentProductResult = await client.query(
+      `
+      SELECT id, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error
+      FROM products
+      WHERE id = $1
+        AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
+      FOR UPDATE
+      `,
+      [productId, tenantId]
+    );
+    if (currentProductResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      transactionStarted = false;
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+    const currentProductRow = currentProductResult.rows[0] || {};
+    const currentProductImageUrl = String(currentProductRow.image_url || "").trim();
+    const productImageChanged = Boolean(imageUrlProvided && normalizedProductImageUrl && normalizedProductImageUrl !== currentProductImageUrl);
+    const thermalImageMetadataResetNeeded = productImageChanged;
+    if (productImageChanged) {
+      console.log("THERMAL_IMAGE_STALE_RESET", {
+        entityType: "product",
+        productId,
+        tenantId,
+        previousImageUrl: currentProductImageUrl,
+        nextImageUrl: normalizedProductImageUrl,
+      });
+      nextThermalImageStatus = "pending";
+      nextThermalImageUrl = "";
+      nextThermalImageGeneratedAt = null;
+      nextThermalImageError = "";
+    } else if (imageUrlProvided && normalizedProductImageUrl) {
+      nextThermalImageStatus = normalizeThermalImageStatus(currentProductRow.thermal_image_status, currentProductRow.thermal_image_url || "");
+      nextThermalImageUrl = String(currentProductRow.thermal_image_url || "").trim();
+      nextThermalImageGeneratedAt = normalizeThermalTimestamp(currentProductRow.thermal_image_generated_at);
+      nextThermalImageError = normalizeThermalError(currentProductRow.thermal_image_error);
+    }
     const finalProductSku = await makeUniqueSku(client, {
       tenantId,
       productId,
@@ -3243,7 +3341,9 @@ export const updateProduct = async (req, res) => {
       `sku = ${addUpdateValue(finalProductSku)}`,
       `barcode = ${addUpdateValue(barcode || "")}`,
       `image_url = COALESCE(${addUpdateValue(imageUrlProvided ? image_url || "" : null)}, image_url)`,
-      `thermal_image_status = COALESCE(${addUpdateValue(nextThermalImageStatus)}, thermal_image_status)`,
+      `thermal_image_status = CASE WHEN ${addUpdateValue(thermalImageMetadataResetNeeded)} THEN ${addUpdateValue("pending")} ELSE COALESCE(${addUpdateValue(nextThermalImageStatus)}, thermal_image_status) END`,
+      `thermal_image_generated_at = CASE WHEN ${addUpdateValue(thermalImageMetadataResetNeeded)} THEN NULL ELSE COALESCE(${addUpdateValue(nextThermalImageGeneratedAt)}, thermal_image_generated_at) END`,
+      `thermal_image_error = CASE WHEN ${addUpdateValue(thermalImageMetadataResetNeeded)} THEN ${addUpdateValue("")} ELSE COALESCE(${addUpdateValue(nextThermalImageError)}, thermal_image_error) END`,
       `gallery_images = COALESCE(${addUpdateValue(galleryImagesProvided ? JSON.stringify(normalizedGalleryImages) : null)}::jsonb, gallery_images)`,
       `variation_mode = ${addUpdateValue(normalizedVariationMode)}`,
       `fixed_size_label = ${addUpdateValue(normalizedFixedSizeLabel)}`,
