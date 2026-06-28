@@ -741,6 +741,36 @@ const formatDisplayColor = (value = "") => {
   return text.toUpperCase();
 };
 
+export const THERMAL_LANDSCAPE_LABEL_LAYOUT = Object.freeze({
+  titleFontSize: 13,
+  titleLineHeight: 1.1,
+  titleLineStepMm: 5.3,
+  titleMaxLines: 2,
+  titleWidth: 56.5,
+  imageWidth: 43.6,
+  imageHeight: 33.8,
+  sizeBadgeWidthWithArticle: 16.0,
+  sizeBadgeWidthWithoutArticle: 30.8,
+  sizeBadgeHeight: 13.0,
+  articleBoxWidth: 30.2,
+  articleBoxHeight: 13.0,
+  colorBoxHeight: 6.8,
+  articleFontSize: 12,
+  articleFontSizeCompact: 10,
+  sizeLabelFontSize: 4.1,
+  sizeValueFontSize: 25,
+  colorLabelFontSize: 3.8,
+  colorValueFontSize: 13.0,
+});
+
+export const getThermalLandscapeLabelLayout = (hasArticleBox = false) => ({
+  ...THERMAL_LANDSCAPE_LABEL_LAYOUT,
+  sizeBadgeWidth: hasArticleBox
+    ? THERMAL_LANDSCAPE_LABEL_LAYOUT.sizeBadgeWidthWithArticle
+    : THERMAL_LANDSCAPE_LABEL_LAYOUT.sizeBadgeWidthWithoutArticle,
+  articleBoxWidth: hasArticleBox ? THERMAL_LANDSCAPE_LABEL_LAYOUT.articleBoxWidth : 0,
+});
+
 export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const productName = String(item?.productName || "").trim();
   const productLines = splitSvgText(productName, 22, 2);
@@ -750,9 +780,8 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const barcodeValue = String(item?.barcode || "").trim();
   const imageUrl = String(item?.imageUrl || item?.resolvedImage || "").trim();
   const hasArticleBox = Boolean(skuValue);
-  const sizeBoxWidth = hasArticleBox ? 16.0 : 30.8;
-  const articleBoxWidth = 30.2;
-  const articleFontSize = Math.max(3.8, Math.min(5.0, 5.2 - Math.max(0, skuValue.length - 10) * 0.08));
+  const layout = getThermalLandscapeLabelLayout(hasArticleBox);
+  const articleFontSize = Math.max(layout.articleFontSizeCompact, Math.min(layout.articleFontSize, layout.articleFontSize - Math.max(0, skuValue.length - 10) * 0.08));
   const colorLabelSize = 2.2;
   const colorValueSize = 4.6;
   const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, {
@@ -764,8 +793,8 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   });
 
   const productText = productLines.length
-    ? productLines.map((line, index) => `<text x="40" y="${7.1 + (index * 5.8)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? 6.0 : 5.2}" font-weight="900">${escapeHtml(line)}</text>`).join("")
-    : `<text x="40" y="7.1" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="6.0" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
+    ? productLines.map((line, index) => `<text x="40" y="${7.1 + (index * 5.8)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? layout.titleFontSize * 0.46 : layout.titleFontSize * 0.4}" font-weight="900">${escapeHtml(line)}</text>`).join("")
+    : `<text x="40" y="7.1" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleFontSize * 0.46}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
 
   return `
     <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
@@ -776,18 +805,18 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
 
       ${productText}
 
-      <rect x="39.5" y="13.6" width="${sizeBoxWidth}" height="13" rx="1.8" fill="#020617" />
-      <text x="${39.5 + (sizeBoxWidth / 2)}" y="16.8" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="1.65" font-weight="900" letter-spacing="0.28">${escapeHtml(printCopy.size || "SIZE")}</text>
-      <text x="${39.5 + (sizeBoxWidth / 2)}" y="22.9" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="10.8" font-weight="900">${escapeHtml(sizeValue)}</text>
+      <rect x="39.5" y="13.6" width="${layout.sizeBadgeWidth}" height="${layout.sizeBadgeHeight}" rx="1.8" fill="#020617" />
+      <text x="${39.5 + (layout.sizeBadgeWidth / 2)}" y="16.8" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="1.65" font-weight="900" letter-spacing="0.28">${escapeHtml(printCopy.size || "SIZE")}</text>
+      <text x="${39.5 + (layout.sizeBadgeWidth / 2)}" y="22.9" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.432}" font-weight="900">${escapeHtml(sizeValue)}</text>
       ${hasArticleBox ? `
-      <rect x="57.0" y="13.6" width="${articleBoxWidth}" height="13" rx="1.8" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
+      <rect x="57.0" y="13.6" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
       <text x="69.1" y="16.8" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="1.65" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.sku || "ARTICLE/SKU")}</text>
       <text x="69.1" y="22.9" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
       ` : ""}
 
-      <rect x="39.5" y="28.2" width="41.2" height="6.8" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
+      <rect x="39.5" y="28.2" width="41.2" height="${layout.colorBoxHeight}" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
       <text x="60.1" y="30.9" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${colorLabelSize}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
-      <text x="60.1" y="34.1" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${colorValueSize}" font-weight="900">${escapeHtml(colorValue)}</text>
+      <text x="60.1" y="34.1" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorValueFontSize * 0.35}" font-weight="900">${escapeHtml(colorValue)}</text>
 
       ${hasArticleBox ? "" : `<text x="50" y="38.7" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}

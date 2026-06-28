@@ -30,6 +30,7 @@ import {
   buildProductLabelItems,
   buildBarcodeShopLabelItem,
   buildSmartProductQrUrl,
+  getThermalLandscapeLabelLayout,
   resolveBarcodeLabelImage,
 } from "../lib/barcodeLabels";
 import { generateBarcodeLabelsPdf } from "../lib/barcodePdfGenerator";
@@ -1246,6 +1247,15 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const colorValue = /[\u0600-\u06FF]/.test(rawColorValue) ? rawColorValue : rawColorValue.toUpperCase();
   const articleValue = safeText(item.sku, "").trim();
   const showArticleBox = Boolean(articleValue);
+  const thermalLayout = getThermalLandscapeLabelLayout(showArticleBox);
+  console.log("[Barcode Label Preview]", {
+    titleFontSize: thermalLayout.titleFontSize,
+    titleLineHeight: thermalLayout.titleLineHeight,
+    sizeBadgeWidth: thermalLayout.sizeBadgeWidth,
+    sizeBadgeHeight: thermalLayout.sizeBadgeHeight,
+    colorBoxHeight: thermalLayout.colorBoxHeight,
+    articleBoxWidth: thermalLayout.articleBoxWidth,
+  });
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
     width: Math.round(720 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
     height: Math.max(112, Number(printSettings.barcodeHeight || 88)),
@@ -1260,7 +1270,17 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
     >
       <div className="flex h-full flex-col gap-[1mm] p-[1.2mm]">
         {printSettings.showProductName ? (
-          <h3 className="min-h-[2.5em] line-clamp-2 text-[13px] font-black leading-[1.04] text-zinc-950">
+          <h3
+            className="overflow-hidden font-black text-zinc-950"
+            style={{
+              fontSize: `${thermalLayout.titleFontSize}px`,
+              lineHeight: thermalLayout.titleLineHeight,
+              display: "-webkit-box",
+              WebkitBoxOrient: "vertical",
+              WebkitLineClamp: thermalLayout.titleMaxLines,
+              maxHeight: `${thermalLayout.titleFontSize * thermalLayout.titleLineHeight * thermalLayout.titleMaxLines}px`,
+            }}
+          >
             {productName}
           </h3>
         ) : null}
@@ -1281,24 +1301,31 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
           ) : null}
 
           <div className="flex min-w-0 flex-col gap-[0.8mm] overflow-hidden">
-            <div className="grid min-w-0 gap-[0.8mm]" style={{ gridTemplateColumns: showArticleBox ? "minmax(0, 0.92fr) minmax(0, 1.3fr)" : "1fr" }}>
+            <div
+              className="grid min-w-0 gap-[0.8mm]"
+              style={{
+                gridTemplateColumns: showArticleBox
+                  ? `${thermalLayout.sizeBadgeWidthWithArticle}mm ${thermalLayout.articleBoxWidth}mm`
+                  : "1fr",
+              }}
+            >
               <div className="min-w-0 rounded-[8px] border border-zinc-950 bg-zinc-950 px-[1.1mm] py-[0.9mm] text-center text-white">
-                <div className="text-[3.6px] font-black uppercase leading-none tracking-[0.22em] text-zinc-300">
+                <div className="font-black uppercase leading-none tracking-[0.22em] text-zinc-300" style={{ fontSize: `${thermalLayout.sizeLabelFontSize}px` }}>
                   {t("products.barcodeLabels.size")}
                 </div>
-                <div className="mt-[0.35mm] text-[24px] font-black leading-none">
+                <div className="mt-[0.35mm] font-black leading-none" style={{ fontSize: `${thermalLayout.sizeValueFontSize}px` }}>
                   {sizeValue}
                 </div>
               </div>
 
               {showArticleBox ? (
                 <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[0.8mm] text-center text-zinc-950">
-                  <div className="text-[3.6px] font-black uppercase leading-none tracking-[0.22em] text-zinc-500">
+                  <div className="font-black uppercase leading-none tracking-[0.22em] text-zinc-500" style={{ fontSize: `${thermalLayout.colorLabelFontSize}px` }}>
                     {t("products.barcodeLabels.sku", "ARTICLE/SKU")}
                   </div>
                   <div
                     className="mt-[0.35mm] truncate font-black leading-none"
-                    style={{ fontSize: articleValue.length > 14 ? "10px" : "12px" }}
+                    style={{ fontSize: articleValue.length > 14 ? `${thermalLayout.articleFontSizeCompact}px` : `${thermalLayout.articleFontSize}px` }}
                   >
                     {articleValue}
                   </div>
@@ -1306,11 +1333,11 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
               ) : null}
             </div>
 
-            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[0.65mm] text-center text-zinc-950">
-              <div className="text-[3.1px] font-black uppercase leading-none tracking-[0.22em] text-zinc-500">
+            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 px-[1mm] py-[0.65mm] text-center text-zinc-950" style={{ minHeight: `${thermalLayout.colorBoxHeight}mm` }}>
+              <div className="font-black uppercase leading-none tracking-[0.22em] text-zinc-500" style={{ fontSize: `${thermalLayout.colorLabelFontSize}px` }}>
                 {t("products.barcodeLabels.color")}
               </div>
-              <div className="mt-[0.25mm] truncate text-[13px] font-black uppercase leading-none">
+              <div className="mt-[0.25mm] truncate font-black uppercase leading-none" style={{ fontSize: `${thermalLayout.colorValueFontSize}px` }}>
                 {colorValue}
               </div>
             </div>

@@ -614,7 +614,7 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
   onIgnore,
   registerCommentNode,
 }) {
-  const key = clean(comment.id || "");
+  const key = clean(comment.comment_id || comment.external_comment_id || comment.id || "");
   const attachmentPreview = getCommentAttachmentImage(comment.raw || comment);
   const busy = Boolean(replyLoadingKey === key || privateMessageLoadingKey === key || leadLoadingKey === key || ignoreLoadingKey === key);
   const privateMessageSupported = supportsPrivateMessage(comment, activePostPlatform);

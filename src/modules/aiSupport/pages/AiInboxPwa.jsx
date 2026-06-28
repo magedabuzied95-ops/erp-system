@@ -4842,10 +4842,7 @@ export default function AiInboxPwa() {
                       return (
                         <SocialCommentsWorkspaceCommentRow
                           key={clean(comment.comment_id || comment.id || comment.created_at || `${index}`)}
-                          comment={{
-                            ...comment,
-                            platform: commentPlatform,
-                          }}
+                          comment={comment}
                           selectedCommentKey=""
                           highlightedCommentKey=""
                           activePostPlatform={commentPlatform}
