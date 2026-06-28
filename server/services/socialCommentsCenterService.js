@@ -614,11 +614,21 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   const mappingSummary = postId && tenantId
     ? await getMappings({ tenantId, platform, postId, row: safeRow, post: safeRow }).catch(() => null)
     : null;
+  const primaryMappedProduct = mappingSummary?.primary_product || null;
   const appendMappingSummary = (value = {}) => ({
     ...value,
     linked_products: mappingSummary?.linked_products || [],
     primary_linked_product: mappingSummary?.primary_product || null,
     primary_product: mappingSummary?.primary_product || null,
+    primary_product_name: text(mappingSummary?.primary_product?.name || mappingSummary?.primary_product?.title || mappingSummary?.primary_product?.product_name || ""),
+    product_id: mappingSummary?.primary_product?.product_id || mappingSummary?.primary_product?.id || value.product_id || safeRow.product_id || null,
+    product_name: text(mappingSummary?.primary_product?.name || mappingSummary?.primary_product?.title || mappingSummary?.primary_product?.product_name || value.product_name || safeRow.product_name || ""),
+    product_price: mappingSummary?.primary_product?.price ?? mappingSummary?.primary_product?.final_price ?? mappingSummary?.primary_product?.sale_price ?? value.product_price ?? safeRow.product_price ?? null,
+    product_sale_price: mappingSummary?.primary_product?.sale_price ?? mappingSummary?.primary_product?.final_price ?? value.product_sale_price ?? safeRow.product_sale_price ?? null,
+    product_image_url: text(mappingSummary?.primary_product?.image_url || value.product_image_url || safeRow.product_image_url || ""),
+    product_storefront_url: text(mappingSummary?.primary_product?.storefront_url || mappingSummary?.primary_product?.product_url || value.product_storefront_url || safeRow.product_storefront_url || ""),
+    product_sizes: text(mappingSummary?.primary_product?.available_sizes?.join ? mappingSummary.primary_product.available_sizes.join(", ") : mappingSummary?.primary_product?.sizes || value.product_sizes || safeRow.product_sizes || ""),
+    product_colors: text(mappingSummary?.primary_product?.available_colors?.join ? mappingSummary.primary_product.available_colors.join(", ") : mappingSummary?.primary_product?.colors || value.product_colors || safeRow.product_colors || ""),
     linked_products_count: Number(mappingSummary?.count || 0) || 0,
     product_links_count: Number(mappingSummary?.count || 0) || 0,
     mapping_summary: mappingSummary || null,
@@ -1277,14 +1287,14 @@ const normalizeSocialCommentTimelineRow = async ({ tenantId = null, row = {}, pl
     metadata.text
   );
   const createdAt = firstText(
-    row.created_at,
-    row.createdTime,
-    row.created_time,
     row.comment_created_time,
+    row.created_time,
+    row.createdTime,
+    row.created_at,
     row.processed_at,
-    metadata.created_at,
-    metadata.created_time,
     metadata.comment_created_time,
+    metadata.created_time,
+    metadata.created_at,
     metadata.processed_at
   );
   const postId = firstText(
@@ -1797,11 +1807,11 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
       SELECT
         COUNT(*)::int AS comments_count,
         COUNT(*) FILTER (WHERE msg.created_at > COALESCE(c.read_at, s.read_at))::int AS new_comments_count,
-        MAX(msg.created_at) AS last_comment_at,
-        (ARRAY_AGG(msg.customer_message ORDER BY msg.created_at DESC, msg.id DESC))[1] AS last_comment_text,
-        (ARRAY_AGG(msg.customer_name ORDER BY msg.created_at DESC, msg.id DESC))[1] AS last_commenter_name,
-        (ARRAY_AGG(msg.commenter_id ORDER BY msg.created_at DESC, msg.id DESC))[1] AS last_commenter_id,
-        (ARRAY_AGG(msg.comment_id ORDER BY msg.created_at DESC, msg.id DESC))[1] AS last_comment_id
+        MAX(COALESCE(NULLIF(msg.comment_created_time, ''), to_char(msg.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))) AS last_comment_at,
+        (ARRAY_AGG(msg.customer_message ORDER BY COALESCE(NULLIF(msg.comment_created_time, ''), to_char(msg.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_comment_text,
+        (ARRAY_AGG(msg.customer_name ORDER BY COALESCE(NULLIF(msg.comment_created_time, ''), to_char(msg.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_commenter_name,
+        (ARRAY_AGG(msg.commenter_id ORDER BY COALESCE(NULLIF(msg.comment_created_time, ''), to_char(msg.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_commenter_id,
+        (ARRAY_AGG(msg.comment_id ORDER BY COALESCE(NULLIF(msg.comment_created_time, ''), to_char(msg.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_comment_id
       FROM ai_support_messages msg
       WHERE msg.tenant_id = c.tenant_id
         AND msg.session_id = c.external_conversation_id
@@ -1963,11 +1973,11 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       SELECT
         COUNT(*)::int AS comments_count,
         COUNT(*) FILTER (WHERE msg.created_at > COALESCE(c.read_at, s.read_at))::int AS new_comments_count,
-        MAX(msg.created_at) AS last_comment_at,
-        (ARRAY_AGG(msg.customer_message ORDER BY msg.created_at DESC, msg.id DESC))[1] AS last_comment_text,
-        (ARRAY_AGG(msg.customer_name ORDER BY msg.created_at DESC, msg.id DESC))[1] AS last_commenter_name,
-        (ARRAY_AGG(msg.commenter_id ORDER BY msg.created_at DESC, msg.id DESC))[1] AS last_commenter_id,
-        (ARRAY_AGG(msg.comment_id ORDER BY msg.created_at DESC, msg.id DESC))[1] AS last_comment_id
+        MAX(COALESCE(NULLIF(msg.comment_created_time, ''), to_char(msg.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"'))) AS last_comment_at,
+        (ARRAY_AGG(msg.customer_message ORDER BY COALESCE(NULLIF(msg.comment_created_time, ''), to_char(msg.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_comment_text,
+        (ARRAY_AGG(msg.customer_name ORDER BY COALESCE(NULLIF(msg.comment_created_time, ''), to_char(msg.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_commenter_name,
+        (ARRAY_AGG(msg.commenter_id ORDER BY COALESCE(NULLIF(msg.comment_created_time, ''), to_char(msg.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_commenter_id,
+        (ARRAY_AGG(msg.comment_id ORDER BY COALESCE(NULLIF(msg.comment_created_time, ''), to_char(msg.created_at, 'YYYY-MM-DD"T"HH24:MI:SS.MS"Z"')) DESC, msg.id DESC))[1] AS last_comment_id
       FROM ai_support_messages msg
       WHERE msg.tenant_id = c.tenant_id
         AND msg.session_id = c.external_conversation_id
@@ -2089,6 +2099,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       new_comments_count: newCommentsCount,
       last_comment_at: latestActivity || primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null,
       last_message_at: latestActivity || primary.last_message_at || primary.last_comment_at || primary.updated_at || primary.created_at || null,
+      last_activity_at: latestActivity || primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null,
       grouped_conversation_ids: rows.map((row) => text(row.conversation_id || row.external_conversation_id || "")).filter(Boolean),
       grouped_row_count: rows.length,
       latest_activity_at: latestActivity || primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null,
@@ -2367,7 +2378,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
         OR msg.post_id LIKE ANY($3::text[])
       )
       AND msg.message_type = 'comment_inbound'
-    ORDER BY msg.created_at ASC, msg.id ASC
+    ORDER BY COALESCE(NULLIF(msg.comment_created_time, ''), msg.created_at) ASC, msg.id ASC
     `,
     [safeTenantId, sessionIds, sessionPatterns, canonicalPostId || safePostId]
   );
