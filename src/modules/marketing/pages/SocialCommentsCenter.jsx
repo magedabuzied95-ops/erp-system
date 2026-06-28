@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
+import Customer360Drawer from "../../aiSupport/components/Customer360Drawer.jsx";
 import SocialCommentsWorkspace from "../../aiSupport/components/SocialCommentsWorkspace.jsx";
 
 const clean = (value = "") => String(value ?? "").trim();
@@ -76,7 +77,47 @@ function SocialCommentsCenter() {
     mode: "manual_approval",
   });
   const [targetCommentMissing, setTargetCommentMissing] = useState(false);
+  const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const lastSelectionRef = useRef("");
+
+  const openCustomerDrawer = useCallback((customer = {}, context = {}) => {
+    const customerProfile = customer?.customer_profile || customer?.profile || {};
+    const customerId = clean(
+      customer.customer_profile_id ||
+        customer.customerProfileId ||
+        customer.external_customer_id ||
+        customerProfile.id ||
+        customer.id ||
+        customer.commenter_id ||
+        customer.profile_id ||
+        ""
+    );
+    setCustomerDrawer({
+      open: true,
+      customer: {
+        ...customer,
+        id: customerId,
+        customer_name:
+          clean(customer.customer_name || customer.commenter_name || customer.author_name || customer.from_name || customerProfile.name || customerProfile.display_name || "") ||
+          "Customer",
+        customer_avatar_url: clean(customer.customer_avatar_url || customer.commenter_profile_picture_url || customerProfile.avatar_url || customerProfile.profile_pic_url || ""),
+        platform: clean(customer.platform || context.platform || customerProfile.platform || ""),
+        customer_profile: customerProfile,
+        external_customer_id: clean(customer.external_customer_id || customerProfile.external_customer_id || ""),
+      },
+      customerId,
+      context: {
+        platform: clean(context.platform || customer.platform || ""),
+        postId: clean(context.postId || customer.post_id || customer.postId || ""),
+        commentId: clean(context.commentId || customer.comment_id || customer.commentId || ""),
+        pageId: clean(context.pageId || customer.page_id || customer.pageId || ""),
+        source: clean(context.source || customer.source || "social_comment"),
+        lastActiveAt: clean(context.lastActiveAt || customer.created_at || customer.updated_at || ""),
+        summary: clean(context.summary || customer.comment_text || customer.message || ""),
+        customerName: clean(customer.customer_name || customer.commenter_name || customer.author_name || customer.from_name || ""),
+      },
+    });
+  }, []);
 
   const selectedPostIdentity = useMemo(() => socialPostIdentity(selectedPost || {}), [selectedPost]);
   const routeSelection = useMemo(
@@ -327,11 +368,20 @@ function SocialCommentsCenter() {
             globalSettings={globalSettings}
             onRefresh={handleRefresh}
             onSelectPost={handleSelectPost}
+            onSelectCustomer={openCustomerDrawer}
             tenantId={tenantId}
             initialSelectedCommentId={commentIdParam}
           />
         </div>
       </div>
+      <Customer360Drawer
+        open={customerDrawer.open}
+        onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
+        customer={customerDrawer.customer}
+        customerId={customerDrawer.customerId}
+        context={customerDrawer.context}
+        title="Customer 360"
+      />
     </div>
   );
 }

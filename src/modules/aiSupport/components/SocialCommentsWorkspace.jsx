@@ -552,6 +552,7 @@ function SocialCommentsWorkspace({
   },
   onRefresh,
   onSelectPost,
+  onSelectCustomer,
   tenantId = "",
   initialSelectedCommentId = "",
 }) {
@@ -1710,6 +1711,7 @@ function SocialCommentsWorkspace({
                             comment={comment}
                             selected={key === selectedCommentKey || isHighlighted}
                             onSelect={() => setSelectedCommentKey(key)}
+                            onCustomerSelect={onSelectCustomer}
                           >
                             {attachmentPreview ? (
                               <a

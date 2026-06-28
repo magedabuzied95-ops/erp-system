@@ -291,6 +291,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
   comment = {},
   selected = false,
   onSelect,
+  onCustomerSelect,
   onKeyDown,
   fallbackPlatform = "facebook",
   className = "",
@@ -327,16 +328,34 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
       <div className="flex items-start gap-3.5">
         <div className="relative shrink-0">
           {hasAvatar ? (
-            <img
-              src={data.customerAvatarUrl}
-              alt={data.customerName}
-              className="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
-              loading="lazy"
-            />
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCustomerSelect?.(comment, data);
+              }}
+              className="overflow-hidden rounded-full ring-1 ring-slate-200 transition hover:ring-slate-300"
+              aria-label={`Open customer details for ${data.customerName || "customer"}`}
+            >
+              <img
+                src={data.customerAvatarUrl}
+                alt={data.customerName}
+                className="h-12 w-12 rounded-full object-cover"
+                loading="lazy"
+              />
+            </button>
           ) : (
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-sm font-black text-slate-700 ring-1 ring-slate-200">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCustomerSelect?.(comment, data);
+              }}
+              className="grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200"
+              aria-label={`Open customer details for ${data.customerName || "customer"}`}
+            >
               {data.initials || <UserRound className="h-5 w-5" />}
-            </span>
+            </button>
           )}
           <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border border-white bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.18)]">
             <MessageSquareText className="h-3 w-3" />
@@ -346,7 +365,16 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="truncate text-[15px] font-black leading-6 text-slate-900">{data.customerName || "عميل"}</div>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onCustomerSelect?.(comment, data);
+                }}
+                className="truncate text-left text-[15px] font-black leading-6 text-slate-900 hover:underline"
+              >
+                {data.customerName || "عميل"}
+              </button>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">
                 <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${data.platformMeta.className}`}>
                   {data.platformMeta.label}
