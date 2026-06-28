@@ -80,19 +80,19 @@ const loadImageDataUrl = async (url) => {
   }
 };
 
-const createClockwiseMapper = (physicalPageWidth, physicalPageHeight) => ({
+const createClockwiseMapper = (logicalPageWidth, logicalPageHeight) => ({
   mapRect: (x, y, w, h) => ({
-    x: physicalPageWidth - y - h,
-    y: x,
+    x: y,
+    y: logicalPageWidth - x - w,
     w: h,
     h: w,
   }),
   mapPoint: (x, y) => ({
-    x: physicalPageWidth - y,
-    y: x,
+    x: y,
+    y: logicalPageWidth - x,
   }),
-  physicalPageWidth,
-  physicalPageHeight,
+  logicalPageWidth,
+  logicalPageHeight,
 });
 
 const drawMappedRect = (doc, mapper, x, y, w, h, mode = "S") => {
@@ -115,7 +115,7 @@ const drawMappedRoundedRect = (doc, mapper, x, y, w, h, radius = 1.5, fill = nul
 
 const drawMappedText = (doc, mapper, text, x, y, options = {}) => {
   const mapped = mapper.mapPoint(x, y);
-  doc.text(text, mapped.x, mapped.y, { ...options, angle: 90 });
+  doc.text(text, mapped.x, mapped.y, options);
 };
 
 const getCode128Bars = (value, widthMm, heightMm) => {
@@ -180,7 +180,7 @@ const drawImageOrPlaceholder = async (doc, mapper, item, x, y, w, h) => {
     try {
       const format = imageData.startsWith("data:image/png") ? "PNG" : "JPEG";
       const mapped = mapper.mapRect(x, y, w, h);
-      doc.addImage(imageData, format, mapped.x, mapped.y, mapped.w, mapped.h, undefined, "FAST", 90);
+      doc.addImage(imageData, format, mapped.x, mapped.y, mapped.w, mapped.h, undefined, "FAST");
       return true;
     } catch {
       try {
@@ -202,7 +202,7 @@ const drawImageOrPlaceholder = async (doc, mapper, item, x, y, w, h) => {
   doc.setFontSize(8);
   const label = "No Image";
   const labelPoint = mapper.mapPoint(x + w / 2, y + h / 2 + 1);
-  doc.text(label, labelPoint.x, labelPoint.y, { align: "center", baseline: "middle", angle: 90 });
+  doc.text(label, labelPoint.x, labelPoint.y, { align: "center", baseline: "middle" });
   return false;
 };
 
@@ -213,9 +213,9 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
       height: doc.internal.pageSize.getHeight(),
     });
   }
-  const mapper = createClockwiseMapper(doc.internal.pageSize.getWidth(), doc.internal.pageSize.getHeight());
   const logicalPageWidth = 100;
   const logicalPageHeight = 50;
+  const mapper = createClockwiseMapper(logicalPageWidth, logicalPageHeight);
   const imageX = 2;
   const imageY = 3.2;
   const imageW = 35.5;
