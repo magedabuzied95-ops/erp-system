@@ -265,8 +265,11 @@ export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "fac
   return {
     key: clean(comment.id || comment.comment_id || comment.external_message_id || comment.provider_message_id || raw.id || raw.comment_id || metadata.comment_id || ""),
     customerName: customerName || "عميل",
+    customer_name: customerName || "عميل",
     customerAvatarUrl,
+    customer_avatar_url: customerAvatarUrl,
     text,
+    comment_text: text,
     createdAt,
     created_at: createdAt,
     created_time: createdAt,

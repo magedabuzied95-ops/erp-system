@@ -1101,7 +1101,7 @@ const buildSocialCommentTemplateContext = ({ post = {}, comment = {}, settings =
   const sizes = asArray(post.sizes || product.sizes || post.product_sizes || []).filter(Boolean).join(", ");
   const colors = asArray(post.colors || product.colors || post.product_colors || []).filter(Boolean).join(", ");
   return {
-    customer_name: text(comment.commenter_name || comment.customer_name || "Customer"),
+    customer_name: text(comment.commenter_name || comment.customer_name || "عميل"),
     product_name: text(product.name || post.product_name || post.title || ""),
     price: text(product.price || post.price || ""),
     sale_price: text(product.sale_price || post.sale_price || ""),
