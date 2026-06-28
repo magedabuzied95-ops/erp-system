@@ -4,6 +4,8 @@ import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
+const ENABLE_THERMAL_IMAGE_OPTIMIZER = true;
+
 const escapeString = (value = "") =>
   String(value ?? "")
     .replace(/\u0000/g, "")
@@ -80,6 +82,138 @@ const loadImageDataUrl = async (url) => {
   }
 };
 
+const loadCanvasImage = async (src) =>
+  new Promise((resolve, reject) => {
+    if (typeof Image === "undefined") {
+      reject(new Error("Image is not available"));
+      return;
+    }
+
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Failed to load image"));
+    image.src = src;
+  });
+
+const clampByte = (value) => Math.max(0, Math.min(255, Math.round(value)));
+
+const prepareThermalImage = async (imageData) => {
+  if (!ENABLE_THERMAL_IMAGE_OPTIMIZER || !imageData || typeof document === "undefined") {
+    return "";
+  }
+
+  try {
+    const image = await loadCanvasImage(imageData);
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth || image.width || 0;
+    canvas.height = image.naturalHeight || image.height || 0;
+    if (!canvas.width || !canvas.height) return "";
+
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) return "";
+
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const imageDataBuffer = context.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageDataBuffer.data;
+    const pixelCount = data.length / 4;
+
+    let minLuminance = 255;
+    let maxLuminance = 0;
+    let luminanceSum = 0;
+    const luminances = new Float32Array(pixelCount);
+
+    for (let offset = 0, pixelIndex = 0; offset < data.length; offset += 4, pixelIndex += 1) {
+      const r = data[offset];
+      const g = data[offset + 1];
+      const b = data[offset + 2];
+      const luminance = (r * 0.299) + (g * 0.587) + (b * 0.114);
+      luminances[pixelIndex] = luminance;
+      luminanceSum += luminance;
+      if (luminance < minLuminance) minLuminance = luminance;
+      if (luminance > maxLuminance) maxLuminance = luminance;
+    }
+
+    const averageLuminance = luminanceSum / Math.max(1, pixelCount);
+    const contrastRange = Math.max(1, maxLuminance - minLuminance);
+    const contrastScale = 255 / contrastRange;
+    const gamma = 0.9;
+    const brightnessScale = 0.95;
+    const contrastBoost = 1.2;
+    const edgeThreshold = averageLuminance > 220 ? 42 : Infinity;
+    const edgeStrength = averageLuminance > 220 ? 0.45 : 0;
+
+    const getLuminanceAt = (x, y) => {
+      const clampedX = Math.max(0, Math.min(canvas.width - 1, x));
+      const clampedY = Math.max(0, Math.min(canvas.height - 1, y));
+      return luminances[(clampedY * canvas.width) + clampedX] || 0;
+    };
+
+    for (let offset = 0, pixelIndex = 0; offset < data.length; offset += 4, pixelIndex += 1) {
+      const luminance = luminances[pixelIndex];
+      const normalized = (luminance - minLuminance) * contrastScale / 255;
+      const autoContrasted = clampByte(Math.pow(Math.max(0, Math.min(1, normalized)), gamma) * 255);
+      const boosted = clampByte((((autoContrasted - 128) * contrastBoost) + 128) * brightnessScale);
+
+      let r = boosted;
+      let g = boosted;
+      let b = boosted;
+
+      // Preserve the base hue a little while still pushing toward higher legibility.
+      const sourceR = data[offset];
+      const sourceG = data[offset + 1];
+      const sourceB = data[offset + 2];
+      const sourceLum = Math.max(1, luminance);
+      const chromaScale = boosted / sourceLum;
+      r = clampByte(sourceR * chromaScale);
+      g = clampByte(sourceG * chromaScale);
+      b = clampByte(sourceB * chromaScale);
+
+      const x = pixelIndex % canvas.width;
+      const y = Math.floor(pixelIndex / canvas.width);
+      const center = getLuminanceAt(x, y);
+      const left = getLuminanceAt(x - 1, y);
+      const right = getLuminanceAt(x + 1, y);
+      const up = getLuminanceAt(x, y - 1);
+      const down = getLuminanceAt(x, y + 1);
+      const sobel = Math.abs(left - right) + Math.abs(up - down);
+
+      const blurNeighbors =
+        getLuminanceAt(x - 1, y - 1) +
+        left +
+        getLuminanceAt(x - 1, y + 1) +
+        up +
+        center +
+        down +
+        getLuminanceAt(x + 1, y - 1) +
+        right +
+        getLuminanceAt(x + 1, y + 1);
+      const localAverage = blurNeighbors / 9;
+      const localContrast = clampByte(center + ((center - localAverage) * 0.18));
+
+      r = clampByte((r * 0.7) + (localContrast * 0.3));
+      g = clampByte((g * 0.7) + (localContrast * 0.3));
+      b = clampByte((b * 0.7) + (localContrast * 0.3));
+
+      if (sobel > edgeThreshold) {
+        const edgeTone = clampByte(40 + (sobel * edgeStrength));
+        r = Math.min(r, edgeTone);
+        g = Math.min(g, edgeTone);
+        b = Math.min(b, edgeTone);
+      }
+
+      data[offset] = r;
+      data[offset + 1] = g;
+      data[offset + 2] = b;
+    }
+
+    context.putImageData(imageDataBuffer, 0, 0);
+    return canvas.toDataURL("image/png");
+  } catch {
+    return "";
+  }
+};
+
 const getCode128Bars = (value, widthMm, heightMm) => {
   const barcode = normalizeLabelText(value);
   const quietZone = 2.8;
@@ -138,15 +272,23 @@ const drawImageOrPlaceholder = async (doc, item, x, y, w, h) => {
   const url = getLabelImageUrl(item);
   const imageData = await loadImageDataUrl(url);
   doc.setFillColor(245, 245, 245);
-  doc.setDrawColor(203, 213, 225);
+  doc.setDrawColor(160, 160, 160);
   doc.roundedRect(x, y, w, h, 2, 2, "FD");
   if (imageData) {
     try {
-      const format = imageData.startsWith("data:image/png") ? "PNG" : "JPEG";
-      doc.addImage(imageData, format, x, y, w, h, undefined, "FAST");
+      const optimizedImageData = await prepareThermalImage(imageData);
+      const finalImageData = optimizedImageData || imageData;
+      const format = finalImageData.startsWith("data:image/png") ? "PNG" : "JPEG";
+      doc.addImage(finalImageData, format, x, y, w, h, undefined, "FAST");
       return true;
     } catch {
-      // Fall through to placeholder.
+      try {
+        const format = imageData.startsWith("data:image/png") ? "PNG" : "JPEG";
+        doc.addImage(imageData, format, x, y, w, h, undefined, "FAST");
+        return true;
+      } catch {
+        // Fall through to placeholder.
+      }
     }
   }
 
