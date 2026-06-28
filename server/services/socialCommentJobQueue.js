@@ -83,6 +83,30 @@ export const processSocialCommentJob = async (job = {}) => {
   if (normalizedJob.type !== "social_comment_automation") {
     throw new Error(`Unsupported social comment job type: ${normalizedJob.type || "unknown"}`);
   }
+  const dbModule = await import("../database/db.js");
+  const db = dbModule.default || dbModule;
+  const existing = await db.query(
+    `
+    SELECT public_reply_status, dm_status, like_status
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND comment_id = $3::text
+    LIMIT 1
+    `,
+    [normalizedJob.tenant_id, normalizedJob.platform, normalizedJob.comment_id]
+  ).catch(() => ({ rows: [] }));
+  const currentRow = existing.rows?.[0] || null;
+  if (["sent"].includes(String(currentRow?.public_reply_status || "").toLowerCase()) ||
+      ["sent"].includes(String(currentRow?.dm_status || "").toLowerCase()) ||
+      ["sent"].includes(String(currentRow?.like_status || "").toLowerCase())) {
+    return {
+      success: true,
+      skipped: true,
+      reason: "already_completed",
+      job: normalizedJob,
+    };
+  }
   const module = await import("./socialCommentAutomationService.js");
   const handler = module.storeSocialCommentAutomationRuns;
   if (typeof handler !== "function") {

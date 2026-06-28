@@ -25,6 +25,7 @@ import {
   getMappings as getPostProductMappings,
   removeMapping as removePostProductMapping,
   saveMappings as savePostProductMappings,
+  buildPostIdentityTrace,
 } from "../services/postProductMappingService.js";
 import {
   listRecentSocialCommentAutomationRuns as listSocialCommentAutomationRuns,
@@ -453,6 +454,7 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       tenantId,
       platform,
       postId,
+      selectedPostId: requestedPostId,
       row: post || {},
       post: post || {},
       productIds,
@@ -460,6 +462,20 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       userId: req.user?.id || req.user?.user_id || null,
     });
     const readback = await getPostProductMappings({ tenantId, platform, postId, row: post || {}, post: post || {} });
+    console.info("POST_PRODUCT_LINK_IDENTITY_TRACE", {
+      ...buildPostIdentityTrace({
+        tenantId,
+        platform,
+        selectedPostId: requestedPostId,
+        canonicalPostId,
+        platformPostId: readback?.post_id || post?.platform_post_id || post?.post_id || requestedPostId || "",
+        row: post || {},
+        post: post || {},
+        matchedMappingKey: readback?.matched_mapping_key || "",
+        productIds: Array.isArray(readback?.linked_products) ? readback.linked_products.map((item) => item.product_id || item.id || null).filter(Boolean) : productIds,
+      }),
+      candidate_post_ids: [],
+    });
     console.info("POST_PRODUCT_LINKS_SAVED", {
       tenant_id: tenantId,
       platform: String(platform || post?.platform || "facebook").trim() || "facebook",
