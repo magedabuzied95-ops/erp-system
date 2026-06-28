@@ -4,6 +4,17 @@ const trim = (value = "") => String(value ?? "").trim();
 
 const normalizeBaseUrl = (value = "") => trim(value).replace(/\/+$/g, "");
 
+const isLocalEvolutionApiUrl = (value = "") => {
+  const normalized = normalizeBaseUrl(value);
+  if (!normalized) return false;
+  try {
+    const parsed = new URL(normalized);
+    return ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+  } catch {
+    return /(?:^|\/\/)(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(normalized);
+  }
+};
+
 const config = () => {
   const apiUrl = normalizeBaseUrl(process.env.EVOLUTION_API_URL);
   const apiKey = trim(process.env.EVOLUTION_API_KEY);
@@ -18,8 +29,69 @@ const config = () => {
   };
 };
 
-const hasRequiredConfig = (current = config()) =>
-  Boolean(current.apiUrl && current.apiKey && current.instanceName && current.publicUrl);
+const hasRequiredConfig = (current = config()) => {
+  if (!current.apiUrl || !current.apiKey || !current.instanceName || !current.publicUrl) return false;
+  if (process.env.NODE_ENV === "production" && isLocalEvolutionApiUrl(current.apiUrl)) return false;
+  return true;
+};
+
+const redactedHeaders = (headers = {}) => {
+  const output = {};
+  for (const [key, value] of Object.entries(headers || {})) {
+    if (/api[_-]?key|authorization|token|secret|password|apikey/i.test(key)) {
+      output[key] = value ? "[REDACTED]" : value;
+      continue;
+    }
+    output[key] = value;
+  }
+  return output;
+};
+
+const parseRequestBody = (body = null) => {
+  if (body === null || body === undefined) return null;
+  if (typeof body !== "string") return body;
+  try {
+    return JSON.parse(body);
+  } catch {
+    return body;
+  }
+};
+
+const flattenValidationMessages = (value) => {
+  if (value === null || value === undefined) return null;
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => {
+      const nested = flattenValidationMessages(entry);
+      return nested === null ? [] : Array.isArray(nested) ? nested : [nested];
+    });
+  }
+  if (typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, entry]) => [key, flattenValidationMessages(entry)])
+    );
+  }
+  return value;
+};
+
+const logRequestDetails = (label, { url = "", options = {} } = {}) => {
+  console.log(label, {
+    method: options.method || "GET",
+    url,
+    headers: redactedHeaders(options.headers || {}),
+    body: parseRequestBody(options.body),
+  });
+};
+
+const logResponseDetails = (label, response = {}) => {
+  const payload = response?.data ?? response ?? null;
+  console.log(label, {
+    data: payload,
+    message: payload?.message ?? response?.message ?? null,
+    validation_errors: flattenValidationMessages(payload?.validation ?? payload?.errors ?? payload?.message ?? null),
+    errors: payload?.errors ?? response?.errors ?? null,
+    response_message: response?.message ?? null,
+  });
+};
 
 const logFullError = (label, error = {}) => {
   console.error(label, {
@@ -45,6 +117,18 @@ const logFullError = (label, error = {}) => {
 };
 
 const requestWithFetch = async (url, current, options = {}) => {
+  logRequestDetails("[evolution-webhook-sync:request]", {
+    url,
+    options: {
+      method: options.method || "GET",
+      headers: {
+        apikey: current.apiKey,
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      body: options.body || null,
+    },
+  });
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -60,6 +144,7 @@ const requestWithFetch = async (url, current, options = {}) => {
   } catch {
     data = { raw };
   }
+  logResponseDetails("[evolution-webhook-sync:response]", data);
   if (!response.ok) {
     const error = new Error(data?.message || data?.error || `Evolution API returned ${response.status}`);
     error.status = response.status;
@@ -71,6 +156,18 @@ const requestWithFetch = async (url, current, options = {}) => {
 };
 
 const requestWithAxios = async (url, current, options = {}) => {
+  logRequestDetails("[evolution-webhook-sync:request]", {
+    url,
+    options: {
+      method: options.method || "GET",
+      headers: {
+        apikey: current.apiKey,
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+      },
+      body: options.body || null,
+    },
+  });
   const response = await axios.request({
     url,
     method: options.method || "GET",
@@ -83,6 +180,7 @@ const requestWithAxios = async (url, current, options = {}) => {
     validateStatus: () => true,
     timeout: Number(process.env.EVOLUTION_REQUEST_TIMEOUT_MS || 10_000),
   });
+  logResponseDetails("[evolution-webhook-sync:response]", response);
   if (response.status < 200 || response.status >= 300) {
     const error = new Error(response.data?.message || response.data?.error || `Evolution API returned ${response.status}`);
     error.status = response.status;
@@ -120,20 +218,14 @@ const evolutionRequest = async (path, options = {}) => {
 
 const getWebhookSetEndpoint = (instanceName = "") => `/webhook/set/${encodeURIComponent(trim(instanceName))}`;
 
-const normalizeWebhookResponse = (response = {}) => ({
-  message: response?.message ?? "",
-  errors: response?.errors ?? response?.error ?? null,
-  validation: response?.validation ?? null,
-  raw: response ?? null,
-});
-
 const logWebhookResponse = (label, response = {}) => {
-  const normalized = normalizeWebhookResponse(response);
+  const data = response?.data ?? response ?? null;
   console.log(label, {
-    message: normalized.message,
-    errors: normalized.errors,
-    validation: normalized.validation,
-    raw: normalized.raw,
+    data,
+    message: data?.message ?? response?.message ?? null,
+    validation_errors: flattenValidationMessages(data?.validation ?? data?.errors ?? data?.message ?? null),
+    errors: data?.errors ?? response?.errors ?? response?.error ?? null,
+    raw: response ?? null,
   });
 };
 
@@ -322,8 +414,8 @@ const updateWebhookByRecordId = async ({ current, webhookRecord, desiredUrl }) =
     enabled: true,
     url: desiredUrl,
     events: requiredWebhookEvents,
-    webhook_by_events: false,
-    webhook_base64: false,
+    webhookByEvents: false,
+    webhookBase64: false,
   };
 
   const updateEndpoint = getWebhookSetEndpoint(current.instanceName);
@@ -373,29 +465,32 @@ export const syncEvolutionWebhookOnStartup = async () => {
     EVOLUTION_INSTANCE_NAME: current.instanceName || "missing",
   });
 
+  if (process.env.NODE_ENV === "production" && isLocalEvolutionApiUrl(current.apiUrl)) {
+    console.error("[evolution-webhook-sync:blocked-localhost-base-url]", {
+      apiUrl: current.apiUrl,
+      reason: "production_must_not_use_localhost",
+    });
+    return { skipped: true, reason: "invalid_evolution_api_url" };
+  }
+
   if (!hasRequiredConfig(current)) {
     return { skipped: true, reason: "missing_configuration" };
   }
 
   try {
-    const baseUrlsToTest = [
-      "http://localhost:8080",
-      "http://127.0.0.1:8080",
-      current.apiUrl,
-    ].filter(Boolean);
-    for (const baseUrl of baseUrlsToTest) {
-      const normalized = normalizeBaseUrl(baseUrl);
-      try {
-        console.log("[evolution-webhook-sync:base-url-test]", { baseUrl: normalized });
-        await requestWithFetch(normalized, current, { method: "GET" });
-        console.log("[evolution-webhook-sync:base-url-ok]", { baseUrl: normalized });
-      } catch (error) {
-        console.warn("[evolution-webhook-sync:base-url-failed]", {
-          baseUrl: normalized,
-          message: error?.message || String(error),
-        });
-        logFullError("[evolution-webhook-sync:base-url-error]", error);
-      }
+    console.log("[evolution-webhook-sync:base-url]", {
+      canonical_base_url: current.apiUrl,
+      production_safe: !(process.env.NODE_ENV === "production" && isLocalEvolutionApiUrl(current.apiUrl)),
+    });
+    try {
+      await requestWithFetch(current.apiUrl, current, { method: "GET" });
+      console.log("[evolution-webhook-sync:base-url-ok]", { baseUrl: current.apiUrl });
+    } catch (error) {
+      console.warn("[evolution-webhook-sync:base-url-failed]", {
+        baseUrl: current.apiUrl,
+        message: error?.message || String(error),
+      });
+      logFullError("[evolution-webhook-sync:base-url-error]", error);
     }
 
     console.log("[evolution-webhook-sync:node-fetch]", {
