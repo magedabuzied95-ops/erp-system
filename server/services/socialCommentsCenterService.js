@@ -9,6 +9,7 @@ const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
+const isSocialSqlPerfEnabled = () => ["1", "true", "yes", "on"].includes(lower(process.env.DEBUG_SOCIAL_SQL_PERF || ""));
 const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
 };
@@ -42,6 +43,7 @@ const toBool = (value, fallback = false) => {
   return ["1", "true", "yes", "on"].includes(lower(value));
 };
 const toTenantId = (value) => Number(value) || 0;
+const SQL_SLOW_QUERY_THRESHOLD_MS = 150;
 
 const SOCIAL_AUTO_REPLY_DEFAULTS = {
   generic_enabled: false,
@@ -59,6 +61,7 @@ const socialFastListDurationsMs = [];
 let socialFastListCacheHits = 0;
 let socialFastListCacheMisses = 0;
 let socialFastListSlowCount = 0;
+let socialCommentsCenterSchemaReadyPromise = null;
 
 const normalizeSocialFastListCacheKeyPart = (value = "") => text(value).toLowerCase();
 
@@ -90,6 +93,40 @@ const pushRollingMetric = (collection, value, limit = SOCIAL_FAST_LIST_METRICS_W
   if (!Number.isFinite(numeric)) return;
   collection.push(numeric);
   while (collection.length > limit) collection.shift();
+};
+
+const logSocialSqlTiming = ({ logName = "SOCIAL_SQL_QUERY_MS", queryName = "", durationMs = 0, rowsCount = 0, tenantId = null, platform = "", postId = "", commentId = "" } = {}) => {
+  const payload = {
+    query_name: queryName,
+    duration_ms: Number(durationMs) || 0,
+    rows_count: Number(rowsCount) || 0,
+    tenant_id: toTenantId(tenantId) || null,
+    platform: text(platform),
+    post_id: text(postId),
+    comment_id: text(commentId),
+  };
+  console.log(logName, payload);
+  if (payload.duration_ms > SQL_SLOW_QUERY_THRESHOLD_MS) {
+    console.warn("SOCIAL_SQL_SLOW_QUERY", payload);
+  }
+};
+
+const explainSocialSql = async ({ queryName = "", sql = "", params = [] } = {}) => {
+  if (!isSocialSqlPerfEnabled() || !text(sql)) return null;
+  try {
+    const result = await db.query(`EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) ${sql}`, params);
+    console.log("SOCIAL_SQL_EXPLAIN_ANALYZE", {
+      query_name: queryName,
+      plan: result.rows?.[0]?.["QUERY PLAN"] || result.rows?.[0] || null,
+    });
+    return result.rows?.[0] || null;
+  } catch (error) {
+    console.warn("SOCIAL_SQL_EXPLAIN_ANALYZE_FAILED", {
+      query_name: queryName,
+      message: error?.message || String(error || ""),
+    });
+    return null;
+  }
 };
 
 const summarizeRollingMetric = (collection = []) => {
@@ -139,96 +176,108 @@ export const invalidateSocialCommentCenterFastListCache = ({ tenantId = null } =
 };
 
 const ensureSocialCommentsCenterSchema = async () => {
-  await ensureAiSalesAgentSchema().catch(() => {});
-  await ensureAiSupportLogSchema().catch(() => {});
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS social_auto_reply_settings (
-      tenant_id BIGINT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
-      generic_enabled BOOLEAN NOT NULL DEFAULT FALSE,
-      generic_like_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-      generic_reply_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-      generic_template TEXT NOT NULL DEFAULT '',
-      mode VARCHAR(40) NOT NULL DEFAULT 'manual_approval',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS social_post_auto_reply_templates (
-      id BIGSERIAL PRIMARY KEY,
-      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-      platform VARCHAR(30) NOT NULL DEFAULT 'facebook',
-      post_id TEXT NOT NULL,
-      enabled BOOLEAN NOT NULL DEFAULT FALSE,
-      like_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-      reply_enabled BOOLEAN NOT NULL DEFAULT TRUE,
-      template TEXT NOT NULL DEFAULT '',
-      mode VARCHAR(40) NOT NULL DEFAULT 'manual_approval',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE (tenant_id, platform, post_id)
-    )
-  `);
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS social_comment_post_automation_configs (
-      id BIGSERIAL PRIMARY KEY,
-      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-      post_id TEXT NOT NULL,
-      platform VARCHAR(30) NOT NULL DEFAULT 'facebook',
-      product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
-      template_key TEXT NOT NULL DEFAULT '',
-      enabled BOOLEAN NOT NULL DEFAULT FALSE,
-      settings JSONB NOT NULL DEFAULT '{}'::jsonb,
-      message_templates JSONB NOT NULL DEFAULT '{}'::jsonb,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE (tenant_id, post_id, platform)
-    )
-  `);
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS social_comment_auto_reply_runs (
-      id BIGSERIAL PRIMARY KEY,
-      tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
-      platform VARCHAR(30) NOT NULL DEFAULT 'facebook',
-      post_id TEXT NOT NULL DEFAULT '',
-      comment_id TEXT NOT NULL DEFAULT '',
-      template_source TEXT NOT NULL DEFAULT '',
-      rendered_reply TEXT NOT NULL DEFAULT '',
-      like_status TEXT NOT NULL DEFAULT 'pending',
-      reply_status TEXT NOT NULL DEFAULT 'pending',
-      mode TEXT NOT NULL DEFAULT 'manual_approval',
-      decision_reason TEXT NOT NULL DEFAULT '',
-      error_message TEXT NOT NULL DEFAULT '',
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      sent_at TIMESTAMP NULL,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE (tenant_id, platform, comment_id)
-    )
-  `);
-  await db.query(`
-    CREATE TABLE IF NOT EXISTS marketing_post_product_links (
-      id BIGSERIAL PRIMARY KEY,
-      tenant_id BIGINT NOT NULL,
-      platform TEXT NOT NULL,
-      platform_post_id TEXT NOT NULL,
-      product_id BIGINT NOT NULL,
-      priority INTEGER NOT NULL DEFAULT 1,
-      is_primary BOOLEAN NOT NULL DEFAULT TRUE,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE (tenant_id, platform, platform_post_id, product_id)
-    )
-  `);
-  await db.query(`ALTER TABLE IF EXISTS social_comment_auto_reply_runs ADD COLUMN IF NOT EXISTS reply_status TEXT NOT NULL DEFAULT 'pending'`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_auto_reply_settings_updated ON social_auto_reply_settings (updated_at DESC)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_post_auto_reply_templates_lookup ON social_post_auto_reply_templates (tenant_id, platform, post_id)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_post_automation_configs_lookup ON social_comment_post_automation_configs (tenant_id, post_id, platform)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_lookup ON social_comment_auto_reply_runs (tenant_id, platform, comment_id)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_list ON social_comment_automation_runs (tenant_id, platform, updated_at DESC, id DESC)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_created ON social_comment_automation_runs (tenant_id, platform, created_at DESC, id DESC)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_post ON social_comment_automation_runs (tenant_id, platform, post_id, updated_at DESC, id DESC)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_status ON social_comment_automation_runs (tenant_id, platform, LOWER(COALESCE(NULLIF(action_taken, ''), NULLIF(public_reply_status, ''), NULLIF(dm_status, ''))), updated_at DESC, id DESC)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_fast_reply ON social_comment_auto_reply_runs (tenant_id, platform, reply_status, updated_at DESC, id DESC)`);
+  if (!socialCommentsCenterSchemaReadyPromise) {
+    socialCommentsCenterSchemaReadyPromise = (async () => {
+      await ensureAiSalesAgentSchema().catch(() => {});
+      await ensureAiSupportLogSchema().catch(() => {});
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS social_auto_reply_settings (
+          tenant_id BIGINT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+          generic_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+          generic_like_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+          generic_reply_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+          generic_template TEXT NOT NULL DEFAULT '',
+          mode VARCHAR(40) NOT NULL DEFAULT 'manual_approval',
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS social_post_auto_reply_templates (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+          platform VARCHAR(30) NOT NULL DEFAULT 'facebook',
+          post_id TEXT NOT NULL,
+          enabled BOOLEAN NOT NULL DEFAULT FALSE,
+          like_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+          reply_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+          template TEXT NOT NULL DEFAULT '',
+          mode VARCHAR(40) NOT NULL DEFAULT 'manual_approval',
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (tenant_id, platform, post_id)
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS social_comment_post_automation_configs (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+          post_id TEXT NOT NULL,
+          platform VARCHAR(30) NOT NULL DEFAULT 'facebook',
+          product_id BIGINT NULL REFERENCES products(id) ON DELETE SET NULL,
+          template_key TEXT NOT NULL DEFAULT '',
+          enabled BOOLEAN NOT NULL DEFAULT FALSE,
+          settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+          message_templates JSONB NOT NULL DEFAULT '{}'::jsonb,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (tenant_id, post_id, platform)
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS social_comment_auto_reply_runs (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+          platform VARCHAR(30) NOT NULL DEFAULT 'facebook',
+          post_id TEXT NOT NULL DEFAULT '',
+          comment_id TEXT NOT NULL DEFAULT '',
+          template_source TEXT NOT NULL DEFAULT '',
+          rendered_reply TEXT NOT NULL DEFAULT '',
+          like_status TEXT NOT NULL DEFAULT 'pending',
+          reply_status TEXT NOT NULL DEFAULT 'pending',
+          mode TEXT NOT NULL DEFAULT 'manual_approval',
+          decision_reason TEXT NOT NULL DEFAULT '',
+          error_message TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          sent_at TIMESTAMP NULL,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (tenant_id, platform, comment_id)
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS marketing_post_product_links (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NOT NULL,
+          platform TEXT NOT NULL,
+          platform_post_id TEXT NOT NULL,
+          product_id BIGINT NOT NULL,
+          priority INTEGER NOT NULL DEFAULT 1,
+          is_primary BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE (tenant_id, platform, platform_post_id, product_id)
+        )
+      `);
+      await db.query(`ALTER TABLE IF EXISTS social_comment_auto_reply_runs ADD COLUMN IF NOT EXISTS reply_status TEXT NOT NULL DEFAULT 'pending'`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_auto_reply_settings_updated ON social_auto_reply_settings (updated_at DESC)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_post_auto_reply_templates_lookup ON social_post_auto_reply_templates (tenant_id, platform, post_id)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_post_automation_configs_lookup ON social_comment_post_automation_configs (tenant_id, post_id, platform)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_lookup ON social_comment_auto_reply_runs (tenant_id, platform, comment_id)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_tenant_platform_post ON social_comment_auto_reply_runs (tenant_id, platform, post_id, created_at DESC, id DESC)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_list ON social_comment_automation_runs (tenant_id, platform, updated_at DESC, id DESC)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_created ON social_comment_automation_runs (tenant_id, platform, created_at DESC, id DESC)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_post ON social_comment_automation_runs (tenant_id, platform, post_id, updated_at DESC, id DESC)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_status ON social_comment_automation_runs (tenant_id, platform, LOWER(COALESCE(NULLIF(action_taken, ''), NULLIF(public_reply_status, ''), NULLIF(dm_status, ''))), updated_at DESC, id DESC)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_fast_reply ON social_comment_auto_reply_runs (tenant_id, platform, reply_status, updated_at DESC, id DESC)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_social_post_lookup ON ai_channel_conversations (tenant_id, channel, thread_kind, (metadata->>'post_id'))`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_social_comment_lookup ON ai_support_messages (tenant_id, message_type, comment_id)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_marketing_post_product_links_social_comments_lookup ON marketing_post_product_links (business_id, platform, post_id, created_at DESC, id DESC)`);
+    })().catch((error) => {
+      socialCommentsCenterSchemaReadyPromise = null;
+      throw error;
+    });
+  }
+  return socialCommentsCenterSchemaReadyPromise;
 };
 
 const normalizePlatform = (value = "") => (lower(value) === "instagram" ? "instagram" : "facebook");
@@ -1859,6 +1908,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   if (!safeTenantId || !safePostId) return null;
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
+  const detailQueryStartedAt = Date.now();
   const result = await db.query(
     `
     SELECT
@@ -1883,7 +1933,6 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
       COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
       runmeta.automation_run_post_id,
-      runmeta.automation_run_raw_payload,
       s.read_at AS session_read_at,
       s.status AS session_status,
       s.updated_at AS session_updated_at,
@@ -1899,8 +1948,6 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
       prod.product_price,
       prod.product_sale_price,
       prod.product_image_url,
-      prod.product_gallery_images,
-      prod.product_variant_images,
       prod.product_storefront_url,
       prod.product_sizes,
       prod.product_colors,
@@ -1916,8 +1963,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
      AND s.session_id = c.external_conversation_id
     LEFT JOIN LATERAL (
       SELECT
-        (ARRAY_AGG(r.post_id ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_post_id,
-        (ARRAY_AGG(r.raw_payload ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_raw_payload
+        (ARRAY_AGG(r.post_id ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_post_id
       FROM social_comment_automation_runs r
       WHERE r.tenant_id = c.tenant_id
         AND r.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
@@ -1929,7 +1975,6 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
         COUNT(*) FILTER (WHERE msg.created_at > COALESCE(c.read_at, s.read_at))::int AS new_comments_count,
         MAX(NULLIF(msg.comment_created_time, '')) AS real_comment_created_time,
         MAX(msg.created_at) AS last_comment_at,
-        MAX(msg.created_at) AS msg_created_at,
         (ARRAY_AGG(msg.customer_message ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_comment_text,
         (ARRAY_AGG(msg.customer_name ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_commenter_name,
         (ARRAY_AGG(msg.commenter_id ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_commenter_id,
@@ -1956,23 +2001,6 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
         p.price AS product_price,
         p.sale_price AS product_sale_price,
         p.image_url AS product_image_url,
-        p.gallery_images AS product_gallery_images,
-        COALESCE((
-          SELECT jsonb_agg(
-            jsonb_build_object(
-              'id', vi.id,
-              'image_url', vi.image_url,
-              'color_name', vi.color_name,
-              'color_value', vi.color_value,
-              'sort_order', vi.sort_order,
-              'is_primary', vi.is_primary
-            )
-            ORDER BY vi.is_primary DESC, vi.sort_order ASC, vi.id ASC
-          )
-          FROM product_variant_images vi
-          WHERE vi.product_id = ppl.product_id
-            AND NULLIF(TRIM(vi.image_url), '') IS NOT NULL
-        ), '[]'::jsonb) AS product_variant_images,
         COALESCE(ppl.media_id, '') AS product_storefront_url,
         COALESCE(
           (SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
@@ -2007,6 +2035,15 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
     `,
     [safeTenantId, safePostId, normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"]
   );
+  logSocialSqlTiming({
+    logName: "SOCIAL_SQL_THREAD_DETAIL_MS",
+    queryName: "loadSocialCommentPost",
+    durationMs: Date.now() - detailQueryStartedAt,
+    rowsCount: result.rows?.length || 0,
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+  });
   const row = result.rows?.[0] || null;
   if (!row) return null;
   const enriched = await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform });
@@ -2485,6 +2522,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     wherePostId: canonicalPostId || safePostId,
     whereRootCommentId: "",
   });
+  const threadCommentsStartedAt = Date.now();
   const result = await db.query(
     `
     SELECT
@@ -2515,6 +2553,15 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     `,
     [safeTenantId, sessionIds, sessionPatterns, canonicalPostId || safePostId]
   );
+  logSocialSqlTiming({
+    logName: "SOCIAL_SQL_THREAD_DETAIL_MS",
+    queryName: "listSocialCommentThreadComments",
+    durationMs: Date.now() - threadCommentsStartedAt,
+    rowsCount: result.rows?.length || 0,
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+  });
   debugSocialCommentsWarn("[social-comments:data-debug]", {
     scope: "service:listSocialCommentThreadComments:after",
     tenantId: safeTenantId,
@@ -2685,8 +2732,7 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
     whereClauses.push(`(COALESCE(updated_at, processed_at, created_at), id) < ($${cursorParamIndex}::timestamp, $${cursorParamIndex + 1}::bigint)`);
     params.push(safeCursor.activityAt, Number(safeCursor.id) || 0);
   }
-  const result = await db.query(
-    `
+  const fastListSql = `
     WITH source_rows AS (
       SELECT
         id,
@@ -2705,8 +2751,9 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
         processed_at,
         ${hasStatusColumn ? "status" : "NULL::text AS status"},
         ${hasResolvedProductIdColumn ? "resolved_product_id" : "NULL::bigint AS resolved_product_id"},
-        ${hasRawPayloadColumn ? "COALESCE(raw_payload, '{}'::jsonb) AS raw_payload" : "'{}'::jsonb AS raw_payload"},
-        COALESCE(automation_state, '{}'::jsonb) AS automation_state,
+        ${hasRawPayloadColumn ? "COALESCE(NULLIF(original_comment_text, ''), NULLIF(raw_payload->>'message', ''), NULLIF(raw_payload->>'comment_text', ''), '')" : "COALESCE(NULLIF(original_comment_text, ''), '')"} AS message_preview,
+        ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'product_context'->>'product_id', ''), NULLIF(resolved_product_id::text, ''))" : "NULLIF(resolved_product_id::text, '')"} AS product_id_text,
+        ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'product_context'->>'product_name', ''), '')" : "''"} AS product_name,
         COALESCE(updated_at, processed_at, created_at) AS last_activity_at
       FROM social_comment_automation_runs
       WHERE ${whereClauses.join(" AND ")}
@@ -2718,18 +2765,32 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
       source_rows.comment_id,
       COALESCE(NULLIF(source_rows.commenter_name, ''), 'Customer') AS customer_name,
       COALESCE(NULLIF(source_rows.commenter_profile_picture_url, ''), '') AS customer_avatar_url,
-      COALESCE(NULLIF(source_rows.original_comment_text, ''), NULLIF(source_rows.raw_payload->>'message', ''), NULLIF(source_rows.raw_payload->>'comment_text', ''), '') AS message_preview,
+      source_rows.message_preview,
       source_rows.last_activity_at,
       COALESCE(NULLIF(source_rows.status, ''), NULLIF(source_rows.action_taken, ''), NULLIF(source_rows.public_reply_status, ''), NULLIF(source_rows.dm_status, ''), 'pending') AS status,
       COALESCE(NULLIF(source_rows.public_reply_status, ''), NULLIF(source_rows.dm_status, ''), NULLIF(source_rows.like_status, ''), NULLIF(source_rows.action_taken, ''), NULLIF(source_rows.status, ''), '') AS automation_status,
-      COALESCE(NULLIF(source_rows.raw_payload->'product_context'->>'product_id', ''), NULLIF(source_rows.automation_state->'product_context'->>'product_id', ''), NULLIF(source_rows.resolved_product_id::text, '')) AS product_id_text,
-      COALESCE(NULLIF(source_rows.raw_payload->'product_context'->>'product_name', ''), NULLIF(source_rows.automation_state->'product_context'->>'product_name', ''), '') AS product_name
+      source_rows.product_id_text,
+      source_rows.product_name
     FROM source_rows
     ORDER BY source_rows.last_activity_at DESC, source_rows.id DESC
     LIMIT $${params.length + 1}
-    `,
-    [...params, safeLimit + 1]
-  );
+  `;
+  const queryStartedAt = Date.now();
+  const result = await db.query(fastListSql, [...params, safeLimit + 1]);
+  const queryDurationMs = Date.now() - queryStartedAt;
+  logSocialSqlTiming({
+    logName: "SOCIAL_SQL_FAST_LIST_MS",
+    queryName: "listSocialCommentCenterFastList",
+    durationMs: queryDurationMs,
+    rowsCount: result.rows?.length || 0,
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+  });
+  void explainSocialSql({
+    queryName: "listSocialCommentCenterFastList",
+    sql: fastListSql,
+    params: [...params, safeLimit + 1],
+  });
   const items = (result.rows || []).map(normalizeSocialCommentFastListRow);
   const nextItems = items.slice(0, safeLimit);
   const lastItem = nextItems[nextItems.length - 1] || null;
@@ -2880,6 +2941,7 @@ const getSocialCommentCommentByCommentId = async ({ tenantId = null, platform = 
     "social_comment_automation_runs.comment_id",
     "social_comment_automation_runs.inbox_conversation_id",
   ];
+  const directLookupStartedAt = Date.now();
   const result = await db.query(
     `
     SELECT
@@ -2909,6 +2971,15 @@ const getSocialCommentCommentByCommentId = async ({ tenantId = null, platform = 
     `,
     [safeTenantId, safeCommentId, normalizedPlatform]
   );
+  logSocialSqlTiming({
+    logName: "SOCIAL_SQL_THREAD_DETAIL_MS",
+    queryName: "getSocialCommentCommentByCommentId:direct",
+    durationMs: Date.now() - directLookupStartedAt,
+    rowsCount: result.rows?.length || 0,
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    commentId: safeCommentId,
+  });
   const directRow = result.rows?.[0] || null;
   if (directRow) {
     console.warn("[social-comments:preview-lookup-debug]", {
@@ -2920,6 +2991,7 @@ const getSocialCommentCommentByCommentId = async ({ tenantId = null, platform = 
     return normalizeSocialCommentTimelineRow({ tenantId: safeTenantId, row: directRow, platform: normalizedPlatform });
   }
 
+  const fallbackLookupStartedAt = Date.now();
   const runResult = await db.query(
     `
     SELECT *
@@ -2932,6 +3004,15 @@ const getSocialCommentCommentByCommentId = async ({ tenantId = null, platform = 
     `,
     [safeTenantId, normalizedPlatform, safeCommentId]
   );
+  logSocialSqlTiming({
+    logName: "SOCIAL_SQL_THREAD_DETAIL_MS",
+    queryName: "getSocialCommentCommentByCommentId:fallback",
+    durationMs: Date.now() - fallbackLookupStartedAt,
+    rowsCount: runResult.rows?.length || 0,
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    commentId: safeCommentId,
+  });
   const runRow = runResult.rows?.[0] || null;
   if (runRow) {
     const rawPayload = metadataObject(runRow.raw_payload || {});
