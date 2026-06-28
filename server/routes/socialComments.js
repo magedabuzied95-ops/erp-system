@@ -35,11 +35,29 @@ const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMME
 const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
 };
+let socialCommentsSchemaReadyPromise = null;
+const ensureSocialCommentsSchemaReady = () => {
+  if (!socialCommentsSchemaReadyPromise) {
+    socialCommentsSchemaReadyPromise = ensureSocialCommentsCenterSchema().catch((error) => {
+      socialCommentsSchemaReadyPromise = null;
+      throw error;
+    });
+  }
+  return socialCommentsSchemaReadyPromise;
+};
 
 const toTenantId = (req) => Number(req.query?.tenant_id || req.body?.tenant_id || req.headers["x-tenant-id"] || 1) || 1;
+const normalizeAutomationRoutePostId = (value = "") => {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  return raw
+    .replace(/^(social_comment|facebook_comment|instagram_comment|facebook_post|instagram_post):/i, "")
+    .replace(/^(facebook|instagram):/i, "")
+    .trim();
+};
 
 router.use(async (_req, _res, next) => {
-  await ensureSocialCommentsCenterSchema().catch(() => {});
+  await ensureSocialCommentsSchemaReady().catch(() => {});
   next();
 });
 
@@ -99,11 +117,54 @@ router.get("/automation/:postId", protect, permit("settings", "view"), async (re
     const tenantId = toTenantId(req);
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.query?.platform || req.body?.platform || "").trim();
-    const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
-    const postId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
-    const config = await getSocialCommentAutomationConfig({ tenantId, platform, postId, row: post || {} });
+    const resolvedPostId = normalizeAutomationRoutePostId(requestedPostId);
+    console.info("AUTOMATION_CONFIG_ROUTE_START", {
+      tenant_id: tenantId,
+      requested_post_id: requestedPostId,
+      resolved_post_id: resolvedPostId,
+      platform,
+    });
+    const lookupRow = resolvedPostId
+      ? {
+          post_id: resolvedPostId,
+          canonical_post_id: resolvedPostId,
+          metadata: { post_id: resolvedPostId },
+        }
+      : {};
+    console.info("AUTOMATION_CONFIG_ROUTE_RESOLVED_POST", {
+      tenant_id: tenantId,
+      requested_post_id: requestedPostId,
+      resolved_post_id: resolvedPostId,
+      platform,
+      has_lookup_row: Boolean(resolvedPostId),
+    });
+    const config = await getSocialCommentAutomationConfig({
+      tenantId,
+      platform,
+      postId: resolvedPostId || requestedPostId,
+      row: lookupRow,
+      post: lookupRow,
+      hydratePost: false,
+    });
+    console.info("AUTOMATION_CONFIG_ROUTE_RESULT", {
+      tenant_id: tenantId,
+      requested_post_id: requestedPostId,
+      resolved_post_id: resolvedPostId,
+      platform,
+      config_id: config?.id || null,
+      enabled: Boolean(config?.enabled),
+      template_key: String(config?.template_key || ""),
+      source: String(config?.source || ""),
+    });
     return res.json({ success: true, config });
   } catch (error) {
+    console.error("AUTOMATION_CONFIG_ROUTE_ERROR", {
+      tenant_id: toTenantId(req),
+      requested_post_id: String(req.params.postId || "").trim(),
+      platform: String(req.query?.platform || req.body?.platform || "").trim(),
+      message: error?.message || String(error || ""),
+      stack: error?.stack || "",
+    });
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment automation config" });
   }
 });
