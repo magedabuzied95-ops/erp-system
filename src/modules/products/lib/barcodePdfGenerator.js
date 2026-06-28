@@ -171,6 +171,12 @@ const drawImageOrPlaceholder = async (doc, item, x, y, w, h) => {
 };
 
 const renderLabelPage = async (doc, item = {}, index = 0) => {
+  if (index === 0) {
+    console.log("[PDF] page size", {
+      width: doc.internal.pageSize.getWidth(),
+      height: doc.internal.pageSize.getHeight(),
+    });
+  }
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 2;
@@ -267,23 +273,32 @@ export async function generateBarcodeLabelsPdf(labels = [], options = {}) {
     compress: true,
   });
 
-  console.log("[barcode-pdf-page-size]", {
-    width: doc.internal.pageSize.getWidth(),
-    height: doc.internal.pageSize.getHeight(),
-  });
-
   doc.setProperties({
     title,
     subject: title,
     author: APP_NAME,
   });
 
+  console.log("[PDF] labels.length =", labels.length);
+
   const pageCount = Array.isArray(labels) ? labels.length : 0;
   for (let index = 0; index < pageCount; index += 1) {
     if (index > 0) doc.addPage();
     // eslint-disable-next-line no-await-in-loop
+    console.log("[PDF] rendering page", index, labels[index]);
     await renderLabelPage(doc, labels[index] || {}, index);
+    console.log("[PDF] page rendered", index);
   }
 
-  return doc.output("blob");
+  console.log("[PDF] total pages =", doc.getNumberOfPages());
+
+  const blob = doc.output("blob");
+  const debug = {
+    labelsCount: Array.isArray(labels) ? labels.length : 0,
+    pageWidth: doc.internal.pageSize.getWidth(),
+    pageHeight: doc.internal.pageSize.getHeight(),
+    totalPages: doc.getNumberOfPages(),
+  };
+
+  return { blob, debug };
 }

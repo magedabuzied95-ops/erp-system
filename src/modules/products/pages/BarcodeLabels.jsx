@@ -655,10 +655,18 @@ function BarcodeLabels() {
     }
 
     try {
-      const pdfBlob = await generateBarcodeLabelsPdf(expandedLabels, {
+      const result = await generateBarcodeLabelsPdf(expandedLabels, {
         title: t("products.barcodeLabels.labelSheetTitle"),
         filename: `barcode-labels-${Date.now()}.pdf`,
       });
+      const pdfBlob = result?.blob;
+      const debug = {
+        expandedLabelsLength: expandedLabels.length,
+        pdfBlobSize: pdfBlob?.size ?? 0,
+        ...result?.debug,
+      };
+      console.log("[PDF DEBUG]", debug);
+      alert(JSON.stringify(debug, null, 2));
       const url = URL.createObjectURL(pdfBlob);
       const popup = window.open(url, "_blank", "noopener,noreferrer");
       if (!popup) {
