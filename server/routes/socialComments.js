@@ -95,7 +95,7 @@ router.get("/automation/:postId", protect, permit("settings", "view"), async (re
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.query?.platform || req.body?.platform || "").trim();
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
-    const postId = String(post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const postId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
     const config = await getSocialCommentAutomationConfig({ tenantId, platform, postId, row: post || {} });
     return res.json({ success: true, config });
   } catch (error) {
@@ -109,18 +109,30 @@ router.put("/automation/:postId", protect, permit("settings", "edit"), async (re
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
-    const postId = String(post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const canonicalPostId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
     const config = await upsertSocialCommentAutomationConfig({
       tenantId,
       platform,
-      postId,
+      postId: canonicalPostId,
       payload: {
         ...(req.body || {}),
-        post_id: postId,
+        post_id: canonicalPostId,
+        canonical_post_id: canonicalPostId,
+        selected_post_id: requestedPostId,
         platform_post_id: post?.platform_post_id || req.body?.platform_post_id || req.body?.external_post_id || "",
         wrapper_post_id: post?.wrapper_post_id || req.body?.wrapper_post_id || "",
         internal_post_id: post?.internal_post_id || req.body?.internal_post_id || "",
+        conversation_id: post?.conversation_id || "",
       },
+    });
+    console.log("AUTOMATION_CONFIG_SAVED", {
+      config_id: config?.id || null,
+      tenant_id: tenantId,
+      platform,
+      saved_post_id: String(config?.post_id || canonicalPostId || ""),
+      selected_post_id: requestedPostId,
+      canonical_post_id: canonicalPostId,
+      conversation_id: String(post?.conversation_id || post?.external_conversation_id || ""),
     });
     return res.json({ success: true, config });
   } catch (error) {
@@ -135,7 +147,7 @@ router.get("/automation/:postId/runs", protect, permit("settings", "view"), asyn
     const platform = String(req.query?.platform || req.body?.platform || "").trim();
     const limit = Math.min(50, Math.max(1, Number(req.query?.limit || 20) || 20));
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
-    const postId = String(post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const postId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
     const runs = await listSocialCommentAutomationRuns({ tenantId, platform, postId, limit });
     return res.json({
       success: true,
@@ -192,7 +204,7 @@ router.post("/automation/:postId/test", protect, permit("settings", "view"), asy
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
-    const postId = String(post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const postId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
     const result = await testSocialCommentAutomationRuntime({ tenantId, platform, postId });
     return res.json({ success: true, result });
   } catch (error) {
