@@ -175,14 +175,20 @@ router.post("/generate-ai-thermal-artwork", protect, async (req, res) => {
       model: result.model || "",
     });
   } catch (error) {
-    console.error("[products] generate-ai-thermal-artwork failed", {
-      durationMs: Date.now() - startedAt,
+    console.error("THERMAL_ARTWORK_ROUTE_ERROR", {
       message: error?.message,
       stack: error?.stack,
+      status: error?.status,
+      code: error?.code,
+      response: error?.response?.data,
+      cause: error?.cause?.message,
     });
     return res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === "production" ? "Thermal artwork generation failed" : error?.message || "Thermal artwork generation failed",
+      message: "Thermal artwork generation failed",
+      debug_message: error?.message,
+      debug_code: error?.code,
+      debug_status: error?.status,
       thermal_image_url: "",
     });
   }
@@ -250,14 +256,20 @@ router.post("/:id/generate-ai-thermal-artwork", protect, async (req, res) => {
       model: result.model || "",
     });
   } catch (error) {
-    console.error("[products] product thermal artwork generation failed", {
-      durationMs: Date.now() - startedAt,
+    console.error("THERMAL_ARTWORK_ROUTE_ERROR", {
       message: error?.message,
       stack: error?.stack,
+      status: error?.status,
+      code: error?.code,
+      response: error?.response?.data,
+      cause: error?.cause?.message,
     });
     return res.status(500).json({
       success: false,
-      message: process.env.NODE_ENV === "production" ? "Thermal artwork generation failed" : error?.message || "Thermal artwork generation failed",
+      message: "Thermal artwork generation failed",
+      debug_message: error?.message,
+      debug_code: error?.code,
+      debug_status: error?.status,
       thermal_image_url: "",
     });
   }
