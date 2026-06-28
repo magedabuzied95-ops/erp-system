@@ -69,6 +69,34 @@ const sanitizedPayloadKeys = (payload = {}) =>
   Object.keys(jsonObject(payload))
     .filter((key) => !/(password|token|secret|authorization|cookie|key)/i.test(key))
     .sort();
+const hasMeaningfulStaffTaskWork = (payload = {}, actor = {}) => {
+  const tenantId = payload.tenantId ?? payload.tenant_id ?? resolveTaskTenantId(actor);
+  const templateId = payload.template_id ?? payload.templateId ?? null;
+  const actorId = actor?.id || null;
+  const workSignals = [
+    payload.title,
+    payload.description,
+    payload.task_type,
+    payload.taskType,
+    payload.source_module,
+    payload.sourceModule,
+    payload.source_ref_type,
+    payload.sourceRefType,
+    payload.source_ref_id,
+    payload.sourceRefId,
+    payload.employee_id,
+    payload.employeeId,
+    payload.current_assignee_id,
+    payload.currentAssigneeId,
+    payload.product_id,
+    payload.productId,
+    payload.variant_id,
+    payload.variantId,
+    payload.branch_id,
+    payload.branchId,
+  ].some((value) => Boolean(text(value)));
+  return Boolean(tenantId || templateId || actorId || workSignals);
+};
 const logStaffTaskCreateFailure = ({ step = "unknown", payload = {}, error } = {}) => {
   console.warn("[staff-task-create-failure]", {
     step,
@@ -1729,6 +1757,15 @@ export const assignWaitingRecurringTasksForCheckIn = async ({ tenantId, branchId
 
 export const createStaffTask = async (payload = {}, actor = {}) => {
   await ensureStaffTasksSchema();
+  if (!hasMeaningfulStaffTaskWork(payload, actor)) {
+    console.log("STAFF_TASK_SCHEDULER_IDLE", {
+      tenantId: payload.tenantId ?? payload.tenant_id ?? resolveTaskTenantId(actor) ?? null,
+      templateId: payload.template_id ?? payload.templateId ?? null,
+      actorId: actor?.id || null,
+      reason: "no_work",
+    });
+    return { idle: true, duplicate: false, task: null };
+  }
   console.time("staff-tasks-service:create");
   console.log("[staff-tasks-service] create:start", {
     actorId: actor?.id || null,
