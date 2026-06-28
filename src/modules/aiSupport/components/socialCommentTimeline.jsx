@@ -16,6 +16,13 @@ const initialsFromName = (value = "") => {
     .toUpperCase();
 };
 
+const pictureUrlFrom = (value = "") => {
+  if (!value) return "";
+  if (typeof value === "string") return clean(value);
+  if (typeof value !== "object") return clean(value);
+  return clean(value.data?.url || value.url || value.picture?.data?.url || value.picture?.url || value.profile_pic_url || value.profile_pic || value.source || "");
+};
+
 const isValidDate = (value) => {
   const date = new Date(value);
   return !Number.isNaN(date.getTime());
@@ -24,9 +31,9 @@ const isValidDate = (value) => {
 const startOfDay = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
 
 export const getRelativeTimeLabel = (value, now = new Date()) => {
-  if (!value) return "-";
+  if (!value) return "وقت غير معروف";
   const date = new Date(value);
-  if (!isValidDate(date)) return clean(value) || "-";
+  if (!isValidDate(date)) return "وقت غير معروف";
 
   const diffMs = Math.max(0, now.getTime() - date.getTime());
   const diffMinutes = Math.floor(diffMs / 60000);
@@ -120,37 +127,37 @@ export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "fac
       metadata.customer_name ||
       metadata.commenter_name ||
       metadata.from?.name ||
-      "Customer"
+      "عميل"
   );
 
   const customerAvatarUrl = clean(
     comment.customer_avatar_url ||
       comment.commenter_profile_picture_url ||
+      pictureUrlFrom(comment.from?.picture) ||
+      comment.profile_pic_url ||
+      comment.profile_picture_url ||
       comment.customer_avatar ||
       comment.avatar ||
       comment.avatar_url ||
       comment.profile_pic ||
-      comment.profile_pic_url ||
-      comment.profile_picture_url ||
-      comment.from?.picture ||
       raw.customer_avatar_url ||
       raw.commenter_profile_picture_url ||
+      pictureUrlFrom(raw.from?.picture) ||
+      raw.profile_pic_url ||
+      raw.profile_picture_url ||
       raw.customer_avatar ||
       raw.avatar ||
       raw.avatar_url ||
       raw.profile_pic ||
-      raw.profile_pic_url ||
-      raw.profile_picture_url ||
-      raw.from?.picture ||
       metadata.customer_avatar_url ||
       metadata.commenter_profile_picture_url ||
+      pictureUrlFrom(metadata.from?.picture) ||
+      metadata.profile_pic_url ||
+      metadata.profile_picture_url ||
       metadata.customer_avatar ||
       metadata.avatar ||
       metadata.avatar_url ||
       metadata.profile_pic ||
-      metadata.profile_pic_url ||
-      metadata.profile_picture_url ||
-      metadata.from?.picture ||
       ""
   );
 
@@ -173,7 +180,7 @@ export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "fac
       ""
   );
 
-  const createdAt = clean(comment.created_at || comment.createdTime || raw.created_at || raw.created_time || metadata.created_at || metadata.created_time || "");
+  const createdAt = clean(comment.created_at || comment.createdTime || comment.created_time || raw.created_at || raw.createdTime || raw.created_time || metadata.created_at || metadata.createdTime || metadata.created_time || "");
   const platform = clean(comment.platform || raw.platform || metadata.platform || fallbackPlatform || "facebook").toLowerCase();
 
   const likeState = normalizeRuntimeStatus(comment.like_status || raw.like_status || metadata.like_status || automationState.like_status || "");
@@ -257,10 +264,13 @@ export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "fac
 
   return {
     key: clean(comment.id || comment.comment_id || comment.external_message_id || comment.provider_message_id || raw.id || raw.comment_id || metadata.comment_id || ""),
-    customerName: customerName || "Customer",
+    customerName: customerName || "عميل",
     customerAvatarUrl,
     text,
     createdAt,
+    created_at: createdAt,
+    created_time: createdAt,
+    createdTime: createdAt,
     platform,
     platformMeta: platformMeta(platform),
     initials: initialsFromName(customerName),
@@ -335,7 +345,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="truncate text-[15px] font-black leading-6 text-white">{data.customerName || "Customer"}</div>
+              <div className="truncate text-[15px] font-black leading-6 text-white">{data.customerName || "عميل"}</div>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300">
                 <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${data.platformMeta.className}`}>
                   {data.platformMeta.label}

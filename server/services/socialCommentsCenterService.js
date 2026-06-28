@@ -1117,6 +1117,220 @@ const buildSocialCommentTemplateContext = ({ post = {}, comment = {}, settings =
   };
 };
 
+const firstText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+
+const normalizeGraphPictureUrl = (value = "") => {
+  if (!value) return "";
+  if (typeof value === "string") return text(value);
+  if (typeof value !== "object") return text(value);
+  return firstText(
+    value.data?.url,
+    value.url,
+    value.picture?.data?.url,
+    value.picture?.url,
+    value.profile_pic_url,
+    value.profile_pic,
+    value.source
+  );
+};
+
+const hydrateSocialCommentTimelineIdentity = async ({ tenantId = null, row = {}, platform = "" } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const metadata = metadataObject(row.metadata || {});
+  const rawPayload = metadataObject(row.raw_payload || {});
+  const rawValue = metadataObject(rawPayload.value || {});
+  const commenterId = firstText(
+    row.commenter_id,
+    row.external_customer_id,
+    row.profile_id,
+    row.customer_profile_id,
+    rawValue.from?.id,
+    rawPayload.from?.id,
+    rawValue.from?.user_id,
+    rawPayload.from?.user_id,
+    metadata.commenter_id
+  );
+  const currentName = firstText(
+    row.customer_name,
+    row.commenter_name,
+    row.from?.name,
+    rawValue.from?.name,
+    rawPayload.from?.name,
+    metadata.customer_name,
+    metadata.commenter_name,
+    metadata.from?.name
+  );
+  const currentAvatar = normalizeGraphPictureUrl(
+    row.customer_avatar_url ||
+    row.commenter_profile_picture_url ||
+    row.from?.picture ||
+    rawValue.from?.picture ||
+    rawPayload.from?.picture ||
+    metadata.customer_avatar_url ||
+    metadata.commenter_profile_picture_url ||
+    metadata.from?.picture ||
+    ""
+  );
+  const hydrated = {
+    customer_name: currentName,
+    customer_avatar_url: currentAvatar,
+    commenter_id: commenterId,
+  };
+
+  if (!safeTenantId) return hydrated;
+
+  const profileId = Number(row.customer_profile_id || row.profile_id || metadata.customer_profile_id || metadata.profile_id || 0) || null;
+  let profileRow = null;
+
+  if (profileId) {
+    const byId = await db.query(
+      `
+      SELECT id, display_name, customer_name, facebook_name, messenger_name, profile_pic_url, avatar_url, external_customer_id
+      FROM ai_customer_profiles
+      WHERE tenant_id = $1::bigint
+        AND id = $2::bigint
+      LIMIT 1
+      `,
+      [safeTenantId, profileId]
+    ).catch(() => ({ rows: [] }));
+    profileRow = byId.rows?.[0] || null;
+  } else if (commenterId) {
+    const byExternal = await db.query(
+      `
+      SELECT id, display_name, customer_name, facebook_name, messenger_name, profile_pic_url, avatar_url, external_customer_id
+      FROM ai_customer_profiles
+      WHERE tenant_id = $1::bigint
+        AND external_customer_id = $2::text
+      ORDER BY last_seen_at DESC, id DESC
+      LIMIT 1
+      `,
+      [safeTenantId, commenterId]
+    ).catch(() => ({ rows: [] }));
+    profileRow = byExternal.rows?.[0] || null;
+
+    if (!profileRow && row.session_id) {
+      const conversationProfile = await db.query(
+        `
+        SELECT p.id, p.display_name, p.customer_name, p.facebook_name, p.messenger_name, p.profile_pic_url, p.avatar_url, p.external_customer_id
+        FROM ai_channel_conversations c
+        LEFT JOIN ai_customer_profiles p
+          ON p.id = c.customer_profile_id
+         AND p.tenant_id = c.tenant_id
+        WHERE c.tenant_id = $1::bigint
+          AND c.external_conversation_id = $2::text
+        LIMIT 1
+        `,
+        [safeTenantId, text(row.session_id || "")]
+      ).catch(() => ({ rows: [] }));
+      profileRow = conversationProfile.rows?.[0] || null;
+    }
+  }
+
+  if (profileRow) {
+    hydrated.customer_name = hydrated.customer_name || firstText(profileRow.display_name, profileRow.customer_name, profileRow.facebook_name, profileRow.messenger_name);
+    hydrated.customer_avatar_url = hydrated.customer_avatar_url || firstText(profileRow.profile_pic_url, profileRow.avatar_url);
+  }
+
+  return hydrated;
+};
+
+const normalizeSocialCommentTimelineRow = async ({ tenantId = null, row = {}, platform = "" } = {}) => {
+  const metadata = metadataObject(row.metadata || {});
+  const normalizedPlatform = normalizePlatform(platform || row.platform || metadata.platform || "facebook");
+  const commenter = await hydrateSocialCommentTimelineIdentity({ tenantId, row, platform: normalizedPlatform });
+  const commentText = firstText(
+    row.customer_message,
+    row.message_text,
+    row.message,
+    row.text,
+    row.original_comment_text,
+    metadata.customer_message,
+    metadata.message_text,
+    metadata.message,
+    metadata.text
+  );
+  const createdAt = firstText(
+    row.created_at,
+    row.createdTime,
+    row.created_time,
+    row.comment_created_time,
+    row.processed_at,
+    metadata.created_at,
+    metadata.created_time,
+    metadata.comment_created_time,
+    metadata.processed_at
+  );
+  const postId = firstText(
+    row.post_id,
+    row.conversation_post_id,
+    row.thread_post_id,
+    metadata.post_id,
+    metadata.conversation_post_id,
+    metadata.thread_post_id
+  );
+  const commentId = firstText(
+    row.comment_id,
+    row.id,
+    row.external_message_id,
+    row.provider_message_id,
+    metadata.comment_id,
+    metadata.external_message_id,
+    metadata.provider_message_id
+  );
+  const fromName = firstText(
+    row.from?.name,
+    metadata.from?.name,
+    row.customer_name,
+    row.commenter_name,
+    commenter.customer_name
+  );
+  const fromAvatar = normalizeGraphPictureUrl(
+    row.from?.picture ||
+    metadata.from?.picture ||
+    row.customer_avatar_url ||
+    row.commenter_profile_picture_url ||
+    commenter.customer_avatar_url ||
+    ""
+  );
+  return {
+    ...row,
+    customer_name: commenter.customer_name || fromName || "",
+    commenter_name: commenter.customer_name || fromName || "",
+    customer_avatar_url: commenter.customer_avatar_url || fromAvatar || "",
+    commenter_profile_picture_url: commenter.customer_avatar_url || fromAvatar || "",
+    comment_text: commentText,
+    original_comment_text: firstText(row.original_comment_text, commentText),
+    created_at: createdAt,
+    created_time: createdAt,
+    createdTime: createdAt,
+    platform: normalizedPlatform,
+    post_id: postId,
+    comment_id: commentId,
+    raw: {
+      ...(row.raw && typeof row.raw === "object" && !Array.isArray(row.raw) ? row.raw : {}),
+      from: {
+        ...(row.raw?.from && typeof row.raw.from === "object" && !Array.isArray(row.raw.from) ? row.raw.from : {}),
+        name: fromName || commenter.customer_name || "",
+        picture: fromAvatar || commenter.customer_avatar_url || "",
+      },
+    },
+    metadata: {
+      ...metadata,
+      customer_name: commenter.customer_name || fromName || "",
+      commenter_name: commenter.customer_name || fromName || "",
+      customer_avatar_url: commenter.customer_avatar_url || fromAvatar || "",
+      commenter_profile_picture_url: commenter.customer_avatar_url || fromAvatar || "",
+      comment_text: commentText,
+      original_comment_text: firstText(row.original_comment_text, commentText),
+      created_at: createdAt,
+      created_time: createdAt,
+      platform: normalizedPlatform,
+      post_id: postId,
+      comment_id: commentId,
+    },
+  };
+};
+
 const renderSocialCommentTemplateText = (templateText = "", context = {}) =>
   text(templateText).replace(/\{\{\s*(\w+)\s*\}\}|\{\s*(\w+)\s*\}/g, (_match, leftKey, rightKey) => {
     const key = leftKey || rightKey || "";
@@ -2009,7 +2223,24 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     sqlParams: [safeTenantId, sessionIds, sessionPatterns, canonicalPostId || safePostId],
     returnedRows: result.rows?.length || 0,
   });
-  return result.rows || [];
+  const normalizedRows = await Promise.all((result.rows || []).map((row) => normalizeSocialCommentTimelineRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
+  if (isSocialCommentsDebugEnabled() && normalizedRows.length) {
+    console.log("SOCIAL_COMMENT_TIMELINE_NORMALIZED_SAMPLE", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: canonicalPostId || safePostId,
+      sample: normalizedRows.slice(0, 3).map((comment) => ({
+        customer_name: comment.customer_name || "",
+        customer_avatar_url: comment.customer_avatar_url || "",
+        comment_text: comment.comment_text || "",
+        created_at: comment.created_at || "",
+        platform: comment.platform || "",
+        post_id: comment.post_id || "",
+        comment_id: comment.comment_id || "",
+      })),
+    });
+  }
+  return normalizedRows;
 };
 
 const resolveSocialCommentAutoReplyDecision = async ({ tenantId = null, platform = "", postId = "", comment = {}, post = {}, settings = {}, template = null } = {}) => {
@@ -2215,7 +2446,7 @@ const getSocialCommentCommentByCommentId = async ({ tenantId = null, platform = 
       matched_table: "ai_support_messages",
       matched_row_id: text(directRow.id || directRow.comment_id || directRow.external_message_id || directRow.provider_message_id || ""),
     });
-    return directRow;
+    return normalizeSocialCommentTimelineRow({ tenantId: safeTenantId, row: directRow, platform: normalizedPlatform });
   }
 
   const runResult = await db.query(
@@ -2299,7 +2530,7 @@ const getSocialCommentCommentByCommentId = async ({ tenantId = null, platform = 
       matched_table: "social_comment_automation_runs",
       matched_row_id: text(runRow.id || runRow.comment_id || ""),
     });
-    return fallbackComment;
+    return normalizeSocialCommentTimelineRow({ tenantId: safeTenantId, row: fallbackComment, platform: normalizedPlatform });
   }
 
   console.warn("[social-comments:preview-lookup-debug]", {

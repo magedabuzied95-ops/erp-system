@@ -32,6 +32,13 @@ const clean = (value = "") => String(value ?? "").trim();
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
+const pictureUrlFrom = (value = "") => {
+  if (!value) return "";
+  if (typeof value === "string") return clean(value);
+  if (typeof value !== "object") return clean(value);
+  return clean(value.data?.url || value.url || value.picture?.data?.url || value.picture?.url || value.profile_pic_url || value.profile_pic || value.source || "");
+};
+
 const isSmallNumericId = (value = "") => {
   const candidate = clean(value);
   return Boolean(candidate) && /^\d+$/.test(candidate) && candidate.length < 10;
@@ -79,49 +86,62 @@ const getSocialCommentActionDebugData = (comment = {}) => {
 };
 
 const absoluteTime = (value) => {
-  if (!value) return "—";
+  if (!value) return "وقت غير معروف";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return clean(value) || "—";
+  if (Number.isNaN(date.getTime())) return "وقت غير معروف";
   return date.toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" });
 };
 
 const normalizeComment = (raw) => {
   const comment = raw || {};
   const metadata = comment.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
-  return {
-    id: clean(comment.comment_id || comment.id || comment.external_message_id || comment.provider_message_id || metadata.comment_id || ""),
-    message: clean(comment.customer_message || comment.message || comment.text || comment.message_text || comment.original_comment_text || metadata.customer_message || metadata.message || ""),
-    customerName: clean(
-      comment.customer_name ||
+  const customerName = clean(
+    comment.customer_name ||
       comment.commenter_name ||
       comment.from?.name ||
       metadata.customer_name ||
       metadata.commenter_name ||
       metadata.from?.name ||
-      ""
-    ),
-    customerAvatar: clean(
-      comment.customer_avatar_url ||
+      "عميل"
+  );
+  const customerAvatarUrl = clean(
+    comment.customer_avatar_url ||
       comment.commenter_profile_picture_url ||
+      pictureUrlFrom(comment.from?.picture) ||
+      comment.profile_pic_url ||
+      comment.profile_picture_url ||
       comment.customer_avatar ||
       comment.avatar ||
       comment.avatar_url ||
       comment.profile_pic ||
-      comment.from?.picture ||
       metadata.customer_avatar_url ||
-      metadata.customer_avatar ||
       metadata.commenter_profile_picture_url ||
+      pictureUrlFrom(metadata.from?.picture) ||
+      metadata.profile_pic_url ||
+      metadata.profile_picture_url ||
+      metadata.customer_avatar ||
       metadata.avatar ||
       metadata.avatar_url ||
       metadata.profile_pic ||
-      metadata.from?.picture ||
       ""
-    ),
+  );
+  const createdAt = clean(comment.created_at || comment.createdTime || comment.created_time || metadata.created_at || metadata.createdTime || metadata.created_time || "");
+  return {
+    id: clean(comment.comment_id || comment.id || comment.external_message_id || comment.provider_message_id || metadata.comment_id || ""),
+    message: clean(comment.comment_text || comment.customer_message || comment.message || comment.text || comment.message_text || comment.original_comment_text || metadata.comment_text || metadata.customer_message || metadata.message || ""),
+    customerName,
+    customer_name: customerName,
+    customerAvatar: customerAvatarUrl,
+    customer_avatar_url: customerAvatarUrl,
+    commenter_profile_picture_url: customerAvatarUrl,
     classification: clean(comment.classification_label || comment.classification || comment.intent || metadata.classification_label || metadata.classification || metadata.intent || "Question"),
     replyStatus: clean(comment.reply_status || metadata.reply_status || "pending"),
-    createdTime: clean(comment.created_time || comment.created_at || comment.processed_at || metadata.created_time || metadata.created_at || metadata.processed_at || ""),
+    createdTime: createdAt,
+    created_at: createdAt,
+    created_time: createdAt,
     metadata,
     postId: clean(comment.post_id || comment.conversation_post_id || comment.thread_post_id || metadata.post_id || ""),
+    post_id: clean(comment.post_id || comment.conversation_post_id || comment.thread_post_id || metadata.post_id || ""),
     platform: clean(comment.platform || metadata.platform || ""),
     permalinkUrl: clean(comment.permalink_url || comment.comment_url || metadata.permalink_url || metadata.comment_url || ""),
     replyText: clean(comment.reply_text || comment.rendered_reply || metadata.reply_text || metadata.rendered_reply || ""),
@@ -407,7 +427,7 @@ const resolveCommentCustomerName = (comment = {}) => {
       metadata.customer_name ||
       metadata.commenter_name ||
       metadata.from?.name ||
-      ""
+      "عميل"
   );
 };
 
@@ -419,18 +439,22 @@ const resolveCommentCustomerAvatar = (comment = {}) => {
     normalized.customerAvatar ||
       raw.customer_avatar_url ||
       raw.commenter_profile_picture_url ||
+      pictureUrlFrom(raw.from?.picture) ||
+      raw.profile_pic_url ||
+      raw.profile_picture_url ||
       raw.customer_avatar ||
       raw.avatar ||
       raw.avatar_url ||
       raw.profile_pic ||
-      raw.from?.picture ||
       metadata.customer_avatar_url ||
       metadata.customer_avatar ||
       metadata.commenter_profile_picture_url ||
+      pictureUrlFrom(metadata.from?.picture) ||
+      metadata.profile_pic_url ||
+      metadata.profile_picture_url ||
       metadata.avatar ||
       metadata.avatar_url ||
       metadata.profile_pic ||
-      metadata.from?.picture ||
       ""
   );
 };

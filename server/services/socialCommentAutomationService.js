@@ -21,6 +21,7 @@ import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const debugSocialCommentsLog = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.log(...args);
@@ -3309,7 +3310,16 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       ),
       message: error?.message || String(error),
     });
-    throw error;
+    debugSocialCommentsLog("META_COMMENT_INBOX_SAVE_CONTINUED", {
+      tenant_id: safeTenantId,
+      platform: text(event.platform || "facebook"),
+      channel: text(event.channel || (text(event.platform) === "instagram" ? "instagram_comment" : "facebook_comment")),
+      post_id: text(event.post_id || ""),
+      comment_id: text(event.comment_id || ""),
+      reason: "inbox_save_failed_but_automation_continues",
+      message: error?.message || String(error),
+    });
+    return null;
   }
 };
 
