@@ -137,6 +137,9 @@ const drawBarcode = (doc, value, x, y, width, height) => {
 const drawImageOrPlaceholder = async (doc, item, x, y, w, h) => {
   const url = getLabelImageUrl(item);
   const imageData = await loadImageDataUrl(url);
+  doc.setFillColor(245, 245, 245);
+  doc.setDrawColor(203, 213, 225);
+  doc.roundedRect(x, y, w, h, 2, 2, "FD");
   if (imageData) {
     try {
       const format = imageData.startsWith("data:image/png") ? "PNG" : "JPEG";
@@ -147,9 +150,6 @@ const drawImageOrPlaceholder = async (doc, item, x, y, w, h) => {
     }
   }
 
-  doc.setDrawColor(226, 232, 240);
-  doc.setFillColor(248, 250, 252);
-  doc.roundedRect(x, y, w, h, 2, 2, "FD");
   doc.setTextColor(100, 116, 139);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8);
