@@ -4456,9 +4456,8 @@ export default function AiInbox() {
       const nextConversationId = identifiers.sessionId || identifiers.conversationKey || identifiers.conversationId || "";
       setSelectedSessionId(nextConversationId);
       setSelectedSocialCommentId("");
-      updateUrlState({ nextConversationId, nextTab: "conversations" });
     }
-  }, [openSocialCommentThread, socialCommentIdentity, updateUrlState]);
+  }, [openSocialCommentThread, socialCommentIdentity]);
   useEffect(() => {
     if (inboxSection === "conversations" && selectedConversation?.session_id) {
       selectedConversationCacheRef.current = selectedConversation;
