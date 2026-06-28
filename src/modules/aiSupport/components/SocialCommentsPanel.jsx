@@ -1,5 +1,5 @@
-import { memo, useMemo } from "react";
-import { ExternalLink, MessageSquareText, RefreshCw, User } from "lucide-react";
+import { useMemo } from "react";
+import { Clock3, ExternalLink, MessageSquareText, RefreshCw, User } from "lucide-react";
 import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
 
 const clean = (value = "") => String(value ?? "").trim();
@@ -8,64 +8,53 @@ const absoluteTime = (value) => {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return clean(value);
-  return date.toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" });
+  return date.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
 };
 
 const COMMENT_FILTERS = [
-  { key: "all", label: "الكل" },
-  { key: "lead_price", label: "سعر" },
-  { key: "lead_size", label: "مقاس" },
-  { key: "lead_shipping", label: "شحن" },
-  { key: "lead_details", label: "تفاصيل" },
+  { key: "all", label: "All" },
+  { key: "lead_price", label: "Price" },
+  { key: "lead_size", label: "Size" },
+  { key: "lead_shipping", label: "Shipping" },
+  { key: "lead_details", label: "Details" },
   { key: "lead_inbox", label: "Inbox" },
-  { key: "ignore", label: "تجاهل" },
-  { key: "human_review", label: "مراجعة" },
+  { key: "ignore", label: "Ignore" },
+  { key: "human_review", label: "Human Review" },
 ];
 
 const POST_FILTERS = [
-  { key: "all", label: "الكل" },
+  { key: "all", label: "All" },
   { key: "facebook", label: "Facebook" },
   { key: "instagram", label: "Instagram" },
-  { key: "needs_reply", label: "Needs reply" },
+  { key: "needs_reply", label: "Needs Reply" },
   { key: "replied", label: "Replied" },
   { key: "auto_reply_on", label: "Auto Reply" },
 ];
 
-const COMMENT_LABELS = {
-  all: "الكل",
-  lead_price: "سعر",
-  lead_size: "مقاس",
-  lead_shipping: "شحن",
-  lead_details: "تفاصيل",
-  lead_inbox: "Inbox",
-  ignore: "تجاهل",
-  human_review: "مراجعة",
-};
-
 const platformMeta = (platform = "") => {
   const key = clean(platform).toLowerCase();
-  if (key === "instagram" || key === "instagram_comment") {
+  if (key.includes("instagram")) {
     return {
       label: "Instagram",
-      className: "border-rose-300/20 bg-rose-400/10 text-rose-100",
+      className: "border-[#FBCFE8] bg-[#FFF1F2] text-[#E1306C]",
     };
   }
   return {
     label: "Facebook",
-    className: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
+    className: "border-[#BFDBFE] bg-[#EAF2FF] text-[#1877F2]",
   };
 };
 
 const toneClass = (value = "") => {
   const key = clean(value).toLowerCase();
-  if (key === "lead_price") return "border-emerald-300/20 bg-emerald-400/10 text-emerald-100";
-  if (key === "lead_size") return "border-amber-300/20 bg-amber-400/10 text-amber-100";
-  if (key === "lead_shipping") return "border-cyan-300/20 bg-cyan-400/10 text-cyan-100";
-  if (key === "lead_details") return "border-violet-300/20 bg-violet-400/10 text-violet-100";
-  if (key === "lead_inbox") return "border-slate-300/20 bg-slate-400/10 text-slate-100";
-  if (key === "human_review") return "border-rose-300/20 bg-rose-400/10 text-rose-100";
-  if (key === "engagement_only" || key === "ignore") return "border-white/10 bg-white/[0.055] text-slate-200";
-  return "border-white/10 bg-white/[0.055] text-slate-200";
+  if (key === "lead_price") return "border-[#BFDBFE] bg-[#EAF2FF] text-[#1877F2]";
+  if (key === "lead_size") return "border-[#E9D5FF] bg-[#F5F3FF] text-[#7C3AED]";
+  if (key === "lead_shipping") return "border-[#BBF7D0] bg-[#ECFDF5] text-[#059669]";
+  if (key === "lead_details") return "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]";
+  if (key === "lead_inbox") return "border-slate-200 bg-slate-100 text-slate-600";
+  if (key === "human_review") return "border-[#FECACA] bg-[#FEF2F2] text-[#DC2626]";
+  if (key === "engagement_only" || key === "ignore") return "border-slate-200 bg-slate-50 text-slate-600";
+  return "border-slate-200 bg-slate-50 text-slate-600";
 };
 
 const commentMatches = (item = {}, filter = "all") => {
@@ -112,15 +101,15 @@ function SocialCommentsPanel({
   );
 
   return (
-    <section className="rounded-2xl border border-white/10 bg-white/[0.045] p-2.5">
+    <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">
+          <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">
             <MessageSquareText className="h-4 w-4" />
-            {mode === "posts" ? "منشورات التعليقات" : "تعليقات السوشيال"}
+            {mode === "posts" ? "Social Posts" : "Social Comments"}
           </div>
-          <div className="mt-1 text-sm font-black text-white">
-            {mode === "posts" ? "آخر المنشورات المرتبطة بالتعليقات" : "آخر التعليقات المخزنة في نظام المتابعة"}
+          <div className="mt-1 text-sm font-black text-slate-900">
+            {mode === "posts" ? "Latest posts with comment activity" : "Latest comments in the system"}
           </div>
           {debugInfo ? (
             <div className="mt-1 text-[11px] font-semibold leading-5 text-slate-400">
@@ -128,7 +117,7 @@ function SocialCommentsPanel({
               {debugInfo.tenant_id ? <span className="mr-2">tenant: {debugInfo.tenant_id}</span> : null}
               {typeof debugInfo.status !== "undefined" ? <span className="mr-2">status: {String(debugInfo.status)}</span> : null}
               {typeof debugInfo.count !== "undefined" ? <span>count: {String(debugInfo.count)}</span> : null}
-              {debugInfo.error ? <span className="block text-rose-200">error: {debugInfo.error}</span> : null}
+              {debugInfo.error ? <span className="block text-rose-600">error: {debugInfo.error}</span> : null}
             </div>
           ) : null}
         </div>
@@ -137,18 +126,18 @@ function SocialCommentsPanel({
             type="button"
             onClick={onRefresh}
             disabled={loading}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100 disabled:opacity-50"
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-900 disabled:opacity-50"
           >
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            تحديث
+            Refresh
           </button>
-          <span className="rounded-full border border-white/10 bg-slate-950/60 px-3 py-1 text-[11px] font-black text-slate-200">
+          <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">
             {filteredItems.length}/{items.length}
           </span>
         </div>
       </div>
 
-      {error ? <div className="mt-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
+      {error ? <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">{error}</div> : null}
 
       <div className="mt-3 flex flex-wrap gap-2">
         {filters.map((item) => {
@@ -159,7 +148,7 @@ function SocialCommentsPanel({
               type="button"
               onClick={() => onFilterChange?.(item.key)}
               className={`h-9 shrink-0 rounded-full px-3 text-[11px] font-black transition ${
-                active ? "bg-cyan-300 text-slate-950" : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
+                active ? "bg-slate-900 text-white" : "border border-slate-200 bg-white text-slate-700 hover:border-slate-300"
               }`}
             >
               {item.label}
@@ -170,8 +159,8 @@ function SocialCommentsPanel({
 
       <div className="mt-3 max-h-[26rem] overflow-y-auto pr-1">
         {loading && !items.length ? (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">
-            {mode === "posts" ? "جارٍ تحميل منشورات التعليقات..." : "جارٍ تحميل تعليقات السوشيال..."}
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            {mode === "posts" ? "Loading social posts..." : "Loading social comments..."}
           </div>
         ) : null}
 
@@ -183,7 +172,7 @@ function SocialCommentsPanel({
               const active = clean(selectedItemId) === itemKey;
 
               if (mode === "posts") {
-                const title = clean(item.post_message || item.post_caption || item.last_message || item.last_comment_text || "منشور بدون نص");
+                const title = clean(item.post_message || item.post_caption || item.last_message || item.last_comment_text || "Post");
                 const subtitle = clean(item.last_comment_text || item.last_message || item.post_caption || item.post_message || "");
                 const thumb = clean(item.thumbnail_url || "");
                 return (
@@ -192,51 +181,48 @@ function SocialCommentsPanel({
                     role={onSelectItem ? "button" : undefined}
                     tabIndex={onSelectItem ? 0 : undefined}
                     onClick={onSelectItem ? () => onSelectItem(item, itemKey) : undefined}
-                    onKeyDown={onSelectItem ? (event) => { if (event.key === "Enter" || event.key === " ") onSelectItem(item, itemKey); } : undefined}
-                    className={`rounded-2xl border bg-slate-950/60 p-3 transition ${active ? "border-cyan-300/40 ring-1 ring-cyan-300/20" : "border-white/10 hover:border-cyan-300/20 hover:bg-slate-950/70"}`}
+                    onKeyDown={
+                      onSelectItem
+                        ? (event) => {
+                            if (event.key === "Enter" || event.key === " ") onSelectItem(item, itemKey);
+                          }
+                        : undefined
+                    }
+                    className={`rounded-2xl border p-3 transition shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${
+                      active ? "border-slate-300 ring-1 ring-slate-200" : "border-slate-200 hover:border-slate-300"
+                    }`}
                   >
                     <div className="flex gap-3">
-                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+                      <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
                         {thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <div className="truncate text-sm font-black text-white">{title}</div>
-                            <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{subtitle || "بدون وصف"}</div>
+                            <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{title}</div>
+                            <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-slate-500">{subtitle || "No description"}</div>
                           </div>
-                          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black ${platform.className}`}>
+                          <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${platform.className}`}>
                             <User className="h-3.5 w-3.5" />
                             {platform.label}
                           </span>
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-2">
-                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
-                            {Number(item.comments_count || 0)} comments
-                          </span>
-                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
-                            {Number(item.new_comments_count || 0)} new
-                          </span>
-                          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-black ${toneClass(item.auto_reply_mode || item.session_status || "human_review")}`}>
-                            {clean(item.auto_reply_mode || item.session_status || item.reply_status || "manual").replace(/_/g, " ")}
-                          </span>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+                          <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{Number(item.comments_count || 0)} comments</span>
+                          <span className={`rounded-full border px-2.5 py-1 ${item.new_comments_count > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-slate-200 bg-white text-slate-600"}`}>{Number(item.new_comments_count || 0)} new</span>
+                          <span className={`rounded-full border px-2.5 py-1 ${toneClass(item.auto_reply_mode || item.session_status || "human_review")}`}>{clean(item.auto_reply_mode || item.session_status || item.reply_status || "manual").replace(/_/g, " ")}</span>
+                          {item.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
+                        </div>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
+                          {subtitle ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">{" "}{subtitle}</span> : null}
+                          {item.last_activity_at ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
+                              <Clock3 className="h-3.5 w-3.5" />
+                              {absoluteTime(item.last_activity_at)}
+                            </span>
+                          ) : null}
                         </div>
                       </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-400">
-                      {subtitle ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">آخر تعليق: {subtitle}</span> : null}
-                      {item.last_activity_at ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">{absoluteTime(item.last_activity_at)}</span> : null}
-                      {item.post_permalink || item.post_permalink_url || item.permalink_url || item.post_url ? (
-                        <a
-                          href={clean(item.post_permalink || item.post_permalink_url || item.permalink_url || item.post_url)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-cyan-100"
-                        >
-                          فتح البوست
-                          <ExternalLink className="h-3.5 w-3.5" />
-                        </a>
-                      ) : null}
                     </div>
                   </article>
                 );
@@ -256,7 +242,7 @@ function SocialCommentsPanel({
                       href={permalink}
                       target="_blank"
                       rel="noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-cyan-100"
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-2 text-[11px] font-black text-slate-700"
                     >
                       Open comment
                       <ExternalLink className="h-3.5 w-3.5" />
@@ -267,8 +253,8 @@ function SocialCommentsPanel({
             })}
           </div>
         ) : !loading ? (
-          <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center text-sm text-slate-500">
-            {mode === "posts" ? "لا توجد منشورات مطابقة للمرشح الحالي." : "لا توجد تعليقات سوشيال مطابقة للمرشح الحالي."}
+          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
+            {mode === "posts" ? "No matching posts." : "No matching comments."}
           </div>
         ) : null}
       </div>

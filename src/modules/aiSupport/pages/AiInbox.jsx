@@ -6344,10 +6344,19 @@ export default function AiInbox() {
                             {clean(selectedSocialCommentPost.message) || "بدون نص"}
                           </div>
                           <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-slate-400">
-                            {selectedSocialCommentPost.postId ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">post_id: {selectedSocialCommentPost.postId}</span> : null}
-                            {selectedSocialCommentPost.id ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">comment_id: {selectedSocialCommentPost.id}</span> : null}
-                            {selectedSocialCommentPost.createdTime ? <span className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2">{absoluteTime(selectedSocialCommentPost.createdTime)}</span> : null}
+                            {selectedSocialCommentPost.platform ? <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-2 text-slate-600">{clean(selectedSocialCommentPost.platform)}</span> : null}
+                            {selectedSocialCommentPost.replyStatus ? <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-2 text-slate-600">{clean(selectedSocialCommentPost.replyStatus)}</span> : null}
+                            {selectedSocialCommentPost.automationStatus ? <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-2 text-slate-600">{clean(selectedSocialCommentPost.automationStatus)}</span> : null}
+                            {selectedSocialCommentPost.productName ? <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-2 text-slate-600">{clean(selectedSocialCommentPost.productName)}</span> : null}
                           </div>
+                          <details className="mt-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
+                            <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Developer Info</summary>
+                            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-black text-slate-400">
+                              {selectedSocialCommentPost.postId ? <span className="rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-slate-600">post_id: {selectedSocialCommentPost.postId}</span> : null}
+                              {selectedSocialCommentPost.id ? <span className="rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-slate-600">comment_id: {selectedSocialCommentPost.id}</span> : null}
+                              {selectedSocialCommentPost.createdTime ? <span className="rounded-xl border border-[#E2E8F0] bg-white px-3 py-2 text-slate-600">{absoluteTime(selectedSocialCommentPost.createdTime)}</span> : null}
+                            </div>
+                          </details>
                         </div>
 
                         <div className="grid gap-2 lg:grid-cols-3">

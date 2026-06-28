@@ -1282,19 +1282,19 @@ function SocialCommentsWorkspace({
   };
 
   return (
-    <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] text-white shadow-[0_16px_50px_rgba(0,0,0,0.18)]">
+    <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-[#E2E8F0] bg-white text-slate-900 shadow-[0_16px_50px_rgba(15,23,42,0.08)]">
       <div className="grid h-full min-h-0 w-full min-w-0 gap-2.5 p-2.5 min-[1024px]:grid-cols-[312px_minmax(0,1fr)] min-[1280px]:grid-cols-[312px_minmax(0,1fr)_348px]">
-        <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
-          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2.5 py-2.5">
+        <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-[#E2E8F0] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+          <div className="flex items-center justify-between gap-2 border-b border-[#E2E8F0] px-2.5 py-2.5">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">Social Comments</div>
-              <div className="mt-1 text-sm font-black text-white">Posts</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Social Comments</div>
+              <div className="mt-1 text-sm font-black text-slate-900">Posts</div>
             </div>
             <button
               type="button"
               onClick={() => void handleRefresh()}
               disabled={loading || refreshing}
-              className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-slate-100 disabled:opacity-50"
+              className="inline-flex h-8 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-[11px] font-black text-slate-900 shadow-sm disabled:opacity-50"
             >
               {loading || refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               Refresh
@@ -1303,11 +1303,11 @@ function SocialCommentsWorkspace({
 
           <div className="flex-1 min-h-0 overflow-y-auto p-1.5">
             {!normalizedPosts.length && !loading ? (
-              <div className="rounded-2xl border border-dashed border-white/10 bg-gradient-to-br from-white/[0.05] to-white/[0.02] p-6 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-400">
+              <div className="rounded-2xl border border-dashed border-[#E2E8F0] bg-[#F8FAFC] p-6 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-[#E2E8F0] bg-white text-slate-400">
                   <Sparkles className="h-5 w-5" />
                 </div>
-                <div className="mt-3 text-sm font-black text-white">لا توجد منشورات بعد</div>
+                <div className="mt-3 text-sm font-black text-slate-900">لا توجد منشورات بعد</div>
                 <div className="mt-1 text-xs text-slate-500">سيظهر هنا المنشور المرتبط بالتعليقات عندما يتوفر</div>
               </div>
             ) : null}
@@ -1331,21 +1331,21 @@ function SocialCommentsWorkspace({
                           }
                         : undefined
                     }
-                    className={`rounded-2xl border p-2.5 transition ${
+                    className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(15,23,42,0.04)] ${
                       active
-                        ? "border-cyan-300/50 bg-gradient-to-br from-cyan-300/15 to-white/[0.06] ring-1 ring-cyan-300/20 shadow-[0_10px_24px_rgba(34,211,238,0.12)]"
-                        : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]"
+                        ? "border-[#CBD5E1] bg-white ring-1 ring-slate-200"
+                        : "border-[#E2E8F0] bg-white hover:border-slate-300"
                     }`}
                   >
                     <div className="flex gap-3">
-                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+                      <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-slate-50">
                         {thumb ? (
                           <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
                         ) : (
-                          <div className="grid h-full w-full place-items-center bg-gradient-to-br from-cyan-400/10 via-slate-950 to-slate-900 text-slate-400">
+                          <div className="grid h-full w-full place-items-center bg-slate-50 text-slate-400">
                             <div className="flex flex-col items-center gap-1">
                               <ImageIcon className="h-4 w-4" />
-                              <span className="rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-300">
+                              <span className="rounded-full border border-[#E2E8F0] bg-white px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-500">
                                 لا توجد صورة
                               </span>
                             </div>
@@ -1355,28 +1355,28 @@ function SocialCommentsWorkspace({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
                           <div className="min-w-0 flex-1">
-                            <div className="line-clamp-2 text-sm font-black leading-6 text-white">{post.caption || "Post"}</div>
+                            <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{post.caption || "Post"}</div>
                           </div>
                           <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                         </div>
-                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-300">
-                          <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{post.commentsCount} comments</span>
-                          <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.04] text-slate-200"}`}>{post.newCount} new</span>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+                          <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{post.commentsCount} comments</span>
+                          <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-[#E2E8F0] bg-white text-slate-600"}`}>{post.newCount} new</span>
                           {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
-                          {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
+                          {post.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
                           <button
                             type="button"
                             onClick={(event) => {
                               event.stopPropagation();
                               handleOpenAutomationDrawer(post, key);
                             }}
-                            className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-cyan-100"
+                            className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700"
                           >
                             Automation
                           </button>
                         </div>
                         <div className="mt-2 text-[11px] font-medium text-slate-400">
-                          <span className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1">
+                          <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
                             <Clock3 className="h-3.5 w-3.5" />
                             {absoluteTime(post.lastActivity)}
                           </span>
@@ -1390,31 +1390,31 @@ function SocialCommentsWorkspace({
           </div>
         </aside>
 
-        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/50 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
+        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-[#E2E8F0] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="border-b border-white/10 p-3">
+            <div className="border-b border-[#E2E8F0] p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
-                  <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">
+                  <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
                     <ArrowUpRight className="h-3.5 w-3.5" />
                     Post Workspace
                   </div>
-                  <h2 className="mt-1 line-clamp-2 text-2xl font-black leading-8 text-white min-[1600px]:text-3xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
+                  <h2 className="mt-1 line-clamp-2 text-2xl font-black leading-8 text-slate-900 min-[1600px]:text-3xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     {activePostType ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostType.className}`}>{activePostType.label}</span> : null}
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black text-slate-200">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
                       {activePost.commentsCount || 0} comments
                     </span>
                     {activePostPublishedAt ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black text-slate-200">
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
                         <Clock3 className="h-3.5 w-3.5" />
                         {absoluteTime(activePostPublishedAt)}
                       </span>
                     ) : null}
-                    {typeof activePostLikes === "number" ? <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black text-slate-200">{activePostLikes} likes</span> : null}
-                    {typeof activePostShares === "number" ? <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black text-slate-200">{activePostShares} shares</span> : null}
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] font-black text-slate-200">
+                    {typeof activePostLikes === "number" ? <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">{activePostLikes} likes</span> : null}
+                    {typeof activePostShares === "number" ? <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">{activePostShares} shares</span> : null}
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
                       {activePost.newCount || 0} new
                     </span>
                   </div>
@@ -1422,7 +1422,7 @@ function SocialCommentsWorkspace({
                 <button
                   type="button"
                   onClick={() => handleOpenAutomationDrawer(activePostDetails, activePostKey)}
-                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100"
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-900 shadow-sm"
                 >
                   <Bot className="h-4 w-4" />
                   Automation
@@ -1431,7 +1431,7 @@ function SocialCommentsWorkspace({
                   type="button"
                   onClick={handleOpenPost}
                   disabled={!activePostLink || openingPost}
-                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-900 shadow-sm disabled:opacity-50"
                 >
                   {openingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
                   Open Post
@@ -1441,17 +1441,17 @@ function SocialCommentsWorkspace({
 
             <div className="grid min-h-0 flex-1 gap-2.5 p-3 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(0,348px)]">
               <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 overflow-hidden">
-                <div className="overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/70 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
+                <div className="overflow-hidden rounded-[24px] border border-[#E2E8F0] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
                   <button
                     type="button"
                     onClick={handleOpenPost}
                     disabled={!activePostLink || openingPost}
-                    className="group relative flex h-[340px] items-center justify-center overflow-hidden bg-slate-900 text-left outline-none min-[1600px]:h-[420px] disabled:cursor-default"
+                    className="group relative flex h-[340px] items-center justify-center overflow-hidden bg-slate-100 text-left outline-none min-[1600px]:h-[420px] disabled:cursor-default"
                   >
                     {activePostImage ? (
                       <img src={activePostImage} alt="" className="h-full w-full object-cover" loading="lazy" />
                     ) : (
-                      <div className="grid h-full w-full place-items-center bg-gradient-to-br from-cyan-400/10 via-slate-950 to-slate-900 text-slate-500">
+                      <div className="grid h-full w-full place-items-center bg-slate-100 text-slate-500">
                         <div className="flex flex-col items-center gap-2">
                           <span className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-white/[0.05] ring-1 ring-white/10">
                             <Sparkles className="h-6 w-6 text-cyan-100" />
@@ -1462,9 +1462,9 @@ function SocialCommentsWorkspace({
                         </div>
                       </div>
                     )}
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-slate-900/75 via-slate-900/10 to-transparent" />
                     <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3.5">
-                      <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-slate-950/75 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-100 shadow-[0_6px_18px_rgba(0,0,0,0.22)]">
+                      <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/85 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-900 shadow-[0_6px_18px_rgba(15,23,42,0.12)] backdrop-blur">
                         {activePlatform.label}
                         {activePostMediaBadge ? <span className={`rounded-full border px-2 py-0.5 ${activePostMediaBadge.className}`}>{activePostMediaBadge.label}</span> : null}
                       </div>
@@ -1475,7 +1475,7 @@ function SocialCommentsWorkspace({
                           void handleOpenPost();
                         }}
                         disabled={!activePostLink || openingPost}
-                        className="inline-flex h-8 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100 disabled:opacity-50"
+                        className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/20 bg-white/90 px-3 text-[11px] font-black text-slate-900 shadow-sm disabled:opacity-50"
                       >
                         {openingPost ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
                         Open Post
@@ -1486,8 +1486,8 @@ function SocialCommentsWorkspace({
                   <div className="space-y-4 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
-                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">Post Summary</div>
-                        <div className="mt-2 text-sm leading-7 text-slate-200">
+                        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Post Summary</div>
+                        <div className="mt-2 text-sm leading-7 text-slate-700">
                           <p className={expandedCaption ? "whitespace-pre-wrap" : "line-clamp-2 whitespace-pre-wrap"}>
                             {activePostCaption || "لا يوجد وصف للمنشور"}
                           </p>
@@ -1495,7 +1495,7 @@ function SocialCommentsWorkspace({
                             <button
                               type="button"
                               onClick={() => setExpandedCaption((current) => !current)}
-                              className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-200"
+                              className="mt-2 inline-flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-700"
                             >
                               {expandedCaption ? "Collapse" : "Expand"}
                             </button>
@@ -1505,18 +1505,18 @@ function SocialCommentsWorkspace({
                     </div>
 
                     {activePostDetails?.productName || activePostDetails?.productPrice || activePostDetails?.productSalePrice || activePostDetails?.productSizes || activePostDetails?.productColors ? (
-                      <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
+                      <div className="rounded-[22px] border border-[#E2E8F0] bg-[#F8FAFC] p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
-                            <div className="mt-1 text-sm font-black text-white">{selectFirst(activePostDetails?.productName, "Linked product")}</div>
+                            <div className="mt-1 text-sm font-black text-slate-900">{selectFirst(activePostDetails?.productName, "Linked product")}</div>
                           </div>
                           {selectFirst(activePostDetails?.productLink) ? (
                             <a
                               href={selectFirst(activePostDetails?.productLink)}
                               target="_blank"
                               rel="noreferrer"
-                              className="inline-flex h-8 shrink-0 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100"
+                              className="inline-flex h-8 shrink-0 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-[11px] font-black text-slate-900 shadow-sm"
                             >
                               Product link
                               <ExternalLink className="h-4 w-4" />
@@ -1534,12 +1534,12 @@ function SocialCommentsWorkspace({
                       </div>
                     ) : null}
 
-                    <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-300">
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{activePost.commentsCount || 0} comments</span>
-                      {typeof activePostLikes === "number" ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{activePostLikes} likes</span> : null}
-                      {typeof activePostShares === "number" ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1">{activePostShares} shares</span> : null}
+                  <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                      <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePost.commentsCount || 0} comments</span>
+                      {typeof activePostLikes === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostLikes} likes</span> : null}
+                      {typeof activePostShares === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostShares} shares</span> : null}
                       {activePostPublishedAt ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-slate-200">
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
                           <Clock3 className="h-3.5 w-3.5" />
                           {absoluteTime(activePostPublishedAt)}
                         </span>

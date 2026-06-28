@@ -58,12 +58,12 @@ const platformMeta = (platform = "") => {
   if (key.includes("instagram")) {
     return {
       label: "Instagram",
-      className: "border-rose-300/20 bg-rose-400/10 text-rose-100",
+      className: "border-[#FBCFE8] bg-[#FFF1F2] text-[#E1306C]",
     };
   }
   return {
     label: "Facebook",
-    className: "border-cyan-300/20 bg-cyan-400/10 text-cyan-100",
+    className: "border-[#BFDBFE] bg-[#EAF2FF] text-[#1877F2]",
   };
 };
 
@@ -87,10 +87,10 @@ const normalizeRuntimeStatus = (value = "") => {
 
 const statusToneClass = (status = "") => {
   const key = normalizeRuntimeStatus(status);
-  if (key === "success") return "border-emerald-300/20 bg-emerald-400/10 text-emerald-100";
-  if (key === "pending") return "border-amber-300/20 bg-amber-400/10 text-amber-100";
-  if (key === "failed") return "border-rose-300/20 bg-rose-400/10 text-rose-100";
-  return "border-slate-300/20 bg-slate-400/10 text-slate-100";
+  if (key === "success") return "border-[#BBF7D0] bg-[#ECFDF5] text-[#059669]";
+  if (key === "pending") return "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]";
+  if (key === "failed") return "border-[#FECACA] bg-[#FEF2F2] text-[#DC2626]";
+  return "border-slate-200 bg-slate-100 text-slate-600";
 };
 
 const deriveLeadState = (source = "") => {
@@ -317,10 +317,8 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
       onClick={interactive ? () => onSelect(comment, data.key) : undefined}
       onKeyDown={handleKeyDown}
       className={[
-        "rounded-[22px] border p-3.5 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition",
-        selected
-          ? "border-cyan-300/50 bg-gradient-to-br from-cyan-300/15 to-slate-950/55 ring-1 ring-cyan-300/15"
-          : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-slate-950/75",
+        "rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition",
+        selected ? "ring-1 ring-slate-300" : "hover:border-slate-300 hover:shadow-[0_12px_36px_rgba(15,23,42,0.08)]",
         className,
       ]
         .filter(Boolean)
@@ -332,15 +330,15 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
             <img
               src={data.customerAvatarUrl}
               alt={data.customerName}
-              className="h-12 w-12 rounded-full object-cover ring-1 ring-white/10"
+              className="h-12 w-12 rounded-full object-cover ring-1 ring-slate-200"
               loading="lazy"
             />
           ) : (
-            <span className="grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-cyan-300/20 to-white/[0.04] text-sm font-black text-cyan-100 ring-1 ring-white/10">
+            <span className="grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-sm font-black text-slate-700 ring-1 ring-slate-200">
               {data.initials || <UserRound className="h-5 w-5" />}
             </span>
           )}
-          <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border border-slate-950 bg-slate-900 text-cyan-100 shadow-[0_8px_18px_rgba(0,0,0,0.2)]">
+          <span className="absolute -bottom-0.5 -right-0.5 grid h-5 w-5 place-items-center rounded-full border border-white bg-slate-900 text-white shadow-[0_8px_18px_rgba(15,23,42,0.18)]">
             <MessageSquareText className="h-3 w-3" />
           </span>
         </div>
@@ -348,12 +346,12 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="truncate text-[15px] font-black leading-6 text-white">{data.customerName || "عميل"}</div>
-              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-300">
+              <div className="truncate text-[15px] font-black leading-6 text-slate-900">{data.customerName || "عميل"}</div>
+              <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.08em] text-slate-500">
                 <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${data.platformMeta.className}`}>
                   {data.platformMeta.label}
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-slate-300">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
                   <Clock3 className="h-3.5 w-3.5" />
                   {getRelativeTimeLabel(data.createdAt)}
                 </span>
@@ -373,7 +371,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
             </div>
           </div>
 
-          <div className="mt-2 rounded-2xl border border-white/5 bg-white/[0.03] p-3 text-sm leading-7 text-slate-100">
+          <div className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-[14px] leading-7 text-slate-900">
             <div className="whitespace-pre-wrap">{data.text || "No comment text available."}</div>
           </div>
 

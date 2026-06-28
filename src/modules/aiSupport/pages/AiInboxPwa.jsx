@@ -4217,25 +4217,34 @@ export default function AiInboxPwa() {
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{newCommentCount} new</span>
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{selectedSocialThreadStatusLabel}</span>
                       </div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                        {[
-                          ["post_id", clean(selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || selectedPost?.id || "")],
-                          ["page_id", clean(selectedSocialThread?.post?.page_id || selectedPost?.page_id || selectedPost?.metadata?.page_id || "")],
-                          ["customer_name", clean(selectedSocialThread?.post?.customer_name || selectedPost?.customer_name || selectedPost?.customerName || "")],
-                          ["customer_profile_id", clean(selectedSocialThread?.post?.customer_profile_id || selectedPost?.customer_profile_id || selectedPost?.customerProfileId || "")],
-                          ["automation_status", clean(selectedSocialThreadStatusLabel)],
-                          ["private_reply_status", clean(selectedSocialThread?.post?.dm_status || selectedPost?.dm_status || selectedPost?.private_reply_status || "")],
-                          ["last_ai_action", clean(selectedSocialThread?.post?.last_ai_action || selectedPost?.last_ai_action || "")],
-                          ["product_context", clean(selectedSocialThread?.post?.product_name || selectedPost?.product_name || selectedSocialThread?.post?.product_id || selectedPost?.product_id || "")],
-                        ]
-                          .filter(([, value]) => Boolean(value))
-                          .map(([label, value]) => (
-                            <div key={label} className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
-                              <div className="mt-1 truncate text-xs font-black text-slate-900">{value}</div>
-                            </div>
-                          ))}
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialPost?.platform || selectedSocialThread?.post?.platform || "Facebook")}</span>
+                        <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThreadStatusLabel || "Waiting")}</span>
+                        <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.dm_status || selectedPost?.dm_status || selectedPost?.private_reply_status || "Manual")}</span>
+                        <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.product_name || selectedPost?.product_name || selectedSocialThread?.post?.product_id || selectedPost?.product_id || "Product")}</span>
                       </div>
+                      <details className="mt-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
+                        <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Developer Info</summary>
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                          {[
+                            ["post_id", clean(selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || selectedPost?.id || "")],
+                            ["page_id", clean(selectedSocialThread?.post?.page_id || selectedPost?.page_id || selectedPost?.metadata?.page_id || "")],
+                            ["customer_name", clean(selectedSocialThread?.post?.customer_name || selectedPost?.customer_name || selectedPost?.customerName || "")],
+                            ["customer_profile_id", clean(selectedSocialThread?.post?.customer_profile_id || selectedPost?.customer_profile_id || selectedPost?.customerProfileId || "")],
+                            ["automation_status", clean(selectedSocialThreadStatusLabel)],
+                            ["private_reply_status", clean(selectedSocialThread?.post?.dm_status || selectedPost?.dm_status || selectedPost?.private_reply_status || "")],
+                            ["last_ai_action", clean(selectedSocialThread?.post?.last_ai_action || selectedPost?.last_ai_action || "")],
+                            ["product_context", clean(selectedSocialThread?.post?.product_name || selectedPost?.product_name || selectedSocialThread?.post?.product_id || selectedPost?.product_id || "")],
+                          ]
+                            .filter(([, value]) => Boolean(value))
+                            .map(([label, value]) => (
+                              <div key={label} className="rounded-2xl border border-[#E2E8F0] bg-white px-3 py-2">
+                                <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
+                                <div className="mt-1 truncate text-xs font-black text-slate-900">{value}</div>
+                              </div>
+                            ))}
+                        </div>
+                      </details>
                       {postLink ? (
                         <a href={postLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white">
                           <ExternalLink className="h-4 w-4" />
