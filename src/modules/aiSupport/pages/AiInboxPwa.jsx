@@ -2126,6 +2126,7 @@ export default function AiInboxPwa() {
       }
       refreshInFlightRef.current = true;
       isHydratingConversationRef.current = true;
+      const seq = ++requestSeqRef.current;
       if (!silent) setLoading(true);
       setError("");
       try {
