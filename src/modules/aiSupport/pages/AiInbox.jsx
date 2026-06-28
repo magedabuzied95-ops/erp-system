@@ -1216,6 +1216,14 @@ function CommentAutomationBadges({ automationState = {} }) {
           </Pill>
         );
       })}
+      <Customer360Drawer
+        open={customerDrawer.open}
+        onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
+        customer={customerDrawer.customer}
+        customerId={customerDrawer.customerId}
+        context={customerDrawer.context}
+        title="Customer 360"
+      />
     </div>
   );
 }
@@ -1835,14 +1843,6 @@ function InboxChatHeader({
           </button>
         </div>
       </div>
-      <Customer360Drawer
-        open={customerDrawer.open}
-        onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
-        customer={customerDrawer.customer}
-        customerId={customerDrawer.customerId}
-        context={customerDrawer.context}
-        title="Customer 360"
-      />
     </div>
   );
 }
