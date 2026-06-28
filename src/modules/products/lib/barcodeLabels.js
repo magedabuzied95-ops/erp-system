@@ -28,18 +28,6 @@ function resolveAssetUrl(url) {
   return resolveProductImageUrl(url);
 }
 
-export const resolveBarcodeLabelImage = (item = {}) =>
-  firstText(
-    item?.color_thermal_image_url,
-    item?.variant_color_thermal_image_url,
-    item?.thermal_image_url,
-    item?.product_thermal_image_url,
-    item?.colorPrimaryImageUrl,
-    item?.color_image_url,
-    item?.image_url,
-    item?.product_image_url
-  );
-
 const resolveStorefrontOrigin = () => {
   const configured = String(
     import.meta.env.VITE_PUBLIC_STOREFRONT_URL ||
@@ -77,6 +65,59 @@ const normalizeBarcode = (value, fallbackSeed = "") => {
 
 const firstText = (...values) =>
   values.map((value) => String(value || "").trim()).find(Boolean) || "";
+
+const normalizeThermalImageStatus = (value = "") => {
+  const status = String(value || "").trim().toLowerCase();
+  return ["pending", "processing", "ready", "failed"].includes(status) ? status : "";
+};
+
+const isThermalImageReady = (status = "", thermalImageUrl = "") => {
+  const normalizedStatus = normalizeThermalImageStatus(status);
+  if (normalizedStatus === "ready") return true;
+  if (!normalizedStatus && String(thermalImageUrl || "").trim()) return true;
+  return false;
+};
+
+export const getThermalImageStatus = (item = {}) =>
+  normalizeThermalImageStatus(
+    firstText(
+      item?.variant_thermal_image_status,
+      item?.thermal_image_status,
+      item?.product_thermal_image_status,
+      item?.thermalImageStatus
+    )
+  );
+
+const resolveThermalAwareImage = (item = {}) => {
+  const variantThermalUrl = firstText(
+    item?.color_thermal_image_url,
+    item?.variant_color_thermal_image_url,
+    item?.thermal_image_url,
+    item?.thermalImageUrl
+  );
+  const productThermalUrl = firstText(item?.product_thermal_image_url, item?.productThermalImageUrl);
+  const variantThermalStatus = normalizeThermalImageStatus(
+    firstText(item?.variant_thermal_image_status, item?.thermal_image_status, item?.thermalImageStatus)
+  );
+  const productThermalStatus = normalizeThermalImageStatus(
+    firstText(item?.product_thermal_image_status, item?.productThermalImageStatus)
+  );
+
+  if (variantThermalUrl && isThermalImageReady(variantThermalStatus, variantThermalUrl)) return variantThermalUrl;
+  if (productThermalUrl && isThermalImageReady(productThermalStatus, productThermalUrl)) return productThermalUrl;
+  if (variantThermalUrl && !variantThermalStatus) return variantThermalUrl;
+  if (productThermalUrl && !productThermalStatus) return productThermalUrl;
+  return "";
+};
+
+export const resolveBarcodeLabelImage = (item = {}) =>
+  firstText(
+    resolveThermalAwareImage(item),
+    item?.colorPrimaryImageUrl,
+    item?.color_image_url,
+    item?.image_url,
+    item?.product_image_url
+  );
 
 const formatLabelCurrency = (value) =>
   formatCurrency(Math.round(Number(value || 0))).replace(/([.,٫]\d{2})(?=\s|$)/g, "");
@@ -165,6 +206,7 @@ export const getLabelImageUrl = (product, variant = null, colorGroup = null) => 
       product?.photo_url,
       product?.thumbnail_url
     ),
+    product_thermal_image_status: firstText(product?.thermal_image_status, product?.thermalImageStatus),
     thermal_image_url: firstText(
       variant?.thermal_image_url,
       variant?.thermalImageUrl,
@@ -176,6 +218,9 @@ export const getLabelImageUrl = (product, variant = null, colorGroup = null) => 
       product?.thermalImageUrl
     ),
     product_thermal_image_url: firstText(product?.thermal_image_url, product?.thermalImageUrl),
+    thermal_image_status: firstText(variant?.thermal_image_status, variant?.thermalImageStatus),
+    variant_thermal_image_status: firstText(variant?.thermal_image_status, variant?.thermalImageStatus),
+    product_thermal_image_status: firstText(product?.thermal_image_status, product?.thermalImageStatus),
     variant_color_thermal_image_url: firstText(
       variant?.thermal_image_url,
       variant?.thermalImageUrl,
@@ -445,6 +490,8 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     variant?.colorGroup?.thermalImageUrl
   );
   const sourceProductThermalImage = firstText(product?.thermal_image_url, product?.thermalImageUrl);
+  const sourceVariantThermalStatus = firstText(variant?.thermal_image_status, variant?.thermalImageStatus);
+  const sourceProductThermalStatus = firstText(product?.thermal_image_status, product?.thermalImageStatus);
   const resolvedImage = resolveBarcodeLabelImage({
     ...product,
     ...variant,
@@ -456,6 +503,9 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     product_thermal_image_url: sourceProductThermalImage,
     variant_color_thermal_image_url: sourceVariantThermalImage,
     color_thermal_image_url: sourceVariantThermalImage,
+    thermal_image_status: sourceVariantThermalStatus || sourceProductThermalStatus,
+    variant_thermal_image_status: sourceVariantThermalStatus,
+    product_thermal_image_status: sourceProductThermalStatus,
   });
   console.info("[barcode-labels] label barcode source", {
     productId: product?.id ?? product?.product_id,
@@ -489,6 +539,11 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     sourceProductImage,
     sourceVariantThermalImage,
     sourceProductThermalImage,
+    sourceVariantThermalStatus,
+    sourceProductThermalStatus,
+    thermal_image_status: sourceVariantThermalStatus || sourceProductThermalStatus || "",
+    variant_thermal_image_status: sourceVariantThermalStatus || "",
+    product_thermal_image_status: sourceProductThermalStatus || "",
     color_thermal_image_url: sourceVariantThermalImage || "",
     variant_color_thermal_image_url: sourceVariantThermalImage || "",
     thermal_image_url: sourceVariantThermalImage || sourceProductThermalImage || "",
@@ -590,6 +645,12 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantF
     product?.thermal_image_url,
     product?.thermalImageUrl
   );
+  const thermalImageStatus = firstText(
+    variantFallback?.thermal_image_status,
+    variantFallback?.variant_thermal_image_status,
+    product?.thermal_image_status,
+    product?.thermalImageStatus
+  );
   const resolvedImage = resolveBarcodeLabelImage({
     ...product,
     ...variantFallback,
@@ -599,6 +660,9 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantF
     product_image_url: productImage,
     thermal_image_url: thermalImage,
     product_thermal_image_url: firstText(product?.thermal_image_url, product?.thermalImageUrl),
+    thermal_image_status: thermalImageStatus,
+    variant_thermal_image_status: firstText(variantFallback?.thermal_image_status, variantFallback?.variant_thermal_image_status),
+    product_thermal_image_status: firstText(product?.thermal_image_status, product?.thermalImageStatus),
     color_thermal_image_url: thermalImage,
     variant_color_thermal_image_url: thermalImage,
   });
@@ -621,7 +685,9 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantF
     priceSource: priceInfo.saleActive || priceInfo.price > 0 ? "product-first" : "none",
     thermalImageUrl: thermalImage || "",
     thermal_image_url: thermalImage || "",
+    thermal_image_status: thermalImageStatus || "",
     product_thermal_image_url: firstText(product?.thermal_image_url, product?.thermalImageUrl) || "",
+    product_thermal_image_status: firstText(product?.thermal_image_status, product?.thermalImageStatus) || "",
     color_thermal_image_url: thermalImage || "",
     variant_color_thermal_image_url: thermalImage || "",
     colorPrimaryImageUrl: firstText(variantFallback?.variant_image_url, variantFallback?.color_image_url, variantFallback?.image_url, variantFallback?.image) || "",
@@ -862,6 +928,21 @@ export const getBoxTextLayout = (cell = {}, options = {}) => {
     valueTopMm,
     labelTextY,
     valueTextY,
+  });
+};
+
+export const getBoxFrameLayout = (cell = {}, options = {}) => {
+  const boxWidthFactor = Number(options.boxWidthFactor ?? 1);
+  const boxHeightFactor = Number(options.boxHeightFactor ?? 1);
+  const boxOffsetX = Number(options.boxOffsetX ?? 0);
+  const boxOffsetY = Number(options.boxOffsetY ?? 0);
+  const width = Number(cell?.w || 0) * boxWidthFactor;
+  const height = Number(cell?.h || 0) * boxHeightFactor;
+  return Object.freeze({
+    x: Number(cell?.x || 0) + ((Number(cell?.w || 0) - width) / 2) + boxOffsetX,
+    y: Number(cell?.y || 0) + ((Number(cell?.h || 0) - height) / 2) + boxOffsetY,
+    w: width,
+    h: height,
   });
 };
 

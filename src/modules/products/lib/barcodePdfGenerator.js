@@ -4,7 +4,7 @@ import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { loadImageDataUrl } from "./thermalImageOptimizer";
-import { BARCODE_LABEL_LAYOUT, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage } from "./barcodeLabels";
+import { BARCODE_LABEL_LAYOUT, getBoxFrameLayout, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage } from "./barcodeLabels";
 
 const thermalImageCache = new Map();
 
@@ -208,7 +208,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setDrawColor(226, 232, 240);
   doc.rect(0.4, 0.4, page.width - 0.8, page.height - 0.8, "S");
 
-  await drawImageOrPlaceholder(doc, item, imageCell.x, imageCell.y, imageCell.w, imageCell.h);
+  await drawImageOrPlaceholder(doc, item, imageCell.x, imageCell.y + 1, imageCell.w, imageCell.h - 1);
 
   const titleLines = toTextLines(doc, productName, titleCell.w, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
   const titleLinesToRender = titleLines.slice(0, thermalLayout.titleMaxLines);
@@ -217,12 +217,14 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   }
   doc.setTextColor(2, 6, 23);
   doc.setFont("helvetica", "bold");
+  const titleOffsetY = 2;
   titleLinesToRender.forEach((line, lineIndex) => {
     doc.setFontSize(lineIndex === 0 ? thermalLayout.titleFontSize : thermalLayout.titleFontSize * 0.86);
-    doc.text(line, titleCell.x, titleCell.y + (lineIndex * thermalLayout.titleLineStepMm), { maxWidth: titleCell.w });
+    doc.text(line, titleCell.x, titleCell.y + titleOffsetY + (lineIndex * thermalLayout.titleLineStepMm), { maxWidth: titleCell.w });
   });
 
-  drawRoundedRect(doc, sizeCell.x, sizeCell.y, thermalLayout.sizeBadgeWidth, thermalLayout.sizeBadgeHeight, 1.8, [2, 6, 23]);
+  const sizeFrame = getBoxFrameLayout(sizeCell, { boxWidthFactor: 0.9 });
+  drawRoundedRect(doc, sizeFrame.x, sizeFrame.y, sizeFrame.w, sizeFrame.h, 1.8, [2, 6, 23]);
   doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(thermalLayout.sizeLabelFontSize);
@@ -232,10 +234,10 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
     labelFontSize: thermalLayout.sizeLabelFontSize,
     valueFontSize: thermalLayout.sizeValueFontSize,
   });
-  doc.text("SIZE", sizeCell.x + thermalLayout.sizeBadgeWidth / 2, sizeTextLayout.labelTextY, { align: "center" });
+  doc.text("SIZE", sizeFrame.x + sizeFrame.w / 2, sizeTextLayout.labelTextY, { align: "center" });
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(thermalLayout.sizeValueFontSize);
-  doc.text(sizeValue, sizeCell.x + thermalLayout.sizeBadgeWidth / 2, sizeTextLayout.valueTextY, { align: "center" });
+  doc.text(sizeValue, sizeFrame.x + sizeFrame.w / 2, sizeTextLayout.valueTextY, { align: "center" });
 
   if (showArticleBox) {
     drawRoundedRect(doc, articleCell.x, articleCell.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [244, 244, 245], [226, 232, 240]);
@@ -255,19 +257,20 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
     doc.text(skuValue, articleCell.x + thermalLayout.articleBoxWidth / 2, articleTextLayout.valueTextY, { align: "center" });
   }
 
-  drawRoundedRect(doc, colorCell.x, colorCell.y, colorCell.w, colorCell.h, 1, [244, 244, 245], [226, 232, 240]);
+  const colorFrame = getBoxFrameLayout(colorCell, { boxHeightFactor: 0.78 });
+  drawRoundedRect(doc, colorFrame.x, colorFrame.y, colorFrame.w, colorFrame.h, 1, [244, 244, 245], [226, 232, 240]);
   doc.setTextColor(100, 116, 139);
   doc.setFontSize(thermalLayout.colorLabelFontSize);
-  const colorTextLayout = getBoxTextLayout(colorCell, {
+  const colorTextLayout = getBoxTextLayout(colorFrame, {
     topPaddingMm: 1.5,
     labelGapMm: 1.0,
     labelFontSize: thermalLayout.colorLabelFontSize,
     valueFontSize: thermalLayout.colorValueFontSize,
   });
-  doc.text("COLOR", colorCell.x + colorCell.w / 2, colorTextLayout.labelTextY, { align: "center" });
+  doc.text("COLOR", colorFrame.x + colorFrame.w / 2, colorTextLayout.labelTextY, { align: "center" });
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(thermalLayout.colorValueFontSize);
-  doc.text(colorValue || "-", colorCell.x + colorCell.w / 2, colorTextLayout.valueTextY, { align: "center", maxWidth: colorCell.w - 2 });
+  doc.text(colorValue || "-", colorFrame.x + colorFrame.w / 2, colorTextLayout.valueTextY, { align: "center", maxWidth: colorFrame.w - 2 });
 
   if (!showArticleBox) {
     doc.setTextColor(15, 23, 42);

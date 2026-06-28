@@ -30,8 +30,10 @@ import {
   buildProductLabelItems,
   buildBarcodeShopLabelItem,
   buildSmartProductQrUrl,
+  getBoxFrameLayout,
   getBoxTextLayout,
   getThermalLandscapeLabelLayout,
+  getThermalImageStatus,
   resolveBarcodeLabelImage,
 } from "../lib/barcodeLabels";
 import { generateBarcodeLabelsPdf } from "../lib/barcodePdfGenerator";
@@ -245,6 +247,23 @@ const getSafeLabelImage = (imageUrl, item) => {
 
   const separator = resolvedImage.includes("?") ? "&" : "?";
   return `${resolvedImage}${separator}v=${encodeURIComponent(item.variantId || item.key || item.copyIndex || Date.now())}`;
+};
+
+const buildThermalAwareImageUrl = (product, variant = null) =>
+  resolveBarcodeLabelImage({
+    ...product,
+    ...(variant || {}),
+    product_thermal_image_url: product?.thermal_image_url || product?.product_thermal_image_url || "",
+    product_thermal_image_status: product?.thermal_image_status || product?.product_thermal_image_status || "",
+    thermal_image_url: variant?.thermal_image_url || variant?.variant_image_url || variant?.color_image_url || product?.thermal_image_url || product?.product_thermal_image_url || "",
+    thermal_image_status: variant?.thermal_image_status || product?.thermal_image_status || "",
+    variant_thermal_image_status: variant?.thermal_image_status || "",
+  });
+
+const getVisibleThermalStatus = (product, variant = null) => {
+  const variantStatus = getThermalImageStatus(variant || {});
+  const productStatus = getThermalImageStatus(product || {});
+  return variantStatus || productStatus;
 };
 
 const getLabelRenderKey = (item, index, suffix = "label") =>
@@ -983,12 +1002,13 @@ function BarcodeLabels() {
 function ProductCard({ product, selectedQuantities, onQuantityChange, sheetMode }) {
   const { t } = useTranslation();
   const variants = Array.isArray(product.variants) && product.variants.length > 0 ? product.variants : [null];
+  const visibleThermalStatus = getVisibleThermalStatus(product, variants[0]);
 
   return (
     <article className="rounded-[28px] border border-white/10 bg-zinc-950/90 p-5 shadow-[0_18px_60px_rgba(0,0,0,0.22)]">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <div className="flex h-28 w-full items-center justify-center overflow-hidden rounded-3xl border border-white/10 bg-white/5 lg:h-32 lg:w-32 lg:flex-shrink-0">
-          <ImageWithFallback src={resolveAssetUrl(resolveBarcodeLabelImage({ ...product, ...(variants[0] || {}) }))} alt={safeText(product.name, t("products.barcodeLabels.product"))} />
+          <ImageWithFallback src={resolveAssetUrl(buildThermalAwareImageUrl(product, variants[0]))} alt={safeText(product.name, t("products.barcodeLabels.product"))} />
         </div>
 
         <div className="min-w-0 flex-1">
@@ -999,6 +1019,11 @@ function ProductCard({ product, selectedQuantities, onQuantityChange, sheetMode 
             <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-300">
               {safeText(product.category, t("products.barcodeLabels.category"))}
             </span>
+            {visibleThermalStatus === "processing" ? (
+              <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[11px] font-semibold tracking-[0.08em] text-amber-200">
+                جاري تجهيز صورة الملصق
+              </span>
+            ) : null}
           </div>
 
           <h3 className="mt-3 text-2xl font-black text-white">{safeText(product.name, t("products.barcodeLabels.product"))}</h3>
@@ -1010,7 +1035,7 @@ function ProductCard({ product, selectedQuantities, onQuantityChange, sheetMode 
             {variants.map((variant, index) => {
               const key = getLabelIdentity(product, variant);
               const quantity = getLabelQuantity(selectedQuantities[key]);
-              const imageUrl = resolveBarcodeLabelImage({ ...product, ...(variant || {}) });
+              const imageUrl = buildThermalAwareImageUrl(product, variant);
 
               return (
                 <VariantRow
@@ -1041,6 +1066,7 @@ function VariantRow({ product, variant, imageUrl, quantity, onQuantityChange, sh
   const { t } = useTranslation();
   const price = getLabelPriceInfo(product, variant).price;
   const safeImage = resolveAssetUrl(imageUrl);
+  const visibleThermalStatus = getVisibleThermalStatus(product, variant);
 
   return (
     <div
@@ -1062,6 +1088,11 @@ function VariantRow({ product, variant, imageUrl, quantity, onQuantityChange, sh
               <span>SKU {safeText(variant?.sku || product.sku, "n/a")}</span>
               <span>Barcode {safeText(variant?.barcode || product.barcode, "n/a")}</span>
               <span>{formatCurrency(price)}</span>
+              {visibleThermalStatus === "processing" ? (
+                <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
+                  جاري تجهيز صورة الملصق
+                </span>
+              ) : null}
             </div>
           </div>
         </div>
@@ -1257,6 +1288,8 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
     WebkitLineClamp: thermalLayout.titleMaxLines,
     height: `${thermalLayout.titleCell.h}mm`,
     maxHeight: `${thermalLayout.titleCell.h}mm`,
+    paddingTop: "2mm",
+    paddingBottom: "2mm",
     overflow: "hidden",
     minHeight: `${thermalLayout.titleCell.h}mm`,
     width: "100%",
@@ -1294,6 +1327,8 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const hasImage = Boolean(printSettings.showProductImage);
   const contentColumns = hasImage ? `${thermalLayout.imageCell.w}mm minmax(0, 1fr)` : "minmax(0, 1fr)";
   const contentRows = `${thermalLayout.titleCell.h}mm ${thermalLayout.sizeCell.h}mm ${thermalLayout.colorCell.h}mm ${thermalLayout.barcodeCell.h}mm`;
+  const sizeFrame = getBoxFrameLayout(thermalLayout.sizeCell, { boxWidthFactor: 0.9 });
+  const colorFrame = getBoxFrameLayout(thermalLayout.colorCell, { boxHeightFactor: 0.78 });
   const sizeTextLayout = getBoxTextLayout(thermalLayout.sizeCell, {
     topPaddingMm: 1.5,
     labelGapMm: 1.0,
@@ -1309,7 +1344,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
       })
     : null;
-  const colorTextLayout = getBoxTextLayout(thermalLayout.colorCell, {
+  const colorTextLayout = getBoxTextLayout(colorFrame, {
     topPaddingMm: 1.5,
     labelGapMm: 1.0,
     labelFontSize: thermalLayout.colorLabelFontSize,
@@ -1336,7 +1371,8 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
               gridColumn: "1",
               gridRow: "1 / span 3",
               minHeight: `${thermalLayout.imageCell.h}mm`,
-              padding: "0.85mm",
+              paddingTop: "1mm",
+              paddingBottom: "0.35mm",
             }}
           >
             <ImageWithFallback
@@ -1373,7 +1409,14 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         >
           <div
             className="min-w-0 rounded-[8px] border border-zinc-950 bg-zinc-950 text-center text-white"
-            style={{ ...sizeBadgeStyle, position: "relative", overflow: "hidden" }}
+            style={{
+              ...sizeBadgeStyle,
+              position: "relative",
+              overflow: "hidden",
+              width: `${sizeFrame.w}mm`,
+              minHeight: `${sizeFrame.h}mm`,
+              marginInline: "auto",
+            }}
           >
             <div
               className="font-black uppercase leading-none tracking-[0.22em] text-zinc-300"
@@ -1442,13 +1485,18 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             overflow: "hidden",
             gridColumn: hasImage ? "2" : "1",
             gridRow: "3",
+            width: `${colorFrame.w}mm`,
+            height: `${colorFrame.h}mm`,
+            minHeight: `${colorFrame.h}mm`,
+            marginInline: "auto",
+            marginTop: `${(thermalLayout.colorCell.h - colorFrame.h) / 2}mm`,
           }}
         >
           <div
             className="font-black uppercase leading-none tracking-[0.22em] text-zinc-500"
             style={{
               position: "absolute",
-              top: `${colorTextLayout.labelTopMm - thermalLayout.colorCell.y}mm`,
+              top: `${colorTextLayout.labelTopMm - colorFrame.y}mm`,
               left: 0,
               right: 0,
               fontSize: `${thermalLayout.colorLabelFontSize}px`,
@@ -1460,7 +1508,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             className="truncate font-black uppercase leading-none"
             style={{
               position: "absolute",
-              top: `${colorTextLayout.valueTopMm - thermalLayout.colorCell.y}mm`,
+              top: `${colorTextLayout.valueTopMm - colorFrame.y}mm`,
               left: 0,
               right: 0,
               fontSize: `${thermalLayout.colorValueFontSize}px`,
