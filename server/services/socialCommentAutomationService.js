@@ -3266,6 +3266,13 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       config_enabled: Boolean(automationConfig?.enabled),
       matched_key: text(automationConfig?.lookup_matched_key || ""),
     });
+    console.info("SOCIAL_COMMENT_RUNTIME_SELECTED_POST", {
+      tenant_id: safeTenantId,
+      platform,
+      selected_post_id: postId,
+      selected_comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
+      selected_post_permalink: text(savedRunRow?.post_permalink || savedRunRow?.post_permalink_url || event.post_permalink || event.post_permalink_url || ""),
+    });
     const automationRuntimeResult = await executeSocialCommentAutomationRuntime({
       tenantId: safeTenantId,
       platform,
@@ -4410,6 +4417,14 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   );
   const originalCommentText = firstText(value.message, value.text, value.comment_text, value.caption, value.message_text);
   const timestamp = firstText(value.created_time, value.timestamp, change.created_time, change.timestamp, entry.time, entry.created_time);
+  console.info("SOCIAL_COMMENT_WEBHOOK_RAW", {
+    raw_post_id: firstText(value.post_id, value.media_id, value.id, entry.id),
+    raw_object_id: firstText(body.object, change.object, entry.object, value.object_id, value.object),
+    raw_parent_id: firstText(value.parent_id, value.parent_comment_id, value.parent?.id),
+    raw_comment_id: firstText(value.comment_id, value.id, value.commentId, change.comment_id),
+    post_permalink: postPermalink,
+    post_message: postMessage,
+  });
   const commentId = deriveCommentId({
     platform,
     postId,
@@ -4906,6 +4921,13 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         comment_id: text(storedRow.comment_id || ""),
         config_enabled: Boolean(automationConfig?.enabled),
         matched_key: text(automationConfig?.lookup_matched_key || ""),
+      });
+      console.info("SOCIAL_COMMENT_RUNTIME_SELECTED_POST", {
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        selected_post_id: text(storedRow.post_id || ""),
+        selected_comment_id: text(storedRow.comment_id || ""),
+        selected_post_permalink: text(storedRow.post_permalink || storedRow.post_permalink_url || ""),
       });
       const runtimeProductContext = await resolveSocialCommentPublishedProductContext({
         tenantId: storedRow.tenant_id,
