@@ -1,4 +1,5 @@
 import { io } from "../utils/socket.js";
+import { invalidateSocialCommentCenterFastListCache } from "./socialCommentsCenterService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 
@@ -102,6 +103,16 @@ const emitSocialRealtimeEvent = (eventName, payload = {}) => {
     nextPayload
   );
   io.emit(eventName, nextPayload);
+  try {
+    invalidateSocialCommentCenterFastListCache({
+      tenantId: payload?.tenant_id || payload?.tenantId || payload?.raw_payload?.tenant_id || payload?.metadata?.tenant_id || null,
+    });
+  } catch (error) {
+    console.warn("SOCIAL_FAST_LIST_CACHE_INVALIDATE_FAILED", {
+      event: eventName,
+      message: error?.message || String(error || ""),
+    });
+  }
 };
 
 export const emitSocialCommentNew = (payload = {}) => emitSocialRealtimeEvent("social_comment:new", payload);

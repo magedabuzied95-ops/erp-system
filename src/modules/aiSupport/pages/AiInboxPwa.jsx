@@ -489,6 +489,7 @@ const isSocialCommentThread = (item = {}) => {
 const DEBUG_SOCIAL_COMMENTS =
   import.meta.env.DEV ||
   ["1", "true", "yes", "on"].includes(String(import.meta.env.VITE_AI_SUPPORT_SOCIAL_COMMENTS_DEBUG || import.meta.env.VITE_AI_SUPPORT_DEBUG || "").toLowerCase());
+const DEBUG_SOCIAL_PERF = false;
 
 const getMessagePlatform = (item = {}) => {
   if (isSocialCommentThread(item)) return "";
@@ -2346,6 +2347,8 @@ export default function AiInboxPwa() {
 
       const fastRequestUrl = `/api/social-comments/fast-list?tenant_id=${encodeURIComponent(tenantId)}&limit=30`;
       const legacyRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=50`;
+      const perfLabel = "AiInboxPwa.socialCommentsFastList";
+      if (DEBUG_SOCIAL_PERF) console.time(perfLabel);
       const settingsPromise = api
         .get("/social-comments/auto-reply/settings", {
           params: { tenant_id: tenantId },
@@ -2405,7 +2408,11 @@ export default function AiInboxPwa() {
         if (seq !== requestSeqRef.current) return;
         const status = Number(socialCommentsError?.status || socialCommentsError?.responseBody?.status || 0) || "";
         const message = socialCommentsError?.responseBody?.message || socialCommentsError?.message || "تعذر تحميل منشورات التعليقات";
-        setSocialComments({ items: [], loading: false, error: message });
+        setSocialComments((current) => ({
+          items: silent && Array.isArray(current.items) ? current.items : [],
+          loading: false,
+          error: message,
+        }));
         setSocialCommentsDebug({
           request_url: ENABLE_SOCIAL_FAST_CENTER ? fastRequestUrl : legacyRequestUrl,
           tenant_id: tenantId,
@@ -2413,6 +2420,8 @@ export default function AiInboxPwa() {
           count: 0,
           error: message,
         });
+      } finally {
+        if (DEBUG_SOCIAL_PERF) console.timeEnd(perfLabel);
       }
     },
     [headers, tenantId]
@@ -2793,16 +2802,21 @@ export default function AiInboxPwa() {
       });
     };
 
+    let socketPatchCount = 0;
     const offNew = subscribeRealtime("social_comment:new", (payload = {}) => {
+      if (DEBUG_SOCIAL_PERF) socketPatchCount += 1;
       patchSocialComment(payload, { matchOnly: false });
     });
     const offUpdated = subscribeRealtime("social_comment:updated", (payload = {}) => {
+      if (DEBUG_SOCIAL_PERF) socketPatchCount += 1;
       patchSocialComment(payload, { matchOnly: true });
     });
     const offReplyStatus = subscribeRealtime("social_comment:reply_status", (payload = {}) => {
+      if (DEBUG_SOCIAL_PERF) socketPatchCount += 1;
       patchSocialComment(payload, { matchOnly: true });
     });
     return () => {
+      if (DEBUG_SOCIAL_PERF) console.log("[AiInboxPwa][social-comment-socket-patch-count]", socketPatchCount);
       offNew();
       offUpdated();
       offReplyStatus();

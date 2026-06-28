@@ -52,6 +52,44 @@ const SOCIAL_AUTO_REPLY_DEFAULTS = {
 };
 
 const SOCIAL_AUTO_REPLY_MODES = new Set(["off", "draft", "manual_approval", "full_auto"]);
+const SOCIAL_FAST_LIST_CACHE_TTL_MS = 4000;
+const socialFastListCache = new Map();
+
+const normalizeSocialFastListCacheKeyPart = (value = "") => text(value).toLowerCase();
+
+const buildSocialFastListCacheKey = ({ tenantId = null, platform = "", status = "", limit = 30, cursor = "" } = {}) =>
+  [
+    toTenantId(tenantId),
+    normalizeSocialFastListCacheKeyPart(platform || "all"),
+    normalizeSocialFastListCacheKeyPart(status || "all"),
+    Math.min(100, Math.max(1, Number(limit) || 30)),
+    normalizeSocialFastListCacheKeyPart(cursor || "none"),
+  ].join("|");
+
+const cloneSocialFastListResult = (result = {}) => ({
+  items: Array.isArray(result.items) ? result.items.map((item) => ({ ...item })) : [],
+  next_cursor: text(result.next_cursor || ""),
+});
+
+const pruneSocialFastListCache = () => {
+  const now = Date.now();
+  for (const [cacheKey, cacheValue] of socialFastListCache.entries()) {
+    if (!cacheValue || cacheValue.expiresAt <= now) {
+      socialFastListCache.delete(cacheKey);
+    }
+  }
+};
+
+export const invalidateSocialCommentCenterFastListCache = ({ tenantId = null } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  if (!safeTenantId) return;
+  const prefix = `${safeTenantId}|`;
+  for (const cacheKey of socialFastListCache.keys()) {
+    if (cacheKey.startsWith(prefix)) {
+      socialFastListCache.delete(cacheKey);
+    }
+  }
+};
 
 const ensureSocialCommentsCenterSchema = async () => {
   await ensureAiSalesAgentSchema().catch(() => {});
@@ -140,6 +178,10 @@ const ensureSocialCommentsCenterSchema = async () => {
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_post_automation_configs_lookup ON social_comment_post_automation_configs (tenant_id, post_id, platform)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_lookup ON social_comment_auto_reply_runs (tenant_id, platform, comment_id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_list ON social_comment_automation_runs (tenant_id, platform, updated_at DESC, id DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_created ON social_comment_automation_runs (tenant_id, platform, created_at DESC, id DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_post ON social_comment_automation_runs (tenant_id, platform, post_id, updated_at DESC, id DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_automation_runs_fast_status ON social_comment_automation_runs (tenant_id, platform, LOWER(COALESCE(NULLIF(action_taken, ''), NULLIF(public_reply_status, ''), NULLIF(dm_status, ''))), updated_at DESC, id DESC)`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_fast_reply ON social_comment_auto_reply_runs (tenant_id, platform, reply_status, updated_at DESC, id DESC)`);
 };
 
 const normalizePlatform = (value = "") => (lower(value) === "instagram" ? "instagram" : "facebook");
@@ -2564,6 +2606,12 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
   const normalizedPlatform = normalizePlatform(platform);
   const safeLimit = Math.min(100, Math.max(1, Number(limit) || 30));
   const safeCursor = decodeFastListCursor(cursor);
+  const cacheKey = buildSocialFastListCacheKey({ tenantId: safeTenantId, platform: normalizedPlatform, status, limit: safeLimit, cursor: safeCursor.activityAt && safeCursor.id ? cursor : "" });
+  pruneSocialFastListCache();
+  const cachedResult = socialFastListCache.get(cacheKey);
+  if (cachedResult && cachedResult.expiresAt > Date.now()) {
+    return cloneSocialFastListResult(cachedResult.value);
+  }
   const columns = await getSocialCommentAutomationRunColumns();
   const hasStatusColumn = columns.has("status");
   const hasResolvedProductIdColumn = columns.has("resolved_product_id");
@@ -2636,10 +2684,15 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
   const items = (result.rows || []).map(normalizeSocialCommentFastListRow);
   const nextItems = items.slice(0, safeLimit);
   const lastItem = nextItems[nextItems.length - 1] || null;
-  return {
+  const resultPayload = {
     items: nextItems,
     next_cursor: items.length > safeLimit && lastItem?.last_activity_at && lastItem?.id ? encodeFastListCursor({ activityAt: lastItem.last_activity_at, id: lastItem.id }) : "",
   };
+  socialFastListCache.set(cacheKey, {
+    expiresAt: Date.now() + SOCIAL_FAST_LIST_CACHE_TTL_MS,
+    value: cloneSocialFastListResult(resultPayload),
+  });
+  return resultPayload;
 };
 
 const upsertSocialCommentAutoReplyRun = async ({ tenantId = null, platform = "", postId = "", commentId = "", payload = {} } = {}) => {

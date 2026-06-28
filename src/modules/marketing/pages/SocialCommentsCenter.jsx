@@ -11,6 +11,7 @@ import SocialCommentsWorkspace from "../../aiSupport/components/SocialCommentsWo
 
 const clean = (value = "") => String(value ?? "").trim();
 const ENABLE_SOCIAL_FAST_CENTER = true;
+const DEBUG_SOCIAL_PERF = false;
 
 const DEBUG_SOCIAL_COMMENTS =
   import.meta.env.DEV ||
@@ -129,7 +130,6 @@ function SocialCommentsCenter() {
   buildPageTitle("Social Comments Center");
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const realtimeStatus = useRealtimeStatus();
   const tenantId = clean(searchParams.get("tenant") || searchParams.get("tenantId") || tenantIdFromAuth());
   const postIdParam = clean(searchParams.get("postId") || searchParams.get("post_id") || "");
   const commentIdParam = clean(searchParams.get("commentId") || searchParams.get("comment_id") || "");
@@ -207,6 +207,8 @@ function SocialCommentsCenter() {
     if (!tenantId) return;
     if (!silent) setLoading(true);
     setError("");
+    const perfLabel = "SocialCommentsCenter.fastList";
+    if (DEBUG_SOCIAL_PERF) console.time(perfLabel);
     try {
       let payload = null;
       if (ENABLE_SOCIAL_FAST_CENTER) {
@@ -240,8 +242,11 @@ function SocialCommentsCenter() {
       setItems(nextItems);
     } catch (loadError) {
       setError(loadError?.message || "Failed to load social comments");
-      setItems([]);
+      if (!silent) {
+        setItems([]);
+      }
     } finally {
+      if (DEBUG_SOCIAL_PERF) console.timeEnd(perfLabel);
       if (!silent) setLoading(false);
     }
   }, [tenantId]);
@@ -427,7 +432,7 @@ function SocialCommentsCenter() {
   }, [activePost, commentIdParam, pageIdParam, platformParam, tenantId]);
 
   const handleRefresh = useCallback(() => {
-    void loadPosts();
+    void loadPosts({ silent: true });
     void loadGlobalSettings();
   }, [loadGlobalSettings, loadPosts]);
 
@@ -484,20 +489,36 @@ function SocialCommentsCenter() {
         ) : null}
 
         <div className="min-h-0 flex-1 overflow-hidden">
-          <SocialCommentsWorkspace
-            items={items}
-            loading={loading}
-            error={error}
-            selectedPost={selectedPostFromParams || selectedPost || null}
-            selectedThread={selectedThread}
-            selectedTemplate={selectedTemplate}
-            globalSettings={globalSettings}
-            onRefresh={handleRefresh}
-            onSelectPost={handleSelectPost}
-            onSelectCustomer={openCustomerDrawer}
-            tenantId={tenantId}
-            initialSelectedCommentId={commentIdParam}
-          />
+          {loading && !items.length ? (
+            <div className="flex h-full min-h-[420px] flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="h-5 w-40 rounded bg-slate-200/80" />
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                    <div className="h-4 w-24 rounded bg-slate-200/80" />
+                    <div className="mt-4 h-3 w-3/4 rounded bg-slate-200/70" />
+                    <div className="mt-3 h-3 w-1/2 rounded bg-slate-200/70" />
+                    <div className="mt-6 h-10 rounded-xl bg-slate-200/70" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <SocialCommentsWorkspace
+              items={items}
+              loading={loading}
+              error={error}
+              selectedPost={selectedPostFromParams || selectedPost || null}
+              selectedThread={selectedThread}
+              selectedTemplate={selectedTemplate}
+              globalSettings={globalSettings}
+              onRefresh={handleRefresh}
+              onSelectPost={handleSelectPost}
+              onSelectCustomer={openCustomerDrawer}
+              tenantId={tenantId}
+              initialSelectedCommentId={commentIdParam}
+            />
+          )}
         </div>
       </div>
       <Customer360Drawer

@@ -113,6 +113,8 @@ router.get("/fast-list", protect, permit("settings", "view"), async (req, res) =
   const status = String(req.query?.status || "").trim();
   const cursor = String(req.query?.cursor || "").trim();
   const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 30) || 30));
+  const startedAt = Date.now();
+  let rowsCount = 0;
   console.log("SOCIAL_FAST_LIST_REQUEST", {
     tenant_id: tenantId,
     platform,
@@ -122,11 +124,12 @@ router.get("/fast-list", protect, permit("settings", "view"), async (req, res) =
   });
   try {
     const result = await listSocialCommentCenterFastList({ tenantId, platform, status, limit, cursor });
+    rowsCount = Array.isArray(result.items) ? result.items.length : 0;
     console.log("SOCIAL_FAST_LIST_RESULT", {
       tenant_id: tenantId,
       platform,
       status,
-      count: Array.isArray(result.items) ? result.items.length : 0,
+      count: rowsCount,
       next_cursor: Boolean(result.next_cursor),
     });
     return res.json({
@@ -144,6 +147,15 @@ router.get("/fast-list", protect, permit("settings", "view"), async (req, res) =
       error: error?.message || "",
     });
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment fast list" });
+  } finally {
+    console.log("SOCIAL_FAST_LIST_TIMING", {
+      tenant_id: tenantId,
+      platform,
+      status,
+      limit,
+      duration_ms: Date.now() - startedAt,
+      rows_count: rowsCount,
+    });
   }
 });
 
