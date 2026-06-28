@@ -645,6 +645,7 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS image TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS thumbnail_url TEXT DEFAULT '',
+            ADD COLUMN IF NOT EXISTS thermal_image_url TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS gallery_images JSONB NOT NULL DEFAULT '[]'::jsonb,
             ADD COLUMN IF NOT EXISTS variation_mode VARCHAR(30) NOT NULL DEFAULT 'full_variations',
             ADD COLUMN IF NOT EXISTS fixed_size_label VARCHAR(80) DEFAULT '',
@@ -850,6 +851,7 @@ const normalizeProductRow = (row = {}) => {
   const imageUrl = row.image_url || "";
   const thumbnailUrl = row.thumbnail_url || "";
   const photoUrl = row.photo_url || "";
+  const thermalImageUrl = row.thermal_image_url || "";
   const image = row.image || "";
   const galleryImages = normalizeGalleryImages(row.gallery_images);
   return ({
@@ -917,6 +919,7 @@ const normalizeProductRow = (row = {}) => {
   image_url: imageUrl,
   thumbnail_url: thumbnailUrl,
   photo_url: photoUrl,
+  thermal_image_url: thermalImageUrl,
   image,
   product_image_url: row.product_image_url || thumbnailUrl || imageUrl || photoUrl || image || "",
   gallery_images: galleryImages,
@@ -2246,6 +2249,7 @@ export const getProductByQrToken = async (req, res) => {
         p.suggested_purchase_cartons,
         p.qr_token,
         COALESCE(NULLIF(p.image_url, ''), NULLIF(p.image, ''), NULLIF(p.photo_url, ''), NULLIF(p.thumbnail_url, ''), '') AS product_image_url,
+        COALESCE(NULLIF(p.thermal_image_url, ''), '') AS thermal_image_url,
         v.id AS variant_id,
         v.color,
         v.size,
@@ -2339,6 +2343,7 @@ export const getProductByQrToken = async (req, res) => {
         name: first.name,
         image_url: first.product_image_url || "",
         product_image_url: first.product_image_url || "",
+        thermal_image_url: first.thermal_image_url || "",
         qr_token: first.qr_token,
         brand: first.brand || "Unbranded",
         category: first.category || "Uncategorized",
@@ -2429,6 +2434,7 @@ export const createProduct = async (req, res) => {
       sku,
       barcode,
       image_url,
+      thermal_image_url,
       gallery,
       gallery_images,
       variation_mode,
@@ -2628,6 +2634,7 @@ export const createProduct = async (req, res) => {
       "sku",
       "barcode",
       "image_url",
+      "thermal_image_url",
       "gallery_images",
       "variation_mode",
       "fixed_size_label",
@@ -2688,6 +2695,7 @@ export const createProduct = async (req, res) => {
       finalProductSku,
       barcode || "",
       image_url || "",
+      thermal_image_url || "",
       JSON.stringify(normalizedGalleryImages),
       normalizedVariationMode,
       normalizedFixedSizeLabel,
@@ -2861,6 +2869,7 @@ export const updateProduct = async (req, res) => {
       barcode,
       status,
       image_url,
+      thermal_image_url,
       gallery,
       gallery_images,
       variation_mode,
@@ -2963,6 +2972,7 @@ export const updateProduct = async (req, res) => {
       normalizedRegularPrice > 0 &&
       normalizedSalePrice < normalizedRegularPrice;
     const imageUrlProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "image_url");
+    const thermalImageUrlProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "thermal_image_url");
     const galleryImagesProvided =
       Object.prototype.hasOwnProperty.call(req.body || {}, "gallery_images") ||
       Object.prototype.hasOwnProperty.call(req.body || {}, "gallery");
@@ -3081,7 +3091,8 @@ export const updateProduct = async (req, res) => {
         tax_rate = COALESCE($51, 0),
         low_stock_tracking_mode = COALESCE($52, low_stock_tracking_mode),
         product_low_stock_threshold = COALESCE($53, product_low_stock_threshold),
-        minimum_distinct_sizes_required = COALESCE($54, minimum_distinct_sizes_required)
+        minimum_distinct_sizes_required = COALESCE($54, minimum_distinct_sizes_required),
+        thermal_image_url = CASE WHEN $60 THEN $61 ELSE thermal_image_url END
       WHERE id = $56
         AND tenant_id = $58
       RETURNING *
@@ -3148,6 +3159,8 @@ export const updateProduct = async (req, res) => {
         productPricingProvided,
         tenantId,
         normalizedStorefrontVisible,
+        thermalImageUrlProvided,
+        thermal_image_url || "",
       ]
     );
     if (updated.rows.length === 0) {

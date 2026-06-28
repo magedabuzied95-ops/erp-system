@@ -58,6 +58,7 @@ import {
   sortProductSizes,
 } from "../lib/variantBulkSizes";
 import { dedupeImages } from "../lib/dedupeImages";
+import { prepareThermalImage } from "../lib/thermalImageOptimizer";
 import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from "../../../shared/utils/colorNameFromImage";
 import {
   createProduct,
@@ -319,6 +320,8 @@ function CreateProduct() {
   const [active, setActive] = useState(true);
   const [trackStock, setTrackStock] = useState(true);
   const [coverImage, setCoverImage] = useState("");
+  const [thermalImageUrl, setThermalImageUrl] = useState("");
+  const [thermalImageGenerating, setThermalImageGenerating] = useState(false);
   const [gallery, setGallery] = useState([]);
   const [saving, setSaving] = useState(false);
   const [defaultManufacturerId, setDefaultManufacturerId] = useState("");
@@ -1429,6 +1432,7 @@ function CreateProduct() {
     const preview = await readFileAsDataUrl(file);
     setCoverImage(preview);
     setCoverLabel(file.name);
+    setThermalImageUrl("");
   };
 
   const buildAiProductPayload = () => ({
@@ -1511,6 +1515,29 @@ function CreateProduct() {
       timers.forEach((timer) => window.clearTimeout(timer));
       setAiProductProgress(AI_PROGRESS_STEPS[0]);
       setAiProductLoading(false);
+    }
+  };
+
+  const handleGenerateThermalImage = async () => {
+    if (!coverImage) {
+      toast.error(t("products.editor.selectProductImageFirst"));
+      return;
+    }
+
+    try {
+      setThermalImageGenerating(true);
+      const thermalDataUrl = await prepareThermalImage(coverImage);
+      if (!thermalDataUrl) throw new Error("Thermal image generation failed");
+      const thermalUrl = await uploadProductImageValue(thermalDataUrl, {
+        filename: `${String(name || "product").trim().replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 80) || "product"}-thermal.png`,
+      });
+      setThermalImageUrl(thermalUrl);
+      toast.success("Thermal image generated");
+    } catch (error) {
+      console.warn("[products:add] thermal image generation failed", error);
+      toast.error(error?.message || "Thermal image generation failed");
+    } finally {
+      setThermalImageGenerating(false);
     }
   };
 
@@ -1624,6 +1651,7 @@ function CreateProduct() {
       const nextPrimary = next[0] || null;
       setCoverImage(nextPrimary?.preview || nextPrimary?.image_url || nextPrimary?.url || "");
       setCoverLabel(nextPrimary?.name || "");
+      setThermalImageUrl("");
     }
     toast.success(t("products.images.removed"));
   };
@@ -1633,6 +1661,7 @@ function CreateProduct() {
     if (!src) return;
     setCoverImage(src);
     setCoverLabel(item?.name || "Gallery image");
+    setThermalImageUrl("");
     toast.success(t("products.editor.primaryProductImageUpdated"));
   };
 
@@ -1873,6 +1902,7 @@ function CreateProduct() {
         status: active ? "active" : "inactive",
         track_stock: trackStock,
         image_url: coverImageUrl,
+        thermal_image_url: thermalImageUrl,
         gallery: galleryPayload,
         variant_groups_count: filledGroups.length,
         variant_rows_count: generatedVariants.length,
@@ -1952,6 +1982,7 @@ function CreateProduct() {
         status: active ? "active" : "inactive",
         track_stock: trackStock,
         image_url: coverImageUrl,
+        thermal_image_url: thermalImageUrl,
         gallery: galleryPayload,
       };
 
@@ -2367,15 +2398,26 @@ function CreateProduct() {
                       <span className="truncate" dir="auto">{selectedBrandName}</span>
                     </div>
                   ) : null}
-                  <button
-                    type="button"
-                    onClick={handleGenerateAiProductData}
-                    disabled={aiProductLoading || !coverImage}
-                    className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-blue-300/25 bg-blue-400/10 px-4 text-sm font-black text-blue-100 transition hover:border-blue-300/45 hover:bg-blue-400/15 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {aiProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                    {aiProductLoading ? aiProductProgress : "Generate AI Product Data"}
-                  </button>
+                  <div className="mt-3 grid gap-2">
+                    <button
+                      type="button"
+                      onClick={handleGenerateAiProductData}
+                      disabled={aiProductLoading || !coverImage}
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-blue-300/25 bg-blue-400/10 px-4 text-sm font-black text-blue-100 transition hover:border-blue-300/45 hover:bg-blue-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {aiProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {aiProductLoading ? aiProductProgress : "Generate AI Product Data"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGenerateThermalImage}
+                      disabled={thermalImageGenerating || !coverImage}
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                      {thermalImageUrl ? "Regenerate Thermal Image" : "Generate Thermal Image"}
+                    </button>
+                  </div>
                 </div>
 
                 <div className="rounded-[28px] border border-white/8 bg-white/5 p-5">

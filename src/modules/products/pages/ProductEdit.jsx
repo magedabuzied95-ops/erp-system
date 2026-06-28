@@ -59,6 +59,7 @@ import {
   sortProductSizes,
 } from "../lib/variantBulkSizes";
 import { dedupeImages } from "../lib/dedupeImages";
+import { prepareThermalImage } from "../lib/thermalImageOptimizer";
 import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from "../../../shared/utils/colorNameFromImage";
 import {
   generateProductDescription,
@@ -105,6 +106,7 @@ const emptyProduct = {
   suggested_purchase_cartons: 1,
   use_custom_compare_price: false,
   custom_compare_price: "",
+  thermal_image_url: "",
   status: "active",
   gender: "",
   audiences: [],
@@ -303,6 +305,7 @@ const normalizeProductForm = (row = {}) => ({
   sale_end_at: row.sale_end_at ? String(row.sale_end_at).slice(0, 16) : "",
   use_custom_compare_price: row.use_custom_compare_price === true || String(row.use_custom_compare_price || "").toLowerCase() === "true",
   custom_compare_price: String(row.custom_compare_price ?? ""),
+  thermal_image_url: row.thermal_image_url || "",
   status: String(row.status || "active").toLowerCase(),
   gender: row.gender || (Array.isArray(row.audiences) ? row.audiences[0] : "") || "",
   audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
@@ -616,6 +619,8 @@ function ProductEdit() {
   const [brand, setBrand] = useState("");
   const [unit, setUnit] = useState("");
   const [coverImage, setCoverImage] = useState("");
+  const [thermalImageUrl, setThermalImageUrl] = useState("");
+  const [thermalImageGenerating, setThermalImageGenerating] = useState(false);
   const [coverLabel, setCoverLabel] = useState("");
   const [gallery, setGallery] = useState([]);
   const [defaultManufacturerId, setDefaultManufacturerId] = useState("");
@@ -835,11 +840,12 @@ function ProductEdit() {
         brand,
         unit,
         coverImage,
+        thermalImageUrl,
         gallery,
         defaultManufacturerId,
         colorGroups,
       }),
-    [product, mainCategory, subCategory, childCategory, brand, unit, coverImage, gallery, defaultManufacturerId, colorGroups]
+    [product, mainCategory, subCategory, childCategory, brand, unit, coverImage, thermalImageUrl, gallery, defaultManufacturerId, colorGroups]
   );
   const initialEditorSignatureRef = useRef(null);
   const hasUnsavedChanges = Boolean(initialEditorSignatureRef.current && initialEditorSignatureRef.current !== editorSignature);
@@ -986,6 +992,7 @@ function ProductEdit() {
           setBrand("");
           setUnit("");
           setCoverImage("");
+          setThermalImageUrl("");
           setCoverLabel("");
           setGallery([]);
           setDefaultManufacturerId("");
@@ -1037,6 +1044,7 @@ function ProductEdit() {
             unit: hydratedUnit.unit || firstRow.unit || "",
           });
           setCoverImage(resolveAssetUrl(firstRow.product_image_url || firstRow.image_url || ""));
+          setThermalImageUrl(resolveAssetUrl(firstRow.thermal_image_url || ""));
           setCoverLabel(firstRow.product_image_url || firstRow.image_url ? t("products.editor.currentProductImage") : "");
           setGallery(normalizeGalleryImages(firstRow.gallery_images));
           setDefaultManufacturerId("");
@@ -1049,6 +1057,7 @@ function ProductEdit() {
           setError(t("products.editor.variantsFailed"));
           setProduct(normalizedProduct);
           setCoverImage(resolveAssetUrl(firstRow.product_image_url || firstRow.image_url || ""));
+          setThermalImageUrl(resolveAssetUrl(firstRow.thermal_image_url || ""));
           setCoverLabel(firstRow.product_image_url || firstRow.image_url ? t("products.editor.currentProductImage") : "");
           setGallery(normalizeGalleryImages(firstRow.gallery_images));
           setColorGroups([]);
@@ -1129,6 +1138,7 @@ function ProductEdit() {
           unit: hydratedUnit.unit || firstRow.unit || "",
         });
         setCoverImage(resolveAssetUrl(firstRow.product_image_url || firstRow.image_url || ""));
+        setThermalImageUrl(resolveAssetUrl(firstRow.thermal_image_url || ""));
         setCoverLabel(firstRow.product_image_url || firstRow.image_url ? t("products.editor.currentProductImage") : "");
         setGallery(normalizeGalleryImages(firstRow.gallery_images));
         setDefaultManufacturerId(resolvedDefaultManufacturerId);
@@ -1767,6 +1777,7 @@ function ProductEdit() {
     const preview = await readFileAsDataUrl(file);
     setCoverImage(preview);
     setCoverLabel(file.name);
+    setThermalImageUrl("");
     event.target.value = "";
   };
 
@@ -1840,6 +1851,29 @@ function ProductEdit() {
       timers.forEach((timer) => window.clearTimeout(timer));
       setAiProductProgress(AI_PROGRESS_STEPS[0]);
       setAiProductLoading(false);
+    }
+  };
+
+  const handleGenerateThermalImage = async () => {
+    if (!coverImage) {
+      toast.error(t("products.editor.uploadMainImageFirst"));
+      return;
+    }
+
+    try {
+      setThermalImageGenerating(true);
+      const thermalDataUrl = await prepareThermalImage(coverImage);
+      if (!thermalDataUrl) throw new Error("Thermal image generation failed");
+      const thermalUrl = await uploadProductImageValue(thermalDataUrl, {
+        filename: `${String(product.name || "product").trim().replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 80) || "product"}-thermal.png`,
+      });
+      setThermalImageUrl(thermalUrl);
+      toast.success("Thermal image generated");
+    } catch (error) {
+      console.warn("[products:edit] thermal image generation failed", error);
+      toast.error(error?.message || "Thermal image generation failed");
+    } finally {
+      setThermalImageGenerating(false);
     }
   };
 
@@ -1952,6 +1986,7 @@ function ProductEdit() {
       const nextPrimary = next[0] || null;
       setCoverImage(nextPrimary?.preview || nextPrimary?.image_url || nextPrimary?.url || "");
       setCoverLabel(nextPrimary?.name || "");
+      setThermalImageUrl("");
     }
     toast.success(t("products.images.removed"));
   };
@@ -1961,6 +1996,7 @@ function ProductEdit() {
     if (!src) return;
     setCoverImage(src);
     setCoverLabel(item?.name || "Gallery image");
+    setThermalImageUrl("");
     toast.success(t("products.editor.primaryProductImageUpdated"));
   };
 
@@ -2328,6 +2364,7 @@ function ProductEdit() {
         barcode: product.barcode || "",
         status: product.status || "active",
         image_url: coverImageUrl,
+        thermal_image_url: thermalImageUrl,
         gallery_images: galleryPayload,
         variants: isSimpleMode ? [] : variantPayloads,
         colorImages: isSimpleMode ? [] : colorImagesPayload.map((group) => ({
@@ -2404,6 +2441,7 @@ function ProductEdit() {
         status: product.status || "active",
         active: product.status !== "inactive" && product.status !== "archived",
         image_url: coverImageUrl,
+        thermal_image_url: thermalImageUrl,
         gallery: galleryPayload,
         gallery_images: galleryPayload,
       });
@@ -2827,15 +2865,26 @@ function ProductEdit() {
                   )}
                   <input type="file" hidden accept="image/*" onChange={handleCover} />
                 </label>
-                <button
-                  type="button"
-                  onClick={handleGenerateAiProductData}
-                  disabled={aiProductLoading || !coverImage}
-                  className="mt-3 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-blue-300/25 bg-blue-400/10 px-4 text-sm font-black text-blue-100 transition hover:border-blue-300/45 hover:bg-blue-400/15 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {aiProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-                  {aiProductLoading ? aiProductProgress : "Generate AI Product Data"}
-                </button>
+                <div className="mt-3 grid gap-2">
+                  <button
+                    type="button"
+                    onClick={handleGenerateAiProductData}
+                    disabled={aiProductLoading || !coverImage}
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-blue-300/25 bg-blue-400/10 px-4 text-sm font-black text-blue-100 transition hover:border-blue-300/45 hover:bg-blue-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {aiProductLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                    {aiProductLoading ? aiProductProgress : "Generate AI Product Data"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleGenerateThermalImage}
+                    disabled={thermalImageGenerating || !coverImage}
+                    className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    {thermalImageUrl ? "Regenerate Thermal Image" : "Generate Thermal Image"}
+                  </button>
+                </div>
               </div>
 
               <div className="w-full rounded-[28px] border border-white/8 bg-white/5 p-5 xl:w-[460px]">

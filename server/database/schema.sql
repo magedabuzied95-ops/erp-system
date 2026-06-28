@@ -158,6 +158,7 @@ CREATE TABLE IF NOT EXISTS products (
   canonical_slug TEXT DEFAULT '',
   qr_token TEXT,
   image_url TEXT,
+  thermal_image_url TEXT DEFAULT '',
   gallery_images JSONB NOT NULL DEFAULT '[]'::jsonb,
   variation_mode VARCHAR(30) NOT NULL DEFAULT 'full_variations',
   fixed_size_label VARCHAR(80) DEFAULT '',

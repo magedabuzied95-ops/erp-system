@@ -8,6 +8,7 @@ const LABEL_TEMPLATE_STANDARD = "standard";
 const LABEL_TEMPLATE_THERMAL_PORTRAIT = "thermal_portrait";
 const LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100 = "thermal_landscape_50x100";
 const LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 = "premium_retail_50x100";
+const ENABLE_THERMAL_ARTWORK = true;
 const PREMIUM_RETAIL_LABEL_WIDTH_MM = 50;
 const PREMIUM_RETAIL_LABEL_HEIGHT_MM = 100;
 const PREMIUM_RETAIL_BARCODE_WIDTH = 680;
@@ -180,6 +181,163 @@ const getSafeLabelImageUrl = (item) => {
   const separator = imageUrl.includes("?") ? "&" : "?";
   return `${imageUrl}${separator}v=${encodeURIComponent(item.variantId || item.key || item.copyIndex || Date.now())}`;
 };
+
+const isThermalArtworkTemplate = (template) => {
+  const normalized = String(template || "").trim().toLowerCase();
+  return [
+    LABEL_TEMPLATE_THERMAL_PORTRAIT,
+    LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100,
+    LABEL_TEMPLATE_PREMIUM_RETAIL_50X100,
+  ].includes(normalized);
+};
+
+const buildThermalArtworkScript = () => `
+  <script>
+    (function () {
+      const SOURCE_SELECTOR = '[data-thermal-artwork-source="true"]';
+      const MAX_SIDE = 1400;
+
+      const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+      const generateThermalArtwork = (image) => {
+        try {
+          const sourceWidth = Number(image?.naturalWidth || image?.width || 0);
+          const sourceHeight = Number(image?.naturalHeight || image?.height || 0);
+          if (!sourceWidth || !sourceHeight) return "";
+
+          const scale = Math.min(1, MAX_SIDE / Math.max(sourceWidth, sourceHeight));
+          const width = Math.max(1, Math.round(sourceWidth * scale));
+          const height = Math.max(1, Math.round(sourceHeight * scale));
+
+          const sourceCanvas = document.createElement("canvas");
+          sourceCanvas.width = width;
+          sourceCanvas.height = height;
+          const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
+          if (!sourceContext) return "";
+
+          sourceContext.fillStyle = "#ffffff";
+          sourceContext.fillRect(0, 0, width, height);
+          sourceContext.imageSmoothingEnabled = true;
+          sourceContext.imageSmoothingQuality = "high";
+          sourceContext.drawImage(image, 0, 0, width, height);
+
+          const sourceData = sourceContext.getImageData(0, 0, width, height);
+          const { data } = sourceData;
+          const gray = new Uint8ClampedArray(width * height);
+
+          for (let index = 0, pixel = 0; index < data.length; index += 4, pixel += 1) {
+            const red = data[index];
+            const green = data[index + 1];
+            const blue = data[index + 2];
+            const alpha = data[index + 3];
+            if (alpha < 14 || (red > 245 && green > 245 && blue > 245)) {
+              gray[pixel] = 255;
+              continue;
+            }
+            gray[pixel] = Math.round(red * 0.299 + green * 0.587 + blue * 0.114);
+          }
+
+          const getGray = (x, y) => {
+            if (x < 0 || y < 0 || x >= width || y >= height) return 255;
+            return gray[(y * width) + x] ?? 255;
+          };
+
+          const edges = new Uint8ClampedArray(width * height);
+
+          for (let y = 1; y < height - 1; y += 1) {
+            for (let x = 1; x < width - 1; x += 1) {
+              const topLeft = getGray(x - 1, y - 1);
+              const top = getGray(x, y - 1);
+              const topRight = getGray(x + 1, y - 1);
+              const left = getGray(x - 1, y);
+              const right = getGray(x + 1, y);
+              const bottomLeft = getGray(x - 1, y + 1);
+              const bottom = getGray(x, y + 1);
+              const bottomRight = getGray(x + 1, y + 1);
+              const gx = (-1 * topLeft) + topRight + (-2 * left) + (2 * right) + (-1 * bottomLeft) + bottomRight;
+              const gy = (-1 * topLeft) + (-2 * top) + (-1 * topRight) + bottomLeft + (2 * bottom) + bottomRight;
+              edges[(y * width) + x] = clamp(Math.round(Math.hypot(gx, gy)), 0, 255);
+            }
+          }
+
+          const edgeAt = (x, y) => {
+            let strongest = 0;
+            for (let offsetY = -1; offsetY <= 1; offsetY += 1) {
+              for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
+                const nx = x + offsetX;
+                const ny = y + offsetY;
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+                strongest = Math.max(strongest, edges[(ny * width) + nx] || 0);
+              }
+            }
+            return strongest;
+          };
+
+          const outputCanvas = document.createElement("canvas");
+          outputCanvas.width = width;
+          outputCanvas.height = height;
+          const outputContext = outputCanvas.getContext("2d", { willReadFrequently: true });
+          if (!outputContext) return "";
+
+          const output = outputContext.createImageData(width, height);
+          for (let y = 0; y < height; y += 1) {
+            for (let x = 0; x < width; x += 1) {
+              const pixelIndex = (y * width) + x;
+              const luminance = gray[pixelIndex] ?? 255;
+              const edgeStrength = edgeAt(x, y);
+              const darkRegion = luminance < 170;
+              const midToneContour = luminance < 228 && edgeStrength > 22;
+              const contourLine = edgeStrength > 52;
+              const ink = darkRegion || midToneContour || contourLine;
+              const value = ink ? 0 : 255;
+              const outputIndex = pixelIndex * 4;
+              output.data[outputIndex] = value;
+              output.data[outputIndex + 1] = value;
+              output.data[outputIndex + 2] = value;
+              output.data[outputIndex + 3] = 255;
+            }
+          }
+
+          outputContext.putImageData(output, 0, 0);
+          return outputCanvas.toDataURL("image/png");
+        } catch (error) {
+          console.warn("[thermal-artwork] generation failed", error);
+          return "";
+        }
+      };
+
+      const applyThermalArtwork = (image) => {
+        try {
+          if (!image || image.dataset.thermalArtworkApplied === "true") return;
+          const artworkUrl = generateThermalArtwork(image);
+          if (!artworkUrl) return;
+          image.dataset.thermalArtworkApplied = "true";
+          image.src = artworkUrl;
+        } catch (error) {
+          console.warn("[thermal-artwork] apply failed", error);
+        }
+      };
+
+      const bootstrap = () => {
+        document.querySelectorAll(SOURCE_SELECTOR).forEach((image) => {
+          if (!image) return;
+          const run = () => applyThermalArtwork(image);
+          if (image.complete && Number(image.naturalWidth || 0) > 0) {
+            run();
+            return;
+          }
+          image.addEventListener("load", run, { once: true });
+        });
+      };
+
+      if (document.readyState === "complete") {
+        bootstrap();
+      } else {
+        window.addEventListener("load", bootstrap, { once: true });
+      }
+    }());
+  </script>
+`;
 
 export const getLabelIdentity = (product, variant = null) => {
   const variantId =
@@ -567,6 +725,7 @@ export const buildBarcodePrintHtml = ({
   const resolvedTemplate = String(template || LABEL_TEMPLATE_STANDARD).trim().toLowerCase();
   const baseSettings = normalizeBarcodePrintSettings({ ...printSettings, paperSize: sheetMode });
   const isLandscapeTemplate = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100;
+  const useThermalArtwork = ENABLE_THERMAL_ARTWORK && isThermalArtworkTemplate(resolvedTemplate);
   const normalizedSettings = isLandscapeTemplate
     ? normalizeBarcodePrintSettings({
         ...baseSettings,
@@ -653,6 +812,7 @@ export const buildBarcodePrintHtml = ({
 
   const buildLabelMarkup = (item) => {
       const safeImage = getSafeLabelImageUrl(item);
+      const thermalArtworkAttr = useThermalArtwork && safeImage ? ' data-thermal-artwork-source="true"' : "";
       const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
         width: barcodeWidth,
         height: barcodeHeight,
@@ -671,7 +831,7 @@ export const buildBarcodePrintHtml = ({
                     <path d="M12 22.08V12"/>
                   </svg>
                 </div>
-                ${safeImage ? `<img src="${safeImage}" alt="${escapeHtml(item.productName || "")}" onerror="this.style.display='none'" />` : ""}
+                ${safeImage ? `<img src="${safeImage}" alt="${escapeHtml(item.productName || "")}"${thermalArtworkAttr} onerror="this.style.display='none'" />` : ""}
               </div>
               <div class="landscape-details">
                 <div class="landscape-size-badge">
@@ -701,15 +861,15 @@ export const buildBarcodePrintHtml = ({
       if (resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100) {
         return `
           <article class="premium-retail" data-premium-label-root="true">
-            <div class="premium-image" data-premium-label-part="image">
-              <div class="image-fallback" aria-hidden="true">
+              <div class="premium-image" data-premium-label-part="image">
+                <div class="image-fallback" aria-hidden="true">
                 <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
                   <path d="M3.27 6.96 12 12.01l8.73-5.05"/>
                   <path d="M12 22.08V12"/>
                 </svg>
-              </div>
-              ${safeImage ? `<img src="${safeImage}" alt="${item.productName}" onerror="this.style.display='none'" />` : ""}
+                </div>
+              ${safeImage ? `<img src="${safeImage}" alt="${item.productName}"${thermalArtworkAttr} onerror="this.style.display='none'" />` : ""}
             </div>
             <div class="premium-header" data-premium-label-part="title">${item.productName}</div>
             <div class="premium-pill premium-price" data-premium-label-part="price">
@@ -764,7 +924,7 @@ export const buildBarcodePrintHtml = ({
                     <path d="M12 22.08V12"/>
                   </svg>
                 </div>
-                ${safeImage ? `<img src="${safeImage}" alt="${item.productName}" onerror="this.style.display='none'" />` : ""}
+                ${safeImage ? `<img src="${safeImage}" alt="${item.productName}"${thermalArtworkAttr} onerror="this.style.display='none'" />` : ""}
               </div>
             ` : ""}
 
@@ -1554,6 +1714,7 @@ export const buildBarcodePrintHtml = ({
             }
           }
         </style>
+        ${useThermalArtwork ? buildThermalArtworkScript() : ""}
         ${resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100 ? `
           <script>
             (function () {
