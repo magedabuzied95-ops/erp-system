@@ -9,7 +9,7 @@ import { upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { createOrUpdateLeadOpportunity } from "./aiInboxLeadActionsService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
-import { getSocialCommentAutomationConfig, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
+import { getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
 import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import {
@@ -822,30 +822,35 @@ const loadPostAutomationConfig = async ({ tenantId = null, platform = "", postId
     return null;
   }
   const safeRow = metadataObject(row);
+  const loadedPost = await loadSocialCommentPost({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId }).catch(() => null);
   const rawPayload = metadataObject(safeRow.raw_payload || {});
   const rawValue = metadataObject(rawPayload.value || {});
+  const loadedPostMetadata = metadataObject(loadedPost?.metadata || {});
   const lookupRow = {
     ...safeRow,
+    ...metadataObject(loadedPost || {}),
     post_id: safePostId,
-    platform_post_id: safeRow.platform_post_id || rawPayload.platform_post_id || rawPayload.external_post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || rawPayload.entry?.id || "",
-    wrapper_post_id: safeRow.wrapper_post_id || rawPayload.wrapper_post_id || "",
-    internal_post_id: safeRow.internal_post_id || rawPayload.internal_post_id || "",
-    source_post_id: safeRow.source_post_id || rawPayload.source_post_id || rawPayload.post_id || "",
+    platform_post_id: safeRow.platform_post_id || loadedPost?.platform_post_id || rawPayload.platform_post_id || rawPayload.external_post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || rawPayload.entry?.id || "",
+    wrapper_post_id: safeRow.wrapper_post_id || loadedPost?.wrapper_post_id || loadedPostMetadata.wrapper_post_id || rawPayload.wrapper_post_id || "",
+    internal_post_id: safeRow.internal_post_id || loadedPost?.internal_post_id || loadedPostMetadata.internal_post_id || rawPayload.internal_post_id || "",
+    source_post_id: safeRow.source_post_id || loadedPost?.source_post_id || loadedPostMetadata.source_post_id || rawPayload.source_post_id || rawPayload.post_id || "",
     metadata: {
+      ...loadedPostMetadata,
       ...metadataObject(safeRow.metadata || {}),
-      post_id: safeRow.metadata?.post_id || rawPayload.post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || "",
-      platform_post_id: safeRow.metadata?.platform_post_id || rawPayload.platform_post_id || rawPayload.external_post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || rawPayload.entry?.id || "",
-      external_post_id: safeRow.metadata?.external_post_id || rawPayload.external_post_id || "",
-      wrapper_post_id: safeRow.metadata?.wrapper_post_id || rawPayload.wrapper_post_id || "",
-      internal_post_id: safeRow.metadata?.internal_post_id || rawPayload.internal_post_id || "",
+      post_id: safeRow.metadata?.post_id || loadedPostMetadata.post_id || loadedPost?.automation_run_post_id || rawPayload.post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || "",
+      platform_post_id: safeRow.metadata?.platform_post_id || loadedPostMetadata.platform_post_id || loadedPost?.automation_run_post_id || rawPayload.platform_post_id || rawPayload.external_post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || rawPayload.entry?.id || "",
+      external_post_id: safeRow.metadata?.external_post_id || loadedPostMetadata.external_post_id || rawPayload.external_post_id || "",
+      wrapper_post_id: safeRow.metadata?.wrapper_post_id || loadedPostMetadata.wrapper_post_id || rawPayload.wrapper_post_id || "",
+      internal_post_id: safeRow.metadata?.internal_post_id || loadedPostMetadata.internal_post_id || rawPayload.internal_post_id || "",
     },
     raw_payload: {
       ...rawPayload,
+      ...metadataObject(loadedPost?.automation_run_raw_payload || {}),
       post_id: rawPayload.post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || "",
-      platform_post_id: rawPayload.platform_post_id || rawPayload.external_post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || rawPayload.entry?.id || "",
-      external_post_id: rawPayload.external_post_id || "",
-      wrapper_post_id: rawPayload.wrapper_post_id || "",
-      internal_post_id: rawPayload.internal_post_id || "",
+      platform_post_id: rawPayload.platform_post_id || rawPayload.external_post_id || rawValue.post_id || rawValue.post?.id || rawValue.post?.post_id || rawPayload.entry?.id || loadedPost?.automation_run_post_id || "",
+      external_post_id: rawPayload.external_post_id || loadedPostMetadata.external_post_id || "",
+      wrapper_post_id: rawPayload.wrapper_post_id || loadedPostMetadata.wrapper_post_id || "",
+      internal_post_id: rawPayload.internal_post_id || loadedPostMetadata.internal_post_id || "",
     },
   };
   const config = await getSocialCommentAutomationConfig({
@@ -1738,12 +1743,21 @@ const executeSocialCommentAutomationRuntime = async ({
     const result = { step: "privateReply", status: "skipped", reason: privateReplySkippedReason };
     stepResults.push(result);
     console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", result);
-  } else {
-    const queuedAt = new Date().toISOString();
-    workingRow.dm_status = "queued";
-    persistedRuntimeState.private_reply = {
-      ...(persistedRuntimeState.private_reply || {}),
-      status: "queued",
+    } else {
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_BEFORE", {
+        tenant_id: safeTenantId,
+        platform: normalizedPlatform,
+        post_id: safePostId,
+        comment_id: safeCommentId,
+        loaded_template: privateReplyTemplate,
+        rendered_template: renderedPrivateReply,
+        enqueue_template: renderedPrivateReply,
+      });
+      const queuedAt = new Date().toISOString();
+      workingRow.dm_status = "queued";
+      persistedRuntimeState.private_reply = {
+        ...(persistedRuntimeState.private_reply || {}),
+        status: "queued",
       queued_at: queuedAt,
       template: privateReplyTemplate,
       rendered_reply: renderedPrivateReply,
@@ -1752,17 +1766,24 @@ const executeSocialCommentAutomationRuntime = async ({
       dmStatus: "queued",
       automationState: persistedRuntimeState,
     }).catch(() => {});
-    await enqueueSocialCommentPrivateReplyJob({
-      tenantId: safeTenantId,
-      platform: normalizedPlatform,
-      commentId: safeCommentId,
-      postId: safePostId,
-      row: workingRow,
-    }).catch(() => {});
-    stepResults.push({
-      step: "privateReply",
-      status: "queued",
-      reason: "enqueued_to_worker",
+      await enqueueSocialCommentPrivateReplyJob({
+        tenantId: safeTenantId,
+        platform: normalizedPlatform,
+        commentId: safeCommentId,
+        postId: safePostId,
+        row: workingRow,
+      }).catch(() => {});
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_AFTER", {
+        tenant_id: safeTenantId,
+        platform: normalizedPlatform,
+        post_id: safePostId,
+        comment_id: safeCommentId,
+        enqueue_template: renderedPrivateReply,
+      });
+      stepResults.push({
+        step: "privateReply",
+        status: "queued",
+        reason: "enqueued_to_worker",
       message: renderedPrivateReply,
     });
     console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", {
@@ -3104,6 +3125,14 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       postId,
       row: savedRunRow || {},
     }).catch(() => null);
+    console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_BEFORE", {
+      tenant_id: safeTenantId,
+      platform,
+      post_id: postId,
+      comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
+      config_enabled: Boolean(automationConfig?.enabled),
+      matched_key: text(automationConfig?.lookup_matched_key || ""),
+    });
     const automationRuntimeResult = await executeSocialCommentAutomationRuntime({
       tenantId: safeTenantId,
       platform,
@@ -3122,6 +3151,15 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         message: error?.message || "",
       });
       return null;
+    });
+    console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_AFTER", {
+      tenant_id: safeTenantId,
+      platform,
+      post_id: postId,
+      comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
+      applied: Boolean(automationRuntimeResult?.applied),
+      skipped: Boolean(automationRuntimeResult?.skipped),
+      reason: text(automationRuntimeResult?.reason || ""),
     });
     if (automationRuntimeResult?.row) {
       savedRunRow = automationRuntimeResult.row;
@@ -4617,6 +4655,14 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
     storedRow = applyWebhookPostMediaToEvent(storedRow, webhookMedia);
     let automationRuntimeApplied = false;
     if (automationConfig?.enabled) {
+      console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_BEFORE", {
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        post_id: text(storedRow.post_id || ""),
+        comment_id: text(storedRow.comment_id || ""),
+        config_enabled: Boolean(automationConfig?.enabled),
+        matched_key: text(automationConfig?.lookup_matched_key || ""),
+      });
       const runtimeProductContext = await resolveSocialCommentPublishedProductContext({
         tenantId: storedRow.tenant_id,
         row: storedRow,
@@ -4638,6 +4684,15 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           message: error?.message || "",
         });
         return null;
+      });
+      console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_AFTER", {
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        post_id: text(storedRow.post_id || ""),
+        comment_id: text(storedRow.comment_id || ""),
+        applied: Boolean(automationRuntimeResult?.applied),
+        skipped: Boolean(automationRuntimeResult?.skipped),
+        reason: text(automationRuntimeResult?.reason || ""),
       });
       if (automationRuntimeResult?.row) {
         storedRow = automationRuntimeResult.row;

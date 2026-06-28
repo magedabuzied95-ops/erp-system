@@ -1571,7 +1571,7 @@ export const upsertSocialCommentAutomationConfig = async ({ tenantId = null, pla
   return row ? normalizeSocialCommentAutomationConfigRow(row, { postId: safePostId, platform: normalizedPlatform, product_id: productId, settings: mergedSettings, message_templates: messageTemplates }) : null;
 };
 
-const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = "" } = {}) => {
+export const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = "" } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const safePostId = text(postId);
   if (!safeTenantId || !safePostId) return null;
@@ -2731,7 +2731,6 @@ export {
   listSocialCommentPosts,
   backfillSocialCommentPostMedia,
   listSocialCommentThreadComments,
-  loadSocialCommentPost,
   getSocialCommentPostByCommentId,
   getSocialCommentCommentByCommentId,
   processSocialCommentAutoReply,
