@@ -1,4 +1,5 @@
 ﻿import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowUpRight,
@@ -61,6 +62,7 @@ import AILiveLogs from "../../../components/ai/AILiveLogs";
 import TranscriptMessage from "../components/TranscriptMessage";
 import ProductCardPicker from "../components/ProductCardPicker";
 import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
+import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -1479,7 +1481,7 @@ function InboxChannelSidebar({ channels = [], allUnread = 0, activeChannel = "al
   );
 }
 
-const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect }) {
+const InboxConversationCard = memo(function InboxConversationCard({ item, active, unseen, onSelect, onOpenCustomer360 }) {
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const isSocialComment = isSocialCommentThread(item);
@@ -1498,19 +1500,52 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
       ? "border-white/10 bg-slate-950/80 hover:border-cyan-300/25 hover:bg-white/[0.045]"
       : "border-white/10 bg-slate-950/65 hover:border-white/20 hover:bg-white/[0.045]";
   return (
-    <button
-      type="button"
+    <div
+      role="button"
+      tabIndex={0}
       onClick={() => onSelect(item)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(item);
+        }
+      }}
       className={`w-full rounded-2xl border px-3 py-2.5 text-left transition duration-200 ${containerTone}`}
     >
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
           {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-11 w-11 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenCustomer360?.(item, {
+                  customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                  source: "inbox_conversation",
+                  platform: channel,
+                });
+              }}
+              className="overflow-hidden rounded-2xl ring-1 ring-white/10 transition hover:ring-cyan-300/40"
+              aria-label={`Open customer details for ${customerName || "customer"}`}
+            >
+              <img src={avatarUrl} alt="" className="h-11 w-11 rounded-2xl object-cover" loading="lazy" />
+            </button>
           ) : (
-            <span className={`grid h-11 w-11 place-items-center rounded-2xl ${liveMeta ? "bg-cyan-300/15 text-cyan-100" : "bg-white/[0.07] text-slate-200"}`}>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenCustomer360?.(item, {
+                  customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                  source: "inbox_conversation",
+                  platform: channel,
+                });
+              }}
+              className={`grid h-11 w-11 place-items-center rounded-2xl transition ${liveMeta ? "bg-cyan-300/15 text-cyan-100 hover:bg-cyan-300/20" : "bg-white/[0.07] text-slate-200 hover:bg-white/[0.1]"}`}
+              aria-label={`Open customer details for ${customerName || "customer"}`}
+            >
               <User className="h-5 w-5" />
-            </span>
+            </button>
           )}
           {unreadCount ? <span className="absolute -right-1 -top-1 h-3.5 w-3.5 rounded-full border-2 border-slate-950 bg-rose-500" aria-hidden="true" /> : null}
         </div>
@@ -1519,7 +1554,20 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
             <div className="min-w-0">
               {inboxKind === "comment" ? (
                 <>
-                  <div className="line-clamp-1 text-[14px] font-black leading-5 text-white">{customerName}</div>
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenCustomer360?.(item, {
+                        customerId: clean(item?.customer_profile_id || item?.customerProfileId || item?.external_customer_id || item?.customer_profile?.id || item?.id || ""),
+                        source: "inbox_conversation",
+                        platform: channel,
+                      });
+                    }}
+                    className="line-clamp-1 text-left text-[14px] font-black leading-5 text-white hover:underline"
+                  >
+                    {customerName}
+                  </button>
                   <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
                       <span className="inline-flex items-center gap-1">
@@ -1547,7 +1595,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
             </div>
             <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
           </div>
-          {inboxKind === "comment" ? (
+              {inboxKind === "comment" ? (
             <div className="mt-2 space-y-1.5 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
               {postTitle ? <div className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTitle}</div> : null}
               <div className="line-clamp-2 text-[12.5px] font-medium leading-4.5 text-slate-200">{commentPreview}</div>
@@ -1561,7 +1609,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
           {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">Unread {unreadCount}</span></div> : null}
         </div>
       </div>
-    </button>
+    </div>
   );
 });
 
@@ -1579,6 +1627,7 @@ function InboxChatHeader({
   showBack = false,
   isFullscreenConversation = false,
   onToggleFullscreen,
+  onOpenCustomer360,
 }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
@@ -1618,13 +1667,54 @@ function InboxChatHeader({
             </button>
           ) : null}
           {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenCustomer360?.(conversation, {
+                  customerId: clean(conversation?.customer_profile_id || conversation?.customerProfileId || conversation?.external_customer_id || conversation?.customer_profile?.id || conversation?.id || ""),
+                  source: "inbox_header",
+                  platform: channel,
+                });
+              }}
+              className="overflow-hidden rounded-2xl ring-1 ring-white/10 transition hover:ring-cyan-300/40"
+              aria-label={`Open customer details for ${name || "customer"}`}
+            >
+              <img src={avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-2xl object-cover" loading="lazy" />
+            </button>
           ) : (
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200"><User className="h-5 w-5" /></span>
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpenCustomer360?.(conversation, {
+                  customerId: clean(conversation?.customer_profile_id || conversation?.customerProfileId || conversation?.external_customer_id || conversation?.customer_profile?.id || conversation?.id || ""),
+                  source: "inbox_header",
+                  platform: channel,
+                });
+              }}
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200 transition hover:bg-white/[0.1]"
+              aria-label={`Open customer details for ${name || "customer"}`}
+            >
+              <User className="h-5 w-5" />
+            </button>
           )}
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="truncate text-[17px] font-black leading-5 text-white">{name}</div>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onOpenCustomer360?.(conversation, {
+                    customerId: clean(conversation?.customer_profile_id || conversation?.customerProfileId || conversation?.external_customer_id || conversation?.customer_profile?.id || conversation?.id || ""),
+                    source: "inbox_header",
+                    platform: channel,
+                  });
+                }}
+                className="truncate text-left text-[17px] font-black leading-5 text-white hover:underline"
+              >
+                {name}
+              </button>
               <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : channel.includes("instagram") ? "rose" : channel.includes("messenger") ? "cyan" : "zinc"}>
                 <span className="inline-flex items-center gap-1">
                   <SourceIcon className={`h-3 w-3 ${isSocialComment ? "text-blue-100" : channel.includes("instagram") ? "text-rose-100" : channel.includes("messenger") ? "text-cyan-100" : "text-slate-100"}`} />
@@ -1684,6 +1774,14 @@ function InboxChatHeader({
           </button>
         </div>
       </div>
+      <Customer360Drawer
+        open={customerDrawer.open}
+        onClose={() => setCustomerDrawer((current) => ({ ...current, open: false }))}
+        customer={customerDrawer.customer}
+        customerId={customerDrawer.customerId}
+        context={customerDrawer.context}
+        title="Customer 360"
+      />
     </div>
   );
 }
@@ -2951,10 +3049,10 @@ function CustomerProfilePanel({ conversation, canSyncMessenger = false, syncing 
   return (
     <aside className="space-y-3">
       <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-2.5">
-        <div className="flex flex-row-reverse items-start gap-2.5">
-          {avatarUrl ? (
-            <img src={avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
-          ) : (
+          <div className="flex flex-row-reverse items-start gap-2.5">
+            {avatarUrl ? (
+              <img src={avatarUrl} alt="" className="h-10 w-10 shrink-0 rounded-2xl object-cover ring-1 ring-white/10" loading="lazy" />
+            ) : (
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-slate-200">
               <User className="h-5 w-5" />
             </span>
@@ -3406,6 +3504,7 @@ function RightToolsTabsPanel({
 }
 
 export default function AiInbox() {
+  const navigate = useNavigate();
   const tenantApi = useTenant();
   const tenantId = useMemo(() => tenantIdFrom(tenantApi), [tenantApi]);
   const pageVisible = usePageVisible();
@@ -3436,6 +3535,7 @@ export default function AiInbox() {
   const [unseenSessions, setUnseenSessions] = useState([]);
   const [toolsTab, setToolsTab] = useState("customer");
   const [profileOpen, setProfileOpen] = useState(true);
+  const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
   const [editingAiDraft, setEditingAiDraft] = useState(false);
@@ -3482,6 +3582,45 @@ export default function AiInbox() {
   const isAppendingNewMessageRef = useRef(false);
   const previousSocketHealthyRef = useRef(socketHealthy);
   const previousConversationKeyRef = useRef("");
+
+  const openCustomerDrawer = useCallback((customer = {}, context = {}) => {
+    const customerProfile = customer?.customer_profile || customer?.profile || {};
+    const customerId = clean(
+      customer.customer_profile_id ||
+        customer.customerProfileId ||
+        customer.external_customer_id ||
+        customerProfile.id ||
+        customer.id ||
+        customer.commenter_id ||
+        customer.profile_id ||
+        ""
+    );
+    setCustomerDrawer({
+      open: true,
+      customer: {
+        ...customer,
+        id: customerId,
+        customer_name:
+          clean(customer.customer_name || customer.commenter_name || customer.author_name || customer.from_name || customerProfile.name || customerProfile.display_name || "") ||
+          "Customer",
+        customer_avatar_url: clean(customer.customer_avatar_url || customer.commenter_profile_picture_url || customerProfile.avatar_url || customerProfile.profile_pic_url || ""),
+        platform: clean(customer.platform || context.platform || customerProfile.platform || ""),
+        customer_profile: customerProfile,
+        external_customer_id: clean(customer.external_customer_id || customerProfile.external_customer_id || ""),
+      },
+      customerId,
+      context: {
+        platform: clean(context.platform || customer.platform || ""),
+        postId: clean(context.postId || customer.post_id || customer.postId || ""),
+        commentId: clean(context.commentId || customer.comment_id || customer.commentId || ""),
+        pageId: clean(context.pageId || customer.page_id || customer.pageId || ""),
+        source: clean(context.source || customer.source || "conversation"),
+        lastActiveAt: clean(context.lastActiveAt || customer.last_message_at || customer.last_activity_at || customer.updated_at || ""),
+        summary: clean(context.summary || customer.latest_message_preview || customer.summary || ""),
+        customerName: clean(customer.customer_name || customer.commenter_name || customer.author_name || customer.from_name || ""),
+      },
+    });
+  }, []);
   const previousLatestMessageKeyRef = useRef("");
   const restoreScrollStateRef = useRef(null);
   const transcriptScrollRef = useRef(null);
@@ -5993,6 +6132,7 @@ export default function AiInbox() {
         onTemplateChange={setSelectedSocialTemplate}
         onSaveTemplate={saveSocialPostTemplate}
         onCommentAction={handleSocialCommentAction}
+        onSelectCustomer={openCustomerDrawer}
         selectedPostId={selectedSocialCommentPostId}
         actionLoading={socialCommentActionLoading}
         tenantId={tenantId}
@@ -6303,6 +6443,7 @@ export default function AiInbox() {
                     onTemplateChange={setSelectedSocialTemplate}
                     onSaveTemplate={saveSocialPostTemplate}
                     onCommentAction={handleSocialCommentAction}
+                    onSelectCustomer={openCustomerDrawer}
                     selectedPostId={selectedSocialCommentPostId}
                     actionLoading={socialCommentActionLoading}
                     tenantId={tenantId}
@@ -7072,6 +7213,7 @@ export default function AiInbox() {
                     onOpenTools={() => setProfileOpen(true)}
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
+                    onOpenCustomer360={openCustomerDrawer}
                   />
                   <LeadQuickActionsBar
                     conversation={safeConversation}
@@ -7351,6 +7493,7 @@ export default function AiInbox() {
                             unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
                             active={selectedConversation?.conversation_key === (item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
                             onSelect={handleSelectConversation}
+                            onOpenCustomer360={openCustomerDrawer}
                           />
                         </div>
                       )}
