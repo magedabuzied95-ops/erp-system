@@ -484,6 +484,23 @@ const isSocialCommentThread = (item = {}) => {
   );
 };
 
+const isMessageThread = (item = {}) => !isSocialCommentThread(item);
+
+const getInboxItemKind = (item = {}) => (isSocialCommentThread(item) ? "comment" : "message");
+
+const commentThreadCommenterName = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.commenter_name,
+    conversation?.customer_name,
+    conversation?.channel_metadata?.commenter_name,
+    conversation?.metadata?.commenter_name,
+    conversation?.sender_name,
+    conversation?.customer_profile?.name,
+    conversation?.customer?.name,
+    conversation?.external_customer_id,
+    "Commenter"
+  );
+
 const getConversationSourceLabel = (item = {}) => {
   const { channelMetadata, metadata } = getConversationThreadMetadata(item);
   const platform = clean(item?.platform || item?.source_platform || item?.channel || item?.source || channelMetadata.platform || metadata.platform || "").toLowerCase();
@@ -1179,12 +1196,14 @@ function MessageText({ text = "" }) {
 
 function ConversationListItem({ conversation, active, onSelect }) {
   const isSocialComment = isSocialCommentThread(conversation);
+  const inboxKind = getInboxItemKind(conversation);
   const sourceLabel = getConversationSourceLabel(conversation);
   const SourceIcon = getConversationSourceIcon(conversation);
   const unreadCount = conversationUnreadCount(conversation);
   const isCommentThread = isCommentConversation(conversation) || isSocialComment;
   const avatar = isCommentThread ? commentThreadPostImageUrl(conversation) : customerAvatarUrl(conversation);
   const title = isCommentThread ? commentThreadDisplayName(conversation) : conversationName(conversation);
+  const commenterName = isCommentThread ? commentThreadCommenterName(conversation) : "";
   const preview = isCommentThread ? commentThreadLastComment(conversation) || "No comments yet" : conversationPreview(conversation) || "No messages yet";
   const commentCount = isCommentThread ? commentThreadCommentCount(conversation) : 0;
   const lastActivity = relativeTime(conversation.last_activity_at || conversation.last_message_at || conversation.updated_at);
@@ -1220,23 +1239,40 @@ function ConversationListItem({ conversation, active, onSelect }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <div className={`line-clamp-2 text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}>{title}</div>
-            <div className="mt-1 flex items-center gap-1.5">
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
-                <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-600" : channelMeta(conversation.channel || conversation.source).tone}`} />
-                {sourceLabel}
-              </span>
-              {isCommentThread ? (
-                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-blue-50 text-blue-700"}`}>
-                  {commentCount ? `${commentCount} تعليق` : "تعليق"}
-                </span>
-              ) : null}
-              {needsHumanAttention(conversation) ? (
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
-                  Needs Human
-                </span>
-              ) : null}
-            </div>
+            {inboxKind === "comment" ? (
+              <>
+                <div className={`line-clamp-1 text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}>{commenterName}</div>
+                <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
+                    <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-600" : channelMeta(conversation.channel || conversation.source).tone}`} />
+                    {sourceLabel}
+                  </span>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-blue-50 text-blue-700"}`}>
+                    {commentCount ? `${commentCount} تعليق` : "تعليق"}
+                  </span>
+                  {needsHumanAttention(conversation) ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
+                      Needs Human
+                    </span>
+                  ) : null}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={`line-clamp-2 text-[14px] leading-5 ${unread && !active ? "font-bold" : "font-semibold"}`}>{title}</div>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-white/10 text-white" : "bg-slate-100 text-slate-600"}`}>
+                    <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-600" : channelMeta(conversation.channel || conversation.source).tone}`} />
+                    {sourceLabel}
+                  </span>
+                  {needsHumanAttention(conversation) ? (
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${active ? "bg-amber-300/20 text-amber-100" : "bg-amber-50 text-amber-700"}`}>
+                      Needs Human
+                    </span>
+                  ) : null}
+                </div>
+              </>
+            )}
           </div>
           <div className="flex shrink-0 flex-col items-end gap-1">
             <div className={`text-[11px] font-medium ${active ? "text-slate-300" : "text-slate-500"}`}>
@@ -1249,10 +1285,10 @@ function ConversationListItem({ conversation, active, onSelect }) {
             ) : null}
           </div>
         </div>
-        {isCommentThread ? (
-          <div className={`mt-1.5 rounded-2xl border p-2 text-[12.5px] leading-4.5 ${active ? "border-white/10 bg-white/5 text-slate-200" : unread ? "border-slate-200 bg-slate-50 text-slate-700" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
-            {postTime ? <div className="mb-1 text-[10px] font-black uppercase tracking-[0.14em] opacity-70">{postTime}</div> : null}
-            <span className="line-clamp-2">{preview}</span>
+        {inboxKind === "comment" ? (
+          <div className={`mt-1.5 rounded-2xl border p-2.5 text-[12.5px] leading-5 ${active ? "border-white/10 bg-white/5 text-slate-200" : unread ? "border-slate-200 bg-slate-50 text-slate-700" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
+            <div className="mb-1 text-[10px] font-black uppercase tracking-[0.14em] opacity-70">{commentThreadDisplayName(conversation)}</div>
+            <span className="line-clamp-2 font-medium">{preview}</span>
           </div>
         ) : (
           <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unread ? "text-slate-700" : "text-slate-500"}`}>
@@ -2521,8 +2557,23 @@ export default function AiInboxPwa() {
         .map((item) => clean(item).toLowerCase())
         .some((item) => item.includes(normalized));
       if (!matchesSearch) return false;
-      if (filter === "unread") return conversationUnreadCount(conversation) > 0;
-      if (filter === "needs_reply") return needsHumanAttention(conversation) || conversationUnreadCount(conversation) > 0;
+      const kind = getInboxItemKind(conversation);
+      if (filter === "messages") return kind === "message";
+      if (filter === "comments") return kind === "comment";
+      if (filter === "needs_reply") {
+        const status = clean(
+          conversation.needs_human ||
+            conversation.needs_reply ||
+            conversation.reply_status ||
+            conversation.automation_status ||
+            conversation.auto_reply_mode ||
+            conversation.ai_status ||
+            conversation.status ||
+            conversation.delivery_status ||
+            ""
+        ).toLowerCase();
+        return needsHumanAttention(conversation) || ["needs_human", "needs_reply", "failed", "waiting", "pending", "manual_review", "review"].includes(status);
+      }
       return true;
     });
   }, [conversations, debouncedSearch, filter]);
@@ -2555,6 +2606,15 @@ export default function AiInboxPwa() {
       return clean(identifiers.sessionId || identifiers.conversationKey || identifiers.conversationId || "");
     },
     [selectedConversation]
+  );
+  const inboxFilterItems = useMemo(
+    () => [
+      { key: "all", label: "All" },
+      { key: "messages", label: "Messages" },
+      { key: "comments", label: "Comments" },
+      { key: "needs_reply", label: "Needs Reply" },
+    ],
+    []
   );
   const socialPostIdentity = useCallback((item = {}) => {
     const safeItem = item || {};
@@ -2866,9 +2926,17 @@ export default function AiInboxPwa() {
     (conversation) => {
       setComposerMode("reply");
       setMenuOpen(false);
+      if (isSocialCommentThread(conversation)) {
+        updateUrlState({
+          nextConversationId: "",
+          nextTab: "social_comments",
+          nextPostId: socialPostIdentity(conversation),
+        });
+        return;
+      }
       updateUrlState({ nextConversationId: conversationIdentifiers(conversation).sessionId || conversationIdentifiers(conversation).conversationId, nextTab: "conversations" });
     },
-    [updateUrlState]
+    [socialPostIdentity, updateUrlState]
   );
 
   const backToList = useCallback(() => {
@@ -4573,10 +4641,17 @@ export default function AiInboxPwa() {
                 />
               </label>
               {tab === "conversations" ? (
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => setFilter("all")} className={`rounded-full px-3 py-1.5 text-[13px] font-medium ${filter === "all" ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>All</button>
-                  <button type="button" onClick={() => setFilter("unread")} className={`rounded-full px-3 py-1.5 text-[13px] font-medium ${filter === "unread" ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>Unread</button>
-                  <button type="button" onClick={() => setFilter("needs_reply")} className={`rounded-full px-3 py-1.5 text-[13px] font-medium ${filter === "needs_reply" ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}>Needs Reply</button>
+                <div className="flex gap-2 overflow-x-auto pb-1">
+                  {inboxFilterItems.map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => setFilter(item.key)}
+                      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium ${filter === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
               ) : null}
             </div>

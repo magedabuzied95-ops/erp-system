@@ -348,12 +348,10 @@ const tenantIdFrom = (tenantApi) => {
 };
 
 const filters = [
-  { key: "all", label: "الكل" },
-  { key: "facebook", label: "فيسبوك" },
-  { key: "instagram", label: "إنستجرام" },
-  { key: "needs_human", label: "يحتاج تدخلًا بشريًا" },
-  { key: "ai_replied", label: "رد الذكاء الاصطناعي" },
-  { key: "unread", label: "غير مقروء" },
+  { key: "all", label: "All" },
+  { key: "messages", label: "Messages" },
+  { key: "comments", label: "Comments" },
+  { key: "needs_reply", label: "Needs Reply" },
 ];
 
 const leadFilters = [
@@ -717,6 +715,23 @@ const isSocialCommentThread = (item = {}) => {
     Boolean(commentId && postId)
   );
 };
+
+const isMessageThread = (item = {}) => !isSocialCommentThread(item);
+
+const getInboxItemKind = (item = {}) => (isSocialCommentThread(item) ? "comment" : "message");
+
+const commentThreadCommenterName = (conversation = {}) =>
+  firstNonEmpty(
+    conversation?.commenter_name,
+    conversation?.customer_name,
+    conversation?.channel_metadata?.commenter_name,
+    conversation?.metadata?.commenter_name,
+    conversation?.sender_name,
+    conversation?.customer_profile?.name,
+    conversation?.customer?.name,
+    conversation?.external_customer_id,
+    "Commenter"
+  );
 
 const commentConversationPostUrl = (conversation = {}) =>
   firstNonEmpty(
@@ -1219,15 +1234,17 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const isSocialComment = isSocialCommentThread(item);
+  const inboxKind = getInboxItemKind(item);
   const isCommentThread = isCommentConversation(item) || isSocialComment;
   const sourceLabel = getConversationSourceLabel(item);
   const SourceIcon = getConversationSourceIcon(item);
   const customerName = isCommentThread
-    ? commentThreadDisplayName(item)
+    ? commentThreadCommenterName(item)
     : isMessengerConversation(item)
       ? messengerDisplayName(item)
       : getConversationDisplayName(item);
   const avatarUrl = isCommentThread ? commentThreadPostImageUrl(item) : customerAvatarUrl(item);
+  const postTitle = isCommentThread ? commentThreadDisplayName(item) : "";
   const commentCount = isCommentThread ? commentThreadCommentCount(item) : 0;
   const lastComment = isCommentThread ? commentThreadLastComment(item) : "";
   const lastActivity = relativeTime(item.last_message_at || item.last_activity_at || item.updated_at);
@@ -1242,9 +1259,9 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
   return (
     <button
       type="button"
-      onClick={() => onSelect(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
-    className={`w-full rounded-2xl border px-3 py-2.5 text-left transition ${containerTone}`}
-  >
+      onClick={() => onSelect(item)}
+      className={`w-full rounded-2xl border px-3 py-2.5 text-left transition ${containerTone}`}
+    >
       <div className="flex items-start gap-3">
         <div className="relative shrink-0">
           {avatarUrl ? (
@@ -1261,26 +1278,41 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <div className="line-clamp-2 text-[15px] font-black leading-5 text-white">{customerName}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-1.5">
-              <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
-                <span className="inline-flex items-center gap-1">
-                  <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-200" : liveMeta ? "text-cyan-200" : "text-slate-500"}`} />
-                  {sourceLabel}
-                </span>
-              </Pill>
-                {isCommentThread ? (
-                  <Pill tone="blue">{commentCount ? `${commentCount} تعليق` : "تعليق"}</Pill>
-                ) : null}
-              </div>
+            <div className="min-w-0">
+              {inboxKind === "comment" ? (
+                <>
+                  <div className="line-clamp-1 text-[15px] font-black leading-5 text-white">{customerName}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
+                      <span className="inline-flex items-center gap-1">
+                        <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-200" : liveMeta ? "text-cyan-200" : "text-slate-500"}`} />
+                        {sourceLabel}
+                      </span>
+                    </Pill>
+                    <Pill tone="blue">{commentCount ? `${commentCount} تعليق` : "تعليق"}</Pill>
+                    {needsHumanAttention(item) ? <Pill tone="amber">Needs Human</Pill> : null}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="line-clamp-2 text-[15px] font-black leading-5 text-white">{customerName}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
+                      <span className="inline-flex items-center gap-1">
+                        <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-200" : liveMeta ? "text-cyan-200" : "text-slate-500"}`} />
+                        {sourceLabel}
+                      </span>
+                    </Pill>
+                  </div>
+                </>
+              )}
             </div>
             <span className="shrink-0 text-[11px] font-bold text-slate-500">{lastActivity}</span>
           </div>
           {isCommentThread ? (
             <div className="mt-2 space-y-1.5 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
-              {postTime ? <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTime}</div> : null}
-              {lastComment ? <div className="line-clamp-2 text-[12.5px] font-medium leading-4.5 text-slate-200">آخر تعليق: {lastComment}</div> : null}
+              {postTitle ? <div className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTitle}</div> : null}
+              {lastComment ? <div className="line-clamp-2 text-[12.5px] font-medium leading-4.5 text-slate-200">{lastComment}</div> : null}
             </div>
           ) : (
             <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unreadCount ? "text-slate-700" : "text-slate-500"}`}>
@@ -1386,10 +1418,14 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
   const channel = item.channel || item.source || "web_chat";
   const liveMeta = item.is_live_meta === true || isMetaChannel(channel);
   const isSocialComment = isSocialCommentThread(item);
+  const inboxKind = getInboxItemKind(item);
   const sourceLabel = getConversationSourceLabel(item);
   const SourceIcon = getConversationSourceIcon(item);
-  const customerName = getConversationDisplayName(item) || "Customer";
+  const customerName = inboxKind === "comment" ? commentThreadCommenterName(item) : getConversationDisplayName(item) || "Customer";
   const avatarUrl = customerAvatarUrl(item);
+  const commentCount = commentThreadCommentCount(item);
+  const postTitle = commentThreadDisplayName(item);
+  const commentPreview = commentThreadLastComment(item) || "No comments yet";
   const unreadCount = Number(item.unread_count || item.unread || 0);
   const containerTone = active
     ? "border-cyan-300/50 bg-cyan-300/12 shadow-[0_0_0_1px_rgba(34,211,238,0.2),0_18px_45px_rgba(8,145,178,0.16)]"
@@ -1399,7 +1435,7 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
   return (
     <button
       type="button"
-      onClick={() => onSelect(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+      onClick={() => onSelect(item)}
       className={`w-full rounded-2xl border px-3 py-2.5 text-left transition duration-200 ${containerTone}`}
     >
       <div className="flex items-start gap-3">
@@ -1416,18 +1452,47 @@ const InboxConversationCard = memo(function InboxConversationCard({ item, active
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <div className="truncate text-[14px] font-black leading-5 text-white">{customerName}</div>
-              <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
-                  <span className="inline-flex items-center gap-1">
-                    <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-200" : liveMeta ? "text-cyan-200" : "text-slate-500"}`} />
-                    {sourceLabel}
-                  </span>
-                </Pill>
-              </div>
+              {inboxKind === "comment" ? (
+                <>
+                  <div className="line-clamp-1 text-[14px] font-black leading-5 text-white">{customerName}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
+                      <span className="inline-flex items-center gap-1">
+                        <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-200" : liveMeta ? "text-cyan-200" : "text-slate-500"}`} />
+                        {sourceLabel}
+                      </span>
+                    </Pill>
+                    <Pill tone="blue">{commentCount ? `${commentCount} تعليق` : "تعليق"}</Pill>
+                    {needsHumanAttention(item) ? <Pill tone="amber">Needs Human</Pill> : null}
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="truncate text-[14px] font-black leading-5 text-white">{customerName}</div>
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                    <Pill tone={isSocialComment ? "blue" : isWhatsappChannel(channel) ? "emerald" : liveMeta ? "cyan" : "zinc"}>
+                      <span className="inline-flex items-center gap-1">
+                        <SourceIcon className={`h-3 w-3 ${active ? "text-white" : isSocialComment ? "text-blue-200" : liveMeta ? "text-cyan-200" : "text-slate-500"}`} />
+                        {sourceLabel}
+                      </span>
+                    </Pill>
+                  </div>
+                </>
+              )}
             </div>
             <span className="shrink-0 text-[11px] font-bold text-slate-500">{relativeTime(item.last_message_at || item.last_activity_at || item.updated_at)}</span>
           </div>
+          {inboxKind === "comment" ? (
+            <div className="mt-2 space-y-1.5 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
+              {postTitle ? <div className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTitle}</div> : null}
+              <div className="line-clamp-2 text-[12.5px] font-medium leading-4.5 text-slate-200">{commentPreview}</div>
+            </div>
+          ) : (
+            <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unreadCount ? "text-slate-700" : "text-slate-500"}`}>
+              <CheckCheck className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${unreadCount && !active ? "text-emerald-600" : ""}`} />
+              <span className={`line-clamp-2 text-left ${unreadCount && !active ? "font-medium" : ""}`}>{conversationPreview(item) || "No messages yet"}</span>
+            </div>
+          )}
           {unreadCount ? <div className="mt-2 flex justify-end"><span className="inline-flex h-5 items-center rounded-full bg-rose-400/12 px-2 text-[10px] font-black text-rose-100">Unread {unreadCount}</span></div> : null}
         </div>
       </div>
@@ -3689,7 +3754,7 @@ export default function AiInbox() {
   );
   const activePanelConversations = inboxSection === "social_comments" ? socialCommentPanelConversations : conversationPanelConversations;
   const filteredConversations = useMemo(() => {
-    const items = [...activePanelConversations];
+    const items = [...conversations];
     const activeChannelFilterAllowed = inboxSection === "social_comments"
       ? isSocialCommentChannel(channelFilter)
       : isConversationChannel(channelFilter);
@@ -3710,15 +3775,35 @@ export default function AiInbox() {
       if (channelFilter === "all" || !activeChannelFilterAllowed) return true;
       return normalizeConversationChannel(conversation) === channelFilter;
     };
-    const sorted = items.filter(matchesLeadFilter).filter(matchesChannelFilter).sort((a, b) => {
+    const matchesInboxFilter = (conversation = {}) => {
+      if (filter === "all") return true;
+      if (filter === "messages") return isMessageThread(conversation);
+      if (filter === "comments") return isSocialCommentThread(conversation);
+      if (filter === "needs_reply") {
+        const status = clean(
+          conversation.needs_human ||
+            conversation.needs_reply ||
+            conversation.reply_status ||
+            conversation.automation_status ||
+            conversation.auto_reply_mode ||
+            conversation.ai_status ||
+            conversation.status ||
+            conversation.delivery_status ||
+            ""
+        ).toLowerCase();
+        return needsHumanAttention(conversation) || ["needs_human", "needs_reply", "failed", "waiting", "pending", "manual_review", "review"].includes(status);
+      }
+      return true;
+    };
+    const sorted = items.filter(matchesInboxFilter).filter(matchesLeadFilter).filter(matchesChannelFilter).sort((a, b) => {
       const left = sortValue(a);
       const right = sortValue(b);
       if (right.primary !== left.primary) return right.primary - left.primary;
       if (right.secondary !== left.secondary) return right.secondary - left.secondary;
-      return clean(b.session_id).localeCompare(clean(a.session_id));
+      return clean(b.session_id || b.conversation_key || b.conversation_id || "").localeCompare(clean(a.session_id || a.conversation_key || a.conversation_id || ""));
     });
     return sorted;
-  }, [activePanelConversations, channelFilter, inboxSection, leadFilter, leadSort]);
+  }, [channelFilter, conversations, filter, inboxSection, leadFilter, leadSort]);
   const visibleConversations = useMemo(
     () => (inboxSection === "conversations" ? filteredConversations : []),
     [filteredConversations, inboxSection]
@@ -4076,18 +4161,24 @@ export default function AiInbox() {
     if (!scroller) return;
     setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
   }, []);
-  const handleSelectConversation = useCallback((conversationKey) => {
-    if (inboxSectionRef.current === "social_comments") {
-      setSelectedSocialCommentId(conversationKey);
+  const handleSelectConversation = useCallback((item) => {
+    const kind = getInboxItemKind(item);
+    if (kind === "comment") {
+      const nextPostId = socialCommentIdentity(item);
+      setSelectedSocialCommentId(nextPostId);
       setSelectedSessionId("");
+      updateUrlState({ nextTab: "social_comments", nextConversationId: "", nextPostId });
     } else {
-      setSelectedSessionId(conversationKey);
+      const identifiers = conversationIdentifiers(item);
+      const nextConversationId = identifiers.sessionId || identifiers.conversationKey || identifiers.conversationId || "";
+      setSelectedSessionId(nextConversationId);
       setSelectedSocialCommentId("");
+      updateUrlState({ nextConversationId, nextTab: "conversations" });
     }
     setMobileView("chat");
     setReplyText("");
-    setUnseenSessions((current) => current.filter((id) => id !== conversationKey));
-  }, []);
+    setUnseenSessions((current) => current.filter((id) => id !== clean(item?.conversation_key || item?.session_id || item?.conversation_id || socialCommentIdentity(item) || "")));
+  }, [socialCommentIdentity, updateUrlState]);
   useEffect(() => {
     if (inboxSection === "conversations" && selectedConversation?.session_id) {
       selectedConversationCacheRef.current = selectedConversation;
