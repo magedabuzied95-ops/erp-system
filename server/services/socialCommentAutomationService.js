@@ -3308,11 +3308,22 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     ).toLowerCase();
     const privateReplyCommentId = text(event.comment_id || savedRunRow?.comment_id || "");
     const privateReplySource = text(event.raw_payload?.source || savedRunRow?.raw_payload?.source || "").toLowerCase();
+    const legacyPathEnabled = !automationConfig?.enabled;
+    console.log("SOCIAL_COMMENT_LEGACY_PATH_ENTERED", {
+      tenant_id: safeTenantId,
+      platform,
+      post_id: postId,
+      comment_id: privateReplyCommentId,
+      automation_config_enabled: Boolean(automationConfig?.enabled),
+      runtime_applied: automationRuntimeApplied,
+      inserted_run: insertedRun,
+    });
     const shouldEnqueuePrivateReply =
       text(platform || "").toLowerCase() === "facebook" &&
       Boolean(privateReplyCommentId) &&
       insertedRun &&
       !automationRuntimeApplied &&
+      legacyPathEnabled &&
       !["queued", "sending", "sent"].includes(privateReplyStatus);
 
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_REACHED", {
@@ -3326,7 +3337,16 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       source: privateReplySource,
     });
 
-    if (shouldEnqueuePrivateReply) {
+    if (!legacyPathEnabled) {
+      console.log("SOCIAL_COMMENT_LEGACY_PATH_SKIPPED_AUTOMATION_ENABLED", {
+        tenant_id: safeTenantId,
+        platform,
+        post_id: postId,
+        comment_id: privateReplyCommentId,
+        automation_config_enabled: true,
+        runtime_applied: automationRuntimeApplied,
+      });
+    } else if (shouldEnqueuePrivateReply) {
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_CALLING", {
         tenant_id: safeTenantId,
         platform,
@@ -3370,7 +3390,9 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
           ? "not_facebook"
           : !privateReplyCommentId
             ? "missing_comment_id"
-            : automationRuntimeApplied
+            : !legacyPathEnabled
+              ? "automation_enabled"
+              : automationRuntimeApplied
               ? "runtime_already_enqueued"
             : !insertedRun
               ? "missing_saved_run"
@@ -4748,7 +4770,17 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
     const privateReplySource = text(storedRow.raw_payload?.source || "").toLowerCase();
     const isFacebookComment = text(storedRow.platform || "").toLowerCase() === "facebook";
     const privateReplyEligible = isFacebookComment && Boolean(text(storedRow.comment_id || ""));
-    const shouldQueuePrivateReply = privateReplyEligible && !automationConfig?.enabled && !["queued", "sending", "sent"].includes(privateReplyStatus);
+    const legacyPathEnabled = !automationConfig?.enabled;
+    console.log("SOCIAL_COMMENT_LEGACY_PATH_ENTERED", {
+      tenant_id: storedRow.tenant_id,
+      platform: storedRow.platform,
+      post_id: text(storedRow.post_id || ""),
+      comment_id: text(storedRow.comment_id || ""),
+      automation_config_enabled: Boolean(automationConfig?.enabled),
+      runtime_applied: false,
+      inserted_run: Boolean(storedRow.id),
+    });
+    const shouldQueuePrivateReply = privateReplyEligible && legacyPathEnabled && !["queued", "sending", "sent"].includes(privateReplyStatus);
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_TEMPLATE_STATE", {
       tenant_id: storedRow.tenant_id,
       platform: text(storedRow.platform || ""),
@@ -4771,7 +4803,15 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       private_reply_status: privateReplyStatus || "empty",
       eligible: privateReplyEligible,
     });
-    if (shouldQueuePrivateReply) {
+    if (!legacyPathEnabled) {
+      console.log("SOCIAL_COMMENT_LEGACY_PATH_SKIPPED_AUTOMATION_ENABLED", {
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        post_id: text(storedRow.post_id || ""),
+        comment_id: text(storedRow.comment_id || ""),
+        automation_config_enabled: true,
+      });
+    } else if (shouldQueuePrivateReply) {
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_CALLING", {
         storedRow_id: storedRow.id || null,
         comment_id: text(storedRow.comment_id || ""),
@@ -4831,7 +4871,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         private_reply_status: privateReplyStatus || "empty",
         reason: !privateReplyEligible
           ? "not_facebook_comment_or_missing_comment_id"
-          : automationConfig?.enabled
+          : !legacyPathEnabled
             ? "automation_enabled"
           : `private_reply_status_${privateReplyStatus || "empty"}`,
       });
