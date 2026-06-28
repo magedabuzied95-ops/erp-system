@@ -4443,6 +4443,12 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         reason: text(productContext?.reason || "product_not_found"),
       });
     }
+    const automationConfig = await loadPostAutomationConfig({
+      tenantId: storedRow.tenant_id,
+      platform: storedRow.platform,
+      postId: storedRow.post_id,
+      row: storedRow,
+    }).catch(() => null);
     const privateReplyTrigger = isSupportedWebhookCommentTrigger(storedRow);
     debugSocialCommentsLog("[social-comments][private-reply] received", {
       tenant_id: storedRow.tenant_id,
@@ -4459,7 +4465,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
     const privateReplySource = text(storedRow.raw_payload?.source || "").toLowerCase();
     const isFacebookComment = text(storedRow.platform || "").toLowerCase() === "facebook";
     const privateReplyEligible = isFacebookComment && Boolean(text(storedRow.comment_id || ""));
-    const shouldQueuePrivateReply = privateReplyEligible && !["queued", "sending", "sent"].includes(privateReplyStatus);
+    const shouldQueuePrivateReply = privateReplyEligible && !automationConfig?.enabled && !["queued", "sending", "sent"].includes(privateReplyStatus);
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_REACHED", {
       storedRow_id: storedRow.id || null,
       comment_id: text(storedRow.comment_id || ""),
@@ -4527,6 +4533,8 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         private_reply_status: privateReplyStatus || "empty",
         reason: !privateReplyEligible
           ? "not_facebook_comment_or_missing_comment_id"
+          : automationConfig?.enabled
+            ? "automation_enabled"
           : `private_reply_status_${privateReplyStatus || "empty"}`,
       });
     }
@@ -4543,7 +4551,36 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       event: storedRow,
     }).catch(() => null);
     storedRow = applyWebhookPostMediaToEvent(storedRow, webhookMedia);
-    if (!privateReplyTrigger) {
+    let automationRuntimeApplied = false;
+    if (automationConfig?.enabled) {
+      const runtimeProductContext = await resolveSocialCommentPublishedProductContext({
+        tenantId: storedRow.tenant_id,
+        row: storedRow,
+      }).catch(() => null);
+      const automationRuntimeResult = await executeSocialCommentAutomationRuntime({
+        tenantId: storedRow.tenant_id,
+        platform: storedRow.platform,
+        postId: storedRow.post_id,
+        commentId: text(storedRow.comment_id || ""),
+        row: storedRow,
+        productContext: runtimeProductContext,
+        config: automationConfig,
+      }).catch((error) => {
+        console.warn("SOCIAL_COMMENT_AUTOMATION_RUNTIME_FAILED", {
+          tenant_id: storedRow.tenant_id,
+          platform: storedRow.platform,
+          post_id: text(storedRow.post_id || ""),
+          comment_id: text(storedRow.comment_id || ""),
+          message: error?.message || "",
+        });
+        return null;
+      });
+      if (automationRuntimeResult?.row) {
+        storedRow = automationRuntimeResult.row;
+      }
+      automationRuntimeApplied = Boolean(automationRuntimeResult?.applied);
+    }
+    if (!automationConfig?.enabled && !privateReplyTrigger) {
       try {
         const materialized = await upsertSocialCommentLeadConversation({
           tenantId: storedRow.tenant_id,
@@ -4571,7 +4608,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         });
         storedRow.error_code = storedRow.error_code || "comment_inbox_materialization_failed";
       }
-      if (!automationRuntimeApplied && COMMENT_THREAD_LABELS.has(storedRow.classification_label)) {
+      if (COMMENT_THREAD_LABELS.has(storedRow.classification_label)) {
         try {
           const materialized = await upsertSocialCommentLeadConversation({
             tenantId: storedRow.tenant_id,
