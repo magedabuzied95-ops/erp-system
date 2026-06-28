@@ -108,8 +108,14 @@ const findPostFromParams = (items = [], { postId = "", commentId = "", platform 
   const normalizedPageId = clean(pageId);
   const normalizedPostId = clean(postId);
   const normalizedCommentId = clean(commentId);
-  const hasExplicitSelection = Boolean(normalizedPostId || normalizedCommentId || normalizedPageId || normalizedPlatform);
   const list = Array.isArray(items) ? items.filter(Boolean) : [];
+
+  if (normalizedPostId) {
+    return (
+      list.find((item) => clean(item?.post_id || item?.conversation_id || item?.id || "") === normalizedPostId) ||
+      null
+    );
+  }
 
   const matched = list.find((item) => {
     const itemPlatform = clean(item?.platform || item?.source_platform || "").toLowerCase();
@@ -125,7 +131,6 @@ const findPostFromParams = (items = [], { postId = "", commentId = "", platform 
   }) || null;
 
   if (matched) return matched;
-  if (hasExplicitSelection) return null;
   return list[0] || null;
 };
 
