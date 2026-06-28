@@ -39,6 +39,7 @@ import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 import TranscriptMessage from "../components/TranscriptMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
+import { CommentTimelineCard } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -2188,8 +2189,12 @@ export default function AiInboxPwa() {
               stripConversationPrefixes(conversation.conversation_key).value === stripConversationPrefixes(normalizedConversationParam).value ||
               encodeConversationId(conversation.session_id) === clean(conversationParam)
           );
-          if (!exists && nextConversations[0]?.id && tab === "conversations") {
-            updateUrlState({ nextConversationId: nextConversations[0].id, replace: true });
+          if (!exists && tab === "conversations") {
+            const fallbackIdentifiers = conversationIdentifiers(nextConversations[0] || {});
+            const nextConversationId = clean(fallbackIdentifiers.conversationKey || fallbackIdentifiers.sessionId || fallbackIdentifiers.conversationId || "");
+            if (nextConversationId) {
+              updateUrlState({ nextConversationId, replace: true });
+            }
           }
         }
       } catch (loadError) {
@@ -2479,7 +2484,10 @@ export default function AiInboxPwa() {
     );
   }, [conversationParam, conversations]);
   const selectedConversationRouteId = useMemo(
-    () => clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || selectedConversation?.id || ""),
+    () => {
+      const identifiers = conversationIdentifiers(selectedConversation || {});
+      return clean(identifiers.sessionId || identifiers.conversationKey || identifiers.conversationId || "");
+    },
     [selectedConversation]
   );
   const socialPostIdentity = useCallback((item = {}) => {
@@ -2506,6 +2514,22 @@ export default function AiInboxPwa() {
     }
     return visibleSocialPosts[0] || socialComments.items[0] || null;
   }, [isSocialMode, socialComments.items, socialPostIdentity, socialPostParam, visibleSocialPosts]);
+  const selectedSocialThreadStatusLabel = useMemo(() => {
+    const source = selectedSocialThread?.post || selectedSocialPost || {};
+    const status = clean(
+      source.reply_status ||
+      source.auto_reply_mode ||
+      source.automation_status ||
+      source.dm_status ||
+      source.private_reply_status ||
+      ""
+    ).toLowerCase();
+    if (["sent", "success", "successfully_sent", "done", "delivered", "replied", "auto_replied"].includes(status)) return "Auto replied";
+    if (["private_reply_sent", "dm_sent", "private_reply"].includes(status)) return "Private reply sent";
+    if (["failed", "error", "blocked"].includes(status)) return "Failed";
+    if (["human_takeover", "human_review", "manual_review"].includes(status)) return "Human takeover";
+    return "Waiting";
+  }, [selectedSocialPost, selectedSocialThread?.post]);
 
   useEffect(() => {
     if (!isSocialMode) return;
@@ -2515,6 +2539,20 @@ export default function AiInboxPwa() {
     if (!nextPostId) return;
     updateUrlState({ nextTab: "social_comments", nextConversationId: "", nextPostId, replace: true });
   }, [isSocialMode, socialComments.items, socialPostIdentity, socialPostParam, updateUrlState, visibleSocialPosts]);
+
+  useEffect(() => {
+    if (!isSocialMode || !selectedSocialPost) return;
+    console.info("AI_INBOX_PWA_SOCIAL_COMMENT_SELECTED", {
+      post_id: clean(selectedSocialPost?.post_id || selectedSocialPost?.conversation_id || selectedSocialPost?.id || ""),
+      platform: clean(selectedSocialPost?.platform || "facebook"),
+      customer_name: clean(selectedSocialPost?.customer_name || selectedSocialPost?.customerName || ""),
+      customer_profile_id: clean(selectedSocialPost?.customer_profile_id || selectedSocialPost?.customerProfileId || ""),
+      automation_status: selectedSocialThreadStatusLabel,
+      private_reply_status: clean(selectedSocialThread?.post?.dm_status || selectedSocialPost?.dm_status || selectedSocialPost?.private_reply_status || ""),
+      last_ai_action: clean(selectedSocialThread?.post?.last_ai_action || selectedSocialPost?.last_ai_action || ""),
+      comments_count: selectedSocialThread.comments.length,
+    });
+  }, [isSocialMode, selectedSocialPost, selectedSocialThread.comments.length, selectedSocialThread?.post?.dm_status, selectedSocialThread?.post?.last_ai_action, selectedSocialThreadStatusLabel]);
 
   useEffect(() => {
     if (!isSocialMode) {
@@ -3168,7 +3206,7 @@ export default function AiInboxPwa() {
       if (!conversationId || !cards.length) return;
       const clientRequestId = buildClientRequestId();
       console.info("[selected-conversation-product-send]", {
-        id: selectedConversation?.id,
+        route_id: selectedConversationRouteId || conversationId,
         channel: selectedConversation?.channel,
         external_customer_id: selectedConversation?.external_customer_id,
         name: selectedConversation?.customer_name,
@@ -3645,12 +3683,39 @@ export default function AiInboxPwa() {
     }
   }, [headers, loadConversations, selectedSocialPost?.conversation_id, selectedSocialPost?.id, selectedSocialPost?.platform, selectedSocialPost?.post_id, selectedSocialTemplate.template, tenantId]);
 
+  const refreshAfterSocialAutomation = useCallback(async (source = "unknown", payload = {}) => {
+    console.info("AI_INBOX_PWA_REFRESH_AFTER_AUTOMATION", {
+      source,
+      socket_healthy: socketHealthy,
+      ...payload,
+    });
+    if (!socketHealthy) {
+      await loadConversations({ silent: true });
+    }
+  }, [loadConversations, socketHealthy]);
+
   const sendSelectedSocialCommentAction = useCallback(async (comment, action = "reply") => {
     const commentId = clean(comment?.comment_id || comment?.id || "");
     if (!commentId) return;
     const postId = clean(selectedSocialPost?.post_id || selectedSocialPost?.conversation_id || selectedSocialPost?.id || comment?.post_id || "");
     const platform = clean(selectedSocialPost?.platform || comment?.platform || "facebook");
-    setSocialActionLoading(`${action}:${commentId}`);
+    const normalizedAction = action === "private_message" ? "private" : action;
+    const publicReplyText = clean(
+      selectedSocialTemplate.template?.template ||
+      selectedSocialThread?.post?.rendered_reply ||
+      selectedSocialThread?.post?.reply_text ||
+      socialReplySettings.generic_template ||
+      "تم الرد على حضرتك في الخاص ✅"
+    );
+    const privateReplyText = clean(
+      selectedSocialThread?.post?.rendered_private_reply ||
+      selectedSocialThread?.post?.private_reply_text ||
+      selectedSocialTemplate.template?.privateReplyTemplate ||
+      selectedSocialTemplate.template?.template ||
+      socialReplySettings.generic_template ||
+      "تم الرد على حضرتك في الخاص ✅"
+    );
+    setSocialActionLoading(`${normalizedAction}:${commentId}`);
     try {
       if (action === "ignore") {
         await api.post(
@@ -3663,25 +3728,90 @@ export default function AiInboxPwa() {
           { headers, perfComponent: "AiInboxPwa.socialCommentIgnore" }
         );
         toast.success("تم تجاهل التعليق");
-      } else {
+      } else if (action === "private_message") {
+        console.info("SOCIAL_COMMENT_PRIVATE_REPLY_ATTEMPT", {
+          comment_id: commentId,
+          post_id: postId,
+          platform,
+          message_preview: privateReplyText.slice(0, 120),
+        });
         await api.post(
-          `/social-comments/comments/${encodeURIComponent(commentId)}/auto-reply-send`,
+          `/ai-agent/comments/${encodeConversationId(commentId)}/private-message`,
           {
             tenant_id: tenantId,
             platform,
             post_id: postId,
+            comment_id: commentId,
+            message: privateReplyText,
+          },
+          { headers, perfComponent: "AiInboxPwa.socialCommentPrivateReply" }
+        );
+        toast.success("تم إرسال الرسالة الخاصة");
+        console.info("SOCIAL_COMMENT_PRIVATE_REPLY_SUCCESS", {
+          comment_id: commentId,
+          post_id: postId,
+          platform,
+        });
+      } else {
+        console.info("SOCIAL_COMMENT_REPLY_SEND_ATTEMPT", {
+          comment_id: commentId,
+          post_id: postId,
+          platform,
+          action,
+          source: "pwa",
+          message_preview: publicReplyText.slice(0, 120),
+        });
+        await api.post(
+          `/ai-agent/comments/${encodeConversationId(commentId)}/reply`,
+          {
+            tenant_id: tenantId,
+            platform,
+            post_id: postId,
+            reply_text: publicReplyText,
+            message: publicReplyText,
           },
           { headers, perfComponent: "AiInboxPwa.socialCommentReply" }
         );
-        toast.success("تم تجهيز/إرسال الرد على التعليق");
+        toast.success("تم إرسال الرد على التعليق");
+        console.info("SOCIAL_COMMENT_REPLY_SEND_SUCCESS", {
+          comment_id: commentId,
+          post_id: postId,
+          platform,
+          action,
+          source: "pwa",
+        });
       }
-      await loadConversations({ silent: true });
+      await refreshAfterSocialAutomation(action, { comment_id: commentId, post_id: postId, platform });
     } catch (err) {
+      if (action === "private_message") {
+        console.warn("SOCIAL_COMMENT_PRIVATE_REPLY_FAILED", {
+          comment_id: commentId,
+          post_id: postId,
+          platform,
+          message: err?.message || String(err),
+        });
+      } else if (action === "ignore") {
+        console.warn("SOCIAL_COMMENT_REPLY_SEND_FAILED", {
+          comment_id: commentId,
+          post_id: postId,
+          platform,
+          action,
+          message: err?.message || String(err),
+        });
+      } else {
+        console.warn("SOCIAL_COMMENT_REPLY_SEND_FAILED", {
+          comment_id: commentId,
+          post_id: postId,
+          platform,
+          action,
+          message: err?.message || String(err),
+        });
+      }
       toast.error(err?.message || "تعذر تنفيذ إجراء التعليق");
     } finally {
       setSocialActionLoading("");
     }
-  }, [headers, loadConversations, selectedSocialPost?.conversation_id, selectedSocialPost?.id, selectedSocialPost?.platform, selectedSocialPost?.post_id, tenantId]);
+  }, [headers, refreshAfterSocialAutomation, selectedSocialPost?.conversation_id, selectedSocialPost?.id, selectedSocialPost?.platform, selectedSocialPost?.post_id, selectedSocialTemplate.template?.template, selectedSocialTemplate.template?.privateReplyTemplate, selectedSocialThread?.post?.private_reply_text, selectedSocialThread?.post?.reply_text, selectedSocialThread?.post?.rendered_private_reply, selectedSocialThread?.post?.rendered_reply, socialReplySettings.generic_template, socketHealthy, tenantId]);
 
   const installApp = useCallback(async () => {
     if (!installPrompt) return;
@@ -3864,9 +3994,29 @@ export default function AiInboxPwa() {
                       <h2 className="mt-1 line-clamp-3 text-lg font-black text-slate-900">{postCaption || "Post"}</h2>
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{platformLabel}</span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">Comment</span>
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{commentCount} comments</span>
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{newCommentCount} new</span>
-                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{clean(selectedSocialThread?.post?.reply_status || selectedPost?.reply_status || selectedPost?.auto_reply_mode || "manual")}</span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{selectedSocialThreadStatusLabel}</span>
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                        {[
+                          ["post_id", clean(selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || selectedPost?.id || "")],
+                          ["page_id", clean(selectedSocialThread?.post?.page_id || selectedPost?.page_id || selectedPost?.metadata?.page_id || "")],
+                          ["customer_name", clean(selectedSocialThread?.post?.customer_name || selectedPost?.customer_name || selectedPost?.customerName || "")],
+                          ["customer_profile_id", clean(selectedSocialThread?.post?.customer_profile_id || selectedPost?.customer_profile_id || selectedPost?.customerProfileId || "")],
+                          ["automation_status", clean(selectedSocialThreadStatusLabel)],
+                          ["private_reply_status", clean(selectedSocialThread?.post?.dm_status || selectedPost?.dm_status || selectedPost?.private_reply_status || "")],
+                          ["last_ai_action", clean(selectedSocialThread?.post?.last_ai_action || selectedPost?.last_ai_action || "")],
+                          ["product_context", clean(selectedSocialThread?.post?.product_name || selectedPost?.product_name || selectedSocialThread?.post?.product_id || selectedPost?.product_id || "")],
+                        ]
+                          .filter(([, value]) => Boolean(value))
+                          .map(([label, value]) => (
+                            <div key={label} className="rounded-2xl border border-slate-200 bg-white px-3 py-2">
+                              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">{label}</div>
+                              <div className="mt-1 truncate text-xs font-black text-slate-900">{value}</div>
+                            </div>
+                          ))}
                       </div>
                       {postLink ? (
                         <a href={postLink} target="_blank" rel="noreferrer" className="mt-3 inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-black text-white">
@@ -4000,57 +4150,95 @@ export default function AiInboxPwa() {
                       const commenterAvatar = clean(comment.customer_avatar_url || comment.avatar_url || comment.profile_pic || "");
                       const commentTime = clean(comment.created_at || "");
                       const commentStatus = clean(comment.classification_label || comment.reply_status || comment.auto_reply_mode || "pending");
-                      const actionBusy = socialActionLoading === `reply:${commentId}` || socialActionLoading === `ignore:${commentId}`;
+                      const commentPostId = clean(comment.post_id || comment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || "");
+                      const commentPlatform = clean(comment.platform || selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook");
+                      const commentPageId = clean(comment.page_id || selectedSocialThread?.post?.page_id || selectedPost?.page_id || "");
+                      const commentParentId = clean(comment.parent_comment_id || comment.parentId || comment.parent_id || "");
+                      const commentCustomerProfileId = clean(comment.customer_profile_id || comment.customerProfileId || "");
+                      const commentSourceLabel = "Comment";
+                      const automationStatus = clean(comment.automation_status || comment.reply_status || comment.auto_reply_mode || selectedSocialThreadStatusLabel || "waiting");
+                      const privateReplyStatus = clean(comment.private_reply_status || comment.dm_status || selectedSocialThread?.post?.dm_status || "");
+                      const lastAiAction = clean(comment.last_ai_action || comment.ai_last_action || "");
+                      const productContext = clean(comment.product_name || comment.product_name || selectedPost?.product_name || selectedPost?.product_id || "");
+                      const actionBusy = socialActionLoading === `reply:${commentId}` || socialActionLoading === `private:${commentId}` || socialActionLoading === `ignore:${commentId}`;
                       return (
-                        <article key={commentId || comment.created_at || commentText} className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-                          <div className="flex items-start gap-3">
-                            {commenterAvatar ? (
-                              <img src={commenterAvatar} alt={commenterName} className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-slate-200" loading="lazy" />
-                            ) : (
-                              <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-500">
-                                <UserRound className="h-5 w-5" />
-                              </span>
-                            )}
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <div className="truncate text-sm font-black text-slate-900">{commenterName}</div>
-                                  <div className="mt-1 text-[11px] font-semibold text-slate-500">{commentTime || "—"}</div>
+                        <CommentTimelineCard
+                          key={commentId || comment.created_at || commentText}
+                          comment={{
+                            ...comment,
+                            id: commentId,
+                            comment_id: commentId,
+                            post_id: commentPostId,
+                            parent_comment_id: commentParentId,
+                            page_id: commentPageId,
+                            platform: commentPlatform,
+                            customer_name: commenterName,
+                            customerName: commenterName,
+                            customer_avatar_url: commenterAvatar,
+                            customer_profile_id: commentCustomerProfileId,
+                            automation_status: automationStatus,
+                            private_reply_status: privateReplyStatus,
+                            last_ai_action: lastAiAction,
+                            product_name: productContext,
+                          }}
+                          fallbackPlatform={commentPlatform}
+                          className="bg-white"
+                        >
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                            {[
+                              ["source", commentSourceLabel],
+                              ["post_id", commentPostId],
+                              ["comment_id", commentId],
+                              ["parent_comment_id", commentParentId],
+                              ["page_id", commentPageId],
+                              ["customer_profile_id", commentCustomerProfileId],
+                              ["automation_status", automationStatus],
+                              ["private_reply_status", privateReplyStatus],
+                              ["last_ai_action", lastAiAction],
+                              ["product_context", productContext],
+                            ]
+                              .filter(([, value]) => Boolean(value))
+                              .map(([label, value]) => (
+                                <div key={`${commentId}-${label}`} className="rounded-2xl border border-white/10 bg-slate-950/50 px-3 py-2">
+                                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{label}</div>
+                                  <div className="mt-1 truncate text-xs font-black text-white">{value}</div>
                                 </div>
-                                <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{commentStatus}</span>
-                              </div>
-                              <div className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">{commentText || "بدون نص"}</div>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => void sendSelectedSocialCommentAction(comment, "reply")}
-                                  disabled={actionBusy}
-                                  className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
-                                >
-                                  {socialActionLoading === `reply:${commentId}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                                  رد على التعليق
-                                </button>
-                                <button type="button" disabled className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-500 disabled:opacity-60">
-                                  <MessageSquareText className="h-4 w-4" />
-                                  إرسال رسالة خاصة
-                                </button>
-                                <button type="button" disabled className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-500 disabled:opacity-60">
-                                  <ShoppingBag className="h-4 w-4" />
-                                  إنشاء Lead
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => void sendSelectedSocialCommentAction(comment, "ignore")}
-                                  disabled={actionBusy}
-                                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-50"
-                                >
-                                  <ShieldBan className="h-4 w-4" />
-                                  تجاهل
-                                </button>
-                              </div>
-                            </div>
+                              ))}
                           </div>
-                        </article>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => void sendSelectedSocialCommentAction(comment, "reply")}
+                              disabled={actionBusy}
+                              className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
+                            >
+                              {socialActionLoading === `reply:${commentId}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                              رد على التعليق
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void sendSelectedSocialCommentAction(comment, "private_message")}
+                              disabled={actionBusy}
+                              className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
+                            >
+                              {socialActionLoading === `private:${commentId}` ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquareText className="h-4 w-4" />}
+                              إرسال رسالة خاصة
+                            </button>
+                            <button type="button" disabled className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-500 disabled:opacity-60">
+                              <ShoppingBag className="h-4 w-4" />
+                              إنشاء Lead
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void sendSelectedSocialCommentAction(comment, "ignore")}
+                              disabled={actionBusy}
+                              className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 disabled:opacity-50"
+                            >
+                              <ShieldBan className="h-4 w-4" />
+                              تجاهل
+                            </button>
+                          </div>
+                        </CommentTimelineCard>
                       );
                     })}
                   </div>

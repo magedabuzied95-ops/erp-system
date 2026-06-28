@@ -3727,7 +3727,7 @@ export default function AiInbox() {
   const conversationPanelCount = conversationPanelConversations.length;
   const socialCommentsPanelCount = asArray(socialComments.items).length;
   const selectedConversationThread = useMemo(
-    () => conversations.find((item) => item.conversation_key === selectedSessionId || clean(item.id || item.conversation_id || "") === clean(selectedSessionId)) ||
+    () => conversations.find((item) => item.conversation_key === selectedSessionId || item.session_id === selectedSessionId || conversationKey(item) === clean(selectedSessionId)) ||
       (selectedConversationCacheRef.current?.conversation_key === selectedSessionId ? selectedConversationCacheRef.current : null) ||
       conversations[0] ||
       null,
@@ -3944,19 +3944,19 @@ export default function AiInbox() {
   };
   const getActiveItemId = useCallback(() => {
     if (isSocialMode) return clean(selectedSocialComment?.conversation_id || selectedSocialComment?.session_id || selectedSocialComment?.post_id || selectedSocialComment?.id || "");
-    return clean(selectedConversationThread?.id || selectedConversationThread?.conversation_id || selectedConversationThread?.session_id || "");
-  }, [isSocialMode, selectedConversationThread?.conversation_id, selectedConversationThread?.id, selectedConversationThread?.session_id, selectedSocialComment?.conversation_id, selectedSocialComment?.id, selectedSocialComment?.post_id, selectedSocialComment?.session_id]);
+    return clean(selectedConversationThread?.conversation_key || selectedConversationThread?.session_id || selectedConversationThread?.conversation_id || conversationKey(selectedConversationThread || {}));
+  }, [conversationKey, isSocialMode, selectedConversationThread?.conversation_id, selectedConversationThread?.conversation_key, selectedConversationThread?.session_id, selectedSocialComment?.conversation_id, selectedSocialComment?.id, selectedSocialComment?.post_id, selectedSocialComment?.session_id]);
   const activeItemId = getActiveItemId();
   useEffect(() => {
     console.log("[ai-inbox-section]", {
       inboxSection,
       visibleConversations: visibleConversations.length,
       visibleSocialComments: visibleSocialComments.length,
-      selectedConversationId: isSocialMode ? "" : selectedConversation?.id || "",
+      selectedConversationId: isSocialMode ? "" : selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || "",
       selectedSocialCommentId: isSocialMode ? selectedSocialComment?.id || "" : "",
       activeItemId,
     });
-  }, [activeItemId, inboxSection, isSocialMode, selectedConversation?.id, selectedSocialComment?.id, visibleConversations.length, visibleSocialComments.length]);
+  }, [activeItemId, inboxSection, isSocialMode, selectedConversation?.conversation_id, selectedConversation?.conversation_key, selectedConversation?.session_id, selectedSocialComment?.id, visibleConversations.length, visibleSocialComments.length]);
   useEffect(() => {
     if (inboxSection === "social_comments") {
       const nextSelected = visibleSocialComments[0] || null;
@@ -3980,7 +3980,7 @@ export default function AiInbox() {
 
     const nextSelected = visibleConversations[0] || null;
     const selectedKey = clean(selectedSessionIdRef.current);
-    const hasActiveSelection = selectedKey && visibleConversations.some((item) => item.conversation_key === selectedKey);
+    const hasActiveSelection = selectedKey && visibleConversations.some((item) => item.conversation_key === selectedKey || item.session_id === selectedKey || conversationKey(item) === selectedKey);
     if (!visibleConversations.length) {
       if (selectedSessionIdRef.current) setSelectedSessionId("");
       return;
@@ -3991,7 +3991,7 @@ export default function AiInbox() {
     }
   }, [inboxSection, socialCommentIdentity, visibleConversations, visibleSocialComments]);
   const selectedConversationRouteId = useMemo(
-    () => clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || selectedConversation?.id || ""),
+    () => clean(selectedConversation?.session_id || selectedConversation?.conversation_key || selectedConversation?.conversation_id || conversationKey(selectedConversation || {})),
     [selectedConversation]
   );
   const syncTranscriptScrollProximity = useCallback((scroller = transcriptScrollRef.current) => {
@@ -5142,7 +5142,7 @@ export default function AiInbox() {
     const previewText = productCardPreviewText(cards) || "إرسال منتج";
     const clientRequestId = buildClientRequestId();
     console.info("[selected-conversation-product-send]", {
-      id: selectedConversation?.id,
+      route_id: selectedConversationRouteId || conversationId,
       channel: selectedConversation?.channel,
       external_customer_id: selectedConversation?.external_customer_id,
       name: selectedConversation?.customer_name,
