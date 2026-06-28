@@ -25,8 +25,8 @@ import {
   getMappings as getPostProductMappings,
   removeMapping as removePostProductMapping,
   saveMappings as savePostProductMappings,
-  buildPostIdentityTrace,
 } from "../services/postProductMappingService.js";
+import postProductMappingService from "../services/postProductMappingService.js";
 import {
   listRecentSocialCommentAutomationRuns as listSocialCommentAutomationRuns,
   testSocialCommentAutomationRuntime,
@@ -34,6 +34,7 @@ import {
 
 const router = express.Router();
 const debugRouter = express.Router();
+const buildPostIdentityTrace = postProductMappingService.buildPostIdentityTrace || ((payload = {}) => payload);
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
@@ -461,7 +462,7 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       primaryProductId,
       userId: req.user?.id || req.user?.user_id || null,
     });
-    const readback = await getPostProductMappings({ tenantId, platform, postId, row: post || {}, post: post || {} });
+    const readback = await getPostProductMappings({ tenantId, platform, postId, selectedPostId: requestedPostId, row: post || {}, post: post || {} });
     console.info("POST_PRODUCT_LINK_IDENTITY_TRACE", {
       ...buildPostIdentityTrace({
         tenantId,
