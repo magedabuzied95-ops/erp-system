@@ -2086,6 +2086,7 @@ export default function AiInboxPwa() {
   const markReadSignatureRef = useRef("");
   const messengerProfileSyncAttemptedRef = useRef(new Set());
   const refreshInFlightRef = useRef(false);
+  const requestSeqRef = useRef(0);
   const previousSocketHealthyRef = useRef(socketHealthy);
   const refreshTimerRef = useRef(null);
   const refreshQueuedRef = useRef(false);
