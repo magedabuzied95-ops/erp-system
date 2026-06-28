@@ -741,39 +741,67 @@ const formatDisplayColor = (value = "") => {
   return text.toUpperCase();
 };
 
+export const BARCODE_LABEL_LAYOUT = Object.freeze({
+  page: { width: 100, height: 50 },
+  image: { x: 2, y: 3.2, w: 43.6, h: 33.8 },
+  title: { x: 40.5, y: 5.6, w: 56.5, fontSize: 13, lineHeight: 1.1, lineStepMm: 5.3, maxLines: 2 },
+  sizeBadge: {
+    x: 40.5,
+    y: 13.6,
+    w: 30.8,
+    wWithArticle: 16.0,
+    h: 13.0,
+    labelFontSize: 4.1,
+    valueFontSize: 25,
+  },
+  articleBox: {
+    x: 57.0,
+    y: 13.6,
+    w: 30.2,
+    h: 13.0,
+    labelFontSize: 3.9,
+    valueFontSize: 12,
+    valueFontSizeCompact: 10,
+  },
+  colorBox: { x: 40.5, y: 28.3, w: 43.0, h: 6.8, labelFontSize: 3.8, valueFontSize: 13.0 },
+  barcode: { x: 5, y: 39.8, w: 90, h: 7.0, textY: 48.8, fontSize: 7.2 },
+  articleLabelFontSize: 3.9,
+});
+
 export const THERMAL_LANDSCAPE_LABEL_LAYOUT = Object.freeze({
-  titleFontSize: 13,
-  titleLineHeight: 1.1,
-  titleLineStepMm: 5.3,
-  titleMaxLines: 2,
-  titleWidth: 56.5,
-  imageWidth: 43.6,
-  imageHeight: 33.8,
-  sizeBadgeWidthWithArticle: 16.0,
-  sizeBadgeWidthWithoutArticle: 30.8,
-  sizeBadgeHeight: 13.0,
-  articleBoxWidth: 30.2,
-  articleBoxHeight: 13.0,
-  colorBoxHeight: 6.8,
-  articleFontSize: 12,
-  articleFontSizeCompact: 10,
-  sizeLabelFontSize: 4.1,
-  sizeValueFontSize: 25,
-  colorLabelFontSize: 3.8,
-  colorValueFontSize: 13.0,
+  titleFontSize: BARCODE_LABEL_LAYOUT.title.fontSize,
+  titleLineHeight: BARCODE_LABEL_LAYOUT.title.lineHeight,
+  titleLineStepMm: BARCODE_LABEL_LAYOUT.title.lineStepMm,
+  titleMaxLines: BARCODE_LABEL_LAYOUT.title.maxLines,
+  titleWidth: BARCODE_LABEL_LAYOUT.title.w,
+  imageWidth: BARCODE_LABEL_LAYOUT.image.w,
+  imageHeight: BARCODE_LABEL_LAYOUT.image.h,
+  sizeBadgeWidthWithArticle: BARCODE_LABEL_LAYOUT.sizeBadge.wWithArticle,
+  sizeBadgeWidthWithoutArticle: BARCODE_LABEL_LAYOUT.sizeBadge.w,
+  sizeBadgeHeight: BARCODE_LABEL_LAYOUT.sizeBadge.h,
+  articleBoxWidth: BARCODE_LABEL_LAYOUT.articleBox.w,
+  articleBoxHeight: BARCODE_LABEL_LAYOUT.articleBox.h,
+  colorBoxHeight: BARCODE_LABEL_LAYOUT.colorBox.h,
+  articleFontSize: BARCODE_LABEL_LAYOUT.articleBox.valueFontSize,
+  articleFontSizeCompact: BARCODE_LABEL_LAYOUT.articleBox.valueFontSizeCompact,
+  sizeLabelFontSize: BARCODE_LABEL_LAYOUT.sizeBadge.labelFontSize,
+  sizeValueFontSize: BARCODE_LABEL_LAYOUT.sizeBadge.valueFontSize,
+  colorLabelFontSize: BARCODE_LABEL_LAYOUT.colorBox.labelFontSize,
+  colorValueFontSize: BARCODE_LABEL_LAYOUT.colorBox.valueFontSize,
+  articleLabelFontSize: BARCODE_LABEL_LAYOUT.articleLabelFontSize,
 });
 
 export const getThermalLandscapeLabelLayout = (hasArticleBox = false) => ({
   ...THERMAL_LANDSCAPE_LABEL_LAYOUT,
   sizeBadgeWidth: hasArticleBox
-    ? THERMAL_LANDSCAPE_LABEL_LAYOUT.sizeBadgeWidthWithArticle
-    : THERMAL_LANDSCAPE_LABEL_LAYOUT.sizeBadgeWidthWithoutArticle,
-  articleBoxWidth: hasArticleBox ? THERMAL_LANDSCAPE_LABEL_LAYOUT.articleBoxWidth : 0,
+    ? BARCODE_LABEL_LAYOUT.sizeBadge.wWithArticle
+    : BARCODE_LABEL_LAYOUT.sizeBadge.w,
+  articleBoxWidth: hasArticleBox ? BARCODE_LABEL_LAYOUT.articleBox.w : 0,
 });
 
 export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const productName = String(item?.productName || "").trim();
-  const productLines = splitSvgText(productName, 22, 2);
+  const productLines = splitSvgText(productName, BARCODE_LABEL_LAYOUT.title.w / 2.55, BARCODE_LABEL_LAYOUT.title.maxLines);
   const sizeValue = String(item?.size || "ONE SIZE").trim() || "ONE SIZE";
   const colorValue = formatDisplayColor(item?.color || "");
   const skuValue = String(item?.sku || "").trim();
@@ -782,45 +810,43 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const hasArticleBox = Boolean(skuValue);
   const layout = getThermalLandscapeLabelLayout(hasArticleBox);
   const articleFontSize = Math.max(layout.articleFontSizeCompact, Math.min(layout.articleFontSize, layout.articleFontSize - Math.max(0, skuValue.length - 10) * 0.08));
-  const colorLabelSize = 2.2;
-  const colorValueSize = 4.6;
   const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, {
-    width: 92,
+    width: BARCODE_LABEL_LAYOUT.barcode.w + 2,
     height: 8,
     displayText: barcodeValue,
-    barTop: 40,
-    barHeight: 6.8,
+    barTop: BARCODE_LABEL_LAYOUT.barcode.y,
+    barHeight: BARCODE_LABEL_LAYOUT.barcode.h,
   });
 
   const productText = productLines.length
-    ? productLines.map((line, index) => `<text x="40" y="${7.1 + (index * 5.8)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? layout.titleFontSize * 0.46 : layout.titleFontSize * 0.4}" font-weight="900">${escapeHtml(line)}</text>`).join("")
-    : `<text x="40" y="7.1" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleFontSize * 0.46}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
+    ? productLines.map((line, index) => `<text x="${BARCODE_LABEL_LAYOUT.title.x}" y="${BARCODE_LABEL_LAYOUT.title.y + (index * 5.8)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? layout.titleFontSize * 0.46 : layout.titleFontSize * 0.4}" font-weight="900">${escapeHtml(line)}</text>`).join("")
+    : `<text x="${BARCODE_LABEL_LAYOUT.title.x}" y="${BARCODE_LABEL_LAYOUT.title.y}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleFontSize * 0.46}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
 
   return `
     <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
       <rect x="0" y="0" width="100" height="50" fill="#ffffff" />
       <rect x="0.4" y="0.4" width="99.2" height="49.2" fill="none" stroke="#e2e8f0" stroke-width="0.25" />
 
-      ${imageUrl ? `<image href="${escapeHtml(imageUrl)}" x="2" y="3.2" width="43.6" height="33.8" preserveAspectRatio="xMidYMid meet" />` : `<rect x="2" y="3.2" width="43.6" height="33.8" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.25" />`}
+      ${imageUrl ? `<image href="${escapeHtml(imageUrl)}" x="${BARCODE_LABEL_LAYOUT.image.x}" y="${BARCODE_LABEL_LAYOUT.image.y}" width="${BARCODE_LABEL_LAYOUT.image.w}" height="${BARCODE_LABEL_LAYOUT.image.h}" preserveAspectRatio="xMidYMid meet" />` : `<rect x="${BARCODE_LABEL_LAYOUT.image.x}" y="${BARCODE_LABEL_LAYOUT.image.y}" width="${BARCODE_LABEL_LAYOUT.image.w}" height="${BARCODE_LABEL_LAYOUT.image.h}" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.25" />`}
 
       ${productText}
 
-      <rect x="39.5" y="13.6" width="${layout.sizeBadgeWidth}" height="${layout.sizeBadgeHeight}" rx="1.8" fill="#020617" />
-      <text x="${39.5 + (layout.sizeBadgeWidth / 2)}" y="16.8" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="1.65" font-weight="900" letter-spacing="0.28">${escapeHtml(printCopy.size || "SIZE")}</text>
-      <text x="${39.5 + (layout.sizeBadgeWidth / 2)}" y="22.9" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.432}" font-weight="900">${escapeHtml(sizeValue)}</text>
+      <rect x="${BARCODE_LABEL_LAYOUT.sizeBadge.x}" y="${BARCODE_LABEL_LAYOUT.sizeBadge.y}" width="${layout.sizeBadgeWidth}" height="${layout.sizeBadgeHeight}" rx="1.8" fill="#020617" />
+      <text x="${BARCODE_LABEL_LAYOUT.sizeBadge.x + (layout.sizeBadgeWidth / 2)}" y="${BARCODE_LABEL_LAYOUT.sizeBadge.y + 3.2}" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="${BARCODE_LABEL_LAYOUT.sizeBadge.labelFontSize * 0.4}" font-weight="900" letter-spacing="0.28">${escapeHtml(printCopy.size || "SIZE")}</text>
+      <text x="${BARCODE_LABEL_LAYOUT.sizeBadge.x + (layout.sizeBadgeWidth / 2)}" y="${BARCODE_LABEL_LAYOUT.sizeBadge.y + 9.3}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.432}" font-weight="900">${escapeHtml(sizeValue)}</text>
       ${hasArticleBox ? `
-      <rect x="57.0" y="13.6" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <text x="69.1" y="16.8" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="1.65" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.sku || "ARTICLE/SKU")}</text>
-      <text x="69.1" y="22.9" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
+      <rect x="${BARCODE_LABEL_LAYOUT.articleBox.x}" y="${BARCODE_LABEL_LAYOUT.articleBox.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
+      <text x="${BARCODE_LABEL_LAYOUT.articleBox.x + (layout.articleBoxWidth / 2)}" y="${BARCODE_LABEL_LAYOUT.articleBox.y + 3.2}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${BARCODE_LABEL_LAYOUT.articleBox.labelFontSize * 0.42}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.sku || "ARTICLE/SKU")}</text>
+      <text x="${BARCODE_LABEL_LAYOUT.articleBox.x + (layout.articleBoxWidth / 2)}" y="${BARCODE_LABEL_LAYOUT.articleBox.y + 9.3}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
       ` : ""}
 
-      <rect x="39.5" y="28.2" width="41.2" height="${layout.colorBoxHeight}" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <text x="60.1" y="30.9" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${colorLabelSize}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
-      <text x="60.1" y="34.1" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorValueFontSize * 0.35}" font-weight="900">${escapeHtml(colorValue)}</text>
+      <rect x="${BARCODE_LABEL_LAYOUT.colorBox.x}" y="${BARCODE_LABEL_LAYOUT.colorBox.y}" width="${BARCODE_LABEL_LAYOUT.colorBox.w}" height="${layout.colorBoxHeight}" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
+      <text x="${BARCODE_LABEL_LAYOUT.colorBox.x + (BARCODE_LABEL_LAYOUT.colorBox.w / 2)}" y="${BARCODE_LABEL_LAYOUT.colorBox.y + 2.7}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${BARCODE_LABEL_LAYOUT.colorBox.labelFontSize * 0.58}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
+      <text x="${BARCODE_LABEL_LAYOUT.colorBox.x + (BARCODE_LABEL_LAYOUT.colorBox.w / 2)}" y="${BARCODE_LABEL_LAYOUT.colorBox.y + 5.9}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorValueFontSize * 0.35}" font-weight="900">${escapeHtml(colorValue)}</text>
 
-      ${hasArticleBox ? "" : `<text x="50" y="38.7" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
+      ${hasArticleBox ? "" : `<text x="${BARCODE_LABEL_LAYOUT.page.width / 2}" y="${BARCODE_LABEL_LAYOUT.barcode.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}
-      <text x="50" y="49" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="3" font-weight="900">${escapeHtml(barcodeValue)}</text>
+      <text x="${BARCODE_LABEL_LAYOUT.page.width / 2}" y="${BARCODE_LABEL_LAYOUT.barcode.textY}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${BARCODE_LABEL_LAYOUT.barcode.fontSize * 0.42}" font-weight="900">${escapeHtml(barcodeValue)}</text>
     </svg>
   `;
 };

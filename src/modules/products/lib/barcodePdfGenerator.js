@@ -4,7 +4,7 @@ import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { loadImageDataUrl } from "./thermalImageOptimizer";
-import { getThermalLandscapeLabelLayout, resolveBarcodeLabelImage } from "./barcodeLabels";
+import { BARCODE_LABEL_LAYOUT, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage } from "./barcodeLabels";
 
 const thermalImageCache = new Map();
 
@@ -190,15 +190,7 @@ const fitTextSize = (doc, text, maxWidth, fontSize, minFontSize = 3.8) => {
 };
 
 const renderLabelPage = async (doc, item = {}, index = 0) => {
-  const logicalPageWidth = 100;
-  const logicalPageHeight = 50;
-  const imageX = 2;
-  const imageY = 3.2;
-  const imageW = 43.2;
-  const imageH = 34.0;
-  const titleX = 40.5;
-  const titleY = 5.6;
-  const titleW = 56.5;
+  const { page, image, title, sizeBadge, articleBox, colorBox, barcode } = BARCODE_LABEL_LAYOUT;
   const productName = normalizeLabelText(item.productName || item.name || item.title || `Label ${index + 1}`);
   const sizeValue = normalizeLabelText(item.size || item.variantSize || item.labelSize || "ONE SIZE");
   const rawColorValue = normalizeLabelText(item.color || item.variantColor || item.labelColor || "");
@@ -206,100 +198,72 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   const skuValue = normalizeLabelText(item.sku || item.article || item.variantSku || "");
   const showArticleBox = Boolean(skuValue);
   const thermalLayout = getThermalLandscapeLabelLayout(showArticleBox);
-  const sizeBadgeX = 40.5;
-  const sizeBadgeY = 13.6;
-  const sizeBadgeW = thermalLayout.sizeBadgeWidth;
-  const sizeBadgeH = thermalLayout.sizeBadgeHeight;
-  const articleBoxX = 57.0;
-  const articleBoxY = 13.6;
-  const articleBoxW = thermalLayout.articleBoxWidth || 0;
-  const articleBoxH = thermalLayout.articleBoxHeight;
-  const colorBoxX = 40.5;
-  const colorBoxY = 28.3;
-  const colorBoxW = 43.0;
-  const colorBoxH = thermalLayout.colorBoxHeight;
-  const skuY = 38.8;
-  const barcodeX = 5;
-  const barcodeY = 39.8;
-  const barcodeW = 90;
-  const barcodeH = 7.0;
-  const barcodeNumberY = 48.8;
   const barcodeValue = getLabelBarcodeValue(item);
   if (typeof doc.setR2L === "function") {
     doc.setR2L(isArabicText(productName));
   }
 
-  console.log("[Barcode Label PDF]", {
-    titleFontSize: thermalLayout.titleFontSize,
-    titleLineHeight: thermalLayout.titleLineHeight,
-    titleLineStepMm: thermalLayout.titleLineStepMm,
-    sizeBadgeWidth: thermalLayout.sizeBadgeWidth,
-    sizeBadgeHeight: thermalLayout.sizeBadgeHeight,
-    colorBoxHeight: thermalLayout.colorBoxHeight,
-    articleBoxWidth: thermalLayout.articleBoxWidth,
-  });
-
   doc.setFillColor(255, 255, 255);
-  doc.rect(0, 0, logicalPageWidth, logicalPageHeight, "F");
+  doc.rect(0, 0, page.width, page.height, "F");
   doc.setDrawColor(226, 232, 240);
-  doc.rect(0.4, 0.4, logicalPageWidth - 0.8, logicalPageHeight - 0.8, "S");
+  doc.rect(0.4, 0.4, page.width - 0.8, page.height - 0.8, "S");
 
-  await drawImageOrPlaceholder(doc, item, imageX, imageY, imageW, imageH);
+  await drawImageOrPlaceholder(doc, item, image.x, image.y, image.w, image.h);
 
-  const titleLines = toTextLines(doc, productName, titleW, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
+  const titleLines = toTextLines(doc, productName, title.w, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
   const titleLinesToRender = titleLines.slice(0, thermalLayout.titleMaxLines);
   if (titleLinesToRender.length === thermalLayout.titleMaxLines) {
-    titleLinesToRender[titleLinesToRender.length - 1] = ellipsizeLine(doc, titleLinesToRender[titleLinesToRender.length - 1], titleW);
+    titleLinesToRender[titleLinesToRender.length - 1] = ellipsizeLine(doc, titleLinesToRender[titleLinesToRender.length - 1], title.w);
   }
   doc.setTextColor(2, 6, 23);
   doc.setFont("helvetica", "bold");
   titleLinesToRender.forEach((line, lineIndex) => {
     doc.setFontSize(lineIndex === 0 ? thermalLayout.titleFontSize : thermalLayout.titleFontSize * 0.86);
-    doc.text(line, titleX, titleY + (lineIndex * thermalLayout.titleLineStepMm), { maxWidth: titleW });
+    doc.text(line, title.x, title.y + (lineIndex * thermalLayout.titleLineStepMm), { maxWidth: title.w });
   });
 
-  drawRoundedRect(doc, sizeBadgeX, sizeBadgeY, sizeBadgeW, sizeBadgeH, 1.8, [2, 6, 23]);
+  drawRoundedRect(doc, sizeBadge.x, sizeBadge.y, thermalLayout.sizeBadgeWidth, thermalLayout.sizeBadgeHeight, 1.8, [2, 6, 23]);
   doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(thermalLayout.sizeLabelFontSize);
-  doc.text("SIZE", sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 3.5, { align: "center" });
+  doc.text("SIZE", sizeBadge.x + thermalLayout.sizeBadgeWidth / 2, sizeBadge.y + 3.5, { align: "center" });
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(thermalLayout.sizeValueFontSize);
-  doc.text(sizeValue, sizeBadgeX + sizeBadgeW / 2, sizeBadgeY + 9.0, { align: "center" });
+  doc.text(sizeValue, sizeBadge.x + thermalLayout.sizeBadgeWidth / 2, sizeBadge.y + 9.0, { align: "center" });
 
   if (showArticleBox) {
-    drawRoundedRect(doc, articleBoxX, articleBoxY, articleBoxW, articleBoxH, 1, [244, 244, 245], [226, 232, 240]);
+    drawRoundedRect(doc, articleBox.x, articleBox.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [244, 244, 245], [226, 232, 240]);
     doc.setTextColor(100, 116, 139);
     doc.setFontSize(thermalLayout.colorLabelFontSize);
-    doc.text("ARTICLE/SKU", articleBoxX + articleBoxW / 2, articleBoxY + 3.5, { align: "center" });
+    doc.text("ARTICLE/SKU", articleBox.x + thermalLayout.articleBoxWidth / 2, articleBox.y + 3.5, { align: "center" });
     doc.setTextColor(15, 23, 42);
-    const skuFontSize = fitTextSize(doc, skuValue, articleBoxW - 2, thermalLayout.articleFontSize, thermalLayout.articleFontSizeCompact);
+    const skuFontSize = fitTextSize(doc, skuValue, thermalLayout.articleBoxWidth - 2, thermalLayout.articleFontSize, thermalLayout.articleFontSizeCompact);
     doc.setFontSize(skuFontSize);
-    doc.text(skuValue, articleBoxX + articleBoxW / 2, articleBoxY + 8.8, { align: "center" });
+    doc.text(skuValue, articleBox.x + thermalLayout.articleBoxWidth / 2, articleBox.y + 8.8, { align: "center" });
   }
 
-  drawRoundedRect(doc, colorBoxX, colorBoxY, colorBoxW, colorBoxH, 1, [244, 244, 245], [226, 232, 240]);
+  drawRoundedRect(doc, colorBox.x, colorBox.y, colorBox.w, colorBox.h, 1, [244, 244, 245], [226, 232, 240]);
   doc.setTextColor(100, 116, 139);
   doc.setFontSize(thermalLayout.colorLabelFontSize);
-  doc.text("COLOR", colorBoxX + colorBoxW / 2, colorBoxY + 2.2, { align: "center" });
+  doc.text("COLOR", colorBox.x + colorBox.w / 2, colorBox.y + 2.2, { align: "center" });
   doc.setTextColor(15, 23, 42);
   doc.setFontSize(thermalLayout.colorValueFontSize);
-  doc.text(colorValue || "-", colorBoxX + colorBoxW / 2, colorBoxY + 5.3, { align: "center", maxWidth: colorBoxW - 2 });
+  doc.text(colorValue || "-", colorBox.x + colorBox.w / 2, colorBox.y + 5.3, { align: "center", maxWidth: colorBox.w - 2 });
 
   if (!showArticleBox) {
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(10.4);
     if (skuValue) {
       doc.setFont("helvetica", "bold");
-      doc.text(skuValue, logicalPageWidth / 2, skuY, { align: "center", maxWidth: titleW });
+      doc.text(skuValue, page.width / 2, barcode.y - 0.9, { align: "center", maxWidth: title.w });
     }
   }
 
-  const barcodeText = drawBarcode(doc, barcodeValue, barcodeX, barcodeY, barcodeW, barcodeH);
+  const barcodeText = drawBarcode(doc, barcodeValue, barcode.x, barcode.y, barcode.w, barcode.h);
   doc.setTextColor(15, 23, 42);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.2);
-  doc.text(barcodeText, logicalPageWidth / 2, barcodeNumberY, { align: "center" });
+  doc.setFontSize(barcode.fontSize);
+  doc.text(barcodeText, page.width / 2, barcode.textY, { align: "center" });
 };
 
 export async function generateBarcodeLabelsPdf(labels = [], options = {}) {
