@@ -591,8 +591,6 @@ function BarcodeLabels() {
     }
 
     try {
-      console.log("USING_PDF_GENERATOR_FILE", "src/modules/products/lib/barcodePdfGenerator.js");
-      console.log("PDF_LAYOUT_VERSION", "v3-final-layout-2026-06-29");
       const result = await generateBarcodeLabelsPdf(expandedLabels, {
         title: t("products.barcodeLabels.labelSheetTitle"),
         filename: `barcode-labels-${Date.now()}.pdf`,
@@ -1253,27 +1251,31 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const titleStyle = {
     fontSize: `${thermalLayout.titleFontSize}px`,
     lineHeight: thermalLayout.titleLineHeight,
-    display: "block",
-    maxHeight: `${thermalLayout.titleFontSize * thermalLayout.titleLineHeight * thermalLayout.titleMaxLines}px`,
+    display: "-webkit-box",
+    WebkitBoxOrient: "vertical",
+    WebkitLineClamp: thermalLayout.titleMaxLines,
+    height: `${thermalLayout.titleCell.h}mm`,
+    maxHeight: `${thermalLayout.titleCell.h}mm`,
     overflow: "hidden",
-    minHeight: `${thermalLayout.titleFontSize * thermalLayout.titleLineHeight}px`,
+    minHeight: `${thermalLayout.titleCell.h}mm`,
     width: "100%",
     wordBreak: "break-word",
     overflowWrap: "anywhere",
   };
   const sizeBadgeStyle = {
-    width: showArticleBox ? `${thermalLayout.sizeBadgeWidthWithArticle}mm` : "100%",
+    width: "100%",
     minHeight: `${thermalLayout.sizeBadgeHeight}mm`,
     padding: "0.9mm 1.1mm",
   };
   const articleStyle = showArticleBox
     ? {
-        width: `${thermalLayout.articleBoxWidth}mm`,
+        width: "100%",
         minHeight: `${thermalLayout.articleBoxHeight}mm`,
         padding: "0.8mm 1mm",
       }
     : null;
   const colorStyle = {
+    width: "100%",
     minHeight: `${thermalLayout.colorBoxHeight}mm`,
     padding: "0.65mm 1mm",
   };
@@ -1291,87 +1293,130 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   });
   const landscapeWidth = preview && !print ? "100%" : `${printSettings.labelWidthMm}mm`;
   const landscapeMinHeight = preview && !print ? "clamp(220px, 28vw, 320px)" : `${printSettings.labelHeightMm}mm`;
+  const hasImage = Boolean(printSettings.showProductImage);
+  const contentColumns = hasImage ? `${thermalLayout.imageCell.w}mm minmax(0, 1fr)` : "minmax(0, 1fr)";
+  const contentRows = `${thermalLayout.titleCell.h}mm ${thermalLayout.sizeCell.h}mm ${thermalLayout.colorCell.h}mm ${thermalLayout.barcodeCell.h}mm`;
   const landscapeCard = (
     <article
       className="overflow-hidden border border-zinc-200 bg-white text-zinc-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)]"
       style={{ width: landscapeWidth, minHeight: landscapeMinHeight }}
     >
-      <div className="flex h-full flex-col gap-[1mm] p-[1.2mm]">
+      <div
+        className="grid h-full min-h-0 p-[2mm]"
+        style={{
+          gridTemplateColumns: contentColumns,
+          gridTemplateRows: contentRows,
+          columnGap: `${thermalLayout.gap}mm`,
+          rowGap: `${thermalLayout.rowGap}mm`,
+        }}
+      >
+        {hasImage ? (
+          <div
+            className="row-span-3 flex min-h-0 items-center justify-center overflow-hidden rounded-[8px] border border-zinc-200 bg-zinc-50"
+            style={{
+              gridColumn: "1",
+              gridRow: "1 / span 3",
+              minHeight: `${thermalLayout.imageCell.h}mm`,
+              padding: "0.85mm",
+            }}
+          >
+            <ImageWithFallback
+              src={safeImage}
+              alt={productName}
+              imageClassName="h-full w-full object-contain"
+              iconClassName="text-zinc-400"
+            />
+          </div>
+        ) : null}
+
         {printSettings.showProductName ? (
           <h3
-            className="font-black text-zinc-950"
-            style={titleStyle}
+            className="min-w-0 font-black text-zinc-950"
+            style={{
+              ...titleStyle,
+              gridColumn: hasImage ? "2" : "1",
+              gridRow: "1",
+            }}
           >
             {productName}
           </h3>
         ) : null}
 
         <div
-          className="grid min-h-0 flex-1 gap-[1.2mm]"
+          className="grid min-w-0 gap-[1mm]"
           style={{
-            gridTemplateColumns: printSettings.showProductImage
-              ? `${thermalLayout.imageWidth}mm minmax(0, 1fr)`
-              : "minmax(0,1fr)",
+            gridColumn: hasImage ? "2" : "1",
+            gridRow: "2",
+            gridTemplateColumns: showArticleBox
+              ? `${thermalLayout.sizeCell.w}mm ${thermalLayout.articleCell.w}mm`
+              : "minmax(0, 1fr)",
           }}
         >
-          {printSettings.showProductImage ? (
-            <div className="flex min-h-0 items-center justify-center overflow-hidden rounded-[8px] border border-zinc-200 bg-zinc-50" style={{ minHeight: `${thermalLayout.imageHeight}mm`, padding: "0.85mm" }}>
-              <ImageWithFallback
-                src={safeImage}
-                alt={productName}
-                imageClassName="object-contain"
-                iconClassName="text-zinc-400"
-              />
+          <div
+            className="min-w-0 rounded-[8px] border border-zinc-950 bg-zinc-950 text-center text-white"
+            style={sizeBadgeStyle}
+          >
+            <div
+              className="font-black uppercase leading-none tracking-[0.22em] text-zinc-300"
+              style={{ fontSize: `${thermalLayout.sizeLabelFontSize}px` }}
+            >
+              {t("products.barcodeLabels.size")}
+            </div>
+            <div
+              className="mt-[0.35mm] font-black leading-none"
+              style={{ fontSize: `${thermalLayout.sizeValueFontSize}px` }}
+            >
+              {sizeValue}
+            </div>
+          </div>
+
+          {showArticleBox ? (
+            <div
+              className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-100 text-center text-zinc-950"
+              style={articleStyle}
+            >
+              <div
+                className="font-black uppercase leading-none tracking-[0.22em] text-zinc-500"
+                style={{ fontSize: `${thermalLayout.articleLabelFontSize}px` }}
+              >
+                {t("products.barcodeLabels.sku", "ARTICLE/SKU")}
+              </div>
+              <div
+                className="mt-[0.35mm] truncate font-black leading-none"
+                style={articleValueStyle}
+              >
+                {articleValue}
+              </div>
             </div>
           ) : null}
+        </div>
 
-          <div className="flex min-w-0 flex-col gap-[0.8mm] overflow-hidden">
-            <div
-              className="grid min-w-0 gap-[0.8mm]"
-              style={{
-                gridTemplateColumns: showArticleBox
-                  ? `${thermalLayout.sizeBadgeWidthWithArticle}mm ${thermalLayout.articleBoxWidth}mm`
-                  : "1fr",
-              }}
-            >
-              <div className="min-w-0 rounded-[8px] border border-zinc-950 bg-zinc-950 text-center text-white" style={sizeBadgeStyle}>
-                <div className="font-black uppercase leading-none tracking-[0.22em] text-zinc-300" style={{ fontSize: `${thermalLayout.sizeLabelFontSize}px` }}>
-                  {t("products.barcodeLabels.size")}
-                </div>
-                <div className="mt-[0.35mm] font-black leading-none" style={{ fontSize: `${thermalLayout.sizeValueFontSize}px` }}>
-                  {sizeValue}
-                </div>
-              </div>
-
-              {showArticleBox ? (
-                <div className="min-w-0 rounded-[8px] border border-zinc-200 bg-zinc-100 text-center text-zinc-950" style={articleStyle}>
-                  <div className="font-black uppercase leading-none tracking-[0.22em] text-zinc-500" style={{ fontSize: `${thermalLayout.articleLabelFontSize}px` }}>
-                    {t("products.barcodeLabels.sku", "ARTICLE/SKU")}
-                  </div>
-                  <div
-                    className="mt-[0.35mm] truncate font-black leading-none"
-                    style={articleValueStyle}
-                  >
-                    {articleValue}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-[8px] border border-zinc-200 bg-zinc-100 text-center text-zinc-950" style={colorStyle}>
-              <div className="font-black uppercase leading-none tracking-[0.22em] text-zinc-500" style={{ fontSize: `${thermalLayout.colorLabelFontSize}px` }}>
-                {t("products.barcodeLabels.color")}
-              </div>
-              <div className="mt-[0.55mm] truncate font-black uppercase leading-none" style={{ fontSize: `${thermalLayout.colorValueFontSize}px` }}>
-                {colorValue}
-              </div>
-            </div>
-
-            {!showArticleBox ? <div className="mt-auto truncate text-center text-[11px] font-black leading-none text-zinc-800">{articleValue}</div> : null}
+        <div
+          className="rounded-[8px] border border-zinc-200 bg-zinc-100 text-center text-zinc-950"
+          style={{
+            ...colorStyle,
+            gridColumn: hasImage ? "2" : "1",
+            gridRow: "3",
+          }}
+        >
+          <div
+            className="font-black uppercase leading-none tracking-[0.22em] text-zinc-500"
+            style={{ fontSize: `${thermalLayout.colorLabelFontSize}px` }}
+          >
+            {t("products.barcodeLabels.color")}
+          </div>
+          <div
+            className="mt-[0.55mm] truncate font-black uppercase leading-none"
+            style={{ fontSize: `${thermalLayout.colorValueFontSize}px` }}
+          >
+            {colorValue}
           </div>
         </div>
 
-        <div className="rounded-[8px] border border-zinc-200 bg-white px-[1.2mm] pb-[0.6mm] pt-[0.8mm]">
+        <div
+          className="rounded-[8px] border border-zinc-200 bg-white px-[1.2mm] pb-[0.6mm] pt-[0.8mm]"
+          style={{ gridColumn: "1 / -1", gridRow: "4" }}
+        >
           <div className="w-full overflow-hidden" style={{ minHeight: "14mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
           <div className="mt-[0.5mm] text-center text-[8px] font-black leading-none text-zinc-800">
             {item.barcode}

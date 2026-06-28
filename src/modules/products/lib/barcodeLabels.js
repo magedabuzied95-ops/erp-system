@@ -741,31 +741,132 @@ const formatDisplayColor = (value = "") => {
   return text.toUpperCase();
 };
 
+const THERMAL_LANDSCAPE_PAGE = Object.freeze({ width: 100, height: 50 });
+const THERMAL_LANDSCAPE_MARGIN_MM = 2;
+const THERMAL_LANDSCAPE_GAP_MM = 1;
+const THERMAL_LANDSCAPE_ROW_GAP_MM = 1.2;
+const THERMAL_LANDSCAPE_IMAGE_WIDTH_MM = 34.6;
+const THERMAL_LANDSCAPE_TITLE_HEIGHT_MM = 8.4;
+const THERMAL_LANDSCAPE_SIZE_HEIGHT_MM = 13;
+const THERMAL_LANDSCAPE_COLOR_HEIGHT_MM = 6.8;
+const THERMAL_LANDSCAPE_BARCODE_X_MM = 5;
+const THERMAL_LANDSCAPE_BARCODE_W_MM = 90;
+const THERMAL_LANDSCAPE_BARCODE_H_MM = 7;
+const THERMAL_LANDSCAPE_BARCODE_TEXT_Y_MM = 48.8;
+const THERMAL_LANDSCAPE_TITLE_FONT_SIZE = 11.4;
+const THERMAL_LANDSCAPE_TITLE_LINE_HEIGHT = 1.08;
+const THERMAL_LANDSCAPE_TITLE_LINE_STEP_MM = 4.15;
+const THERMAL_LANDSCAPE_TITLE_MAX_LINES = 2;
+const THERMAL_LANDSCAPE_SIZE_LABEL_FONT_SIZE = 3.9;
+const THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE = 25;
+const THERMAL_LANDSCAPE_ARTICLE_LABEL_FONT_SIZE = 3.8;
+const THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE = 11.2;
+const THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT = 10;
+const THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE = 3.5;
+const THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE = 13;
+
+const buildThermalLandscapeCellLayout = (hasArticleBox = false) => {
+  const imageCell = Object.freeze({
+    x: THERMAL_LANDSCAPE_MARGIN_MM,
+    y: 3,
+    w: THERMAL_LANDSCAPE_IMAGE_WIDTH_MM,
+    h: THERMAL_LANDSCAPE_TITLE_HEIGHT_MM + THERMAL_LANDSCAPE_SIZE_HEIGHT_MM + THERMAL_LANDSCAPE_COLOR_HEIGHT_MM + (THERMAL_LANDSCAPE_ROW_GAP_MM * 2),
+  });
+  const dataCellX = imageCell.x + imageCell.w + THERMAL_LANDSCAPE_GAP_MM;
+  const dataCellW = THERMAL_LANDSCAPE_PAGE.width - THERMAL_LANDSCAPE_MARGIN_MM - dataCellX;
+  const titleCell = Object.freeze({
+    x: dataCellX,
+    y: imageCell.y,
+    w: dataCellW,
+    h: THERMAL_LANDSCAPE_TITLE_HEIGHT_MM,
+  });
+  const sizeCellWidth = hasArticleBox ? 30 : dataCellW;
+  const articleCellWidth = hasArticleBox ? Math.max(0, dataCellW - sizeCellWidth - THERMAL_LANDSCAPE_GAP_MM) : 0;
+  const sizeCell = Object.freeze({
+    x: dataCellX,
+    y: titleCell.y + titleCell.h + THERMAL_LANDSCAPE_ROW_GAP_MM,
+    w: sizeCellWidth,
+    h: THERMAL_LANDSCAPE_SIZE_HEIGHT_MM,
+  });
+  const articleCell = Object.freeze({
+    x: dataCellX + sizeCellWidth + THERMAL_LANDSCAPE_GAP_MM,
+    y: sizeCell.y,
+    w: articleCellWidth,
+    h: THERMAL_LANDSCAPE_SIZE_HEIGHT_MM,
+  });
+  const colorCell = Object.freeze({
+    x: dataCellX,
+    y: sizeCell.y + sizeCell.h + THERMAL_LANDSCAPE_ROW_GAP_MM,
+    w: dataCellW,
+    h: THERMAL_LANDSCAPE_COLOR_HEIGHT_MM,
+  });
+  const barcodeCell = Object.freeze({
+    x: THERMAL_LANDSCAPE_BARCODE_X_MM,
+    y: 39.8,
+    w: THERMAL_LANDSCAPE_BARCODE_W_MM,
+    h: THERMAL_LANDSCAPE_BARCODE_H_MM,
+    textY: THERMAL_LANDSCAPE_BARCODE_TEXT_Y_MM,
+    fontSize: 7.2,
+  });
+
+  return Object.freeze({
+    page: THERMAL_LANDSCAPE_PAGE,
+    margin: THERMAL_LANDSCAPE_MARGIN_MM,
+    gap: THERMAL_LANDSCAPE_GAP_MM,
+    rowGap: THERMAL_LANDSCAPE_ROW_GAP_MM,
+    imageCell,
+    titleCell,
+    sizeCell,
+    articleCell,
+    colorCell,
+    barcodeCell,
+    titleFontSize: THERMAL_LANDSCAPE_TITLE_FONT_SIZE,
+    titleLineHeight: THERMAL_LANDSCAPE_TITLE_LINE_HEIGHT,
+    titleLineStepMm: THERMAL_LANDSCAPE_TITLE_LINE_STEP_MM,
+    titleMaxLines: THERMAL_LANDSCAPE_TITLE_MAX_LINES,
+    sizeLabelFontSize: THERMAL_LANDSCAPE_SIZE_LABEL_FONT_SIZE,
+    sizeValueFontSize: THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE,
+    articleLabelFontSize: THERMAL_LANDSCAPE_ARTICLE_LABEL_FONT_SIZE,
+    articleFontSize: THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE,
+    articleFontSizeCompact: THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT,
+    colorLabelFontSize: THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE,
+    colorValueFontSize: THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE,
+    sizeBadgeWidth: sizeCell.w,
+    sizeBadgeHeight: sizeCell.h,
+    articleBoxWidth: articleCell.w,
+    articleBoxHeight: articleCell.h,
+    colorBoxHeight: colorCell.h,
+    titleWidth: titleCell.w,
+    imageWidth: imageCell.w,
+    imageHeight: imageCell.h,
+  });
+};
+
 export const BARCODE_LABEL_LAYOUT = Object.freeze({
-  page: { width: 100, height: 50 },
-  image: { x: 2, y: 3.2, w: 47.0, h: 36.4 },
-  title: { x: 40.5, y: 5.6, w: 56.5, fontSize: 11.7, lineHeight: 1.16, lineStepMm: 4.9, maxLines: 2 },
+  page: THERMAL_LANDSCAPE_PAGE,
+  image: { x: THERMAL_LANDSCAPE_MARGIN_MM, y: 3, w: THERMAL_LANDSCAPE_IMAGE_WIDTH_MM, h: THERMAL_LANDSCAPE_TITLE_HEIGHT_MM + THERMAL_LANDSCAPE_SIZE_HEIGHT_MM + THERMAL_LANDSCAPE_COLOR_HEIGHT_MM + (THERMAL_LANDSCAPE_ROW_GAP_MM * 2) },
+  title: { x: THERMAL_LANDSCAPE_MARGIN_MM + THERMAL_LANDSCAPE_IMAGE_WIDTH_MM + THERMAL_LANDSCAPE_GAP_MM, y: 3, w: THERMAL_LANDSCAPE_PAGE.width - THERMAL_LANDSCAPE_MARGIN_MM - (THERMAL_LANDSCAPE_MARGIN_MM + THERMAL_LANDSCAPE_IMAGE_WIDTH_MM + THERMAL_LANDSCAPE_GAP_MM), fontSize: THERMAL_LANDSCAPE_TITLE_FONT_SIZE, lineHeight: THERMAL_LANDSCAPE_TITLE_LINE_HEIGHT, lineStepMm: THERMAL_LANDSCAPE_TITLE_LINE_STEP_MM, maxLines: THERMAL_LANDSCAPE_TITLE_MAX_LINES },
   sizeBadge: {
-    x: 44.8,
-    y: 13.6,
-    w: 30.8,
-    wWithArticle: 16.0,
-    h: 13.0,
-    labelFontSize: 4.1,
-    valueFontSize: 25,
+    x: THERMAL_LANDSCAPE_MARGIN_MM + THERMAL_LANDSCAPE_IMAGE_WIDTH_MM + THERMAL_LANDSCAPE_GAP_MM,
+    y: 12.6,
+    w: 60.4,
+    wWithArticle: 30,
+    h: THERMAL_LANDSCAPE_SIZE_HEIGHT_MM,
+    labelFontSize: THERMAL_LANDSCAPE_SIZE_LABEL_FONT_SIZE,
+    valueFontSize: THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE,
   },
   articleBox: {
-    x: 61.2,
-    y: 13.6,
-    w: 27.8,
-    h: 13.0,
-    labelFontSize: 3.9,
-    valueFontSize: 11.5,
-    valueFontSizeCompact: 10,
+    x: THERMAL_LANDSCAPE_MARGIN_MM + THERMAL_LANDSCAPE_IMAGE_WIDTH_MM + THERMAL_LANDSCAPE_GAP_MM + 30 + THERMAL_LANDSCAPE_GAP_MM,
+    y: 12.6,
+    w: 29.4,
+    h: THERMAL_LANDSCAPE_SIZE_HEIGHT_MM,
+    labelFontSize: THERMAL_LANDSCAPE_ARTICLE_LABEL_FONT_SIZE,
+    valueFontSize: THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE,
+    valueFontSizeCompact: THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT,
   },
-  colorBox: { x: 40.5, y: 28.3, w: 43.0, h: 6.8, labelFontSize: 3.5, valueFontSize: 13.0 },
-  barcode: { x: 5, y: 39.8, w: 90, h: 7.0, textY: 48.8, fontSize: 7.2 },
-  articleLabelFontSize: 3.9,
+  colorBox: { x: THERMAL_LANDSCAPE_MARGIN_MM + THERMAL_LANDSCAPE_IMAGE_WIDTH_MM + THERMAL_LANDSCAPE_GAP_MM, y: 26.8, w: THERMAL_LANDSCAPE_PAGE.width - THERMAL_LANDSCAPE_MARGIN_MM - (THERMAL_LANDSCAPE_MARGIN_MM + THERMAL_LANDSCAPE_IMAGE_WIDTH_MM + THERMAL_LANDSCAPE_GAP_MM), h: THERMAL_LANDSCAPE_COLOR_HEIGHT_MM, labelFontSize: THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE, valueFontSize: THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE },
+  barcode: { x: THERMAL_LANDSCAPE_BARCODE_X_MM, y: 39.8, w: THERMAL_LANDSCAPE_BARCODE_W_MM, h: THERMAL_LANDSCAPE_BARCODE_H_MM, textY: THERMAL_LANDSCAPE_BARCODE_TEXT_Y_MM, fontSize: 7.2 },
+  articleLabelFontSize: THERMAL_LANDSCAPE_ARTICLE_LABEL_FONT_SIZE,
 });
 
 export const THERMAL_LANDSCAPE_LABEL_LAYOUT = Object.freeze({
@@ -793,15 +894,11 @@ export const THERMAL_LANDSCAPE_LABEL_LAYOUT = Object.freeze({
 
 export const getThermalLandscapeLabelLayout = (hasArticleBox = false) => ({
   ...THERMAL_LANDSCAPE_LABEL_LAYOUT,
-  sizeBadgeWidth: hasArticleBox
-    ? BARCODE_LABEL_LAYOUT.sizeBadge.wWithArticle
-    : BARCODE_LABEL_LAYOUT.sizeBadge.w,
-  articleBoxWidth: hasArticleBox ? BARCODE_LABEL_LAYOUT.articleBox.w : 0,
+  ...buildThermalLandscapeCellLayout(hasArticleBox),
 });
 
 export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const productName = String(item?.productName || "").trim();
-  const productLines = splitSvgText(productName, BARCODE_LABEL_LAYOUT.title.w / 2.55, BARCODE_LABEL_LAYOUT.title.maxLines);
   const sizeValue = String(item?.size || "ONE SIZE").trim() || "ONE SIZE";
   const colorValue = formatDisplayColor(item?.color || "");
   const skuValue = String(item?.sku || "").trim();
@@ -809,44 +906,46 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const imageUrl = String(item?.imageUrl || item?.resolvedImage || "").trim();
   const hasArticleBox = Boolean(skuValue);
   const layout = getThermalLandscapeLabelLayout(hasArticleBox);
+  const { imageCell, titleCell, sizeCell, articleCell, colorCell, barcodeCell } = layout;
+  const productLines = splitSvgText(productName, titleCell.w / 2.55, layout.titleMaxLines);
   const articleFontSize = Math.max(layout.articleFontSizeCompact, Math.min(layout.articleFontSize, layout.articleFontSize - Math.max(0, skuValue.length - 10) * 0.08));
   const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, {
-    width: BARCODE_LABEL_LAYOUT.barcode.w + 2,
+    width: barcodeCell.w + 2,
     height: 8,
     displayText: barcodeValue,
-    barTop: BARCODE_LABEL_LAYOUT.barcode.y,
-    barHeight: BARCODE_LABEL_LAYOUT.barcode.h,
+    barTop: barcodeCell.y,
+    barHeight: barcodeCell.h,
   });
 
   const productText = productLines.length
-    ? productLines.map((line, index) => `<text x="${BARCODE_LABEL_LAYOUT.title.x}" y="${BARCODE_LABEL_LAYOUT.title.y + (index * layout.titleLineStepMm)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? layout.titleFontSize * 0.46 : layout.titleFontSize * 0.4}" font-weight="900">${escapeHtml(line)}</text>`).join("")
-    : `<text x="${BARCODE_LABEL_LAYOUT.title.x}" y="${BARCODE_LABEL_LAYOUT.title.y}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleFontSize * 0.46}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
+    ? productLines.map((line, index) => `<text x="${titleCell.x}" y="${titleCell.y + (index * layout.titleLineStepMm)}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? layout.titleFontSize * 0.46 : layout.titleFontSize * 0.4}" font-weight="900">${escapeHtml(line)}</text>`).join("")
+    : `<text x="${titleCell.x}" y="${titleCell.y}" fill="#020617" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleFontSize * 0.46}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
 
   return `
     <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
       <rect x="0" y="0" width="100" height="50" fill="#ffffff" />
       <rect x="0.4" y="0.4" width="99.2" height="49.2" fill="none" stroke="#e2e8f0" stroke-width="0.25" />
 
-      ${imageUrl ? `<image href="${escapeHtml(imageUrl)}" x="${BARCODE_LABEL_LAYOUT.image.x}" y="${BARCODE_LABEL_LAYOUT.image.y}" width="${BARCODE_LABEL_LAYOUT.image.w}" height="${BARCODE_LABEL_LAYOUT.image.h}" preserveAspectRatio="xMidYMid meet" />` : `<rect x="${BARCODE_LABEL_LAYOUT.image.x}" y="${BARCODE_LABEL_LAYOUT.image.y}" width="${BARCODE_LABEL_LAYOUT.image.w}" height="${BARCODE_LABEL_LAYOUT.image.h}" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.25" />`}
+      ${imageUrl ? `<image href="${escapeHtml(imageUrl)}" x="${imageCell.x}" y="${imageCell.y}" width="${imageCell.w}" height="${imageCell.h}" preserveAspectRatio="xMidYMid meet" />` : `<rect x="${imageCell.x}" y="${imageCell.y}" width="${imageCell.w}" height="${imageCell.h}" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.25" />`}
 
       ${productText}
 
-      <rect x="${BARCODE_LABEL_LAYOUT.sizeBadge.x}" y="${BARCODE_LABEL_LAYOUT.sizeBadge.y}" width="${layout.sizeBadgeWidth}" height="${layout.sizeBadgeHeight}" rx="1.8" fill="#020617" />
-      <text x="${BARCODE_LABEL_LAYOUT.sizeBadge.x + (layout.sizeBadgeWidth / 2)}" y="${BARCODE_LABEL_LAYOUT.sizeBadge.y + 3.2}" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="${BARCODE_LABEL_LAYOUT.sizeBadge.labelFontSize * 0.4}" font-weight="900" letter-spacing="0.28">${escapeHtml(printCopy.size || "SIZE")}</text>
-      <text x="${BARCODE_LABEL_LAYOUT.sizeBadge.x + (layout.sizeBadgeWidth / 2)}" y="${BARCODE_LABEL_LAYOUT.sizeBadge.y + 9.3}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.432}" font-weight="900">${escapeHtml(sizeValue)}</text>
+      <rect x="${sizeCell.x}" y="${sizeCell.y}" width="${layout.sizeBadgeWidth}" height="${layout.sizeBadgeHeight}" rx="1.8" fill="#020617" />
+      <text x="${sizeCell.x + (layout.sizeBadgeWidth / 2)}" y="${sizeCell.y + 3.2}" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeLabelFontSize * 0.4}" font-weight="900" letter-spacing="0.28">${escapeHtml(printCopy.size || "SIZE")}</text>
+      <text x="${sizeCell.x + (layout.sizeBadgeWidth / 2)}" y="${sizeCell.y + 9.3}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.432}" font-weight="900">${escapeHtml(sizeValue)}</text>
       ${hasArticleBox ? `
-      <rect x="${BARCODE_LABEL_LAYOUT.articleBox.x}" y="${BARCODE_LABEL_LAYOUT.articleBox.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <text x="${BARCODE_LABEL_LAYOUT.articleBox.x + (layout.articleBoxWidth / 2)}" y="${BARCODE_LABEL_LAYOUT.articleBox.y + 3.2}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${BARCODE_LABEL_LAYOUT.articleBox.labelFontSize * 0.42}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.sku || "ARTICLE/SKU")}</text>
-      <text x="${BARCODE_LABEL_LAYOUT.articleBox.x + (layout.articleBoxWidth / 2)}" y="${BARCODE_LABEL_LAYOUT.articleBox.y + 9.3}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
+      <rect x="${articleCell.x}" y="${articleCell.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
+      <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 3.2}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${layout.articleLabelFontSize * 0.42}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.sku || "ARTICLE/SKU")}</text>
+      <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 9.3}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
       ` : ""}
 
-      <rect x="${BARCODE_LABEL_LAYOUT.colorBox.x}" y="${BARCODE_LABEL_LAYOUT.colorBox.y}" width="${BARCODE_LABEL_LAYOUT.colorBox.w}" height="${layout.colorBoxHeight}" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <text x="${BARCODE_LABEL_LAYOUT.colorBox.x + (BARCODE_LABEL_LAYOUT.colorBox.w / 2)}" y="${BARCODE_LABEL_LAYOUT.colorBox.y + 2.7}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${BARCODE_LABEL_LAYOUT.colorBox.labelFontSize * 0.58}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
-      <text x="${BARCODE_LABEL_LAYOUT.colorBox.x + (BARCODE_LABEL_LAYOUT.colorBox.w / 2)}" y="${BARCODE_LABEL_LAYOUT.colorBox.y + 5.9}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorValueFontSize * 0.35}" font-weight="900">${escapeHtml(colorValue)}</text>
+      <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
+      <text x="${colorCell.x + (colorCell.w / 2)}" y="${colorCell.y + 2.7}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.58}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
+      <text x="${colorCell.x + (colorCell.w / 2)}" y="${colorCell.y + 5.9}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorValueFontSize * 0.35}" font-weight="900">${escapeHtml(colorValue)}</text>
 
-      ${hasArticleBox ? "" : `<text x="${BARCODE_LABEL_LAYOUT.page.width / 2}" y="${BARCODE_LABEL_LAYOUT.barcode.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
+      ${hasArticleBox ? "" : `<text x="${layout.page.width / 2}" y="${barcodeCell.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}
-      <text x="${BARCODE_LABEL_LAYOUT.page.width / 2}" y="${BARCODE_LABEL_LAYOUT.barcode.textY}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${BARCODE_LABEL_LAYOUT.barcode.fontSize * 0.42}" font-weight="900">${escapeHtml(barcodeValue)}</text>
+      <text x="${layout.page.width / 2}" y="${barcodeCell.textY}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${barcodeCell.fontSize * 0.42}" font-weight="900">${escapeHtml(barcodeValue)}</text>
     </svg>
   `;
 };
@@ -1874,15 +1973,6 @@ export const buildBarcodePrintHtml = ({
                   const node = wrapper.querySelector(selector);
                   return node ? pxToMm(node.getBoundingClientRect().height) : 0;
                 };
-                console.log("[premium-layout-heights]", {
-                  imageSectionHeight: getHeight('[data-premium-label-part="image"]'),
-                  titleHeight: getHeight('[data-premium-label-part="title"]'),
-                  priceHeight: getHeight('[data-premium-label-part="price"]'),
-                  sizeColorHeight: getHeight('[data-premium-label-part="size-color"]'),
-                  barcodeHeight: getHeight('[data-premium-label-part="barcode"]'),
-                  skuHeight: getHeight('[data-premium-label-part="sku"]'),
-                  totalLabelHeight: pxToMm(rootRect.height),
-                });
               };
               const run = () => requestAnimationFrame(() => requestAnimationFrame(logPremiumLabelHeight));
               if (document.readyState === 'complete') {

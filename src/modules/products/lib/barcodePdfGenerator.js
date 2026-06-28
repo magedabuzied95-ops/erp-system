@@ -190,18 +190,14 @@ const fitTextSize = (doc, text, maxWidth, fontSize, minFontSize = 3.8) => {
 };
 
 const renderLabelPage = async (doc, item = {}, index = 0) => {
-  const { page, image, title, sizeBadge, articleBox, colorBox, barcode } = BARCODE_LABEL_LAYOUT;
   const productName = normalizeLabelText(item.productName || item.name || item.title || `Label ${index + 1}`);
-  console.log("RENDER_LABEL_PAGE_V3_USED", {
-    productName,
-    layoutVersion: "v3-final-layout-2026-06-29",
-  });
   const sizeValue = normalizeLabelText(item.size || item.variantSize || item.labelSize || "ONE SIZE");
   const rawColorValue = normalizeLabelText(item.color || item.variantColor || item.labelColor || "");
   const colorValue = /[\u0600-\u06FF]/.test(rawColorValue) ? rawColorValue : rawColorValue.toUpperCase();
   const skuValue = normalizeLabelText(item.sku || item.article || item.variantSku || "");
   const showArticleBox = Boolean(skuValue);
   const thermalLayout = getThermalLandscapeLabelLayout(showArticleBox);
+  const { page, imageCell, titleCell, sizeCell, articleCell, colorCell, barcodeCell } = thermalLayout;
   const barcodeValue = getLabelBarcodeValue(item);
   if (typeof doc.setR2L === "function") {
     doc.setR2L(isArabicText(productName));
@@ -212,62 +208,62 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setDrawColor(226, 232, 240);
   doc.rect(0.4, 0.4, page.width - 0.8, page.height - 0.8, "S");
 
-  await drawImageOrPlaceholder(doc, item, image.x + 10, image.y, image.w, image.h);
+  await drawImageOrPlaceholder(doc, item, imageCell.x, imageCell.y, imageCell.w, imageCell.h);
 
-  const titleLines = toTextLines(doc, productName, title.w, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
+  const titleLines = toTextLines(doc, productName, titleCell.w, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
   const titleLinesToRender = titleLines.slice(0, thermalLayout.titleMaxLines);
   if (titleLinesToRender.length === thermalLayout.titleMaxLines) {
-    titleLinesToRender[titleLinesToRender.length - 1] = ellipsizeLine(doc, titleLinesToRender[titleLinesToRender.length - 1], title.w);
+    titleLinesToRender[titleLinesToRender.length - 1] = ellipsizeLine(doc, titleLinesToRender[titleLinesToRender.length - 1], titleCell.w);
   }
   doc.setTextColor(2, 6, 23);
   doc.setFont("helvetica", "bold");
   titleLinesToRender.forEach((line, lineIndex) => {
     doc.setFontSize(lineIndex === 0 ? thermalLayout.titleFontSize : thermalLayout.titleFontSize * 0.86);
-    doc.text(line, title.x, title.y + (lineIndex * thermalLayout.titleLineStepMm), { maxWidth: title.w });
+    doc.text(line, titleCell.x, titleCell.y + (lineIndex * thermalLayout.titleLineStepMm), { maxWidth: titleCell.w });
   });
 
-  drawRoundedRect(doc, sizeBadge.x + 15, sizeBadge.y, thermalLayout.sizeBadgeWidth, thermalLayout.sizeBadgeHeight, 1.8, [2, 6, 23]);
+  drawRoundedRect(doc, sizeCell.x, sizeCell.y, thermalLayout.sizeBadgeWidth, thermalLayout.sizeBadgeHeight, 1.8, [2, 6, 23]);
   doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(thermalLayout.sizeLabelFontSize);
-  doc.text("SIZE", sizeBadge.x + 15 + thermalLayout.sizeBadgeWidth / 2, sizeBadge.y + 3.5, { align: "center" });
+  doc.text("SIZE", sizeCell.x + thermalLayout.sizeBadgeWidth / 2, sizeCell.y + 3.5, { align: "center" });
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(thermalLayout.sizeValueFontSize);
-  doc.text(sizeValue, sizeBadge.x + 15 + thermalLayout.sizeBadgeWidth / 2, sizeBadge.y + 9.0, { align: "center" });
+  doc.text(sizeValue, sizeCell.x + thermalLayout.sizeBadgeWidth / 2, sizeCell.y + 9.0, { align: "center" });
 
   if (showArticleBox) {
-    drawRoundedRect(doc, articleBox.x, articleBox.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [244, 244, 245], [226, 232, 240]);
+    drawRoundedRect(doc, articleCell.x, articleCell.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [244, 244, 245], [226, 232, 240]);
     doc.setTextColor(100, 116, 139);
     doc.setFontSize(thermalLayout.colorLabelFontSize);
-    doc.text("ARTICLE/SKU", articleBox.x + thermalLayout.articleBoxWidth / 2, articleBox.y + 3.5, { align: "center" });
+    doc.text("ARTICLE/SKU", articleCell.x + thermalLayout.articleBoxWidth / 2, articleCell.y + 3.5, { align: "center" });
     doc.setTextColor(15, 23, 42);
     const skuFontSize = fitTextSize(doc, skuValue, thermalLayout.articleBoxWidth - 2, thermalLayout.articleFontSize, thermalLayout.articleFontSizeCompact);
     doc.setFontSize(skuFontSize);
-    doc.text(skuValue, articleBox.x + thermalLayout.articleBoxWidth / 2, articleBox.y + 8.8, { align: "center" });
+    doc.text(skuValue, articleCell.x + thermalLayout.articleBoxWidth / 2, articleCell.y + 8.8, { align: "center" });
   }
 
-  drawRoundedRect(doc, colorBox.x, colorBox.y, colorBox.w, colorBox.h, 1, [244, 244, 245], [226, 232, 240]);
+  drawRoundedRect(doc, colorCell.x, colorCell.y, colorCell.w, colorCell.h, 1, [244, 244, 245], [226, 232, 240]);
   doc.setTextColor(100, 116, 139);
   doc.setFontSize(thermalLayout.colorLabelFontSize);
-  doc.text("COLOR", colorBox.x + colorBox.w / 2, colorBox.y + 2.2, { align: "center" });
+  doc.text("COLOR", colorCell.x + colorCell.w / 2, colorCell.y + 2.2, { align: "center" });
   doc.setTextColor(15, 23, 42);
-  doc.setFontSize(thermalLayout.colorValueFontSize * 0.5);
-  doc.text(colorValue || "-", colorBox.x + colorBox.w / 2, colorBox.y + 5.3, { align: "center", maxWidth: colorBox.w - 2 });
+  doc.setFontSize(thermalLayout.colorValueFontSize);
+  doc.text(colorValue || "-", colorCell.x + colorCell.w / 2, colorCell.y + 5.3, { align: "center", maxWidth: colorCell.w - 2 });
 
   if (!showArticleBox) {
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(10.4);
     if (skuValue) {
       doc.setFont("helvetica", "bold");
-      doc.text(skuValue, page.width / 2, barcode.y - 0.9, { align: "center", maxWidth: title.w });
+      doc.text(skuValue, page.width / 2, barcodeCell.y - 0.9, { align: "center", maxWidth: titleCell.w });
     }
   }
 
-  const barcodeText = drawBarcode(doc, barcodeValue, barcode.x, barcode.y, barcode.w, barcode.h);
+  const barcodeText = drawBarcode(doc, barcodeValue, barcodeCell.x, barcodeCell.y, barcodeCell.w, barcodeCell.h);
   doc.setTextColor(15, 23, 42);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(barcode.fontSize);
-  doc.text(barcodeText, page.width / 2, barcode.textY, { align: "center" });
+  doc.setFontSize(barcodeCell.fontSize);
+  doc.text(barcodeText, page.width / 2, barcodeCell.textY, { align: "center" });
 };
 
 export async function generateBarcodeLabelsPdf(labels = [], options = {}) {
