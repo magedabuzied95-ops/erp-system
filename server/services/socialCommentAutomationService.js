@@ -10,6 +10,7 @@ import { createOrUpdateLeadOpportunity } from "./aiInboxLeadActionsService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
 import { getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
+import { enqueueSocialCommentJob } from "./socialCommentJobQueue.js";
 import { resolveMappedProducts, resolvePrimaryProduct } from "./postProductMappingService.js";
 import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
@@ -4430,7 +4431,7 @@ export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null }
   return events;
 };
 
-export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events = [] } = {}) => {
+export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events = [], deferAutomation = true } = {}) => {
   await ensureSocialCommentAutomationSchema();
   const stored = [];
   for (const event of asArray(events)) {
@@ -4482,95 +4483,136 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       processed_at: event.processed_at ? new Date(event.processed_at).toISOString() : new Date().toISOString(),
     };
 
-    const insertResult = await db.query(
-      `
-      INSERT INTO social_comment_automation_runs (
-        tenant_id, platform, channel, post_id, post_permalink, comment_id, parent_comment_id, root_comment_id,
-        commenter_id, commenter_name, commenter_profile_picture_url, original_comment_text, classification_label,
-        classification_score, action_taken, public_reply_status, dm_status, like_status, inbox_conversation_id,
-        error_code, automation_state, raw_payload, processed_at, created_at, updated_at
-      )
-      VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8,
-        $9, $10, $11, $12, $13,
-        $14, $15, $16, $17, $18, $19,
-        $20, $21::jsonb, $22::jsonb, $23::timestamp, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-      )
-      ON CONFLICT (tenant_id, platform, comment_id) DO UPDATE SET
-        channel = EXCLUDED.channel,
-        post_id = EXCLUDED.post_id,
-        post_permalink = EXCLUDED.post_permalink,
-        parent_comment_id = EXCLUDED.parent_comment_id,
-        root_comment_id = EXCLUDED.root_comment_id,
-        commenter_id = EXCLUDED.commenter_id,
-        commenter_name = COALESCE(NULLIF(EXCLUDED.commenter_name, ''), social_comment_automation_runs.commenter_name),
-        commenter_profile_picture_url = COALESCE(NULLIF(EXCLUDED.commenter_profile_picture_url, ''), social_comment_automation_runs.commenter_profile_picture_url),
-        original_comment_text = COALESCE(NULLIF(EXCLUDED.original_comment_text, ''), social_comment_automation_runs.original_comment_text),
-        classification_label = COALESCE(social_comment_automation_runs.classification_label, EXCLUDED.classification_label),
-        classification_score = COALESCE(social_comment_automation_runs.classification_score, EXCLUDED.classification_score),
-        action_taken = CASE
-          WHEN social_comment_automation_runs.action_taken IS NULL OR social_comment_automation_runs.action_taken = 'ingested'
-            THEN EXCLUDED.action_taken
-          ELSE social_comment_automation_runs.action_taken
-        END,
-        public_reply_status = COALESCE(social_comment_automation_runs.public_reply_status, EXCLUDED.public_reply_status),
-        dm_status = COALESCE(social_comment_automation_runs.dm_status, EXCLUDED.dm_status),
-        like_status = COALESCE(social_comment_automation_runs.like_status, EXCLUDED.like_status),
-        inbox_conversation_id = COALESCE(social_comment_automation_runs.inbox_conversation_id, EXCLUDED.inbox_conversation_id),
-        error_code = COALESCE(social_comment_automation_runs.error_code, EXCLUDED.error_code),
-        automation_state = COALESCE(social_comment_automation_runs.automation_state, EXCLUDED.automation_state),
-        raw_payload = EXCLUDED.raw_payload,
-        processed_at = COALESCE(social_comment_automation_runs.processed_at, EXCLUDED.processed_at),
-        updated_at = CURRENT_TIMESTAMP
-      RETURNING *
-      `,
-      [
-        normalized.tenant_id,
-        normalized.platform,
-        normalized.channel,
-        normalized.post_id,
-        normalized.post_permalink,
-        normalized.comment_id,
-        normalized.parent_comment_id,
-        normalized.root_comment_id,
-        normalized.commenter_id,
-        normalized.commenter_name,
-        normalized.commenter_profile_picture_url,
-        normalized.original_comment_text,
-        normalized.classification_label,
-        normalized.classification_score,
-        normalized.action_taken,
-        normalized.public_reply_status,
-        normalized.dm_status,
-        normalized.like_status,
-        normalized.inbox_conversation_id,
-        normalized.error_code,
-        JSON.stringify(normalized.automation_state || {}),
-        JSON.stringify(normalized.raw_payload || {}),
-        normalized.processed_at,
-      ]
-    );
-    let storedRow = insertResult.rows[0] || null;
-    if (!storedRow) {
-      const existingRowResult = await db.query(
+    const isJobOnly = Boolean(event.__job_only && event.row);
+    let storedRow = isJobOnly ? event.row : null;
+    if (!isJobOnly) {
+      const insertResult = await db.query(
         `
-        SELECT *
-        FROM social_comment_automation_runs
-        WHERE tenant_id = $1::bigint
-          AND platform = $2::text
-          AND comment_id = $3::text
-        ORDER BY updated_at DESC, id DESC
-        LIMIT 1
+        INSERT INTO social_comment_automation_runs (
+          tenant_id, platform, channel, post_id, post_permalink, comment_id, parent_comment_id, root_comment_id,
+          commenter_id, commenter_name, commenter_profile_picture_url, original_comment_text, classification_label,
+          classification_score, action_taken, public_reply_status, dm_status, like_status, inbox_conversation_id,
+          error_code, automation_state, raw_payload, processed_at, created_at, updated_at
+        )
+        VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8,
+          $9, $10, $11, $12, $13,
+          $14, $15, $16, $17, $18, $19,
+          $20, $21::jsonb, $22::jsonb, $23::timestamp, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (tenant_id, platform, comment_id) DO UPDATE SET
+          channel = EXCLUDED.channel,
+          post_id = EXCLUDED.post_id,
+          post_permalink = EXCLUDED.post_permalink,
+          parent_comment_id = EXCLUDED.parent_comment_id,
+          root_comment_id = EXCLUDED.root_comment_id,
+          commenter_id = EXCLUDED.commenter_id,
+          commenter_name = COALESCE(NULLIF(EXCLUDED.commenter_name, ''), social_comment_automation_runs.commenter_name),
+          commenter_profile_picture_url = COALESCE(NULLIF(EXCLUDED.commenter_profile_picture_url, ''), social_comment_automation_runs.commenter_profile_picture_url),
+          original_comment_text = COALESCE(NULLIF(EXCLUDED.original_comment_text, ''), social_comment_automation_runs.original_comment_text),
+          classification_label = COALESCE(social_comment_automation_runs.classification_label, EXCLUDED.classification_label),
+          classification_score = COALESCE(social_comment_automation_runs.classification_score, EXCLUDED.classification_score),
+          action_taken = CASE
+            WHEN social_comment_automation_runs.action_taken IS NULL OR social_comment_automation_runs.action_taken = 'ingested'
+              THEN EXCLUDED.action_taken
+            ELSE social_comment_automation_runs.action_taken
+          END,
+          public_reply_status = COALESCE(social_comment_automation_runs.public_reply_status, EXCLUDED.public_reply_status),
+          dm_status = COALESCE(social_comment_automation_runs.dm_status, EXCLUDED.dm_status),
+          like_status = COALESCE(social_comment_automation_runs.like_status, EXCLUDED.like_status),
+          inbox_conversation_id = COALESCE(social_comment_automation_runs.inbox_conversation_id, EXCLUDED.inbox_conversation_id),
+          error_code = COALESCE(social_comment_automation_runs.error_code, EXCLUDED.error_code),
+          automation_state = COALESCE(social_comment_automation_runs.automation_state, EXCLUDED.automation_state),
+          raw_payload = EXCLUDED.raw_payload,
+          processed_at = COALESCE(social_comment_automation_runs.processed_at, EXCLUDED.processed_at),
+          updated_at = CURRENT_TIMESTAMP
+        RETURNING *
         `,
-        [normalized.tenant_id, normalized.platform, normalized.comment_id]
-      ).catch(() => ({ rows: [] }));
-      storedRow = existingRowResult.rows[0] || {
-        ...normalized,
-        id: null,
-        raw_payload: normalized.raw_payload || {},
-      };
+        [
+          normalized.tenant_id,
+          normalized.platform,
+          normalized.channel,
+          normalized.post_id,
+          normalized.post_permalink,
+          normalized.comment_id,
+          normalized.parent_comment_id,
+          normalized.root_comment_id,
+          normalized.commenter_id,
+          normalized.commenter_name,
+          normalized.commenter_profile_picture_url,
+          normalized.original_comment_text,
+          normalized.classification_label,
+          normalized.classification_score,
+          normalized.action_taken,
+          normalized.public_reply_status,
+          normalized.dm_status,
+          normalized.like_status,
+          normalized.inbox_conversation_id,
+          normalized.error_code,
+          JSON.stringify(normalized.automation_state || {}),
+          JSON.stringify(normalized.raw_payload || {}),
+          normalized.processed_at,
+        ]
+      );
+      storedRow = insertResult.rows[0] || null;
+      if (!storedRow) {
+        const existingRowResult = await db.query(
+          `
+          SELECT *
+          FROM social_comment_automation_runs
+          WHERE tenant_id = $1::bigint
+            AND platform = $2::text
+            AND comment_id = $3::text
+          ORDER BY updated_at DESC, id DESC
+          LIMIT 1
+          `,
+          [normalized.tenant_id, normalized.platform, normalized.comment_id]
+        ).catch(() => ({ rows: [] }));
+        storedRow = existingRowResult.rows[0] || {
+          ...normalized,
+          id: null,
+          raw_payload: normalized.raw_payload || {},
+        };
+      }
+      emitSocialCommentNew(storedRow);
     }
-    emitSocialCommentNew(storedRow);
+    if (deferAutomation) {
+      const automationJob = {
+        type: "social_comment_automation",
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        post_id: storedRow.post_id,
+        comment_id: storedRow.comment_id,
+        external_comment_id: storedRow.comment_id,
+        payload: {
+          row: storedRow,
+        },
+        created_at: new Date().toISOString(),
+      };
+      try {
+        await enqueueSocialCommentJob(automationJob);
+      } catch (error) {
+        console.warn("SOCIAL_COMMENT_JOB_ENQUEUE_FALLBACK", {
+          tenant_id: storedRow.tenant_id,
+          platform: storedRow.platform,
+          post_id: text(storedRow.post_id || ""),
+          comment_id: text(storedRow.comment_id || ""),
+          message: error?.message || "",
+        });
+        await storeSocialCommentAutomationRuns({
+          tenantId: storedRow.tenant_id,
+          deferAutomation: false,
+          events: [
+            {
+              ...storedRow,
+              __job_only: true,
+              row: storedRow,
+            },
+          ],
+        });
+      }
+      continue;
+    }
     const productContext = await resolveSocialCommentPublishedProductContext({
       tenantId: storedRow.tenant_id,
       row: storedRow,

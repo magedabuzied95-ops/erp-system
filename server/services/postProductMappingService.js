@@ -3,6 +3,10 @@ import db from "../database/db.js";
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const toTenantId = (value) => Number(value) || 0;
+const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
+const debugSocialCommentsWarn = (...args) => {
+  if (isSocialCommentsDebugEnabled()) console.warn(...args);
+};
 
 const normalizePlatform = (value = "") => (lower(value) === "instagram" ? "instagram" : "facebook");
 
@@ -355,6 +359,11 @@ const fetchProductsByIds = async ({ tenantId = null, productIds = [] } = {}) => 
       AND p.id = ANY($2::bigint[])
     ORDER BY p.id ASC
   `;
+  debugSocialCommentsWarn("SOCIAL_COMMENTS_POSTS_SQL_3", {
+    tenant_id: safeTenantId,
+    sql: query,
+    product_ids: safeProductIds,
+  });
   const primaryRows = await db.query(query, [safeTenantId, safeProductIds]).catch(() => ({ rows: [] }));
   if (primaryRows.rows?.length) return primaryRows.rows;
   const fallbackRows = await db.query(query.replace("WHERE p.tenant_id = $1::bigint", "WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)"), [null, safeProductIds]).catch(() => ({ rows: [] }));
@@ -372,6 +381,11 @@ const fetchVariantsByProductIds = async ({ tenantId = null, productIds = [] } = 
       AND product_id = ANY($2::bigint[])
     ORDER BY product_id ASC, id ASC
   `;
+  debugSocialCommentsWarn("SOCIAL_COMMENTS_POSTS_SQL_3", {
+    tenant_id: safeTenantId,
+    sql: query,
+    product_ids: safeProductIds,
+  });
   const primaryRows = await db.query(query, [safeTenantId, safeProductIds]).catch(() => ({ rows: [] }));
   if (primaryRows.rows?.length) return primaryRows.rows;
   const fallbackRows = await db.query(query.replace("WHERE tenant_id = $1::bigint", "WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)"), [null, safeProductIds]).catch(() => ({ rows: [] }));
@@ -383,6 +397,27 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
   const normalizedPlatform = normalizePlatform(platform || post?.platform || "");
   const candidatePostIds = getPostIdentityCandidates({ postId, row: post, post });
   if (!safeTenantId || !candidatePostIds.length) return [];
+  debugSocialCommentsWarn("SOCIAL_COMMENTS_POSTS_SQL_2", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: text(postId || post?.post_id || ""),
+    candidate_post_ids: candidatePostIds,
+    sql: `
+    SELECT *
+    FROM marketing_post_product_links
+    WHERE (
+        tenant_id = $1::bigint
+        OR business_id = $1::bigint
+      )
+      AND platform = $2::text
+      AND (
+        platform_post_id = ANY($3::text[])
+        OR post_id = ANY($3::text[])
+        OR media_id = ANY($3::text[])
+      )
+    ORDER BY is_primary DESC, priority ASC, updated_at DESC, id DESC
+    `,
+  });
   const result = await db.query(
     `
     SELECT *

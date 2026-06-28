@@ -45,6 +45,7 @@ import ProductCardPicker from "../components/ProductCardPicker";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
+const ENABLE_SOCIAL_FAST_CENTER = true;
 const firstNonEmpty = (...values) => {
   for (const value of values) {
     if (value === null || value === undefined) continue;
@@ -846,7 +847,94 @@ const socialPostMatchesFilter = (item = {}, filter = "all") => {
   return true;
 };
 
-const socialPostSortValue = (item = {}) => new Date(item.real_comment_created_time || 0).getTime() || 0;
+const socialPostSortValue = (item = {}) => new Date(item.real_comment_created_time || item.last_activity_at || item.last_comment_at || item.updated_at || item.created_at || 0).getTime() || 0;
+
+const normalizeFastSocialCommentItem = (item = {}) => {
+  const messagePreview = clean(item?.message_preview || "");
+  const activityAt = clean(item?.last_activity_at || item?.created_at || item?.updated_at || "");
+  const status = clean(item?.status || "");
+  const automationStatus = clean(item?.automation_status || "");
+  const unread =
+    item?.unread != null
+      ? Boolean(item.unread)
+      : !["sent", "delivered", "ignored", "processed", "closed", "resolved"].includes(status.toLowerCase()) &&
+        !["sent", "delivered"].includes(automationStatus.toLowerCase());
+  const postId = clean(item?.post_id || "");
+  const externalCommentId = clean(item?.external_comment_id || "");
+  return {
+    ...item,
+    id: clean(item?.id || externalCommentId || postId || ""),
+    conversation_id: clean(item?.conversation_id || postId || ""),
+    session_id: clean(item?.session_id || postId || ""),
+    post_id: postId,
+    external_comment_id: externalCommentId,
+    comment_id: clean(item?.comment_id || externalCommentId || item?.id || ""),
+    customer_name: clean(item?.customer_name || "Customer"),
+    customer_avatar_url: clean(item?.customer_avatar_url || ""),
+    message_preview: messagePreview,
+    comments_count: Number(item?.comments_count || 1) || 1,
+    new_comments_count: Number(item?.new_comments_count ?? (unread ? 1 : 0)) || 0,
+    last_comment_text: clean(item?.last_comment_text || messagePreview),
+    last_comment_at: clean(item?.last_comment_at || activityAt),
+    last_commenter_name: clean(item?.last_commenter_name || item?.customer_name || "Customer"),
+    last_commenter_id: clean(item?.last_commenter_id || externalCommentId || item?.comment_id || item?.id || ""),
+    real_comment_created_time: clean(item?.real_comment_created_time || activityAt),
+    reply_status: clean(item?.reply_status || status || automationStatus || ""),
+    auto_reply_mode: clean(item?.auto_reply_mode || automationStatus || ""),
+    automation_status: automationStatus || status,
+    status: status || automationStatus || "pending",
+    unread,
+    post_caption: clean(item?.post_caption || messagePreview),
+    post_message: clean(item?.post_message || messagePreview),
+    permalink_url: clean(item?.permalink_url || ""),
+    platform: clean(item?.platform || "facebook").toLowerCase(),
+  };
+};
+
+const fastSocialCommentItemMatches = (left = {}, right = {}) => {
+  const leftIds = [
+    left?.id,
+    left?.comment_id,
+    left?.external_comment_id,
+    left?.provider_comment_id,
+    left?.post_id,
+  ].map((value) => clean(value)).filter(Boolean);
+  const rightIds = [
+    right?.id,
+    right?.comment_id,
+    right?.external_comment_id,
+    right?.provider_comment_id,
+    right?.post_id,
+  ].map((value) => clean(value)).filter(Boolean);
+  if (!leftIds.length || !rightIds.length) return false;
+  return leftIds.some((value) => rightIds.includes(value));
+};
+
+const mergeFastSocialCommentItem = (current = {}, patch = {}) => {
+  const merged = normalizeFastSocialCommentItem({
+    ...current,
+    ...patch,
+    comments_count: patch.comments_count ?? current.comments_count,
+    new_comments_count: patch.new_comments_count ?? current.new_comments_count,
+    last_comment_text: patch.last_comment_text || patch.message_preview || current.last_comment_text || current.message_preview || "",
+    last_comment_at: patch.last_comment_at || patch.last_activity_at || current.last_comment_at || current.last_activity_at || "",
+    last_commenter_name: patch.last_commenter_name || patch.customer_name || current.last_commenter_name || current.customer_name || "",
+    last_commenter_id: patch.last_commenter_id || patch.external_comment_id || current.last_commenter_id || current.external_comment_id || "",
+    real_comment_created_time: patch.real_comment_created_time || patch.last_activity_at || current.real_comment_created_time || current.last_activity_at || "",
+    unread: patch.unread ?? current.unread,
+    status: patch.status || current.status || "",
+    automation_status: patch.automation_status || current.automation_status || "",
+    reply_status: patch.reply_status || current.reply_status || "",
+    auto_reply_mode: patch.auto_reply_mode || current.auto_reply_mode || "",
+  });
+  return {
+    ...current,
+    ...merged,
+    comments_count: Number(merged.comments_count ?? current.comments_count ?? 1) || 1,
+    new_comments_count: Number(merged.new_comments_count ?? current.new_comments_count ?? 0) || 0,
+    unread: patch.unread != null ? Boolean(patch.unread) : Boolean(merged.unread),
+  };
+};
 
 const mergeConversationSummaryRefresh = (currentConversation = {}, nextConversation = {}) => {
   if (!currentConversation) return nextConversation;
@@ -2251,6 +2339,85 @@ export default function AiInboxPwa() {
     }
   }, [productLoading, products.length]);
 
+  const loadSocialComments = useCallback(
+    async ({ silent = false, seq = requestSeqRef.current } = {}) => {
+      if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
+      setSocialCommentsDebug((current) => ({ ...current, error: "" }));
+
+      const fastRequestUrl = `/api/social-comments/fast-list?tenant_id=${encodeURIComponent(tenantId)}&limit=30`;
+      const legacyRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=50`;
+      const settingsPromise = api
+        .get("/social-comments/auto-reply/settings", {
+          params: { tenant_id: tenantId },
+          headers,
+          perfComponent: "AiInboxPwa.socialCommentsSettings",
+        })
+        .catch(() => ({ settings: null }));
+
+      const readListPayload = async () => {
+        if (ENABLE_SOCIAL_FAST_CENTER) {
+          try {
+            const payload = await api.get("/social-comments/fast-list", {
+              params: { tenant_id: tenantId, limit: 30 },
+              headers,
+              perfComponent: "AiInboxPwa.socialCommentsFastList",
+            });
+            return { payload, request_url: fastRequestUrl, fast: true };
+          } catch (fastError) {
+            console.warn("[AiInboxPwa][social-comments-fast-list-fallback]", {
+              tenant_id: tenantId,
+              message: fastError?.message || "",
+            });
+          }
+        }
+
+        const payload = await api.get("/social-comments/posts", {
+          params: { tenant_id: tenantId, limit: 50 },
+          headers,
+          perfComponent: "AiInboxPwa.socialCommentsPosts",
+        });
+        return { payload, request_url: legacyRequestUrl, fast: false };
+      };
+
+      try {
+        const { payload, request_url, fast } = await readListPayload();
+        if (seq !== requestSeqRef.current) return;
+        const settingsPayload = await settingsPromise;
+        if (seq !== requestSeqRef.current) return;
+        const rawItems = asArray(payload?.items || payload?.posts || payload?.data?.items || payload);
+        const items = fast ? rawItems.map(normalizeFastSocialCommentItem) : rawItems;
+        setSocialComments({ items, loading: false, error: "" });
+        setSocialReplySettings({
+          generic_enabled: Boolean(settingsPayload?.settings?.generic_enabled),
+          generic_like_enabled: settingsPayload?.settings?.generic_like_enabled !== false,
+          generic_reply_enabled: settingsPayload?.settings?.generic_reply_enabled !== false,
+          generic_template: clean(settingsPayload?.settings?.generic_template || ""),
+          mode: clean(settingsPayload?.settings?.mode || "manual_approval") || "manual_approval",
+        });
+        setSocialCommentsDebug({
+          request_url,
+          tenant_id: tenantId,
+          status: Number(payload?.__status || 200) || 200,
+          count: items.length,
+          error: "",
+        });
+      } catch (socialCommentsError) {
+        if (seq !== requestSeqRef.current) return;
+        const status = Number(socialCommentsError?.status || socialCommentsError?.responseBody?.status || 0) || "";
+        const message = socialCommentsError?.responseBody?.message || socialCommentsError?.message || "تعذر تحميل منشورات التعليقات";
+        setSocialComments({ items: [], loading: false, error: message });
+        setSocialCommentsDebug({
+          request_url: ENABLE_SOCIAL_FAST_CENTER ? fastRequestUrl : legacyRequestUrl,
+          tenant_id: tenantId,
+          status,
+          count: 0,
+          error: message,
+        });
+      }
+    },
+    [headers, tenantId]
+  );
+
   const loadConversations = useCallback(
     async ({ silent = false } = {}) => {
       if (refreshInFlightRef.current) {
@@ -2328,74 +2495,7 @@ export default function AiInboxPwa() {
           );
         });
         setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
-
-        if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
-        if (!silent) setSocialCommentsDebug((current) => ({ ...current, error: "" }));
-
-        const socialCommentsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=50`;
-        try {
-          const [postsPayload, settingsPayload] = await Promise.all([
-            api.get("/social-comments/posts", {
-              params: { tenant_id: tenantId, limit: 50 },
-              headers,
-              perfComponent: "AiInboxPwa.socialCommentsPosts",
-            }),
-            api.get("/social-comments/auto-reply/settings", {
-              params: { tenant_id: tenantId },
-              headers,
-              perfComponent: "AiInboxPwa.socialCommentsSettings",
-            }).catch(() => ({ settings: null })),
-          ]);
-          if (seq !== requestSeqRef.current) return;
-          const items = asArray(postsPayload.posts || postsPayload.items);
-          const status = Number(postsPayload?.__status || 200) || 200;
-          if (import.meta.env.DEV) {
-            console.log(
-              "AI_INBOX_PWA_RAW_COMMENT_ITEM",
-              items.slice(0, 3).map((item) => ({
-                id: item?.id || "",
-                post_id: item?.post_id || "",
-                comment_id: item?.comment_id || "",
-                created_at: item?.created_at || "",
-                updated_at: item?.updated_at || "",
-                last_activity_at: item?.last_activity_at || "",
-                latest_comment_at: item?.latest_comment_at || "",
-                last_comment_at: item?.last_comment_at || "",
-                comment_created_time: item?.comment_created_time || "",
-                latest_comment: item?.latest_comment || null,
-                last_comment: item?.last_comment || null,
-                metadata: item?.metadata || null,
-              }))
-            );
-          }
-          setSocialComments({ items, loading: false, error: "" });
-          setSocialReplySettings({
-            generic_enabled: Boolean(settingsPayload?.settings?.generic_enabled),
-            generic_like_enabled: settingsPayload?.settings?.generic_like_enabled !== false,
-            generic_reply_enabled: settingsPayload?.settings?.generic_reply_enabled !== false,
-            generic_template: clean(settingsPayload?.settings?.generic_template || ""),
-            mode: clean(settingsPayload?.settings?.mode || "manual_approval") || "manual_approval",
-          });
-          setSocialCommentsDebug({
-            request_url: socialCommentsRequestUrl,
-            tenant_id: tenantId,
-            status,
-            count: items.length,
-            error: "",
-          });
-        } catch (socialCommentsError) {
-          if (seq !== requestSeqRef.current) return;
-          const status = Number(socialCommentsError?.status || socialCommentsError?.responseBody?.status || 0) || "";
-          const message = socialCommentsError?.responseBody?.message || socialCommentsError?.message || "تعذر تحميل منشورات التعليقات";
-          setSocialComments({ items: [], loading: false, error: message });
-          setSocialCommentsDebug({
-            request_url: socialCommentsRequestUrl,
-            tenant_id: tenantId,
-            status,
-            count: 0,
-            error: message,
-          });
-        }
+        await loadSocialComments({ silent, seq });
 
         if (conversationParam) {
           const normalizedConversationParam = normalizeConversationSessionId(conversationParam);
@@ -2429,7 +2529,7 @@ export default function AiInboxPwa() {
         }
       }
     },
-    [conversationParam, debouncedSearch, headers, tab, tenantId, updateUrlState]
+    [conversationParam, debouncedSearch, headers, loadSocialComments, tab, tenantId, updateUrlState]
   );
 
   const scheduleRefresh = useCallback(
@@ -2660,6 +2760,54 @@ export default function AiInboxPwa() {
       offRefresh();
     };
   }, [conversationParam, pageVisible, scheduleRefresh, tenantId]);
+
+  useEffect(() => {
+    if (!ENABLE_SOCIAL_FAST_CENTER) return undefined;
+
+    const patchSocialComment = (payload = {}, { matchOnly = false } = {}) => {
+      const normalizedPayload = normalizeFastSocialCommentItem(payload);
+      if (!normalizedPayload.id && !normalizedPayload.external_comment_id && !normalizedPayload.post_id) return;
+
+      setSocialComments((current) => {
+        const currentItems = asArray(current.items);
+        const matchIndex = currentItems.findIndex((item) => fastSocialCommentItemMatches(item, normalizedPayload));
+        if (matchOnly && matchIndex < 0) return current;
+
+        const nextItem = matchIndex >= 0
+          ? mergeFastSocialCommentItem(currentItems[matchIndex], {
+              ...normalizedPayload,
+              comments_count: undefined,
+              new_comments_count: undefined,
+            })
+          : normalizedPayload;
+        const nextItems = matchIndex >= 0
+          ? [nextItem, ...currentItems.filter((_, index) => index !== matchIndex)]
+          : [nextItem, ...currentItems];
+
+        return {
+          ...current,
+          items: nextItems.slice(0, 100),
+          loading: false,
+          error: "",
+        };
+      });
+    };
+
+    const offNew = subscribeRealtime("social_comment:new", (payload = {}) => {
+      patchSocialComment(payload, { matchOnly: false });
+    });
+    const offUpdated = subscribeRealtime("social_comment:updated", (payload = {}) => {
+      patchSocialComment(payload, { matchOnly: true });
+    });
+    const offReplyStatus = subscribeRealtime("social_comment:reply_status", (payload = {}) => {
+      patchSocialComment(payload, { matchOnly: true });
+    });
+    return () => {
+      offNew();
+      offUpdated();
+      offReplyStatus();
+    };
+  }, []);
 
   const filteredConversations = useMemo(() => {
     const normalized = debouncedSearch.toLowerCase();

@@ -15,10 +15,12 @@ import {
   listSocialCommentThreadComments,
   loadSocialCommentPost,
   processSocialCommentAutoReply,
+  listSocialCommentCenterFastList,
   saveSocialAutoReplySettings,
   saveSocialPostAutoReplyTemplate,
   ensureSocialCommentsCenterSchema,
 } from "../services/socialCommentsCenterService.js";
+import { getSocialCommentJobQueueStatus } from "../services/socialCommentJobQueue.js";
 import {
   getMappings as getPostProductMappings,
   removeMapping as removePostProductMapping,
@@ -100,6 +102,61 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
     return res.json({ success: true, posts, total: posts.length });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment posts" });
+  }
+});
+
+router.get("/fast-list", protect, permit("settings", "view"), async (req, res) => {
+  const tenantId = toTenantId(req);
+  const platform = String(req.query?.platform || "").trim();
+  const status = String(req.query?.status || "").trim();
+  const cursor = String(req.query?.cursor || "").trim();
+  const limit = Math.min(100, Math.max(1, Number(req.query?.limit || 30) || 30));
+  console.log("SOCIAL_FAST_LIST_REQUEST", {
+    tenant_id: tenantId,
+    platform,
+    status,
+    limit,
+    cursor_present: Boolean(cursor),
+  });
+  try {
+    const result = await listSocialCommentCenterFastList({ tenantId, platform, status, limit, cursor });
+    console.log("SOCIAL_FAST_LIST_RESULT", {
+      tenant_id: tenantId,
+      platform,
+      status,
+      count: Array.isArray(result.items) ? result.items.length : 0,
+      next_cursor: Boolean(result.next_cursor),
+    });
+    return res.json({
+      success: true,
+      items: result.items || [],
+      next_cursor: result.next_cursor || "",
+    });
+  } catch (error) {
+    console.log("SOCIAL_FAST_LIST_RESULT", {
+      tenant_id: tenantId,
+      platform,
+      status,
+      count: 0,
+      next_cursor: false,
+      error: error?.message || "",
+    });
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment fast list" });
+  }
+});
+
+router.get("/jobs/status", protect, permit("settings", "view"), async (_req, res) => {
+  try {
+    const status = getSocialCommentJobQueueStatus();
+    return res.json({
+      success: true,
+      ...status,
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load social comment job queue status",
+    });
   }
 });
 

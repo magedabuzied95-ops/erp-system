@@ -549,6 +549,7 @@ const { ensureDisplayRefillAlertSchema } = await import("./services/displayRefil
 const { ensureAiAgentOrderSchema } = await import("./services/aiAgentOrderService.js");
 const { ensureAiSalesAgentSchema } = await import("./services/aiSalesAgentService.js");
 const { ensureSocialCommentsCenterSchema } = await import("./services/socialCommentsCenterService.js");
+const { startSocialCommentJobWorker } = await import("./services/socialCommentJobQueue.js");
 const { ensureAiInboxLeadActionsSchema } = await import("./services/aiInboxLeadActionsService.js");
 const { ensureStaffTasksSchema, assignDailyInventoryCountTasks, reassignOverdueTasks, sendUpcomingTaskDueReminders } = await import("./services/staffTasksService.js");
 const { processStaffTaskEmailQueue } = await import("./services/staffTaskEmailNotificationService.js");
@@ -2018,6 +2019,7 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
       startMarketingAnalyticsSyncScheduler();
       startMarketingAttributionSyncScheduler();
       startAiMarketingAutomationRunner();
+      startSocialCommentJobWorker();
 
       const safeRunDueStoryPublishes = () => {
         void runDueStoryPublishes().catch((error) => {

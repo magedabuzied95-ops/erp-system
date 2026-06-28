@@ -28,6 +28,7 @@ export const THERMAL_ARTWORK_PROMPT = [
 ].join("\n");
 
 const thermalArtworkCache = new Map();
+let openaiClient = null;
 
 const cleanText = (value = "") => {
   const text = String(value ?? "").trim();
@@ -113,11 +114,16 @@ const normalizeSourceImage = async (value = "") => {
 };
 
 const getClient = () =>
-  new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY,
-    maxRetries: 0,
-    timeout: positiveNumber(process.env.OPENAI_THERMAL_ARTWORK_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
-  });
+  {
+    if (!openaiClient) {
+      openaiClient = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+        maxRetries: 0,
+        timeout: positiveNumber(process.env.OPENAI_THERMAL_ARTWORK_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+      });
+    }
+    return openaiClient;
+  };
 
 const uploadToCloudinary = async ({ buffer, filename, mimetype }) => {
   const config = cloudinaryConfig();
@@ -198,107 +204,118 @@ export const generateThermalArtwork = async ({
   regenerate = false,
   productName = "",
 } = {}) => {
-  const safeSourceImageUrl = cleanText(sourceImageUrl);
-  const safeExistingThermal = cleanText(existingThermalImageUrl);
-  const cacheKey = buildCacheKey({ sourceImageUrl: safeSourceImageUrl, productId, regenerate });
+  try {
+    const safeSourceImageUrl = cleanText(sourceImageUrl);
+    const safeExistingThermal = cleanText(existingThermalImageUrl);
+    const cacheKey = buildCacheKey({ sourceImageUrl: safeSourceImageUrl, productId, regenerate });
 
-  if (!regenerate && safeExistingThermal) {
-    return {
-      thermal_image_url: safeExistingThermal,
-      cached: true,
-      source: "DATABASE",
-      prompt: THERMAL_ARTWORK_PROMPT,
-      model: DEFAULT_MODEL,
-    };
-  }
-
-  if (!regenerate && thermalArtworkCache.has(cacheKey)) {
-    return {
-      ...thermalArtworkCache.get(cacheKey),
-      cached: true,
-      source: "CACHE",
-    };
-  }
-
-  if (!process.env.OPENAI_API_KEY) {
-    throw new Error("OPENAI_API_KEY missing");
-  }
-
-  const normalizedSource = await normalizeSourceImage(safeSourceImageUrl);
-  if (!normalizedSource?.buffer) {
-    throw new Error("A valid product image is required for thermal artwork generation");
-  }
-
-  const inputFile = await toFile(normalizedSource.buffer, `${cleanText(productName) || "product"}-thermal-source.png`, {
-    type: normalizedSource.mimetype || "image/png",
-  });
-
-  const startedAt = Date.now();
-  const client = getClient();
-  const model = DEFAULT_MODEL;
-  console.log("[thermal-artwork] OpenAI request start", {
-    productId: productId || "",
-    productName: cleanText(productName) || "",
-    model,
-  });
-
-  const response = await client.images.edit({
-    model,
-    image: inputFile,
-    prompt: THERMAL_ARTWORK_PROMPT,
-    background: "transparent",
-    input_fidelity: "high",
-    output_format: "png",
-    quality: "high",
-    size: "1024x1024",
-    n: 1,
-    response_format: "b64_json",
-  });
-
-  const imageBase64 = response?.data?.[0]?.b64_json || "";
-  if (!imageBase64) {
-    throw new Error("OpenAI did not return thermal artwork image data");
-  }
-
-  const generatedBuffer = Buffer.from(imageBase64, "base64");
-  const stored = await saveThermalArtworkAsset({
-    buffer: generatedBuffer,
-    productId,
-    sourceKey: `${safeSourceImageUrl}:${productId || ""}:${Date.now()}`,
-    mimetype: "image/png",
-  });
-
-  const result = {
-    thermal_image_url: stored.thermal_image_url,
-    cached: false,
-    source: "OPENAI",
-    storage: stored.storage,
-    prompt: THERMAL_ARTWORK_PROMPT,
-    model,
-    durationMs: Date.now() - startedAt,
-  };
-
-  thermalArtworkCache.set(cacheKey, result);
-
-  if (Number.isFinite(Number(productId)) && Number(productId) > 0) {
-    const updateParams = [stored.thermal_image_url, Number(productId)];
-    const whereClause = tenantId ? " AND tenant_id = $3" : "";
-    if (tenantId) updateParams.push(tenantId);
-    try {
-      await db.query(
-        `UPDATE products SET thermal_image_url = $1, updated_at = NOW() WHERE id = $2${whereClause}`,
-        updateParams
-      );
-      result.updated = true;
-    } catch (error) {
-      console.warn("[thermal-artwork] product update failed", {
-        productId,
-        message: error?.message || String(error),
-      });
-      result.updated = false;
+    if (!regenerate && safeExistingThermal) {
+      return {
+        thermal_image_url: safeExistingThermal,
+        cached: true,
+        source: "DATABASE",
+        prompt: THERMAL_ARTWORK_PROMPT,
+        model: DEFAULT_MODEL,
+      };
     }
+
+    if (!regenerate && thermalArtworkCache.has(cacheKey)) {
+      return {
+        ...thermalArtworkCache.get(cacheKey),
+        cached: true,
+        source: "CACHE",
+      };
+    }
+
+    const normalizedSource = await normalizeSourceImage(safeSourceImageUrl);
+    if (!normalizedSource?.buffer) {
+      throw new Error("A valid product image is required for thermal artwork generation");
+    }
+
+    const inputFile = await toFile(normalizedSource.buffer, `${cleanText(productName) || "product"}-thermal-source.png`, {
+      type: normalizedSource.mimetype || "image/png",
+    });
+
+    const startedAt = Date.now();
+    const client = getClient();
+    console.log({
+      hasKey: Boolean(process.env.OPENAI_API_KEY),
+      sameClient: client === openaiClient,
+    });
+    const model = DEFAULT_MODEL;
+    console.log("[thermal-artwork] OpenAI request start", {
+      productId: productId || "",
+      productName: cleanText(productName) || "",
+      model,
+    });
+
+    const response = await client.images.edit({
+      model,
+      image: inputFile,
+      prompt: THERMAL_ARTWORK_PROMPT,
+      background: "transparent",
+      input_fidelity: "high",
+      output_format: "png",
+      quality: "high",
+      size: "1024x1024",
+      n: 1,
+      response_format: "b64_json",
+    });
+
+    const imageBase64 = response?.data?.[0]?.b64_json || "";
+    if (!imageBase64) {
+      throw new Error("OpenAI did not return thermal artwork image data");
+    }
+
+    const generatedBuffer = Buffer.from(imageBase64, "base64");
+    const stored = await saveThermalArtworkAsset({
+      buffer: generatedBuffer,
+      productId,
+      sourceKey: `${safeSourceImageUrl}:${productId || ""}:${Date.now()}`,
+      mimetype: "image/png",
+    });
+
+    const result = {
+      thermal_image_url: stored.thermal_image_url,
+      cached: false,
+      source: "OPENAI",
+      storage: stored.storage,
+      prompt: THERMAL_ARTWORK_PROMPT,
+      model,
+      durationMs: Date.now() - startedAt,
+    };
+
+    thermalArtworkCache.set(cacheKey, result);
+
+    if (Number.isFinite(Number(productId)) && Number(productId) > 0) {
+      const updateParams = [stored.thermal_image_url, Number(productId)];
+      const whereClause = tenantId ? " AND tenant_id = $3" : "";
+      if (tenantId) updateParams.push(tenantId);
+      try {
+        await db.query(
+          `UPDATE products SET thermal_image_url = $1, updated_at = NOW() WHERE id = $2${whereClause}`,
+          updateParams
+        );
+        result.updated = true;
+      } catch (error) {
+        console.warn("[thermal-artwork] product update failed", {
+          productId,
+          message: error?.message || String(error),
+        });
+        result.updated = false;
+      }
+    }
+
+    return result;
+  } catch (error) {
+    console.error("THERMAL_ARTWORK_ERROR", {
+      message: error?.message,
+      stack: error?.stack,
+      response: error?.response?.data,
+      status: error?.status,
+      code: error?.code,
+    });
+
+    throw error;
   }
-
-  return result;
 };
-

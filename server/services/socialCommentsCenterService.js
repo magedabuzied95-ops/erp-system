@@ -2006,7 +2006,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
         COUNT(*)::int AS comments_count,
         COUNT(*) FILTER (WHERE msg.created_at > COALESCE(c.read_at, s.read_at))::int AS new_comments_count,
         MAX(NULLIF(msg.comment_created_time, '')) AS real_comment_created_time,
-        MAX(NULLIF(msg.comment_created_time, '')) AS last_comment_at,
+        MAX(msg.created_at) AS last_comment_at,
         MAX(msg.created_at) AS msg_created_at,
         (ARRAY_AGG(msg.customer_message ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_comment_text,
         (ARRAY_AGG(msg.customer_name ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_commenter_name,
@@ -2084,7 +2084,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     ORDER BY COALESCE(agg.last_comment_at, c.last_message_at, c.updated_at) DESC, c.updated_at DESC
     LIMIT $2
     `;
-  console.log("SOCIAL_COMMENTS_POSTS_SQL", {
+  debugSocialCommentsWarn("SOCIAL_COMMENTS_POSTS_SQL_1", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
     limit: safeLimit,

@@ -5,10 +5,12 @@ import { useSearchParams } from "react-router-dom";
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
+import { subscribeRealtime } from "../../../shared/realtime/socketStore";
 import Customer360Drawer from "../../aiSupport/components/Customer360Drawer.jsx";
 import SocialCommentsWorkspace from "../../aiSupport/components/SocialCommentsWorkspace.jsx";
 
 const clean = (value = "") => String(value ?? "").trim();
+const ENABLE_SOCIAL_FAST_CENTER = true;
 
 const DEBUG_SOCIAL_COMMENTS =
   import.meta.env.DEV ||
@@ -29,6 +31,76 @@ const socialPostIdentity = (item = {}) =>
   clean(item?.post_id || item?.conversation_id || item?.id || item?.comment_id || `${clean(item?.platform || "social")}:${clean(item?.post_id || item?.comment_id || "")}`);
 
 const matchesValue = (left = "", right = "") => Boolean(clean(left)) && clean(left) === clean(right);
+
+const normalizeFastSocialCommentItem = (item = {}) => {
+  const postId = clean(item?.post_id || item?.conversation_id || item?.id || "");
+  const commentId = clean(item?.external_comment_id || item?.comment_id || item?.id || "");
+  const messagePreview = clean(item?.message_preview || "");
+  const activityAt = clean(item?.last_activity_at || item?.updated_at || item?.created_at || "");
+  const status = clean(item?.status || "");
+  const automationStatus = clean(item?.automation_status || "");
+  const unread =
+    item?.unread != null
+      ? Boolean(item.unread)
+      : !["sent", "delivered", "ignored", "processed", "closed", "resolved"].includes(status.toLowerCase()) &&
+        !["sent", "delivered"].includes(automationStatus.toLowerCase());
+
+  return {
+    ...item,
+    id: clean(item?.id || commentId || postId || ""),
+    post_id: postId,
+    conversation_id: clean(item?.conversation_id || postId || ""),
+    comment_id: commentId,
+    external_comment_id: commentId,
+    platform: clean(item?.platform || "facebook").toLowerCase(),
+    customer_name: clean(item?.customer_name || "Customer"),
+    customer_avatar_url: clean(item?.customer_avatar_url || ""),
+    post_caption: clean(item?.post_caption || messagePreview),
+    post_message: clean(item?.post_message || messagePreview),
+    last_message: clean(item?.last_message || messagePreview),
+    last_message_at: activityAt,
+    last_activity_at: activityAt,
+    last_comment_text: clean(item?.last_comment_text || messagePreview),
+    last_comment_at: clean(item?.last_comment_at || activityAt),
+    comments_count: Number(item?.comments_count || 1) || 1,
+    new_comments_count: Number(item?.new_comments_count ?? (unread ? 1 : 0)) || 0,
+    reply_status: clean(item?.reply_status || status || automationStatus || ""),
+    auto_reply_mode: clean(item?.auto_reply_mode || automationStatus || ""),
+    automation_status: automationStatus || status,
+    session_status: clean(item?.session_status || item?.status || automationStatus || ""),
+    status: status || automationStatus || "pending",
+    unread,
+    thumbnail_url: clean(item?.thumbnail_url || ""),
+    post_thumbnail: clean(item?.post_thumbnail || ""),
+    post_full_picture: clean(item?.post_full_picture || ""),
+    post_permalink_url: clean(item?.post_permalink_url || item?.permalink_url || ""),
+    permalink_url: clean(item?.permalink_url || item?.post_permalink_url || ""),
+    product_id: clean(item?.product_id || ""),
+    product_name: clean(item?.product_name || ""),
+    auto_reply_enabled: Boolean(item?.auto_reply_enabled),
+    template_enabled: Boolean(item?.template_enabled),
+    generic_enabled: Boolean(item?.generic_enabled),
+  };
+};
+
+const fastSocialCommentItemMatches = (left = {}, right = {}) => {
+  const leftIds = [left?.id, left?.comment_id, left?.external_comment_id, left?.post_id].map((value) => clean(value)).filter(Boolean);
+  const rightIds = [right?.id, right?.comment_id, right?.external_comment_id, right?.post_id].map((value) => clean(value)).filter(Boolean);
+  if (!leftIds.length || !rightIds.length) return false;
+  return leftIds.some((value) => rightIds.includes(value));
+};
+
+const mergeFastSocialCommentItem = (current = {}, patch = {}) =>
+  normalizeFastSocialCommentItem({
+    ...current,
+    ...patch,
+    comments_count: patch.comments_count ?? current.comments_count,
+    new_comments_count: patch.new_comments_count ?? current.new_comments_count,
+    unread: patch.unread ?? current.unread,
+    last_comment_text: patch.last_comment_text || patch.message_preview || current.last_comment_text || current.post_caption || "",
+    last_comment_at: patch.last_comment_at || patch.last_activity_at || current.last_comment_at || current.last_activity_at || "",
+    last_activity_at: patch.last_activity_at || current.last_activity_at || "",
+  });
 
 const findPostFromParams = (items = [], { postId = "", commentId = "", platform = "", pageId = "" } = {}) => {
   const normalizedPlatform = clean(platform).toLowerCase();
@@ -57,6 +129,7 @@ function SocialCommentsCenter() {
   buildPageTitle("Social Comments Center");
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const realtimeStatus = useRealtimeStatus();
   const tenantId = clean(searchParams.get("tenant") || searchParams.get("tenantId") || tenantIdFromAuth());
   const postIdParam = clean(searchParams.get("postId") || searchParams.get("post_id") || "");
   const commentIdParam = clean(searchParams.get("commentId") || searchParams.get("comment_id") || "");
@@ -135,17 +208,35 @@ function SocialCommentsCenter() {
     if (!silent) setLoading(true);
     setError("");
     try {
-      const payload = await api.get("/social-comments/posts", {
-        params: { tenant_id: tenantId, limit: 50 },
-        perfComponent: "SocialCommentsCenter.posts",
-      });
-      const nextItems = Array.isArray(payload?.items)
-        ? payload.items
-        : Array.isArray(payload?.data?.items)
-          ? payload.data.items
-          : Array.isArray(payload)
-            ? payload
-            : [];
+      let payload = null;
+      if (ENABLE_SOCIAL_FAST_CENTER) {
+        try {
+          payload = await api.get("/social-comments/fast-list", {
+            params: { tenant_id: tenantId, limit: 50 },
+            perfComponent: "SocialCommentsCenter.fastList",
+          });
+        } catch (fastError) {
+          console.warn("[SocialCommentsCenter][fast-list-fallback]", {
+            tenant_id: tenantId,
+            message: fastError?.message || "",
+          });
+        }
+      }
+      if (!payload) {
+        payload = await api.get("/social-comments/posts", {
+          params: { tenant_id: tenantId, limit: 50 },
+          perfComponent: "SocialCommentsCenter.posts",
+        });
+      }
+      const nextItems = ENABLE_SOCIAL_FAST_CENTER && payload?.items && !Array.isArray(payload?.data?.items)
+        ? payload.items.map(normalizeFastSocialCommentItem)
+        : Array.isArray(payload?.items)
+          ? payload.items
+          : Array.isArray(payload?.data?.items)
+            ? payload.data.items
+            : Array.isArray(payload)
+              ? payload
+              : [];
       setItems(nextItems);
     } catch (loadError) {
       setError(loadError?.message || "Failed to load social comments");
@@ -178,6 +269,41 @@ function SocialCommentsCenter() {
     void loadPosts();
     void loadGlobalSettings();
   }, [loadGlobalSettings, loadPosts]);
+
+  useEffect(() => {
+    if (!ENABLE_SOCIAL_FAST_CENTER) return undefined;
+    const patchSocialComment = (payload = {}, { matchOnly = false } = {}) => {
+      const normalizedPayload = normalizeFastSocialCommentItem(payload);
+      if (!normalizedPayload.id && !normalizedPayload.external_comment_id && !normalizedPayload.post_id) return;
+
+      setItems((current) => {
+        const currentItems = Array.isArray(current) ? current : [];
+        const matchIndex = currentItems.findIndex((item) => fastSocialCommentItemMatches(item, normalizedPayload));
+        if (matchOnly && matchIndex < 0) return currentItems;
+
+        const nextItem = matchIndex >= 0 ? mergeFastSocialCommentItem(currentItems[matchIndex], normalizedPayload) : normalizedPayload;
+        const nextItems = matchIndex >= 0
+          ? [nextItem, ...currentItems.filter((_, index) => index !== matchIndex)]
+          : [nextItem, ...currentItems];
+        return nextItems.slice(0, 100);
+      });
+    };
+
+    const offNew = subscribeRealtime("social_comment:new", (payload = {}) => {
+      patchSocialComment(payload, { matchOnly: false });
+    });
+    const offUpdated = subscribeRealtime("social_comment:updated", (payload = {}) => {
+      patchSocialComment(payload, { matchOnly: true });
+    });
+    const offReplyStatus = subscribeRealtime("social_comment:reply_status", (payload = {}) => {
+      patchSocialComment(payload, { matchOnly: true });
+    });
+    return () => {
+      offNew();
+      offUpdated();
+      offReplyStatus();
+    };
+  }, []);
 
   const selectedPostFromParams = useMemo(
     () => findPostFromParams(items, routeSelection),
