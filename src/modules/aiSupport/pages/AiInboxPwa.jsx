@@ -4438,10 +4438,10 @@ export default function AiInboxPwa() {
 
   const handleSocialCommentCustomerSelect = useCallback(
     (rawComment = {}, data = {}) => {
-      const commentPlatform = clean(rawComment.platform || selectedSocialThread?.post?.platform || selectedPost?.platform || "facebook");
+      const commentPlatform = clean(rawComment.platform || selectedSocialThread?.post?.platform || selectedSocialPost?.platform || "facebook");
       const commentId = clean(rawComment.comment_id || rawComment.id || "");
-      const commentPostId = clean(rawComment.post_id || rawComment.postId || selectedSocialThread?.post?.post_id || selectedPost?.post_id || selectedPost?.conversation_id || "");
-      const commentPageId = clean(rawComment.page_id || selectedSocialThread?.post?.page_id || selectedPost?.page_id || "");
+      const commentPostId = clean(rawComment.post_id || rawComment.postId || selectedSocialThread?.post?.post_id || selectedSocialPost?.post_id || selectedSocialPost?.conversation_id || "");
+      const commentPageId = clean(rawComment.page_id || selectedSocialThread?.post?.page_id || selectedSocialPost?.page_id || "");
       const commenterName = clean(rawComment.customer_name || rawComment.commenter_name || rawComment.from_name || "مستخدم مجهول");
       const commenterAvatar = clean(rawComment.customer_avatar_url || rawComment.avatar_url || rawComment.profile_pic || "");
       openCustomerDrawer(
@@ -4466,7 +4466,7 @@ export default function AiInboxPwa() {
         }
       );
     },
-    [openCustomerDrawer, selectedPost?.conversation_id, selectedPost?.page_id, selectedPost?.platform, selectedPost?.post_id, selectedSocialThread?.post?.page_id, selectedSocialThread?.post?.platform, selectedSocialThread?.post?.post_id]
+    [openCustomerDrawer, selectedSocialPost?.conversation_id, selectedSocialPost?.page_id, selectedSocialPost?.platform, selectedSocialPost?.post_id, selectedSocialThread?.post?.page_id, selectedSocialThread?.post?.platform, selectedSocialThread?.post?.post_id]
   );
   const handleSocialCommentReply = useCallback((comment = {}) => sendSelectedSocialCommentAction(comment, "reply"), [sendSelectedSocialCommentAction]);
   const handleSocialCommentPrivateMessage = useCallback((comment = {}) => sendSelectedSocialCommentAction(comment, "private_message"), [sendSelectedSocialCommentAction]);
