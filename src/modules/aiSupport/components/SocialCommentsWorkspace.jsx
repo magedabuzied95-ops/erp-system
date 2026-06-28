@@ -557,28 +557,6 @@ function SocialCommentsWorkspace({
   initialSelectedCommentId = "",
 }) {
   const resolvedTenantId = clean(tenantId || selectedPost?.tenant_id || selectedPost?.tenantId || selectedThread?.post?.tenant_id || selectedThread?.post?.tenantId || "");
-  const normalizedPosts = useMemo(
-    () =>
-      [...(Array.isArray(items) ? items.filter(Boolean) : [])]
-        .map((post) => {
-          const normalized = normalizePost(post);
-          const override = productMappingOverrides[postKey(normalized)];
-          return override ? normalizePost({ ...(normalized.raw || post || {}), ...override }) : normalized;
-        })
-        .sort((left, right) => new Date(right.lastActivity || 0).getTime() - new Date(left.lastActivity || 0).getTime()),
-    [items, productMappingOverrides]
-  );
-
-  const selectedPostKey = clean(postKey(normalizePost(selectedPost || {})));
-  const activePost = normalizedPosts.find((item) => postKey(item) === selectedPostKey) || normalizePost(selectedPost || normalizedPosts[0] || null);
-  const activePostKey = clean(postKey(activePost));
-  const activeThread = selectedThread || { post: null, comments: [], loading: false, error: "" };
-  const comments = useMemo(() => (Array.isArray(activeThread.comments) ? activeThread.comments.filter(Boolean) : []), [activeThread.comments]);
-  const normalizedComments = useMemo(() => comments.map((comment) => normalizeComment(comment)).filter(Boolean), [comments]);
-  const activeThreadPostKey = clean(postKey(normalizePost(activeThread.post || {})));
-  const activeThreadPost = normalizedPosts.find((item) => postKey(item) === activeThreadPostKey) || normalizePost(activeThread.post || null);
-  const activePostDetails = normalizePost(activeThreadPost || activePost || null);
-
   const [selectedCommentKey, setSelectedCommentKey] = useState(() => clean(initialSelectedCommentId));
   const [replyDraft, setReplyDraft] = useState("");
   const [previewReply, setPreviewReply] = useState("");
@@ -622,6 +600,27 @@ function SocialCommentsWorkspace({
   const commentRefs = useRef(new Map());
   const composerRef = useRef(null);
   const highlightTimerRef = useRef(null);
+  const normalizedPosts = useMemo(
+    () =>
+      [...(Array.isArray(items) ? items.filter(Boolean) : [])]
+        .map((post) => {
+          const normalized = normalizePost(post);
+          const override = productMappingOverrides[postKey(normalized)];
+          return override ? normalizePost({ ...(normalized.raw || post || {}), ...override }) : normalized;
+        })
+        .sort((left, right) => new Date(right.lastActivity || 0).getTime() - new Date(left.lastActivity || 0).getTime()),
+    [items, productMappingOverrides]
+  );
+
+  const selectedPostKey = clean(postKey(normalizePost(selectedPost || {})));
+  const activePost = normalizedPosts.find((item) => postKey(item) === selectedPostKey) || normalizePost(selectedPost || normalizedPosts[0] || null);
+  const activePostKey = clean(postKey(activePost));
+  const activeThread = selectedThread || { post: null, comments: [], loading: false, error: "" };
+  const comments = useMemo(() => (Array.isArray(activeThread.comments) ? activeThread.comments.filter(Boolean) : []), [activeThread.comments]);
+  const normalizedComments = useMemo(() => comments.map((comment) => normalizeComment(comment)).filter(Boolean), [comments]);
+  const activeThreadPostKey = clean(postKey(normalizePost(activeThread.post || {})));
+  const activeThreadPost = normalizedPosts.find((item) => postKey(item) === activeThreadPostKey) || normalizePost(activeThread.post || null);
+  const activePostDetails = normalizePost(activeThreadPost || activePost || null);
 
   useEffect(() => {
     setGlobalDraft({
