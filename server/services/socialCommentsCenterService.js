@@ -614,7 +614,6 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   const mappingSummary = postId && tenantId
     ? await getMappings({ tenantId, platform, postId, row: safeRow, post: safeRow }).catch(() => null)
     : null;
-  const primaryMappedProduct = mappingSummary?.primary_product || null;
   const appendMappingSummary = (value = {}) => ({
     ...value,
     linked_products: mappingSummary?.linked_products || [],

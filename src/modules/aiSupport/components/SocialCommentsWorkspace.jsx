@@ -155,21 +155,25 @@ const normalizeComment = (raw) => {
 const normalizePost = (raw) => {
   const post = raw || {};
   const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
+  const mappingSummary = post.mapping_summary && typeof post.mapping_summary === "object" && !Array.isArray(post.mapping_summary) ? post.mapping_summary : {};
   const attachmentImage = getAttachmentImage(post);
   const linkedProducts = Array.isArray(post.linked_products)
     ? post.linked_products
     : Array.isArray(metadata.linked_products)
       ? metadata.linked_products
-      : [];
+      : Array.isArray(mappingSummary.linked_products)
+        ? mappingSummary.linked_products
+        : [];
   const linkedProductsCount = Number(
     post.linked_products_count ??
       post.product_links_count ??
       metadata.linked_products_count ??
       metadata.product_links_count ??
+      mappingSummary.count ??
       linkedProducts.length ??
       0
   ) || 0;
-  const primaryLinkedProduct = post.primary_linked_product || post.primary_product || metadata.primary_linked_product || metadata.primary_product || linkedProducts[0] || null;
+  const primaryLinkedProduct = post.primary_linked_product || post.primary_product || metadata.primary_linked_product || metadata.primary_product || mappingSummary.primary_linked_product || mappingSummary.primary_product || linkedProducts[0] || null;
   const mappedProductName = clean(primaryLinkedProduct?.name || primaryLinkedProduct?.title || primaryLinkedProduct?.product_name || "");
   const mappedProductPrice = clean(primaryLinkedProduct?.final_price || primaryLinkedProduct?.sale_price || primaryLinkedProduct?.price || primaryLinkedProduct?.selling_price || "");
   const mappedProductSizes = Array.isArray(primaryLinkedProduct?.available_sizes)
@@ -232,14 +236,14 @@ const normalizePost = (raw) => {
     publishedAt: clean(post.published_at || post.created_time || post.created_at || post.posted_at || metadata.published_at || metadata.created_time || metadata.created_at || metadata.posted_at || ""),
     lastActivity: clean(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || ""),
     autoReplyEnabled: Boolean(post.auto_reply_enabled || post.template_enabled || post.auto_reply_mode || metadata.auto_reply_enabled || metadata.template_enabled || metadata.auto_reply_mode),
-    productName: clean(post.product_name || post.product_title || metadata.product_name || metadata.product_title || mappedProductName || ""),
+    productName: clean(post.product_name || post.product_title || metadata.product_name || metadata.product_title || mappingSummary.primary_product_name || mappedProductName || ""),
     productId: clean(post.product_id || metadata.product_id || primaryLinkedProduct?.id || primaryLinkedProduct?.product_id || ""),
     product_id: clean(post.product_id || metadata.product_id || primaryLinkedProduct?.id || primaryLinkedProduct?.product_id || ""),
     productPrice: clean(post.product_price || metadata.product_price || mappedProductPrice || ""),
     productSalePrice: clean(post.product_sale_price || metadata.product_sale_price || clean(primaryLinkedProduct?.sale_price || "")),
     productSizes: clean(post.product_sizes || metadata.product_sizes || mappedProductSizes || ""),
     productColors: clean(post.product_colors || metadata.product_colors || mappedProductColors || ""),
-    productStock: clean(post.product_stock || metadata.product_stock || primaryLinkedProduct?.stock || ""),
+    productStock: clean(post.product_stock || metadata.product_stock || primaryLinkedProduct?.stock || primaryLinkedProduct?.total_stock || ""),
     productVariantCount: clean(post.product_variant_count || metadata.product_variant_count || linkedProductsCount || ""),
     productLink: clean(post.product_link || post.product_storefront_url || post.product_url || metadata.product_link || metadata.product_storefront_url || metadata.product_url || primaryLinkedProduct?.product_url || ""),
     storeAddress: clean(post.store_address || metadata.store_address || ""),
@@ -250,6 +254,7 @@ const normalizePost = (raw) => {
     linked_products: linkedProducts,
     primaryLinkedProduct,
     primary_linked_product: primaryLinkedProduct,
+    mapping_summary: mappingSummary,
     attachmentImage,
     raw: post,
   };
@@ -535,6 +540,40 @@ const resolvePostMediaBadge = (post = {}) => {
 };
 
 const stripTrailingParagraphBreaks = (value = "") => clean(value).replace(/\n{3,}/g, "\n\n");
+const getPostLinkedProducts = (post = {}) => {
+  const metadata = post?.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
+  const mappingSummary = post?.mapping_summary && typeof post.mapping_summary === "object" && !Array.isArray(post.mapping_summary) ? post.mapping_summary : {};
+  const linkedProducts = Array.isArray(post?.linked_products)
+    ? post.linked_products
+    : Array.isArray(metadata.linked_products)
+      ? metadata.linked_products
+      : Array.isArray(mappingSummary.linked_products)
+        ? mappingSummary.linked_products
+        : [];
+  const primaryLinkedProduct =
+    post?.primary_linked_product ||
+    post?.primary_product ||
+    metadata.primary_linked_product ||
+    metadata.primary_product ||
+    mappingSummary.primary_linked_product ||
+    mappingSummary.primary_product ||
+    linkedProducts[0] ||
+    null;
+  return {
+    linkedProducts,
+    linkedProductsCount: Number(
+      post?.linked_products_count ??
+        post?.product_links_count ??
+        metadata.linked_products_count ??
+        metadata.product_links_count ??
+        mappingSummary.count ??
+        linkedProducts.length ??
+        0
+    ) || 0,
+    primaryLinkedProduct,
+    primaryProductName: clean(primaryLinkedProduct?.name || primaryLinkedProduct?.title || primaryLinkedProduct?.product_name || ""),
+  };
+};
 
 function SocialCommentsWorkspace({
   items = [],
@@ -621,6 +660,8 @@ function SocialCommentsWorkspace({
   const activeThreadPostKey = clean(postKey(normalizePost(activeThread.post || {})));
   const activeThreadPost = normalizedPosts.find((item) => postKey(item) === activeThreadPostKey) || normalizePost(activeThread.post || null);
   const activePostDetails = normalizePost(activeThreadPost || activePost || null);
+  const activeDisplayPost = activeThreadPost || activePostDetails || activePost || {};
+  const activeDisplayLinkedProducts = getPostLinkedProducts(activeDisplayPost);
 
   useEffect(() => {
     setGlobalDraft({
@@ -1589,11 +1630,11 @@ function SocialCommentsWorkspace({
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
                       {activePost.newCount || 0} new
                     </span>
-                    {activePostDetails?.linkedProductsCount > 0 ? (
+                    {activeDisplayLinkedProducts.linkedProductsCount > 0 ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-700">
                         ✓ Linked Products
-                        {activePostDetails?.primaryLinkedProduct?.name ? ` · ${activePostDetails.primaryLinkedProduct.name}` : ""}
-                        {activePostDetails?.linkedProductsCount > 1 ? ` +${activePostDetails.linkedProductsCount - 1}` : ""}
+                        {activeDisplayLinkedProducts.primaryProductName ? ` · ${activeDisplayLinkedProducts.primaryProductName}` : ""}
+                        {activeDisplayLinkedProducts.linkedProductsCount > 1 ? ` +${activeDisplayLinkedProducts.linkedProductsCount - 1}` : ""}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
@@ -1687,16 +1728,16 @@ function SocialCommentsWorkspace({
                       </div>
                     </div>
 
-                    {activePostDetails?.productName || activePostDetails?.productPrice || activePostDetails?.productSalePrice || activePostDetails?.productSizes || activePostDetails?.productColors ? (
+                    {activeDisplayPost?.productName || activeDisplayPost?.productPrice || activeDisplayPost?.productSalePrice || activeDisplayPost?.productSizes || activeDisplayPost?.productColors ? (
                       <div className="rounded-[22px] border border-[#E2E8F0] bg-[#F8FAFC] p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0">
                             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
-                            <div className="mt-1 text-sm font-black text-slate-900">{selectFirst(activePostDetails?.productName, "Linked product")}</div>
+                            <div className="mt-1 text-sm font-black text-slate-900">{selectFirst(activeDisplayPost?.productName, "Linked product")}</div>
                           </div>
-                          {selectFirst(activePostDetails?.productLink) ? (
+                          {selectFirst(activeDisplayPost?.productLink) ? (
                             <a
-                              href={selectFirst(activePostDetails?.productLink)}
+                              href={selectFirst(activeDisplayPost?.productLink)}
                               target="_blank"
                               rel="noreferrer"
                               className="inline-flex h-8 shrink-0 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-[11px] font-black text-slate-900 shadow-sm"
@@ -1707,12 +1748,12 @@ function SocialCommentsWorkspace({
                           ) : null}
                         </div>
                         <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                          <InfoChip label="Price" value={selectFirst(activePostDetails?.productPrice, "—")} />
-                          <InfoChip label="Sale" value={selectFirst(activePostDetails?.productSalePrice, "—")} />
-                          <InfoChip label="Sizes" value={selectFirst(activePostDetails?.productSizes, "—")} />
-                          <InfoChip label="Colors" value={selectFirst(activePostDetails?.productColors, "—")} />
-                          <InfoChip label="Stock" value={selectFirst(activePostDetails?.productStock, "—")} />
-                          <InfoChip label="Variants" value={selectFirst(activePostDetails?.productVariantCount, "—")} />
+                          <InfoChip label="Price" value={selectFirst(activeDisplayPost?.productPrice, "—")} />
+                          <InfoChip label="Sale" value={selectFirst(activeDisplayPost?.productSalePrice, "—")} />
+                          <InfoChip label="Sizes" value={selectFirst(activeDisplayPost?.productSizes, "—")} />
+                          <InfoChip label="Colors" value={selectFirst(activeDisplayPost?.productColors, "—")} />
+                          <InfoChip label="Stock" value={selectFirst(activeDisplayPost?.productStock, "—")} />
+                          <InfoChip label="Variants" value={selectFirst(activeDisplayPost?.productVariantCount, "—")} />
                         </div>
                       </div>
                     ) : null}

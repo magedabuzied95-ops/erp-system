@@ -219,6 +219,19 @@ const commentAutomationMessageLabel = (messageType = "") => {
 const normalizeSocialCommentPost = (raw) => {
   const post = raw || {};
   const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
+  const mappingSummary = post.mapping_summary && typeof post.mapping_summary === "object" && !Array.isArray(post.mapping_summary) ? post.mapping_summary : {};
+  const linkedProducts = Array.isArray(post.linked_products)
+    ? post.linked_products
+    : Array.isArray(mappingSummary.linked_products)
+      ? mappingSummary.linked_products
+      : [];
+  const primaryLinkedProduct =
+    post.primary_linked_product ||
+    post.primary_product ||
+    mappingSummary.primary_linked_product ||
+    mappingSummary.primary_product ||
+    linkedProducts[0] ||
+    null;
   const resolvedThumbnail =
     post.thumbnail_url ||
     post.thumbnailUrl ||
@@ -240,6 +253,8 @@ const normalizeSocialCommentPost = (raw) => {
     metadata.image_url ||
     metadata.image ||
     null;
+  const mappedProductName = String(primaryLinkedProduct?.name || primaryLinkedProduct?.title || primaryLinkedProduct?.product_name || post.product_name || metadata.product_name || "").trim();
+  const mappedProductPrice = String(primaryLinkedProduct?.final_price || primaryLinkedProduct?.sale_price || primaryLinkedProduct?.price || primaryLinkedProduct?.selling_price || post.product_price || metadata.product_price || "").trim();
   return {
     id: String(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
     postId: String(post.post_id || post.id || metadata.post_id || ""),
@@ -264,16 +279,32 @@ const normalizeSocialCommentPost = (raw) => {
     newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),
     lastActivity: String(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || "").trim(),
     autoReplyEnabled: Boolean(post.auto_reply_enabled || post.template_enabled || post.auto_reply_mode || metadata.auto_reply_enabled || metadata.template_enabled || metadata.auto_reply_mode),
-    productName: String(post.product_name || metadata.product_name || "").trim(),
-    productPrice: String(post.product_price || metadata.product_price || "").trim(),
-    productSalePrice: String(post.product_sale_price || metadata.product_sale_price || "").trim(),
-    productSizes: String(post.product_sizes || metadata.product_sizes || "").trim(),
-    productColors: String(post.product_colors || metadata.product_colors || "").trim(),
-    productStock: String(post.product_stock || metadata.product_stock || "").trim(),
-    productVariantCount: String(post.product_variant_count || metadata.product_variant_count || "").trim(),
-    productLink: String(post.product_link || post.product_storefront_url || post.product_url || metadata.product_link || metadata.product_storefront_url || metadata.product_url || "").trim(),
+    productName: mappedProductName,
+    productPrice: mappedProductPrice,
+    productSalePrice: String(primaryLinkedProduct?.sale_price || post.product_sale_price || metadata.product_sale_price || "").trim(),
+    productSizes: String(
+      post.product_sizes ||
+      metadata.product_sizes ||
+      (Array.isArray(primaryLinkedProduct?.available_sizes) ? primaryLinkedProduct.available_sizes.join(", ") : "") ||
+      (Array.isArray(primaryLinkedProduct?.sizes) ? primaryLinkedProduct.sizes.join(", ") : "")
+    ).trim(),
+    productColors: String(
+      post.product_colors ||
+      metadata.product_colors ||
+      (Array.isArray(primaryLinkedProduct?.available_colors) ? primaryLinkedProduct.available_colors.join(", ") : "") ||
+      (Array.isArray(primaryLinkedProduct?.colors) ? primaryLinkedProduct.colors.join(", ") : "")
+    ).trim(),
+    productStock: String(post.product_stock || metadata.product_stock || primaryLinkedProduct?.stock || primaryLinkedProduct?.total_stock || "").trim(),
+    productVariantCount: String(post.product_variant_count || metadata.product_variant_count || linkedProducts.length || "").trim(),
+    productLink: String(post.product_link || post.product_storefront_url || post.product_url || metadata.product_link || metadata.product_storefront_url || metadata.product_url || primaryLinkedProduct?.storefront_url || primaryLinkedProduct?.product_url || "").trim(),
     storeAddress: String(post.store_address || metadata.store_address || "").trim(),
     shippingTime: String(post.shipping_time || metadata.shipping_time || "").trim(),
+    linkedProducts,
+    linked_products: linkedProducts,
+    primaryLinkedProduct,
+    primary_linked_product: primaryLinkedProduct,
+    linkedProductsCount: Number(post.linked_products_count || mappingSummary.count || linkedProducts.length || 0) || 0,
+    linked_products_count: Number(post.linked_products_count || mappingSummary.count || linkedProducts.length || 0) || 0,
     raw: post,
   };
 };

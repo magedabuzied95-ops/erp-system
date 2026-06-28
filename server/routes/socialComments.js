@@ -325,7 +325,8 @@ router.get("/posts/:postId/product-links", protect, permit("settings", "view"), 
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.query?.platform || req.body?.platform || "").trim();
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
-    const postId = String(post?.canonical_post_id || post?.post_id || requestedPostId || "").trim();
+    const canonicalPostId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const postId = canonicalPostId;
     const mapping = await getPostProductMappings({ tenantId, platform, postId, row: post || {}, post: post || {} });
     return res.json({
       success: true,
@@ -333,6 +334,10 @@ router.get("/posts/:postId/product-links", protect, permit("settings", "view"), 
       primary_product: mapping?.primary_product || null,
       count: Number(mapping?.count || 0) || 0,
       post_id: postId,
+      selected_post_id: requestedPostId,
+      canonical_post_id: canonicalPostId,
+      saved_platform_post_id: String(mapping?.post_id || post?.platform_post_id || post?.post_id || requestedPostId || "").trim(),
+      primary_product_name: String(mapping?.primary_product?.name || mapping?.primary_product?.title || mapping?.primary_product?.product_name || "").trim(),
       platform: String(mapping?.platform || platform || "facebook").trim() || "facebook",
     });
   } catch (error) {
@@ -346,7 +351,8 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
-    const postId = String(post?.canonical_post_id || post?.post_id || requestedPostId || "").trim();
+    const canonicalPostId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const postId = canonicalPostId;
     const productIds = Array.isArray(req.body?.product_ids)
       ? req.body.product_ids
       : Array.isArray(req.body?.productIds)
@@ -363,13 +369,37 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       primaryProductId,
       userId: req.user?.id || req.user?.user_id || null,
     });
+    const readback = await getPostProductMappings({ tenantId, platform, postId, row: post || {}, post: post || {} });
+    console.info("POST_PRODUCT_LINKS_SAVED", {
+      tenant_id: tenantId,
+      platform: String(platform || post?.platform || "facebook").trim() || "facebook",
+      selected_post_id: requestedPostId,
+      canonical_post_id: canonicalPostId,
+      saved_platform_post_id: String(readback?.post_id || post?.platform_post_id || post?.post_id || requestedPostId || "").trim(),
+      product_ids: Array.isArray(productIds) ? productIds : [],
+      readback_count: Number(readback?.count || 0) || 0,
+      hydrated_products_count: Number(readback?.linked_products?.length || 0) || 0,
+    });
+    console.info("POST_PRODUCT_LINKS_READBACK", {
+      tenant_id: tenantId,
+      platform: String(readback?.platform || platform || "facebook").trim() || "facebook",
+      selected_post_id: requestedPostId,
+      canonical_post_id: canonicalPostId,
+      saved_platform_post_id: String(readback?.post_id || post?.platform_post_id || post?.post_id || requestedPostId || "").trim(),
+      readback_count: Number(readback?.count || 0) || 0,
+      hydrated_products_count: Number(readback?.linked_products?.length || 0) || 0,
+    });
     return res.json({
       success: true,
-      linked_products: mapping?.linked_products || [],
-      primary_product: mapping?.primary_product || null,
-      count: Number(mapping?.count || 0) || 0,
+      linked_products: readback?.linked_products || [],
+      primary_product: readback?.primary_product || null,
+      count: Number(readback?.count || 0) || 0,
       post_id: postId,
-      platform: String(mapping?.platform || platform || "facebook").trim() || "facebook",
+      selected_post_id: requestedPostId,
+      canonical_post_id: canonicalPostId,
+      saved_platform_post_id: String(readback?.post_id || post?.platform_post_id || post?.post_id || requestedPostId || "").trim(),
+      primary_product_name: String(readback?.primary_product?.name || readback?.primary_product?.title || readback?.primary_product?.product_name || "").trim(),
+      platform: String(readback?.platform || platform || "facebook").trim() || "facebook",
     });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to save product links" });
