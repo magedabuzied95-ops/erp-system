@@ -7,6 +7,202 @@ const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMME
 const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
 };
+const objectValue = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+const normalizePostIdentityValue = (value = "") => {
+  const normalized = text(value);
+  if (!normalized) return "";
+  return normalized
+    .replace(/^(social_comment|facebook_comment|instagram_comment|facebook_post|instagram_post):/i, "")
+    .replace(/^(facebook|instagram):/i, "")
+    .trim();
+};
+const pushIdentityCandidate = (candidates = [], seen = new Set(), key = "", value = "") => {
+  const raw = text(value);
+  if (!raw) return;
+  const normalized = normalizePostIdentityValue(raw);
+  if (!normalized) return;
+  if (!seen.has(normalized)) {
+    seen.add(normalized);
+    candidates.push({ key, value: normalized });
+  }
+  if (raw !== normalized && !seen.has(raw)) {
+    seen.add(raw);
+    candidates.push({ key: `${key}_raw`, value: raw });
+  }
+};
+const resolvePostIdentityTrace = ({
+  tenantId = null,
+  platform = "",
+  selectedPostId = "",
+  canonicalPostId = "",
+  platformPostId = "",
+  row = {},
+  post = {},
+  matchedMappingKey = "",
+  productIds = [],
+  rowsAffected = null,
+} = {}) => {
+  const safeRow = objectValue(row);
+  const safePost = objectValue(post);
+  const rowMetadata = objectValue(safeRow.metadata);
+  const postMetadata = objectValue(safePost.metadata);
+  const rowRawPayload = objectValue(safeRow.raw_payload || rowMetadata.raw_payload);
+  const postRawPayload = objectValue(safePost.raw_payload || postMetadata.raw_payload);
+  const rawPayload = objectValue(rowRawPayload.value || postRawPayload.value);
+  return {
+    tenant_id: toTenantId(tenantId) || null,
+    platform: normalizePlatform(platform || safeRow.platform || safePost.platform || ""),
+    selected_post_id: text(selectedPostId || safeRow.selected_post_id || safePost.selected_post_id || ""),
+    post_id: text(canonicalPostId || safeRow.post_id || safePost.post_id || ""),
+    platform_post_id: text(platformPostId || safeRow.platform_post_id || safePost.platform_post_id || ""),
+    canonical_post_id: text(canonicalPostId || safeRow.canonical_post_id || safePost.canonical_post_id || ""),
+    conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || safePost.conversation_id || safePost.external_conversation_id || rowMetadata.conversation_id || postMetadata.conversation_id || ""),
+    parent_id: text(
+      safeRow.parent_id ||
+      safeRow.parent_comment_id ||
+      safePost.parent_id ||
+      safePost.parent_comment_id ||
+      rowMetadata.parent_id ||
+      postMetadata.parent_id ||
+      rowRawPayload.parent_id ||
+      postRawPayload.parent_id ||
+      rawPayload.parent_id ||
+      ""
+    ),
+    raw_webhook_post_id: text(
+      rowRawPayload.post_id ||
+      rowRawPayload.media_id ||
+      rowRawPayload.id ||
+      postRawPayload.post_id ||
+      postRawPayload.media_id ||
+      postRawPayload.id ||
+      rawPayload.post_id ||
+      rawPayload.media_id ||
+      rawPayload.id ||
+      rowMetadata.raw_webhook_post_id ||
+      postMetadata.raw_webhook_post_id ||
+      ""
+    ),
+    raw_graph_post_id: text(
+      rowRawPayload.graph_post_id ||
+      postRawPayload.graph_post_id ||
+      rawPayload.graph_post_id ||
+      rowRawPayload.post?.id ||
+      postRawPayload.post?.id ||
+      rawPayload.post?.id ||
+      safeRow.raw_graph_post_id ||
+      safePost.raw_graph_post_id ||
+      ""
+    ),
+    permalink_url: text(
+      safeRow.permalink_url ||
+      safeRow.post_permalink_url ||
+      safePost.permalink_url ||
+      safePost.post_permalink_url ||
+      rowRawPayload.permalink_url ||
+      rowRawPayload.post_permalink_url ||
+      postRawPayload.permalink_url ||
+      postRawPayload.post_permalink_url ||
+      rawPayload.permalink_url ||
+      rawPayload.post_permalink_url ||
+      ""
+    ),
+    source_post_id: text(
+      safeRow.source_post_id ||
+      safePost.source_post_id ||
+      rowMetadata.source_post_id ||
+      postMetadata.source_post_id ||
+      rowRawPayload.source_post_id ||
+      postRawPayload.source_post_id ||
+      rawPayload.source_post_id ||
+      ""
+    ),
+    wrapper_post_id: text(
+      safeRow.wrapper_post_id ||
+      safePost.wrapper_post_id ||
+      rowMetadata.wrapper_post_id ||
+      postMetadata.wrapper_post_id ||
+      rowRawPayload.wrapper_post_id ||
+      postRawPayload.wrapper_post_id ||
+      rawPayload.wrapper_post_id ||
+      ""
+    ),
+    internal_post_id: text(
+      safeRow.internal_post_id ||
+      safePost.internal_post_id ||
+      rowMetadata.internal_post_id ||
+      postMetadata.internal_post_id ||
+      rowRawPayload.internal_post_id ||
+      postRawPayload.internal_post_id ||
+      rawPayload.internal_post_id ||
+      ""
+    ),
+    matched_mapping_key: text(matchedMappingKey || ""),
+    product_ids: Array.isArray(productIds) ? Array.from(new Set(productIds.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0))) : [],
+    rows_affected: rowsAffected === null ? null : Number(rowsAffected) || 0,
+  };
+};
+const collectPostIdentityCandidates = ({ postId = "", selectedPostId = "", row = {}, post = {} } = {}) => {
+  const candidates = [];
+  const seen = new Set();
+  const safeRow = objectValue(row);
+  const safePost = objectValue(post);
+  const rowMetadata = objectValue(safeRow.metadata);
+  const postMetadata = objectValue(safePost.metadata);
+  const rowRawPayload = objectValue(safeRow.raw_payload || rowMetadata.raw_payload);
+  const postRawPayload = objectValue(safePost.raw_payload || postMetadata.raw_payload);
+  const rowRawValue = objectValue(rowRawPayload.value || {});
+  const postRawValue = objectValue(postRawPayload.value || {});
+  const push = (key, value) => pushIdentityCandidate(candidates, seen, key, value);
+  push("selected_post_id", selectedPostId);
+  push("post_id", postId);
+  push("canonical_post_id", safeRow.canonical_post_id || safePost.canonical_post_id || rowMetadata.canonical_post_id || postMetadata.canonical_post_id || "");
+  push("platform_post_id", safeRow.platform_post_id || safePost.platform_post_id || rowMetadata.platform_post_id || postMetadata.platform_post_id || "");
+  push("conversation_id", safeRow.conversation_id || safeRow.external_conversation_id || safePost.conversation_id || safePost.external_conversation_id || rowMetadata.conversation_id || postMetadata.conversation_id || "");
+  push("conversation_id_stripped", normalizePostIdentityValue(safeRow.conversation_id || safeRow.external_conversation_id || safePost.conversation_id || safePost.external_conversation_id || ""));
+  push("parent_id", safeRow.parent_id || safeRow.parent_comment_id || safePost.parent_id || safePost.parent_comment_id || rowMetadata.parent_id || postMetadata.parent_id || rowRawPayload.parent_id || postRawPayload.parent_id || rowRawValue.parent_id || postRawValue.parent_id || "");
+  push("parent_post_id", safeRow.parent_post_id || safePost.parent_post_id || rowMetadata.parent_post_id || postMetadata.parent_post_id || rowRawPayload.parent_post_id || postRawPayload.parent_post_id || rowRawValue.parent_post_id || postRawValue.parent_post_id || "");
+  push("source_post_id", safeRow.source_post_id || safePost.source_post_id || rowMetadata.source_post_id || postMetadata.source_post_id || rowRawPayload.source_post_id || postRawPayload.source_post_id || rowRawValue.source_post_id || postRawValue.source_post_id || "");
+  push("wrapper_post_id", safeRow.wrapper_post_id || safePost.wrapper_post_id || rowMetadata.wrapper_post_id || postMetadata.wrapper_post_id || rowRawPayload.wrapper_post_id || postRawPayload.wrapper_post_id || rowRawValue.wrapper_post_id || postRawValue.wrapper_post_id || "");
+  push("internal_post_id", safeRow.internal_post_id || safePost.internal_post_id || rowMetadata.internal_post_id || postMetadata.internal_post_id || rowRawPayload.internal_post_id || postRawPayload.internal_post_id || rowRawValue.internal_post_id || postRawValue.internal_post_id || "");
+  push("raw_webhook_post_id", rowRawPayload.post_id || rowRawPayload.media_id || rowRawPayload.id || postRawPayload.post_id || postRawPayload.media_id || postRawPayload.id || rowRawValue.post_id || rowRawValue.media_id || rowRawValue.id || postRawValue.post_id || postRawValue.media_id || postRawValue.id || "");
+  push("raw_graph_post_id", rowRawPayload.graph_post_id || postRawPayload.graph_post_id || rowRawValue.graph_post_id || postRawValue.graph_post_id || rowRawPayload.post?.id || postRawPayload.post?.id || rowRawValue.post?.id || postRawValue.post?.id || "");
+  push("permalink_url", safeRow.permalink_url || safeRow.post_permalink_url || safePost.permalink_url || safePost.post_permalink_url || rowRawPayload.permalink_url || postRawPayload.permalink_url || rowRawValue.permalink_url || postRawValue.permalink_url || "");
+  push("post_permalink_url", safeRow.post_permalink_url || safePost.post_permalink_url || rowRawPayload.post_permalink_url || postRawPayload.post_permalink_url || rowRawValue.post_permalink_url || postRawValue.post_permalink_url || "");
+  push("post_url", safeRow.post_url || safePost.post_url || rowRawPayload.post_url || postRawPayload.post_url || rowRawValue.post_url || postRawValue.post_url || "");
+  return candidates;
+};
+const resolveMatchedMappingKey = ({ row = {}, candidates = [] } = {}) => {
+  const safeRow = objectValue(row);
+  const rowValues = new Set(
+    [
+      safeRow.platform_post_id,
+      safeRow.post_id,
+      safeRow.media_id,
+      safeRow.canonical_post_id,
+      safeRow.source_post_id,
+      safeRow.wrapper_post_id,
+      safeRow.internal_post_id,
+      safeRow.conversation_id,
+      safeRow.external_conversation_id,
+      safeRow.parent_id,
+      safeRow.parent_post_id,
+      safeRow.metadata?.post_id,
+      safeRow.metadata?.platform_post_id,
+      safeRow.metadata?.external_post_id,
+      safeRow.metadata?.wrapper_post_id,
+      safeRow.metadata?.internal_post_id,
+      safeRow.metadata?.conversation_id,
+      safeRow.metadata?.parent_id,
+    ].map((value) => text(value)).filter(Boolean)
+  );
+  for (const candidate of Array.isArray(candidates) ? candidates : []) {
+    if (candidate?.value && rowValues.has(candidate.value)) {
+      return candidate.key || candidate.value;
+    }
+  }
+  return "";
+};
 
 const normalizePlatform = (value = "") => (lower(value) === "instagram" ? "instagram" : "facebook");
 
@@ -210,49 +406,8 @@ const hydrateProduct = (product = {}, variants = []) => {
   };
 };
 
-const getPostIdentityCandidates = ({ postId = "", row = {}, post = {} } = {}) => {
-  const safeRow = row && typeof row === "object" ? row : {};
-  const safePost = post && typeof post === "object" ? post : {};
-  const safeRowMetadata = safeRow.metadata && typeof safeRow.metadata === "object" ? safeRow.metadata : {};
-  const safePostMetadata = safePost.metadata && typeof safePost.metadata === "object" ? safePost.metadata : {};
-  return Array.from(
-    new Set(
-      [
-        postId,
-        safeRow.canonical_post_id,
-        safeRow.platform_post_id,
-        safeRow.post_id,
-        safeRow.wrapper_post_id,
-        safeRow.internal_post_id,
-        safeRow.source_post_id,
-        safeRow.conversation_id,
-        safeRow.external_conversation_id,
-        safeRowMetadata.post_id,
-        safeRowMetadata.platform_post_id,
-        safeRowMetadata.external_post_id,
-        safeRowMetadata.wrapper_post_id,
-        safeRowMetadata.internal_post_id,
-        safeRowMetadata.conversation_id,
-        safePost.canonical_post_id,
-        safePost.platform_post_id,
-        safePost.post_id,
-        safePost.wrapper_post_id,
-        safePost.internal_post_id,
-        safePost.source_post_id,
-        safePost.conversation_id,
-        safePost.external_conversation_id,
-        safePostMetadata.post_id,
-        safePostMetadata.platform_post_id,
-        safePostMetadata.external_post_id,
-        safePostMetadata.wrapper_post_id,
-        safePostMetadata.internal_post_id,
-        safePostMetadata.conversation_id,
-      ]
-        .map(text)
-        .filter(Boolean)
-    )
-  );
-};
+const getPostIdentityCandidates = ({ postId = "", selectedPostId = "", row = {}, post = {} } = {}) =>
+  collectPostIdentityCandidates({ postId, selectedPostId, row, post }).map((candidate) => candidate.value);
 
 const getPlatformPostId = ({ postId = "", row = {}, post = {}, platform = "" } = {}) =>
   firstText(
@@ -392,10 +547,10 @@ const fetchVariantsByProductIds = async ({ tenantId = null, productIds = [] } = 
   return fallbackRows.rows || [];
 };
 
-const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId = "" } = {}) => {
+const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "" } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const normalizedPlatform = normalizePlatform(platform || post?.platform || "");
-  const candidatePostIds = getPostIdentityCandidates({ postId, row: post, post });
+  const candidatePostIds = getPostIdentityCandidates({ postId, selectedPostId, row: post, post });
   if (!safeTenantId || !candidatePostIds.length) return [];
   debugSocialCommentsWarn("SOCIAL_COMMENTS_POSTS_SQL_2", {
     tenant_id: safeTenantId,
@@ -440,20 +595,26 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
 };
 
 const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", canonicalPostId = "", platformPostId = "", productIds = [], rowsAffected = null } = {}) => {
-  const rows = await fetchLinkRows({ tenantId, platform, post, postId });
+  const rows = await fetchLinkRows({ tenantId, platform, post, postId, selectedPostId });
+  const identityCandidates = collectPostIdentityCandidates({ postId, selectedPostId, row: post, post });
+  const matchedMappingKey = rows.length ? resolveMatchedMappingKey({ row: rows[0], candidates: identityCandidates }) : "";
   if (!rows.length) {
     console.info("POST_PRODUCT_LINKS_READBACK", {
-      ...buildProductLinkLogContext({
+      ...resolvePostIdentityTrace({
         tenantId,
         platform,
         selectedPostId: selectedPostId || postId,
         canonicalPostId: canonicalPostId || postId,
         platformPostId: platformPostId || getPlatformPostId({ tenantId, platform, post, postId }),
+        row: post,
+        post,
         productIds,
         rowsAffected,
+        matchedMappingKey: "",
       }),
       post_id: getPlatformPostId({ tenantId, platform, post, postId }),
       count: 0,
+      matched_mapping_key: "",
     });
     return {
       linked_products: [],
@@ -462,6 +623,7 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
       post_id: getPlatformPostId({ tenantId, platform, post, postId }),
       platform: normalizePlatform(platform || post?.platform || ""),
       tenant_id: toTenantId(tenantId) || null,
+      matched_mapping_key: "",
     };
   }
 
@@ -521,18 +683,22 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
 
   const primaryProduct = linkedProducts.find((item) => item.is_primary) || linkedProducts[0] || null;
   console.info("POST_PRODUCT_LINKS_READBACK", {
-    ...buildProductLinkLogContext({
+    ...resolvePostIdentityTrace({
       tenantId,
       platform,
       selectedPostId: selectedPostId || postId,
       canonicalPostId: canonicalPostId || postId,
       platformPostId: platformPostId || getPlatformPostId({ tenantId, platform, post, postId }),
+      row: post,
+      post,
       productIds: linkedProducts.map((item) => item.product_id || item.id || null).filter(Boolean),
       rowsAffected,
+      matchedMappingKey,
     }),
     post_id: getPlatformPostId({ tenantId, platform, post, postId }),
     count: linkedProducts.length,
     primary_product_id: primaryProduct?.product_id || primaryProduct?.id || null,
+    matched_mapping_key: matchedMappingKey,
   });
   return {
     linked_products: linkedProducts,
@@ -541,6 +707,7 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
     post_id: getPlatformPostId({ tenantId, platform, post, postId }),
     platform: normalizePlatform(platform || post?.platform || ""),
     tenant_id: toTenantId(tenantId) || null,
+    matched_mapping_key: matchedMappingKey,
   };
 };
 
@@ -572,27 +739,37 @@ export const resolvePrimaryProduct = async ({ tenantId = null, platform = "", po
   return mappings.primary_product || null;
 };
 
-export const saveMappings = async ({ tenantId = null, platform = "", postId = "", row = {}, post = {}, productIds = [], primaryProductId = null, userId = null } = {}) => {
+export const saveMappings = async ({ tenantId = null, platform = "", postId = "", selectedPostId = "", row = {}, post = {}, productIds = [], primaryProductId = null, userId = null } = {}) => {
   await ensurePostProductMappingSchema();
   const safeTenantId = toTenantId(tenantId || row?.tenant_id || post?.tenant_id || 0);
   const normalizedPlatform = normalizePlatform(platform || row?.platform || post?.platform || "");
   const platformPostId = getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" });
   const safeProductIds = Array.from(new Set((Array.isArray(productIds) ? productIds : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)));
   const primaryId = Number(primaryProductId ?? safeProductIds[0] ?? 0) || null;
-  const candidatePostIds = getPostIdentityCandidates({ postId: platformPostId, row, post });
+  const candidatePostIds = getPostIdentityCandidates({ postId: platformPostId, selectedPostId: selectedPostId || postId || row?.post_id || post?.post_id || "", row, post });
+  const selectedIdentity = text(selectedPostId || postId || row?.post_id || post?.post_id || "");
+  const identityTrace = resolvePostIdentityTrace({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    selectedPostId: selectedIdentity,
+    canonicalPostId: platformPostId,
+    platformPostId,
+    row,
+    post,
+    productIds: safeProductIds,
+    matchedMappingKey: "",
+  });
+  console.info("POST_PRODUCT_LINK_IDENTITY_TRACE", {
+    ...identityTrace,
+    candidate_post_ids: candidatePostIds,
+    primary_product_id: primaryId,
+  });
   console.info("POST_PRODUCT_LINKS_SAVE_REQUEST", {
-    ...buildProductLinkLogContext({
-      tenantId: safeTenantId,
-      platform: normalizedPlatform,
-      selectedPostId: postId || row?.post_id || post?.post_id || "",
-      canonicalPostId: platformPostId,
-      platformPostId,
-      productIds: safeProductIds,
-    }),
+    ...identityTrace,
     primary_product_id: primaryId,
     candidate_post_ids: candidatePostIds,
   });
-  if (!safeTenantId || !platformPostId) return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId });
+  if (!safeTenantId || !platformPostId) return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId, selectedPostId: selectedIdentity });
 
   const client = await db.connect();
   try {
@@ -621,17 +798,12 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       const productId = safeProductIds[index];
       const isPrimary = primaryId ? Number(primaryId) === Number(productId) : index === 0;
       console.info("POST_PRODUCT_LINKS_DB_INSERT", {
-        ...buildProductLinkLogContext({
-          tenantId: safeTenantId,
-          platform: normalizedPlatform,
-          selectedPostId: postId || row?.post_id || post?.post_id || "",
-          canonicalPostId: platformPostId,
-          platformPostId,
-          productIds: [productId],
-          rowsAffected: 0,
-        }),
+        ...identityTrace,
+        candidate_post_ids: candidatePostIds,
         primary_product_id: primaryId,
         is_primary: Boolean(isPrimary),
+        product_ids: [productId],
+        rows_affected: 0,
       });
       const insertResult = await client.query(
         `
@@ -665,8 +837,8 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
           safeTenantId,
           normalizedPlatform,
           platformPostId,
-          platformPostId,
-          normalizedPlatform === "instagram" ? platformPostId : "",
+          selectedIdentity || identityTrace.raw_webhook_post_id || platformPostId,
+          identityTrace.raw_graph_post_id || identityTrace.raw_webhook_post_id || selectedIdentity || platformPostId,
           productId,
           index + 1,
           isPrimary,
@@ -675,17 +847,12 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       );
       rowsAffected += Number(insertResult.rowCount || 0) || 0;
       console.info("POST_PRODUCT_LINKS_DB_UPSERT", {
-        ...buildProductLinkLogContext({
-          tenantId: safeTenantId,
-          platform: normalizedPlatform,
-          selectedPostId: postId || row?.post_id || post?.post_id || "",
-          canonicalPostId: platformPostId,
-          platformPostId,
-          productIds: [productId],
-          rowsAffected: insertResult.rowCount || 0,
-        }),
+        ...identityTrace,
+        candidate_post_ids: candidatePostIds,
         primary_product_id: primaryId,
         is_primary: Boolean(isPrimary),
+        product_ids: [productId],
+        rows_affected: insertResult.rowCount || 0,
         rows: insertResult.rows || [],
       });
     }
@@ -702,14 +869,17 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       [safeTenantId, normalizedPlatform, platformPostId]
     ).catch(() => ({ rows: [] }));
     console.info("POST_PRODUCT_LINKS_DB_RESULT", {
-      ...buildProductLinkLogContext({
+      ...resolvePostIdentityTrace({
         tenantId: safeTenantId,
         platform: normalizedPlatform,
-        selectedPostId: postId || row?.post_id || post?.post_id || "",
+        selectedPostId: selectedIdentity,
         canonicalPostId: platformPostId,
         platformPostId,
+        row,
+        post,
         productIds: safeProductIds,
         rowsAffected,
+        matchedMappingKey: resolveMatchedMappingKey({ row: dbResult.rows?.[0] || {}, candidates: candidatePostIds }),
       }),
       count: Number(dbResult.rows?.length || 0) || 0,
       rows: dbResult.rows || [],
@@ -717,14 +887,17 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
 
     await client.query("COMMIT");
     console.info("POST_PRODUCT_LINKS_SAVED", {
-      ...buildProductLinkLogContext({
+      ...resolvePostIdentityTrace({
         tenantId: safeTenantId,
         platform: normalizedPlatform,
-        selectedPostId: postId || row?.post_id || post?.post_id || "",
+        selectedPostId: selectedIdentity,
         canonicalPostId: platformPostId,
         platformPostId,
+        row,
+        post,
         productIds: safeProductIds,
         rowsAffected,
+        matchedMappingKey: resolveMatchedMappingKey({ row: dbResult.rows?.[0] || {}, candidates: candidatePostIds }),
       }),
       post_id: platformPostId,
       product_ids: safeProductIds,
@@ -744,7 +917,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     postId: platformPostId,
     row,
     post,
-    selectedPostId: postId || row?.post_id || post?.post_id || "",
+    selectedPostId: selectedIdentity,
     canonicalPostId: platformPostId,
     platformPostId,
     productIds: safeProductIds,
@@ -809,3 +982,6 @@ export default {
   resolveMappedProducts,
   resolvePrimaryProduct,
 };
+
+export const buildPostIdentityTrace = resolvePostIdentityTrace;
+export const collectPostIdentityTraceCandidates = collectPostIdentityCandidates;

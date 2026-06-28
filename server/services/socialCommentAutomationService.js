@@ -4347,6 +4347,19 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
     from_id: commenterId,
     text_length: originalCommentText.length,
   });
+  console.info("SOCIAL_COMMENT_POST_IDENTITY_TRACE", {
+    tenant_id: tenantId,
+    platform,
+    post_id: postId,
+    platform_post_id: firstText(value.post_id, value.media_id, value.id, entry.id),
+    canonical_post_id: firstText(value.post?.id, value.post?.post_id, value.parent?.post_id, value.parent?.id, postId),
+    conversation_id: firstText(value.conversation_id, value.thread_id, entry.conversation_id, entry.id, value.parent?.conversation_id),
+    parent_id: parentCommentId,
+    raw_webhook_post_id: firstText(value.post_id, value.media_id, value.id, entry.id),
+    raw_graph_post_id: firstText(value.post?.id, value.parent?.post_id, value.parent?.id, value.post?.object_id, value.graph_post_id),
+    permalink_url: postPermalink,
+    comment_id: commentId,
+  });
 
   return {
     tenant_id: tenantId,
