@@ -350,6 +350,18 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
     const tenantId = toTenantId(req);
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
+    console.info("POST_PRODUCT_LINKS_SAVE_REQUEST", {
+      tenant_id: tenantId,
+      platform: String(platform || "").trim() || "facebook",
+      selected_post_id: requestedPostId,
+      canonical_post_id: "",
+      platform_post_id: "",
+      product_ids: Array.isArray(req.body?.product_ids)
+        ? req.body.product_ids
+        : Array.isArray(req.body?.productIds)
+          ? req.body.productIds
+          : [],
+    });
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
     const canonicalPostId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
     const postId = canonicalPostId;
