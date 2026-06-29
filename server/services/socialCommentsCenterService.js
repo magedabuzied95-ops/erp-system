@@ -2109,6 +2109,116 @@ const normalizeSocialCommentAutomationConfigRow = (row = {}, defaults = {}) => (
   persisted: Boolean(row.id),
 });
 
+const buildSocialCommentAutomationConfigSelectionReason = (row = {}, canonicalPostId = "") => {
+  if (!row || typeof row !== "object") return "no_row";
+  if (Boolean(row.enabled)) return "enabled_first";
+  if (row.product_id) return "product_id_present";
+  if (text(row.post_id || "") === text(canonicalPostId || "")) return "canonical_exact";
+  return "latest_updated";
+};
+
+const selectEffectiveSocialCommentAutomationConfigRow = (rows = [], canonicalPostId = "") => {
+  const safeRows = Array.isArray(rows) ? rows.filter((row) => row && typeof row === "object") : [];
+  if (!safeRows.length) return { row: null, selectionReason: "no_candidates" };
+  const ranked = [...safeRows].sort((left, right) => {
+    const leftEnabled = left.enabled ? 1 : 0;
+    const rightEnabled = right.enabled ? 1 : 0;
+    if (leftEnabled !== rightEnabled) return rightEnabled - leftEnabled;
+    const leftProduct = left.product_id ? 1 : 0;
+    const rightProduct = right.product_id ? 1 : 0;
+    if (leftProduct !== rightProduct) return rightProduct - leftProduct;
+    const leftCanonical = text(left.post_id || "") === text(canonicalPostId || "") ? 1 : 0;
+    const rightCanonical = text(right.post_id || "") === text(canonicalPostId || "") ? 1 : 0;
+    if (leftCanonical !== rightCanonical) return rightCanonical - leftCanonical;
+    const leftUpdated = new Date(left.updated_at || left.created_at || 0).getTime();
+    const rightUpdated = new Date(right.updated_at || right.created_at || 0).getTime();
+    if (leftUpdated !== rightUpdated) return rightUpdated - leftUpdated;
+    const leftTemplates = metadataObject(left.message_templates);
+    const rightTemplates = metadataObject(right.message_templates);
+    const leftHasTemplates = Object.keys(leftTemplates).length ? 1 : 0;
+    const rightHasTemplates = Object.keys(rightTemplates).length ? 1 : 0;
+    if (leftHasTemplates !== rightHasTemplates) return rightHasTemplates - leftHasTemplates;
+    const leftSettings = metadataObject(left.settings);
+    const rightSettings = metadataObject(right.settings);
+    const leftHasSettings = Object.keys(leftSettings).length ? 1 : 0;
+    const rightHasSettings = Object.keys(rightSettings).length ? 1 : 0;
+    if (leftHasSettings !== rightHasSettings) return rightHasSettings - leftHasSettings;
+    return Number(right.id || 0) - Number(left.id || 0);
+  });
+  const selectedRow = ranked[0] || null;
+  return {
+    row: selectedRow,
+    selectionReason: buildSocialCommentAutomationConfigSelectionReason(selectedRow, canonicalPostId),
+  };
+};
+
+export const getEffectiveSocialCommentAutomationConfig = async ({ tenantId = null, platform = "", postId = "", canonicalPostId = "", row = {}, post = {} } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const normalizedPlatform = normalizePlatform(platform);
+  const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: text(canonicalPostId || postId || row?.post_id || post?.post_id || ""),
+    row,
+    post,
+    source: "getEffectiveSocialCommentAutomationConfig",
+  }).catch(() => null);
+  const resolvedCanonicalPostId = text(
+    canonicalIdentity?.canonical_post_id ||
+    canonicalPostId ||
+    post?.canonical_post_id ||
+    row?.canonical_post_id ||
+    resolveSocialCommentCanonicalPostId(post || row || {}) ||
+    postId
+  );
+  if (!safeTenantId || !resolvedCanonicalPostId) {
+    return {
+      canonicalPostId: resolvedCanonicalPostId,
+      selectedRow: null,
+      selectedConfigId: null,
+      selectedEnabled: false,
+      candidateRows: [],
+      candidatePostIds: [],
+      selectionReason: "missing_identity",
+    };
+  }
+  const candidateEntries = collectSocialCommentAutomationConfigCandidates({ postId: resolvedCanonicalPostId || postId, row, post });
+  const aliasValues = Array.isArray(canonicalIdentity?.aliases) ? canonicalIdentity.aliases.map((alias) => text(alias?.alias_value || "")).filter(Boolean) : [];
+  const candidatePostIds = Array.from(new Set([resolvedCanonicalPostId, postId, ...candidateEntries.map((entry) => entry.value), ...aliasValues].map((value) => text(value)).filter(Boolean)));
+  const candidateResult = await db.query(
+    `
+    SELECT *
+    FROM social_comment_post_automation_configs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND post_id = ANY($3::text[])
+    `,
+    [safeTenantId, normalizedPlatform, candidatePostIds]
+  ).catch(() => ({ rows: [] }));
+  const candidateRows = candidateResult.rows || [];
+  const { row: selectedRow, selectionReason } = selectEffectiveSocialCommentAutomationConfigRow(candidateRows, resolvedCanonicalPostId);
+  console.info("SOCIAL_COMMENT_EFFECTIVE_CONFIG_SELECTED", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    canonical_post_id: resolvedCanonicalPostId,
+    selected_config_id: selectedRow?.id || null,
+    selected_enabled: Boolean(selectedRow?.enabled),
+    candidate_config_ids: candidateRows.map((item) => item.id || null),
+    candidate_enabled_values: candidateRows.map((item) => Boolean(item.enabled)),
+    selection_reason: selectionReason,
+  });
+  return {
+    canonicalPostId: resolvedCanonicalPostId,
+    canonicalIdentity,
+    selectedRow,
+    selectedConfigId: selectedRow?.id || null,
+    selectedEnabled: Boolean(selectedRow?.enabled),
+    candidateRows,
+    candidatePostIds,
+    selectionReason,
+  };
+};
+
 const ensureSocialCommentAutomationConfigRecord = async ({ tenantId = null, platform = "", postId = "", row = {}, post = {}, hydratePost = false } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const normalizedPlatform = normalizePlatform(platform);
@@ -2142,20 +2252,16 @@ const ensureSocialCommentAutomationConfigRecord = async ({ tenantId = null, plat
   });
   const rawSettings = metadataObject(postDefaults.settings || {});
   const rawTemplates = metadataObject(postDefaults.message_templates || {});
-  const existing = await db.query(
-    `
-    SELECT *
-    FROM social_comment_post_automation_configs
-    WHERE tenant_id = $1::bigint
-      AND platform = $2::text
-      AND post_id = $3::text
-    ORDER BY updated_at DESC, created_at DESC, id DESC
-    LIMIT 1
-    `,
-    [safeTenantId, normalizedPlatform, targetPostId]
-  ).catch(() => ({ rows: [] }));
-  if (existing.rows?.[0]) {
-    const existingRow = normalizeSocialCommentAutomationConfigRow(existing.rows[0], {
+  const effectiveBeforeEnsure = await getEffectiveSocialCommentAutomationConfig({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: targetPostId,
+    canonicalPostId: targetPostId,
+    row: safeRow,
+    post: safePost,
+  }).catch(() => null);
+  if (effectiveBeforeEnsure?.selectedRow) {
+    const existingRow = normalizeSocialCommentAutomationConfigRow(effectiveBeforeEnsure.selectedRow, {
       postId: targetPostId,
       platform: normalizedPlatform,
       product_id: postDefaults.product_id ?? null,
@@ -2213,17 +2319,15 @@ const ensureSocialCommentAutomationConfigRecord = async ({ tenantId = null, plat
       JSON.stringify(rawTemplates),
     ]
   );
-  const ensuredRow = result.rows?.[0] || (await db.query(
-    `
-    SELECT *
-    FROM social_comment_post_automation_configs
-    WHERE tenant_id = $1::bigint
-      AND platform = $2::text
-      AND post_id = $3::text
-    LIMIT 1
-    `,
-    [safeTenantId, normalizedPlatform, targetPostId]
-  ).catch(() => ({ rows: [] }))).rows?.[0] || null;
+  const ensuredEffective = await getEffectiveSocialCommentAutomationConfig({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: targetPostId,
+    canonicalPostId: targetPostId,
+    row: safeRow,
+    post: safePost,
+  }).catch(() => null);
+  const ensuredRow = result.rows?.[0] || ensuredEffective?.selectedRow || null;
   if (!ensuredRow) return null;
   const normalized = normalizeSocialCommentAutomationConfigRow(ensuredRow, {
     postId: targetPostId,
@@ -2391,7 +2495,6 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
     }).catch(() => {});
   }
   const candidateEntries = collectSocialCommentAutomationConfigCandidates({ postId: safePostId, row, post });
-  const candidatePostIds = Array.from(new Set(candidateEntries.map((entry) => entry.value).filter(Boolean)));
   console.log("CONFIG_LOOKUP_INPUT", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
@@ -2405,27 +2508,25 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
   if (!candidateLookupIds.length) {
     return null;
   }
-  const result = await db.query(
-    `
-    SELECT *
-    FROM social_comment_post_automation_configs
-    WHERE tenant_id = $1::bigint
-      AND platform = $2::text
-      AND post_id = ANY($3::text[])
-    ORDER BY updated_at DESC, created_at DESC, id DESC
-    `,
-    [safeTenantId, normalizedPlatform, candidateLookupIds]
-  );
-  const configRow = result.rows?.[0] || null;
+  const effectiveConfig = await getEffectiveSocialCommentAutomationConfig({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+    canonicalPostId,
+    row,
+    post,
+  }).catch(() => null);
+  const configRow = effectiveConfig?.selectedRow || null;
   if (configRow) {
     const defaults = await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId, post, hydratePost });
     const matchedEntry = candidateEntries.find((entry) => text(configRow.post_id) === entry.value) || null;
     const normalizedConfig = {
       ...normalizeSocialCommentAutomationConfigRow(configRow, defaults),
+      post_id: text(effectiveConfig?.canonicalPostId || configRow.post_id || safePostId),
       lookup_matched_key: matchedEntry?.key || "post_id",
-      lookup_matched_post_id: matchedEntry?.value || text(configRow.post_id || safePostId),
-      lookup_candidate_post_ids: candidateEntries.map((entry) => ({ key: entry.key, value: entry.value })),
-      lookup_source: matchedEntry?.key && matchedEntry.key !== "post_id" ? "variant" : "exact",
+      lookup_matched_post_id: text(effectiveConfig?.canonicalPostId || matchedEntry?.value || configRow.post_id || safePostId),
+      lookup_candidate_post_ids: (effectiveConfig?.candidatePostIds || candidateEntries.map((entry) => entry.value)).map((value) => ({ key: "candidate", value })),
+      lookup_source: effectiveConfig?.selectionReason || (matchedEntry?.key && matchedEntry.key !== "post_id" ? "variant" : "exact"),
     };
     console.log("CONFIG_LOOKUP_RESULT", {
       matched_key: normalizedConfig.lookup_matched_key || "post_id",
@@ -2500,19 +2601,21 @@ export const upsertSocialCommentAutomationConfig = async ({ tenantId = null, pla
     : hasSettingsEnabled
       ? Boolean(rawSettings.enabled)
       : Boolean(defaults.enabled);
-  const existingBeforeWrite = await db.query(
-    `
-    SELECT id, enabled, post_id
-    FROM social_comment_post_automation_configs
-    WHERE tenant_id = $1::bigint
-      AND platform = $2::text
-      AND post_id = $3::text
-    ORDER BY updated_at DESC, created_at DESC, id DESC
-    LIMIT 1
-    `,
-    [safeTenantId, normalizedPlatform, canonicalPostId || safePostId]
-  ).catch(() => ({ rows: [] }));
-  const existingConfigRow = existingBeforeWrite.rows?.[0] || null;
+  const existingEffective = await getEffectiveSocialCommentAutomationConfig({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+    canonicalPostId: canonicalPostId || safePostId,
+    row: payload,
+    post: payload,
+  }).catch(() => null);
+  const existingConfigRow = existingEffective?.selectedRow || null;
+  const canonicalExistingRow =
+    existingEffective?.candidateRows?.find((candidate) => text(candidate.post_id || "") === text(canonicalPostId || safePostId)) || null;
+  const writeTargetRow =
+    canonicalExistingRow && existingConfigRow && text(existingConfigRow.post_id || "") !== text(canonicalPostId || safePostId)
+      ? canonicalExistingRow
+      : existingConfigRow;
   const mergedSettings = normalizeSocialCommentAutomationSettings({
     ...defaults.settings,
     ...rawSettings,
@@ -2536,60 +2639,99 @@ export const upsertSocialCommentAutomationConfig = async ({ tenantId = null, pla
     messageTemplates.aiOpeningPrompt = text(rawTemplates.aiOpeningPrompt);
   }
 
-  const result = await db.query(
-    `
-    INSERT INTO social_comment_post_automation_configs (
-      tenant_id,
-      post_id,
-      platform,
-      product_id,
-      template_key,
-      enabled,
-      settings,
-      message_templates,
-      created_at,
-      updated_at
+  const writeResult = writeTargetRow?.id
+    ? await db.query(
+      `
+      UPDATE social_comment_post_automation_configs
+      SET post_id = $4::text,
+          product_id = $5::bigint,
+          template_key = $6::text,
+          enabled = $7::boolean,
+          settings = $8::jsonb,
+          message_templates = $9::jsonb,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $3::bigint
+        AND tenant_id = $1::bigint
+        AND platform = $2::text
+      RETURNING *
+      `,
+      [
+        safeTenantId,
+        normalizedPlatform,
+        writeTargetRow.id,
+        canonicalPostId || safePostId,
+        productId,
+        templateKey,
+        requestedEnabled,
+        JSON.stringify(mergedSettings),
+        JSON.stringify(messageTemplates),
+      ]
     )
-    VALUES (
-      $1::bigint,
-      $2::text,
-      $3::text,
-      $4::bigint,
-      $5::text,
-      $6::boolean,
-      $7::jsonb,
-      $8::jsonb,
-      CURRENT_TIMESTAMP,
-      CURRENT_TIMESTAMP
-    )
-    ON CONFLICT (tenant_id, post_id, platform) DO UPDATE SET
-      product_id = EXCLUDED.product_id,
-      template_key = EXCLUDED.template_key,
-      enabled = EXCLUDED.enabled,
-      settings = EXCLUDED.settings,
-      message_templates = EXCLUDED.message_templates,
-      updated_at = CURRENT_TIMESTAMP
-    RETURNING *
-    `,
-    [
-      safeTenantId,
-      canonicalPostId || safePostId,
-      normalizedPlatform,
-      productId,
-      templateKey,
-      requestedEnabled,
-      JSON.stringify(mergedSettings),
-      JSON.stringify(messageTemplates),
-    ]
-  );
-  const row = result.rows?.[0] || null;
+    : await db.query(
+      `
+      INSERT INTO social_comment_post_automation_configs (
+        tenant_id,
+        post_id,
+        platform,
+        product_id,
+        template_key,
+        enabled,
+        settings,
+        message_templates,
+        created_at,
+        updated_at
+      )
+      VALUES (
+        $1::bigint,
+        $2::text,
+        $3::text,
+        $4::bigint,
+        $5::text,
+        $6::boolean,
+        $7::jsonb,
+        $8::jsonb,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+      )
+      ON CONFLICT (tenant_id, post_id, platform) DO UPDATE SET
+        product_id = EXCLUDED.product_id,
+        template_key = EXCLUDED.template_key,
+        enabled = EXCLUDED.enabled,
+        settings = EXCLUDED.settings,
+        message_templates = EXCLUDED.message_templates,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+      `,
+      [
+        safeTenantId,
+        canonicalPostId || safePostId,
+        normalizedPlatform,
+        productId,
+        templateKey,
+        requestedEnabled,
+        JSON.stringify(mergedSettings),
+        JSON.stringify(messageTemplates),
+      ]
+    );
+  const row = writeResult.rows?.[0] || null;
   console.info("AUTOMATION_ENABLE_DB_WRITE", {
-    config_id: row?.id || existingConfigRow?.id || null,
+    config_id: row?.id || writeTargetRow?.id || existingConfigRow?.id || null,
     canonical_post_id: canonicalPostId || safePostId,
     enabled_before: Boolean(existingConfigRow?.enabled),
     enabled_after: Boolean(row?.enabled),
   });
-  return row ? normalizeSocialCommentAutomationConfigRow(row, { postId: canonicalPostId || safePostId, platform: normalizedPlatform, product_id: productId, settings: mergedSettings, message_templates: messageTemplates }) : null;
+  const readbackEffective = await getEffectiveSocialCommentAutomationConfig({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: canonicalPostId || safePostId,
+    canonicalPostId: canonicalPostId || safePostId,
+    row: row || payload,
+    post: row || payload,
+  }).catch(() => null);
+  const effectiveRow = readbackEffective?.selectedRow || row || null;
+  return effectiveRow
+    ? normalizeSocialCommentAutomationConfigRow(effectiveRow, { postId: canonicalPostId || safePostId, platform: normalizedPlatform, product_id: productId, settings: mergedSettings, message_templates: messageTemplates })
+    : null;
 };
 
 export const loadSocialCommentPost = async ({ tenantId = null, platform = "", postId = "" } = {}) => {

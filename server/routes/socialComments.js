@@ -1,7 +1,6 @@
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
-import db from "../database/db.js";
 import {
   getSocialAutoReplySettings,
   getSocialCommentCommentByCommentId,
@@ -329,36 +328,26 @@ router.put("/automation/:postId", protect, permit("settings", "edit"), async (re
     });
     const savedPostId = String(config?.post_id || canonicalPostId || requestedPostId || "").trim();
     const savedPlatform = String(config?.platform || platform || post?.platform || "").trim() || "facebook";
-    const readback = await db.query(
-      `
-      SELECT *
-      FROM social_comment_post_automation_configs
-      WHERE tenant_id = $1::bigint
-        AND platform = $2::text
-        AND post_id = $3::text
-      LIMIT 1
-      `,
-      [tenantId, savedPlatform, savedPostId]
-    );
-    const readbackRow = readback.rows?.[0] || null;
-    if (!readbackRow) {
-      throw Object.assign(new Error("Failed to verify saved automation config"), { status: 500 });
-    }
-    console.info("AUTOMATION_ENABLE_DB_READBACK", {
-      config_id: readbackRow?.id || null,
-      canonical_post_id: canonicalPostId,
-      enabled_before: Boolean(enabledBeforeLookup?.enabled),
-      enabled_after: Boolean(readbackRow?.enabled),
-    });
     const readbackConfig = await getSocialCommentAutomationConfig({
       tenantId,
       platform: savedPlatform,
       postId: savedPostId,
-      row: readbackRow,
+      row: post || {},
       post: {
+        ...(post || {}),
         post_id: savedPostId,
-        canonical_post_id: savedPostId,
+        canonical_post_id: canonicalPostId,
       },
+      hydratePost: false,
+    });
+    if (!readbackConfig) {
+      throw Object.assign(new Error("Failed to verify saved automation config"), { status: 500 });
+    }
+    console.info("AUTOMATION_ENABLE_DB_READBACK", {
+      config_id: readbackConfig?.id || null,
+      canonical_post_id: canonicalPostId,
+      enabled_before: Boolean(enabledBeforeLookup?.enabled),
+      enabled_after: Boolean(readbackConfig?.enabled),
     });
     console.log("AUTOMATION_CONFIG_SAVED", {
       config_id: readbackConfig?.id || config?.id || null,
