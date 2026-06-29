@@ -1278,6 +1278,44 @@ const hasLinkedProductForAutomation = ({ row = {}, productContext = null } = {})
   return Boolean(productContext?.found) || linkedCount > 0 || (Number.isFinite(productId) && productId > 0);
 };
 
+const buildSocialCommentProductResolutionPathPayload = ({ row = {}, productContext = null } = {}) => {
+  const safeRow = row && typeof row === "object" ? row : {};
+  const directProductIdsCount = Number(
+    productContext?.direct_product_ids_count ??
+    safeRow.direct_product_ids_count ??
+    0
+  ) || 0;
+  const siblingProductIdsCount = Number(
+    productContext?.sibling_product_ids_count ??
+    safeRow.sibling_product_ids_count ??
+    0
+  ) || 0;
+  const finalProductIdsCount = Number(
+    productContext?.final_product_ids_count ??
+    productContext?.linked_products_count ??
+    safeRow.linked_products_count ??
+    0
+  ) || 0;
+  return {
+    post_id: text(safeRow.post_id || productContext?.post_id || ""),
+    comment_id: text(safeRow.comment_id || ""),
+    direct_product_ids_count: directProductIdsCount,
+    tried_sibling_lookup: Boolean(
+      productContext?.tried_sibling_lookup ??
+      safeRow.tried_sibling_lookup ??
+      directProductIdsCount === 0
+    ),
+    sibling_product_ids_count: siblingProductIdsCount,
+    final_product_ids_count: finalProductIdsCount,
+    path: text(
+      productContext?.path ||
+      productContext?.source ||
+      safeRow.product_resolution_path ||
+      (finalProductIdsCount > 0 ? "resolved" : "no_linked_product")
+    ),
+  };
+};
+
 const resolveAutomationCommenterIdentity = (row = {}) => {
   const candidateName = resolveSocialCommentCustomerName(row) || text(row.customer_name || row.commenter_name || row.from?.name || "");
   const commenterName = isGenericSocialCommentDisplayName(candidateName) ? "" : candidateName;
@@ -1935,6 +1973,10 @@ const executeSocialCommentAutomationRuntime = async ({
   }
   const effectiveProductContext = Boolean(productContext?.found) ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
   if (!hasProductContext) {
+    console.log("SOCIAL_COMMENT_PRODUCT_RESOLUTION_PATH", buildSocialCommentProductResolutionPathPayload({
+      row: safeRow,
+      productContext,
+    }));
     console.log("SOCIAL_COMMENT_SKIPPED_NO_LINKED_PRODUCT", {
       tenant_id: safeTenantId,
       platform: normalizedPlatform,
@@ -2592,6 +2634,9 @@ const executeSocialCommentAutomationRuntime = async ({
 export const resolveSocialCommentPublishedProductContext = async ({ tenantId = null, row = {} } = {}) => {
   const safeTenantId = Number(tenantId || row.tenant_id || 0);
   const platform = text(row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  let directProductIdsCount = 0;
+  let siblingProductIdsCount = 0;
+  let triedSiblingLookup = false;
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || platform !== "facebook") {
     return {
       found: false,
@@ -2599,6 +2644,11 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       reason: !Number.isFinite(safeTenantId) || safeTenantId <= 0 ? "invalid_tenant" : "non_facebook_platform",
       platform,
       candidate_post_ids: [],
+      direct_product_ids_count: 0,
+      tried_sibling_lookup: false,
+      sibling_product_ids_count: 0,
+      final_product_ids_count: 0,
+      path: "unsupported",
     };
   }
 
@@ -2620,6 +2670,11 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       reason: "missing_post_id",
       platform,
       candidate_post_ids: [],
+      direct_product_ids_count: 0,
+      tried_sibling_lookup: false,
+      sibling_product_ids_count: 0,
+      final_product_ids_count: 0,
+      path: "missing_post_id",
     };
   }
 
@@ -2630,6 +2685,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     row,
     post: row,
   }).catch(() => []);
+  directProductIdsCount = mappedProducts.length;
   if (mappedProducts.length) {
     const primaryMappedProduct = await resolvePrimaryProduct({
       tenantId: safeTenantId,
@@ -2663,9 +2719,22 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       mapped_products: mappedProducts,
       linked_products_count: mappedProducts.length,
       primary_product: primaryMappedProduct,
+      direct_product_ids_count: directProductIdsCount,
+      tried_sibling_lookup: false,
+      sibling_product_ids_count: 0,
+      final_product_ids_count: mappedProducts.length,
+      path: "direct_mapped_products",
     };
   }
 
+  triedSiblingLookup = true;
+  console.log("POST_PRODUCT_LINKS_SIBLING_LOOKUP_START", {
+    tenant_id: safeTenantId,
+    platform,
+    post_id: text(candidatePostIds[0] || ""),
+    comment_id: text(row.comment_id || ""),
+    direct_product_ids_count: directProductIdsCount,
+  });
   const siblingMappings = await resolveProductMappingForSiblingPost({
     tenantId: safeTenantId,
     platform,
@@ -2678,6 +2747,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     row,
     post: row,
   }).catch(() => null);
+  siblingProductIdsCount = Array.isArray(siblingMappings?.linked_products) ? siblingMappings.linked_products.length : 0;
   if (siblingMappings?.linked_products?.length) {
     const primaryMappedProduct = siblingMappings.primary_product || siblingMappings.linked_products[0] || null;
     return {
@@ -2705,6 +2775,11 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       primary_product: primaryMappedProduct,
       sibling_post_id: text(siblingMappings.sibling_post_id || ""),
       sibling_match_reason: text(siblingMappings.sibling_match_reason || ""),
+      direct_product_ids_count: directProductIdsCount,
+      tried_sibling_lookup: triedSiblingLookup,
+      sibling_product_ids_count: siblingProductIdsCount,
+      final_product_ids_count: siblingProductIdsCount,
+      path: "sibling_post_mapping",
     };
   }
 
@@ -2750,6 +2825,11 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       size: text(productRow.size || row.raw_payload?.size || row.size || ""),
       mapped_media_id: text(productRow.mapped_media_id || ""),
       candidate_post_ids: candidatePostIds,
+      direct_product_ids_count: directProductIdsCount,
+      tried_sibling_lookup: triedSiblingLookup,
+      sibling_product_ids_count: siblingProductIdsCount,
+      final_product_ids_count: 1,
+      path: source,
     };
   };
 
@@ -2841,6 +2921,11 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     reason: "product_not_found",
     platform,
     candidate_post_ids: candidatePostIds,
+    direct_product_ids_count: directProductIdsCount,
+    tried_sibling_lookup: triedSiblingLookup,
+    sibling_product_ids_count: siblingProductIdsCount,
+    final_product_ids_count: 0,
+    path: "product_not_found",
   };
 };
 
@@ -3745,7 +3830,10 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         });
         return null;
       })
-      : (console.log("SOCIAL_COMMENT_SKIPPED_NO_LINKED_PRODUCT", {
+      : (console.log("SOCIAL_COMMENT_PRODUCT_RESOLUTION_PATH", buildSocialCommentProductResolutionPathPayload({
+        row: savedRunRow || event || {},
+        productContext: runtimeProductContext,
+      })), console.log("SOCIAL_COMMENT_SKIPPED_NO_LINKED_PRODUCT", {
         tenant_id: safeTenantId,
         platform,
         post_id: postId,
