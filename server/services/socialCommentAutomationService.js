@@ -1864,6 +1864,34 @@ const executeSocialCommentAutomationRuntime = async ({
     });
   }
 
+  console.log("SOCIAL_POST_IDENTITY_SOURCE_TRACE", {
+    ui_post_id: text(config?.post_id || config?.lookup_matched_post_id || ""),
+    runtime_post_id: safePostId,
+    graph_post_id: text(
+      safeRow.raw_graph_post_id ||
+      safeRow.raw_payload?.graph_post_id ||
+      safeRow.raw_payload?.post?.id ||
+      safeRow.raw_payload?.value?.post?.id ||
+      safeRow.raw_payload?.value?.graph_post_id ||
+      ""
+    ),
+    permalink: text(
+      safeRow.post_permalink_url ||
+      safeRow.post_permalink ||
+      safeRow.permalink_url ||
+      safeRow.raw_payload?.post_permalink_url ||
+      safeRow.raw_payload?.post_permalink ||
+      safeRow.raw_payload?.permalink_url ||
+      safeRow.raw_payload?.post_url ||
+      ""
+    ),
+    endpoint_source: text(
+      safeRow.raw_payload?.source ||
+      safeRow.source ||
+      ""
+    ),
+  });
+
   const hasProductContext = Boolean(productContext?.found);
   const effectiveProductContext = hasProductContext ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
   if (!hasProductContext) {
