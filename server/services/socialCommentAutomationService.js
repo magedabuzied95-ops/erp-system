@@ -11,7 +11,7 @@ import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
 import { getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
 import { enqueueSocialCommentJob } from "./socialCommentJobQueue.js";
-import { resolveMappedProducts, resolvePrimaryProduct } from "./postProductMappingService.js";
+import { resolveMappedProducts, resolvePrimaryProduct, resolveProductMappingForSiblingPost } from "./postProductMappingService.js";
 import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import {
@@ -1920,6 +1920,19 @@ const executeSocialCommentAutomationRuntime = async ({
   });
 
   const hasProductContext = hasLinkedProductForAutomation({ row: safeRow, productContext });
+  if (hasProductContext && productContext?.source === "sibling_post_mapping") {
+    console.log("SOCIAL_COMMENT_AUTOMATION_PRODUCT_RESOLVED_FROM_SIBLING", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      sibling_post_id: text(productContext?.sibling_post_id || ""),
+      product_ids: asArray(productContext?.mapped_products || [])
+        .map((item) => Number(item?.product_id || item?.id || 0))
+        .filter((value) => Number.isFinite(value) && value > 0),
+      reason: text(productContext?.sibling_match_reason || productContext?.reason || ""),
+    });
+  }
   const effectiveProductContext = Boolean(productContext?.found) ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
   if (!hasProductContext) {
     console.log("SOCIAL_COMMENT_SKIPPED_NO_LINKED_PRODUCT", {
@@ -2650,6 +2663,48 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       mapped_products: mappedProducts,
       linked_products_count: mappedProducts.length,
       primary_product: primaryMappedProduct,
+    };
+  }
+
+  const siblingMappings = await resolveProductMappingForSiblingPost({
+    tenantId: safeTenantId,
+    platform,
+    postId: candidatePostIds[0] || "",
+    permalinkUrl: text(row.post_permalink_url || row.post_permalink || row.permalink_url || row.raw_payload?.post_permalink_url || row.raw_payload?.permalink_url || ""),
+    message: text(row.post_message || row.post_text || row.message || ""),
+    caption: text(row.post_caption || row.caption || ""),
+    imageUrl: text(row.post_image_url || row.media_url || row.image_url || row.post_full_picture || row.full_picture || row.attachment_image || row.thumbnail_url || ""),
+    marketingPostId: text(row.marketing_post_id || row.metadata?.marketing_post_id || row.raw_payload?.marketing_post_id || row.raw_payload?.value?.marketing_post_id || ""),
+    row,
+    post: row,
+  }).catch(() => null);
+  if (siblingMappings?.linked_products?.length) {
+    const primaryMappedProduct = siblingMappings.primary_product || siblingMappings.linked_products[0] || null;
+    return {
+      found: true,
+      source: "sibling_post_mapping",
+      reason: text(siblingMappings.sibling_match_reason || "sibling_mapping"),
+      platform,
+      post_id: text(siblingMappings.sibling_post_id || primaryMappedProduct?.platform_post_id || candidatePostIds[0] || ""),
+      product_id: text(primaryMappedProduct?.product_id || primaryMappedProduct?.id || ""),
+      product_name: text(primaryMappedProduct?.name || ""),
+      price: text(primaryMappedProduct?.sale_price || primaryMappedProduct?.price || ""),
+      sale_price: text(primaryMappedProduct?.sale_price || ""),
+      selling_price: text(primaryMappedProduct?.selling_price || primaryMappedProduct?.price || ""),
+      sizes: Array.isArray(primaryMappedProduct?.available_sizes) ? primaryMappedProduct.available_sizes : [],
+      available_sizes: Array.isArray(primaryMappedProduct?.available_sizes) ? primaryMappedProduct.available_sizes : [],
+      colors: Array.isArray(primaryMappedProduct?.available_colors) ? primaryMappedProduct.available_colors : [],
+      available_colors: Array.isArray(primaryMappedProduct?.available_colors) ? primaryMappedProduct.available_colors : [],
+      stock_status: text(primaryMappedProduct?.stock_status || (Number(primaryMappedProduct?.stock || 0) > 0 ? "in_stock" : "out_of_stock")),
+      product_url: text(primaryMappedProduct?.product_url || primaryMappedProduct?.storefront_url || ""),
+      storefront_url: text(primaryMappedProduct?.storefront_url || primaryMappedProduct?.product_url || ""),
+      image_url: text(primaryMappedProduct?.image_url || ""),
+      candidate_post_ids: candidatePostIds,
+      mapped_products: siblingMappings.linked_products,
+      linked_products_count: siblingMappings.linked_products.length,
+      primary_product: primaryMappedProduct,
+      sibling_post_id: text(siblingMappings.sibling_post_id || ""),
+      sibling_match_reason: text(siblingMappings.sibling_match_reason || ""),
     };
   }
 

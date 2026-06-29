@@ -210,6 +210,32 @@ const normalizePlatform = (value = "") => (lower(value) === "instagram" ? "insta
 const isNotEmpty = (value = "") => Boolean(text(value));
 
 const firstText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+const normalizeComparableWhitespace = (value = "") => text(value).replace(/\s+/g, " ").trim();
+const normalizeComparableText = (value = "") => normalizeComparableWhitespace(value).toLowerCase();
+const normalizeComparableUrl = (value = "") => {
+  const normalized = text(value);
+  if (!normalized) return "";
+  return normalized.replace(/[?#].*$/, "").trim().toLowerCase();
+};
+const pushUniqueText = (target = [], seen = new Set(), value = "", normalizer = text) => {
+  const normalized = normalizer(value);
+  if (!normalized || seen.has(normalized)) return;
+  seen.add(normalized);
+  target.push(normalized);
+};
+const extractProductSlugHints = (...values) => {
+  const slugs = [];
+  const seen = new Set();
+  for (const value of values) {
+    const raw = text(value);
+    if (!raw) continue;
+    const productMatch = raw.match(/\/shop\/product\/([^/?#\s]+)/i);
+    if (productMatch?.[1]) pushUniqueText(slugs, seen, decodeURIComponent(productMatch[1]), lower);
+    const slugMatch = raw.match(/\bslug[:=\s]+([a-z0-9][a-z0-9_-]{1,})\b/i);
+    if (slugMatch?.[1]) pushUniqueText(slugs, seen, slugMatch[1], lower);
+  }
+  return slugs;
+};
 
 const buildProductLinkLogContext = ({
   tenantId = null,
@@ -424,6 +450,176 @@ const getPlatformPostId = ({ postId = "", row = {}, post = {}, platform = "" } =
     post?.metadata?.post_id,
     post?.metadata?.platform_post_id
   ) || text(postId || row?.post_id || post?.post_id || "");
+
+const collectSiblingLookupSignals = ({ postId = "", row = {}, post = {}, permalinkUrl = "", message = "", caption = "", imageUrl = "", marketingPostId = "" } = {}) => {
+  const safeRow = objectValue(row);
+  const safePost = objectValue(post);
+  const rowMetadata = objectValue(safeRow.metadata);
+  const postMetadata = objectValue(safePost.metadata);
+  const rowRawPayload = objectValue(safeRow.raw_payload || rowMetadata.raw_payload);
+  const postRawPayload = objectValue(safePost.raw_payload || postMetadata.raw_payload);
+  const rowRawValue = objectValue(rowRawPayload.value || {});
+  const postRawValue = objectValue(postRawPayload.value || {});
+  const textHashes = [];
+  const textHashSeen = new Set();
+  const imageUrls = [];
+  const imageSeen = new Set();
+  const sourceIds = [];
+  const sourceSeen = new Set();
+  const slugHints = [];
+  const slugSeen = new Set();
+  const pushTextHash = (value) => pushUniqueText(textHashes, textHashSeen, value, normalizeComparableText);
+  const pushImage = (value) => pushUniqueText(imageUrls, imageSeen, value, normalizeComparableUrl);
+  const pushSource = (value) => pushUniqueText(sourceIds, sourceSeen, value, text);
+  const pushSlug = (value) => pushUniqueText(slugHints, slugSeen, value, lower);
+
+  [
+    message,
+    caption,
+    safeRow.post_text,
+    safeRow.post_message,
+    safeRow.post_caption,
+    safeRow.message,
+    safeRow.caption,
+    safePost.post_text,
+    safePost.post_message,
+    safePost.post_caption,
+    safePost.message,
+    safePost.caption,
+    rowMetadata.post_text,
+    rowMetadata.post_message,
+    rowMetadata.post_caption,
+    rowMetadata.message,
+    rowMetadata.caption,
+    postMetadata.post_text,
+    postMetadata.post_message,
+    postMetadata.post_caption,
+    postMetadata.message,
+    postMetadata.caption,
+    rowRawPayload.post_message,
+    rowRawPayload.post_caption,
+    rowRawValue.post_message,
+    rowRawValue.post_caption,
+    postRawPayload.post_message,
+    postRawPayload.post_caption,
+    postRawValue.post_message,
+    postRawValue.post_caption,
+  ].forEach(pushTextHash);
+
+  [
+    imageUrl,
+    safeRow.post_image_url,
+    safeRow.media_url,
+    safeRow.image_url,
+    safeRow.post_full_picture,
+    safeRow.full_picture,
+    safeRow.attachment_image,
+    safeRow.thumbnail_url,
+    safePost.post_image_url,
+    safePost.media_url,
+    safePost.image_url,
+    safePost.post_full_picture,
+    safePost.full_picture,
+    safePost.attachment_image,
+    safePost.thumbnail_url,
+    rowMetadata.post_image_url,
+    rowMetadata.media_url,
+    rowMetadata.image_url,
+    rowMetadata.post_full_picture,
+    rowMetadata.full_picture,
+    rowMetadata.attachment_image,
+    rowMetadata.thumbnail_url,
+    postMetadata.post_image_url,
+    postMetadata.media_url,
+    postMetadata.image_url,
+    postMetadata.post_full_picture,
+    postMetadata.full_picture,
+    postMetadata.attachment_image,
+    postMetadata.thumbnail_url,
+    rowRawPayload.post_image_url,
+    rowRawPayload.media_url,
+    rowRawPayload.image_url,
+    rowRawValue.post_image_url,
+    rowRawValue.media_url,
+    rowRawValue.image_url,
+    postRawPayload.post_image_url,
+    postRawPayload.media_url,
+    postRawPayload.image_url,
+    postRawValue.post_image_url,
+    postRawValue.media_url,
+    postRawValue.image_url,
+  ].forEach(pushImage);
+
+  [
+    marketingPostId,
+    postId,
+    safeRow.post_id,
+    safeRow.canonical_post_id,
+    safeRow.platform_post_id,
+    safeRow.source_post_id,
+    safeRow.raw_graph_post_id,
+    safePost.post_id,
+    safePost.canonical_post_id,
+    safePost.platform_post_id,
+    safePost.source_post_id,
+    safePost.raw_graph_post_id,
+    rowMetadata.source_post_id,
+    rowMetadata.marketing_post_id,
+    postMetadata.source_post_id,
+    postMetadata.marketing_post_id,
+    rowRawPayload.source_post_id,
+    rowRawPayload.feed_post_id,
+    rowRawPayload.graph_post_id,
+    rowRawPayload.resolved_parent_post_id,
+    rowRawValue.source_post_id,
+    rowRawValue.feed_post_id,
+    rowRawValue.graph_post_id,
+    rowRawValue.resolved_parent_post_id,
+    postRawPayload.source_post_id,
+    postRawPayload.feed_post_id,
+    postRawPayload.graph_post_id,
+    postRawPayload.resolved_parent_post_id,
+    postRawValue.source_post_id,
+    postRawValue.feed_post_id,
+    postRawValue.graph_post_id,
+    postRawValue.resolved_parent_post_id,
+  ].forEach(pushSource);
+
+  [
+    permalinkUrl,
+    safeRow.product_url,
+    safeRow.storefront_url,
+    safeRow.product_link,
+    safePost.product_url,
+    safePost.storefront_url,
+    safePost.product_link,
+    rowMetadata.product_url,
+    rowMetadata.storefront_url,
+    rowMetadata.product_link,
+    postMetadata.product_url,
+    postMetadata.storefront_url,
+    postMetadata.product_link,
+    rowRawPayload.product_url,
+    rowRawPayload.storefront_url,
+    rowRawValue.product_url,
+    rowRawValue.storefront_url,
+    postRawPayload.product_url,
+    postRawPayload.storefront_url,
+    postRawValue.product_url,
+    postRawValue.storefront_url,
+    message,
+    caption,
+    safeRow.post_message,
+    safeRow.post_caption,
+  ].flatMap((value) => extractProductSlugHints(value)).forEach(pushSlug);
+
+  return {
+    text_hashes: textHashes,
+    image_urls: imageUrls,
+    source_ids: sourceIds,
+    slug_hints: slugHints,
+  };
+};
 
 const normalizeProductRow = (row = {}) => {
   const stock = Number(row.stock ?? row.total_stock ?? row.available_stock ?? 0);
@@ -754,6 +950,182 @@ export const getMappings = async ({ tenantId = null, platform = "", postId = "",
   });
 };
 
+export const resolveProductMappingForSiblingPost = async ({
+  tenantId = null,
+  platform = "",
+  postId = "",
+  permalinkUrl = "",
+  message = "",
+  caption = "",
+  imageUrl = "",
+  marketingPostId = "",
+  row = {},
+  post = {},
+} = {}) => {
+  await ensurePostProductMappingSchema();
+  const safeTenantId = toTenantId(tenantId || row?.tenant_id || post?.tenant_id || 0);
+  const normalizedPlatform = normalizePlatform(platform || row?.platform || post?.platform || "");
+  const currentPostIds = collectPostIdentityCandidates({ postId, row, post }).map((candidate) => candidate.value).filter(Boolean);
+  const signals = collectSiblingLookupSignals({
+    postId,
+    row,
+    post,
+    permalinkUrl,
+    message,
+    caption,
+    imageUrl,
+    marketingPostId,
+  });
+  console.info("POST_PRODUCT_LINKS_SIBLING_LOOKUP_START", {
+    tenant_id: safeTenantId || null,
+    platform: normalizedPlatform,
+    post_id: text(postId || row?.post_id || post?.post_id || ""),
+    current_post_ids: currentPostIds,
+    text_hash_count: signals.text_hashes.length,
+    image_url_count: signals.image_urls.length,
+    source_id_count: signals.source_ids.length,
+    slug_hint_count: signals.slug_hints.length,
+  });
+  if (!safeTenantId || !normalizedPlatform || (!signals.text_hashes.length && !signals.image_urls.length && !signals.source_ids.length && !signals.slug_hints.length)) {
+    console.info("POST_PRODUCT_LINKS_SIBLING_NOT_FOUND", {
+      tenant_id: safeTenantId || null,
+      platform: normalizedPlatform,
+      post_id: text(postId || row?.post_id || post?.post_id || ""),
+      reason: !safeTenantId ? "invalid_tenant" : "no_lookup_signals",
+    });
+    return null;
+  }
+
+  const params = [safeTenantId, normalizedPlatform, currentPostIds];
+  const sourceIndex = params.push(signals.source_ids);
+  const imageIndex = params.push(signals.image_urls);
+  const textIndex = params.push(signals.text_hashes);
+  const slugIndex = params.push(signals.slug_hints);
+  const siblingResult = await db.query(
+    `
+    WITH sibling_candidates AS (
+      SELECT
+        COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) AS sibling_post_id,
+        ppl.product_id,
+        ppl.is_primary,
+        ppl.updated_at,
+        CASE
+          WHEN (
+            mp.platform_post_id = ANY($4::text[])
+            OR mp.external_post_id = ANY($4::text[])
+            OR ppl.post_id = ANY($4::text[])
+            OR ppl.media_id = ANY($4::text[])
+          ) THEN 'source_post_id'
+          WHEN lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[]) THEN 'image_url'
+          WHEN lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) THEN 'text_hash'
+          WHEN lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) THEN 'product_slug'
+          ELSE ''
+        END AS match_reason,
+        CASE
+          WHEN (
+            mp.platform_post_id = ANY($4::text[])
+            OR mp.external_post_id = ANY($4::text[])
+            OR ppl.post_id = ANY($4::text[])
+            OR ppl.media_id = ANY($4::text[])
+          ) THEN 400
+          WHEN lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[]) THEN 300
+          WHEN lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) THEN 200
+          WHEN lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) THEN 100
+          ELSE 0
+        END AS match_score
+      FROM marketing_post_product_links ppl
+      LEFT JOIN marketing_posts mp
+        ON mp.tenant_id = ppl.tenant_id
+       AND (
+         mp.platform_post_id = ppl.platform_post_id
+         OR mp.external_post_id = ppl.platform_post_id
+         OR mp.platform_post_id = ppl.post_id
+         OR mp.external_post_id = ppl.post_id
+         OR mp.platform_post_id = ppl.media_id
+         OR mp.external_post_id = ppl.media_id
+       )
+      LEFT JOIN products p
+        ON p.id = ppl.product_id
+      WHERE (
+          ppl.tenant_id = $1::bigint
+          OR ppl.business_id = $1::bigint
+        )
+        AND ppl.platform = $2::text
+        AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
+        AND (
+          mp.platform_post_id = ANY($4::text[])
+          OR mp.external_post_id = ANY($4::text[])
+          OR ppl.post_id = ANY($4::text[])
+          OR ppl.media_id = ANY($4::text[])
+          OR lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[])
+          OR lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[])
+          OR lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[])
+        )
+    )
+    SELECT sibling_post_id, product_id, match_reason, match_score
+    FROM sibling_candidates
+    WHERE sibling_post_id <> ''
+      AND match_score > 0
+    ORDER BY match_score DESC, is_primary DESC, updated_at DESC, sibling_post_id ASC
+    LIMIT 1
+    `,
+    params
+  ).catch(() => ({ rows: [] }));
+  const siblingRow = siblingResult.rows?.[0] || null;
+  if (!siblingRow?.sibling_post_id) {
+    console.info("POST_PRODUCT_LINKS_SIBLING_NOT_FOUND", {
+      tenant_id: safeTenantId || null,
+      platform: normalizedPlatform,
+      post_id: text(postId || row?.post_id || post?.post_id || ""),
+      current_post_ids: currentPostIds,
+      reason: "no_matching_sibling",
+    });
+    return null;
+  }
+  const siblingMappings = await getMappings({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: text(siblingRow.sibling_post_id || ""),
+    row: {
+      ...row,
+      post_id: text(siblingRow.sibling_post_id || ""),
+      canonical_post_id: text(siblingRow.sibling_post_id || ""),
+      platform_post_id: text(siblingRow.sibling_post_id || ""),
+    },
+    post: {
+      ...post,
+      post_id: text(siblingRow.sibling_post_id || ""),
+      canonical_post_id: text(siblingRow.sibling_post_id || ""),
+      platform_post_id: text(siblingRow.sibling_post_id || ""),
+    },
+  }).catch(() => null);
+  if (!siblingMappings?.linked_products?.length) {
+    console.info("POST_PRODUCT_LINKS_SIBLING_NOT_FOUND", {
+      tenant_id: safeTenantId || null,
+      platform: normalizedPlatform,
+      post_id: text(postId || row?.post_id || post?.post_id || ""),
+      sibling_post_id: text(siblingRow.sibling_post_id || ""),
+      reason: "sibling_mapping_readback_empty",
+    });
+    return null;
+  }
+  console.info("POST_PRODUCT_LINKS_SIBLING_MATCHED", {
+    tenant_id: safeTenantId || null,
+    platform: normalizedPlatform,
+    post_id: text(postId || row?.post_id || post?.post_id || ""),
+    sibling_post_id: text(siblingRow.sibling_post_id || ""),
+    product_ids: siblingMappings.product_ids || [],
+    match_reason: text(siblingRow.match_reason || ""),
+    match_score: Number(siblingRow.match_score || 0) || 0,
+  });
+  return {
+    ...siblingMappings,
+    sibling_post_id: text(siblingRow.sibling_post_id || ""),
+    sibling_match_reason: text(siblingRow.match_reason || ""),
+    sibling_match_score: Number(siblingRow.match_score || 0) || 0,
+  };
+};
+
 export const resolveMappedProducts = async ({ tenantId = null, platform = "", postId = "", row = {}, post = {} } = {}) => {
   const mappings = await getMappings({ tenantId, platform, postId, row, post });
   return mappings.linked_products || [];
@@ -1038,6 +1410,7 @@ export default {
   removeMapping,
   resolveMappedProducts,
   resolvePrimaryProduct,
+  resolveProductMappingForSiblingPost,
 };
 
 export const buildPostIdentityTrace = resolvePostIdentityTrace;
