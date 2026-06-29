@@ -22,21 +22,29 @@ const DEFAULT_TIMEOUT_MS = 90_000;
 
 export const THERMAL_ARTWORK_VERSION = "v1-openai";
 export const THERMAL_ARTWORK_PROMPT = [
-  "Create a clean monochrome product illustration suitable for 203 dpi direct thermal label printing.",
+  "Generate only the shoe artwork. Do not include any brand logo, product title, text, labels, numbers, frame, border, poster, or mockup.",
+  "Create a clean monochrome thermal artwork for 203 dpi direct thermal label printing.",
   "",
   "Requirements:",
   "",
+  "* Output only a single isolated shoe.",
+  "* Use a plain white background.",
+  "* Use black and gray line-art only.",
+  "* Preserve shoe details as line-art, not a solid silhouette.",
+  "* Keep the shoe large so it fills most of the image area.",
   "* Keep the exact shoe proportions.",
   "* Preserve outsole shape.",
-  "* Preserve logo.",
   "* Preserve lace layout.",
   "* Remove background completely.",
-  "* Use solid black and white only.",
-  "* No gray gradients.",
-  "* No sketch style.",
-  "* No cartoon style.",
-  "* No artistic style.",
-  "* Produce a technical product illustration similar to premium footwear packaging artwork.",
+  "* No logo.",
+  "* No text.",
+  "* No labels.",
+  "* No numbers.",
+  "* No border.",
+  "* No card layout.",
+  "* No poster layout.",
+  "* No composition or mockup.",
+  "* Suitable for 203 dpi direct thermal barcode label printing.",
 ].join("\n");
 
 const thermalArtworkCache = new Map();
