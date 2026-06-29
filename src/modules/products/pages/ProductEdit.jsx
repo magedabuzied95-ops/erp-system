@@ -212,7 +212,22 @@ const normalizeColorImages = (images = []) => {
   return normalized;
 };
 
+const resolveHydratedColorImage = (group = {}) =>
+  String(
+    group.variant_color_thermal_image_url ||
+      group.variantColorThermalImageUrl ||
+      group.color_thermal_image_url ||
+      group.colorThermalImageUrl ||
+      group.thermal_image_url ||
+      group.thermalImageUrl ||
+      group.image_url ||
+      group.imagePreview ||
+      ""
+  ).trim();
+
 const getPrimaryColorImage = (group = {}) => {
+  const thermalImage = resolveHydratedColorImage(group);
+  if (thermalImage) return thermalImage;
   const images = normalizeColorImages(group.images);
   const primary = images.find((item) => item.is_primary) || images[0] || null;
   return primary?.image_url || group.image_url || group.imagePreview || "";
@@ -569,6 +584,10 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
         group.imagePreview = resolveAssetUrl(primary.image_url || primary.preview || group.imagePreview);
         group.image_url = primary.image_url || group.image_url || "";
       }
+    }
+    const resolvedHydratedImage = resolveHydratedColorImage(group);
+    if (resolvedHydratedImage) {
+      group.imagePreview = resolveAssetUrl(resolvedHydratedImage);
     }
     group.sizes.push(
       createEmptySizeRow({
@@ -1144,6 +1163,15 @@ function ProductEdit() {
           image_url: group.image_url,
           rowImages: group.sizes.map((row) => ({ size: row.size, image_url: row.image_url })),
         })));
+        const hydratedSelectedColor = skuAwareColorGroups[0] || null;
+        console.log("PRODUCT_EDIT_HYDRATED_THERMAL", {
+          selectedColor: hydratedSelectedColor?.color || "",
+          image_url: hydratedSelectedColor?.image_url || "",
+          thermal_image_url: hydratedSelectedColor?.thermal_image_url || "",
+          color_thermal_image_url: hydratedSelectedColor?.color_thermal_image_url || "",
+          variant_color_thermal_image_url: hydratedSelectedColor?.variant_color_thermal_image_url || "",
+          resolvedImage: getPrimaryColorImage(hydratedSelectedColor),
+        });
         console.log("[edit-product] hydrated groups", skuAwareColorGroups);
         console.log("[edit-product] mapped color groups", skuAwareColorGroups);
         skuAwareColorGroups.forEach((group) => {
