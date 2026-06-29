@@ -2634,10 +2634,35 @@ const executeSocialCommentAutomationRuntime = async ({
 export const resolveSocialCommentPublishedProductContext = async ({ tenantId = null, row = {} } = {}) => {
   const safeTenantId = Number(tenantId || row.tenant_id || 0);
   const platform = text(row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  const initialPostId = text(
+    row.post_id ||
+    row.metadata?.post_id ||
+    row.raw_payload?.post_id ||
+    row.raw_payload?.value?.post_id ||
+    row.raw_payload?.value?.media_id ||
+    row.raw_payload?.value?.post?.id ||
+    row.raw_payload?.value?.post?.post_id ||
+    row.raw_payload?.value?.id ||
+    ""
+  );
   let directProductIdsCount = 0;
   let siblingProductIdsCount = 0;
   let triedSiblingLookup = false;
+  console.log("SOCIAL_COMMENT_CONTEXT_ENTER", {
+    tenant_id: safeTenantId,
+    platform,
+    post_id: initialPostId,
+    comment_id: text(row.comment_id || ""),
+  });
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || platform !== "facebook") {
+    console.log("SOCIAL_COMMENT_CONTEXT_EARLY_RETURN", {
+      reason: !Number.isFinite(safeTenantId) || safeTenantId <= 0 ? "invalid_tenant" : "non_facebook_platform",
+      tenant_id: safeTenantId,
+      platform,
+      post_id: initialPostId,
+      direct_product_ids_count: directProductIdsCount,
+      tried_sibling_lookup: triedSiblingLookup,
+    });
     return {
       found: false,
       source: "unsupported",
@@ -2664,6 +2689,14 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
   ].map(text).filter(Boolean))];
 
   if (!candidatePostIds.length) {
+    console.log("SOCIAL_COMMENT_CONTEXT_EARLY_RETURN", {
+      reason: "missing_post_id",
+      tenant_id: safeTenantId,
+      platform,
+      post_id: initialPostId,
+      direct_product_ids_count: directProductIdsCount,
+      tried_sibling_lookup: triedSiblingLookup,
+    });
     return {
       found: false,
       source: "missing_post_id",
@@ -2694,6 +2727,14 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       row,
       post: row,
     }).catch(() => null) || mappedProducts[0];
+    console.log("SOCIAL_COMMENT_CONTEXT_EARLY_RETURN", {
+      reason: "mapped_products",
+      tenant_id: safeTenantId,
+      platform,
+      post_id: text(candidatePostIds[0] || initialPostId),
+      direct_product_ids_count: directProductIdsCount,
+      tried_sibling_lookup: triedSiblingLookup,
+    });
     return {
       found: true,
       source: "marketing_post_product_links",
