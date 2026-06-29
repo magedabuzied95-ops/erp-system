@@ -378,6 +378,7 @@ function ScannerModal({ onClose, onScan }) {
   const [submitting, setSubmitting] = useState(false);
   const [scannerMessage, setScannerMessage] = useState("");
   const lastResolvedScanRef = useRef({ value: "", at: 0 });
+  const manualInputRef = useRef(null);
 
   const submitScan = useCallback(async (value) => {
     const query = clean(value);
@@ -442,22 +443,35 @@ function ScannerModal({ onClose, onScan }) {
               className="overflow-hidden rounded-[1.35rem] bg-black"
               scannerClassName="min-h-[320px] w-full"
               detectorFormats={["code_128", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code"]}
-              html5Fps={20}
-              html5Qrbox={{ width: 340, height: 180 }}
-              html5AspectRatio={1.7777777778}
+              html5Fps={25}
+              html5Qrbox={{ width: 320, height: 140 }}
+              html5AspectRatio={2.2857142857}
               videoConstraints={{
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
                 facingMode: { ideal: "environment" },
                 advanced: [{ focusMode: "continuous" }, { exposureMode: "continuous" }],
               }}
-              logPrefix="INVENTORY_CAMERA_SCANNER"
+              logPrefix="INVENTORY_CAMERA"
+              frameHint="قرّب الباركود داخل المستطيل فقط"
+              statusPrimary="جاري القراءة..."
+              statusSecondary="استخدم إدخال يدوي لو القراءة تأخرت"
+              overlayFrameWidthPercent={85}
+              overlayFrameHeight={140}
             />
           </div>
           <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.04] p-3 text-white">
-            <div className="text-xs font-black text-zinc-300">أدخل الباركود يدويًا</div>
+            <button
+              type="button"
+              onClick={() => manualInputRef.current?.focus()}
+              className="text-xs font-black text-emerald-200"
+            >
+              اكتب الباركود يدويًا
+            </button>
+            <div className="mt-1 text-[11px] font-semibold text-zinc-400">أدخل الباركود يدويًا ثم اضغط بحث أو Enter</div>
             <div className="mt-2 flex gap-2">
               <input
+                ref={manualInputRef}
                 value={manualValue}
                 onChange={(event) => setManualValue(event.target.value)}
                 onKeyDown={(event) => {
