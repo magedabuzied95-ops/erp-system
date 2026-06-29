@@ -426,50 +426,14 @@ const buildModelNameOverlay = async ({ width = 0, height = 0, productName = "" }
 
   const fontSize = clamp(Math.round(width * THERMAL_ARTWORK_MODEL_NAME_FONT_RATIO), 28, Math.round(height * 0.12));
   const bottomMargin = Math.max(8, Math.round(height * THERMAL_ARTWORK_MODEL_NAME_BOTTOM_RATIO));
-  const boxHeight = Math.round(fontSize * 1.45);
-  const overlayHeight = clamp(Math.round(fontSize * 2.1), Math.round(height * 0.08), Math.round(height * 0.18));
-  const overlayY = Math.max(0, height - bottomMargin - overlayHeight);
-  const y = Math.min(height - 4, Math.max(fontSize + overlayY, overlayY + Math.round(boxHeight * 0.9)));
   const safeText = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
-
-  const svg = `
-    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-      <style>
-        text {
-          font-family: Arial, Helvetica, sans-serif;
-          font-size: ${fontSize}px;
-          font-weight: 700;
-          fill: #000000;
-          letter-spacing: 0.02em;
-          text-rendering: geometricPrecision;
-        }
-      </style>
-      <rect x="0" y="${overlayY}" width="${width}" height="${overlayHeight}" fill="#ffffff" />
-      <text
-        x="${Math.round(width / 2)}"
-        y="${y}"
-        text-anchor="middle"
-        dominant-baseline="alphabetic"
-        lengthAdjust="spacingAndGlyphs"
-        textLength="${Math.round(width * 0.88)}"
-        shape-rendering="crispEdges"
-      >${safeText}</text>
-    </svg>
-  `;
-
-  console.log("THERMAL_TEXT_OVERLAY", {
-    clearedOldTextArea: true,
-    overlayColor: "#000000",
-    x: 0,
-    y: overlayY,
-    width,
-    height: overlayHeight,
-  });
-
-  return Buffer.from(svg);
+  void fontSize;
+  void bottomMargin;
+  void safeText;
+  return null;
 };
 
 const postProcessThermalArtworkBuffer = async (inputBuffer, { productName = "" } = {}) => {
