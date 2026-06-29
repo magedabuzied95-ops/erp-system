@@ -1447,11 +1447,33 @@ function SocialCommentsWorkspace({
     if (!latestCommentPostId || !activePostKey) return null;
     const selectedIds = new Set([activePostPostId, activePostSourceId].map(clean).filter(Boolean));
     if (selectedIds.has(latestCommentPostId)) return null;
+    const latestKnownPost =
+      normalizedPosts.find((item) => {
+        const candidateIds = [
+          item?.postId,
+          item?.canonicalPostId,
+          item?.sourcePostId,
+          item?.platformPostId,
+          item?.raw?.post_id,
+          item?.raw?.id,
+        ].map(clean).filter(Boolean);
+        return candidateIds.includes(latestCommentPostId);
+      }) || null;
+    const latestKnownPostNormalized = latestKnownPost ? normalizePost(latestKnownPost) : null;
+    const latestKnownProductCount = latestKnownPostNormalized ? resolveProductCardFields(latestKnownPostNormalized).productCount : 0;
+    const selectedStatusLabel = [
+      activeProductCard.productCount > 0 ? "already linked" : "not linked",
+      activeAutomationState.enabled ? "automation enabled" : "automation disabled",
+    ].join(" / ");
+    const latestStatusLabel = latestKnownProductCount > 0 ? "already linked" : "needs product link";
     return {
       selectedPostId: activePostPostId || dash,
       latestCommentPostId,
       selectedPermalink: activePostLink || "",
       latestCommentPermalink: clean(latestRuntimePostOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
+      selectedStatusLabel,
+      latestStatusLabel,
+      latestKnownPost: latestKnownPostNormalized,
       latestPost: {
         postId: latestCommentPostId,
         canonicalPostId: latestCommentPostId,
@@ -1462,7 +1484,7 @@ function SocialCommentsWorkspace({
         post_permalink_url: clean(latestRuntimePostOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
       },
     };
-  }, [activePostKey, activePostLink, activePostPostId, activePostSourceId, latestRuntimePostOpen, latestRuntimePostSnapshot]);
+  }, [activeAutomationState.enabled, activePostKey, activePostLink, activePostPostId, activePostSourceId, activeProductCard.productCount, latestRuntimePostOpen, latestRuntimePostSnapshot, normalizedPosts]);
   const productLinksDrawerPost = useMemo(() => {
     const drawerKey = clean(productLinksDrawerPostKey);
     if (!drawerKey) return null;
@@ -1980,6 +2002,16 @@ function SocialCommentsWorkspace({
       return;
     }
     handleOpenProductLinksDrawer(latestCommentMismatch.latestPost, latestCommentMismatch.latestPost.postId);
+  };
+
+  const handleSwitchToLatestCommentPost = () => {
+    if (!latestCommentMismatch?.latestPost?.postId || !onSelectPost) {
+      notify("amber", "تعذر فتح البوست الأحدث داخل مساحة العمل");
+      return;
+    }
+    const nextPost = latestCommentMismatch.latestKnownPost?.raw || latestCommentMismatch.latestPost;
+    const nextKey = clean(postKey(latestCommentMismatch.latestKnownPost || latestCommentMismatch.latestPost) || latestCommentMismatch.latestPost.postId);
+    onSelectPost(nextPost, nextKey);
   };
 
   const handleCopySuggestedReply = async () => {
@@ -2696,14 +2728,19 @@ function SocialCommentsWorkspace({
                             <AlertTriangle className="h-4 w-4" />
                             Latest comment arrived on a different Facebook post
                           </div>
+                          <div className="mt-2 text-xs leading-6 text-amber-900/90">
+                            Your selected Adidas post is linked. The new comment came from another Facebook post, so automation did not run there.
+                          </div>
                           <div className="mt-2 grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
                             <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
                               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Post ID</div>
                               <div className="mt-1 break-all font-semibold text-slate-900">{latestCommentMismatch.selectedPostId || dash}</div>
+                              <div className="mt-1 text-[11px] font-semibold text-emerald-700">Selected post: {latestCommentMismatch.selectedStatusLabel || dash}</div>
                             </div>
                             <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
                               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest Comment Post ID</div>
                               <div className="mt-1 break-all font-semibold text-slate-900">{latestCommentMismatch.latestCommentPostId || dash}</div>
+                              <div className="mt-1 text-[11px] font-semibold text-amber-700">Latest comment post: {latestCommentMismatch.latestStatusLabel || dash}</div>
                             </div>
                             <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
                               <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Permalink</div>
@@ -2720,7 +2757,7 @@ function SocialCommentsWorkspace({
                             type="button"
                             onClick={handleOpenLatestCommentPost}
                             disabled={!latestCommentMismatch.latestCommentPermalink || openingPost}
-                            title={latestCommentMismatch.latestCommentPermalink ? "" : "No Facebook permalink available"}
+                            title={latestCommentMismatch.latestCommentPermalink ? "" : "No permalink for latest comment post"}
                             className="inline-flex h-9 items-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-900 shadow-sm disabled:opacity-50"
                           >
                             {openingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
@@ -2728,11 +2765,20 @@ function SocialCommentsWorkspace({
                           </button>
                           <button
                             type="button"
+                            onClick={handleSwitchToLatestCommentPost}
+                            disabled={!onSelectPost}
+                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-900 shadow-sm disabled:opacity-50"
+                          >
+                            <ArrowUpRight className="h-4 w-4" />
+                            Switch to latest comment post
+                          </button>
+                          <button
+                            type="button"
                             onClick={handleLinkLatestCommentPost}
                             className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 text-xs font-black text-cyan-800 shadow-sm"
                           >
                             <ShoppingBag className="h-4 w-4" />
-                            Link product to this post
+                            Link product to latest comment post
                           </button>
                         </div>
                       </div>
