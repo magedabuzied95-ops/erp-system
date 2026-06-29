@@ -1103,9 +1103,9 @@ export const resolveProductMappingForSiblingPost = async ({
   const imageIndex = params.push(signals.image_urls);
   const textIndex = params.push(signals.text_hashes);
   const slugIndex = params.push(signals.slug_hints);
-  const siblingStageParams = [safeTenantId, normalizedPlatform, currentPostIds];
+  const siblingStageParams = [safeTenantId, normalizedPlatform, currentPostIds, signals.source_ids];
   console.info("POST_PRODUCT_LINKS_SIBLING_SQL_PARAM_COUNT", {
-    placeholder_count: 3,
+    placeholder_count: 4,
     params_count: siblingStageParams.length,
   });
   const siblingQueryStageCounts = await db.query(
@@ -1119,13 +1119,37 @@ export const resolveProductMappingForSiblingPost = async ({
         ppl.platform_post_id,
         ppl.post_id,
         ppl.media_id,
-        ppl.product_id
+        ppl.product_id,
+        'marketing_post_product_links'::text AS mapping_source
       FROM marketing_post_product_links ppl
       WHERE (
           ppl.tenant_id = $1::bigint
           OR ppl.business_id = $1::bigint
         )
         AND ppl.platform = $2::text
+        AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
+      UNION
+      SELECT
+        ppl.id,
+        ppl.tenant_id,
+        ppl.business_id,
+        ppl.platform,
+        ppl.platform_post_id,
+        ppl.post_id,
+        ppl.media_id,
+        ppl.product_id,
+        'ui_product_mapping_source'::text AS mapping_source
+      FROM marketing_post_product_links ppl
+      INNER JOIN social_post_identity_aliases spa
+        ON spa.tenant_id = $1::bigint
+       AND spa.platform = $2::text
+       AND spa.canonical_post_id = ppl.platform_post_id
+      WHERE (
+          ppl.tenant_id = $1::bigint
+          OR ppl.business_id = $1::bigint
+        )
+        AND ppl.platform = $2::text
+        AND spa.alias_value = ANY($4::text[])
         AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
     ),
     alias_join_rows AS (
@@ -1191,13 +1215,39 @@ export const resolveProductMappingForSiblingPost = async ({
         ppl.media_id,
         ppl.product_id,
         ppl.is_primary,
-        ppl.updated_at
+        ppl.updated_at,
+        'marketing_post_product_links'::text AS mapping_source
       FROM marketing_post_product_links ppl
       WHERE (
           ppl.tenant_id = $1::bigint
           OR ppl.business_id = $1::bigint
         )
         AND ppl.platform = $2::text
+        AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
+      UNION
+      SELECT
+        ppl.id,
+        ppl.tenant_id,
+        ppl.business_id,
+        ppl.platform,
+        ppl.platform_post_id,
+        ppl.post_id,
+        ppl.media_id,
+        ppl.product_id,
+        ppl.is_primary,
+        ppl.updated_at,
+        'ui_product_mapping_source'::text AS mapping_source
+      FROM marketing_post_product_links ppl
+      INNER JOIN social_post_identity_aliases spa
+        ON spa.tenant_id = $1::bigint
+       AND spa.platform = $2::text
+       AND spa.canonical_post_id = ppl.platform_post_id
+      WHERE (
+          ppl.tenant_id = $1::bigint
+          OR ppl.business_id = $1::bigint
+        )
+        AND ppl.platform = $2::text
+        AND spa.alias_value = ANY($4::text[])
         AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
     ),
     alias_join_rows AS (
@@ -1236,6 +1286,7 @@ export const resolveProductMappingForSiblingPost = async ({
       product_id,
       COALESCE(NULLIF(product_name, ''), '') AS product_name,
       COALESCE(NULLIF(product_slug, ''), '') AS product_slug,
+      mapping_source,
       (
         mp_platform_post_id = ANY($4::text[])
         OR mp_external_post_id = ANY($4::text[])
@@ -1273,6 +1324,7 @@ export const resolveProductMappingForSiblingPost = async ({
       product_id: Number(joinRow.product_id || 0) || null,
       product_name: text(joinRow.product_name || ""),
       product_slug: text(joinRow.product_slug || ""),
+      mapping_source: text(joinRow.mapping_source || "marketing_post_product_links"),
       text_hash_match: textHashMatch,
       image_url_match: imageUrlMatch,
       source_id_match: sourceIdMatch,
@@ -1298,6 +1350,7 @@ export const resolveProductMappingForSiblingPost = async ({
         ppl.product_id,
         COALESCE(NULLIF(p.name, ''), '') AS product_name,
         NULL::text AS permalink_url,
+        'marketing_post_product_links'::text AS mapping_source,
         ppl.is_primary,
         ppl.updated_at,
         (
@@ -1361,6 +1414,74 @@ export const resolveProductMappingForSiblingPost = async ({
           OR lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[])
           OR lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[])
         )
+      UNION
+      SELECT
+        COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) AS sibling_post_id,
+        COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) AS mapped_post_id,
+        COALESCE(NULLIF(ppl.media_id, ''), NULLIF(mp.external_post_id, ''), NULLIF(mp.platform_post_id, ''), NULLIF(ppl.post_id, '')) AS mapped_media_id,
+        ppl.product_id,
+        COALESCE(NULLIF(p.name, ''), '') AS product_name,
+        NULL::text AS permalink_url,
+        'ui_product_mapping_source'::text AS mapping_source,
+        ppl.is_primary,
+        ppl.updated_at,
+        (
+          mp.platform_post_id = ANY($4::text[])
+          OR mp.external_post_id = ANY($4::text[])
+          OR ppl.post_id = ANY($4::text[])
+          OR ppl.media_id = ANY($4::text[])
+        ) AS source_id_match,
+        lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[]) AS image_url_match,
+        lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) AS text_hash_match,
+        lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) AS slug_match,
+        CASE
+          WHEN (
+            mp.platform_post_id = ANY($4::text[])
+            OR mp.external_post_id = ANY($4::text[])
+            OR ppl.post_id = ANY($4::text[])
+            OR ppl.media_id = ANY($4::text[])
+          ) THEN 'source_post_id'
+          WHEN lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[]) THEN 'image_url'
+          WHEN lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) THEN 'text_hash'
+          WHEN lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) THEN 'product_slug'
+          ELSE ''
+        END AS match_reason,
+        CASE
+          WHEN (
+            mp.platform_post_id = ANY($4::text[])
+            OR mp.external_post_id = ANY($4::text[])
+            OR ppl.post_id = ANY($4::text[])
+            OR ppl.media_id = ANY($4::text[])
+          ) THEN 400
+          WHEN lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[]) THEN 300
+          WHEN lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) THEN 200
+          WHEN lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) THEN 100
+          ELSE 0
+        END AS match_score
+      FROM marketing_post_product_links ppl
+      INNER JOIN social_post_identity_aliases spa
+        ON spa.tenant_id = $1::bigint
+       AND spa.platform = $2::text
+       AND spa.canonical_post_id = ppl.platform_post_id
+      LEFT JOIN marketing_posts mp
+        ON mp.tenant_id = ppl.tenant_id
+       AND (
+         mp.platform_post_id = ppl.platform_post_id
+         OR mp.external_post_id = ppl.platform_post_id
+         OR mp.platform_post_id = ppl.post_id
+         OR mp.external_post_id = ppl.post_id
+         OR mp.platform_post_id = ppl.media_id
+         OR mp.external_post_id = ppl.media_id
+       )
+      LEFT JOIN products p
+        ON p.id = ppl.product_id
+      WHERE (
+          ppl.tenant_id = $1::bigint
+          OR ppl.business_id = $1::bigint
+        )
+        AND ppl.platform = $2::text
+        AND spa.alias_value = ANY($4::text[])
+        AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
     )
     SELECT
       sibling_post_id,
@@ -1369,6 +1490,7 @@ export const resolveProductMappingForSiblingPost = async ({
       product_id,
       product_name,
       permalink_url,
+      mapping_source,
       source_id_match,
       image_url_match,
       text_hash_match,
@@ -1402,6 +1524,7 @@ export const resolveProductMappingForSiblingPost = async ({
       mapped_media_id: text(candidate.mapped_media_id || ""),
       product_id: Number(candidate.product_id || 0) || null,
       product_name: text(candidate.product_name || ""),
+      mapping_source: text(candidate.mapping_source || "marketing_post_product_links"),
       permalink_url: text(candidate.permalink_url || ""),
       text_hash_match: Boolean(candidate.text_hash_match),
       image_url_match: Boolean(candidate.image_url_match),
@@ -1529,6 +1652,7 @@ export const resolveProductMappingForSiblingPost = async ({
     post_id: text(postId || row?.post_id || post?.post_id || ""),
     sibling_post_id: text(siblingRow.sibling_post_id || ""),
     product_ids: siblingMappings.product_ids || [],
+    mapping_source: text(siblingRow.mapping_source || "marketing_post_product_links"),
     match_reason: text(siblingRow.match_reason || ""),
     match_score: Number(siblingRow.match_score || 0) || 0,
   });
