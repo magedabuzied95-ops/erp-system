@@ -887,6 +887,8 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
   const rows = await fetchLinkRows({ tenantId, platform, post, postId, selectedPostId, canonicalPostId });
   const identityCandidates = collectPostIdentityCandidates({ postId, selectedPostId, row: post, post });
   const matchedMappingKey = rows.length ? resolveMatchedMappingKey({ row: rows[0], candidates: identityCandidates }) : "";
+  const resolvedPostId = getPlatformPostId({ tenantId, platform, post, postId });
+  const resolvedCanonicalPostId = text(canonicalPostId || postId || post?.canonical_post_id || resolvedPostId || "");
   if (!rows.length) {
     console.info("POST_PRODUCT_LINKS_READBACK", {
       ...resolvePostIdentityTrace({
@@ -901,9 +903,18 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
         rowsAffected,
         matchedMappingKey: "",
       }),
-      post_id: getPlatformPostId({ tenantId, platform, post, postId }),
+      post_id: resolvedPostId,
       count: 0,
       matched_mapping_key: "",
+    });
+    console.info("UI_LINKED_PRODUCT_READBACK_SOURCE", {
+      post_id: resolvedPostId,
+      canonical_post_id: resolvedCanonicalPostId,
+      product_ids: Array.isArray(productIds)
+        ? Array.from(new Set(productIds.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)))
+        : [],
+      source_table: "marketing_post_product_links",
+      matched_key: "",
     });
     return {
       linked_products: [],
@@ -913,7 +924,7 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
         ? Array.from(new Set(productIds.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)))
         : [],
       rows_affected: Number(rowsAffected || 0),
-      post_id: getPlatformPostId({ tenantId, platform, post, postId }),
+      post_id: resolvedPostId,
       platform: normalizePlatform(platform || post?.platform || ""),
       tenant_id: toTenantId(tenantId) || null,
       matched_mapping_key: "",
@@ -988,10 +999,17 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
       rowsAffected,
       matchedMappingKey,
     }),
-    post_id: getPlatformPostId({ tenantId, platform, post, postId }),
+    post_id: resolvedPostId,
     count: linkedProducts.length,
     primary_product_id: primaryProduct?.product_id || primaryProduct?.id || null,
     matched_mapping_key: matchedMappingKey,
+  });
+  console.info("UI_LINKED_PRODUCT_READBACK_SOURCE", {
+    post_id: resolvedPostId,
+    canonical_post_id: resolvedCanonicalPostId,
+    product_ids: linkedProducts.map((item) => item.product_id || item.id || null).filter(Boolean),
+    source_table: "marketing_post_product_links",
+    matched_key: matchedMappingKey,
   });
   return {
     linked_products: linkedProducts,
@@ -999,7 +1017,7 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
     count: linkedProducts.length,
     product_ids: linkedProducts.map((item) => item.product_id || item.id || null).filter(Boolean),
     rows_affected: Number(rowsAffected || 0),
-    post_id: getPlatformPostId({ tenantId, platform, post, postId }),
+    post_id: resolvedPostId,
     platform: normalizePlatform(platform || post?.platform || ""),
     tenant_id: toTenantId(tenantId) || null,
     matched_mapping_key: matchedMappingKey,
