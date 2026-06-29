@@ -14,13 +14,14 @@ const THERMAL_IMAGE_MAX_SIDE = Number(process.env.THERMAL_IMAGE_MAX_SIDE || 1400
 const THERMAL_IMAGE_FILE_FORMAT = "png";
 const THERMAL_JOB_IN_FLIGHT = new Map();
 const THERMAL_ARTWORK_BACKGROUND_THRESHOLD = 245;
-const THERMAL_ARTWORK_FILL_TARGET = 0.9;
-const THERMAL_ARTWORK_FILL_MIN = 0.84;
+const THERMAL_ARTWORK_FILL_TARGET = 0.94;
+const THERMAL_ARTWORK_FILL_MIN = 0.92;
 const THERMAL_ARTWORK_FILL_MAX = 0.94;
+const THERMAL_ARTWORK_BINARY_THRESHOLD = 200;
 const DEFAULT_MODEL = process.env.OPENAI_THERMAL_ARTWORK_MODEL || "gpt-image-1.5";
 const DEFAULT_TIMEOUT_MS = 90_000;
 
-export const THERMAL_ARTWORK_VERSION = "v1-openai";
+export const THERMAL_ARTWORK_VERSION = "v2-openai-binary";
 export const THERMAL_ARTWORK_PROMPT = [
   "Generate only the shoe artwork. Do not include any brand logo, product title, text, labels, numbers, frame, border, poster, or mockup.",
   "Create a clean monochrome thermal artwork for 203 dpi direct thermal label printing.",
@@ -29,7 +30,9 @@ export const THERMAL_ARTWORK_PROMPT = [
   "",
   "* Output only a single isolated shoe.",
   "* Use a plain white background.",
-  "* Use black and gray line-art only.",
+  "* Use only pure black and pure white.",
+  "* No gray text, no gray outlines, no semi-transparent pixels, and no antialiasing.",
+  "* The model name under the shoe should be pure white (#FFFFFF) with no gray or antialiasing.",
   "* Preserve shoe details as line-art, not a solid silhouette.",
   "* Keep the shoe large so it fills most of the image area.",
   "* Keep the exact shoe proportions.",
@@ -158,6 +161,7 @@ const jobKeyFor = async ({ entityType = "product", tenantId = null, productId = 
     .createHash("sha1")
     .update(
       [
+        THERMAL_ARTWORK_VERSION,
         entityType,
         tenantId ?? "",
         productId ?? "",
@@ -317,23 +321,38 @@ const detectArtworkBounds = (data = Buffer.alloc(0), info = {}) => {
 
 const postProcessThermalArtworkBuffer = async (inputBuffer) => {
   try {
+    const finalizeThermalBuffer = (buffer) =>
+      sharp(buffer, { animated: false })
+        .rotate()
+        .flatten({ background: { r: 255, g: 255, b: 255 } })
+        .grayscale()
+        .threshold(THERMAL_ARTWORK_BINARY_THRESHOLD)
+        .png({
+          compressionLevel: 9,
+          adaptiveFiltering: false,
+          force: true,
+        })
+        .toBuffer();
+
     const prepared = sharp(inputBuffer, { animated: false }).rotate();
     const { data, info } = await prepared.raw().toBuffer({ resolveWithObject: true });
     const width = Number(info.width || 0);
     const height = Number(info.height || 0);
     if (!width || !height) {
-      return inputBuffer;
+      return finalizeThermalBuffer(inputBuffer);
     }
 
     const bounds = detectArtworkBounds(data, info);
     if (!bounds) {
-      return sharp(data, { raw: { width, height, channels: Number(info.channels || 3) } })
-        .png({
-          compressionLevel: 9,
-          adaptiveFiltering: true,
-          force: true,
-        })
-        .toBuffer();
+      return finalizeThermalBuffer(
+        await sharp(data, { raw: { width, height, channels: Number(info.channels || 3) } })
+          .png({
+            compressionLevel: 9,
+            adaptiveFiltering: false,
+            force: true,
+          })
+          .toBuffer()
+      );
     }
 
     const trimmed = sharp(data, { raw: { width, height, channels: Number(info.channels || 3) } }).extract(bounds);
@@ -358,21 +377,23 @@ const postProcessThermalArtworkBuffer = async (inputBuffer) => {
       })
       .toBuffer();
 
-    return sharp({
-      create: {
-        width,
-        height,
-        channels: 4,
-        background: { r: 255, g: 255, b: 255, alpha: 1 },
-      },
-    })
-      .composite([{ input: resizedArtwork, left: offsetLeft, top: offsetTop }])
-      .png({
-        compressionLevel: 9,
-        adaptiveFiltering: true,
-        force: true,
+    return finalizeThermalBuffer(
+      await sharp({
+        create: {
+          width,
+          height,
+          channels: 4,
+          background: { r: 255, g: 255, b: 255, alpha: 1 },
+        },
       })
-      .toBuffer();
+        .composite([{ input: resizedArtwork, left: offsetLeft, top: offsetTop }])
+        .png({
+          compressionLevel: 9,
+          adaptiveFiltering: false,
+          force: true,
+        })
+        .toBuffer()
+    );
   } catch (error) {
     console.warn("[thermal-artwork] post-process failed, using generated image", error);
     return inputBuffer;
