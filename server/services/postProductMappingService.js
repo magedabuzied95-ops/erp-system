@@ -1370,18 +1370,27 @@ export const resolveProductMappingForSiblingPost = async ({
         ajr.*,
         p.id AS product_row_id,
         p.name AS product_name,
-        COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')) AS product_slug
+        COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')) AS product_slug,
+        CASE
+          WHEN ajr.marketing_post_row_id IS NULL THEN 'alias_join'
+          WHEN ajr.product_id IS NULL THEN 'missing_product_id'
+          WHEN p.id IS NULL THEN 'product_join'
+          ELSE ''
+        END AS join_failure_stage
       FROM alias_join_rows ajr
       LEFT JOIN products p
         ON p.id = ajr.product_id
     )
     SELECT
+      id AS linked_row_id,
+      id AS marketing_post_product_link_id,
       COALESCE(NULLIF(platform_post_id, ''), NULLIF(post_id, ''), NULLIF(media_id, '')) AS mapped_post_id,
       COALESCE(NULLIF(media_id, ''), NULLIF(mp_external_post_id, ''), NULLIF(mp_platform_post_id, ''), NULLIF(post_id, '')) AS mapped_media_id,
       product_id,
       COALESCE(NULLIF(product_name, ''), '') AS product_name,
       COALESCE(NULLIF(product_slug, ''), '') AS product_slug,
       mapping_source,
+      join_failure_stage,
       (
         mp_platform_post_id = ANY($4::text[])
         OR mp_external_post_id = ANY($4::text[])
@@ -1426,6 +1435,13 @@ export const resolveProductMappingForSiblingPost = async ({
       slug_match: slugMatch,
       product_name_token_match_count: productNameTokenMatchCount,
       rejected_reason: rejectedReason,
+      ...(Number(joinRow.product_id || 0) > 0
+        ? {}
+        : {
+            linked_row_id: Number(joinRow.linked_row_id || 0) || null,
+            marketing_post_product_link_id: Number(joinRow.marketing_post_product_link_id || 0) || null,
+            join_failure_stage: text(joinRow.join_failure_stage || ""),
+          }),
     };
   });
   console.info("POST_PRODUCT_LINKS_SIBLING_JOIN_ROWS", {
