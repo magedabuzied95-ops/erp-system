@@ -1312,7 +1312,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const contentColumns = hasImage ? `${thermalLayout.imageCell.w}mm minmax(0, 1fr)` : "minmax(0, 1fr)";
   const contentRows = `${thermalLayout.titleCell.h}mm ${thermalLayout.sizeCell.h}mm ${thermalLayout.colorCell.h}mm ${thermalLayout.barcodeCell.h}mm`;
   const sizeFrame = getBoxFrameLayout(thermalLayout.sizeCell, { boxWidthFactor: 0.9 });
-  const colorFrame = getBoxFrameLayout(thermalLayout.colorCell, { boxHeightFactor: 0.78 });
+  const colorFrame = getBoxFrameLayout(thermalLayout.colorCell, { boxHeightFactor: 1.0 });
   const sizeTextLayout = getBoxTextLayout(thermalLayout.sizeCell, {
     topPaddingMm: 1.5,
     labelGapMm: 1.0,
@@ -1333,8 +1333,10 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
     color: "#fff",
     borderRadius: "8px",
     border: "1px solid #020617",
-    padding: "1.2mm 1.4mm",
+    padding: "0.95mm 1.2mm",
     minHeight: `${thermalLayout.titleCell.h}mm`,
+    display: "flex",
+    alignItems: "center",
   };
   const landscapeCard = (
     <article
@@ -1393,7 +1395,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                 wordBreak: "break-word",
                 overflowWrap: "anywhere",
                 margin: 0,
-                paddingTop: "0.2mm",
+                paddingTop: 0,
               }}
             >
               {productName}
@@ -1460,7 +1462,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                   top: `${Math.max(0.6, articleTextLayout.labelTopMm - thermalLayout.articleCell.y - 0.5)}mm`,
                   left: 0,
                   right: 0,
-                  fontSize: `${thermalLayout.articleLabelFontSize}px`,
+                  fontSize: `${thermalLayout.articleLabelFontSize * 1.08}px`,
                 }}
               >
                 ARTICLE CODE

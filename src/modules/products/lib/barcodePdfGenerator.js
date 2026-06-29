@@ -262,7 +262,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
     doc.text(skuValue, articleCell.x + thermalLayout.articleBoxWidth / 2, articleTextLayout.valueTextY, { align: "center" });
   }
 
-  const colorFrame = getBoxFrameLayout(colorCell, { boxHeightFactor: 0.78 });
+  const colorFrame = getBoxFrameLayout(colorCell, { boxHeightFactor: 1.0 });
   drawRoundedRect(doc, colorFrame.x, colorFrame.y, colorFrame.w, colorFrame.h, 1, [2, 6, 23], [2, 6, 23]);
   doc.setTextColor(203, 213, 225);
   doc.setFontSize(thermalLayout.colorLabelFontSize);
