@@ -1057,6 +1057,33 @@ export const resolveProductMappingForSiblingPost = async ({
   await ensurePostProductMappingSchema();
   const safeTenantId = toTenantId(tenantId || row?.tenant_id || post?.tenant_id || 0);
   const normalizedPlatform = normalizePlatform(platform || row?.platform || post?.platform || "");
+  const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: postId || row?.post_id || post?.post_id || "",
+    row,
+    post,
+    source: "resolveProductMappingForSiblingPost",
+  }).catch(() => null);
+  const canonicalPostId = text(
+    canonicalIdentity?.canonical_post_id ||
+    postId ||
+    row?.canonical_post_id ||
+    row?.platform_post_id ||
+    row?.post_id ||
+    post?.canonical_post_id ||
+    post?.platform_post_id ||
+    post?.post_id ||
+    ""
+  );
+  const uiAliasValues = Array.from(
+    new Set(
+      [
+        canonicalPostId,
+        ...(Array.isArray(canonicalIdentity?.aliases) ? canonicalIdentity.aliases.map((alias) => text(alias?.alias_value || "")) : []),
+      ].map((value) => text(value)).filter(Boolean)
+    )
+  );
   const currentPostIds = collectPostIdentityCandidates({ postId, row, post }).map((candidate) => candidate.value).filter(Boolean);
   const signals = collectSiblingLookupSignals({
     postId,
@@ -1081,7 +1108,7 @@ export const resolveProductMappingForSiblingPost = async ({
   console.info("POST_PRODUCT_LINKS_SIBLING_QUERY_INPUT", {
     tenant_id: safeTenantId || null,
     platform: normalizedPlatform,
-    canonical_post_id: text(postId || row?.canonical_post_id || row?.platform_post_id || row?.post_id || post?.canonical_post_id || post?.platform_post_id || post?.post_id || ""),
+    canonical_post_id: canonicalPostId,
     current_post_ids: currentPostIds,
     source_ids: signals.source_ids,
     image_urls: signals.image_urls,
@@ -1103,7 +1130,57 @@ export const resolveProductMappingForSiblingPost = async ({
   const imageIndex = params.push(signals.image_urls);
   const textIndex = params.push(signals.text_hashes);
   const slugIndex = params.push(signals.slug_hints);
-  const siblingStageParams = [safeTenantId, normalizedPlatform, currentPostIds, signals.source_ids];
+  const uiAliasIndex = params.push(uiAliasValues);
+  const uiMappingSourceRows = await db.query(
+    `
+    SELECT
+      spa.canonical_post_id,
+      spa.alias_value,
+      ppl.product_id,
+      COALESCE(NULLIF(p.name, ''), '') AS product_name,
+      'ui_product_mapping_source'::text AS mapping_source
+    FROM social_post_identity_aliases spa
+    LEFT JOIN marketing_post_product_links ppl
+      ON (
+          ppl.tenant_id = $1::bigint
+          OR ppl.business_id = $1::bigint
+        )
+     AND ppl.platform = $2::text
+     AND ppl.platform_post_id = spa.canonical_post_id
+    LEFT JOIN products p
+      ON p.id = ppl.product_id
+    WHERE spa.tenant_id = $1::bigint
+      AND spa.platform = $2::text
+      AND spa.alias_value = ANY($3::text[])
+    ORDER BY spa.updated_at DESC, spa.created_at DESC, spa.id DESC
+    LIMIT 10
+    `,
+    [safeTenantId, normalizedPlatform, uiAliasValues]
+  ).catch(() => ({ rows: [] }));
+  const uiMappingRowsPreview = (uiMappingSourceRows.rows || []).map((uiRow) => ({
+    canonical_post_id: text(uiRow.canonical_post_id || ""),
+    alias_value: text(uiRow.alias_value || ""),
+    product_id: Number(uiRow.product_id || 0) || null,
+    product_name: text(uiRow.product_name || ""),
+    mapping_source: "ui_product_mapping_source",
+  }));
+  const uiMappingReason = !uiAliasValues.length
+    ? "no_alias_rows"
+    : !(uiMappingSourceRows.rows || []).length
+      ? "no_product_links_for_alias"
+      : !(uiMappingSourceRows.rows || []).some((entry) => Number(entry.product_id || 0) > 0)
+        ? "no_product_join"
+        : "";
+  console.info("POST_PRODUCT_LINKS_UI_MAPPING_SOURCE_ROWS", {
+    tenant_id: safeTenantId || null,
+    platform: normalizedPlatform,
+    post_id: text(postId || row?.post_id || post?.post_id || ""),
+    canonical_post_id: canonicalPostId,
+    row_count: Number(uiMappingSourceRows.rows?.length || 0) || 0,
+    reason: uiMappingReason,
+    rows: uiMappingRowsPreview,
+  });
+  const siblingStageParams = [safeTenantId, normalizedPlatform, currentPostIds, uiAliasValues];
   console.info("POST_PRODUCT_LINKS_SIBLING_SQL_PARAM_COUNT", {
     placeholder_count: 4,
     params_count: siblingStageParams.length,
@@ -1149,7 +1226,7 @@ export const resolveProductMappingForSiblingPost = async ({
           OR ppl.business_id = $1::bigint
         )
         AND ppl.platform = $2::text
-        AND spa.alias_value = ANY($4::text[])
+        AND spa.alias_value = ANY($8::text[])
         AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
     ),
     alias_join_rows AS (
@@ -1247,7 +1324,7 @@ export const resolveProductMappingForSiblingPost = async ({
           OR ppl.business_id = $1::bigint
         )
         AND ppl.platform = $2::text
-        AND spa.alias_value = ANY($4::text[])
+        AND spa.alias_value = ANY($8::text[])
         AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
     ),
     alias_join_rows AS (
