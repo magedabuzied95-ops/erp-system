@@ -1032,9 +1032,6 @@ export default function EmployeePortalInventory() {
         if (group) {
           await addColorGroup(group);
         }
-        const existing = items.find((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === String(exact.product_variant_id ?? exact.variant_id ?? exact.id ?? ""));
-        await saveItem(exact, { countedQuantity: toNumber(existing?.counted_quantity, 0) + 1, systemQuantity: exact.system_quantity });
-        toast.success(`تم عد قطعة من مقاس ${exact.size || exact.sku || ""}`.trim());
         return true;
       }
       toast.error("لم يتم العثور على منتج مطابق لهذا الباركود");
@@ -1045,7 +1042,7 @@ export default function EmployeePortalInventory() {
     } finally {
       setLookupLoading(false);
     }
-  }, [addColorGroup, findColorGroupForVariant, items, saveItem, session?.id, token]);
+  }, [addColorGroup, findColorGroupForVariant, session?.id, token]);
 
   const handleVariantCountChange = useCallback((variantId, value) => {
     if (!isEditable) return;
