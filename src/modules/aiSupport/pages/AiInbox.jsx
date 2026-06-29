@@ -38,6 +38,7 @@ import {
   Ruler,
   Search,
   Send,
+  ShieldBan,
   ShoppingBag,
   ShoppingCart,
   Snowflake,
