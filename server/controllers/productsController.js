@@ -3048,9 +3048,24 @@ export const updateProduct = async (req, res) => {
   let transactionStarted = false;
 
   try {
-    await ensureProductSchema();
-    await ensureProductVariantSchema();
-    await ensureProductVariantManufacturerColumn();
+    const bootstrapSteps = [
+      ["ensureProductSchema", ensureProductSchema],
+      ["ensureProductVariantSchema", ensureProductVariantSchema],
+      ["ensureProductVariantManufacturerColumn", ensureProductVariantManufacturerColumn],
+    ];
+    for (const [label, step] of bootstrapSteps) {
+      try {
+        await step();
+      } catch (bootstrapError) {
+        console.warn("[products:update] bootstrap step failed", {
+          productId: req.params.id,
+          step: label,
+          message: bootstrapError?.message,
+          code: bootstrapError?.code || null,
+          stack: bootstrapError?.stack,
+        });
+      }
+    }
     const productColumns = await getTableColumns(client, "products");
     const supportsThermalImageUrl = productColumns.has("thermal_image_url");
     const {
