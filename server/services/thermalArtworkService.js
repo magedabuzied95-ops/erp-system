@@ -156,7 +156,7 @@ const sourceFingerprint = async (sourceImageUrl = "") => {
   return source;
 };
 
-const jobKeyFor = async ({ entityType = "product", tenantId = null, productId = null, variantId = null, sourceImageUrl = "" } = {}) => {
+const jobKeyFor = async ({ entityType = "product", tenantId = null, productId = null, variantId = null, sourceImageUrl = "", cacheBust = "" } = {}) => {
   const fingerprint = await sourceFingerprint(sourceImageUrl);
   return crypto
     .createHash("sha1")
@@ -168,13 +168,14 @@ const jobKeyFor = async ({ entityType = "product", tenantId = null, productId = 
         productId ?? "",
         variantId ?? "",
         fingerprint,
+        cacheBust || "",
       ].join("|")
     )
     .digest("hex");
 };
 
-const outputFileNameFor = async ({ entityType = "product", productId = null, variantId = null, sourceImageUrl = "" } = {}) => {
-  const jobKey = await jobKeyFor({ entityType, productId, variantId, sourceImageUrl });
+const outputFileNameFor = async ({ entityType = "product", productId = null, variantId = null, sourceImageUrl = "", cacheBust = "" } = {}) => {
+  const jobKey = await jobKeyFor({ entityType, productId, variantId, sourceImageUrl, cacheBust });
   return `${entityType}-${productId || "product"}-${variantId || "base"}-${jobKey.slice(0, 16)}.${THERMAL_IMAGE_FILE_FORMAT}`;
 };
 
@@ -230,10 +231,10 @@ const normalizeSourceImage = async (value = "") => {
   }
 };
 
-const saveThermalArtworkAsset = async ({ buffer, productId = null, sourceKey = "", mimetype = "image/png" } = {}) => {
+const saveThermalArtworkAsset = async ({ buffer, productId = null, sourceKey = "", fileName = "", mimetype = "image/png" } = {}) => {
   const safeSourceKey = sha1(sourceKey || buffer?.length || "");
   const safeProductKey = Number.isFinite(Number(productId)) && Number(productId) > 0 ? `product-${Number(productId)}` : "draft";
-  const fileName = `${safeProductKey}-thermal-${safeSourceKey.slice(0, 12)}-${Date.now()}.png`;
+  const resolvedFileName = String(fileName || "").trim() || `${safeProductKey}-thermal-${safeSourceKey.slice(0, 12)}-${Date.now()}.png`;
 
   try {
     const config = cloudinaryConfig();
@@ -246,7 +247,7 @@ const saveThermalArtworkAsset = async ({ buffer, productId = null, sourceKey = "
       const signature = sha1(`${signatureBase}${config.apiSecret}`);
       const blob = new Blob([buffer], { type: mimetype || "image/png" });
       const formData = new FormData();
-      formData.append("file", blob, fileName);
+      formData.append("file", blob, resolvedFileName);
       formData.append("api_key", config.apiKey);
       formData.append("timestamp", String(timestamp));
       formData.append("folder", config.folder);
@@ -273,10 +274,10 @@ const saveThermalArtworkAsset = async ({ buffer, productId = null, sourceKey = "
 
   const outputDir = path.join(process.cwd(), "uploads", "products", "thermal-artwork");
   await fs.mkdir(outputDir, { recursive: true });
-  const outputPath = path.join(outputDir, fileName);
+  const outputPath = path.join(outputDir, resolvedFileName);
   await fs.writeFile(outputPath, buffer);
   return {
-    thermal_image_url: `/uploads/products/thermal-artwork/${fileName}`,
+    thermal_image_url: `/uploads/products/thermal-artwork/${resolvedFileName}`,
     storage: "local",
     outputPath,
   };
@@ -503,7 +504,8 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
   const existingThermalImageUrl = normalizeText(options.existingThermalImageUrl || "");
   const regenerate = options.regenerate === true || String(options.regenerate || "").toLowerCase() === "true";
   const productName = normalizeText(options.productName || options.name || "");
-  const inputKey = await jobKeyFor({ entityType, tenantId, productId, variantId, sourceImageUrl });
+  const cacheBust = regenerate ? `${Date.now()}-${crypto.randomUUID()}` : "";
+  const inputKey = await jobKeyFor({ entityType, tenantId, productId, variantId, sourceImageUrl, cacheBust });
 
   if (!sourceImageUrl && existingThermalImageUrl) {
     return {
@@ -529,8 +531,9 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
   }
 
   const job = (async () => {
-    const outputUrl = await outputUrlFor({ entityType, productId, variantId, sourceImageUrl });
-    const outputPath = await outputPathFor({ entityType, productId, variantId, sourceImageUrl });
+    const outputUrl = await outputUrlFor({ entityType, productId, variantId, sourceImageUrl, cacheBust });
+    const outputPath = await outputPathFor({ entityType, productId, variantId, sourceImageUrl, cacheBust });
+    const outputFileName = path.basename(outputPath);
 
     console.log("THERMAL_IMAGE_JOB_STARTED", {
       entityType,
@@ -650,8 +653,16 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
     const stored = await saveThermalArtworkAsset({
       buffer: thermalBuffer,
       productId,
-      sourceKey: `${sourceImageUrl}:${productId || ""}:${Date.now()}`,
+      sourceKey: `${sourceImageUrl}:${productId || ""}:${cacheBust || Date.now()}`,
+      fileName: outputFileName,
       mimetype: "image/png",
+    });
+
+    console.log("THERMAL_SAVE_FINAL_BUFFER", {
+      hasWhiteTextOverlay: Boolean(productName),
+      outputUrl: stored.thermal_image_url,
+      cacheBypassed: regenerate,
+      generatedAt: new Date().toISOString(),
     });
 
     await updateThermalRecord({
@@ -704,9 +715,9 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       outputPath: stored.outputPath || "",
     });
 
-    return {
-      success: true,
-      thermal_image_url: stored.thermal_image_url,
+      return {
+        success: true,
+        thermal_image_url: stored.thermal_image_url,
       source: "generated",
       cached: false,
       updated: true,
