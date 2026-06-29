@@ -195,10 +195,13 @@ const normalizePost = (raw) => {
       ""
   );
   return {
-    id: clean(post.canonical_post_id || post.platform_post_id || post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
-    postId: clean(post.canonical_post_id || post.platform_post_id || post.post_id || post.id || metadata.post_id || ""),
+    id: clean(post.canonical_post_id || post.final_canonical_post_id || post.platform_post_id || post.post_id || post.id || post.conversation_id || post.session_id || metadata.canonical_post_id || metadata.post_id || ""),
+    postId: clean(post.canonical_post_id || post.final_canonical_post_id || post.platform_post_id || post.post_id || post.id || metadata.canonical_post_id || metadata.post_id || ""),
+    sourcePostId: clean(post.post_id || post.id || post.platform_post_id || metadata.post_id || metadata.platform_post_id || ""),
+    sourceConversationId: clean(post.conversation_id || post.session_id || post.conversation_key || post.thread_id || metadata.conversation_id || ""),
     platformPostId: clean(post.platform_post_id || metadata.platform_post_id || post.post_id || ""),
-    canonicalPostId: clean(post.canonical_post_id || metadata.canonical_post_id || post.platform_post_id || post.post_id || ""),
+    canonicalPostId: clean(post.canonical_post_id || post.final_canonical_post_id || metadata.canonical_post_id || metadata.final_canonical_post_id || post.platform_post_id || post.post_id || ""),
+    finalCanonicalPostId: clean(post.final_canonical_post_id || metadata.final_canonical_post_id || post.canonical_post_id || metadata.canonical_post_id || post.platform_post_id || post.post_id || ""),
     conversationId: clean(post.conversation_id || post.session_id || post.conversation_key || post.thread_id || metadata.conversation_id || ""),
     sessionId: clean(post.session_id || metadata.session_id || ""),
     platform: clean(post.platform || metadata.platform || "facebook").toLowerCase(),
@@ -273,6 +276,9 @@ const normalizePost = (raw) => {
     primaryLinkedProduct,
     primary_linked_product: primaryLinkedProduct,
     mapping_summary: mappingSummary,
+    duplicateIdentity: post.duplicate_identity || metadata.duplicate_identity || null,
+    duplicatePostIds: Array.isArray(post.compared_post_ids) ? post.compared_post_ids : Array.isArray(metadata.compared_post_ids) ? metadata.compared_post_ids : [],
+    duplicateRowIds: Array.isArray(post.compared_row_ids) ? post.compared_row_ids : Array.isArray(metadata.compared_row_ids) ? metadata.compared_row_ids : [],
     attachmentImage,
     raw: post,
   };
@@ -634,17 +640,34 @@ const resolveCommentPlatformLabel = (comment = {}) => {
 const resolvePostMediaBadge = (post = {}) => {
   const rawType = clean(post?.raw?.post_type || post?.raw?.type || post?.raw?.story_type || post?.raw?.content_type || post?.metadata?.post_type || post?.metadata?.type || post?.metadata?.content_type || "");
   const key = rawType.toLowerCase();
+  const hasImage = Boolean(clean(
+    post?.displayImage ||
+      post?.thumbnailUrl ||
+      post?.thumbnail_url ||
+      post?.raw?.full_picture ||
+      post?.raw?.post_full_picture ||
+      post?.raw?.media_url ||
+      post?.raw?.image_url ||
+      post?.metadata?.full_picture ||
+      post?.metadata?.post_full_picture ||
+      post?.metadata?.media_url ||
+      post?.metadata?.image_url ||
+      post?.metadata?.thumbnail_url ||
+      ""
+  ));
   const label = key.includes("reel")
     ? "Reel"
     : key.includes("carousel")
       ? "Carousel"
       : key.includes("video")
         ? "Video"
-        : key.includes("photo") || key.includes("image")
+        : hasImage && !key.includes("video") && !key.includes("reel")
           ? "Photo"
-          : key.includes("text")
-            ? "Text"
-            : key.includes("story")
+          : key.includes("photo") || key.includes("image")
+            ? "Photo"
+            : key.includes("text")
+              ? "Text"
+              : key.includes("story")
               ? "Text"
               : "";
   if (!label) return null;
@@ -1089,6 +1112,7 @@ function SocialCommentsWorkspace({
   const activePostType = postTypeMeta(activePostDetails);
   const activePostPlatform = clean(activePostDetails?.platform || activePost?.platform || "facebook").toLowerCase();
   const activePostPostId = clean(activePostDetails?.postId || activePostDetails?.id || activePostKey);
+  const activePostSourceId = clean(activePostDetails?.sourcePostId || activePostDetails?.raw?.post_id || activePostDetails?.raw?.id || "");
   const activePostConversationId = clean(activePostDetails?.conversationId || activePostDetails?.sessionId || activePostDetails?.id || activePostKey);
   const activeTemplateEnabled = Boolean(activeTemplate?.enabled);
   const activePostPublishedAt = clean(
@@ -2163,7 +2187,7 @@ function SocialCommentsWorkspace({
                   <h2 className="mt-1 line-clamp-2 text-2xl font-black leading-8 text-slate-900 min-[1600px]:text-3xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
-                    {activePostType ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostType.className}`}>{activePostType.label}</span> : null}
+                    {activePostMediaBadge ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostMediaBadge.className}`}>{activePostMediaBadge.label}</span> : activePostType ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostType.className}`}>{activePostType.label}</span> : null}
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
                       {activePostDisplay?.displayCommentCount || activePost.commentsCount || 0} comments
                     </span>
@@ -2178,6 +2202,31 @@ function SocialCommentsWorkspace({
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
                       {activePost.newCount || 0} new
                     </span>
+                    {activePostSourceId ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[10px] font-black text-cyan-800">
+                        Loaded post_id: {activePostSourceId}
+                      </span>
+                    ) : null}
+                    {activePostConversationId ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black text-slate-700">
+                        Conversation: {activePostConversationId}
+                      </span>
+                    ) : null}
+                    {activePostPostId && activePostPostId !== activePostSourceId ? (
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-800">
+                        Canonical post_id: {activePostPostId}
+                      </span>
+                    ) : null}
+                    {activePostLink ? (
+                      <a
+                        href={activePostLink}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-800"
+                      >
+                        Permalink
+                      </a>
+                    ) : null}
                     {activeDisplayLinkedProducts.linkedProductsCount > 0 ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-700">
                         ✓ Linked Products

@@ -662,6 +662,7 @@ const resolveSocialCommentCanonicalPostId = (row = {}) => {
   const valuePayload = metadataObject(rawPayload.value || {});
   const pageId = text(metadata.page_id || metadata.facebook_page_id || rawPayload.value?.page_id || rawPayload.value?.facebook_page_id || rawPayload.page_id || rawPayload.facebook_page_id || "");
   const candidates = [
+    { source: "canonical_post_id", value: row.canonical_post_id },
     { source: "metadata.post_id", value: metadata.post_id },
     { source: "automation_run_post_id", value: row.automation_run_post_id },
     { source: "raw_payload.value.post_id", value: valuePayload.post_id },
@@ -678,6 +679,296 @@ const resolveSocialCommentCanonicalPostId = (row = {}) => {
   }
 
   return "";
+};
+
+const normalizeSocialCommentIdentityText = (value = "") => text(value).replace(/\s+/g, " ").trim().toLowerCase();
+
+const extractSocialCommentIdentitySnapshot = (row = {}) => {
+  const safeRow = metadataObject(row || {});
+  const metadata = metadataObject(safeRow.metadata || {});
+  const rawPayload = metadataObject(safeRow.raw_payload || metadata.raw_payload || {});
+  const rawValue = metadataObject(rawPayload.value || {});
+  const postId = text(
+    safeRow.canonical_post_id ||
+    safeRow.post_id ||
+    safeRow.platform_post_id ||
+    metadata.canonical_post_id ||
+    metadata.post_id ||
+    metadata.platform_post_id ||
+    metadata.external_post_id ||
+    safeRow.conversation_id ||
+    safeRow.external_conversation_id ||
+    ""
+  );
+  const permalinkUrl = text(
+    safeRow.permalink_url ||
+    safeRow.post_permalink_url ||
+    safeRow.post_permalink ||
+    safeRow.post_url ||
+    metadata.permalink_url ||
+    metadata.post_permalink_url ||
+    metadata.post_permalink ||
+    metadata.post_url ||
+    rawPayload.permalink_url ||
+    rawPayload.post_permalink_url ||
+    rawPayload.post_permalink ||
+    rawPayload.post_url ||
+    rawValue.permalink_url ||
+    rawValue.post_permalink_url ||
+    rawValue.post_permalink ||
+    rawValue.post_url ||
+    ""
+  );
+  const imageUrl = text(
+    safeRow.post_image_url ||
+    safeRow.media_url ||
+    safeRow.full_picture ||
+    safeRow.post_full_picture ||
+    safeRow.picture ||
+    safeRow.image_url ||
+    safeRow.thumbnail_url ||
+    metadata.post_image_url ||
+    metadata.media_url ||
+    metadata.full_picture ||
+    metadata.post_full_picture ||
+    metadata.picture ||
+    metadata.image_url ||
+    metadata.thumbnail_url ||
+    rawPayload.post_image_url ||
+    rawPayload.media_url ||
+    rawPayload.full_picture ||
+    rawPayload.post_full_picture ||
+    rawPayload.picture ||
+    rawPayload.image_url ||
+    rawPayload.thumbnail_url ||
+    rawValue.post_image_url ||
+    rawValue.media_url ||
+    rawValue.full_picture ||
+    rawValue.post_full_picture ||
+    rawValue.picture ||
+    rawValue.image_url ||
+    rawValue.thumbnail_url ||
+    ""
+  );
+  const postText = text(
+    safeRow.post_text ||
+    safeRow.post_message ||
+    safeRow.post_caption ||
+    safeRow.message ||
+    safeRow.caption ||
+    safeRow.last_message ||
+    metadata.post_text ||
+    metadata.post_message ||
+    metadata.post_caption ||
+    metadata.message ||
+    metadata.caption ||
+    rawPayload.post_text ||
+    rawPayload.post_message ||
+    rawPayload.post_caption ||
+    rawPayload.message ||
+    rawPayload.caption ||
+    rawValue.post_text ||
+    rawValue.post_message ||
+    rawValue.post_caption ||
+    rawValue.message ||
+    rawValue.caption ||
+    ""
+  );
+  const createdAt = text(
+    safeRow.created_at ||
+    safeRow.post_created_time ||
+    safeRow.published_at ||
+    safeRow.last_message_at ||
+    metadata.post_created_time ||
+    metadata.created_time ||
+    metadata.published_at ||
+    metadata.post?.created_time ||
+    metadata.post?.updated_time ||
+    ""
+  );
+  return {
+    source_row_id: text(safeRow.id || ""),
+    post_id: postId,
+    canonical_post_id: text(safeRow.canonical_post_id || ""),
+    conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || metadata.conversation_id || ""),
+    permalink_url: permalinkUrl,
+    image_url: imageUrl,
+    post_text: postText,
+    created_at: createdAt,
+    permalink_key: normalizeSocialCommentIdentityText(permalinkUrl),
+    image_key: normalizeSocialCommentIdentityText(imageUrl),
+    text_key: normalizeSocialCommentIdentityText(postText),
+    created_key: normalizeSocialCommentIdentityText(createdAt),
+  };
+};
+
+const chooseCanonicalSocialCommentIdentitySnapshot = (snapshots = []) => {
+  const list = Array.isArray(snapshots) ? snapshots.filter(Boolean) : [];
+  if (!list.length) return null;
+  const scored = list.map((snapshot) => {
+    let score = 0;
+    if (snapshot.permalink_url) score += 2;
+    if (snapshot.image_url) score += 2;
+    if (snapshot.post_text) score += 1;
+    if (snapshot.created_at) score += 1;
+    if (snapshot.source_row_id) score += 1;
+    return { snapshot, score };
+  });
+  scored.sort((left, right) => {
+    if (right.score !== left.score) return right.score - left.score;
+    const leftTime = left.snapshot.created_at ? new Date(left.snapshot.created_at).getTime() : Number.POSITIVE_INFINITY;
+    const rightTime = right.snapshot.created_at ? new Date(right.snapshot.created_at).getTime() : Number.POSITIVE_INFINITY;
+    if (leftTime !== rightTime) return leftTime - rightTime;
+    return text(left.snapshot.source_row_id || left.snapshot.post_id || left.snapshot.conversation_id || "").localeCompare(text(right.snapshot.source_row_id || right.snapshot.post_id || right.snapshot.conversation_id || ""));
+  });
+  return scored[0]?.snapshot || list[0] || null;
+};
+
+const compareSocialCommentDuplicateIdentity = async ({ tenantId = null, platform = "", row = {}, post = {} } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const normalizedPlatform = normalizePlatform(platform);
+  const baseSnapshot = extractSocialCommentIdentitySnapshot({ ...metadataObject(row || {}), ...metadataObject(post || {}) });
+  const baseIdentity = {
+    post_id: text(baseSnapshot.post_id || row?.canonical_post_id || row?.post_id || post?.canonical_post_id || post?.post_id || ""),
+    permalink_url: text(baseSnapshot.permalink_url || ""),
+    image_url: text(baseSnapshot.image_url || ""),
+    post_text: text(baseSnapshot.post_text || ""),
+    created_at: text(baseSnapshot.created_at || ""),
+    source_row_id: text(baseSnapshot.source_row_id || row?.id || post?.id || ""),
+    conversation_id: text(baseSnapshot.conversation_id || ""),
+  };
+  if (!safeTenantId || !baseIdentity.post_id) {
+    const finalCanonicalPostId = baseIdentity.post_id || baseIdentity.conversation_id || baseIdentity.source_row_id || "";
+    return {
+      compared_post_ids: finalCanonicalPostId ? [finalCanonicalPostId] : [],
+      compared_row_ids: baseIdentity.source_row_id ? [baseIdentity.source_row_id] : [],
+      permalink_match: false,
+      image_match: false,
+      text_match: false,
+      final_canonical_post_id: finalCanonicalPostId,
+      canonical_post_id: finalCanonicalPostId,
+      duplicate_count: 0,
+      identity: baseIdentity,
+      matched_rows: [],
+    };
+  }
+
+  const conditions = [];
+  const values = [safeTenantId, normalizedPlatform, baseIdentity.source_row_id || 0];
+  const pushCondition = (sql, value) => {
+    const safeValue = text(value);
+    if (!safeValue) return;
+    values.push(safeValue);
+    conditions.push(sql(values.length));
+  };
+  pushCondition((index) => `(
+    NULLIF(c.metadata->>'post_id', '') = $${index}
+    OR NULLIF(c.metadata->>'platform_post_id', '') = $${index}
+    OR NULLIF(c.metadata->>'external_post_id', '') = $${index}
+    OR NULLIF(c.metadata->>'source_post_id', '') = $${index}
+    OR NULLIF(c.metadata->>'canonical_post_id', '') = $${index}
+    OR NULLIF(c.external_conversation_id, '') = $${index}
+  )`, baseIdentity.post_id);
+  pushCondition((index) => `(
+    NULLIF(c.metadata->>'post_permalink_url', '') = $${index}
+    OR NULLIF(c.metadata->>'permalink_url', '') = $${index}
+    OR NULLIF(c.metadata->>'post_permalink', '') = $${index}
+    OR NULLIF(c.metadata->>'post_url', '') = $${index}
+  )`, baseIdentity.permalink_url);
+  pushCondition((index) => `(
+    NULLIF(c.metadata->>'post_full_picture', '') = $${index}
+    OR NULLIF(c.metadata->>'full_picture', '') = $${index}
+    OR NULLIF(c.metadata->>'attachment_image', '') = $${index}
+    OR NULLIF(c.metadata->>'thumbnail_url', '') = $${index}
+    OR NULLIF(c.metadata->>'image_url', '') = $${index}
+    OR NULLIF(c.metadata->>'picture', '') = $${index}
+  )`, baseIdentity.image_url);
+  pushCondition((index) => `(
+    lower(regexp_replace(COALESCE(NULLIF(c.metadata->>'post_text', ''), NULLIF(c.metadata->>'post_message', ''), NULLIF(c.metadata->>'post_caption', ''), NULLIF(c.metadata->>'message', ''), NULLIF(c.metadata->>'caption', ''), NULLIF(c.last_message, ''), ''), '\\s+', ' ', 'g')) = $${index}
+  )`, normalizeSocialCommentIdentityText(baseIdentity.post_text));
+
+  const candidateRows = conditions.length
+    ? await db.query(
+      `
+      SELECT
+        c.id,
+        c.tenant_id,
+        c.channel,
+        c.external_conversation_id AS conversation_id,
+        c.external_customer_id,
+        c.customer_name,
+        c.last_message,
+        c.last_message_at,
+        c.updated_at,
+        c.created_at,
+        c.metadata,
+        COALESCE(c.metadata->>'canonical_post_id', c.metadata->>'post_id', c.metadata->>'platform_post_id', c.metadata->>'external_post_id', c.external_conversation_id, '') AS post_id,
+        COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'permalink_url', c.metadata->>'post_permalink', c.metadata->>'post_url', '') AS permalink_url,
+        COALESCE(c.metadata->>'post_full_picture', c.metadata->>'full_picture', c.metadata->>'attachment_image', c.metadata->>'thumbnail_url', c.metadata->>'image_url', c.metadata->>'picture', '') AS image_url,
+        COALESCE(c.metadata->>'post_text', c.metadata->>'post_message', c.metadata->>'post_caption', c.metadata->>'message', c.metadata->>'caption', c.last_message, '') AS post_text,
+        COALESCE(c.metadata->>'post_created_time', c.metadata->>'created_time', c.metadata->>'published_at', c.created_at::text, '') AS post_created_time
+      FROM ai_channel_conversations c
+      WHERE c.tenant_id = $1::bigint
+        AND c.channel = $2::text
+        AND c.thread_kind = 'comment'
+        AND c.id <> $3::bigint
+        AND (${conditions.join(" OR ")})
+      ORDER BY c.updated_at DESC, c.created_at DESC, c.id DESC
+      LIMIT 25
+      `,
+      values
+    ).catch(() => ({ rows: [] }))
+    : { rows: [] };
+
+  const matchedRows = Array.isArray(candidateRows.rows) ? candidateRows.rows : [];
+  const candidateSnapshots = [baseIdentity, ...matchedRows.map((candidateRow) => extractSocialCommentIdentitySnapshot(candidateRow))];
+  const permalinkMatches = candidateSnapshots.filter((snapshot) => baseIdentity.permalink_key && snapshot.permalink_key === baseIdentity.permalink_key);
+  const imageMatches = candidateSnapshots.filter((snapshot) => baseIdentity.image_key && snapshot.image_key === baseIdentity.image_key);
+  const textMatches = candidateSnapshots.filter((snapshot) => baseIdentity.text_key && snapshot.text_key === baseIdentity.text_key);
+  const canonicalSnapshot = chooseCanonicalSocialCommentIdentitySnapshot(
+    candidateSnapshots.filter((snapshot) => {
+      if (!snapshot) return false;
+      return (
+        (baseIdentity.permalink_key && snapshot.permalink_key === baseIdentity.permalink_key) ||
+        (baseIdentity.image_key && snapshot.image_key === baseIdentity.image_key) ||
+        (baseIdentity.text_key && snapshot.text_key === baseIdentity.text_key) ||
+        (baseIdentity.post_id && snapshot.post_id === baseIdentity.post_id)
+      );
+    })
+  ) || baseIdentity;
+  const comparedPostIds = Array.from(new Set(candidateSnapshots.map((snapshot) => text(snapshot.post_id || snapshot.conversation_id || snapshot.source_row_id || "")).filter(Boolean)));
+  const comparedRowIds = Array.from(new Set(candidateSnapshots.map((snapshot) => text(snapshot.source_row_id || "")).filter(Boolean)));
+  const finalCanonicalPostId = text(
+    canonicalSnapshot.post_id ||
+    canonicalSnapshot.canonical_post_id ||
+    baseIdentity.post_id ||
+    baseIdentity.conversation_id ||
+    baseIdentity.source_row_id ||
+    ""
+  );
+  const result = {
+    compared_post_ids: comparedPostIds,
+    compared_row_ids: comparedRowIds,
+    permalink_match: permalinkMatches.length > 1,
+    image_match: imageMatches.length > 1,
+    text_match: textMatches.length > 1,
+    final_canonical_post_id: finalCanonicalPostId,
+    canonical_post_id: finalCanonicalPostId,
+    duplicate_count: Math.max(0, candidateSnapshots.length - 1),
+    identity: baseIdentity,
+    matched_rows: matchedRows,
+  };
+  console.log("SOCIAL_POST_DUPLICATE_IDENTITY_CHECK", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    compared_ids: result.compared_post_ids,
+    compared_row_ids: result.compared_row_ids,
+    permalink_match: result.permalink_match,
+    image_match: result.image_match,
+    text_match: result.text_match,
+    final_canonical_post_id: result.final_canonical_post_id,
+  });
+  return result;
 };
 
 const canonicalizeSocialCommentThreadPostId = ({ postId = "", platform = "", pageId = "" } = {}) => {
@@ -823,17 +1114,35 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     ""
   ) || (safeRow.post_id && !isWrapperSocialCommentPostId(safeRow.post_id) ? text(safeRow.post_id) : "");
   const postId = storedPostId || text(safeRow.post_id || safeRow.conversation_id || metadata.conversation_id || "");
+  const duplicateIdentity = tenantId && postId
+    ? await compareSocialCommentDuplicateIdentity({ tenantId, platform, row: safeRow, post: safeRow }).catch(() => null)
+    : null;
+  const canonicalIdentityPostId = text(duplicateIdentity?.canonical_post_id || duplicateIdentity?.final_canonical_post_id || postId || "");
   const graphPostId = resolveSocialCommentGraphPostId(safeRow);
   const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
   const graphLookupPostIds = resolveSocialCommentGraphLookupIds({ row: safeRow, pageId });
   const currentDetails = resolvePostThumbnailDetails(safeRow);
   const currentHasThumbnail = Boolean(currentDetails.has_thumbnail);
   const shouldLogMediaBackfill = !currentHasThumbnail;
-  const mappingSummary = postId && tenantId
-    ? await getMappings({ tenantId, platform, postId, row: safeRow, post: safeRow }).catch(() => null)
+  const mappingSummary = canonicalIdentityPostId && tenantId
+    ? await getMappings({
+      tenantId,
+      platform,
+      postId: canonicalIdentityPostId,
+      row: { ...safeRow, canonical_post_id: canonicalIdentityPostId },
+      post: { ...safeRow, canonical_post_id: canonicalIdentityPostId },
+    }).catch(() => null)
     : null;
   const appendMappingSummary = (value = {}) => ({
     ...value,
+    canonical_post_id: canonicalIdentityPostId,
+    final_canonical_post_id: duplicateIdentity?.final_canonical_post_id || canonicalIdentityPostId,
+    duplicate_identity: duplicateIdentity || null,
+    compared_post_ids: duplicateIdentity?.compared_post_ids || [],
+    compared_row_ids: duplicateIdentity?.compared_row_ids || [],
+    duplicate_permalink_match: Boolean(duplicateIdentity?.permalink_match),
+    duplicate_image_match: Boolean(duplicateIdentity?.image_match),
+    duplicate_text_match: Boolean(duplicateIdentity?.text_match),
     post_text: text(value.post_text || safeRow.post_text || safeRow.post_message || metadata.post_text || metadata.message || value.post_message || value.post_caption || ""),
     message: text(value.message || safeRow.message || safeRow.post_message || metadata.message || value.post_message || value.post_caption || ""),
     marketing_published_at: text(value.marketing_published_at || safeRow.marketing_published_at || ""),
@@ -1846,6 +2155,7 @@ const collectSocialCommentAutomationConfigCandidates = ({ postId = "", row = {},
   const safePost = metadataObject(post);
   const safeRowMetadata = metadataObject(safeRow.metadata || {});
   const safePostMetadata = metadataObject(safePost.metadata || {});
+  push("canonical_post_id", safeRow.canonical_post_id || safePost.canonical_post_id || safeRowMetadata.canonical_post_id || safePostMetadata.canonical_post_id || "");
   push("post_id", postId || safeRow.post_id || safePost.post_id || safeRowMetadata.post_id || safePostMetadata.post_id || "");
   push("platform_post_id", safeRow.platform_post_id || safeRowMetadata.platform_post_id || safePost.platform_post_id || safePostMetadata.platform_post_id || safeRowMetadata.external_post_id || safePostMetadata.external_post_id || "");
   push("wrapper_post_id", safeRow.wrapper_post_id || safeRowMetadata.wrapper_post_id || safePost.wrapper_post_id || safePostMetadata.wrapper_post_id || "");
@@ -2296,7 +2606,15 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
     LEFT JOIN social_auto_reply_settings settings
       ON settings.tenant_id = c.tenant_id
     WHERE c.tenant_id = $1::bigint
-      AND c.metadata->>'post_id' = $2::text
+      AND (
+        c.metadata->>'post_id' = $2::text
+        OR c.metadata->>'platform_post_id' = $2::text
+        OR c.metadata->>'external_post_id' = $2::text
+        OR c.metadata->>'source_post_id' = $2::text
+        OR c.metadata->>'canonical_post_id' = $2::text
+        OR c.external_conversation_id = $2::text
+        OR c.metadata->>'conversation_id' = $2::text
+      )
       AND c.channel = $3::text
     LIMIT 1
     `,
@@ -2314,7 +2632,11 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   const row = result.rows?.[0] || null;
   if (!row) return null;
   const enriched = await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform });
-  const canonicalPostId = resolveSocialCommentCanonicalPostId(enriched || row) || text(enriched?.post_id || row.post_id || row.conversation_id || row.external_conversation_id || "");
+  const duplicateIdentity = await compareSocialCommentDuplicateIdentity({ tenantId: safeTenantId, platform: normalizedPlatform, row: enriched || row, post: enriched || row }).catch(() => null);
+  const canonicalPostId =
+    text(duplicateIdentity?.canonical_post_id || "") ||
+    resolveSocialCommentCanonicalPostId(enriched || row) ||
+    text(enriched?.post_id || row.post_id || row.conversation_id || row.external_conversation_id || "");
   void ensureSocialCommentAutomationConfigRecord({
     tenantId: safeTenantId,
     platform: normalizedPlatform,
@@ -2325,6 +2647,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   return {
     ...(enriched || {}),
     canonical_post_id: canonicalPostId,
+    duplicate_identity: duplicateIdentity || null,
     selected_post_id: text(postId),
   };
 };
