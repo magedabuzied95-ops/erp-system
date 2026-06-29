@@ -228,7 +228,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
     doc.text(line, titleCell.x + (titleCell.w / 2), titleStartY + (lineIndex * titleLineStep), { align: "center", maxWidth: titleMaxWidth });
   });
 
-  const sizeFrame = getBoxFrameLayout(sizeCell, { boxWidthFactor: 0.9 });
+  const sizeFrame = getBoxFrameLayout(sizeCell, { boxWidthFactor: thermalLayout.sizeBoxWidthFactor || 1 });
   drawRoundedRect(doc, sizeFrame.x, sizeFrame.y, sizeFrame.w, sizeFrame.h, 1.8, [2, 6, 23]);
   doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "bold");

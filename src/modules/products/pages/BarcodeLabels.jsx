@@ -1311,7 +1311,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const hasImage = Boolean(printSettings.showProductImage);
   const contentColumns = hasImage ? `${thermalLayout.imageCell.w}mm minmax(0, 1fr)` : "minmax(0, 1fr)";
   const contentRows = `${thermalLayout.titleCell.h}mm ${thermalLayout.sizeCell.h}mm ${thermalLayout.colorCell.h}mm ${thermalLayout.barcodeCell.h}mm`;
-  const sizeFrame = getBoxFrameLayout(thermalLayout.sizeCell, { boxWidthFactor: 0.9 });
+  const sizeFrame = getBoxFrameLayout(thermalLayout.sizeCell, { boxWidthFactor: thermalLayout.sizeBoxWidthFactor || 1 });
   const colorFrame = getBoxFrameLayout(thermalLayout.colorCell, { boxHeightFactor: 1.0 });
   const sizeTextLayout = getBoxTextLayout(thermalLayout.sizeCell, {
     topPaddingMm: 1.5,
@@ -1456,17 +1456,17 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
               style={{ ...articleStyle, position: "relative", overflow: "hidden" }}
             >
               <div
-                className="font-black uppercase leading-none tracking-[0.22em] text-zinc-300"
-                style={{
-                  position: "absolute",
-                  top: `${Math.max(0.6, articleTextLayout.labelTopMm - thermalLayout.articleCell.y - 0.5)}mm`,
-                  left: 0,
-                  right: 0,
-                  fontSize: `${thermalLayout.articleLabelFontSize * 1.08}px`,
-                }}
-              >
-                ARTICLE CODE
-              </div>
+              className="font-black uppercase leading-none tracking-[0.22em] text-zinc-300"
+              style={{
+                position: "absolute",
+                top: `${Math.max(0.6, articleTextLayout.labelTopMm - thermalLayout.articleCell.y - 0.5)}mm`,
+                left: 0,
+                right: 0,
+                fontSize: `${thermalLayout.articleLabelFontSize}px`,
+              }}
+            >
+              ARTICLE CODE
+            </div>
               <div
                 className="truncate font-black leading-none"
                 style={{
