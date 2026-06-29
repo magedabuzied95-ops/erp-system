@@ -1278,6 +1278,58 @@ const hasLinkedProductForAutomation = ({ row = {}, productContext = null } = {})
   return Boolean(productContext?.found) || linkedCount > 0 || (Number.isFinite(productId) && productId > 0);
 };
 
+const buildRuntimeProductContextRow = ({
+  row = {},
+  event = {},
+  selectedPostId = "",
+  selectedCommentId = "",
+  runtimePostId = "",
+  runtimeCommentId = "",
+  postId = "",
+  commentId = "",
+} = {}) => {
+  const safeRow = row && typeof row === "object" ? row : {};
+  const safeEvent = event && typeof event === "object" ? event : {};
+  const comment = safeEvent.comment && typeof safeEvent.comment === "object"
+    ? safeEvent.comment
+    : safeRow.comment && typeof safeRow.comment === "object"
+      ? safeRow.comment
+      : {};
+  const conversation = safeEvent.conversation && typeof safeEvent.conversation === "object"
+    ? safeEvent.conversation
+    : safeRow.conversation && typeof safeRow.conversation === "object"
+      ? safeRow.conversation
+      : {};
+  const finalPostId = text(
+    selectedPostId ||
+    safeEvent.post_id ||
+    comment.post_id ||
+    conversation.post_id ||
+    runtimePostId ||
+    postId ||
+    ""
+  );
+  const finalCommentId = text(
+    selectedCommentId ||
+    safeEvent.comment_id ||
+    comment.comment_id ||
+    runtimeCommentId ||
+    commentId ||
+    ""
+  );
+
+  return {
+    finalPostId,
+    finalCommentId,
+    row: {
+      ...safeEvent,
+      ...safeRow,
+      post_id: finalPostId,
+      comment_id: finalCommentId,
+    },
+  };
+};
+
 const buildSocialCommentProductResolutionPathPayload = ({ row = {}, productContext = null } = {}) => {
   const safeRow = row && typeof row === "object" ? row : {};
   const directProductIdsCount = Number(
@@ -3822,10 +3874,32 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
 
     const insertedRun = Boolean(sessionResult.rows[0]);
     let savedRunRow = sessionResult.rows[0] || null;
+    const selectedPostId = text(postId || "");
+    const selectedCommentId = text(event.comment_id || savedRunRow?.comment_id || "");
+    const runtimePostId = text(savedRunRow?.post_id || event.post_id || "");
+    const runtimeCommentId = text(savedRunRow?.comment_id || event.comment_id || "");
+    const runtimeProductContextInput = buildRuntimeProductContextRow({
+      row: savedRunRow || {},
+      event,
+      selectedPostId,
+      selectedCommentId,
+      runtimePostId,
+      runtimeCommentId,
+      postId,
+      commentId: text(event.comment_id || ""),
+    });
+    console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_CALL_INPUT", {
+      runtime_post_id: runtimePostId,
+      runtime_comment_id: runtimeCommentId,
+      selected_post_id: selectedPostId,
+      selected_comment_id: selectedCommentId,
+      final_post_id: runtimeProductContextInput.finalPostId,
+      final_comment_id: runtimeProductContextInput.finalCommentId,
+    });
     const runtimeProductContext = await resolveSocialCommentPublishedProductContext({
       tenantId: safeTenantId,
-      row: savedRunRow || {
-        ...event,
+      row: {
+        ...runtimeProductContextInput.row,
         tenant_id: safeTenantId,
       },
     }).catch(() => null);
@@ -5516,9 +5590,31 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         selected_comment_id: text(storedRow.comment_id || ""),
         selected_post_permalink: text(storedRow.post_permalink || storedRow.post_permalink_url || ""),
       });
+      const selectedPostId = text(storedRow.post_id || "");
+      const selectedCommentId = text(storedRow.comment_id || "");
+      const runtimePostId = text(storedRow.post_id || storedRow.raw_payload?.post_id || "");
+      const runtimeCommentId = text(storedRow.comment_id || storedRow.raw_payload?.comment_id || "");
+      const runtimeProductContextInput = buildRuntimeProductContextRow({
+        row: storedRow,
+        event: storedRow,
+        selectedPostId,
+        selectedCommentId,
+        runtimePostId,
+        runtimeCommentId,
+        postId: text(storedRow.post_id || ""),
+        commentId: text(storedRow.comment_id || ""),
+      });
+      console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_CALL_INPUT", {
+        runtime_post_id: runtimePostId,
+        runtime_comment_id: runtimeCommentId,
+        selected_post_id: selectedPostId,
+        selected_comment_id: selectedCommentId,
+        final_post_id: runtimeProductContextInput.finalPostId,
+        final_comment_id: runtimeProductContextInput.finalCommentId,
+      });
       const runtimeProductContext = await resolveSocialCommentPublishedProductContext({
         tenantId: storedRow.tenant_id,
-        row: storedRow,
+        row: runtimeProductContextInput.row,
       }).catch(() => null);
       const automationRuntimeResult = await executeSocialCommentAutomationRuntime({
         tenantId: storedRow.tenant_id,
