@@ -66,6 +66,14 @@ const normalizeBarcode = (value, fallbackSeed = "") => {
 const firstText = (...values) =>
   values.map((value) => String(value || "").trim()).find(Boolean) || "";
 
+const sanitizeThermalUrl = (value = "", ...blockedValues) => {
+  const candidate = String(value || "").trim();
+  if (!candidate) return "";
+  const blocked = blockedValues.map((blockedValue) => String(blockedValue || "").trim()).filter(Boolean);
+  if (blocked.includes(candidate)) return "";
+  return candidate;
+};
+
 const BARCODE_LABEL_IMAGE_CACHE = new Map();
 const BARCODE_LABEL_IMAGE_CACHE_LIMIT = 1500;
 
@@ -104,13 +112,20 @@ export const getThermalImageStatus = (item = {}) =>
   );
 
 const resolveThermalAwareImage = (item = {}) => {
-  const variantThermalUrl = firstText(
+  const blockedImageUrls = [
+    item?.colorPrimaryImageUrl,
+    item?.color_image_url,
+    item?.image_url,
+    item?.product_image_url,
+    item?.colorPrimaryImageUrl,
+  ];
+  const variantThermalUrl = sanitizeThermalUrl(firstText(
     item?.color_thermal_image_url,
     item?.variant_color_thermal_image_url,
     item?.thermal_image_url,
     item?.thermalImageUrl
-  );
-  const productThermalUrl = firstText(item?.product_thermal_image_url, item?.productThermalImageUrl);
+  ), ...blockedImageUrls);
+  const productThermalUrl = sanitizeThermalUrl(firstText(item?.product_thermal_image_url, item?.productThermalImageUrl), item?.product_image_url, item?.image_url);
   const variantThermalStatus = normalizeThermalImageStatus(
     firstText(item?.variant_thermal_image_status, item?.thermal_image_status, item?.thermalImageStatus),
     variantThermalUrl
@@ -230,65 +245,48 @@ const resolveProductFirstLabelPrice = (product = {}, variant = {}) => {
 };
 
 export const getLabelImageUrl = (product, variant = null, colorGroup = null) => {
+  const productImage = firstText(
+    product?.product_image_url,
+    product?.image_url,
+    product?.image,
+    product?.photo_url,
+    product?.thumbnail_url
+  );
+  const variantImage = firstText(
+    variant?.variant_image_url,
+    variant?.color_image_url,
+    variant?.image_url,
+    variant?.image,
+    variant?.colorGroup?.image_url,
+    colorGroup?.image_url
+  );
+  const productThermalImage = sanitizeThermalUrl(firstText(product?.thermal_image_url, product?.thermalImageUrl), productImage);
+  const variantThermalImage = sanitizeThermalUrl(
+    firstText(
+      variant?.thermal_image_url,
+      variant?.thermalImageUrl,
+      variant?.colorGroup?.thermal_image_url,
+      variant?.colorGroup?.thermalImageUrl,
+      colorGroup?.thermal_image_url,
+      colorGroup?.thermalImageUrl
+    ),
+    variantImage,
+    productImage
+  );
   return resolveBarcodeLabelImage({
     ...product,
     ...variant,
-    colorPrimaryImageUrl: firstText(
-      variant?.variant_image_url,
-      variant?.color_image_url,
-      variant?.image_url,
-      variant?.image,
-      variant?.colorGroup?.image_url,
-      colorGroup?.image_url
-    ),
-    color_image_url: firstText(
-      variant?.color_image_url,
-      variant?.variant_image_url,
-      variant?.image_url,
-      variant?.image,
-      variant?.colorGroup?.image_url,
-      colorGroup?.image_url
-    ),
-    product_image_url: firstText(
-      product?.product_image_url,
-      product?.image_url,
-      product?.image,
-      product?.photo_url,
-      product?.thumbnail_url
-    ),
+    colorPrimaryImageUrl: variantImage,
+    color_image_url: variantImage,
+    product_image_url: productImage,
     product_thermal_image_status: firstText(product?.thermal_image_status, product?.thermalImageStatus),
-    thermal_image_url: firstText(
-      variant?.thermal_image_url,
-      variant?.thermalImageUrl,
-      variant?.colorGroup?.thermal_image_url,
-      variant?.colorGroup?.thermalImageUrl,
-      colorGroup?.thermal_image_url,
-      colorGroup?.thermalImageUrl,
-      product?.thermal_image_url,
-      product?.thermalImageUrl
-    ),
-    product_thermal_image_url: firstText(product?.thermal_image_url, product?.thermalImageUrl),
+    thermal_image_url: variantThermalImage || productThermalImage,
+    product_thermal_image_url: productThermalImage,
     thermal_image_status: firstText(variant?.thermal_image_status, variant?.thermalImageStatus),
     variant_thermal_image_status: firstText(variant?.thermal_image_status, variant?.thermalImageStatus),
     product_thermal_image_status: firstText(product?.thermal_image_status, product?.thermalImageStatus),
-    variant_color_thermal_image_url: firstText(
-      variant?.thermal_image_url,
-      variant?.thermalImageUrl,
-      variant?.colorGroup?.thermal_image_url,
-      variant?.colorGroup?.thermalImageUrl,
-      colorGroup?.thermal_image_url,
-      colorGroup?.thermalImageUrl
-    ),
-    color_thermal_image_url: firstText(
-      variant?.color_thermal_image_url,
-      variant?.variant_color_thermal_image_url,
-      variant?.thermal_image_url,
-      variant?.thermalImageUrl,
-      variant?.colorGroup?.thermal_image_url,
-      variant?.colorGroup?.thermalImageUrl,
-      colorGroup?.thermal_image_url,
-      colorGroup?.thermalImageUrl
-    ),
+    variant_color_thermal_image_url: variantThermalImage,
+    color_thermal_image_url: variantThermalImage,
   });
 };
 
@@ -720,13 +718,13 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantF
   const colorId = variantFallback?.color_id ?? variantFallback?.colorId ?? null;
   const priceInfo = getProductFirstLabelPriceInfo(product, variantFallback);
   const productImage = firstText(product?.product_image_url, product?.image_url, product?.image, product?.photo_url, product?.thumbnail_url);
-  const thermalImage = firstText(
+  const thermalImage = sanitizeThermalUrl(firstText(
     variantFallback?.color_thermal_image_url,
     variantFallback?.variant_color_thermal_image_url,
     variantFallback?.thermal_image_url,
     product?.thermal_image_url,
     product?.thermalImageUrl
-  );
+  ), firstText(variantFallback?.variant_image_url, variantFallback?.color_image_url, variantFallback?.image_url, variantFallback?.image), productImage);
   const thermalImageStatus = firstText(
     variantFallback?.thermal_image_status,
     variantFallback?.variant_thermal_image_status,

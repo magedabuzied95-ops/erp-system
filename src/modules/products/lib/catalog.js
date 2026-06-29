@@ -81,6 +81,14 @@ const compactImageUrl = (value = "") => {
   return text;
 };
 
+const compactThermalImageUrl = (value = "", ...blockedValues) => {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const blocked = blockedValues.map((blockedValue) => String(blockedValue || "").trim()).filter(Boolean);
+  if (blocked.includes(text)) return "";
+  return text;
+};
+
 export const compactProductMeta = (meta = {}) => ({
   id: meta.id,
   name: compactText(meta.name, 180),
@@ -433,7 +441,7 @@ export const mergeProductRecord = (product, variant = null) => {
         ? meta.is_storefront_visible ?? true
         : product.is_storefront_visible,
     image_url: mergedVariant.image_url || meta.image_url || product.image_url || "",
-    thermal_image_url:
+    thermal_image_url: compactThermalImageUrl(
       mergedVariant.thermal_image_url ||
       mergedVariant.thermalImageUrl ||
       mergedVariant.color_thermal_image_url ||
@@ -444,7 +452,11 @@ export const mergeProductRecord = (product, variant = null) => {
       product.thermal_image_url ||
       product.thermalImageUrl ||
       "",
-    thermalImageUrl:
+      mergedVariant.image_url,
+      meta.image_url,
+      product.image_url
+    ),
+    thermalImageUrl: compactThermalImageUrl(
       mergedVariant.thermalImageUrl ||
       mergedVariant.thermal_image_url ||
       mergedVariant.color_thermal_image_url ||
@@ -455,9 +467,13 @@ export const mergeProductRecord = (product, variant = null) => {
       product.thermalImageUrl ||
       product.thermal_image_url ||
       "",
-    product_thermal_image_url: meta.product_thermal_image_url || product.product_thermal_image_url || product.thermal_image_url || "",
-    productThermalImageUrl: meta.productThermalImageUrl || product.productThermalImageUrl || product.thermal_image_url || "",
-    color_thermal_image_url:
+      mergedVariant.image_url,
+      meta.image_url,
+      product.image_url
+    ),
+    product_thermal_image_url: compactThermalImageUrl(meta.product_thermal_image_url || product.product_thermal_image_url || product.thermal_image_url || "", product.image_url),
+    productThermalImageUrl: compactThermalImageUrl(meta.productThermalImageUrl || product.productThermalImageUrl || product.thermal_image_url || "", product.image_url),
+    color_thermal_image_url: compactThermalImageUrl(
       mergedVariant.color_thermal_image_url ||
       mergedVariant.variant_color_thermal_image_url ||
       mergedVariant.thermal_image_url ||
@@ -467,7 +483,11 @@ export const mergeProductRecord = (product, variant = null) => {
       product.variant_color_thermal_image_url ||
       product.thermal_image_url ||
       "",
-    colorThermalImageUrl:
+      mergedVariant.image_url,
+      meta.image_url,
+      product.image_url
+    ),
+    colorThermalImageUrl: compactThermalImageUrl(
       mergedVariant.colorThermalImageUrl ||
       mergedVariant.color_thermal_image_url ||
       mergedVariant.variant_color_thermal_image_url ||
@@ -479,7 +499,11 @@ export const mergeProductRecord = (product, variant = null) => {
       product.color_thermal_image_url ||
       product.thermal_image_url ||
       "",
-    variant_color_thermal_image_url:
+      mergedVariant.image_url,
+      meta.image_url,
+      product.image_url
+    ),
+    variant_color_thermal_image_url: compactThermalImageUrl(
       mergedVariant.variant_color_thermal_image_url ||
       mergedVariant.color_thermal_image_url ||
       mergedVariant.thermal_image_url ||
@@ -489,7 +513,11 @@ export const mergeProductRecord = (product, variant = null) => {
       product.color_thermal_image_url ||
       product.thermal_image_url ||
       "",
-    variantColorThermalImageUrl:
+      mergedVariant.image_url,
+      meta.image_url,
+      product.image_url
+    ),
+    variantColorThermalImageUrl: compactThermalImageUrl(
       mergedVariant.variantColorThermalImageUrl ||
       mergedVariant.variant_color_thermal_image_url ||
       mergedVariant.color_thermal_image_url ||
@@ -502,6 +530,10 @@ export const mergeProductRecord = (product, variant = null) => {
       product.color_thermal_image_url ||
       product.thermal_image_url ||
       "",
+      mergedVariant.image_url,
+      meta.image_url,
+      product.image_url
+    ),
     status,
     active,
     low_stock_threshold: meta.low_stock_threshold ?? 10,
