@@ -719,7 +719,7 @@ const resolveAutomationStateLabel = ({ post = {}, config = null, productCount = 
   const enabledValue = normalizedConfig?.enabled ?? post?.auto_reply_enabled ?? post?.template_enabled ?? post?.autoReplyEnabled ?? false;
   if (!hasProduct) {
     return {
-      label: "Link Product",
+      label: "Link Product Required",
       tone: "amber",
       configId,
       enabled: Boolean(enabledValue),
@@ -1388,6 +1388,81 @@ function SocialCommentsWorkspace({
       : activeAutomationRuntime?.raw_runtime_context?.ai_sales && typeof activeAutomationRuntime.raw_runtime_context.ai_sales === "object" && !Array.isArray(activeAutomationRuntime.raw_runtime_context.ai_sales)
         ? activeAutomationRuntime.raw_runtime_context.ai_sales
         : {};
+  const latestRuntimePostSnapshot = useMemo(() => {
+    const runtimeMonitor = activeAutomationRuntime?.runtime_monitor && typeof activeAutomationRuntime.runtime_monitor === "object" && !Array.isArray(activeAutomationRuntime.runtime_monitor)
+      ? activeAutomationRuntime.runtime_monitor
+      : {};
+    const rawRuntimeContext = activeAutomationRuntime?.raw_runtime_context && typeof activeAutomationRuntime.raw_runtime_context === "object" && !Array.isArray(activeAutomationRuntime.raw_runtime_context)
+      ? activeAutomationRuntime.raw_runtime_context
+      : {};
+    const latestCommentPostId = clean(
+      activeAutomationRuntime?.resolved_post_id ||
+        runtimeMonitor?.resolved_post_id ||
+        rawRuntimeContext?.resolved_post_id ||
+        rawRuntimeContext?.selected_post_id ||
+        activeAutomationRuntime?.post_id ||
+        runtimeMonitor?.post_id ||
+        ""
+    );
+    const latestCommentPermalink = clean(
+      activeAutomationRuntime?.post_permalink_url ||
+        activeAutomationRuntime?.post_permalink ||
+        activeAutomationRuntime?.permalink_url ||
+        runtimeMonitor?.post_permalink_url ||
+        runtimeMonitor?.post_permalink ||
+        runtimeMonitor?.permalink_url ||
+        rawRuntimeContext?.post_permalink_url ||
+        rawRuntimeContext?.post_permalink ||
+        rawRuntimeContext?.permalink_url ||
+        rawRuntimeContext?.selected_post_permalink ||
+        rawRuntimeContext?.post_url ||
+        ""
+    );
+    return {
+      postId: latestCommentPostId,
+      permalink: latestCommentPermalink,
+      platform: clean(activeAutomationRuntime?.platform || activePostPlatform || "facebook") || "facebook",
+      sourcePostId: clean(
+        activeAutomationRuntime?.resolved_platform_post_id ||
+          runtimeMonitor?.resolved_platform_post_id ||
+          rawRuntimeContext?.resolved_platform_post_id ||
+          latestCommentPostId
+      ),
+    };
+  }, [activeAutomationRuntime, activePostPlatform]);
+  const latestRuntimePostOpen = useMemo(
+    () => resolvePostOpenLink({
+      postId: latestRuntimePostSnapshot.postId,
+      canonicalPostId: latestRuntimePostSnapshot.postId,
+      sourcePostId: latestRuntimePostSnapshot.sourcePostId,
+      platform: latestRuntimePostSnapshot.platform,
+      permalink_url: latestRuntimePostSnapshot.permalink,
+      post_permalink: latestRuntimePostSnapshot.permalink,
+      post_permalink_url: latestRuntimePostSnapshot.permalink,
+    }),
+    [latestRuntimePostSnapshot]
+  );
+  const latestCommentMismatch = useMemo(() => {
+    const latestCommentPostId = clean(latestRuntimePostSnapshot.postId);
+    if (!latestCommentPostId || !activePostKey) return null;
+    const selectedIds = new Set([activePostPostId, activePostSourceId].map(clean).filter(Boolean));
+    if (selectedIds.has(latestCommentPostId)) return null;
+    return {
+      selectedPostId: activePostPostId || dash,
+      latestCommentPostId,
+      selectedPermalink: activePostLink || "",
+      latestCommentPermalink: clean(latestRuntimePostOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
+      latestPost: {
+        postId: latestCommentPostId,
+        canonicalPostId: latestCommentPostId,
+        sourcePostId: latestRuntimePostSnapshot.sourcePostId || latestCommentPostId,
+        platform: latestRuntimePostSnapshot.platform,
+        permalink_url: clean(latestRuntimePostOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
+        post_permalink: clean(latestRuntimePostOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
+        post_permalink_url: clean(latestRuntimePostOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
+      },
+    };
+  }, [activePostKey, activePostLink, activePostPostId, activePostSourceId, latestRuntimePostOpen, latestRuntimePostSnapshot]);
   const productLinksDrawerPost = useMemo(() => {
     const drawerKey = clean(productLinksDrawerPostKey);
     if (!drawerKey) return null;
@@ -1870,14 +1945,15 @@ function SocialCommentsWorkspace({
     }
   };
 
-  const handleOpenPost = () => {
-    if (!activePostLink) {
+  const openSocialPostUrl = (url = "") => {
+    const resolvedUrl = clean(url);
+    if (!resolvedUrl) {
       notify("amber", "No Facebook permalink available");
       return;
     }
     setOpeningPost(true);
     try {
-      const opened = window.open(activePostLink, "_blank", "noopener,noreferrer");
+      const opened = window.open(resolvedUrl, "_blank", "noopener,noreferrer");
       if (!opened) {
         notify("amber", "تعذر فتح الرابط، تحقق من إعدادات المتصفح");
         return;
@@ -1888,6 +1964,22 @@ function SocialCommentsWorkspace({
     } finally {
       window.setTimeout(() => setOpeningPost(false), 200);
     }
+  };
+
+  const handleOpenPost = () => {
+    openSocialPostUrl(activePostLink);
+  };
+
+  const handleOpenLatestCommentPost = () => {
+    openSocialPostUrl(latestCommentMismatch?.latestCommentPermalink || "");
+  };
+
+  const handleLinkLatestCommentPost = () => {
+    if (!latestCommentMismatch?.latestPost?.postId) {
+      notify("amber", "لا يوجد post id لربط المنتج");
+      return;
+    }
+    handleOpenProductLinksDrawer(latestCommentMismatch.latestPost, latestCommentMismatch.latestPost.postId);
   };
 
   const handleCopySuggestedReply = async () => {
@@ -2596,6 +2688,56 @@ function SocialCommentsWorkspace({
                       </span>
                     )}
                   </div>
+                  {latestCommentMismatch ? (
+                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-slate-800 shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="inline-flex items-center gap-2 text-[11px] font-black text-amber-900">
+                            <AlertTriangle className="h-4 w-4" />
+                            Latest comment arrived on a different Facebook post
+                          </div>
+                          <div className="mt-2 grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
+                            <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
+                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Post ID</div>
+                              <div className="mt-1 break-all font-semibold text-slate-900">{latestCommentMismatch.selectedPostId || dash}</div>
+                            </div>
+                            <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
+                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest Comment Post ID</div>
+                              <div className="mt-1 break-all font-semibold text-slate-900">{latestCommentMismatch.latestCommentPostId || dash}</div>
+                            </div>
+                            <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
+                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Permalink</div>
+                              <div className="mt-1 break-all font-medium text-slate-700">{latestCommentMismatch.selectedPermalink || dash}</div>
+                            </div>
+                            <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
+                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest Comment Permalink</div>
+                              <div className="mt-1 break-all font-medium text-slate-700">{latestCommentMismatch.latestCommentPermalink || dash}</div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleOpenLatestCommentPost}
+                            disabled={!latestCommentMismatch.latestCommentPermalink || openingPost}
+                            title={latestCommentMismatch.latestCommentPermalink ? "" : "No Facebook permalink available"}
+                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-900 shadow-sm disabled:opacity-50"
+                          >
+                            {openingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
+                            Open latest comment post
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleLinkLatestCommentPost}
+                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 text-xs font-black text-cyan-800 shadow-sm"
+                          >
+                            <ShoppingBag className="h-4 w-4" />
+                            Link product to this post
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
                 <button
                   type="button"
