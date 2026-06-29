@@ -1010,7 +1010,7 @@ export const resolveProductMappingForSiblingPost = async ({
         COALESCE(NULLIF(ppl.media_id, ''), NULLIF(mp.external_post_id, ''), NULLIF(mp.platform_post_id, ''), NULLIF(ppl.post_id, '')) AS mapped_media_id,
         ppl.product_id,
         COALESCE(NULLIF(p.name, ''), '') AS product_name,
-        COALESCE(NULLIF(mp.permalink_url, ''), NULLIF(mp.post_permalink_url, ''), '') AS permalink_url,
+        NULL::text AS permalink_url,
         ppl.is_primary,
         ppl.updated_at,
         (
