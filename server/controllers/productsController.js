@@ -3634,6 +3634,18 @@ export const updateProduct = async (req, res) => {
       },
     });
   } catch (error) {
+    console.error("PRODUCT_UPDATE_FAILED_FULL", {
+      message: error?.message,
+      code: error?.code || null,
+      detail: error?.detail || null,
+      constraint: error?.constraint || null,
+      table: error?.table || null,
+      column: error?.column || null,
+      stack: error?.stack || null,
+      productId: req.params?.id || null,
+      tenant_id: req.user?.tenant_id ?? req.body?.tenant_id ?? null,
+      bodyKeys: Object.keys(req.body || {}).sort(),
+    });
     console.error("PRODUCT_UPDATE_FAILED", {
       message: error?.message,
       stack: error?.stack,
