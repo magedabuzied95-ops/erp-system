@@ -530,10 +530,16 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       quality: "high",
       size: "1024x1024",
       n: 1,
-      response_format: "b64_json",
     });
 
-    const imageBase64 = response?.data?.[0]?.b64_json || "";
+    const imageBase64 =
+      response?.data?.[0]?.b64_json ||
+      response?.data?.[0]?.base64 ||
+      response?.data?.[0]?.image_base64 ||
+      response?.output?.[0]?.b64_json ||
+      response?.output?.[0]?.base64 ||
+      response?.output?.[0]?.image_base64 ||
+      "";
     if (!imageBase64) {
       throw new Error("OpenAI did not return thermal artwork image data");
     }
