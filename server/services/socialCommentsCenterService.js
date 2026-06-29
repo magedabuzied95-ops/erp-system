@@ -293,6 +293,74 @@ const isFacebook = (value = "") => normalizePlatform(value) === "facebook";
 const cleanCommentText = (value = "") => text(value);
 
 const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+const firstTextValue = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+const findCanonicalAliasValue = (canonicalIdentity = null, aliasKey = "") => {
+  const aliases = Array.isArray(canonicalIdentity?.aliases) ? canonicalIdentity.aliases : [];
+  return firstTextValue(...aliases.filter((alias) => text(alias?.alias_key) === text(aliasKey)).map((alias) => alias?.alias_value));
+};
+const resolveHydratedPermalinkFields = ({ value = {}, safeRow = {}, metadata = {}, canonicalIdentity = null } = {}) => {
+  const aliasPermalinkUrl = findCanonicalAliasValue(canonicalIdentity, "permalink_url");
+  const aliasPostPermalink = findCanonicalAliasValue(canonicalIdentity, "post_permalink");
+  const aliasPostPermalinkUrl = findCanonicalAliasValue(canonicalIdentity, "post_permalink_url");
+  const aliasDisplayPermalink = findCanonicalAliasValue(canonicalIdentity, "display_permalink");
+  const permalinkUrl = firstTextValue(
+    value.permalink_url,
+    safeRow.permalink_url,
+    metadata.permalink_url,
+    aliasPermalinkUrl,
+    value.post_permalink_url,
+    safeRow.post_permalink_url,
+    metadata.post_permalink_url,
+    aliasPostPermalinkUrl,
+    value.post_permalink,
+    safeRow.post_permalink,
+    metadata.post_permalink,
+    aliasPostPermalink
+  );
+  const postPermalink = firstTextValue(
+    value.post_permalink,
+    safeRow.post_permalink,
+    metadata.post_permalink,
+    aliasPostPermalink,
+    value.post_permalink_url,
+    safeRow.post_permalink_url,
+    metadata.post_permalink_url,
+    aliasPostPermalinkUrl,
+    permalinkUrl
+  );
+  const displayPermalink = firstTextValue(
+    value.display_permalink,
+    safeRow.display_permalink,
+    metadata.display_permalink,
+    aliasDisplayPermalink,
+    permalinkUrl,
+    postPermalink
+  );
+  const source =
+    (value.permalink_url && "value.permalink_url") ||
+    (safeRow.permalink_url && "row.permalink_url") ||
+    (metadata.permalink_url && "metadata.permalink_url") ||
+    (aliasPermalinkUrl && "alias.permalink_url") ||
+    (value.post_permalink && "value.post_permalink") ||
+    (safeRow.post_permalink && "row.post_permalink") ||
+    (metadata.post_permalink && "metadata.post_permalink") ||
+    (aliasPostPermalink && "alias.post_permalink") ||
+    (value.post_permalink_url && "value.post_permalink_url") ||
+    (safeRow.post_permalink_url && "row.post_permalink_url") ||
+    (metadata.post_permalink_url && "metadata.post_permalink_url") ||
+    (aliasPostPermalinkUrl && "alias.post_permalink_url") ||
+    (value.display_permalink && "value.display_permalink") ||
+    (safeRow.display_permalink && "row.display_permalink") ||
+    (metadata.display_permalink && "metadata.display_permalink") ||
+    (aliasDisplayPermalink && "alias.display_permalink") ||
+    "";
+  return {
+    permalink_url: permalinkUrl,
+    post_permalink: postPermalink,
+    display_permalink: displayPermalink,
+    source,
+  };
+};
 
 const SOCIAL_COMMENT_THUMBNAIL_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='18' fill='%23f3f4f6'/%3E%3Cpath d='M18 67l17-17 11 11 9-9 23 23H18z' fill='%23d1d5db'/%3E%3Ccircle cx='37' cy='35' r='7' fill='%23d1d5db'/%3E%3C/svg%3E";
@@ -1157,10 +1225,18 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       post: { ...safeRow, canonical_post_id: canonicalIdentityPostId },
     }).catch(() => null)
     : null;
-  const appendMappingSummary = (value = {}) => ({
-    ...value,
-    canonical_post_id: canonicalIdentityPostId,
-    canonical_identity: canonicalIdentity || null,
+  const appendMappingSummary = (value = {}) => {
+    const permalinkFields = resolveHydratedPermalinkFields({ value, safeRow, metadata, canonicalIdentity });
+    console.info("SOCIAL_POST_PERMALINK_HYDRATED", {
+      post_id: text(value.post_id || safeRow.post_id || safeRow.conversation_id || ""),
+      canonical_post_id: canonicalIdentityPostId,
+      permalink_url: permalinkFields.permalink_url,
+      source: permalinkFields.source,
+    });
+    return {
+      ...value,
+      canonical_post_id: canonicalIdentityPostId,
+      canonical_identity: canonicalIdentity || null,
     post_text: text(value.post_text || safeRow.post_text || safeRow.post_message || metadata.post_text || metadata.message || value.post_message || value.post_caption || ""),
     message: text(value.message || safeRow.message || safeRow.post_message || metadata.message || value.post_message || value.post_caption || ""),
     marketing_published_at: text(value.marketing_published_at || safeRow.marketing_published_at || ""),
@@ -1203,14 +1279,22 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     picture: text(value.picture || safeRow.picture || metadata.picture || ""),
     created_at: text(value.created_at || value.post_created_time || value.published_at || safeRow.created_at || safeRow.post_created_time || safeRow.published_at || metadata.created_at || metadata.post_created_time || metadata.published_at || ""),
     published_at: text(value.published_at || value.post_created_time || safeRow.published_at || safeRow.post_created_time || metadata.published_at || metadata.post_created_time || ""),
-    permalink_url: text(value.permalink_url || value.post_permalink_url || value.post_permalink || safeRow.permalink_url || safeRow.post_permalink_url || safeRow.post_permalink || metadata.permalink_url || metadata.post_permalink_url || metadata.post_permalink || ""),
-    post_permalink_url: text(value.post_permalink_url || value.post_permalink || safeRow.post_permalink_url || safeRow.post_permalink || metadata.post_permalink_url || metadata.post_permalink || ""),
-    post_permalink: text(value.post_permalink || value.post_permalink_url || safeRow.post_permalink || safeRow.post_permalink_url || metadata.post_permalink || metadata.post_permalink_url || ""),
+    permalink_url: permalinkFields.permalink_url,
+    display_permalink: permalinkFields.display_permalink,
+    post_permalink_url: firstTextValue(
+      value.post_permalink_url,
+      safeRow.post_permalink_url,
+      metadata.post_permalink_url,
+      findCanonicalAliasValue(canonicalIdentity, "post_permalink_url"),
+      permalinkFields.permalink_url
+    ),
+    post_permalink: permalinkFields.post_permalink,
     comments_count: Number(value.comments_count ?? safeRow.comments_count ?? metadata.comments_count ?? 0) || 0,
     linked_products: mappingSummary?.linked_products || [],
     primary_product: mappingSummary?.primary_product || null,
     primary_linked_product: mappingSummary?.primary_product || null,
-  });
+    };
+  };
   const hasAnyMediaBefore = Boolean(
     currentDetails.has_thumbnail ||
     currentDetails.thumbnail_url ||
@@ -1517,7 +1601,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         error_message: text(graphErrorMessage || graphPost?.reason_if_missing || ""),
       });
     }
-    return {
+    return appendMappingSummary({
       ...mergedRow,
       metadata: nextPersistedMetadata,
       post_text: text(mergedRow.post_text || mergedRow.post_message || mergedRow.post_caption || safeRow.post_text || safeRow.post_message || safeRow.post_caption || ""),
@@ -1529,7 +1613,6 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       picture: text(mergedRow.picture || ""),
       created_at: text(mergedRow.created_at || mergedRow.post_created_time || mergedRow.published_at || safeRow.created_at || safeRow.post_created_time || ""),
       published_at: text(mergedRow.published_at || mergedRow.post_created_time || safeRow.published_at || safeRow.post_created_time || ""),
-      permalink_url: text(mergedRow.permalink_url || mergedRow.post_permalink_url || mergedRow.post_permalink || safeRow.permalink_url || safeRow.post_permalink_url || safeRow.post_permalink || ""),
       had_thumbnail_before: currentHasThumbnail,
       thumbnail_url: nextDetails.thumbnail_url,
       thumbnail_source: nextDetails.thumbnail_source,
@@ -1554,7 +1637,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       reel_id_from_permalink: text(graphPost.reel_id_from_permalink || ""),
       reel_thumbnail_present: Boolean(graphPost.reel_thumbnail_present),
       object_id_thumbnail_present: Boolean(graphPost.object_id_thumbnail_present),
-    };
+    });
   } catch (error) {
     if (shouldLogMediaBackfill) {
       console.warn("[social-comments:media-backfill:result]", {
@@ -1567,7 +1650,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         error_message: text(error?.message || ""),
       });
     }
-    return {
+    return appendMappingSummary({
       ...safeRow,
       had_thumbnail_before: currentHasThumbnail,
       thumbnail_url: currentDetails.thumbnail_url,
@@ -1593,7 +1676,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       reel_id_from_permalink: "",
       reel_thumbnail_present: false,
       object_id_thumbnail_present: false,
-    };
+    });
   }
 };
 

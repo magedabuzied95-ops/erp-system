@@ -271,7 +271,10 @@ const normalizePost = (raw) => {
       post.product_image_url ||
       post.product_image ||
       null,
-    permalinkUrl: clean(post.permalink_url || post.post_permalink || post.post_permalink_url || post.post_url || metadata.permalink_url || metadata.post_permalink || metadata.post_permalink_url || metadata.post_url || ""),
+    permalinkUrl: clean(post.permalink_url || post.display_permalink || post.post_permalink || post.post_permalink_url || post.post_url || metadata.permalink_url || metadata.display_permalink || metadata.post_permalink || metadata.post_permalink_url || metadata.post_url || ""),
+    permalink_url: clean(post.permalink_url || post.display_permalink || post.post_permalink || post.post_permalink_url || post.post_url || metadata.permalink_url || metadata.display_permalink || metadata.post_permalink || metadata.post_permalink_url || metadata.post_url || ""),
+    display_permalink: clean(post.display_permalink || post.permalink_url || post.post_permalink || post.post_permalink_url || metadata.display_permalink || metadata.permalink_url || metadata.post_permalink || metadata.post_permalink_url || ""),
+    post_permalink: clean(post.post_permalink || post.post_permalink_url || post.permalink_url || metadata.post_permalink || metadata.post_permalink_url || metadata.permalink_url || ""),
     commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || metadata.comments_count || 0),
     newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),
     likesCount: parseOptionalCount(post.likes_count, post.like_count, post.reactions_count, post.total_likes, metadata.likes_count, metadata.like_count, metadata.reactions_count, metadata.total_likes),
@@ -771,6 +774,7 @@ const resolvePostOpenLink = (post = {}, display = {}) => {
   const raw = post?.raw && typeof post.raw === "object" && !Array.isArray(post.raw) ? post.raw : {};
   const candidates = [
     { source: "permalink_url", value: post?.permalink_url },
+    { source: "display_permalink", value: post?.display_permalink },
     { source: "post_permalink", value: post?.post_permalink },
     { source: "metadata.permalink_url", value: metadata?.permalink_url },
     { source: "graph permalink_url", value: post?.facebook_permalink || post?.permalinkUrl || post?.post_permalink_url },
@@ -1415,7 +1419,6 @@ function SocialCommentsWorkspace({
       resolved_url: activePostOpen.finalUrl || "",
       source: activePostOpen.sourceField || "",
       has_permalink: Boolean(activePostOpen.hasPermalink),
-      used_fallback: Boolean(activePostOpen.usedFallback),
     });
   }, [activePostKey, activePostOpen]);
 
