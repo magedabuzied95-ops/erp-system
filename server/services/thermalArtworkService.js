@@ -176,10 +176,7 @@ const detectArtworkBounds = (data = Buffer.alloc(0), info = {}) => {
 
 const postProcessThermalArtworkBuffer = async (inputBuffer) => {
   try {
-    const prepared = sharp(inputBuffer, { animated: false })
-      .rotate()
-      .flatten({ background: { r: 255, g: 255, b: 255, alpha: 1 } })
-      .removeAlpha();
+    const prepared = sharp(inputBuffer, { animated: false }).rotate();
 
     const { data, info } = await prepared.raw().toBuffer({ resolveWithObject: true });
     const width = Number(info.width || 0);
@@ -211,6 +208,7 @@ const postProcessThermalArtworkBuffer = async (inputBuffer) => {
       height: scaledHeight,
       fit: "fill",
       withoutEnlargement: false,
+      kernel: sharp.kernel.nearest,
     }).png({
       compressionLevel: 9,
       adaptiveFiltering: true,
@@ -483,8 +481,7 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
     }
 
     await ensureDir();
-    const generatedThermalBuffer = await generateBinaryThermalArtwork(sourceBuffer);
-    const thermalBuffer = await postProcessThermalArtworkBuffer(generatedThermalBuffer);
+    const thermalBuffer = await postProcessThermalArtworkBuffer(sourceBuffer);
     await fs.writeFile(outputPath, thermalBuffer);
     await updateThermalRecord({
       entityType,
