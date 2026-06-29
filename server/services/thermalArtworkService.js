@@ -1,3 +1,4 @@
+import OpenAI, { toFile } from "openai";
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -16,11 +17,45 @@ const THERMAL_ARTWORK_BACKGROUND_THRESHOLD = 245;
 const THERMAL_ARTWORK_FILL_TARGET = 0.9;
 const THERMAL_ARTWORK_FILL_MIN = 0.84;
 const THERMAL_ARTWORK_FILL_MAX = 0.94;
+const DEFAULT_MODEL = process.env.OPENAI_THERMAL_ARTWORK_MODEL || "gpt-image-1.5";
+const DEFAULT_TIMEOUT_MS = 90_000;
+
+export const THERMAL_ARTWORK_VERSION = "v1-openai";
+export const THERMAL_ARTWORK_PROMPT = [
+  "Create a clean monochrome product illustration suitable for 203 dpi direct thermal label printing.",
+  "",
+  "Requirements:",
+  "",
+  "* Keep the exact shoe proportions.",
+  "* Preserve outsole shape.",
+  "* Preserve logo.",
+  "* Preserve lace layout.",
+  "* Remove background completely.",
+  "* Use solid black and white only.",
+  "* No gray gradients.",
+  "* No sketch style.",
+  "* No cartoon style.",
+  "* No artistic style.",
+  "* Produce a technical product illustration similar to premium footwear packaging artwork.",
+].join("\n");
+
+const thermalArtworkCache = new Map();
+let openaiClient = null;
 
 sharp.cache(false);
 sharp.concurrency(1);
 
 const normalizeText = (value = "") => String(value || "").trim();
+const cleanText = (value = "") => {
+  const text = String(value ?? "").trim();
+  return text && !["null", "undefined", "n/a", "none"].includes(text.toLowerCase()) ? text : "";
+};
+const positiveNumber = (value, fallback) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+const sha1 = (value = "") => crypto.createHash("sha1").update(String(value || "")).digest("hex");
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 
 const isHttpUrl = (value = "") => /^https?:\/\//i.test(normalizeText(value));
 
@@ -68,17 +103,20 @@ const readSourceBuffer = async (sourceImageUrl = "") => {
     if (commaIndex === -1) return null;
     const meta = source.slice(0, commaIndex);
     const payload = source.slice(commaIndex + 1);
-    return Buffer.from(meta.includes(";base64") ? payload : decodeURIComponent(payload), meta.includes(";base64") ? "base64" : "utf8");
+    return Buffer.from(
+      meta.includes(";base64") ? payload : decodeURIComponent(payload),
+      meta.includes(";base64") ? "base64" : "utf8"
+    );
   }
 
   const localPath = resolveLocalSourcePath(source);
-  if (localPath && await fileExists(localPath)) {
+  if (localPath && (await fileExists(localPath))) {
     return fs.readFile(localPath);
   }
 
   if (isLocalUploadsPath(source)) {
     const candidate = resolveLocalSourcePath(source);
-    if (candidate && await fileExists(candidate)) {
+    if (candidate && (await fileExists(candidate))) {
       return fs.readFile(candidate);
     }
   }
@@ -99,7 +137,7 @@ const sourceFingerprint = async (sourceImageUrl = "") => {
   const source = normalizeText(sourceImageUrl);
   if (!source) return "";
   const localPath = resolveLocalSourcePath(source);
-  if (localPath && await fileExists(localPath)) {
+  if (localPath && (await fileExists(localPath))) {
     const stat = await fs.stat(localPath);
     return `${source}|${stat.size}|${stat.mtimeMs}`;
   }
@@ -134,7 +172,102 @@ const outputPathFor = async (options = {}) => {
 
 const outputUrlFor = async (options = {}) => `${THERMAL_IMAGE_PUBLIC_PREFIX}/${await outputFileNameFor(options)}`;
 
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const cloudinaryConfig = () => ({
+  cloudName: process.env.CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_NAME || "",
+  apiKey: process.env.CLOUDINARY_API_KEY || "",
+  apiSecret: process.env.CLOUDINARY_API_SECRET || "",
+  folder: process.env.CLOUDINARY_PRODUCT_FOLDER || "erp/products",
+});
+
+const getClient = () => {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+      maxRetries: 0,
+      timeout: positiveNumber(process.env.OPENAI_THERMAL_ARTWORK_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
+    });
+  }
+  return openaiClient;
+};
+
+const normalizeSourceImage = async (value = "") => {
+  const image = await readSourceBuffer(value);
+  if (!image) return null;
+
+  try {
+    const normalized = await sharp(image, { animated: false })
+      .rotate()
+      .resize({
+        width: 1536,
+        height: 1536,
+        fit: "inside",
+        withoutEnlargement: true,
+      })
+      .png()
+      .toBuffer();
+    return {
+      buffer: normalized,
+      mimetype: "image/png",
+    };
+  } catch {
+    return {
+      buffer: image,
+      mimetype: "image/png",
+    };
+  }
+};
+
+const saveThermalArtworkAsset = async ({ buffer, productId = null, sourceKey = "", mimetype = "image/png" } = {}) => {
+  const safeSourceKey = sha1(sourceKey || buffer?.length || "");
+  const safeProductKey = Number.isFinite(Number(productId)) && Number(productId) > 0 ? `product-${Number(productId)}` : "draft";
+  const fileName = `${safeProductKey}-thermal-${safeSourceKey.slice(0, 12)}-${Date.now()}.png`;
+
+  try {
+    const config = cloudinaryConfig();
+    if (config.cloudName && config.apiKey && config.apiSecret && typeof fetch === "function" && typeof FormData !== "undefined") {
+      const timestamp = Math.floor(Date.now() / 1000);
+      const signatureBase = Object.keys({ folder: config.folder, timestamp })
+        .sort()
+        .map((key) => `${key}=${key === "folder" ? config.folder : timestamp}`)
+        .join("&");
+      const signature = sha1(`${signatureBase}${config.apiSecret}`);
+      const blob = new Blob([buffer], { type: mimetype || "image/png" });
+      const formData = new FormData();
+      formData.append("file", blob, fileName);
+      formData.append("api_key", config.apiKey);
+      formData.append("timestamp", String(timestamp));
+      formData.append("folder", config.folder);
+      formData.append("signature", signature);
+
+      const response = await fetch(`https://api.cloudinary.com/v1_1/${encodeURIComponent(config.cloudName)}/image/upload`, {
+        method: "POST",
+        body: formData,
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error?.message || body?.message || "Cloudinary upload failed");
+      }
+      return {
+        thermal_image_url: body?.secure_url || "",
+        storage: "cloudinary",
+      };
+    }
+  } catch (error) {
+    console.warn("[thermal-artwork] cloudinary upload failed; falling back to local storage", {
+      message: error?.message || String(error),
+    });
+  }
+
+  const outputDir = path.join(process.cwd(), "uploads", "products", "thermal-artwork");
+  await fs.mkdir(outputDir, { recursive: true });
+  const outputPath = path.join(outputDir, fileName);
+  await fs.writeFile(outputPath, buffer);
+  return {
+    thermal_image_url: `/uploads/products/thermal-artwork/${fileName}`,
+    storage: "local",
+    outputPath,
+  };
+};
 
 const detectArtworkBounds = (data = Buffer.alloc(0), info = {}) => {
   const width = Number(info.width || 0);
@@ -177,7 +310,6 @@ const detectArtworkBounds = (data = Buffer.alloc(0), info = {}) => {
 const postProcessThermalArtworkBuffer = async (inputBuffer) => {
   try {
     const prepared = sharp(inputBuffer, { animated: false }).rotate();
-
     const { data, info } = await prepared.raw().toBuffer({ resolveWithObject: true });
     const width = Number(info.width || 0);
     const height = Number(info.height || 0);
@@ -203,17 +335,20 @@ const postProcessThermalArtworkBuffer = async (inputBuffer) => {
     const scaledHeight = Math.max(1, Math.round(bounds.height * targetScale));
     const offsetLeft = Math.max(0, Math.round((width - scaledWidth) / 2));
     const offsetTop = Math.max(0, Math.round((height - scaledHeight) / 2));
-    const resizedArtwork = await trimmed.resize({
-      width: scaledWidth,
-      height: scaledHeight,
-      fit: "fill",
-      withoutEnlargement: false,
-      kernel: sharp.kernel.nearest,
-    }).png({
-      compressionLevel: 9,
-      adaptiveFiltering: true,
-      force: true,
-    }).toBuffer();
+    const resizedArtwork = await trimmed
+      .resize({
+        width: scaledWidth,
+        height: scaledHeight,
+        fit: "fill",
+        withoutEnlargement: false,
+        kernel: sharp.kernel.nearest,
+      })
+      .png({
+        compressionLevel: 9,
+        adaptiveFiltering: true,
+        force: true,
+      })
+      .toBuffer();
 
     return sharp({
       create: {
@@ -234,118 +369,6 @@ const postProcessThermalArtworkBuffer = async (inputBuffer) => {
     console.warn("[thermal-artwork] post-process failed, using generated image", error);
     return inputBuffer;
   }
-};
-
-const generateBinaryThermalArtwork = async (sourceBuffer) => {
-  const resized = await sharp(sourceBuffer, { animated: false })
-    .rotate()
-    .resize({
-      width: THERMAL_IMAGE_MAX_SIDE,
-      height: THERMAL_IMAGE_MAX_SIDE,
-      fit: "inside",
-      withoutEnlargement: true,
-    })
-    .flatten({ background: "#ffffff" })
-    .removeAlpha()
-    .greyscale()
-    .normalize()
-    .sharpen({ sigma: 1.1, m1: 1.0, m2: 1.8, x1: 2, y2: 10, y3: 20, v1: 2, v2: 3, v3: 4 })
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const { data, info } = resized;
-  const width = Number(info.width || 0);
-  const height = Number(info.height || 0);
-  if (!width || !height) {
-    throw new Error("Thermal artwork resize failed");
-  }
-
-  const luminance = new Uint8ClampedArray(width * height);
-  let sum = 0;
-  for (let index = 0; index < luminance.length; index += 1) {
-    const value = data[index] ?? 255;
-    luminance[index] = value;
-    sum += value;
-  }
-
-  const average = sum / Math.max(1, luminance.length);
-  const darkThreshold = clamp(Math.round(average * 0.88), 160, 228);
-
-  const getGray = (x, y) => {
-    if (x < 0 || y < 0 || x >= width || y >= height) return 255;
-    return luminance[(y * width) + x] ?? 255;
-  };
-
-  const edgeMap = new Uint8ClampedArray(width * height);
-  for (let y = 1; y < height - 1; y += 1) {
-    for (let x = 1; x < width - 1; x += 1) {
-      const topLeft = getGray(x - 1, y - 1);
-      const top = getGray(x, y - 1);
-      const topRight = getGray(x + 1, y - 1);
-      const left = getGray(x - 1, y);
-      const right = getGray(x + 1, y);
-      const bottomLeft = getGray(x - 1, y + 1);
-      const bottom = getGray(x, y + 1);
-      const bottomRight = getGray(x + 1, y + 1);
-      const gx = (-1 * topLeft) + topRight + (-2 * left) + (2 * right) + (-1 * bottomLeft) + bottomRight;
-      const gy = (-1 * topLeft) + (-2 * top) + (-1 * topRight) + bottomLeft + (2 * bottom) + bottomRight;
-      edgeMap[(y * width) + x] = clamp(Math.round(Math.hypot(gx, gy)), 0, 255);
-    }
-  }
-
-  const inkMap = new Uint8Array(width * height);
-  for (let index = 0; index < luminance.length; index += 1) {
-    const x = index % width;
-    const y = Math.floor(index / width);
-    const edge = edgeMap[index] ?? 0;
-    const gray = luminance[index] ?? 255;
-    const darkRegion = gray < darkThreshold;
-    const strongContour = edge > 52;
-    const softContour = gray < 232 && edge > 24;
-    const detailContour = gray < 220 && edge > 16;
-    inkMap[index] = darkRegion || strongContour || softContour || detailContour ? 1 : 0;
-
-    if (gray > 248 && edge < 8) {
-      inkMap[index] = 0;
-    }
-  }
-
-  const dilatedMap = new Uint8Array(width * height);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      let ink = 0;
-      for (let offsetY = -1; offsetY <= 1 && !ink; offsetY += 1) {
-        for (let offsetX = -1; offsetX <= 1; offsetX += 1) {
-          const nx = x + offsetX;
-          const ny = y + offsetY;
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-          if (inkMap[(ny * width) + nx]) {
-            ink = 1;
-            break;
-          }
-        }
-      }
-      dilatedMap[(y * width) + x] = ink;
-    }
-  }
-
-  const output = Buffer.alloc(width * height * 4);
-  for (let index = 0; index < dilatedMap.length; index += 1) {
-    const ink = dilatedMap[index] ? 0 : 255;
-    const outputIndex = index * 4;
-    output[outputIndex] = ink;
-    output[outputIndex + 1] = ink;
-    output[outputIndex + 2] = ink;
-    output[outputIndex + 3] = 255;
-  }
-
-  return sharp(output, { raw: { width, height, channels: 4 } })
-    .png({
-      compressionLevel: 9,
-      adaptiveFiltering: true,
-      force: true,
-    })
-    .toBuffer();
 };
 
 const updateThermalRecord = async ({ entityType = "product", productId = null, variantId = null, tenantId = null, thermalImageUrl = "", thermalImageStatus = "ready", thermalImageError = "" } = {}) => {
@@ -435,7 +458,7 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       outputUrl,
     });
 
-    if (!regenerate && await fileExists(outputPath)) {
+    if (!regenerate && (await fileExists(outputPath))) {
       await updateThermalRecord({
         entityType,
         productId,
@@ -475,22 +498,97 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       thermalImageStatus: "processing",
     });
 
-    const sourceBuffer = await readSourceBuffer(sourceImageUrl);
-    if (!sourceBuffer) {
+    const normalizedSource = await normalizeSourceImage(sourceImageUrl);
+    if (!normalizedSource?.buffer) {
       throw new Error("Thermal source image could not be loaded");
     }
 
-    await ensureDir();
-    const thermalBuffer = await postProcessThermalArtworkBuffer(sourceBuffer);
-    await fs.writeFile(outputPath, thermalBuffer);
-    await updateThermalRecord({
-      entityType,
-      productId,
-      variantId,
-      tenantId,
-      thermalImageUrl: outputUrl,
-      thermalImageStatus: "ready",
+    const inputFile = await toFile(normalizedSource.buffer, `${cleanText(productName) || "product"}-thermal-source.png`, {
+      type: normalizedSource.mimetype || "image/png",
     });
+
+    const startedAt = Date.now();
+    const client = getClient();
+    console.log({
+      hasKey: Boolean(process.env.OPENAI_API_KEY),
+      sameClient: client === openaiClient,
+    });
+    const model = DEFAULT_MODEL;
+    console.log("[thermal-artwork] OpenAI request start", {
+      productId: productId || "",
+      productName: cleanText(productName) || "",
+      model,
+    });
+
+    const response = await client.images.edit({
+      model,
+      image: inputFile,
+      prompt: THERMAL_ARTWORK_PROMPT,
+      background: "transparent",
+      input_fidelity: "high",
+      output_format: "png",
+      quality: "high",
+      size: "1024x1024",
+      n: 1,
+      response_format: "b64_json",
+    });
+
+    const imageBase64 = response?.data?.[0]?.b64_json || "";
+    if (!imageBase64) {
+      throw new Error("OpenAI did not return thermal artwork image data");
+    }
+
+    const generatedBuffer = Buffer.from(imageBase64, "base64");
+    let thermalBuffer = generatedBuffer;
+    try {
+      thermalBuffer = await postProcessThermalArtworkBuffer(generatedBuffer);
+    } catch (zoomError) {
+      console.warn("[thermal-artwork] auto-zoom failed, saving generated image directly", {
+        entityType,
+        productId,
+        variantId,
+        message: zoomError?.message || String(zoomError),
+      });
+      thermalBuffer = generatedBuffer;
+    }
+
+    const stored = await saveThermalArtworkAsset({
+      buffer: thermalBuffer,
+      productId,
+      sourceKey: `${sourceImageUrl}:${productId || ""}:${Date.now()}`,
+      mimetype: "image/png",
+    });
+
+    const result = {
+      thermal_image_url: stored.thermal_image_url,
+      cached: false,
+      source: "OPENAI",
+      storage: stored.storage,
+      prompt: THERMAL_ARTWORK_PROMPT,
+      model,
+      durationMs: Date.now() - startedAt,
+    };
+
+    thermalArtworkCache.set(cacheKey, result);
+
+    if (Number.isFinite(Number(productId)) && Number(productId) > 0) {
+      const updateParams = [stored.thermal_image_url, Number(productId)];
+      const whereClause = tenantId ? " AND tenant_id = $3" : "";
+      if (tenantId) updateParams.push(tenantId);
+      try {
+        await db.query(
+          `UPDATE products SET thermal_image_url = $1, updated_at = NOW() WHERE id = $2${whereClause}`,
+          updateParams
+        );
+        result.updated = true;
+      } catch (error) {
+        console.warn("[thermal-artwork] product update failed", {
+          productId,
+          message: error?.message || String(error),
+        });
+        result.updated = false;
+      }
+    }
 
     console.log("THERMAL_IMAGE_JOB_READY", {
       entityType,
@@ -498,19 +596,19 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       variantId,
       tenantId,
       productName,
-      thermalImageUrl: outputUrl,
-      outputPath,
+      thermalImageUrl: stored.thermal_image_url,
+      outputPath: stored.outputPath || "",
     });
 
     return {
       success: true,
-      thermal_image_url: outputUrl,
+      thermal_image_url: stored.thermal_image_url,
       source: "generated",
       cached: false,
       updated: true,
-      storage: "local",
-      prompt: "technical product illustration for thermal printing",
-      model: "sharp-thermal-artwork",
+      storage: stored.storage,
+      prompt: THERMAL_ARTWORK_PROMPT,
+      model,
       job_key: inputKey,
     };
   })().catch(async (error) => {
