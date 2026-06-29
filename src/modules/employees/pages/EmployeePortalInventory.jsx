@@ -374,6 +374,31 @@ function InventoryImage({ src, alt = "", className = "" }) {
 }
 
 function ScannerModal({ onClose, onScan }) {
+  const [manualValue, setManualValue] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [scannerMessage, setScannerMessage] = useState("");
+  const lastResolvedScanRef = useRef({ value: "", at: 0 });
+
+  const submitScan = useCallback(async (value) => {
+    const query = clean(value);
+    if (!query || submitting) return;
+    const now = Date.now();
+    if (lastResolvedScanRef.current.value === query && now - lastResolvedScanRef.current.at < 1500) {
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const resolved = await onScan(query);
+      if (resolved) {
+        lastResolvedScanRef.current = { value: query, at: Date.now() };
+        setManualValue("");
+        onClose();
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }, [onClose, onScan, submitting]);
+
   return createPortal(
     <div
       className="fixed inset-0 z-[2147483000] flex items-end justify-center bg-black/80 p-3 backdrop-blur-sm sm:items-center sm:p-6"
@@ -401,13 +426,59 @@ function ScannerModal({ onClose, onScan }) {
         <div className="p-4">
           <div className="overflow-hidden rounded-3xl border border-white/10 bg-black/60 p-3">
             <BarcodeScanner
-              onScan={onScan}
-              onPermissionDenied={onClose}
-              onUnsupported={onClose}
-              onError={onClose}
+              onScan={submitScan}
+              onPermissionDenied={(message) => {
+                setScannerMessage(message || "تم رفض إذن الكاميرا");
+                toast.error(message || "تم رفض إذن الكاميرا");
+              }}
+              onUnsupported={(message) => {
+                setScannerMessage(message || "الكاميرا أو المتصفح لا يدعم الماسح");
+                toast.error(message || "الكاميرا أو المتصفح لا يدعم الماسح");
+              }}
+              onError={(message) => {
+                setScannerMessage(message || "تعذر تشغيل ماسح الكاميرا");
+                toast.error(message || "تعذر تشغيل ماسح الكاميرا");
+              }}
               className="overflow-hidden rounded-[1.35rem] bg-black"
-              scannerClassName="min-h-[320px]"
+              scannerClassName="min-h-[320px] w-full"
+              detectorFormats={["code_128", "ean_13", "ean_8", "upc_a", "upc_e", "qr_code"]}
+              html5Fps={20}
+              html5Qrbox={{ width: 340, height: 180 }}
+              html5AspectRatio={1.7777777778}
+              videoConstraints={{
+                width: { ideal: 1280 },
+                height: { ideal: 720 },
+                facingMode: { ideal: "environment" },
+                advanced: [{ focusMode: "continuous" }, { exposureMode: "continuous" }],
+              }}
+              logPrefix="INVENTORY_CAMERA_SCANNER"
             />
+          </div>
+          <div className="mt-4 rounded-3xl border border-white/10 bg-white/[0.04] p-3 text-white">
+            <div className="text-xs font-black text-zinc-300">أدخل الباركود يدويًا</div>
+            <div className="mt-2 flex gap-2">
+              <input
+                value={manualValue}
+                onChange={(event) => setManualValue(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    event.preventDefault();
+                    submitScan(manualValue);
+                  }
+                }}
+                placeholder="أدخل الباركود يدويًا"
+                className="h-11 flex-1 rounded-2xl border border-white/10 bg-black/40 px-3 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
+              />
+              <button
+                type="button"
+                onClick={() => submitScan(manualValue)}
+                disabled={!clean(manualValue) || submitting}
+                className="inline-flex h-11 items-center justify-center rounded-2xl bg-emerald-400 px-4 text-sm font-black text-zinc-950 disabled:opacity-50"
+              >
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : "بحث"}
+              </button>
+            </div>
+            {scannerMessage ? <div className="mt-2 text-xs font-semibold text-amber-200">{scannerMessage}</div> : null}
           </div>
         </div>
       </section>
@@ -946,10 +1017,9 @@ export default function EmployeePortalInventory() {
   }, []);
 
   const handleScan = useCallback(async (value) => {
-    setScannerOpen(false);
     const query = clean(value);
     setLookupQuery(query);
-    if (!session?.id || !query || !isEditable) return;
+    if (!session?.id || !query || !isEditable) return false;
     try {
       setLookupLoading(true);
       const response = await lookupEmployeePortalInventoryVariants(token, session.id, { query, limit: 20 });
@@ -965,9 +1035,13 @@ export default function EmployeePortalInventory() {
         const existing = items.find((row) => String(row.product_variant_id ?? row.variant_id ?? row.id ?? "") === String(exact.product_variant_id ?? exact.variant_id ?? exact.id ?? ""));
         await saveItem(exact, { countedQuantity: toNumber(existing?.counted_quantity, 0) + 1, systemQuantity: exact.system_quantity });
         toast.success(`تم عد قطعة من مقاس ${exact.size || exact.sku || ""}`.trim());
+        return true;
       }
+      toast.error("لم يتم العثور على منتج مطابق لهذا الباركود");
+      return false;
     } catch (error) {
       toast.error(error?.responseBody?.message || error?.message || "تعذر قراءة الباركود");
+      return false;
     } finally {
       setLookupLoading(false);
     }
