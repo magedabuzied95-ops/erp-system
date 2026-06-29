@@ -470,11 +470,18 @@ router.get("/posts/:postId/product-links", protect, permit("settings", "view"), 
     const canonicalPostId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
     const postId = canonicalPostId;
     const mapping = await getPostProductMappings({ tenantId, platform, postId, row: post || {}, post: post || {} });
+    const responseProductIds = Array.isArray(mapping?.product_ids)
+      ? mapping.product_ids
+      : Array.isArray(mapping?.linked_products)
+        ? mapping.linked_products.map((item) => item.product_id || item.id || null).filter(Boolean)
+        : [];
     return res.json({
       success: true,
       linked_products: mapping?.linked_products || [],
       primary_product: mapping?.primary_product || null,
       count: Number(mapping?.count || 0) || 0,
+      product_ids: responseProductIds,
+      rows_affected: Number(mapping?.rows_affected || 0),
       post_id: postId,
       selected_post_id: requestedPostId,
       canonical_post_id: canonicalPostId,
@@ -535,6 +542,14 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       userId: req.user?.id || req.user?.user_id || null,
     });
     const readback = await getPostProductMappings({ tenantId, platform, postId, selectedPostId: requestedPostId, row: post || {}, post: post || {} });
+    const rowsAffected = Number(mapping?.rows_affected ?? readback?.rows_affected ?? 0) || 0;
+    const responseProductIds = Array.isArray(readback?.product_ids)
+      ? readback.product_ids
+      : Array.isArray(mapping?.product_ids)
+        ? mapping.product_ids
+        : Array.isArray(readback?.linked_products)
+          ? readback.linked_products.map((item) => item.product_id || item.id || null).filter(Boolean)
+          : productIds;
     console.info("POST_PRODUCT_LINK_IDENTITY_TRACE", {
       ...buildPostIdentityTrace({
         tenantId,
@@ -545,7 +560,8 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
         row: post || {},
         post: post || {},
         matchedMappingKey: readback?.matched_mapping_key || "",
-        productIds: Array.isArray(readback?.linked_products) ? readback.linked_products.map((item) => item.product_id || item.id || null).filter(Boolean) : productIds,
+        productIds: responseProductIds,
+        rowsAffected,
       }),
       candidate_post_ids: [],
     });
@@ -555,7 +571,8 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       selected_post_id: requestedPostId,
       canonical_post_id: canonicalPostId,
       saved_platform_post_id: String(readback?.post_id || post?.platform_post_id || post?.post_id || requestedPostId || "").trim(),
-      product_ids: Array.isArray(productIds) ? productIds : [],
+      product_ids: responseProductIds,
+      rows_affected: Number(rowsAffected || 0),
       readback_count: Number(readback?.count || 0) || 0,
       hydrated_products_count: Number(readback?.linked_products?.length || 0) || 0,
     });
@@ -565,6 +582,8 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       selected_post_id: requestedPostId,
       canonical_post_id: canonicalPostId,
       saved_platform_post_id: String(readback?.post_id || post?.platform_post_id || post?.post_id || requestedPostId || "").trim(),
+      product_ids: responseProductIds,
+      rows_affected: Number(rowsAffected || 0),
       readback_count: Number(readback?.count || 0) || 0,
       hydrated_products_count: Number(readback?.linked_products?.length || 0) || 0,
     });
@@ -573,6 +592,8 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       linked_products: readback?.linked_products || [],
       primary_product: readback?.primary_product || null,
       count: Number(readback?.count || 0) || 0,
+      product_ids: responseProductIds,
+      rows_affected: Number(rowsAffected || 0),
       post_id: postId,
       selected_post_id: requestedPostId,
       canonical_post_id: canonicalPostId,
