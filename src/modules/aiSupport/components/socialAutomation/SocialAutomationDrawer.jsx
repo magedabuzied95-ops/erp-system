@@ -24,6 +24,7 @@ export default function SocialAutomationDrawer({
   savedConfig = null,
   onClose,
   onSaveDraft,
+  onEnableAutomation,
   onResetDraft,
   onUpdateDraft,
   onSelectTemplate,
@@ -41,6 +42,8 @@ export default function SocialAutomationDrawer({
   );
   const savedConfigId = clean(savedConfig?.config_id || savedConfig?.id || "");
   const savedPostId = clean(savedConfig?.saved_post_id || savedConfig?.post_id || "");
+  const hasLinkedProduct = Boolean(clean(post?.productId || post?.product_id || post?.productName || post?.productLink || ""));
+  const isEnabled = Boolean(draft?.enabled);
 
   const timelineState = useMemo(
     () => ({
@@ -198,6 +201,12 @@ export default function SocialAutomationDrawer({
                 <div>enabled: <span className="font-black text-white">{savedConfig?.enabled ? "true" : "false"}</span></div>
                 <div>template_key: <span className="font-black text-white">{clean(savedConfig?.template_key || "—") || "—"}</span></div>
               </div>
+            </div>
+          ) : null}
+
+          {!hasLinkedProduct ? (
+            <div className="mb-3 rounded-2xl border border-amber-300/20 bg-amber-400/10 p-3 text-sm text-amber-100">
+              Link product to enable automation.
             </div>
           ) : null}
 
@@ -420,7 +429,7 @@ export default function SocialAutomationDrawer({
         <div className="border-t border-white/10 bg-slate-950/95 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-slate-400">
-              <span className="font-black text-slate-200">Saved per post.</span> Automation execution is still disabled in this sprint.
+              <span className="font-black text-slate-200">Saved per post.</span> Enable this post when the product link is ready.
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -440,6 +449,15 @@ export default function SocialAutomationDrawer({
               >
                 {testing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {testing ? "Testing..." : "Test Automation"}
+              </button>
+              <button
+                type="button"
+                onClick={() => onEnableAutomation?.()}
+                disabled={loading || saving || testing || !hasLinkedProduct}
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-4 text-sm font-black text-emerald-100 disabled:opacity-50"
+              >
+                <Sparkles className="h-4 w-4" />
+                {isEnabled ? "Automation enabled" : "Enable automation for this post"}
               </button>
               <button
                 type="button"

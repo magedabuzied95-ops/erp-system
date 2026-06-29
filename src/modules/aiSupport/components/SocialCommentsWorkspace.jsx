@@ -1267,16 +1267,17 @@ function SocialCommentsWorkspace({
     [activePostKey, activePostPlatform, automationDrawerPostKey, resolvedTenantId]
   );
 
-  const handleAutomationSaveLocal = () => {
+  const handleAutomationSaveLocal = (draftPatch = null) => {
     const drawerKey = clean(automationDrawerPostKey || activePostKey);
     if (!drawerKey) return;
     const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
     const currentDraft = automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
+    const nextDraft = draftPatch ? { ...currentDraft, ...draftPatch } : currentDraft;
     setAutomationDrafts((current) => ({
       ...current,
-      [drawerKey]: currentDraft,
+      [drawerKey]: nextDraft,
     }));
-    void handleAutomationSaveRemote();
+    void handleAutomationSaveRemote(nextDraft);
   };
 
   const handleAutomationReset = () => {
@@ -1390,12 +1391,12 @@ function SocialCommentsWorkspace({
     void handleAutomationLoadRuns(drawerKey);
   }, [automationDrawerPostKey, automationDrawerPost?.id, automationDrawerPost?.postId, activePostKey, activePostPlatform, resolvedTenantId]);
 
-  const handleAutomationSaveRemote = async () => {
+  const handleAutomationSaveRemote = async (draftOverride = null) => {
     const drawerKey = clean(automationDrawerPostKey || activePostKey);
     if (!drawerKey) return;
     const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
     const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
-    const draft = automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
+    const draft = draftOverride || automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
     const payload = serializeAutomationDraft(draft, postForAutomation);
     setAutomationSavingKey(drawerKey);
     try {
@@ -2685,6 +2686,7 @@ function SocialCommentsWorkspace({
         savedConfig={automationSavedConfigs[clean(automationDrawerPostKey)] || null}
         onClose={() => setAutomationDrawerPostKey("")}
         onSaveDraft={handleAutomationSaveLocal}
+        onEnableAutomation={() => handleAutomationSaveLocal({ enabled: true })}
         onResetDraft={handleAutomationReset}
         onUpdateDraft={updateAutomationDraft}
         onSelectTemplate={handleAutomationSelectTemplate}

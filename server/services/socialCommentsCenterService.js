@@ -1666,6 +1666,21 @@ const buildSocialCommentAutomationDefaultTemplates = (post = {}, product = {}) =
   };
 };
 
+const buildSocialCommentAutomationConfigDefaults = ({ post = {}, product = {} } = {}) => ({
+  product_id: product?.id ?? post?.product_id ?? null,
+  template_key: "product_comment_sales_flow",
+  enabled: false,
+  settings: normalizeSocialCommentAutomationSettings({
+    enabled: false,
+    likeComment: true,
+    publicReply: true,
+    privateReply: true,
+    aiFollowUp: true,
+    createLead: false,
+  }),
+  message_templates: buildSocialCommentAutomationDefaultTemplates(post || {}, product || {}),
+});
+
 const normalizeSocialCommentAutomationConfigRow = (row = {}, defaults = {}) => ({
   id: row.id || null,
   tenant_id: Number(row.tenant_id || 0) || null,
@@ -1683,6 +1698,140 @@ const normalizeSocialCommentAutomationConfigRow = (row = {}, defaults = {}) => (
   updated_at: row.updated_at || null,
   persisted: Boolean(row.id),
 });
+
+const ensureSocialCommentAutomationConfigRecord = async ({ tenantId = null, platform = "", postId = "", row = {}, post = {}, hydratePost = false } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const normalizedPlatform = normalizePlatform(platform);
+  const safePost = metadataObject(post || {});
+  const safeRow = metadataObject(row || {});
+  const safePostId = text(
+    postId ||
+      safeRow.post_id ||
+      safePost.post_id ||
+      safeRow.metadata?.post_id ||
+      safePost.metadata?.post_id ||
+      safeRow.platform_post_id ||
+      safePost.platform_post_id ||
+      safeRow.metadata?.platform_post_id ||
+      safePost.metadata?.platform_post_id ||
+      ""
+  );
+  const canonicalPostId = text(
+    safePost.canonical_post_id ||
+      safeRow.canonical_post_id ||
+      resolveSocialCommentCanonicalPostId(safePost || safeRow || {}) ||
+      safePostId
+  );
+  const targetPostId = canonicalPostId || safePostId;
+  if (!safeTenantId || !targetPostId) return null;
+
+  const normalizedPost = safePost && Object.keys(safePost).length ? safePost : safeRow && Object.keys(safeRow).length ? safeRow : {};
+  const postDefaults = buildSocialCommentAutomationConfigDefaults({
+    post: normalizedPost,
+    product: metadataObject(normalizedPost.product || safeRow.product || {}),
+  });
+  const rawSettings = metadataObject(postDefaults.settings || {});
+  const rawTemplates = metadataObject(postDefaults.message_templates || {});
+  const existing = await db.query(
+    `
+    SELECT *
+    FROM social_comment_post_automation_configs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND post_id = $3::text
+    ORDER BY updated_at DESC, created_at DESC, id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, normalizedPlatform, targetPostId]
+  ).catch(() => ({ rows: [] }));
+  if (existing.rows?.[0]) {
+    const existingRow = normalizeSocialCommentAutomationConfigRow(existing.rows[0], {
+      postId: targetPostId,
+      platform: normalizedPlatform,
+      product_id: postDefaults.product_id ?? null,
+      settings: rawSettings,
+      message_templates: rawTemplates,
+    });
+    console.log("SOCIAL_COMMENT_DEFAULT_CONFIG_ENSURED", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: targetPostId,
+      config_id: existingRow.id || null,
+      created: false,
+      enabled: Boolean(existingRow.enabled),
+    });
+    return existingRow;
+  }
+
+  const result = await db.query(
+    `
+    INSERT INTO social_comment_post_automation_configs (
+      tenant_id,
+      post_id,
+      platform,
+      product_id,
+      template_key,
+      enabled,
+      settings,
+      message_templates,
+      created_at,
+      updated_at
+    )
+    VALUES (
+      $1::bigint,
+      $2::text,
+      $3::text,
+      $4::bigint,
+      $5::text,
+      $6::boolean,
+      $7::jsonb,
+      $8::jsonb,
+      CURRENT_TIMESTAMP,
+      CURRENT_TIMESTAMP
+    )
+    ON CONFLICT (tenant_id, post_id, platform) DO NOTHING
+    RETURNING *, TRUE AS created
+    `,
+    [
+      safeTenantId,
+      targetPostId,
+      normalizedPlatform,
+      postDefaults.product_id ? Math.trunc(Number(postDefaults.product_id)) : null,
+      postDefaults.template_key || "product_comment_sales_flow",
+      Boolean(postDefaults.enabled),
+      JSON.stringify(rawSettings),
+      JSON.stringify(rawTemplates),
+    ]
+  );
+  const ensuredRow = result.rows?.[0] || (await db.query(
+    `
+    SELECT *
+    FROM social_comment_post_automation_configs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND post_id = $3::text
+    LIMIT 1
+    `,
+    [safeTenantId, normalizedPlatform, targetPostId]
+  ).catch(() => ({ rows: [] }))).rows?.[0] || null;
+  if (!ensuredRow) return null;
+  const normalized = normalizeSocialCommentAutomationConfigRow(ensuredRow, {
+    postId: targetPostId,
+    platform: normalizedPlatform,
+    product_id: postDefaults.product_id ?? null,
+    settings: rawSettings,
+    message_templates: rawTemplates,
+  });
+  console.log("SOCIAL_COMMENT_DEFAULT_CONFIG_ENSURED", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: targetPostId,
+    config_id: normalized.id || null,
+    created: Boolean(result.rows?.[0]),
+    enabled: Boolean(normalized.enabled),
+  });
+  return normalized;
+};
 
 const collectSocialCommentAutomationConfigCandidates = ({ postId = "", row = {}, post = {} } = {}) => {
   const candidates = [];
@@ -1851,15 +2000,9 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
     incoming_internal_post_id: text(row?.internal_post_id || post?.internal_post_id || row?.metadata?.internal_post_id || post?.metadata?.internal_post_id || ""),
     candidate_keys: candidateEntries.map((entry) => ({ key: entry.key, value: entry.value })),
   });
-  if (!candidatePostIds.length) {
-    const fallbackConfig = await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId, post, hydratePost });
-    console.log("CONFIG_LOOKUP_RESULT", {
-      matched_key: "",
-      config_id: fallbackConfig?.id || null,
-      enabled: Boolean(fallbackConfig?.enabled),
-      template_key: text(fallbackConfig?.template_key || ""),
-    });
-    return fallbackConfig;
+  const candidateLookupIds = candidatePostIds.length ? candidatePostIds : [text(canonicalPostId || safePostId)].filter(Boolean);
+  if (!candidateLookupIds.length) {
+    return null;
   }
   const result = await db.query(
     `
@@ -1870,7 +2013,7 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
       AND post_id = ANY($3::text[])
     ORDER BY updated_at DESC, created_at DESC, id DESC
     `,
-    [safeTenantId, normalizedPlatform, candidatePostIds]
+    [safeTenantId, normalizedPlatform, candidateLookupIds]
   );
   const configRow = result.rows?.[0] || null;
   if (configRow) {
@@ -1892,14 +2035,14 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
     return normalizedConfig;
   }
   const fallbackConfig = {
-    ...(await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId, post, hydratePost })),
-    lookup_matched_key: "",
-    lookup_matched_post_id: "",
+    ...(await ensureSocialCommentAutomationConfigRecord({ tenantId: safeTenantId, platform: normalizedPlatform, postId: canonicalPostId || safePostId, row, post, hydratePost })),
+    lookup_matched_key: candidateEntries[0]?.key || "post_id",
+    lookup_matched_post_id: canonicalPostId || safePostId,
     lookup_candidate_post_ids: candidateEntries.map((entry) => ({ key: entry.key, value: entry.value })),
     lookup_source: "default",
   };
   console.log("CONFIG_LOOKUP_RESULT", {
-    matched_key: "",
+    matched_key: fallbackConfig?.lookup_matched_key || "",
     config_id: fallbackConfig?.id || null,
     enabled: Boolean(fallbackConfig?.enabled),
     template_key: text(fallbackConfig?.template_key || ""),
@@ -2172,6 +2315,13 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   if (!row) return null;
   const enriched = await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform });
   const canonicalPostId = resolveSocialCommentCanonicalPostId(enriched || row) || text(enriched?.post_id || row.post_id || row.conversation_id || row.external_conversation_id || "");
+  void ensureSocialCommentAutomationConfigRecord({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: canonicalPostId || safePostId,
+    row: enriched || row,
+    post: enriched || row,
+  }).catch(() => {});
   return {
     ...(enriched || {}),
     canonical_post_id: canonicalPostId,
