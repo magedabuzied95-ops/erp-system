@@ -866,8 +866,11 @@ const firstPositiveNumber = (...values) => {
 
 const normalizeThermalImageStatus = (value, thermalImageUrl = "") => {
   const status = String(value || "").trim().toLowerCase();
+  if (String(thermalImageUrl || "").trim()) {
+    return "ready";
+  }
   if (["pending", "processing", "ready", "failed"].includes(status)) return status;
-  return String(thermalImageUrl || "").trim() ? "ready" : "pending";
+  return "pending";
 };
 
 const normalizeThermalTimestamp = (value) => {

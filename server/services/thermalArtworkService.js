@@ -578,6 +578,15 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       mimetype: "image/png",
     });
 
+    await updateThermalRecord({
+      entityType,
+      productId,
+      variantId,
+      tenantId,
+      thermalImageUrl: stored.thermal_image_url,
+      thermalImageStatus: stored.thermal_image_url ? "ready" : "failed",
+    });
+
     const result = {
       thermal_image_url: stored.thermal_image_url,
       cached: false,
@@ -591,12 +600,12 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
     thermalArtworkCache.set(cacheKey, result);
 
     if (Number.isFinite(Number(productId)) && Number(productId) > 0) {
-      const updateParams = [stored.thermal_image_url, Number(productId)];
-      const whereClause = tenantId ? " AND tenant_id = $3" : "";
+      const updateParams = [stored.thermal_image_url, stored.thermal_image_url ? "ready" : "failed", Number(productId)];
+      const whereClause = tenantId ? " AND tenant_id = $4" : "";
       if (tenantId) updateParams.push(tenantId);
       try {
         await db.query(
-          `UPDATE products SET thermal_image_url = $1, updated_at = NOW() WHERE id = $2${whereClause}`,
+          `UPDATE products SET thermal_image_url = $1, thermal_image_status = $2, updated_at = NOW() WHERE id = $3${whereClause}`,
           updateParams
         );
         result.updated = true;

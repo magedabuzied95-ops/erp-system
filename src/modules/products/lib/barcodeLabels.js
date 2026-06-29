@@ -66,6 +66,9 @@ const normalizeBarcode = (value, fallbackSeed = "") => {
 const firstText = (...values) =>
   values.map((value) => String(value || "").trim()).find(Boolean) || "";
 
+const BARCODE_LABEL_IMAGE_CACHE = new Map();
+const BARCODE_LABEL_IMAGE_CACHE_LIMIT = 1500;
+
 export const resolveLabelArticleCode = (item = {}) =>
   firstText(
     item?.article_code,
@@ -74,12 +77,13 @@ export const resolveLabelArticleCode = (item = {}) =>
     item?.colorArticleCode
   );
 
-const normalizeThermalImageStatus = (value = "") => {
+const normalizeThermalImageStatus = (value = "", thermalImageUrl = "") => {
   const status = String(value || "").trim().toLowerCase();
+  if (String(thermalImageUrl || "").trim()) return "ready";
   return ["pending", "processing", "ready", "failed"].includes(status) ? status : "";
 };
 
-const isThermalImageReady = (status = "") => normalizeThermalImageStatus(status) === "ready";
+const isThermalImageReady = (status = "", thermalImageUrl = "") => normalizeThermalImageStatus(status, thermalImageUrl) === "ready";
 
 export const getThermalImageStatus = (item = {}) =>
   normalizeThermalImageStatus(
@@ -88,6 +92,14 @@ export const getThermalImageStatus = (item = {}) =>
       item?.thermal_image_status,
       item?.product_thermal_image_status,
       item?.thermalImageStatus
+    ),
+    firstText(
+      item?.variant_color_thermal_image_url,
+      item?.color_thermal_image_url,
+      item?.thermal_image_url,
+      item?.product_thermal_image_url,
+      item?.thermalImageUrl,
+      item?.productThermalImageUrl
     )
   );
 
@@ -100,10 +112,12 @@ const resolveThermalAwareImage = (item = {}) => {
   );
   const productThermalUrl = firstText(item?.product_thermal_image_url, item?.productThermalImageUrl);
   const variantThermalStatus = normalizeThermalImageStatus(
-    firstText(item?.variant_thermal_image_status, item?.thermal_image_status, item?.thermalImageStatus)
+    firstText(item?.variant_thermal_image_status, item?.thermal_image_status, item?.thermalImageStatus),
+    variantThermalUrl
   );
   const productThermalStatus = normalizeThermalImageStatus(
-    firstText(item?.product_thermal_image_status, item?.productThermalImageStatus)
+    firstText(item?.product_thermal_image_status, item?.productThermalImageStatus),
+    productThermalUrl
   );
 
   const resolved = variantThermalUrl && isThermalImageReady(variantThermalStatus)
@@ -126,14 +140,34 @@ const resolveThermalAwareImage = (item = {}) => {
   return resolved;
 };
 
-export const resolveBarcodeLabelImage = (item = {}) =>
-  firstText(
+const buildBarcodeLabelImageCacheKey = (item = {}) => ([
+  item?.productId ?? item?.id ?? "",
+  item?.variantId ?? item?.variant_id ?? "",
+  firstText(item?.color_thermal_image_url, item?.variant_color_thermal_image_url, item?.thermal_image_url, item?.thermalImageUrl),
+  firstText(item?.product_thermal_image_url, item?.productThermalImageUrl),
+  firstText(item?.variant_thermal_image_status, item?.thermal_image_status, item?.thermalImageStatus),
+  firstText(item?.product_thermal_image_status, item?.productThermalImageStatus),
+  firstText(item?.colorPrimaryImageUrl, item?.color_image_url, item?.image_url, item?.product_image_url),
+].join("|"));
+
+export const resolveBarcodeLabelImage = (item = {}) => {
+  const cacheKey = buildBarcodeLabelImageCacheKey(item);
+  if (BARCODE_LABEL_IMAGE_CACHE.has(cacheKey)) {
+    return BARCODE_LABEL_IMAGE_CACHE.get(cacheKey) || "";
+  }
+  const resolved = firstText(
     resolveThermalAwareImage(item),
     item?.colorPrimaryImageUrl,
     item?.color_image_url,
     item?.image_url,
     item?.product_image_url
   );
+  if (BARCODE_LABEL_IMAGE_CACHE.size >= BARCODE_LABEL_IMAGE_CACHE_LIMIT) {
+    BARCODE_LABEL_IMAGE_CACHE.clear();
+  }
+  BARCODE_LABEL_IMAGE_CACHE.set(cacheKey, resolved);
+  return resolved;
+};
 
 const formatLabelCurrency = (value) =>
   formatCurrency(Math.round(Number(value || 0))).replace(/([.,٫]\d{2})(?=\s|$)/g, "");
