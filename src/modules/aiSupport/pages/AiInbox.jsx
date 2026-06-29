@@ -74,6 +74,7 @@ import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCache
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
 const clean = (value = "") => String(value || "").trim();
+const ENABLE_SOCIAL_FAST_CENTER = true;
 const normalizeValidationSummary = (value = {}) => {
   const validation = value && typeof value === "object" ? value : {};
   const violations = asArray(validation.violations || validation.issues || []);
