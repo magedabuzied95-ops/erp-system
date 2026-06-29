@@ -878,6 +878,15 @@ const normalizeThermalTimestamp = (value) => {
 
 const normalizeThermalError = (value) => String(value || "").trim();
 
+const normalizeSqlTimestampInput = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value.toISOString() : null;
+  }
+  const parsed = new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
+};
+
 const normalizeProductRow = (row = {}) => {
   const regularPrice = firstPositiveNumber(row.selling_price, row.regular_price, row.price, row.sale_price);
   const audiences = normalizeProductAudiences(row.audiences, row.product_audiences, row.gender);
@@ -899,8 +908,8 @@ const normalizeProductRow = (row = {}) => {
   sale_price: Number(row.sale_price || 0),
   sale_price_enabled: row.sale_price_enabled === true || String(row.sale_price_enabled || "").toLowerCase() === "true",
   sale_reason: row.sale_reason || "",
-  sale_start_at: row.sale_start_at || null,
-  sale_end_at: row.sale_end_at || null,
+  sale_start_at: normalizeSqlTimestampInput(row.sale_start_at),
+  sale_end_at: normalizeSqlTimestampInput(row.sale_end_at),
   use_custom_compare_price: row.use_custom_compare_price === true || String(row.use_custom_compare_price || "").toLowerCase() === "true",
   custom_compare_price: Number(row.custom_compare_price || 0),
   cost_price: Number(row.cost_price ?? row.last_purchase_price ?? row.last_purchase_cost ?? row.average_cost ?? row.purchase_price ?? 0),
@@ -2747,6 +2756,8 @@ export const createProduct = async (req, res) => {
     const normalizedMetaTitle = String(meta_title || name || "").trim();
     const normalizedSeoKeywords = String(seo_keywords || "").trim();
     const normalizedCanonicalSlug = String(canonical_slug || "").trim();
+    const normalizedSaleStartAt = normalizeSqlTimestampInput(sale_start_at);
+    const normalizedSaleEndAt = normalizeSqlTimestampInput(sale_end_at);
     const finalProductSku = await makeUniqueSku(client, {
       tenantId,
       sku: sku || buildSmartSkuPrefix({
@@ -2870,8 +2881,8 @@ export const createProduct = async (req, res) => {
       normalizedSaleEnabled ? normalizedSalePrice : 0,
       normalizedSaleEnabled,
       normalizedSaleEnabled ? String(sale_reason || "").trim() : "",
-      normalizedSaleEnabled && sale_start_at ? sale_start_at : null,
-      normalizedSaleEnabled && sale_end_at ? sale_end_at : null,
+      normalizedSaleEnabled ? normalizedSaleStartAt : null,
+      normalizedSaleEnabled ? normalizedSaleEndAt : null,
       use_custom_compare_price === true || String(use_custom_compare_price || "").toLowerCase() === "true",
       Math.max(0, Number(custom_compare_price || 0)),
       Number(cost_price || purchase_price || 0),
@@ -3200,6 +3211,8 @@ export const updateProduct = async (req, res) => {
     const normalizedMetaTitle = String(meta_title || name || "").trim();
     const normalizedSeoKeywords = String(seo_keywords || "").trim();
     const normalizedCanonicalSlug = String(canonical_slug || "").trim();
+    const normalizedSaleStartAt = normalizeSqlTimestampInput(sale_start_at);
+    const normalizedSaleEndAt = normalizeSqlTimestampInput(sale_end_at);
     const productPricingProvided = [
       "regular_price",
       "price",
@@ -3362,8 +3375,8 @@ export const updateProduct = async (req, res) => {
       `sale_price = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled ? normalizedSalePrice : 0)} ELSE sale_price END`,
       `sale_price_enabled = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled)} ELSE sale_price_enabled END`,
       `sale_reason = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled ? String(sale_reason || "").trim() : "")} ELSE sale_reason END`,
-      `sale_start_at = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled && sale_start_at ? sale_start_at : null)} ELSE sale_start_at END`,
-      `sale_end_at = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled && sale_end_at ? sale_end_at : null)} ELSE sale_end_at END`,
+      `sale_start_at = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled ? normalizedSaleStartAt : null)} ELSE sale_start_at END`,
+      `sale_end_at = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled ? normalizedSaleEndAt : null)} ELSE sale_end_at END`,
       `use_custom_compare_price = ${addUpdateValue(use_custom_compare_price === true || String(use_custom_compare_price || "").toLowerCase() === "true")}`,
       `custom_compare_price = ${addUpdateValue(Math.max(0, Number(custom_compare_price || 0)))}`,
       `cost_price = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(Number(cost_price || purchase_price || 0))} ELSE cost_price END`,
@@ -3634,18 +3647,6 @@ export const updateProduct = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("PRODUCT_UPDATE_FAILED_FULL", {
-      message: error?.message,
-      code: error?.code || null,
-      detail: error?.detail || null,
-      constraint: error?.constraint || null,
-      table: error?.table || null,
-      column: error?.column || null,
-      stack: error?.stack || null,
-      productId: req.params?.id || null,
-      tenant_id: req.user?.tenant_id ?? req.body?.tenant_id ?? null,
-      bodyKeys: Object.keys(req.body || {}).sort(),
-    });
     console.error("PRODUCT_UPDATE_FAILED", {
       message: error?.message,
       stack: error?.stack,
