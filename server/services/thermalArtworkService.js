@@ -18,6 +18,8 @@ const THERMAL_ARTWORK_FILL_TARGET = 0.94;
 const THERMAL_ARTWORK_FILL_MIN = 0.92;
 const THERMAL_ARTWORK_FILL_MAX = 0.94;
 const THERMAL_ARTWORK_BINARY_THRESHOLD = 200;
+const THERMAL_ARTWORK_MODEL_NAME_FONT_RATIO = 0.052;
+const THERMAL_ARTWORK_MODEL_NAME_BOTTOM_RATIO = 0.08;
 const DEFAULT_MODEL = process.env.OPENAI_THERMAL_ARTWORK_MODEL || "gpt-image-1.5";
 const DEFAULT_TIMEOUT_MS = 90_000;
 
@@ -32,7 +34,6 @@ export const THERMAL_ARTWORK_PROMPT = [
   "* Use a plain white background.",
   "* Use only pure black and pure white.",
   "* No gray text, no gray outlines, no semi-transparent pixels, and no antialiasing.",
-  "* The model name under the shoe should be pure white (#FFFFFF) with no gray or antialiasing.",
   "* Preserve shoe details as line-art, not a solid silhouette.",
   "* Keep the shoe large so it fills most of the image area.",
   "* Keep the exact shoe proportions.",
@@ -319,7 +320,45 @@ const detectArtworkBounds = (data = Buffer.alloc(0), info = {}) => {
   };
 };
 
-const postProcessThermalArtworkBuffer = async (inputBuffer) => {
+const buildModelNameOverlay = async ({ width = 0, height = 0, productName = "" } = {}) => {
+  const text = cleanText(productName);
+  if (!text || !width || !height) return null;
+
+  const fontSize = clamp(Math.round(width * THERMAL_ARTWORK_MODEL_NAME_FONT_RATIO), 28, Math.round(height * 0.12));
+  const bottomMargin = Math.max(8, Math.round(height * THERMAL_ARTWORK_MODEL_NAME_BOTTOM_RATIO));
+  const boxHeight = Math.round(fontSize * 1.45);
+  const y = Math.max(fontSize, height - bottomMargin);
+  const safeText = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  const svg = `
+    <svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
+      <style>
+        text {
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: ${fontSize}px;
+          font-weight: 700;
+          fill: #ffffff;
+          letter-spacing: 0.02em;
+        }
+      </style>
+      <text
+        x="${Math.round(width / 2)}"
+        y="${y}"
+        text-anchor="middle"
+        dominant-baseline="alphabetic"
+        lengthAdjust="spacingAndGlyphs"
+        textLength="${Math.round(width * 0.88)}"
+      >${safeText}</text>
+    </svg>
+  `;
+
+  return Buffer.from(svg);
+};
+
+const postProcessThermalArtworkBuffer = async (inputBuffer, { productName = "" } = {}) => {
   try {
     const finalizeThermalBuffer = (buffer) =>
       sharp(buffer, { animated: false })
@@ -355,13 +394,23 @@ const postProcessThermalArtworkBuffer = async (inputBuffer) => {
       );
     }
 
+    const fillMultiplier = clamp(Math.sqrt(THERMAL_ARTWORK_FILL_TARGET), Math.sqrt(THERMAL_ARTWORK_FILL_MIN), Math.sqrt(THERMAL_ARTWORK_FILL_MAX));
     const trimmed = sharp(data, { raw: { width, height, channels: Number(info.channels || 3) } }).extract(bounds);
     const fitScale = Math.min(width / Math.max(1, bounds.width), height / Math.max(1, bounds.height));
-    const targetScale = clamp(fitScale * THERMAL_ARTWORK_FILL_TARGET, fitScale * THERMAL_ARTWORK_FILL_MIN, fitScale * THERMAL_ARTWORK_FILL_MAX);
+    const targetScale = fitScale * fillMultiplier;
     const scaledWidth = Math.max(1, Math.round(bounds.width * targetScale));
     const scaledHeight = Math.max(1, Math.round(bounds.height * targetScale));
     const offsetLeft = Math.max(0, Math.round((width - scaledWidth) / 2));
     const offsetTop = Math.max(0, Math.round((height - scaledHeight) / 2));
+    console.log("THERMAL_AUTO_ZOOM", {
+      boundsWidth: bounds.width,
+      boundsHeight: bounds.height,
+      originalScale: fitScale,
+      targetFill: THERMAL_ARTWORK_FILL_TARGET,
+      finalScale: targetScale,
+      outputWidth: scaledWidth,
+      outputHeight: scaledHeight,
+    });
     const resizedArtwork = await trimmed
       .resize({
         width: scaledWidth,
@@ -377,16 +426,22 @@ const postProcessThermalArtworkBuffer = async (inputBuffer) => {
       })
       .toBuffer();
 
+    const canvas = sharp({
+      create: {
+        width,
+        height,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      },
+    }).composite([{ input: resizedArtwork, left: offsetLeft, top: offsetTop }]);
+
+    const modelNameOverlay = await buildModelNameOverlay({ width, height, productName });
+    const canvasWithOverlay = modelNameOverlay
+      ? canvas.composite([{ input: modelNameOverlay, left: 0, top: 0 }])
+      : canvas;
+
     return finalizeThermalBuffer(
-      await sharp({
-        create: {
-          width,
-          height,
-          channels: 4,
-          background: { r: 255, g: 255, b: 255, alpha: 1 },
-        },
-      })
-        .composite([{ input: resizedArtwork, left: offsetLeft, top: offsetTop }])
+      await canvasWithOverlay
         .png({
           compressionLevel: 9,
           adaptiveFiltering: false,
@@ -581,7 +636,7 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
 
     let thermalBuffer = generatedBuffer;
     try {
-      thermalBuffer = await postProcessThermalArtworkBuffer(generatedBuffer);
+      thermalBuffer = await postProcessThermalArtworkBuffer(generatedBuffer, { productName });
     } catch (zoomError) {
       console.warn("[thermal-artwork] auto-zoom failed, saving generated image directly", {
         entityType,
