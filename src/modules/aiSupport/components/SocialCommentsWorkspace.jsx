@@ -766,6 +766,71 @@ const normalizeAutomationRuntimeTone = (value = "") => {
   return "slate";
 };
 
+const splitFacebookCompositePostId = (value = "") => {
+  const candidate = clean(value);
+  if (!candidate || !candidate.includes("_")) return { pageId: "", shortPostId: "" };
+  const [pageId, ...rest] = candidate.split("_");
+  return {
+    pageId: clean(pageId),
+    shortPostId: clean(rest.join("_")),
+  };
+};
+
+const resolvePostOpenLink = (post = {}, display = {}) => {
+  const metadata = post?.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
+  const raw = post?.raw && typeof post.raw === "object" && !Array.isArray(post.raw) ? post.raw : {};
+  const rawMetadata = raw?.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
+  const candidates = [
+    { source: "displayPermalink", value: display?.displayPermalink },
+    { source: "permalink_url", value: post?.permalink_url },
+    { source: "post_permalink", value: post?.post_permalink },
+    { source: "facebook_permalink", value: post?.facebook_permalink },
+    { source: "source_url", value: post?.source_url },
+    { source: "url", value: post?.url },
+    { source: "metadata.permalink_url", value: metadata?.permalink_url },
+    { source: "raw.permalink_url", value: raw?.permalink_url },
+    { source: "activePost.permalink_url", value: display?.permalink_url || post?.permalinkUrl },
+    { source: "post.post_permalink_url", value: post?.post_permalink_url },
+    { source: "post.post_url", value: post?.post_url },
+    { source: "metadata.post_permalink_url", value: metadata?.post_permalink_url },
+    { source: "metadata.post_permalink", value: metadata?.post_permalink },
+    { source: "metadata.post_url", value: metadata?.post_url },
+    { source: "raw.post_permalink_url", value: raw?.post_permalink_url },
+    { source: "raw.post_permalink", value: raw?.post_permalink },
+    { source: "raw.url", value: raw?.url },
+    { source: "raw.metadata.permalink_url", value: rawMetadata?.permalink_url },
+  ];
+  const resolved = candidates.map((item) => ({ ...item, value: clean(item.value) })).find((item) => item.value) || null;
+  const canonicalPostId = clean(post?.canonicalPostId || post?.canonical_post_id || post?.postId || post?.id || "");
+  const activeAliasId = clean(post?.sourcePostId || post?.platformPostId || post?.platform_post_id || raw?.post_id || raw?.id || "");
+  const compositeSource = [canonicalPostId, activeAliasId].find((value) => value.includes("_")) || "";
+  const splitComposite = splitFacebookCompositePostId(compositeSource);
+  const pageId = clean(
+    splitComposite.pageId ||
+    post?.pageId ||
+    post?.page_id ||
+    metadata?.page_id ||
+    raw?.page_id ||
+    rawMetadata?.page_id ||
+    ""
+  );
+  const shortPostId = clean(
+    splitComposite.shortPostId ||
+    splitFacebookCompositePostId(canonicalPostId).shortPostId ||
+    splitFacebookCompositePostId(activeAliasId).shortPostId ||
+    ""
+  );
+  const fallbackPermalink = pageId && shortPostId ? `https://www.facebook.com/${pageId}/posts/${shortPostId}` : "";
+  return {
+    resolvedPermalink: resolved?.value || "",
+    fallbackPermalink,
+    finalUrl: resolved?.value || fallbackPermalink || "",
+    sourceField: resolved?.source || (fallbackPermalink ? "facebook_fallback" : ""),
+    canonicalPostId,
+    activeAliasId,
+  };
+};
+
 const initialsFromName = (value = "") => {
   const parts = clean(value)
     .split(/\s+/)
@@ -1312,7 +1377,11 @@ function SocialCommentsWorkspace({
   const activePrivateMessageStatus = clean(privateMessageStatusOverrides[actionableComment?.id] || "");
   const activePostImage = clean(activePostDisplay?.displayImage || activePostDetails?.thumbnailUrl || "");
   const activePostCaption = clean(activePostDisplay?.displayText || activePostDetails?.caption || "");
-  const activePostLink = clean(activePostDisplay?.displayPermalink || activePostDetails?.permalinkUrl || "");
+  const activePostOpen = useMemo(
+    () => resolvePostOpenLink(activePostDetails || activePost || {}, activePostDisplay || {}),
+    [activePost, activePostDetails, activePostDisplay]
+  );
+  const activePostLink = clean(activePostOpen.finalUrl || "");
   const activePlatform = platformMeta(activePostDetails?.platform || activePost?.platform || "");
   const activePostType = postTypeMeta(activePostDetails);
   const activePostPlatform = clean(activePostDetails?.platform || activePost?.platform || "facebook").toLowerCase();
@@ -1378,6 +1447,17 @@ function SocialCommentsWorkspace({
       status_label: activeAutomationState.label,
     });
   }, [activeAutomationState, activePostConversationId, activePostKey, activePostLink, activePostPostId, activePostSourceId, activeProductCard.productCount]);
+
+  useEffect(() => {
+    if (!activePostKey) return;
+    console.info("SOCIAL_UI_OPEN_POST_FIELDS", {
+      resolved_permalink: activePostOpen.resolvedPermalink || "",
+      fallback_permalink: activePostOpen.fallbackPermalink || "",
+      canonical_post_id: activePostOpen.canonicalPostId || activePostPostId || "",
+      active_alias_id: activePostOpen.activeAliasId || activePostSourceId || "",
+      source_field: activePostOpen.sourceField || "",
+    });
+  }, [activePostKey, activePostOpen, activePostPostId, activePostSourceId]);
 
   useEffect(() => {
     if (!activePostKey) return;
@@ -2534,7 +2614,7 @@ function SocialCommentsWorkspace({
                       <a
                         href={activePostLink}
                         target="_blank"
-                        rel="noreferrer"
+                        rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-800"
                       >
                         Permalink target
