@@ -828,6 +828,8 @@ const compareSocialCommentDuplicateIdentity = async ({ tenantId = null, platform
   const safeTenantId = toTenantId(tenantId);
   const normalizedPlatform = normalizePlatform(platform);
   const baseSnapshot = extractSocialCommentIdentitySnapshot({ ...metadataObject(row || {}), ...metadataObject(post || {}) });
+  const numericSourceRowId = Number(baseSnapshot.source_row_id || row?.id || post?.id || 0);
+  const safeSourceRowDbId = Number.isInteger(numericSourceRowId) && numericSourceRowId > 0 ? numericSourceRowId : null;
   const baseIdentity = {
     post_id: text(baseSnapshot.post_id || row?.canonical_post_id || row?.post_id || post?.canonical_post_id || post?.post_id || ""),
     permalink_url: text(baseSnapshot.permalink_url || ""),
@@ -837,6 +839,16 @@ const compareSocialCommentDuplicateIdentity = async ({ tenantId = null, platform
     source_row_id: text(baseSnapshot.source_row_id || row?.id || post?.id || ""),
     conversation_id: text(baseSnapshot.conversation_id || ""),
   };
+  console.log("SOCIAL_POST_DUPLICATE_COMPARE_TYPES", {
+    column_type: "text",
+    parameter_type: "text",
+    value: baseIdentity.post_id,
+  });
+  console.log("SOCIAL_POST_DUPLICATE_COMPARE_TYPES", {
+    column_type: "bigint",
+    parameter_type: safeSourceRowDbId ? "bigint" : "null",
+    value: safeSourceRowDbId,
+  });
   if (!safeTenantId || !baseIdentity.post_id) {
     const finalCanonicalPostId = baseIdentity.post_id || baseIdentity.conversation_id || baseIdentity.source_row_id || "";
     return {
@@ -854,7 +866,7 @@ const compareSocialCommentDuplicateIdentity = async ({ tenantId = null, platform
   }
 
   const conditions = [];
-  const values = [safeTenantId, normalizedPlatform, baseIdentity.source_row_id || 0];
+  const values = [safeTenantId, normalizedPlatform, safeSourceRowDbId];
   const pushCondition = (sql, value) => {
     const safeValue = text(value);
     if (!safeValue) return;
@@ -911,7 +923,7 @@ const compareSocialCommentDuplicateIdentity = async ({ tenantId = null, platform
       WHERE c.tenant_id = $1::bigint
         AND c.channel = $2::text
         AND c.thread_kind = 'comment'
-        AND c.id <> $3::bigint
+        ${safeSourceRowDbId ? "AND c.id <> $3" : ""}
         AND (${conditions.join(" OR ")})
       ORDER BY c.updated_at DESC, c.created_at DESC, c.id DESC
       LIMIT 25
