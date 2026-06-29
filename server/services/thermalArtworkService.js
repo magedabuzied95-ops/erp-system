@@ -539,6 +539,11 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
     }
 
     const generatedBuffer = Buffer.from(imageBase64, "base64");
+    console.log("THERMAL_ARTWORK_BUFFER_SOURCE", {
+      using_openai_generated_buffer: true,
+      using_original_source_buffer: false,
+    });
+
     let thermalBuffer = generatedBuffer;
     try {
       thermalBuffer = await postProcessThermalArtworkBuffer(generatedBuffer);
