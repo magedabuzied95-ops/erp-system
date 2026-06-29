@@ -2990,8 +2990,8 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
           AND v.product_id = mp.product_id
       ), '') AS product_colors,
       NULL::bigint AS variant_id,
-      mp.design_json->>'color' AS color,
-      mp.design_json->>'size' AS size
+      NULL::text AS color,
+      NULL::text AS size
     FROM marketing_posts mp
     LEFT JOIN products p ON p.id = mp.product_id
     WHERE mp.tenant_id = $1::bigint
