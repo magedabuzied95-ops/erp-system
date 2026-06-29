@@ -35,6 +35,17 @@ import { useRef } from "react";
 
 const clean = (value = "") => String(value ?? "").trim();
 const DEBUG_SOCIAL_PERF = false;
+const isEventLikeObject = (value) =>
+  Boolean(
+    value &&
+    typeof value === "object" &&
+    (
+      typeof value.preventDefault === "function" ||
+      typeof value.stopPropagation === "function" ||
+      Object.prototype.hasOwnProperty.call(value, "nativeEvent") ||
+      Object.prototype.hasOwnProperty.call(value, "target")
+    )
+  );
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -1552,8 +1563,16 @@ function SocialCommentsWorkspace({
     if (!drawerKey) return;
     const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
     const currentDraft = automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
-    const nextDraft = draftPatch ? { ...currentDraft, ...draftPatch } : currentDraft;
-    if (Object.prototype.hasOwnProperty.call(draftPatch || {}, "enabled")) {
+    const safeDraftPatch = isEventLikeObject(draftPatch) ? null : draftPatch;
+    const nextDraft = safeDraftPatch ? { ...currentDraft, ...safeDraftPatch } : currentDraft;
+    console.info("AUTOMATION_ENABLE_UI_CLICK", {
+      config_id: clean(automationSavedConfigs[drawerKey]?.config_id || ""),
+      canonical_post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
+      enabled_before: Boolean(currentDraft?.enabled),
+      enabled_after: Boolean(nextDraft?.enabled),
+      trigger: safeDraftPatch ? "patched_save" : "save_button",
+    });
+    if (Object.prototype.hasOwnProperty.call(safeDraftPatch || {}, "enabled")) {
       console.info("AUTOMATION_ENABLE_UI_CLICK", {
         config_id: clean(automationSavedConfigs[drawerKey]?.config_id || ""),
         canonical_post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
@@ -1699,6 +1718,8 @@ function SocialCommentsWorkspace({
       const response = await api.put(`/social-comments/automation/${encodeURIComponent(drawerKey)}`, {
         tenant_id: resolvedTenantId,
         platform: platformForAutomation,
+        canonical_post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
+        post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
         ...payload,
       });
       const savedConfig = response?.config || response?.data || response || {};

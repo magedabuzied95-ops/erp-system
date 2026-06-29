@@ -461,7 +461,7 @@ export default function SocialAutomationDrawer({
               </button>
               <button
                 type="button"
-                onClick={onSaveDraft}
+                onClick={() => onSaveDraft?.()}
                 disabled={loading || saving}
                 className="inline-flex h-10 items-center gap-2 rounded-xl bg-cyan-300 px-4 text-sm font-black text-slate-950"
               >
