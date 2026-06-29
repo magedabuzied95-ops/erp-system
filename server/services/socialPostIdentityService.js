@@ -6,6 +6,11 @@ const toTenantId = (value) => Number(value) || 0;
 const normalizePlatform = (value = "") => (lower(value) === "instagram" ? "instagram" : "facebook");
 const objectValue = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 const metadataObject = (value = {}) => objectValue(value);
+const isCommentPermalinkUrl = (value = "") => {
+  const permalink = text(value);
+  if (!permalink) return false;
+  return /[?&]comment_id=/i.test(permalink) || /\/comment\//i.test(permalink);
+};
 
 let schemaReadyPromise = null;
 
@@ -183,9 +188,22 @@ const collectAliasRows = ({ tenantId = null, platform = "", canonicalPostId = ""
   const values = aliasFieldValues(row, post);
   const seen = new Set();
   const aliases = [];
+  const permalinkAliasKeys = new Set(["permalink_url"]);
   const push = (aliasKey, value) => {
     const aliasValue = text(value);
     if (!aliasValue) return;
+    if (permalinkAliasKeys.has(aliasKey) && isCommentPermalinkUrl(aliasValue)) {
+      console.info("SOCIAL_COMMENT_PERMALINK_REJECTED_AS_POST_ALIAS", {
+        tenant_id: safeTenantId || null,
+        platform: normalizedPlatform,
+        canonical_post_id: safeCanonicalPostId,
+        alias_key: aliasKey,
+        alias_value: aliasValue,
+        source: text(source || aliasKey || ""),
+        reason: "comment_permalink_url",
+      });
+      return;
+    }
     const dedupeKey = `${aliasKey}:${aliasValue}`;
     if (seen.has(dedupeKey)) return;
     seen.add(dedupeKey);

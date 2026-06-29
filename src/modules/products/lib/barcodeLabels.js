@@ -106,9 +106,24 @@ const resolveThermalAwareImage = (item = {}) => {
     firstText(item?.product_thermal_image_status, item?.productThermalImageStatus)
   );
 
-  if (variantThermalUrl && isThermalImageReady(variantThermalStatus)) return variantThermalUrl;
-  if (productThermalUrl && isThermalImageReady(productThermalStatus)) return productThermalUrl;
-  return "";
+  const resolved = variantThermalUrl && isThermalImageReady(variantThermalStatus)
+    ? variantThermalUrl
+    : productThermalUrl && isThermalImageReady(productThermalStatus)
+      ? productThermalUrl
+      : "";
+  console.log("BARCODE_LABEL_THERMAL_RESOLVED", {
+    productId: item?.productId ?? item?.id ?? null,
+    variantId: item?.variantId ?? item?.variant_id ?? null,
+    thermal_image_url: item?.thermal_image_url || "",
+    product_thermal_image_url: productThermalUrl || "",
+    color_thermal_image_url: variantThermalUrl || "",
+    variant_color_thermal_image_url: firstText(item?.variant_color_thermal_image_url, item?.variantColorThermalImageUrl) || "",
+    thermal_image_status: item?.thermal_image_status || "",
+    product_thermal_image_status: item?.product_thermal_image_status || "",
+    variant_thermal_image_status: item?.variant_thermal_image_status || "",
+    resolved,
+  });
+  return resolved;
 };
 
 export const resolveBarcodeLabelImage = (item = {}) =>

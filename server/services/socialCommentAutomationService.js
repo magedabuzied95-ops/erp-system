@@ -1251,6 +1251,33 @@ const buildFallbackSocialCommentProductContext = ({ row = {} } = {}) => {
   };
 };
 
+const hasLinkedProductForAutomation = ({ row = {}, productContext = null } = {}) => {
+  const safeRow = row && typeof row === "object" ? row : {};
+  const metadata = safeRow.metadata && typeof safeRow.metadata === "object" && !Array.isArray(safeRow.metadata) ? safeRow.metadata : {};
+  const mappingSummary = safeRow.mapping_summary && typeof safeRow.mapping_summary === "object" && !Array.isArray(safeRow.mapping_summary) ? safeRow.mapping_summary : {};
+  const linkedCount = Number(
+    safeRow.linked_products_count ??
+    safeRow.product_links_count ??
+    mappingSummary.count ??
+    metadata.linked_products_count ??
+    metadata.product_links_count ??
+    0
+  ) || 0;
+  const productId = Number(
+    productContext?.product_id ??
+    safeRow.product_id ??
+    safeRow.primary_product?.product_id ??
+    safeRow.primary_product?.id ??
+    safeRow.primary_linked_product?.product_id ??
+    safeRow.primary_linked_product?.id ??
+    mappingSummary.primary_product?.product_id ??
+    mappingSummary.primary_product?.id ??
+    metadata.product_id ??
+    null
+  );
+  return Boolean(productContext?.found) || linkedCount > 0 || (Number.isFinite(productId) && productId > 0);
+};
+
 const resolveAutomationCommenterIdentity = (row = {}) => {
   const candidateName = resolveSocialCommentCustomerName(row) || text(row.customer_name || row.commenter_name || row.from?.name || "");
   const commenterName = isGenericSocialCommentDisplayName(candidateName) ? "" : candidateName;
@@ -1892,10 +1919,16 @@ const executeSocialCommentAutomationRuntime = async ({
     ),
   });
 
-  const hasProductContext = Boolean(productContext?.found);
-  const effectiveProductContext = hasProductContext ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
+  const hasProductContext = hasLinkedProductForAutomation({ row: safeRow, productContext });
+  const effectiveProductContext = Boolean(productContext?.found) ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
   if (!hasProductContext) {
-    const diagnostics = buildCurrentDiagnostics({ skippedReason: "product_not_found", productContextOverride: effectiveProductContext });
+    console.log("SOCIAL_COMMENT_SKIPPED_NO_LINKED_PRODUCT", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+    });
+    const diagnostics = buildCurrentDiagnostics({ skippedReason: "no_linked_product", productContextOverride: null });
     await upsertSocialCommentAutomationRunSummary({
       tenantId: safeTenantId,
       platform: normalizedPlatform,
@@ -1904,13 +1937,13 @@ const executeSocialCommentAutomationRuntime = async ({
       configId: config.id ?? null,
       customerName: safeRow.commenter_name || safeRow.customer_name || "",
       status: "skipped",
-      stepResults: [{ step: "automation", status: "skipped", reason: "product_not_found" }],
-      errorMessage: "product_not_found",
+      stepResults: [{ step: "automation", status: "skipped", reason: "no_linked_product" }],
+      errorMessage: "no_linked_product",
       diagnostics,
       row: safeRow,
     }).catch(() => {});
     logAutomationSkipReason({
-      skipped_reason: "product_not_found",
+      skipped_reason: "no_linked_product",
       comment_id: safeCommentId,
       post_id: safePostId,
       platform_post_id: text(safeRow.post_id || safeRow.metadata?.post_id || safeRow.raw_payload?.post_id || safePostId),
@@ -1919,15 +1952,14 @@ const executeSocialCommentAutomationRuntime = async ({
       resolved_product_id: diagnostics.resolved_product_id,
       duplicate_reason: diagnostics.duplicate_reason,
     });
-    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_CONTEXT_FALLBACK", {
+    debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
       tenant_id: safeTenantId,
       platform: normalizedPlatform,
       post_id: safePostId,
       comment_id: safeCommentId,
-      reason: "product_not_mapped",
-      fallback_product_name: effectiveProductContext.product_name,
-      fallback_product_link: effectiveProductContext.product_link,
+      reason: "no_linked_product",
     });
+    return { applied: false, skipped: true, reason: "no_linked_product", row: safeRow, step_results: stepResults };
   }
 
   const websiteLinks = await resolveAutomationWebsiteLinks({
@@ -3348,6 +3380,14 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       platform,
       channel,
       post_id: postId,
+      post_permalink_url: postPermalink,
+      comment_permalink_url: text(
+        event.comment_permalink_url ||
+        event.comment_url ||
+        event.raw_payload?.comment_permalink_url ||
+        event.raw_payload?.value?.comment_permalink_url ||
+        ""
+      ),
       comment_id: text(event.comment_id || ""),
       commenter_id: commenterId,
       conversation_id: sessionId,
@@ -3629,26 +3669,33 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       selected_comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
       selected_post_permalink: text(savedRunRow?.post_permalink || savedRunRow?.post_permalink_url || event.post_permalink || event.post_permalink_url || ""),
     });
-    const automationRuntimeResult = await executeSocialCommentAutomationRuntime({
-      tenantId: safeTenantId,
-      platform,
-      postId,
-      commentId: text(event.comment_id || savedRunRow?.comment_id || ""),
-      row: savedRunRow || {},
-      currentRunId: savedRunRow?.id || null,
-      productContext: runtimeProductContext,
-      config: automationConfig,
-    }).catch((error) => {
-      console.warn("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+    const automationRuntimeResult = hasLinkedProductForAutomation({ row: savedRunRow || event || {}, productContext: runtimeProductContext })
+      ? await executeSocialCommentAutomationRuntime({
+        tenantId: safeTenantId,
+        platform,
+        postId,
+        commentId: text(event.comment_id || savedRunRow?.comment_id || ""),
+        row: savedRunRow || {},
+        currentRunId: savedRunRow?.id || null,
+        productContext: runtimeProductContext,
+        config: automationConfig,
+      }).catch((error) => {
+        console.warn("SOCIAL_COMMENT_AUTOMATION_RUNTIME_SKIPPED", {
+          tenant_id: safeTenantId,
+          platform,
+          post_id: postId,
+          comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
+          reason: "runtime_error",
+          message: error?.message || "",
+        });
+        return null;
+      })
+      : (console.log("SOCIAL_COMMENT_SKIPPED_NO_LINKED_PRODUCT", {
         tenant_id: safeTenantId,
         platform,
         post_id: postId,
         comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
-        reason: "runtime_error",
-        message: error?.message || "",
-      });
-      return null;
-    });
+      }), { applied: false, skipped: true, reason: "no_linked_product", row: savedRunRow || event || {}, step_results: [] });
     console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_AFTER", {
       tenant_id: safeTenantId,
       platform,
@@ -3671,7 +3718,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     ).toLowerCase();
     const privateReplyCommentId = text(event.comment_id || savedRunRow?.comment_id || "");
     const privateReplySource = text(event.raw_payload?.source || savedRunRow?.raw_payload?.source || "").toLowerCase();
-    const legacyPathEnabled = !automationConfig?.enabled;
+    const legacyPathEnabled = !automationConfig?.enabled && hasLinkedProductForAutomation({ row: savedRunRow || event || {}, productContext: runtimeProductContext });
     console.log("SOCIAL_COMMENT_LEGACY_PATH_ENTERED", {
       tenant_id: safeTenantId,
       platform,
@@ -5149,7 +5196,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
     const privateReplySource = text(storedRow.raw_payload?.source || "").toLowerCase();
     const isFacebookComment = text(storedRow.platform || "").toLowerCase() === "facebook";
     const privateReplyEligible = isFacebookComment && Boolean(text(storedRow.comment_id || ""));
-    const legacyPathEnabled = !automationConfig?.enabled;
+    const legacyPathEnabled = !automationConfig?.enabled && hasLinkedProductForAutomation({ row: storedRow || {}, productContext });
     console.log("SOCIAL_COMMENT_LEGACY_PATH_ENTERED", {
       tenant_id: storedRow.tenant_id,
       platform: storedRow.platform,

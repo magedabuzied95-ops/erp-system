@@ -4216,6 +4216,12 @@ const extractFacebookPostObjectIdFromPermalink = (value = "") => {
 
 const firstTextValue = (...values) => values.map((value) => text(value)).find(Boolean) || "";
 
+const isCommentPermalinkUrl = (value = "") => {
+  const permalink = text(value);
+  if (!permalink) return false;
+  return /[?&]comment_id=/i.test(permalink) || /\/comment\//i.test(permalink);
+};
+
 const extractFacebookPostCompositeObjectId = (value = "") => {
   const safeValue = text(value);
   if (!safeValue) return "";
@@ -4250,6 +4256,7 @@ const resolveMetaPolledCommentAttribution = ({ feedPost = {}, comment = {}, page
   const safeFeedPost = feedPost && typeof feedPost === "object" ? feedPost : {};
   const safeComment = comment && typeof comment === "object" ? comment : {};
   const commentPermalink = text(safeComment.permalink_url || safeComment.permalink || "");
+  const rejectedCommentPermalinkAsPostAlias = isCommentPermalinkUrl(commentPermalink);
   const feedPostId = text(safeFeedPost.id || "");
   const feedPermalink = text(safeFeedPost.permalink_url || safeFeedPost.permalink || "");
   const graphParentId = firstTextValue(
@@ -4271,7 +4278,7 @@ const resolveMetaPolledCommentAttribution = ({ feedPost = {}, comment = {}, page
   const commentPermalinkObjectId = extractFacebookPostObjectIdFromPermalink(commentPermalink);
   const graphParentObjectId = extractFacebookPostCompositeObjectId(graphParentId);
   const graphPostObjectId = extractFacebookPostCompositeObjectId(graphPostId);
-  const matchedByPermalink = commentPermalink && feedIndex?.byPermalink?.get(commentPermalink);
+  const matchedByPermalink = !rejectedCommentPermalinkAsPostAlias && commentPermalink && feedIndex?.byPermalink?.get(commentPermalink);
   const matchedByObjectId = commentPermalinkObjectId && feedIndex?.byObjectId?.get(commentPermalinkObjectId);
   const matchedByGraphParent = graphParentObjectId && feedIndex?.byObjectId?.get(graphParentObjectId);
   const matchedByGraphPost = graphPostObjectId && feedIndex?.byObjectId?.get(graphPostObjectId);
@@ -4299,7 +4306,6 @@ const resolveMetaPolledCommentAttribution = ({ feedPost = {}, comment = {}, page
   const selectedPermalink = firstTextValue(
     selectedFeedPost?.permalink_url,
     selectedFeedPost?.permalink,
-    commentPermalink,
     feedPermalink
   );
   const attributionSource =
@@ -4313,7 +4319,7 @@ const resolveMetaPolledCommentAttribution = ({ feedPost = {}, comment = {}, page
             ? "graph_post_id_object_match"
             : graphCompositePostId && graphCompositePostId !== feedPostId
               ? "graph_parent_post_id"
-          : "feed_post_id";
+              : "feed_post_id";
   return {
     commentPermalink,
     commentPermalinkObjectId,
@@ -4327,6 +4333,7 @@ const resolveMetaPolledCommentAttribution = ({ feedPost = {}, comment = {}, page
     selectedPermalink,
     selectedFeedPost,
     attributionSource,
+    rejectedCommentPermalinkAsPostAlias,
   };
 };
 
@@ -4796,6 +4803,7 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
     commenter_profile_picture_url: extractPictureUrl(comment.from?.profile_pic || comment.from?.picture || ""),
     original_comment_text: originalCommentText,
     comment_created_time: createdTime,
+    comment_permalink_url: commentPermalink,
     comment_url: commentPermalink || (postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : ""),
     classification_label: null,
     classification_score: null,
@@ -4815,6 +4823,8 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
       graph_post_id: text(safeAttribution.graphPostId || ""),
       resolved_parent_post_id: text(safeAttribution.resolvedParentPostId || selectedEventPostId),
       selected_event_post_id: selectedEventPostId,
+      post_permalink_url: postPermalink,
+      comment_permalink_url: commentPermalink,
       post,
       comment,
       value: {
@@ -4825,6 +4835,8 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
         graph_post_id: text(safeAttribution.graphPostId || ""),
         resolved_parent_post_id: text(safeAttribution.resolvedParentPostId || selectedEventPostId),
         selected_event_post_id: selectedEventPostId,
+        post_permalink_url: postPermalink,
+        comment_permalink_url: commentPermalink,
         comment_id: commentId,
         from: {
           id: commenterId,
@@ -7309,6 +7321,16 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
             pageId,
             feedIndex,
           });
+          if (attribution.rejectedCommentPermalinkAsPostAlias && attribution.commentPermalink) {
+            console.info("SOCIAL_COMMENT_PERMALINK_REJECTED_AS_POST_ALIAS", {
+              tenant_id: safeTenantId,
+              page_id: pageId,
+              feed_loop_post_id: attribution.feedPostId || "",
+              comment_id: commentId,
+              comment_permalink_url: attribution.commentPermalink,
+              reason: "comment_permalink_url",
+            });
+          }
           console.info("SOCIAL_COMMENT_GRAPH_PARENT_TRACE", {
             comment_id: commentId,
             feed_loop_post_id: attribution.feedPostId || "",

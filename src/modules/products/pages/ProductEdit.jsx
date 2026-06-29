@@ -423,6 +423,14 @@ const normalizeVariantForm = (row = {}) => ({
   sku: row.sku || row.variant_sku || "",
   article_code: row.article_code || row.variant_article_code || "",
   barcode: row.barcode || row.variant_barcode || "",
+  thermal_image_url: row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || row.product_thermal_image_url || "",
+  thermalImageUrl: row.thermalImageUrl || row.thermal_image_url || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || row.product_thermal_image_url || "",
+  product_thermal_image_url: row.product_thermal_image_url || row.productThermalImageUrl || "",
+  productThermalImageUrl: row.productThermalImageUrl || row.product_thermal_image_url || "",
+  color_thermal_image_url: row.color_thermal_image_url || row.colorThermalImageUrl || row.variant_color_thermal_image_url || row.variantColorThermalImageUrl || row.thermal_image_url || "",
+  colorThermalImageUrl: row.colorThermalImageUrl || row.color_thermal_image_url || row.variant_color_thermal_image_url || row.variantColorThermalImageUrl || row.thermal_image_url || "",
+  variant_color_thermal_image_url: row.variant_color_thermal_image_url || row.variantColorThermalImageUrl || row.color_thermal_image_url || row.colorThermalImageUrl || row.thermal_image_url || "",
+  variantColorThermalImageUrl: row.variantColorThermalImageUrl || row.variant_color_thermal_image_url || row.color_thermal_image_url || row.colorThermalImageUrl || row.thermal_image_url || "",
   image_url: row.variant_image_url || row.color_image_url || row.image_url || "",
   variant_image_url: row.variant_image_url || "",
   color_image_url: row.color_image_url || "",
@@ -513,12 +521,13 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     if (!groupedByColor.has(key)) {
       const groupImages = normalizeColorImages(row.images || row.color_images || []);
       const groupImage = groupImages.find((image) => image.is_primary)?.image_url || row.image_url || row.variant_image_url || row.color_image_url || "";
-      const group = createEmptyColorGroup({
-        color: row.color || "Default",
-        article_code: row.article_code || row.variant_article_code || "",
-        manufacturer_id: normalizeManufacturerId(row.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
-        manufacturer_override:
-          normalizeManufacturerId(row.manufacturer_id) !== normalizeManufacturerId(defaultManufacturerId),
+        const group = createEmptyColorGroup({
+          color: row.color || "Default",
+          article_code: row.article_code || row.variant_article_code || "",
+          thermal_image_url: row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "",
+          manufacturer_id: normalizeManufacturerId(row.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
+          manufacturer_override:
+            normalizeManufacturerId(row.manufacturer_id) !== normalizeManufacturerId(defaultManufacturerId),
         planned_qty:
           row.default_purchase_qty ??
           row.purchase_qty ??
@@ -545,6 +554,9 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     if (!String(group.article_code || "").trim() && String(row.article_code || row.variant_article_code || "").trim()) {
       group.article_code = String(row.article_code || row.variant_article_code || "").trim();
     }
+    if (!String(group.thermal_image_url || "").trim() && String(row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "").trim()) {
+      group.thermal_image_url = String(row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "").trim();
+    }
     if (!String(group.edition_name || "").trim() && String(row.edition_name || "").trim()) {
       group.edition_name = row.edition_name || "";
       group.edition_slug = row.edition_slug || slugifyEdition(row.edition_name || "");
@@ -567,6 +579,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
         available_stock: row.available_stock,
         sku: row.sku,
         article_code: row.article_code,
+        thermal_image_url: row.thermal_image_url || row.thermalImageUrl || row.color_thermal_image_url || row.variant_color_thermal_image_url || group.thermal_image_url || "",
         barcode: row.barcode,
         price: row.price,
         image_url: row.image_url || row.variant_image_url || row.color_image_url || getPrimaryColorImage(group) || "",
@@ -580,6 +593,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     manufacturer_id: normalizeManufacturerId(group.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
     images: normalizeColorImages(group.images),
     article_code: formatFieldValue(group.article_code),
+    thermal_image_url: formatFieldValue(group.thermal_image_url),
     planned_qty: formatFieldValue(
       group.default_purchase_qty ??
         group.purchase_qty ??
@@ -1892,6 +1906,7 @@ function ProductEdit() {
           )
         );
       }
+      setProduct((current) => ({ ...current, thermal_image_url: thermalUrl }));
       setThermalImageUrl(thermalUrl);
       toast.success("AI thermal artwork generated");
     } catch (error) {
@@ -2168,10 +2183,19 @@ function ProductEdit() {
           : primaryImageUrl
             ? [{ id: makeId(), preview: primaryImageUrl, image_url: primaryImageUrl, is_primary: true, name: `${groupColor} image` }]
             : []);
+        const thermalImageUrl = String(group.thermal_image_url || "").trim();
         return {
           color_name: groupColor,
           color_value: groupColor,
           article_code: String(group.article_code || "").trim(),
+          thermal_image_url: thermalImageUrl,
+          thermalImageUrl: thermalImageUrl,
+          product_thermal_image_url: thermalImageUrl,
+          productThermalImageUrl: thermalImageUrl,
+          color_thermal_image_url: thermalImageUrl,
+          colorThermalImageUrl: thermalImageUrl,
+          variant_color_thermal_image_url: thermalImageUrl,
+          variantColorThermalImageUrl: thermalImageUrl,
           images: dedupeImages(groupImages).map((image, index) => ({
             id: image.id || makeId(),
             preview: image.image_url || "",
@@ -2189,6 +2213,7 @@ function ProductEdit() {
       const groupEditionName = mirrorEditionEnabled ? String(group.edition_name || "").trim() : "";
       const groupEditionSlug = groupEditionName ? slugifyEdition(group.edition_slug || groupEditionName) : "";
       const groupArticleCode = String(group.article_code || "").trim();
+      const groupThermalImageUrl = String(group.thermal_image_url || "").trim();
       const groupManufacturerPayload = getManufacturerPayload(group.manufacturer_id);
       if (isColorOnlyMode) {
         const sourceRow = (Array.isArray(group.sizes) ? group.sizes : [])[0] || {};
@@ -2226,6 +2251,14 @@ function ProductEdit() {
           image_url: sourceRow.image_url || groupImageUrl || "",
           variant_image_url: sourceRow.image_url || groupImageUrl || "",
           color_image_url: groupImageUrl,
+          thermal_image_url: groupThermalImageUrl,
+          thermalImageUrl: groupThermalImageUrl,
+          product_thermal_image_url: groupThermalImageUrl,
+          productThermalImageUrl: groupThermalImageUrl,
+          color_thermal_image_url: groupThermalImageUrl,
+          colorThermalImageUrl: groupThermalImageUrl,
+          variant_color_thermal_image_url: groupThermalImageUrl,
+          variantColorThermalImageUrl: groupThermalImageUrl,
           ...groupManufacturerPayload,
           edition_name: groupEditionName,
           edition_slug: groupEditionSlug,
@@ -2276,6 +2309,14 @@ function ProductEdit() {
           image_url: row.image_url || groupImageUrl || "",
           variant_image_url: row.image_url || groupImageUrl || "",
           color_image_url: groupImageUrl,
+          thermal_image_url: String(row.thermal_image_url || row.thermalImageUrl || groupThermalImageUrl || "").trim(),
+          thermalImageUrl: String(row.thermalImageUrl || row.thermal_image_url || groupThermalImageUrl || "").trim(),
+          product_thermal_image_url: String(groupThermalImageUrl || "").trim(),
+          productThermalImageUrl: String(groupThermalImageUrl || "").trim(),
+          color_thermal_image_url: String(row.thermal_image_url || row.thermalImageUrl || groupThermalImageUrl || "").trim(),
+          colorThermalImageUrl: String(row.thermalImageUrl || row.thermal_image_url || groupThermalImageUrl || "").trim(),
+          variant_color_thermal_image_url: String(row.thermal_image_url || row.thermalImageUrl || groupThermalImageUrl || "").trim(),
+          variantColorThermalImageUrl: String(row.thermalImageUrl || row.thermal_image_url || groupThermalImageUrl || "").trim(),
           ...groupManufacturerPayload,
           edition_name: groupEditionName,
           edition_slug: groupEditionSlug,
@@ -2307,6 +2348,13 @@ function ProductEdit() {
     console.log("[edit-product] save payload color groups count", normalizedGroups.length);
     console.log("[edit-product] save payload size rows count", variantPayloads.length);
     console.log("[edit-product] save payload variants", variantPayloads);
+    console.log("PRODUCT_EDIT_THERMAL_SAVE_PAYLOAD", {
+      productId,
+      thermal_image_url: thermalImageUrl,
+      productThermalImageUrl: thermalImageUrl,
+      colorThermalImageUrls: colorGroups.map((group) => group.thermal_image_url || "").filter(Boolean),
+      variantThermalImageUrls: variantPayloads.map((variant) => variant.thermal_image_url || variant.thermalImageUrl || "").filter(Boolean),
+    });
     console.log("[edit-product] submit variant sync payload", {
       product_id: productId,
       submitted_colors_count: normalizedGroups.length,

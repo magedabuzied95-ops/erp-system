@@ -2109,6 +2109,38 @@ const normalizeSocialCommentAutomationConfigRow = (row = {}, defaults = {}) => (
   persisted: Boolean(row.id),
 });
 
+const hasLinkedProductForSocialCommentPost = (value = {}) => {
+  const safeValue = metadataObject(value || {});
+  const metadata = metadataObject(safeValue.metadata || {});
+  const mappingSummary = metadataObject(safeValue.mapping_summary || metadata.mapping_summary || {});
+  const linkedProducts = Array.isArray(safeValue.linked_products)
+    ? safeValue.linked_products
+    : Array.isArray(mappingSummary.linked_products)
+      ? mappingSummary.linked_products
+      : [];
+  const linkedCount = Number(
+    safeValue.linked_products_count ??
+    safeValue.product_links_count ??
+    mappingSummary.count ??
+    metadata.linked_products_count ??
+    metadata.product_links_count ??
+    linkedProducts.length ??
+    0
+  ) || 0;
+  const productId = Number(
+    safeValue.product_id ??
+    safeValue.primary_product?.product_id ??
+    safeValue.primary_product?.id ??
+    safeValue.primary_linked_product?.product_id ??
+    safeValue.primary_linked_product?.id ??
+    mappingSummary.primary_product?.product_id ??
+    mappingSummary.primary_product?.id ??
+    metadata.product_id ??
+    null
+  );
+  return linkedCount > 0 || Boolean(linkedProducts.length) || (Number.isFinite(productId) && productId > 0);
+};
+
 const buildSocialCommentAutomationConfigSelectionReason = (row = {}, canonicalPostId = "") => {
   if (!row || typeof row !== "object") return "no_row";
   if (Boolean(row.enabled)) return "enabled_first";
@@ -2246,6 +2278,9 @@ const ensureSocialCommentAutomationConfigRecord = async ({ tenantId = null, plat
   if (!safeTenantId || !targetPostId) return null;
 
   const normalizedPost = safePost && Object.keys(safePost).length ? safePost : safeRow && Object.keys(safeRow).length ? safeRow : {};
+  if (!hasLinkedProductForSocialCommentPost(normalizedPost)) {
+    return null;
+  }
   const postDefaults = buildSocialCommentAutomationConfigDefaults({
     post: normalizedPost,
     product: metadataObject(normalizedPost.product || safeRow.product || {}),
@@ -2493,6 +2528,21 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
       canonicalPostId,
       aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
     }).catch(() => {});
+  }
+  const linkedProductPost = metadataObject(post || row || {});
+  const linkedProductResolvedPost = hasLinkedProductForSocialCommentPost(linkedProductPost)
+    ? linkedProductPost
+    : safeTenantId && safePostId
+      ? await loadSocialCommentPost({ tenantId: safeTenantId, platform: normalizedPlatform, postId: canonicalPostId || safePostId }).catch(() => linkedProductPost)
+      : linkedProductPost;
+  if (!hasLinkedProductForSocialCommentPost(linkedProductResolvedPost)) {
+    console.log("CONFIG_LOOKUP_RESULT", {
+      matched_key: "",
+      config_id: null,
+      enabled: false,
+      template_key: "",
+    });
+    return null;
   }
   const candidateEntries = collectSocialCommentAutomationConfigCandidates({ postId: safePostId, row, post });
   console.log("CONFIG_LOOKUP_INPUT", {
@@ -2944,13 +2994,15 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
     canonicalPostId,
     aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
   }).catch(() => {});
-  void ensureSocialCommentAutomationConfigRecord({
-    tenantId: safeTenantId,
-    platform: normalizedPlatform,
-    postId: canonicalPostId || safePostId,
-    row: enriched || row,
-    post: enriched || row,
-  }).catch(() => {});
+  if (hasLinkedProductForSocialCommentPost(enriched || row || {})) {
+    void ensureSocialCommentAutomationConfigRecord({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: canonicalPostId || safePostId,
+      row: enriched || row,
+      post: enriched || row,
+    }).catch(() => {});
+  }
   return {
     ...(enriched || {}),
     canonical_post_id: canonicalPostId,
@@ -4082,6 +4134,19 @@ const processSocialCommentAutoReply = async ({ tenantId = null, platform = "", p
 
   const resolvedPost = post || (await loadSocialCommentPost({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId }));
   const resolvedComment = comment || (await getSocialCommentCommentByCommentId({ tenantId: safeTenantId, platform: normalizedPlatform, commentId: safeCommentId }));
+  if (!hasLinkedProductForSocialCommentPost(resolvedPost || post || {})) {
+    console.log("SOCIAL_COMMENT_SKIPPED_NO_LINKED_PRODUCT", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+    });
+    return {
+      success: true,
+      skipped: true,
+      reason: "no_linked_product",
+    };
+  }
   const resolvedSettings = settings || (await getSocialAutoReplySettings({ tenantId: safeTenantId }));
   const resolvedTemplate = template || (await getSocialPostAutoReplyTemplate({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId }));
   const decision = await resolveSocialCommentAutoReplyDecision({

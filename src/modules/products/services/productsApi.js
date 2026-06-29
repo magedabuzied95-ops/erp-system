@@ -165,6 +165,70 @@ export const normalizeVariantPayload = (input = {}) => {
         source.factoryCode ??
         ""
     ),
+    thermal_image_url: normalizeText(
+      source.thermal_image_url ??
+        source.thermalImageUrl ??
+        source.variant_thermal_image_url ??
+        source.variantThermalImageUrl ??
+        source.color_thermal_image_url ??
+        source.colorThermalImageUrl ??
+        source.variant_color_thermal_image_url ??
+        source.variantColorThermalImageUrl ??
+        source.product_thermal_image_url ??
+        source.productThermalImageUrl ??
+        ""
+    ),
+    thermalImageUrl: normalizeText(
+      source.thermalImageUrl ??
+        source.thermal_image_url ??
+        source.variant_thermal_image_url ??
+        source.variantThermalImageUrl ??
+        source.color_thermal_image_url ??
+        source.colorThermalImageUrl ??
+        source.variant_color_thermal_image_url ??
+        source.variantColorThermalImageUrl ??
+        source.product_thermal_image_url ??
+        source.productThermalImageUrl ??
+        ""
+    ),
+    product_thermal_image_url: normalizeText(source.product_thermal_image_url ?? source.productThermalImageUrl ?? ""),
+    productThermalImageUrl: normalizeText(source.productThermalImageUrl ?? source.product_thermal_image_url ?? ""),
+    color_thermal_image_url: normalizeText(
+      source.color_thermal_image_url ??
+        source.colorThermalImageUrl ??
+        source.variant_color_thermal_image_url ??
+        source.variantColorThermalImageUrl ??
+        source.thermal_image_url ??
+        source.thermalImageUrl ??
+        ""
+    ),
+    colorThermalImageUrl: normalizeText(
+      source.colorThermalImageUrl ??
+        source.color_thermal_image_url ??
+        source.variant_color_thermal_image_url ??
+        source.variantColorThermalImageUrl ??
+        source.thermal_image_url ??
+        source.thermalImageUrl ??
+        ""
+    ),
+    variant_color_thermal_image_url: normalizeText(
+      source.variant_color_thermal_image_url ??
+        source.variantColorThermalImageUrl ??
+        source.color_thermal_image_url ??
+        source.colorThermalImageUrl ??
+        source.thermal_image_url ??
+        source.thermalImageUrl ??
+        ""
+    ),
+    variantColorThermalImageUrl: normalizeText(
+      source.variantColorThermalImageUrl ??
+        source.variant_color_thermal_image_url ??
+        source.color_thermal_image_url ??
+        source.colorThermalImageUrl ??
+        source.thermal_image_url ??
+        source.thermalImageUrl ??
+        ""
+    ),
     image_url: imageUrl,
     variant_image_url: imageUrl,
     color_image_url: imageUrl,

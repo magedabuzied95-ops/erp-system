@@ -1572,6 +1572,94 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         group.factoryCode ??
         ""
     ).trim(),
+    thermal_image_url: String(
+      variant.thermal_image_url ??
+        variant.thermalImageUrl ??
+        variant.variant_thermal_image_url ??
+        variant.variantThermalImageUrl ??
+        variant.color_thermal_image_url ??
+        variant.colorThermalImageUrl ??
+        variant.variant_color_thermal_image_url ??
+        variant.variantColorThermalImageUrl ??
+        group.thermal_image_url ??
+        group.thermalImageUrl ??
+        group.product_thermal_image_url ??
+        group.productThermalImageUrl ??
+        ""
+    ).trim(),
+    thermalImageUrl: String(
+      variant.thermalImageUrl ??
+        variant.thermal_image_url ??
+        variant.variant_thermal_image_url ??
+        variant.variantThermalImageUrl ??
+        variant.color_thermal_image_url ??
+        variant.colorThermalImageUrl ??
+        variant.variant_color_thermal_image_url ??
+        variant.variantColorThermalImageUrl ??
+        group.thermal_image_url ??
+        group.thermalImageUrl ??
+        group.product_thermal_image_url ??
+        group.productThermalImageUrl ??
+        ""
+    ).trim(),
+    product_thermal_image_url: String(group.product_thermal_image_url ?? group.productThermalImageUrl ?? "").trim(),
+    productThermalImageUrl: String(group.productThermalImageUrl ?? group.product_thermal_image_url ?? "").trim(),
+    color_thermal_image_url: String(
+      variant.color_thermal_image_url ??
+        variant.colorThermalImageUrl ??
+        variant.variant_color_thermal_image_url ??
+        variant.variantColorThermalImageUrl ??
+        variant.thermal_image_url ??
+        variant.thermalImageUrl ??
+        group.color_thermal_image_url ??
+        group.colorThermalImageUrl ??
+        group.thermal_image_url ??
+        group.thermalImageUrl ??
+        ""
+    ).trim(),
+    colorThermalImageUrl: String(
+      variant.colorThermalImageUrl ??
+        variant.color_thermal_image_url ??
+        variant.variant_color_thermal_image_url ??
+        variant.variantColorThermalImageUrl ??
+        variant.thermal_image_url ??
+        variant.thermalImageUrl ??
+        group.color_thermal_image_url ??
+        group.colorThermalImageUrl ??
+        group.thermal_image_url ??
+        group.thermalImageUrl ??
+        ""
+    ).trim(),
+    variant_color_thermal_image_url: String(
+      variant.variant_color_thermal_image_url ??
+        variant.variantColorThermalImageUrl ??
+        variant.color_thermal_image_url ??
+        variant.colorThermalImageUrl ??
+        variant.thermal_image_url ??
+        variant.thermalImageUrl ??
+        group.variant_color_thermal_image_url ??
+        group.variantColorThermalImageUrl ??
+        group.color_thermal_image_url ??
+        group.colorThermalImageUrl ??
+        group.thermal_image_url ??
+        group.thermalImageUrl ??
+        ""
+    ).trim(),
+    variantColorThermalImageUrl: String(
+      variant.variantColorThermalImageUrl ??
+        variant.variant_color_thermal_image_url ??
+        variant.color_thermal_image_url ??
+        variant.colorThermalImageUrl ??
+        variant.thermal_image_url ??
+        variant.thermalImageUrl ??
+        group.variant_color_thermal_image_url ??
+        group.variantColorThermalImageUrl ??
+        group.color_thermal_image_url ??
+        group.colorThermalImageUrl ??
+        group.thermal_image_url ??
+        group.thermalImageUrl ??
+        ""
+    ).trim(),
     default_purchase_qty: Number(
       variant.default_purchase_qty ??
         variant.defaultPurchaseQty ??
@@ -3430,6 +3518,16 @@ export const updateProduct = async (req, res) => {
       productPricingProvided,
       normalizedSaleEnabled,
       thermalImageMetadataResetNeeded,
+    });
+    console.log("PRODUCT_UPDATE_THERMAL_FIELDS", {
+      productId,
+      thermal_image_url: normalizedThermalImageUrl,
+      thermalImageUrl: normalizedThermalImageUrl,
+      nextThermalImageUrl,
+      nextThermalImageStatus,
+      nextThermalImageGeneratedAt,
+      imageUrlProvided,
+      thermalImageUrlProvided,
     });
 
     const updated = await client.query(

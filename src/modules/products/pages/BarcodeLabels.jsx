@@ -235,9 +235,61 @@ const preserveVariantImageFields = (product, variant) => {
     variant_id: variant?.variant_id ?? merged.variant_id,
     color_id: variant?.color_id ?? variant?.colorId ?? merged.color_id ?? null,
     image_url: variantImage || "",
-        variant_image_url: safeText(variant?.variant_image_url || variantImage),
-        color_image_url: safeText(variant?.color_image_url || variant?.variant_image_url || variantImage),
+    variant_image_url: safeText(variant?.variant_image_url || variantImage),
+    color_image_url: safeText(variant?.color_image_url || variant?.variant_image_url || variantImage),
     product_image_url: safeText(product?.product_image_url || productImage),
+    thermal_image_url: safeText(
+      variant?.thermal_image_url ||
+        variant?.thermalImageUrl ||
+        variant?.color_thermal_image_url ||
+        variant?.variant_color_thermal_image_url ||
+        product?.thermal_image_url ||
+        product?.thermalImageUrl
+    ),
+    thermalImageUrl: safeText(
+      variant?.thermalImageUrl ||
+        variant?.thermal_image_url ||
+        variant?.color_thermal_image_url ||
+        variant?.variant_color_thermal_image_url ||
+        product?.thermal_image_url ||
+        product?.thermalImageUrl
+    ),
+    product_thermal_image_url: safeText(product?.thermal_image_url || product?.product_thermal_image_url || product?.thermalImageUrl),
+    productThermalImageUrl: safeText(product?.thermalImageUrl || product?.thermal_image_url || product?.product_thermal_image_url),
+    color_thermal_image_url: safeText(
+      variant?.color_thermal_image_url ||
+        variant?.variant_color_thermal_image_url ||
+        variant?.thermal_image_url ||
+        variant?.thermalImageUrl ||
+        product?.thermal_image_url ||
+        product?.thermalImageUrl
+    ),
+    colorThermalImageUrl: safeText(
+      variant?.colorThermalImageUrl ||
+        variant?.color_thermal_image_url ||
+        variant?.variant_color_thermal_image_url ||
+        variant?.thermal_image_url ||
+        variant?.thermalImageUrl ||
+        product?.thermal_image_url ||
+        product?.thermalImageUrl
+    ),
+    variant_color_thermal_image_url: safeText(
+      variant?.variant_color_thermal_image_url ||
+        variant?.color_thermal_image_url ||
+        variant?.thermal_image_url ||
+        variant?.thermalImageUrl ||
+        product?.thermal_image_url ||
+        product?.thermalImageUrl
+    ),
+    variantColorThermalImageUrl: safeText(
+      variant?.variantColorThermalImageUrl ||
+        variant?.variant_color_thermal_image_url ||
+        variant?.color_thermal_image_url ||
+        variant?.thermal_image_url ||
+        variant?.thermalImageUrl ||
+        product?.thermal_image_url ||
+        product?.thermalImageUrl
+    ),
     productFallbackImage: productImage,
   };
 };
@@ -446,6 +498,14 @@ function BarcodeLabels() {
           ...mergeProductRecord(product, null),
           product_image_url: product.product_image_url || product.image_url || "",
           image_url: product.image_url || product.product_image_url || "",
+          thermal_image_url: product.thermal_image_url || product.product_thermal_image_url || product.thermalImageUrl || "",
+          thermalImageUrl: product.thermalImageUrl || product.thermal_image_url || product.product_thermal_image_url || "",
+          product_thermal_image_url: product.product_thermal_image_url || product.thermal_image_url || "",
+          productThermalImageUrl: product.productThermalImageUrl || product.product_thermal_image_url || product.thermal_image_url || "",
+          color_thermal_image_url: product.color_thermal_image_url || product.variant_color_thermal_image_url || product.thermal_image_url || "",
+          colorThermalImageUrl: product.colorThermalImageUrl || product.color_thermal_image_url || product.variant_color_thermal_image_url || product.thermal_image_url || "",
+          variant_color_thermal_image_url: product.variant_color_thermal_image_url || product.color_thermal_image_url || product.thermal_image_url || "",
+          variantColorThermalImageUrl: product.variantColorThermalImageUrl || product.variant_color_thermal_image_url || product.color_thermal_image_url || product.thermal_image_url || "",
         };
 
         return {

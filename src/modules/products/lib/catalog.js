@@ -433,6 +433,75 @@ export const mergeProductRecord = (product, variant = null) => {
         ? meta.is_storefront_visible ?? true
         : product.is_storefront_visible,
     image_url: mergedVariant.image_url || meta.image_url || product.image_url || "",
+    thermal_image_url:
+      mergedVariant.thermal_image_url ||
+      mergedVariant.thermalImageUrl ||
+      mergedVariant.color_thermal_image_url ||
+      mergedVariant.variant_color_thermal_image_url ||
+      mergedVariant.product_thermal_image_url ||
+      meta.thermal_image_url ||
+      meta.thermalImageUrl ||
+      product.thermal_image_url ||
+      product.thermalImageUrl ||
+      "",
+    thermalImageUrl:
+      mergedVariant.thermalImageUrl ||
+      mergedVariant.thermal_image_url ||
+      mergedVariant.color_thermal_image_url ||
+      mergedVariant.variant_color_thermal_image_url ||
+      mergedVariant.product_thermal_image_url ||
+      meta.thermalImageUrl ||
+      meta.thermal_image_url ||
+      product.thermalImageUrl ||
+      product.thermal_image_url ||
+      "",
+    product_thermal_image_url: meta.product_thermal_image_url || product.product_thermal_image_url || product.thermal_image_url || "",
+    productThermalImageUrl: meta.productThermalImageUrl || product.productThermalImageUrl || product.thermal_image_url || "",
+    color_thermal_image_url:
+      mergedVariant.color_thermal_image_url ||
+      mergedVariant.variant_color_thermal_image_url ||
+      mergedVariant.thermal_image_url ||
+      meta.color_thermal_image_url ||
+      meta.variant_color_thermal_image_url ||
+      product.color_thermal_image_url ||
+      product.variant_color_thermal_image_url ||
+      product.thermal_image_url ||
+      "",
+    colorThermalImageUrl:
+      mergedVariant.colorThermalImageUrl ||
+      mergedVariant.color_thermal_image_url ||
+      mergedVariant.variant_color_thermal_image_url ||
+      mergedVariant.thermal_image_url ||
+      meta.colorThermalImageUrl ||
+      meta.color_thermal_image_url ||
+      meta.variant_color_thermal_image_url ||
+      product.colorThermalImageUrl ||
+      product.color_thermal_image_url ||
+      product.thermal_image_url ||
+      "",
+    variant_color_thermal_image_url:
+      mergedVariant.variant_color_thermal_image_url ||
+      mergedVariant.color_thermal_image_url ||
+      mergedVariant.thermal_image_url ||
+      meta.variant_color_thermal_image_url ||
+      meta.color_thermal_image_url ||
+      product.variant_color_thermal_image_url ||
+      product.color_thermal_image_url ||
+      product.thermal_image_url ||
+      "",
+    variantColorThermalImageUrl:
+      mergedVariant.variantColorThermalImageUrl ||
+      mergedVariant.variant_color_thermal_image_url ||
+      mergedVariant.color_thermal_image_url ||
+      mergedVariant.thermal_image_url ||
+      meta.variantColorThermalImageUrl ||
+      meta.variant_color_thermal_image_url ||
+      meta.color_thermal_image_url ||
+      product.variantColorThermalImageUrl ||
+      product.variant_color_thermal_image_url ||
+      product.color_thermal_image_url ||
+      product.thermal_image_url ||
+      "",
     status,
     active,
     low_stock_threshold: meta.low_stock_threshold ?? 10,
