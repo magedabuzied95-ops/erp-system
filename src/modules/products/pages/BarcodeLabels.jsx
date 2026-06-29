@@ -1513,7 +1513,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             }}
           >
             <div
-              className="font-black uppercase leading-none tracking-[0.22em] text-zinc-300"
+              className="font-black uppercase leading-none tracking-[0.22em] text-white"
               style={{
                 position: "absolute",
                 top: `${sizeTextLayout.labelTopMm - thermalLayout.sizeCell.y}mm`,
@@ -1544,7 +1544,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
               style={{ ...articleStyle, position: "relative", overflow: "hidden" }}
             >
               <div
-              className="font-black uppercase leading-none tracking-[0.22em] text-zinc-300"
+              className="font-black uppercase leading-none tracking-[0.22em] text-white"
               style={{
                 position: "absolute",
                 top: `${Math.max(0.6, articleTextLayout.labelTopMm - thermalLayout.articleCell.y - 0.5)}mm`,

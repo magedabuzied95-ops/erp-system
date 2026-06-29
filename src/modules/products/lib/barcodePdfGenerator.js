@@ -216,7 +216,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
     titleLinesToRender[titleLinesToRender.length - 1] = ellipsizeLine(doc, titleLinesToRender[titleLinesToRender.length - 1], titleCell.w);
   }
   drawRoundedRect(doc, titleCell.x, titleCell.y, titleCell.w, titleCell.h, 1.8, [2, 6, 23], [2, 6, 23]);
-  doc.setTextColor(203, 213, 225);
+  doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   const titleMaxWidth = Math.max(1, titleCell.w - 2.4);
   const titleBaseFontSize = fitTextSize(doc, titleLinesToRender[0] || productName, titleMaxWidth, thermalLayout.titleFontSize, 6);
@@ -230,7 +230,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
 
   const sizeFrame = getBoxFrameLayout(sizeCell, { boxWidthFactor: thermalLayout.sizeBoxWidthFactor || 1 });
   drawRoundedRect(doc, sizeFrame.x, sizeFrame.y, sizeFrame.w, sizeFrame.h, 1.8, [2, 6, 23]);
-  doc.setTextColor(203, 213, 225);
+  doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(thermalLayout.sizeLabelFontSize);
   const sizeTextLayout = getBoxTextLayout(sizeCell, {
@@ -264,7 +264,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
 
   const colorFrame = getBoxFrameLayout(colorCell, { boxHeightFactor: 1.0 });
   drawRoundedRect(doc, colorFrame.x, colorFrame.y, colorFrame.w, colorFrame.h, 1, [2, 6, 23], [2, 6, 23]);
-  doc.setTextColor(203, 213, 225);
+  doc.setTextColor(255, 255, 255);
   doc.setFontSize(thermalLayout.colorLabelFontSize);
   const colorMidY = colorFrame.y + colorFrame.h / 2;
   doc.text("COLOR", colorFrame.x + 1.2, colorMidY, { align: "left", baseline: "middle" });
