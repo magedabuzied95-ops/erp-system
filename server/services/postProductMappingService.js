@@ -1078,6 +1078,16 @@ export const resolveProductMappingForSiblingPost = async ({
     source_id_count: signals.source_ids.length,
     slug_hint_count: signals.slug_hints.length,
   });
+  console.info("POST_PRODUCT_LINKS_SIBLING_QUERY_INPUT", {
+    tenant_id: safeTenantId || null,
+    platform: normalizedPlatform,
+    canonical_post_id: text(postId || row?.canonical_post_id || row?.platform_post_id || row?.post_id || post?.canonical_post_id || post?.platform_post_id || post?.post_id || ""),
+    current_post_ids: currentPostIds,
+    source_ids: signals.source_ids,
+    image_urls: signals.image_urls,
+    text_hashes: signals.text_hashes,
+    slug_hints: signals.slug_hints,
+  });
   if (!safeTenantId || !normalizedPlatform || (!signals.text_hashes.length && !signals.image_urls.length && !signals.source_ids.length && !signals.slug_hints.length)) {
     console.info("POST_PRODUCT_LINKS_SIBLING_NOT_FOUND", {
       tenant_id: safeTenantId || null,
@@ -1093,6 +1103,76 @@ export const resolveProductMappingForSiblingPost = async ({
   const imageIndex = params.push(signals.image_urls);
   const textIndex = params.push(signals.text_hashes);
   const slugIndex = params.push(signals.slug_hints);
+  const siblingQueryStageCounts = await db.query(
+    `
+    WITH base_rows AS (
+      SELECT
+        ppl.id,
+        ppl.tenant_id,
+        ppl.business_id,
+        ppl.platform,
+        ppl.platform_post_id,
+        ppl.post_id,
+        ppl.media_id,
+        ppl.product_id
+      FROM marketing_post_product_links ppl
+      WHERE (
+          ppl.tenant_id = $1::bigint
+          OR ppl.business_id = $1::bigint
+        )
+        AND ppl.platform = $2::text
+        AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
+    ),
+    alias_join_rows AS (
+      SELECT
+        br.*,
+        mp.id AS marketing_post_row_id
+      FROM base_rows br
+      LEFT JOIN marketing_posts mp
+        ON mp.tenant_id = br.tenant_id
+       AND (
+         mp.platform_post_id = br.platform_post_id
+         OR mp.external_post_id = br.platform_post_id
+         OR mp.platform_post_id = br.post_id
+         OR mp.external_post_id = br.post_id
+         OR mp.platform_post_id = br.media_id
+         OR mp.external_post_id = br.media_id
+       )
+    ),
+    product_join_rows AS (
+      SELECT
+        ajr.*,
+        p.id AS product_row_id
+      FROM alias_join_rows ajr
+      LEFT JOIN products p
+        ON p.id = ajr.product_id
+    )
+    SELECT
+      (SELECT COUNT(*)::bigint FROM base_rows) AS after_base_query_rows,
+      (SELECT COUNT(*)::bigint FROM alias_join_rows WHERE marketing_post_row_id IS NOT NULL) AS after_alias_join_rows,
+      (SELECT COUNT(*)::bigint FROM product_join_rows WHERE product_row_id IS NOT NULL) AS after_product_join_rows
+    `,
+    params
+  ).catch(() => ({ rows: [] }));
+  const siblingStageCounts = siblingQueryStageCounts.rows?.[0] || {};
+  console.info("AFTER_BASE_QUERY_ROWS", {
+    tenant_id: safeTenantId || null,
+    platform: normalizedPlatform,
+    post_id: text(postId || row?.post_id || post?.post_id || ""),
+    count: Number(siblingStageCounts.after_base_query_rows || 0) || 0,
+  });
+  console.info("AFTER_ALIAS_JOIN_ROWS", {
+    tenant_id: safeTenantId || null,
+    platform: normalizedPlatform,
+    post_id: text(postId || row?.post_id || post?.post_id || ""),
+    count: Number(siblingStageCounts.after_alias_join_rows || 0) || 0,
+  });
+  console.info("AFTER_PRODUCT_JOIN_ROWS", {
+    tenant_id: safeTenantId || null,
+    platform: normalizedPlatform,
+    post_id: text(postId || row?.post_id || post?.post_id || ""),
+    count: Number(siblingStageCounts.after_product_join_rows || 0) || 0,
+  });
   const siblingResult = await db.query(
     `
     WITH sibling_candidates AS (
