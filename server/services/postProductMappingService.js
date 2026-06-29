@@ -1178,6 +1178,116 @@ export const resolveProductMappingForSiblingPost = async ({
     post_id: text(postId || row?.post_id || post?.post_id || ""),
     count: Number(siblingStageCounts.after_product_join_rows || 0) || 0,
   });
+  const siblingJoinRows = await db.query(
+    `
+    WITH base_rows AS (
+      SELECT
+        ppl.id,
+        ppl.tenant_id,
+        ppl.business_id,
+        ppl.platform,
+        ppl.platform_post_id,
+        ppl.post_id,
+        ppl.media_id,
+        ppl.product_id,
+        ppl.is_primary,
+        ppl.updated_at
+      FROM marketing_post_product_links ppl
+      WHERE (
+          ppl.tenant_id = $1::bigint
+          OR ppl.business_id = $1::bigint
+        )
+        AND ppl.platform = $2::text
+        AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
+    ),
+    alias_join_rows AS (
+      SELECT
+        br.*,
+        mp.id AS marketing_post_row_id,
+        mp.platform_post_id AS mp_platform_post_id,
+        mp.external_post_id AS mp_external_post_id,
+        mp.image_url AS mp_image_url,
+        mp.caption AS mp_caption
+      FROM base_rows br
+      LEFT JOIN marketing_posts mp
+        ON mp.tenant_id = br.tenant_id
+       AND (
+         mp.platform_post_id = br.platform_post_id
+         OR mp.external_post_id = br.platform_post_id
+         OR mp.platform_post_id = br.post_id
+         OR mp.external_post_id = br.post_id
+         OR mp.platform_post_id = br.media_id
+         OR mp.external_post_id = br.media_id
+       )
+    ),
+    product_join_rows AS (
+      SELECT
+        ajr.*,
+        p.id AS product_row_id,
+        p.name AS product_name,
+        COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')) AS product_slug
+      FROM alias_join_rows ajr
+      LEFT JOIN products p
+        ON p.id = ajr.product_id
+    )
+    SELECT
+      COALESCE(NULLIF(platform_post_id, ''), NULLIF(post_id, ''), NULLIF(media_id, '')) AS mapped_post_id,
+      COALESCE(NULLIF(media_id, ''), NULLIF(mp_external_post_id, ''), NULLIF(mp_platform_post_id, ''), NULLIF(post_id, '')) AS mapped_media_id,
+      product_id,
+      COALESCE(NULLIF(product_name, ''), '') AS product_name,
+      COALESCE(NULLIF(product_slug, ''), '') AS product_slug,
+      (
+        mp_platform_post_id = ANY($4::text[])
+        OR mp_external_post_id = ANY($4::text[])
+        OR post_id = ANY($4::text[])
+        OR media_id = ANY($4::text[])
+      ) AS source_id_match,
+      lower(trim(COALESCE(NULLIF(mp_image_url, ''), ''))) = ANY($5::text[]) AS image_url_match,
+      lower(regexp_replace(COALESCE(NULLIF(mp_caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) AS text_hash_match,
+      lower(trim(COALESCE(NULLIF(product_slug, ''), ''))) = ANY($7::text[]) AS slug_match
+    FROM product_join_rows
+    ORDER BY updated_at DESC, id DESC
+    LIMIT 10
+    `,
+    params
+  ).catch(() => ({ rows: [] }));
+  const currentTextCorpus = buildSiblingLookupTextCorpus({ row, post, message, caption });
+  const siblingJoinRowPreview = (siblingJoinRows.rows || []).map((joinRow) => {
+    const productTerms = tokenizeComparableTerms(`${text(joinRow.product_name || "")} ${text(joinRow.product_slug || "").replace(/[-_]+/g, " ")}`);
+    const productNameTokenMatchCount = productTerms.filter((term) => currentTextCorpus.includes(term)).length;
+    const sourceIdMatch = Boolean(joinRow.source_id_match);
+    const imageUrlMatch = Boolean(joinRow.image_url_match);
+    const textHashMatch = Boolean(joinRow.text_hash_match);
+    const slugMatch = Boolean(joinRow.slug_match);
+    let rejectedReason = "";
+    if (!sourceIdMatch && !imageUrlMatch && !textHashMatch && !slugMatch) {
+      rejectedReason = "no_signal_match";
+    } else if (!text(joinRow.mapped_post_id || "")) {
+      rejectedReason = "missing_mapped_post_id";
+    } else {
+      rejectedReason = "passes_signal_stage";
+    }
+    return {
+      mapped_post_id: text(joinRow.mapped_post_id || ""),
+      mapped_media_id: text(joinRow.mapped_media_id || ""),
+      product_id: Number(joinRow.product_id || 0) || null,
+      product_name: text(joinRow.product_name || ""),
+      product_slug: text(joinRow.product_slug || ""),
+      text_hash_match: textHashMatch,
+      image_url_match: imageUrlMatch,
+      source_id_match: sourceIdMatch,
+      slug_match: slugMatch,
+      product_name_token_match_count: productNameTokenMatchCount,
+      rejected_reason: rejectedReason,
+    };
+  });
+  console.info("POST_PRODUCT_LINKS_SIBLING_JOIN_ROWS", {
+    tenant_id: safeTenantId || null,
+    platform: normalizedPlatform,
+    post_id: text(postId || row?.post_id || post?.post_id || ""),
+    row_count: Number(siblingJoinRows.rows?.length || 0) || 0,
+    rows: siblingJoinRowPreview,
+  });
   const siblingResult = await db.query(
     `
     WITH sibling_candidates AS (
@@ -1312,7 +1422,6 @@ export const resolveProductMappingForSiblingPost = async ({
       rejected_reason: siblingCandidates.length ? "no_matching_sibling" : "no_candidates_returned",
       candidates: candidatePreview,
     });
-    const currentTextCorpus = buildSiblingLookupTextCorpus({ row, post, message, caption });
     const fallbackNameMatchResult = await db.query(
       `
       SELECT DISTINCT ON (ppl.product_id)
