@@ -3699,8 +3699,13 @@ export default function AiInbox() {
   const isLoadingOlderRef = useRef(false);
   const isHydratingConversationRef = useRef(false);
   const isAppendingNewMessageRef = useRef(false);
-  const previousSocketHealthyRef = useRef(socketHealthy);
   const previousConversationKeyRef = useRef("");
+  const refreshQueueRef = useRef(null);
+  const requestRefreshRef = useRef(null);
+  const refreshStateRef = useRef({
+    pageVisible: false,
+    socketHealthy: false,
+  });
 
   const openCustomerDrawer = useCallback((customer = {}, context = {}) => {
     const customerProfile = customer?.customer_profile || customer?.profile || {};
@@ -3744,14 +3749,6 @@ export default function AiInbox() {
   const restoreScrollStateRef = useRef(null);
   const transcriptScrollRef = useRef(null);
   const messengerProfileSyncAttemptedRef = useRef(new Set());
-  const refreshTimerRef = useRef(null);
-  const refreshQueuedRef = useRef(false);
-  const refreshMetricsRef = useRef({
-    socket_refresh_count: 0,
-    polling_refresh_count: 0,
-    skipped_duplicate_refresh_count: 0,
-  });
-  const scheduleRefreshRef = useRef(null);
   const selectedSessionIdRef = useRef("");
   const selectedSocialCommentIdRef = useRef("");
   const inboxSectionRef = useRef(inboxSection);
@@ -3895,68 +3892,53 @@ export default function AiInbox() {
         window.requestAnimationFrame(() => {
           isHydratingConversationRef.current = false;
         });
-        if (refreshQueuedRef.current) {
-          refreshQueuedRef.current = false;
-          scheduleRefreshRef.current?.("queued", { silent: true, delay: 650 });
+        const queuedRefresh = refreshQueueRef.current;
+        if (queuedRefresh && refreshStateRef.current.pageVisible) {
+          refreshQueueRef.current = null;
+          requestRefreshRef.current?.(queuedRefresh.source, {
+            silent: queuedRefresh.silent,
+            force: true,
+          });
         }
       }
     }
   }, [channelFilter, debouncedSearch, filter, headers, tenantId]);
 
-  const scheduleRefresh = useCallback(
-    (source = "unknown", { silent = true, delay = 750 } = {}) => {
-      const counters = refreshMetricsRef.current;
-      if (source === "socket") counters.socket_refresh_count += 1;
-      if (source === "polling") counters.polling_refresh_count += 1;
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-        counters.skipped_duplicate_refresh_count += 1;
-      }
-      console.debug("[AiInbox][refresh-metrics]", {
-        source,
-        silent,
-        delay,
-        page_visible: pageVisible,
-        socket_healthy: socketHealthy,
-        ...counters,
-      });
-      refreshTimerRef.current = window.setTimeout(() => {
-        refreshTimerRef.current = null;
-        if (isRefreshingRef.current) {
-          counters.skipped_duplicate_refresh_count += 1;
-          refreshQueuedRef.current = true;
-          console.debug("[AiInbox][refresh-metrics]", {
-            source,
-            silent,
-            delay,
-            status: "deferred",
-            reason: "refresh_in_flight",
-            page_visible: pageVisible,
-            socket_healthy: socketHealthy,
-            ...counters,
-          });
-          return;
+  const requestRefresh = useCallback(
+    (source = "manual", { silent = true, force = false } = {}) => {
+      if (!pageVisible && source === "polling") return;
+
+      if (!pageVisible && source !== "visibility") {
+        if (!refreshQueueRef.current) {
+          refreshQueueRef.current = { source, silent };
         }
-        void loadAll({ silent });
-      }, delay);
+        return;
+      }
+
+      if (isRefreshingRef.current) {
+        if (!refreshQueueRef.current) {
+          refreshQueueRef.current = { source, silent };
+        }
+        return;
+      }
+
+      if (refreshQueueRef.current && !force) return;
+      if (refreshQueueRef.current && force) refreshQueueRef.current = null;
+      void loadAll({ silent });
     },
-    [loadAll, pageVisible, socketHealthy]
+    [loadAll, pageVisible]
   );
 
   useEffect(() => {
-    scheduleRefreshRef.current = scheduleRefresh;
+    requestRefreshRef.current = requestRefresh;
     return () => {
-      scheduleRefreshRef.current = null;
+      requestRefreshRef.current = null;
     };
-  }, [scheduleRefresh]);
+  }, [requestRefresh]);
 
   useEffect(
     () => () => {
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
+      refreshQueueRef.current = null;
     },
     []
   );
@@ -3975,28 +3957,37 @@ export default function AiInbox() {
       window.clearInterval(pollIntervalRef.current);
       pollIntervalRef.current = null;
     }
-    if (pageVisible && socketHealthy) return undefined;
+    if (!pageVisible || socketHealthy) return undefined;
     pollIntervalRef.current = window.setInterval(() => {
-      scheduleRefresh("polling", { silent: true });
-    }, 15000);
+      requestRefresh("polling", { silent: true });
+    }, 24000);
     return () => {
       if (pollIntervalRef.current) {
         window.clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
       }
     };
-  }, [pageVisible, scheduleRefresh, socketHealthy]);
+  }, [pageVisible, requestRefresh, socketHealthy]);
 
   useEffect(() => {
-    const wasSocketHealthy = previousSocketHealthyRef.current;
-    previousSocketHealthyRef.current = socketHealthy;
-    if (!pageVisible || !socketHealthy || wasSocketHealthy) return;
-    scheduleRefresh("socket", { silent: true, delay: 650 });
-  }, [pageVisible, scheduleRefresh, socketHealthy]);
+    const previous = refreshStateRef.current;
+    refreshStateRef.current = { pageVisible, socketHealthy };
+
+    if (!pageVisible) return;
+
+    if (!previous.pageVisible) {
+      requestRefresh("visibility", { silent: true, force: true });
+      return;
+    }
+
+    if (!previous.socketHealthy && socketHealthy) {
+      requestRefresh("socket", { silent: true, force: true });
+    }
+  }, [pageVisible, requestRefresh, socketHealthy]);
 
   useEffect(() => {
     const refresh = () => {
-      if (pageVisible) scheduleRefresh("socket", { silent: true, delay: 650 });
+      if (pageVisible) requestRefresh("socket", { silent: true, force: true });
     };
     const onMessage = (payload = {}) => {
       const sessionId = payload.session_id || payload.message?.session_id || "";
@@ -4060,7 +4051,7 @@ export default function AiInbox() {
       offMessage();
       offRefresh();
     };
-  }, [pageVisible, scheduleRefresh, selectedSessionId]);
+  }, [pageVisible, requestRefresh, selectedSessionId]);
 
   useEffect(() => {
     if (!toast.text) return undefined;
@@ -6341,7 +6332,7 @@ export default function AiInbox() {
         selectedThread={selectedSocialThread}
         selectedTemplate={selectedSocialTemplate}
         globalSettings={socialReplySettings}
-        onRefresh={() => void loadAll({ silent: true })}
+        onRefresh={() => void requestRefresh("manual", { silent: true })}
         onSelectPost={openSocialCommentThread}
         onGlobalSettingsChange={setSocialReplySettings}
                   onSaveGlobalSettings={saveSocialReplySettings}
@@ -6663,7 +6654,7 @@ export default function AiInbox() {
                     selectedThread={selectedSocialThread}
                     selectedTemplate={selectedSocialTemplate}
                     globalSettings={socialReplySettings}
-                    onRefresh={() => void loadAll({ silent: true })}
+                    onRefresh={() => void requestRefresh("manual", { silent: true })}
                     onSelectPost={openSocialCommentThread}
                     onGlobalSettingsChange={setSocialReplySettings}
                     onSaveGlobalSettings={saveSocialReplySettings}

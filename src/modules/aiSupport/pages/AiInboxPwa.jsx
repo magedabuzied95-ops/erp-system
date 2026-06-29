@@ -4117,7 +4117,7 @@ export default function AiInboxPwa() {
     } finally {
       setAiToggling(false);
     }
-  }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
+  }, [headers, patchConversation, requestRefresh, selectedConversation, tenantId]);
 
   const toggleGlobalAiAssistant = useCallback(() => {
     void (async () => {
@@ -4139,7 +4139,7 @@ export default function AiInboxPwa() {
         setAiAssistantGlobalSaving(false);
       }
     })();
-  }, [aiAssistantGlobalEnabled, headers, loadConversations, tenantId]);
+  }, [aiAssistantGlobalEnabled, headers, requestRefresh, tenantId]);
 
   const updateLeadStatus = useCallback(
     async (nextLeadStatus) => {
@@ -4176,7 +4176,7 @@ export default function AiInboxPwa() {
         setLeadActionLoading("");
       }
     },
-    [headers, loadConversations, patchConversation, selectedConversation, tenantId]
+    [headers, patchConversation, requestRefresh, selectedConversation, tenantId]
   );
 
   const createLeadCustomer = useCallback(async () => {
@@ -4206,7 +4206,7 @@ export default function AiInboxPwa() {
     } finally {
       setLeadActionLoading("");
     }
-  }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
+  }, [headers, patchConversation, requestRefresh, selectedConversation, tenantId]);
 
   const createLeadOpportunity = useCallback(async () => {
     if (!selectedConversation?.session_id) return;
@@ -4235,7 +4235,7 @@ export default function AiInboxPwa() {
     } finally {
       setLeadActionLoading("");
     }
-  }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
+  }, [headers, patchConversation, requestRefresh, selectedConversation, tenantId]);
 
   const sendLeadPrivateMessage = useCallback(async (targetComment = null) => {
     if (!selectedConversation?.session_id) return;
@@ -4276,7 +4276,7 @@ export default function AiInboxPwa() {
     } finally {
       setLeadActionLoading("");
     }
-  }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
+  }, [headers, patchConversation, requestRefresh, selectedConversation, tenantId]);
 
   const sendLeadCommentReply = useCallback(async (targetComment = null) => {
     if (!selectedConversation?.session_id || !isCommentConversation(selectedConversation)) return;
@@ -4325,7 +4325,7 @@ export default function AiInboxPwa() {
     } finally {
       setLeadActionLoading("");
     }
-  }, [headers, loadConversations, patchConversation, selectedConversation, tenantId]);
+  }, [headers, patchConversation, requestRefresh, selectedConversation, tenantId]);
 
   const saveSocialReplySettings = useCallback(async () => {
     setSocialActionLoading("global_settings");
@@ -4345,7 +4345,7 @@ export default function AiInboxPwa() {
     } finally {
       setSocialActionLoading("");
     }
-  }, [headers, loadConversations, socialReplySettings, tenantId]);
+  }, [headers, requestRefresh, socialReplySettings, tenantId]);
 
   const saveSelectedSocialTemplate = useCallback(async () => {
     const postId = clean(selectedSocialPost?.post_id || selectedSocialPost?.conversation_id || selectedSocialPost?.id || "");
@@ -4368,7 +4368,7 @@ export default function AiInboxPwa() {
     } finally {
       setSocialActionLoading("");
     }
-  }, [headers, loadConversations, selectedSocialPost?.conversation_id, selectedSocialPost?.id, selectedSocialPost?.platform, selectedSocialPost?.post_id, selectedSocialTemplate.template, tenantId]);
+  }, [headers, requestRefresh, selectedSocialPost?.conversation_id, selectedSocialPost?.id, selectedSocialPost?.platform, selectedSocialPost?.post_id, selectedSocialTemplate.template, tenantId]);
 
   const refreshAfterSocialAutomation = useCallback(async (source = "unknown", payload = {}) => {
     console.info("AI_INBOX_PWA_REFRESH_AFTER_AUTOMATION", {
@@ -4668,7 +4668,7 @@ export default function AiInboxPwa() {
             </div>
             <button
               type="button"
-              onClick={() => void loadConversations({ silent: true })}
+              onClick={() => void requestRefresh("manual", { silent: true })}
               disabled={loading}
               className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
             >
@@ -4777,7 +4777,7 @@ export default function AiInboxPwa() {
                   navigate(nextUrl);
                 }}
                 onFilterChange={setSocialCommentsFilter}
-                onRefresh={() => void loadConversations({ silent: true })}
+                onRefresh={() => void requestRefresh("manual", { silent: true })}
                 nextCursor={socialCommentsCursor}
                 onLoadMore={loadMoreSocialComments}
                 loadingMore={socialCommentsLoadingMore}

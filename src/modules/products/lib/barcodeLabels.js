@@ -1077,7 +1077,8 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const layout = getThermalLandscapeLabelLayout(hasArticleBox);
   const { imageCell, titleCell, sizeCell, articleCell, colorCell, barcodeCell } = layout;
   const productLines = splitSvgText(productName, titleCell.w / 2.55, layout.titleMaxLines);
-  const articleFontSize = Math.max(layout.articleFontSizeCompact, Math.min(layout.articleFontSize, layout.articleFontSize - Math.max(0, skuValue.length - 10) * 0.08));
+  const articleBaseFontSize = Math.max(layout.sizeValueFontSize * 0.92, layout.articleFontSize);
+  const articleFontSize = Math.max(layout.articleFontSizeCompact, articleBaseFontSize - Math.max(0, skuValue.length - 10) * 0.08);
   const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, {
     width: barcodeCell.w + 2,
     height: 8,
@@ -1103,14 +1104,14 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
       <text x="${sizeCell.x + (layout.sizeBadgeWidth / 2)}" y="${sizeCell.y + 3.2}" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeLabelFontSize * 0.4}" font-weight="900" letter-spacing="0.28">${escapeHtml(printCopy.size || "SIZE")}</text>
       <text x="${sizeCell.x + (layout.sizeBadgeWidth / 2)}" y="${sizeCell.y + 9.3}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.432}" font-weight="900">${escapeHtml(sizeValue)}</text>
       ${hasArticleBox ? `
-      <rect x="${articleCell.x}" y="${articleCell.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 3.2}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${layout.articleLabelFontSize * 0.42}" font-weight="900" letter-spacing="0.2">ARTICLE CODE</text>
-      <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 9.3}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
+      <rect x="${articleCell.x}" y="${articleCell.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#020617" stroke="#020617" stroke-width="0.18" />
+      <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 3.2}" text-anchor="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="${layout.articleLabelFontSize * 0.42}" font-weight="900" letter-spacing="0.2">ARTICLE CODE</text>
+      <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 9.3}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
       ` : ""}
 
-      <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <text x="${colorCell.x + 1.2}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.58}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
-      <text x="${colorCell.x + colorCell.w - 1.2}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="end" dominant-baseline="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.34}" font-weight="900">${escapeHtml(colorValue)}</text>
+      <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#020617" stroke="#020617" stroke-width="0.18" />
+      <text x="${colorCell.x + 1.2}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#cbd5e1" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.58}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
+      <text x="${colorCell.x + 18.5}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(layout.sizeValueFontSize * 0.9, layout.colorValueFontSize * 1.45)}" font-weight="900">${escapeHtml(colorValue)}</text>
 
       ${hasArticleBox ? "" : `<text x="${layout.page.width / 2}" y="${barcodeCell.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}
@@ -1264,7 +1265,12 @@ export const buildBarcodePrintHtml = ({
                     <strong>${escapeHtml(formatLabelCurrency(item.salePrice))}</strong>
                   </div>
                 </div>
-                ${resolvedArticleCode ? `<div class="landscape-sku">${escapeHtml(resolvedArticleCode)}</div>` : ""}
+                ${resolvedArticleCode ? `
+                  <div class="landscape-article-box">
+                    <span>ARTICLE CODE</span>
+                    <strong>${escapeHtml(resolvedArticleCode)}</strong>
+                  </div>
+                ` : ""}
               </div>
             </div>
             <div class="landscape-barcode">
@@ -1558,11 +1564,15 @@ export const buildBarcodePrintHtml = ({
             min-width: 0;
           }
           .landscape-pill {
-            border: 1px solid #e2e8f0;
+            border: 1px solid #020617;
             border-radius: 8px;
-            background: #f4f4f5;
+            background: #020617;
             padding: 0.8mm 1mm;
-            color: #111827;
+            color: #ffffff;
+            display: grid;
+            grid-template-columns: 18mm minmax(0, 1fr);
+            align-items: center;
+            column-gap: 1mm;
           }
           .landscape-pill span {
             display: block;
@@ -1571,28 +1581,48 @@ export const buildBarcodePrintHtml = ({
             font-weight: 900;
             letter-spacing: 0.18em;
             text-transform: uppercase;
-            color: #64748b;
+            color: #cbd5e1;
           }
           .landscape-pill strong {
             display: block;
-            margin-top: 0.35mm;
+            margin-top: 0;
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
             font-size: 10px;
             line-height: 1;
             font-weight: 900;
-            color: #111827;
+            color: #ffffff;
+            text-align: left;
           }
-          .landscape-sku {
+          .landscape-article-box {
             margin-top: auto;
+            border: 1px solid #020617;
+            border-radius: 8px;
+            background: #020617;
+            color: #ffffff;
+            padding: 1mm 1.2mm;
+            text-align: center;
+          }
+          .landscape-article-box span {
+            display: block;
+            font-size: 5px;
+            line-height: 1;
+            font-weight: 900;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: #cbd5e1;
+          }
+          .landscape-article-box strong {
+            display: block;
+            margin-top: 0.3mm;
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
-            font-size: 8px;
+            font-size: 17px;
             line-height: 1;
-            font-weight: 800;
-            color: #64748b;
+            font-weight: 900;
+            color: #ffffff;
           }
           .landscape-barcode {
             display: flex;

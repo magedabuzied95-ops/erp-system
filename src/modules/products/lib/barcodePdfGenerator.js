@@ -240,8 +240,8 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.text(sizeValue, sizeFrame.x + sizeFrame.w / 2, sizeTextLayout.valueTextY, { align: "center" });
 
   if (showArticleBox) {
-    drawRoundedRect(doc, articleCell.x, articleCell.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [244, 244, 245], [226, 232, 240]);
-    doc.setTextColor(100, 116, 139);
+    drawRoundedRect(doc, articleCell.x, articleCell.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [2, 6, 23], [2, 6, 23]);
+    doc.setTextColor(203, 213, 225);
     const articleTextLayout = getBoxTextLayout(articleCell, {
       topPaddingMm: 1.5,
       labelGapMm: 1.0,
@@ -251,22 +251,22 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
     });
     doc.setFontSize(thermalLayout.articleLabelFontSize);
     doc.text("ARTICLE CODE", articleCell.x + thermalLayout.articleBoxWidth / 2, articleTextLayout.labelTextY, { align: "center" });
-    doc.setTextColor(15, 23, 42);
-    const skuFontSize = fitTextSize(doc, skuValue, thermalLayout.articleBoxWidth - 2, thermalLayout.articleFontSize, thermalLayout.articleFontSizeCompact);
+    doc.setTextColor(255, 255, 255);
+    const skuFontSize = fitTextSize(doc, skuValue, thermalLayout.articleBoxWidth - 2, Math.max(thermalLayout.sizeValueFontSize * 0.92, thermalLayout.articleFontSize), thermalLayout.articleFontSizeCompact);
     doc.setFontSize(skuFontSize);
     doc.text(skuValue, articleCell.x + thermalLayout.articleBoxWidth / 2, articleTextLayout.valueTextY, { align: "center" });
   }
 
   const colorFrame = getBoxFrameLayout(colorCell, { boxHeightFactor: 0.78 });
-  drawRoundedRect(doc, colorFrame.x, colorFrame.y, colorFrame.w, colorFrame.h, 1, [244, 244, 245], [226, 232, 240]);
-  doc.setTextColor(100, 116, 139);
+  drawRoundedRect(doc, colorFrame.x, colorFrame.y, colorFrame.w, colorFrame.h, 1, [2, 6, 23], [2, 6, 23]);
+  doc.setTextColor(203, 213, 225);
   doc.setFontSize(thermalLayout.colorLabelFontSize);
   const colorMidY = colorFrame.y + colorFrame.h / 2;
   doc.text("COLOR", colorFrame.x + 1.2, colorMidY, { align: "left", baseline: "middle" });
-  doc.setTextColor(15, 23, 42);
-  doc.setFontSize(Math.max(thermalLayout.sizeValueFontSize * 0.82, thermalLayout.colorValueFontSize * 1.45));
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(Math.max(thermalLayout.sizeValueFontSize * 0.9, thermalLayout.colorValueFontSize * 1.45));
   doc.setFont("helvetica", "bold");
-  doc.text(colorValue || "-", colorFrame.x + colorFrame.w - 1.2, colorMidY, { align: "right", baseline: "middle", maxWidth: colorFrame.w - 4 });
+  doc.text(colorValue || "-", colorFrame.x + 18.5, colorMidY, { align: "left", baseline: "middle", maxWidth: colorFrame.w - 20 });
 
   if (!showArticleBox) {
     doc.setTextColor(15, 23, 42);
