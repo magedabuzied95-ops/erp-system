@@ -217,6 +217,98 @@ const normalizeComparableUrl = (value = "") => {
   if (!normalized) return "";
   return normalized.replace(/[?#].*$/, "").trim().toLowerCase();
 };
+const PRODUCT_NAME_TEXT_MATCH_STOP_WORDS = new Set([
+  "shoes",
+  "shoe",
+  "new",
+  "arrival",
+  "fashion",
+  "colors",
+  "color",
+  "price",
+  "sale",
+  "size",
+  "sizes",
+  "collection",
+  "style",
+  "edition",
+  "original",
+  "authentic",
+  "sneaker",
+  "sneakers",
+  "boots",
+  "boot",
+  "men",
+  "mens",
+  "women",
+  "womens",
+  "kids",
+  "unisex",
+  "مقاسات",
+  "السعر",
+  "سعر",
+  "جديد",
+  "جديدة",
+  "ألوان",
+  "الوان",
+  "لون",
+  "احذية",
+  "حذاء",
+  "حذية",
+]);
+const tokenizeComparableTerms = (value = "") =>
+  Array.from(
+    new Set(
+      normalizeComparableText(value)
+        .split(/[^a-z0-9\u0600-\u06ff]+/i)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 2 && !PRODUCT_NAME_TEXT_MATCH_STOP_WORDS.has(token))
+    )
+  );
+const buildSiblingLookupTextCorpus = ({ row = {}, post = {}, message = "", caption = "" } = {}) => {
+  const safeRow = objectValue(row);
+  const safePost = objectValue(post);
+  const rowMetadata = objectValue(safeRow.metadata);
+  const postMetadata = objectValue(safePost.metadata);
+  const rowRawPayload = objectValue(safeRow.raw_payload || rowMetadata.raw_payload);
+  const postRawPayload = objectValue(safePost.raw_payload || postMetadata.raw_payload);
+  const rowRawValue = objectValue(rowRawPayload.value || {});
+  const postRawValue = objectValue(postRawPayload.value || {});
+  return normalizeComparableText([
+    message,
+    caption,
+    safeRow.post_text,
+    safeRow.post_message,
+    safeRow.post_caption,
+    safeRow.message,
+    safeRow.caption,
+    safeRow.original_comment_text,
+    safeRow.comment_text,
+    safePost.post_text,
+    safePost.post_message,
+    safePost.post_caption,
+    safePost.message,
+    safePost.caption,
+    rowMetadata.post_text,
+    rowMetadata.post_message,
+    rowMetadata.post_caption,
+    rowMetadata.message,
+    rowMetadata.caption,
+    postMetadata.post_text,
+    postMetadata.post_message,
+    postMetadata.post_caption,
+    postMetadata.message,
+    postMetadata.caption,
+    rowRawPayload.post_message,
+    rowRawPayload.post_caption,
+    rowRawValue.post_message,
+    rowRawValue.post_caption,
+    postRawPayload.post_message,
+    postRawPayload.post_caption,
+    postRawValue.post_message,
+    postRawValue.post_caption,
+  ].map(text).filter(Boolean).join(" "));
+};
 const pushUniqueText = (target = [], seen = new Set(), value = "", normalizer = text) => {
   const normalized = normalizer(value);
   if (!normalized || seen.has(normalized)) return;
@@ -1135,6 +1227,72 @@ export const resolveProductMappingForSiblingPost = async ({
       rejected_reason: siblingCandidates.length ? "no_matching_sibling" : "no_candidates_returned",
       candidates: candidatePreview,
     });
+    const currentTextCorpus = buildSiblingLookupTextCorpus({ row, post, message, caption });
+    const fallbackNameMatchResult = await db.query(
+      `
+      SELECT DISTINCT ON (ppl.product_id)
+        COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) AS matched_post_id,
+        ppl.product_id,
+        COALESCE(NULLIF(p.name, ''), '') AS product_name,
+        COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')) AS product_slug,
+        ppl.updated_at
+      FROM marketing_post_product_links ppl
+      LEFT JOIN products p
+        ON p.id = ppl.product_id
+      WHERE (
+          ppl.tenant_id = $1::bigint
+          OR ppl.business_id = $1::bigint
+        )
+        AND ppl.platform = $2::text
+        AND ppl.product_id IS NOT NULL
+        AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
+      ORDER BY ppl.product_id ASC, ppl.is_primary DESC, ppl.updated_at DESC, ppl.id DESC
+      `,
+      [safeTenantId, normalizedPlatform, currentPostIds]
+    ).catch(() => ({ rows: [] }));
+    const nameMatchedCandidate = (fallbackNameMatchResult.rows || []).find((candidate) => {
+      const productName = text(candidate.product_name || "");
+      const terms = tokenizeComparableTerms(`${productName} ${text(candidate.product_slug || "").replace(/[-_]+/g, " ")}`);
+      if (terms.length < 2 || !currentTextCorpus) return false;
+      const matchedTerms = terms.filter((term) => currentTextCorpus.includes(term));
+      return matchedTerms.length >= 2;
+    }) || null;
+    if (nameMatchedCandidate?.matched_post_id) {
+      const fallbackMappings = await getMappings({
+        tenantId: safeTenantId,
+        platform: normalizedPlatform,
+        postId: text(nameMatchedCandidate.matched_post_id || ""),
+        row: {
+          ...row,
+          post_id: text(nameMatchedCandidate.matched_post_id || ""),
+          canonical_post_id: text(nameMatchedCandidate.matched_post_id || ""),
+          platform_post_id: text(nameMatchedCandidate.matched_post_id || ""),
+        },
+        post: {
+          ...post,
+          post_id: text(nameMatchedCandidate.matched_post_id || ""),
+          canonical_post_id: text(nameMatchedCandidate.matched_post_id || ""),
+          platform_post_id: text(nameMatchedCandidate.matched_post_id || ""),
+        },
+      }).catch(() => null);
+      if (fallbackMappings?.linked_products?.length) {
+        console.info("POST_PRODUCT_LINKS_SIBLING_MATCHED", {
+          tenant_id: safeTenantId || null,
+          platform: normalizedPlatform,
+          post_id: text(postId || row?.post_id || post?.post_id || ""),
+          reason: "product_name_text_match",
+          product_ids: fallbackMappings.product_ids || [],
+          matched_product_name: text(nameMatchedCandidate.product_name || ""),
+          matched_post_id: text(nameMatchedCandidate.matched_post_id || ""),
+        });
+        return {
+          ...fallbackMappings,
+          sibling_post_id: text(nameMatchedCandidate.matched_post_id || ""),
+          sibling_match_reason: "product_name_text_match",
+          sibling_match_score: 50,
+        };
+      }
+    }
     console.info("POST_PRODUCT_LINKS_SIBLING_NOT_FOUND", {
       tenant_id: safeTenantId || null,
       platform: normalizedPlatform,
