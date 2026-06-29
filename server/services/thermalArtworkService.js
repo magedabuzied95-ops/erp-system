@@ -14,6 +14,10 @@ const THERMAL_IMAGE_MAX_SIDE = Number(process.env.THERMAL_IMAGE_MAX_SIDE || 1400
 const THERMAL_IMAGE_FILE_FORMAT = "png";
 const THERMAL_JOB_IN_FLIGHT = new Map();
 const THERMAL_ARTWORK_BACKGROUND_THRESHOLD = 245;
+const THERMAL_ARTWORK_FOREGROUND_THRESHOLD = 220;
+const THERMAL_ARTWORK_EDGE_MARGIN_RATIO = 0.03;
+const THERMAL_ARTWORK_EDGE_MARGIN_MIN = 12;
+const THERMAL_ARTWORK_MIN_COMPONENT_AREA_RATIO = 0.003;
 const THERMAL_ARTWORK_FILL_TARGET = 0.94;
 const THERMAL_ARTWORK_FILL_MIN = 0.92;
 const THERMAL_ARTWORK_FILL_MAX = 0.94;
@@ -290,36 +294,130 @@ const detectArtworkBounds = (data = Buffer.alloc(0), info = {}) => {
   const channels = Number(info.channels || 3);
   if (!width || !height) return null;
 
-  let minX = width;
-  let minY = height;
-  let maxX = -1;
-  let maxY = -1;
+  const totalPixels = width * height;
+  const edgeMargin = clamp(
+    Math.round(Math.min(width, height) * THERMAL_ARTWORK_EDGE_MARGIN_RATIO),
+    THERMAL_ARTWORK_EDGE_MARGIN_MIN,
+    Math.max(THERMAL_ARTWORK_EDGE_MARGIN_MIN, Math.floor(Math.min(width, height) / 5))
+  );
+  const minComponentArea = Math.max(64, Math.round(totalPixels * THERMAL_ARTWORK_MIN_COMPONENT_AREA_RATIO));
+  const mask = new Uint8Array(totalPixels);
+  const visited = new Uint8Array(totalPixels);
+  const candidates = [];
+  let ignoredFullCanvas = false;
 
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const index = ((y * width) + x) * channels;
-      const red = data[index] ?? 255;
-      const green = data[index + 1] ?? 255;
-      const blue = data[index + 2] ?? 255;
-      if (red >= THERMAL_ARTWORK_BACKGROUND_THRESHOLD && green >= THERMAL_ARTWORK_BACKGROUND_THRESHOLD && blue >= THERMAL_ARTWORK_BACKGROUND_THRESHOLD) {
-        continue;
-      }
-
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
+  for (let y = edgeMargin; y < height - edgeMargin; y += 1) {
+    for (let x = edgeMargin; x < width - edgeMargin; x += 1) {
+      const index = (y * width) + x;
+      const dataIndex = index * channels;
+      const red = data[dataIndex] ?? 255;
+      const green = data[dataIndex + 1] ?? 255;
+      const blue = data[dataIndex + 2] ?? 255;
+      const alpha = channels > 3 ? (data[dataIndex + 3] ?? 255) : 255;
+      if (alpha < 24) continue;
+      if (red > THERMAL_ARTWORK_FOREGROUND_THRESHOLD && green > THERMAL_ARTWORK_FOREGROUND_THRESHOLD && blue > THERMAL_ARTWORK_FOREGROUND_THRESHOLD) continue;
+      mask[index] = 1;
     }
   }
 
-  if (maxX < minX || maxY < minY) return null;
+  const directions = [
+    [-1, -1], [0, -1], [1, -1],
+    [-1, 0],             [1, 0],
+    [-1, 1],  [0, 1],   [1, 1],
+  ];
 
-  return {
-    left: minX,
-    top: minY,
-    width: (maxX - minX) + 1,
-    height: (maxY - minY) + 1,
-  };
+  for (let start = 0; start < totalPixels; start += 1) {
+    if (!mask[start] || visited[start]) continue;
+
+    const stack = [start];
+    visited[start] = 1;
+    let area = 0;
+    let minX = width;
+    let minY = height;
+    let maxX = -1;
+    let maxY = -1;
+    let touchesInnerEdge = false;
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      const currentY = Math.floor(current / width);
+      const currentX = current - (currentY * width);
+      area += 1;
+      if (currentX < minX) minX = currentX;
+      if (currentY < minY) minY = currentY;
+      if (currentX > maxX) maxX = currentX;
+      if (currentY > maxY) maxY = currentY;
+
+      if (
+        currentX <= edgeMargin ||
+        currentY <= edgeMargin ||
+        currentX >= (width - edgeMargin - 1) ||
+        currentY >= (height - edgeMargin - 1)
+      ) {
+        touchesInnerEdge = true;
+      }
+
+      for (const [dx, dy] of directions) {
+        const nextX = currentX + dx;
+        const nextY = currentY + dy;
+        if (nextX < edgeMargin || nextY < edgeMargin || nextX >= (width - edgeMargin) || nextY >= (height - edgeMargin)) continue;
+        const nextIndex = (nextY * width) + nextX;
+        if (!mask[nextIndex] || visited[nextIndex]) continue;
+        visited[nextIndex] = 1;
+        stack.push(nextIndex);
+      }
+    }
+
+    const bounds = {
+      left: minX,
+      top: minY,
+      width: (maxX - minX) + 1,
+      height: (maxY - minY) + 1,
+    };
+    const looksLikeFullCanvas = bounds.width >= Math.floor(width * 0.92) && bounds.height >= Math.floor(height * 0.92);
+    if (looksLikeFullCanvas) {
+      ignoredFullCanvas = true;
+      continue;
+    }
+    if (touchesInnerEdge && area < minComponentArea * 2) {
+      ignoredFullCanvas = true;
+      continue;
+    }
+
+    candidates.push({
+      bounds,
+      area,
+      touchesInnerEdge,
+    });
+  }
+
+  if (!candidates.length) {
+    console.log("THERMAL_BOUNDS_COMPONENTS", {
+      canvasWidth: width,
+      canvasHeight: height,
+      candidateCount: 0,
+      chosenBounds: null,
+      chosenArea: 0,
+      ignoredFullCanvas,
+    });
+    return null;
+  }
+
+  const filteredCandidates = candidates.filter((candidate) => candidate.area >= minComponentArea);
+  const candidatePool = filteredCandidates.length ? filteredCandidates : candidates;
+  candidatePool.sort((a, b) => b.area - a.area || (b.bounds.width * b.bounds.height) - (a.bounds.width * a.bounds.height));
+  const chosen = candidatePool[0];
+
+  console.log("THERMAL_BOUNDS_COMPONENTS", {
+    canvasWidth: width,
+    canvasHeight: height,
+    candidateCount: candidates.length,
+    chosenBounds: chosen?.bounds || null,
+    chosenArea: chosen?.area || 0,
+    ignoredFullCanvas,
+  });
+
+  return chosen?.bounds || null;
 };
 
 const buildModelNameOverlay = async ({ width = 0, height = 0, productName = "" } = {}) => {
@@ -329,7 +427,9 @@ const buildModelNameOverlay = async ({ width = 0, height = 0, productName = "" }
   const fontSize = clamp(Math.round(width * THERMAL_ARTWORK_MODEL_NAME_FONT_RATIO), 28, Math.round(height * 0.12));
   const bottomMargin = Math.max(8, Math.round(height * THERMAL_ARTWORK_MODEL_NAME_BOTTOM_RATIO));
   const boxHeight = Math.round(fontSize * 1.45);
-  const y = Math.max(fontSize, height - bottomMargin);
+  const overlayHeight = clamp(Math.round(fontSize * 2.1), Math.round(height * 0.08), Math.round(height * 0.18));
+  const overlayY = Math.max(0, height - bottomMargin - overlayHeight);
+  const y = Math.min(height - 4, Math.max(fontSize + overlayY, overlayY + Math.round(boxHeight * 0.9)));
   const safeText = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -342,10 +442,12 @@ const buildModelNameOverlay = async ({ width = 0, height = 0, productName = "" }
           font-family: Arial, Helvetica, sans-serif;
           font-size: ${fontSize}px;
           font-weight: 700;
-          fill: #ffffff;
+          fill: #000000;
           letter-spacing: 0.02em;
+          text-rendering: geometricPrecision;
         }
       </style>
+      <rect x="0" y="${overlayY}" width="${width}" height="${overlayHeight}" fill="#ffffff" />
       <text
         x="${Math.round(width / 2)}"
         y="${y}"
@@ -353,9 +455,19 @@ const buildModelNameOverlay = async ({ width = 0, height = 0, productName = "" }
         dominant-baseline="alphabetic"
         lengthAdjust="spacingAndGlyphs"
         textLength="${Math.round(width * 0.88)}"
+        shape-rendering="crispEdges"
       >${safeText}</text>
     </svg>
   `;
+
+  console.log("THERMAL_TEXT_OVERLAY", {
+    clearedOldTextArea: true,
+    overlayColor: "#000000",
+    x: 0,
+    y: overlayY,
+    width,
+    height: overlayHeight,
+  });
 
   return Buffer.from(svg);
 };
