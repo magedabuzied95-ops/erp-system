@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useState } from "react";
 
 import { renderToStaticMarkup } from "react-dom/server";
+import { useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { QRCodeCanvas, QRCodeSVG } from "qrcode.react";
