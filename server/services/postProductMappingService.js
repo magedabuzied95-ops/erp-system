@@ -1070,7 +1070,16 @@ export const resolveProductMappingForSiblingPost = async ({
     LIMIT 1
     `,
     params
-  ).catch(() => ({ rows: [] }));
+  ).catch((error) => {
+    console.warn("POST_PRODUCT_LINKS_SIBLING_QUERY_ERROR", {
+      tenant_id: safeTenantId || null,
+      platform: normalizedPlatform,
+      post_id: text(postId || row?.post_id || post?.post_id || ""),
+      message: error?.message || "",
+      code: text(error?.code || ""),
+    });
+    return { rows: [] };
+  });
   const siblingRow = siblingResult.rows?.[0] || null;
   if (!siblingRow?.sibling_post_id) {
     console.info("POST_PRODUCT_LINKS_SIBLING_NOT_FOUND", {
