@@ -1553,6 +1553,14 @@ function SocialCommentsWorkspace({
     const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
     const currentDraft = automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
     const nextDraft = draftPatch ? { ...currentDraft, ...draftPatch } : currentDraft;
+    if (Object.prototype.hasOwnProperty.call(draftPatch || {}, "enabled")) {
+      console.info("AUTOMATION_ENABLE_UI_CLICK", {
+        config_id: clean(automationSavedConfigs[drawerKey]?.config_id || ""),
+        canonical_post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
+        enabled_before: Boolean(currentDraft?.enabled),
+        enabled_after: Boolean(nextDraft?.enabled),
+      });
+    }
     setAutomationDrafts((current) => ({
       ...current,
       [drawerKey]: nextDraft,
@@ -1678,6 +1686,14 @@ function SocialCommentsWorkspace({
     const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
     const draft = draftOverride || automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
     const payload = serializeAutomationDraft(draft, postForAutomation);
+    console.info("AUTOMATION_ENABLE_API_REQUEST", {
+      config_id: clean(automationSavedConfigs[drawerKey]?.config_id || ""),
+      canonical_post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
+      enabled_before: Boolean(automationSavedConfigs[drawerKey]?.enabled),
+      enabled_after: Boolean(payload.enabled),
+      payload_enabled: Boolean(payload.enabled),
+      payload_settings_enabled: Boolean(payload?.settings?.enabled),
+    });
     setAutomationSavingKey(drawerKey);
     try {
       const response = await api.put(`/social-comments/automation/${encodeURIComponent(drawerKey)}`, {

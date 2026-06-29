@@ -2410,10 +2410,30 @@ export const upsertSocialCommentAutomationConfig = async ({ tenantId = null, pla
   }
   const rawSettings = metadataObject(payload.settings || {});
   const rawTemplates = metadataObject(payload.message_templates || {});
+  const hasTopLevelEnabled = Object.prototype.hasOwnProperty.call(payload, "enabled");
+  const hasSettingsEnabled = Object.prototype.hasOwnProperty.call(rawSettings, "enabled");
+  const requestedEnabled = hasTopLevelEnabled
+    ? Boolean(payload.enabled)
+    : hasSettingsEnabled
+      ? Boolean(rawSettings.enabled)
+      : Boolean(defaults.enabled);
+  const existingBeforeWrite = await db.query(
+    `
+    SELECT id, enabled, post_id
+    FROM social_comment_post_automation_configs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND post_id = $3::text
+    ORDER BY updated_at DESC, created_at DESC, id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, normalizedPlatform, canonicalPostId || safePostId]
+  ).catch(() => ({ rows: [] }));
+  const existingConfigRow = existingBeforeWrite.rows?.[0] || null;
   const mergedSettings = normalizeSocialCommentAutomationSettings({
     ...defaults.settings,
     ...rawSettings,
-    enabled: Object.prototype.hasOwnProperty.call(payload, "enabled") ? Boolean(payload.enabled) : defaults.enabled,
+    enabled: requestedEnabled,
   });
   const templateKey = text(payload.template_key || payload.templateKey || defaults.template_key || "product_comment_sales_flow") || "product_comment_sales_flow";
   const numericProductId = Number(payload.product_id ?? payload.productId ?? defaults.product_id ?? null);
@@ -2474,12 +2494,18 @@ export const upsertSocialCommentAutomationConfig = async ({ tenantId = null, pla
       normalizedPlatform,
       productId,
       templateKey,
-      Boolean(payload.enabled ?? defaults.enabled),
+      requestedEnabled,
       JSON.stringify(mergedSettings),
       JSON.stringify(messageTemplates),
     ]
   );
   const row = result.rows?.[0] || null;
+  console.info("AUTOMATION_ENABLE_DB_WRITE", {
+    config_id: row?.id || existingConfigRow?.id || null,
+    canonical_post_id: canonicalPostId || safePostId,
+    enabled_before: Boolean(existingConfigRow?.enabled),
+    enabled_after: Boolean(row?.enabled),
+  });
   return row ? normalizeSocialCommentAutomationConfigRow(row, { postId: canonicalPostId || safePostId, platform: normalizedPlatform, product_id: productId, settings: mergedSettings, message_templates: messageTemplates }) : null;
 };
 

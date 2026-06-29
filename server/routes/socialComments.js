@@ -294,6 +294,24 @@ router.put("/automation/:postId", protect, permit("settings", "edit"), async (re
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
     const canonicalPostId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const enabledBeforeLookup = await getSocialCommentAutomationConfig({
+      tenantId,
+      platform,
+      postId: canonicalPostId,
+      row: post || {},
+      post: post || {},
+      hydratePost: false,
+    }).catch(() => null);
+    console.info("AUTOMATION_ENABLE_API_REQUEST", {
+      config_id: enabledBeforeLookup?.id || null,
+      canonical_post_id: canonicalPostId,
+      enabled_before: Boolean(enabledBeforeLookup?.enabled),
+      enabled_after: Object.prototype.hasOwnProperty.call(req.body || {}, "enabled")
+        ? Boolean(req.body?.enabled)
+        : Boolean(req.body?.settings?.enabled),
+      payload_enabled: req.body?.enabled,
+      payload_settings_enabled: req.body?.settings?.enabled,
+    });
     const config = await upsertSocialCommentAutomationConfig({
       tenantId,
       platform,
@@ -326,6 +344,12 @@ router.put("/automation/:postId", protect, permit("settings", "edit"), async (re
     if (!readbackRow) {
       throw Object.assign(new Error("Failed to verify saved automation config"), { status: 500 });
     }
+    console.info("AUTOMATION_ENABLE_DB_READBACK", {
+      config_id: readbackRow?.id || null,
+      canonical_post_id: canonicalPostId,
+      enabled_before: Boolean(enabledBeforeLookup?.enabled),
+      enabled_after: Boolean(readbackRow?.enabled),
+    });
     const readbackConfig = await getSocialCommentAutomationConfig({
       tenantId,
       platform: savedPlatform,
