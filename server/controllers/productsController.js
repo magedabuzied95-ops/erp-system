@@ -3521,8 +3521,25 @@ export const updateProduct = async (req, res) => {
     });
     console.log("PRODUCT_UPDATE_THERMAL_FIELDS", {
       productId,
+      product_thermal_image_url: normalizedThermalImageUrl,
       thermal_image_url: normalizedThermalImageUrl,
       thermalImageUrl: normalizedThermalImageUrl,
+      incoming_variants: normalizedVariants.map((variant) => ({
+        id: variant.id || variant.variant_id || null,
+        color: variant.color || "",
+        size: variant.size || "",
+        thermal_image_url: variant.thermal_image_url || "",
+        color_thermal_image_url: variant.color_thermal_image_url || "",
+        variant_color_thermal_image_url: variant.variant_color_thermal_image_url || "",
+      })),
+      incoming_color_images: Array.isArray(colorImages)
+        ? colorImages.map((group) => ({
+            color: group?.color_name || group?.colorName || group?.color_value || group?.colorValue || group?.color || "",
+            thermal_image_url: group?.thermal_image_url || "",
+            color_thermal_image_url: group?.color_thermal_image_url || "",
+            variant_color_thermal_image_url: group?.variant_color_thermal_image_url || "",
+          }))
+        : [],
       nextThermalImageUrl,
       nextThermalImageStatus,
       nextThermalImageGeneratedAt,
@@ -3698,6 +3715,32 @@ export const updateProduct = async (req, res) => {
       savedVariantsCount: savedVariants.length,
     });
     const updatedProduct = normalizeProductRow(updated.rows[0]);
+    const thermalReadbackProduct = await client.query(
+      `
+      SELECT id, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error
+      FROM products
+      WHERE id = $1
+        AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
+      LIMIT 1
+      `,
+      [productId, tenantId]
+    );
+    const thermalReadbackVariants = await client.query(
+      `
+      SELECT id, product_id, color, size, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error
+      FROM product_variants
+      WHERE product_id = $1
+        AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
+        AND is_active IS DISTINCT FROM FALSE
+        AND deleted_at IS NULL
+      ORDER BY id ASC
+      `,
+      [productId, tenantId]
+    );
+    console.log("PRODUCT_UPDATE_THERMAL_READBACK", {
+      product: thermalReadbackProduct.rows[0] || null,
+      variants: thermalReadbackVariants.rows || [],
+    });
 
     if (imageUrlProvided && normalizedProductImageUrl) {
       scheduleThermalImageGeneration({

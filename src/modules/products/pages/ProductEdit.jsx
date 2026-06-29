@@ -2349,11 +2349,21 @@ function ProductEdit() {
     console.log("[edit-product] save payload size rows count", variantPayloads.length);
     console.log("[edit-product] save payload variants", variantPayloads);
     console.log("PRODUCT_EDIT_THERMAL_SAVE_PAYLOAD", {
-      productId,
-      thermal_image_url: thermalImageUrl,
       productThermalImageUrl: thermalImageUrl,
-      colorThermalImageUrls: colorGroups.map((group) => group.thermal_image_url || "").filter(Boolean),
-      variantThermalImageUrls: variantPayloads.map((variant) => variant.thermal_image_url || variant.thermalImageUrl || "").filter(Boolean),
+      colorGroups: colorGroups.map((group) => ({
+        color: group.color,
+        thermal_image_url: group.thermal_image_url,
+        color_thermal_image_url: group.color_thermal_image_url,
+        variant_color_thermal_image_url: group.variant_color_thermal_image_url,
+      })),
+      variants: variantPayloads.map((variant) => ({
+        id: variant.id,
+        color: variant.color,
+        size: variant.size,
+        thermal_image_url: variant.thermal_image_url,
+        color_thermal_image_url: variant.color_thermal_image_url,
+        variant_color_thermal_image_url: variant.variant_color_thermal_image_url,
+      })),
     });
     console.log("[edit-product] submit variant sync payload", {
       product_id: productId,
