@@ -128,6 +128,8 @@ const POS_APP_SHORT_TITLE = "POS";
 const POS_THEME_COLOR = "#07111f";
 const POS_STATUS_BAR_STYLE = "black-translucent";
 const POS_TOUCH_ICON_HREF = "/icons/pos-180.png";
+const POS_GLOBAL_BARCODE_MIN_LENGTH = 6;
+const POS_GLOBAL_BARCODE_MAX_DURATION_MS = 500;
 const POS_CHECKOUT_DEBUG = Boolean(
   import.meta.env?.DEV ||
   String(import.meta.env?.VITE_POS_CHECKOUT_DEBUG || "").trim().toLowerCase() === "true" ||
@@ -167,6 +169,15 @@ const writeLastSalespersonId = (salespersonId) => {
 const getHeadMetaContent = (name) => {
   if (typeof document === "undefined") return "";
   return document.querySelector(`meta[name="${name}"]`)?.getAttribute("content") || "";
+};
+
+const isEditableKeyTarget = (target) => {
+  if (!target || typeof target !== "object") return false;
+  if (typeof HTMLElement === "undefined" || !(target instanceof HTMLElement)) return false;
+  const tagName = String(target.tagName || "").toLowerCase();
+  if (target.isContentEditable) return true;
+  if (["input", "textarea", "select"].includes(tagName)) return true;
+  return Boolean(target.closest("input, textarea, select, [contenteditable='true']"));
 };
 
 const setHeadMetaContent = (name, content) => {
@@ -1409,6 +1420,7 @@ function POSPro() {
   const filtersButtonRef = useRef(null);
   const previousTotalRef = useRef(0);
   const lastBarcodeSubmitRef = useRef({ value: "", timer: null });
+  const globalBarcodeBufferRef = useRef({ value: "", startedAt: 0, lastAt: 0 });
   const shiftSessionRecoveredRef = useRef(false);
   const loadedRouteEditOrderIdRef = useRef("");
   const paymobPollingRef = useRef({ timer: null, cancelled: false });
@@ -3122,6 +3134,100 @@ function POSPro() {
   const handleCameraScannerError = useCallback((message = barcodeScannerMessages.startFailed) => {
     toast.error(message || t("pos.toasts.cameraStartFailed", barcodeScannerMessages.startFailed));
   }, [t]);
+
+  useEffect(() => {
+    const resetGlobalBarcodeBuffer = () => {
+      globalBarcodeBufferRef.current = { value: "", startedAt: 0, lastAt: 0 };
+    };
+
+    const finalizeGlobalBarcodeBuffer = (event) => {
+      const snapshot = globalBarcodeBufferRef.current;
+      const rawValue = String(snapshot.value || "");
+      const normalizedValue = rawValue.trim();
+      const durationMs = snapshot.startedAt && snapshot.lastAt ? Math.max(0, snapshot.lastAt - snapshot.startedAt) : 0;
+      resetGlobalBarcodeBuffer();
+      if (!normalizedValue) return;
+      const isScanCandidate =
+        normalizedValue.length >= POS_GLOBAL_BARCODE_MIN_LENGTH && durationMs < POS_GLOBAL_BARCODE_MAX_DURATION_MS;
+      if (!isScanCandidate) {
+        console.info("POS_GLOBAL_BARCODE_SCAN_IGNORED", {
+          reason: "not_scanner_speed",
+          code: normalizedValue,
+          length: normalizedValue.length,
+          duration_ms: durationMs,
+          trigger_key: event?.key || "",
+        });
+        return;
+      }
+      event?.preventDefault?.();
+      console.info("POS_GLOBAL_BARCODE_SCAN_RECEIVED", {
+        code: normalizedValue,
+        length: normalizedValue.length,
+        duration_ms: durationMs,
+        trigger_key: event?.key || "",
+      });
+      handleBarcodeSubmit(normalizedValue).catch((error) => {
+        console.error("POS_GLOBAL_BARCODE_SCAN_FAILED", {
+          code: normalizedValue,
+          message: error?.message || String(error || "Unknown error"),
+        });
+      });
+    };
+
+    const onGlobalBarcodeKeyDown = (event) => {
+      if (event.defaultPrevented || event.isComposing) return;
+      if (isEditableKeyTarget(event.target)) {
+        if (globalBarcodeBufferRef.current.value) {
+          console.info("POS_GLOBAL_BARCODE_SCAN_IGNORED", {
+            reason: "editable_target",
+            code: globalBarcodeBufferRef.current.value,
+            trigger_key: event.key || "",
+          });
+        }
+        resetGlobalBarcodeBuffer();
+        return;
+      }
+      if (event.ctrlKey || event.altKey || event.metaKey) {
+        resetGlobalBarcodeBuffer();
+        return;
+      }
+
+      const now = performance.now();
+      const state = globalBarcodeBufferRef.current;
+      if (state.lastAt && now - state.lastAt >= POS_GLOBAL_BARCODE_MAX_DURATION_MS) {
+        resetGlobalBarcodeBuffer();
+      }
+
+      if (event.key === "Enter" || event.key === "Tab") {
+        finalizeGlobalBarcodeBuffer(event);
+        return;
+      }
+
+      if (event.key.length !== 1) return;
+
+      const nextState = globalBarcodeBufferRef.current;
+      if (!nextState.value) {
+        globalBarcodeBufferRef.current = {
+          value: event.key,
+          startedAt: now,
+          lastAt: now,
+        };
+        return;
+      }
+
+      globalBarcodeBufferRef.current = {
+        value: `${nextState.value}${event.key}`,
+        startedAt: nextState.startedAt || now,
+        lastAt: now,
+      };
+    };
+
+    window.addEventListener("keydown", onGlobalBarcodeKeyDown);
+    return () => {
+      window.removeEventListener("keydown", onGlobalBarcodeKeyDown);
+      resetGlobalBarcodeBuffer();
+    };
+  }, [handleBarcodeSubmit]);
 
   const addVariantToCart = useCallback((product, variant, options = {}) => {
     const requestedQuantity = Math.max(1, Math.trunc(Number(options.quantity || 1) || 1));
