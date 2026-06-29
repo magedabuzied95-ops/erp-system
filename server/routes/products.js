@@ -273,6 +273,12 @@ router.post("/:id/generate-ai-thermal-artwork", protect, async (req, res) => {
     const variantId = req.body?.variant_id ?? req.body?.variantId ?? null;
     const colorImageUrl = String(req.body?.color_image_url || req.body?.colorImageUrl || "").trim();
     const imageUrl = String(req.body?.image_url || productRow.image_url || productRow.product_image_url || "").trim();
+    console.log("THERMAL_PRODUCT_ROUTE_PAYLOAD", {
+      route: "/:id/generate-ai-thermal-artwork",
+      productId: req.params.id,
+      bodyRegenerate: req.body?.regenerate,
+      bodyKeys: Object.keys(req.body || {}),
+    });
 
     console.log("THERMAL_ROUTE_REQUEST", {
       route: "/:id/generate-ai-thermal-artwork",

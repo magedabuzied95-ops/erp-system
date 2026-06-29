@@ -20,6 +20,7 @@ const THERMAL_ARTWORK_FILL_MAX = 0.94;
 const THERMAL_ARTWORK_BINARY_THRESHOLD = 200;
 const THERMAL_ARTWORK_MODEL_NAME_FONT_RATIO = 0.052;
 const THERMAL_ARTWORK_MODEL_NAME_BOTTOM_RATIO = 0.08;
+let lastThermalAutoZoomMeta = null;
 const DEFAULT_MODEL = process.env.OPENAI_THERMAL_ARTWORK_MODEL || "gpt-image-1.5";
 const DEFAULT_TIMEOUT_MS = 90_000;
 
@@ -401,6 +402,15 @@ const postProcessThermalArtworkBuffer = async (inputBuffer, { productName = "" }
     const targetScale = fitScale * fillMultiplier;
     const scaledWidth = Math.max(1, Math.round(bounds.width * targetScale));
     const scaledHeight = Math.max(1, Math.round(bounds.height * targetScale));
+    lastThermalAutoZoomMeta = {
+      boundsWidth: bounds.width,
+      boundsHeight: bounds.height,
+      originalScale: fitScale,
+      targetFill: THERMAL_ARTWORK_FILL_TARGET,
+      finalScale: targetScale,
+      outputWidth: scaledWidth,
+      outputHeight: scaledHeight,
+    };
     const offsetLeft = Math.max(0, Math.round((width - scaledWidth) / 2));
     const offsetTop = Math.max(0, Math.round((height - scaledHeight) / 2));
     console.log("THERMAL_AUTO_ZOOM", {
@@ -506,6 +516,16 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
   const productName = normalizeText(options.productName || options.name || "");
   const cacheBust = regenerate ? `${Date.now()}-${crypto.randomUUID()}` : "";
   const inputKey = await jobKeyFor({ entityType, tenantId, productId, variantId, sourceImageUrl, cacheBust });
+  const outputUrl = await outputUrlFor({ entityType, productId, variantId, sourceImageUrl, cacheBust });
+  const outputPath = await outputPathFor({ entityType, productId, variantId, sourceImageUrl, cacheBust });
+  console.log("THERMAL_SERVICE_INPUT", {
+    productId,
+    variantId,
+    regenerate,
+    sourceImageUrl,
+    outputUrl,
+    cacheKey: `${entityType}:${tenantId ?? "tenant"}:${productId ?? "product"}:${variantId ?? "variant"}:${inputKey}`,
+  });
 
   if (!sourceImageUrl && existingThermalImageUrl) {
     return {
@@ -531,8 +551,6 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
   }
 
   const job = (async () => {
-    const outputUrl = await outputUrlFor({ entityType, productId, variantId, sourceImageUrl, cacheBust });
-    const outputPath = await outputPathFor({ entityType, productId, variantId, sourceImageUrl, cacheBust });
     const outputFileName = path.basename(outputPath);
 
     console.log("THERMAL_IMAGE_JOB_STARTED", {
@@ -546,6 +564,12 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
     });
 
     if (!regenerate && (await fileExists(outputPath))) {
+      console.log("THERMAL_CACHE_RETURN", {
+        regenerate,
+        outputPath,
+        outputUrl,
+        fileExists: true,
+      });
       await updateThermalRecord({
         entityType,
         productId,
@@ -649,6 +673,15 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
       });
       thermalBuffer = generatedBuffer;
     }
+
+    console.log("THERMAL_FINAL_WRITE", {
+      regenerate,
+      outputUrl,
+      outputPath,
+      bufferBytes: thermalBuffer?.length || 0,
+      hasWhiteTextOverlay: Boolean(productName),
+      finalScale: lastThermalAutoZoomMeta?.finalScale ?? null,
+    });
 
     const stored = await saveThermalArtworkAsset({
       buffer: thermalBuffer,
