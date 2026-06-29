@@ -3052,6 +3052,7 @@ export const updateProduct = async (req, res) => {
       ["ensureProductSchema", ensureProductSchema],
       ["ensureProductVariantSchema", ensureProductVariantSchema],
       ["ensureProductVariantManufacturerColumn", ensureProductVariantManufacturerColumn],
+      ["ensureSingleBranchMode", () => ensureSingleBranchMode(client)],
     ];
     for (const [label, step] of bootstrapSteps) {
       try {

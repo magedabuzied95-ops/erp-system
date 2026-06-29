@@ -34,6 +34,34 @@ async function safeRequiredDdl(client, sql, label) {
 
 async function safeOptionalDdl(client, sql, label) {
   const savepointName = "before_optional_ddl";
+  let inTransaction = false;
+  try {
+    const txState = await client.query(`SELECT txid_current_if_assigned() AS txid`);
+    inTransaction = Boolean(txState.rows[0]?.txid);
+  } catch (error) {
+    if (!isTransientLockError(error)) {
+      inTransaction = false;
+    }
+  }
+
+  if (!inTransaction) {
+    try {
+      await client.query(sql);
+      console.log("[single-branch-ddl:ok]", { label });
+      return true;
+    } catch (error) {
+      if (isTransientLockError(error)) {
+        console.warn("[single-branch-ddl:skipped-transient-lock]", {
+          label,
+          code: error.code,
+          message: error.message,
+        });
+        return false;
+      }
+      throw error;
+    }
+  }
+
   try {
     await client.query(`SAVEPOINT ${savepointName}`);
     await client.query(sql);
