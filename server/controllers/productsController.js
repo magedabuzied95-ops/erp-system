@@ -854,7 +854,6 @@ export const ensureProductVariantSchema = async () => {
       END LOOP;
     END $$;
   `);
-  await ensureSingleBranchMode(db);
 };
 
 const firstPositiveNumber = (...values) => {

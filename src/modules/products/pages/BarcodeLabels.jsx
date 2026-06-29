@@ -1567,20 +1567,23 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   if (!print) {
     return (
       <div
+        ref={hostRef}
         className="flex w-full items-center justify-center overflow-hidden"
         style={{
-          width: "100%",
-          minHeight: "clamp(260px, 34vw, 430px)",
+          direction: "ltr",
+          width: `${landscapeWidthMm * previewScale}mm`,
+          height: `${landscapeHeightMm * previewScale}mm`,
+          minWidth: `${landscapeWidthMm * previewScale}mm`,
+          minHeight: `${landscapeHeightMm * previewScale}mm`,
         }}
       >
         <div
-          ref={hostRef}
-          className="origin-top-left"
+          className="origin-center"
           style={{
             width: `${landscapeWidthMm}mm`,
             height: `${landscapeHeightMm}mm`,
             transform: `scale(${previewScale})`,
-            transformOrigin: "top left",
+            transformOrigin: "center center",
           }}
         >
           {landscapeCard}
