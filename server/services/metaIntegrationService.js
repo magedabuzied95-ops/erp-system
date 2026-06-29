@@ -4069,13 +4069,13 @@ const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
   debugSocialCommentsLog("META_COMMENTS_POLL_GRAPH_REQUEST", {
     object_id: text(postId || ""),
     url: `/${encodeURIComponent(text(postId))}/comments`,
-    fields: "id,message,from{id,name,picture},created_time,parent,permalink_url,like_count,comment_count",
+    fields: "id,message,from{id,name,picture},created_time,parent{id,post_id},post{id},object_id,permalink_url,like_count,comment_count",
   });
   const payload = await callMetaGet({
     endpoint: `/${encodeURIComponent(text(postId))}/comments`,
     token,
     params: {
-      fields: "id,message,from{id,name,picture},created_time,parent,permalink_url,like_count,comment_count",
+      fields: "id,message,from{id,name,picture},created_time,parent{id,post_id},post{id},object_id,permalink_url,like_count,comment_count",
       limit: "50",
     },
   });
@@ -4093,17 +4093,18 @@ const fetchMetaCommentDetailsForPolling = async ({ commentId = "", token } = {})
   debugSocialCommentsLog("META_COMMENTS_POLL_GRAPH_REQUEST", {
     object_id: safeCommentId,
     url: `/${encodeURIComponent(safeCommentId)}`,
-    fields: "id,message,from{id,name,picture},created_time,permalink_url,parent,like_count,comment_count",
+    fields: "id,message,from{id,name,picture},created_time,permalink_url,parent{id,post_id},post{id},object_id,like_count,comment_count",
   });
   const payload = await callMetaGet({
     endpoint: `/${encodeURIComponent(safeCommentId)}`,
     token,
     params: {
-      fields: "id,message,from{id,name,picture},created_time,permalink_url,parent,like_count,comment_count",
+      fields: "id,message,from{id,name,picture},created_time,permalink_url,parent{id,post_id},post{id},object_id,like_count,comment_count",
     },
   });
   const from = payload?.from && typeof payload.from === "object" ? payload.from : {};
   const parent = payload?.parent && typeof payload.parent === "object" ? payload.parent : {};
+  const graphPost = payload?.post && typeof payload.post === "object" ? payload.post : {};
   return {
     id: text(payload?.id || safeCommentId),
     message: text(payload?.message || ""),
@@ -4116,7 +4117,12 @@ const fetchMetaCommentDetailsForPolling = async ({ commentId = "", token } = {})
     permalink_url: text(payload?.permalink_url || ""),
     parent: {
       id: text(parent.id || ""),
+      post_id: text(parent.post_id || ""),
     },
+    post: {
+      id: text(graphPost.id || ""),
+    },
+    object_id: text(payload?.object_id || ""),
     like_count: Number(payload?.like_count || 0),
     comment_count: Number(payload?.comment_count || 0),
   };
@@ -4206,6 +4212,122 @@ const extractFacebookPostObjectIdFromPermalink = (value = "") => {
     if (match?.[1]) return text(match[1]);
   }
   return "";
+};
+
+const firstTextValue = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+
+const extractFacebookPostCompositeObjectId = (value = "") => {
+  const safeValue = text(value);
+  if (!safeValue) return "";
+  const compositeMatch = safeValue.match(/^[^_]+_(\d+)$/);
+  if (compositeMatch?.[1]) return text(compositeMatch[1]);
+  return safeValue.includes("_") ? "" : safeValue;
+};
+
+const buildMetaFeedPostAttributionIndex = (posts = []) => {
+  const byPermalink = new Map();
+  const byObjectId = new Map();
+  for (const post of asArray(posts)) {
+    const safePost = post && typeof post === "object" ? post : {};
+    const postId = text(safePost.id || "");
+    if (!postId) continue;
+    const permalink = text(safePost.permalink_url || safePost.permalink || "");
+    const objectId = firstTextValue(
+      extractFacebookPostObjectIdFromPermalink(permalink),
+      extractFacebookPostCompositeObjectId(postId)
+    );
+    if (permalink && !byPermalink.has(permalink)) {
+      byPermalink.set(permalink, safePost);
+    }
+    if (objectId && !byObjectId.has(objectId)) {
+      byObjectId.set(objectId, safePost);
+    }
+  }
+  return { byPermalink, byObjectId };
+};
+
+const resolveMetaPolledCommentAttribution = ({ feedPost = {}, comment = {}, pageId = "", feedIndex = null } = {}) => {
+  const safeFeedPost = feedPost && typeof feedPost === "object" ? feedPost : {};
+  const safeComment = comment && typeof comment === "object" ? comment : {};
+  const commentPermalink = text(safeComment.permalink_url || safeComment.permalink || "");
+  const feedPostId = text(safeFeedPost.id || "");
+  const feedPermalink = text(safeFeedPost.permalink_url || safeFeedPost.permalink || "");
+  const graphParentId = firstTextValue(
+    safeComment.parent?.post_id,
+    safeComment.parent?.id,
+    safeComment.parent_id
+  );
+  const graphPostId = firstTextValue(
+    safeComment.post?.id,
+    safeComment.post_id,
+    safeComment.object_id,
+    safeComment.graph_post_id
+  );
+  const sourcePostId = firstTextValue(
+    safeComment.source_post_id,
+    safeComment.feed_post_id,
+    feedPostId
+  );
+  const commentPermalinkObjectId = extractFacebookPostObjectIdFromPermalink(commentPermalink);
+  const graphParentObjectId = extractFacebookPostCompositeObjectId(graphParentId);
+  const graphPostObjectId = extractFacebookPostCompositeObjectId(graphPostId);
+  const matchedByPermalink = commentPermalink && feedIndex?.byPermalink?.get(commentPermalink);
+  const matchedByObjectId = commentPermalinkObjectId && feedIndex?.byObjectId?.get(commentPermalinkObjectId);
+  const matchedByGraphParent = graphParentObjectId && feedIndex?.byObjectId?.get(graphParentObjectId);
+  const matchedByGraphPost = graphPostObjectId && feedIndex?.byObjectId?.get(graphPostObjectId);
+  const graphCompositePostId = firstTextValue(
+    text(graphParentId).includes("_") ? text(graphParentId) : "",
+    text(graphPostId).includes("_") ? text(graphPostId) : "",
+    matchedByGraphParent?.id,
+    matchedByGraphPost?.id
+  );
+  const selectedFeedPost =
+    matchedByPermalink ||
+    matchedByObjectId ||
+    matchedByGraphParent ||
+    matchedByGraphPost ||
+    null;
+  const resolvedParentPostId = firstTextValue(
+    selectedFeedPost?.id,
+    graphCompositePostId,
+    feedPostId
+  );
+  const selectedEventPostId = firstTextValue(
+    resolvedParentPostId,
+    feedPostId
+  );
+  const selectedPermalink = firstTextValue(
+    selectedFeedPost?.permalink_url,
+    selectedFeedPost?.permalink,
+    commentPermalink,
+    feedPermalink
+  );
+  const attributionSource =
+    matchedByPermalink
+      ? "comment_permalink_match"
+      : matchedByObjectId
+        ? "comment_permalink_object_match"
+        : matchedByGraphParent
+          ? "graph_parent_id_object_match"
+          : matchedByGraphPost
+            ? "graph_post_id_object_match"
+            : graphCompositePostId && graphCompositePostId !== feedPostId
+              ? "graph_parent_post_id"
+          : "feed_post_id";
+  return {
+    commentPermalink,
+    commentPermalinkObjectId,
+    feedPostId,
+    feedPermalink,
+    graphParentId,
+    graphPostId,
+    resolvedParentPostId,
+    sourcePostId,
+    selectedEventPostId,
+    selectedPermalink,
+    selectedFeedPost,
+    attributionSource,
+  };
 };
 
 const isGraphCandidateId = (value = "") => {
@@ -4633,7 +4755,7 @@ export const fetchMetaPostPreviewDetails = async ({ tenantId = null, postId = ""
   };
 };
 
-const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {} } = {}) => {
+const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}, attribution = {} } = {}) => {
   const extractPictureUrl = (value = "") => {
     if (!value) return "";
     if (typeof value === "string") return value;
@@ -4644,7 +4766,10 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
   const commenterId = text(comment.from?.id || "");
   const commenterName = text(comment.from?.name || "");
   const originalCommentText = text(comment.message || "");
-  const postPermalink = text(post.permalink_url || post.permalink || "");
+  const safeAttribution = attribution && typeof attribution === "object" ? attribution : {};
+  const selectedEventPostId = text(safeAttribution.selectedEventPostId || post.id || "");
+  const commentPermalink = text(comment.permalink_url || comment.permalink || "");
+  const postPermalink = text(safeAttribution.selectedPermalink || post.permalink_url || post.permalink || "");
   const postMessage = text(post.message || "");
   const postCaption = text(post.caption || post.message || "");
   const attachmentImage = extractMetaPostAttachmentImage(post);
@@ -4654,7 +4779,7 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
     tenant_id: tenantId,
     platform: "facebook",
     channel: "facebook_comment",
-    post_id: text(post.id || ""),
+    post_id: selectedEventPostId,
     post_full_picture: fullPicture,
     attachment_image: attachmentImage,
     post_thumbnail: attachmentImage || fullPicture || "",
@@ -4671,7 +4796,7 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
     commenter_profile_picture_url: extractPictureUrl(comment.from?.profile_pic || comment.from?.picture || ""),
     original_comment_text: originalCommentText,
     comment_created_time: createdTime,
-    comment_url: postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : "",
+    comment_url: commentPermalink || (postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : ""),
     classification_label: null,
     classification_score: null,
     action_taken: "ingested",
@@ -4684,10 +4809,22 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
     raw_payload: {
       source: "meta_comment_poll",
       page_id: text(pageId || ""),
+      feed_post_id: text(post.id || ""),
+      source_post_id: text(safeAttribution.sourcePostId || post.id || ""),
+      graph_parent_id: text(safeAttribution.graphParentId || ""),
+      graph_post_id: text(safeAttribution.graphPostId || ""),
+      resolved_parent_post_id: text(safeAttribution.resolvedParentPostId || selectedEventPostId),
+      selected_event_post_id: selectedEventPostId,
       post,
       comment,
       value: {
-        post_id: text(post.id || ""),
+        post_id: selectedEventPostId,
+        feed_post_id: text(post.id || ""),
+        source_post_id: text(safeAttribution.sourcePostId || post.id || ""),
+        graph_parent_id: text(safeAttribution.graphParentId || ""),
+        graph_post_id: text(safeAttribution.graphPostId || ""),
+        resolved_parent_post_id: text(safeAttribution.resolvedParentPostId || selectedEventPostId),
+        selected_event_post_id: selectedEventPostId,
         comment_id: commentId,
         from: {
           id: commenterId,
@@ -4696,7 +4833,7 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
         },
         message: originalCommentText,
         created_time: createdTime,
-        permalink_url: postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : "",
+        permalink_url: commentPermalink || (postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : ""),
         parent_id: parentCommentId,
         like_count: Number(comment.like_count || 0),
         comment_count: Number(comment.comment_count || 0),
@@ -4708,7 +4845,7 @@ const buildMetaPolledCommentEvent = ({ tenantId, pageId, post = {}, comment = {}
       post_caption: postCaption,
       post_created_time: text(post.created_time || ""),
       comment_created_time: createdTime,
-      comment_url: postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : "",
+      comment_url: commentPermalink || (postPermalink && commentId ? `${postPermalink}${postPermalink.includes("?") ? "&" : "?"}comment_id=${encodeURIComponent(commentId)}` : ""),
     },
     processed_at: createdTime,
   };
@@ -7089,6 +7226,7 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
 
     try {
       const posts = await fetchMetaPagePostsForPolling({ pageId, token });
+      const feedIndex = buildMetaFeedPostAttributionIndex(posts);
       totals.posts_checked += posts.length;
       console.log("META_COMMENTS_POLL_SUCCESS", {
         tenant_id: safeTenantId,
@@ -7165,16 +7303,49 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
             comments_count: Number(post.comments_count || 0),
             error_message: "",
           });
+          const attribution = resolveMetaPolledCommentAttribution({
+            feedPost: resolvedPost,
+            comment: effectiveComment,
+            pageId,
+            feedIndex,
+          });
+          console.info("SOCIAL_COMMENT_GRAPH_PARENT_TRACE", {
+            comment_id: commentId,
+            feed_loop_post_id: attribution.feedPostId || "",
+            graph_parent_id: attribution.graphParentId || "",
+            graph_post_id: attribution.graphPostId || "",
+            resolved_parent_post_id: attribution.resolvedParentPostId || "",
+            comment_permalink_url: attribution.commentPermalink || "",
+            post_permalink_url: attribution.selectedPermalink || attribution.feedPermalink || "",
+            source: attribution.attributionSource || "",
+          });
+          if (
+            attribution.feedPostId &&
+            attribution.resolvedParentPostId &&
+            attribution.feedPostId !== attribution.resolvedParentPostId
+          ) {
+            console.warn("SOCIAL_COMMENT_POST_ATTRIBUTION_MISMATCH", {
+              comment_id: commentId,
+              feed_post_id: attribution.feedPostId,
+              graph_parent_id: attribution.graphParentId || "",
+              graph_post_id: attribution.graphPostId || "",
+              resolved_parent_post_id: attribution.resolvedParentPostId || "",
+              comment_permalink_url: attribution.commentPermalink || "",
+              feed_permalink_url: attribution.feedPermalink || "",
+              reason: attribution.attributionSource || "resolved_parent_post_id",
+            });
+          }
           const event = buildMetaPolledCommentEvent({
             tenantId: safeTenantId,
             pageId,
-            post: resolvedPost,
+            post: attribution.selectedFeedPost || resolvedPost,
             comment: effectiveComment,
+            attribution,
           });
           debugSocialCommentsLog("META_COMMENTS_POLL_COMMENT_SEEN", {
             tenant_id: safeTenantId,
             page_id: pageId,
-            post_id: text(post.id || ""),
+            post_id: text(event.post_id || post.id || ""),
             comment_id: commentId,
             from_id: commenterId,
             text_length: text(effectiveComment.message || comment.message || "").length,
