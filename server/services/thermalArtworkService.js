@@ -174,63 +174,68 @@ const detectArtworkBounds = (data = Buffer.alloc(0), info = {}) => {
   };
 };
 
-const optimizeThermalArtworkBuffer = async (inputBuffer) => {
-  const prepared = sharp(inputBuffer, { animated: false })
-    .rotate()
-    .flatten({ background: { r: 255, g: 255, b: 255, alpha: 1 } })
-    .removeAlpha();
+const postProcessThermalArtworkBuffer = async (inputBuffer) => {
+  try {
+    const prepared = sharp(inputBuffer, { animated: false })
+      .rotate()
+      .flatten({ background: { r: 255, g: 255, b: 255, alpha: 1 } })
+      .removeAlpha();
 
-  const { data, info } = await prepared.raw().toBuffer({ resolveWithObject: true });
-  const width = Number(info.width || 0);
-  const height = Number(info.height || 0);
-  if (!width || !height) {
-    return inputBuffer;
-  }
+    const { data, info } = await prepared.raw().toBuffer({ resolveWithObject: true });
+    const width = Number(info.width || 0);
+    const height = Number(info.height || 0);
+    if (!width || !height) {
+      return inputBuffer;
+    }
 
-  const bounds = detectArtworkBounds(data, info);
-  if (!bounds) {
-    return sharp(data, { raw: { width, height, channels: Number(info.channels || 3) } })
+    const bounds = detectArtworkBounds(data, info);
+    if (!bounds) {
+      return sharp(data, { raw: { width, height, channels: Number(info.channels || 3) } })
+        .png({
+          compressionLevel: 9,
+          adaptiveFiltering: true,
+          force: true,
+        })
+        .toBuffer();
+    }
+
+    const trimmed = sharp(data, { raw: { width, height, channels: Number(info.channels || 3) } }).extract(bounds);
+    const fitScale = Math.min(width / Math.max(1, bounds.width), height / Math.max(1, bounds.height));
+    const targetScale = clamp(fitScale * THERMAL_ARTWORK_FILL_TARGET, fitScale * THERMAL_ARTWORK_FILL_MIN, fitScale * THERMAL_ARTWORK_FILL_MAX);
+    const scaledWidth = Math.max(1, Math.round(bounds.width * targetScale));
+    const scaledHeight = Math.max(1, Math.round(bounds.height * targetScale));
+    const offsetLeft = Math.max(0, Math.round((width - scaledWidth) / 2));
+    const offsetTop = Math.max(0, Math.round((height - scaledHeight) / 2));
+    const resizedArtwork = await trimmed.resize({
+      width: scaledWidth,
+      height: scaledHeight,
+      fit: "fill",
+      withoutEnlargement: false,
+    }).png({
+      compressionLevel: 9,
+      adaptiveFiltering: true,
+      force: true,
+    }).toBuffer();
+
+    return sharp({
+      create: {
+        width,
+        height,
+        channels: 4,
+        background: { r: 255, g: 255, b: 255, alpha: 1 },
+      },
+    })
+      .composite([{ input: resizedArtwork, left: offsetLeft, top: offsetTop }])
       .png({
         compressionLevel: 9,
         adaptiveFiltering: true,
         force: true,
       })
       .toBuffer();
+  } catch (error) {
+    console.warn("[thermal-artwork] post-process failed, using generated image", error);
+    return inputBuffer;
   }
-
-  const trimmed = sharp(data, { raw: { width, height, channels: Number(info.channels || 3) } }).extract(bounds);
-  const fitScale = Math.min(width / Math.max(1, bounds.width), height / Math.max(1, bounds.height));
-  const targetScale = clamp(fitScale * THERMAL_ARTWORK_FILL_TARGET, fitScale * THERMAL_ARTWORK_FILL_MIN, fitScale * THERMAL_ARTWORK_FILL_MAX);
-  const scaledWidth = Math.max(1, Math.round(bounds.width * targetScale));
-  const scaledHeight = Math.max(1, Math.round(bounds.height * targetScale));
-  const offsetLeft = Math.max(0, Math.round((width - scaledWidth) / 2));
-  const offsetTop = Math.max(0, Math.round((height - scaledHeight) / 2));
-  const resizedArtwork = await trimmed.resize({
-    width: scaledWidth,
-    height: scaledHeight,
-    fit: "fill",
-    withoutEnlargement: false,
-  }).png({
-    compressionLevel: 9,
-    adaptiveFiltering: true,
-    force: true,
-  }).toBuffer();
-
-  return sharp({
-    create: {
-      width,
-      height,
-      channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
-    },
-  })
-    .composite([{ input: resizedArtwork, left: offsetLeft, top: offsetTop }])
-    .png({
-      compressionLevel: 9,
-      adaptiveFiltering: true,
-      force: true,
-    })
-    .toBuffer();
 };
 
 const generateBinaryThermalArtwork = async (sourceBuffer) => {
@@ -478,7 +483,8 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
     }
 
     await ensureDir();
-    const thermalBuffer = await optimizeThermalArtworkBuffer(await generateBinaryThermalArtwork(sourceBuffer));
+    const generatedThermalBuffer = await generateBinaryThermalArtwork(sourceBuffer);
+    const thermalBuffer = await postProcessThermalArtworkBuffer(generatedThermalBuffer);
     await fs.writeFile(outputPath, thermalBuffer);
     await updateThermalRecord({
       entityType,
