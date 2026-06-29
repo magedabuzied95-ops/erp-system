@@ -871,9 +871,7 @@ const normalizeThermalImageStatus = (value, thermalImageUrl = "") => {
 };
 
 const normalizeThermalTimestamp = (value) => {
-  if (!value) return null;
-  const text = String(value).trim();
-  return text ? text : null;
+  return normalizeSqlTimestampInput(value);
 };
 
 const normalizeThermalError = (value) => String(value || "").trim();
@@ -3422,6 +3420,17 @@ export const updateProduct = async (req, res) => {
     if (supportsThermalImageUrl) {
       updateFields.push(`thermal_image_url = COALESCE(${addUpdateValue(nextThermalImageUrl)}, thermal_image_url)`);
     }
+
+    console.log("PRODUCT_TIMESTAMP_VALUES", {
+      sale_start_at: normalizedSaleStartAt,
+      sale_end_at: normalizedSaleEndAt,
+      thermal_image_generated_at: nextThermalImageGeneratedAt,
+      thermal_image_status: nextThermalImageStatus,
+      thermal_image_url: nextThermalImageUrl,
+      productPricingProvided,
+      normalizedSaleEnabled,
+      thermalImageMetadataResetNeeded,
+    });
 
     const updated = await client.query(
       `
