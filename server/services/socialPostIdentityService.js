@@ -406,42 +406,100 @@ export const migrateCanonicalSocialPostRecords = async ({ tenantId = null, platf
   await ensureSocialPostIdentityAliasSchema();
   const configResult = await db.query(
     `
-    INSERT INTO social_comment_post_automation_configs (
-      tenant_id,
-      post_id,
-      platform,
-      product_id,
-      template_key,
-      enabled,
-      settings,
-      message_templates,
-      created_at,
-      updated_at
+    WITH source_rows AS (
+      SELECT
+        tenant_id,
+        platform,
+        product_id,
+        template_key,
+        enabled,
+        settings,
+        message_templates,
+        created_at,
+        updated_at,
+        id
+      FROM social_comment_post_automation_configs
+      WHERE tenant_id = $1::bigint
+        AND platform = $2::text
+        AND post_id = ANY($3::text[])
+    ),
+    ranked_rows AS (
+      SELECT
+        tenant_id,
+        platform,
+        product_id,
+        template_key,
+        enabled,
+        settings,
+        message_templates,
+        created_at,
+        updated_at,
+        id,
+        ROW_NUMBER() OVER (
+          PARTITION BY tenant_id, platform, $4::text
+          ORDER BY
+            CASE WHEN enabled THEN 1 ELSE 0 END DESC,
+            CASE WHEN COALESCE(message_templates, '{}'::jsonb) <> '{}'::jsonb THEN 1 ELSE 0 END DESC,
+            CASE WHEN COALESCE(settings, '{}'::jsonb) <> '{}'::jsonb THEN 1 ELSE 0 END DESC,
+            updated_at DESC NULLS LAST,
+            created_at DESC NULLS LAST,
+            id DESC
+        ) AS rn
+      FROM source_rows
+    ),
+    selected_rows AS (
+      SELECT
+        tenant_id,
+        $4::text AS post_id,
+        platform,
+        product_id,
+        template_key,
+        enabled,
+        settings,
+        message_templates,
+        CURRENT_TIMESTAMP AS created_at,
+        CURRENT_TIMESTAMP AS updated_at
+      FROM ranked_rows
+      WHERE rn = 1
+    ),
+    upserted AS (
+      INSERT INTO social_comment_post_automation_configs (
+        tenant_id,
+        post_id,
+        platform,
+        product_id,
+        template_key,
+        enabled,
+        settings,
+        message_templates,
+        created_at,
+        updated_at
+      )
+      SELECT
+        tenant_id,
+        post_id,
+        platform,
+        product_id,
+        template_key,
+        enabled,
+        settings,
+        message_templates,
+        created_at,
+        updated_at
+      FROM selected_rows
+      ON CONFLICT (tenant_id, post_id, platform) DO UPDATE SET
+        product_id = EXCLUDED.product_id,
+        template_key = EXCLUDED.template_key,
+        enabled = EXCLUDED.enabled,
+        settings = EXCLUDED.settings,
+        message_templates = EXCLUDED.message_templates,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING id
     )
-    SELECT DISTINCT ON (tenant_id, platform, post_id)
-      tenant_id,
-      $4::text,
-      platform,
-      product_id,
-      template_key,
-      enabled,
-      settings,
-      message_templates,
-      CURRENT_TIMESTAMP,
-      CURRENT_TIMESTAMP
-    FROM social_comment_post_automation_configs
-    WHERE tenant_id = $1::bigint
-      AND platform = $2::text
-      AND post_id = ANY($3::text[])
-    ORDER BY tenant_id, platform, post_id, updated_at DESC, created_at DESC, id DESC
-    ON CONFLICT (tenant_id, post_id, platform) DO UPDATE SET
-      product_id = EXCLUDED.product_id,
-      template_key = EXCLUDED.template_key,
-      enabled = EXCLUDED.enabled,
-      settings = EXCLUDED.settings,
-      message_templates = EXCLUDED.message_templates,
-      updated_at = CURRENT_TIMESTAMP
-    RETURNING id
+    SELECT
+      (SELECT COUNT(*)::int FROM source_rows) AS source_count,
+      (SELECT COUNT(*)::int FROM selected_rows) AS deduped_count,
+      (SELECT COUNT(*)::int FROM upserted) AS upserted_count
     `,
     [safeTenantId, normalizedPlatform, safeAliasValues, safeCanonicalPostId]
   ).catch(() => ({ rows: [] }));
@@ -538,14 +596,26 @@ export const migrateCanonicalSocialPostRecords = async ({ tenantId = null, platf
     `,
     [safeTenantId, normalizedPlatform, safeAliasValues, safeCanonicalPostId]
   ).catch(() => ({ rows: [] }));
-  const migrated = Boolean(configResult.rows?.length || templateResult.rows?.length || mappingResult.rows?.length);
+  const configMigrationSummary = configResult.rows?.[0] || {};
+  if (Number(configMigrationSummary.source_count || 0) > 0) {
+    console.log("SOCIAL_POST_CANONICAL_CONFIG_MIGRATION_DEDUPED", {
+      source_count: Number(configMigrationSummary.source_count || 0),
+      deduped_count: Number(configMigrationSummary.deduped_count || 0),
+      canonical_post_id: safeCanonicalPostId,
+    });
+  }
+  const migrated = Boolean(
+    Number(configMigrationSummary.upserted_count || 0) > 0 ||
+    templateResult.rows?.length ||
+    mappingResult.rows?.length
+  );
   if (migrated) {
     console.log("SOCIAL_POST_CANONICAL_MIGRATION", {
       tenant_id: safeTenantId,
       platform: normalizedPlatform,
       canonical_post_id: safeCanonicalPostId,
       alias_count: safeAliasValues.length,
-      migrated_configs: configResult.rows?.length || 0,
+      migrated_configs: Number(configMigrationSummary.upserted_count || 0),
       migrated_templates: templateResult.rows?.length || 0,
       migrated_mappings: mappingResult.rows?.length || 0,
     });
@@ -553,7 +623,7 @@ export const migrateCanonicalSocialPostRecords = async ({ tenantId = null, platf
   return {
     migrated,
     alias_count: safeAliasValues.length,
-    migrated_configs: configResult.rows?.length || 0,
+    migrated_configs: Number(configMigrationSummary.upserted_count || 0),
     migrated_templates: templateResult.rows?.length || 0,
     migrated_mappings: mappingResult.rows?.length || 0,
   };
