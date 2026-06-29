@@ -926,6 +926,20 @@ const normalizeProductRow = (row = {}) => {
   sku: row.sku || "",
   barcode: row.barcode || "",
   qr_token: row.qr_token || "",
+  article_code:
+    row.article_code ||
+    row.articleCode ||
+    row.color_article_code ||
+    row.colorArticleCode ||
+    "",
+  articleCode:
+    row.articleCode ||
+    row.article_code ||
+    row.colorArticleCode ||
+    row.color_article_code ||
+    "",
+  color_article_code: row.color_article_code || row.colorArticleCode || row.article_code || "",
+  colorArticleCode: row.colorArticleCode || row.color_article_code || row.articleCode || "",
   category_id: row.category_id ?? "",
   parent_category_id: row.parent_category_id ?? null,
   category_name: row.category_name || row.category || "Uncategorized",
@@ -1122,7 +1136,22 @@ const normalizeVariantRow = (row = {}) => {
   thermalImageStatus,
   sku: row.variant_sku || row.sku || "",
   barcode: row.variant_barcode || row.barcode || "",
-  article_code: row.variant_article_code || row.article_code || "",
+  article_code:
+    row.variant_article_code ||
+    row.article_code ||
+    row.articleCode ||
+    row.color_article_code ||
+    row.colorArticleCode ||
+    "",
+  articleCode:
+    row.variant_article_code ||
+    row.article_code ||
+    row.articleCode ||
+    row.color_article_code ||
+    row.colorArticleCode ||
+    "",
+  color_article_code: row.color_article_code || row.colorArticleCode || row.variant_article_code || row.article_code || "",
+  colorArticleCode: row.colorArticleCode || row.color_article_code || row.variant_article_code || row.article_code || "",
   manufacturer_id: row.variant_manufacturer_id ?? row.manufacturer_id ?? null,
   variant_manufacturer_name: row.variant_manufacturer_name ?? row.manufacturer_name ?? "",
   manufacturer_name: row.variant_manufacturer_name ?? row.manufacturer_name ?? "",
@@ -1245,6 +1274,10 @@ const deriveColorGroupsFromVariants = (variants = []) => {
         color,
         color_name: color,
         color_value: color,
+        article_code: variant?.color_article_code || variant?.colorArticleCode || variant?.article_code || variant?.articleCode || "",
+        articleCode: variant?.colorArticleCode || variant?.color_article_code || variant?.articleCode || variant?.article_code || "",
+        color_article_code: variant?.color_article_code || variant?.colorArticleCode || variant?.article_code || variant?.articleCode || "",
+        colorArticleCode: variant?.colorArticleCode || variant?.color_article_code || variant?.articleCode || variant?.article_code || "",
         image_url: variant?.image_url || "",
         colorPrimaryImageUrl: variant?.colorPrimaryImageUrl || variant?.image_url || "",
         color_image_url: variant?.color_image_url || variant?.image_url || "",

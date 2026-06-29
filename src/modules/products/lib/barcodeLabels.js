@@ -66,6 +66,14 @@ const normalizeBarcode = (value, fallbackSeed = "") => {
 const firstText = (...values) =>
   values.map((value) => String(value || "").trim()).find(Boolean) || "";
 
+export const resolveLabelArticleCode = (item = {}) =>
+  firstText(
+    item?.article_code,
+    item?.articleCode,
+    item?.color_article_code,
+    item?.colorArticleCode
+  );
+
 const normalizeThermalImageStatus = (value = "") => {
   const status = String(value || "").trim().toLowerCase();
   return ["pending", "processing", "ready", "failed"].includes(status) ? status : "";
@@ -472,6 +480,22 @@ export const buildSmartProductQrUrl = ({ productId, variantId = null, colorId = 
 export const buildLabelItem = (product, variant = null, quantity = 1) => {
   const displayBarcodeInfo = resolveLabelDisplayBarcode(product, variant);
   const displayBarcode = displayBarcodeInfo.value;
+  const articleCode = resolveLabelArticleCode({
+    article_code: variant?.article_code ?? product?.article_code ?? "",
+    articleCode: variant?.articleCode ?? product?.articleCode ?? "",
+    color_article_code:
+      variant?.color_article_code ??
+      variant?.colorGroup?.article_code ??
+      product?.color_article_code ??
+      product?.colorGroup?.article_code ??
+      "",
+    colorArticleCode:
+      variant?.colorArticleCode ??
+      variant?.colorGroup?.articleCode ??
+      product?.colorArticleCode ??
+      product?.colorGroup?.articleCode ??
+      "",
+  });
   const sourceVariantImage = firstText(variant?.variant_image_url, variant?.color_image_url, variant?.image_url, variant?.image, variant?.colorGroup?.image_url);
   const sourceProductImage = firstText(product?.product_image_url, product?.image_url, product?.image, product?.photo_url, product?.thumbnail_url);
   const sourceVariantThermalImage = firstText(
@@ -518,6 +542,22 @@ export const buildLabelItem = (product, variant = null, quantity = 1) => {
     category: product?.category || "Category",
     color: variant?.color || product?.color || "Default",
     size: variant?.size || product?.size || "One size",
+    article_code: articleCode,
+    articleCode,
+    color_article_code:
+      firstText(
+        variant?.color_article_code,
+        variant?.colorGroup?.article_code,
+        product?.color_article_code,
+        product?.colorGroup?.article_code
+      ),
+    colorArticleCode:
+      firstText(
+        variant?.colorArticleCode,
+        variant?.colorGroup?.articleCode,
+        product?.colorArticleCode,
+        product?.colorGroup?.articleCode
+      ),
     sku: getLabelSku(product, variant),
     barcode: displayBarcode,
     barcodeValue: normalizeBarcode(displayBarcode, `${product?.id ?? ""}${variant?.variant_id ?? variant?.id ?? ""}`),
@@ -668,6 +708,38 @@ export const buildBarcodeShopLabelItem = (product = null, quantity = 1, variantF
     productName: product.name || "Unnamed product",
     brand: product.brand || "Brand",
     category: product.category || "Category",
+    article_code: resolveLabelArticleCode({
+      article_code: variantFallback?.article_code ?? product?.article_code ?? "",
+      articleCode: variantFallback?.articleCode ?? product?.articleCode ?? "",
+      color_article_code:
+        variantFallback?.color_article_code ??
+        variantFallback?.colorGroup?.article_code ??
+        product?.color_article_code ??
+        product?.colorGroup?.article_code ??
+        "",
+      colorArticleCode:
+        variantFallback?.colorArticleCode ??
+        variantFallback?.colorGroup?.articleCode ??
+        product?.colorArticleCode ??
+        product?.colorGroup?.articleCode ??
+        "",
+    }),
+    articleCode: resolveLabelArticleCode({
+      article_code: variantFallback?.article_code ?? product?.article_code ?? "",
+      articleCode: variantFallback?.articleCode ?? product?.articleCode ?? "",
+      color_article_code:
+        variantFallback?.color_article_code ??
+        variantFallback?.colorGroup?.article_code ??
+        product?.color_article_code ??
+        product?.colorGroup?.article_code ??
+        "",
+      colorArticleCode:
+        variantFallback?.colorArticleCode ??
+        variantFallback?.colorGroup?.articleCode ??
+        product?.colorArticleCode ??
+        product?.colorGroup?.articleCode ??
+        "",
+    }),
     qrToken,
     qrValue: getBarcodeShopQrUrl(product, { variantId, colorId }),
     salePrice: priceInfo.price,
@@ -998,7 +1070,7 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const productName = String(item?.productName || "").trim();
   const sizeValue = String(item?.size || "ONE SIZE").trim() || "ONE SIZE";
   const colorValue = formatDisplayColor(item?.color || "");
-  const skuValue = String(item?.article_code || item?.articleCode || "").trim();
+  const skuValue = resolveLabelArticleCode(item);
   const barcodeValue = String(item?.barcode || "").trim();
   const imageUrl = String(item?.imageUrl || item?.resolvedImage || "").trim();
   const hasArticleBox = Boolean(skuValue);
@@ -1032,7 +1104,7 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
       <text x="${sizeCell.x + (layout.sizeBadgeWidth / 2)}" y="${sizeCell.y + 9.3}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.432}" font-weight="900">${escapeHtml(sizeValue)}</text>
       ${hasArticleBox ? `
       <rect x="${articleCell.x}" y="${articleCell.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#f4f4f5" stroke="#e2e8f0" stroke-width="0.18" />
-      <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 3.2}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${layout.articleLabelFontSize * 0.42}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.sku || "ARTICLE CODE")}</text>
+      <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 3.2}" text-anchor="middle" fill="#64748b" font-family="Arial, Helvetica, sans-serif" font-size="${layout.articleLabelFontSize * 0.42}" font-weight="900" letter-spacing="0.2">ARTICLE CODE</text>
       <text x="${articleCell.x + (layout.articleBoxWidth / 2)}" y="${articleCell.y + 9.3}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
       ` : ""}
 
@@ -1161,6 +1233,7 @@ export const buildBarcodePrintHtml = ({
         height: barcodeHeight,
         displayText: item.barcode,
       });
+      const resolvedArticleCode = resolveLabelArticleCode(item);
       if (resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
         return `
           <article class="landscape-label">
@@ -1191,7 +1264,7 @@ export const buildBarcodePrintHtml = ({
                     <strong>${escapeHtml(formatLabelCurrency(item.salePrice))}</strong>
                   </div>
                 </div>
-                <div class="landscape-sku">${escapeHtml(item.sku || "")}</div>
+                ${resolvedArticleCode ? `<div class="landscape-sku">${escapeHtml(resolvedArticleCode)}</div>` : ""}
               </div>
             </div>
             <div class="landscape-barcode">
@@ -1232,7 +1305,7 @@ export const buildBarcodePrintHtml = ({
             <div class="premium-barcode" data-premium-label-part="barcode">
               <div class="premium-barcode-svg">${barcodeSvg}</div>
             </div>
-            <div class="premium-sku" data-premium-label-part="sku">${item.sku}</div>
+            ${resolvedArticleCode ? `<div class="premium-sku" data-premium-label-part="sku">${escapeHtml(resolvedArticleCode)}</div>` : ""}
             ${item?.showSmartProductQr && item?.smartQrSvgMarkup ? `<div class="premium-smart-qr">${item.smartQrSvgMarkup}</div>` : ""}
           </article>
         `;
@@ -1249,7 +1322,7 @@ export const buildBarcodePrintHtml = ({
       if (normalizedSettings.showSkuArticle || normalizedSettings.showPrice) {
         metaRows.push(`
           <div class="meta">
-            ${normalizedSettings.showSkuArticle ? `<span><strong>${printCopy.sku}</strong> ${item.sku}</span>` : ""}
+            ${normalizedSettings.showSkuArticle && resolvedArticleCode ? `<span><strong>ARTICLE CODE</strong> ${escapeHtml(resolvedArticleCode)}</span>` : ""}
             ${normalizedSettings.showPrice ? `<span><strong>${printCopy.price}</strong> $${Number(item.salePrice || 0).toFixed(2)}</span>` : ""}
           </div>
         `);

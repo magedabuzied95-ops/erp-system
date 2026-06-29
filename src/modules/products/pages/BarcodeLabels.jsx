@@ -35,6 +35,7 @@ import {
   getThermalLandscapeLabelLayout,
   getThermalImageStatus,
   resolveBarcodeLabelImage,
+  resolveLabelArticleCode,
 } from "../lib/barcodeLabels";
 import { generateBarcodeLabelsPdf } from "../lib/barcodePdfGenerator";
 import { formatCurrency } from "../../../shared/lib/currency";
@@ -574,6 +575,19 @@ function BarcodeLabels() {
     () => paginateBarcodeLabels(expandedLabels, activePrintSettings.labelsPerPage),
     [expandedLabels, activePrintSettings.labelsPerPage]
   );
+  const firstLabel = useMemo(() => expandedLabels[0] || null, [expandedLabels]);
+
+  useEffect(() => {
+    if (!firstLabel) return;
+    console.log("[barcode-label-article-debug]", {
+      article_code: firstLabel?.article_code,
+      articleCode: firstLabel?.articleCode,
+      color_article_code: firstLabel?.color_article_code,
+      colorArticleCode: firstLabel?.colorArticleCode,
+      sku: firstLabel?.sku,
+      resolvedArticleCode: resolveLabelArticleCode(firstLabel),
+    });
+  }, [firstLabel]);
 
   const totals = useMemo(
     () => ({
@@ -1277,7 +1291,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const sizeValue = safeText(item.size, t("products.barcodeLabels.oneSize"));
   const rawColorValue = safeText(item.color, t("products.barcodeLabels.default"));
   const colorValue = /[\u0600-\u06FF]/.test(rawColorValue) ? rawColorValue : rawColorValue.toUpperCase();
-  const articleValue = safeText(item.article_code || item.articleCode, "").trim();
+  const articleValue = resolveLabelArticleCode(item);
   const showArticleBox = Boolean(articleValue);
   const thermalLayout = getThermalLandscapeLabelLayout(showArticleBox);
   const titleStyle = {
@@ -1453,7 +1467,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                   fontSize: `${thermalLayout.articleLabelFontSize}px`,
                 }}
               >
-                {t("products.barcodeLabels.articleCode", "ARTICLE CODE")}
+                  ARTICLE CODE
               </div>
               <div
                 className="truncate font-black leading-none"

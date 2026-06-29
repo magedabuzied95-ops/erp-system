@@ -394,6 +394,22 @@ export const mergeProductRecord = (product, variant = null) => {
     variant_id: mergedVariant.variant_id ?? meta.variant_id ?? null,
     color: mergedVariant.color ?? meta.color ?? "",
     size: mergedVariant.size ?? meta.size ?? "",
+    article_code:
+      mergedVariant.article_code ??
+      mergedVariant.articleCode ??
+      meta.article_code ??
+      meta.articleCode ??
+      product.article_code ??
+      product.articleCode ??
+      "",
+    articleCode:
+      mergedVariant.articleCode ??
+      mergedVariant.article_code ??
+      meta.articleCode ??
+      meta.article_code ??
+      product.articleCode ??
+      product.article_code ??
+      "",
     manufacturer_id:
       mergedVariant.manufacturer_id ??
       mergedVariant.variant_manufacturer_id ??

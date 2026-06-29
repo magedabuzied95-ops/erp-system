@@ -4,7 +4,7 @@ import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { loadImageDataUrl } from "./thermalImageOptimizer";
-import { BARCODE_LABEL_LAYOUT, getBoxFrameLayout, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage } from "./barcodeLabels";
+import { BARCODE_LABEL_LAYOUT, getBoxFrameLayout, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage, resolveLabelArticleCode } from "./barcodeLabels";
 
 const thermalImageCache = new Map();
 
@@ -194,7 +194,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   const sizeValue = normalizeLabelText(item.size || item.variantSize || item.labelSize || "ONE SIZE");
   const rawColorValue = normalizeLabelText(item.color || item.variantColor || item.labelColor || "");
   const colorValue = /[\u0600-\u06FF]/.test(rawColorValue) ? rawColorValue : rawColorValue.toUpperCase();
-  const skuValue = normalizeLabelText(item.article_code || item.articleCode || "");
+  const skuValue = normalizeLabelText(resolveLabelArticleCode(item));
   const showArticleBox = Boolean(skuValue);
   const thermalLayout = getThermalLandscapeLabelLayout(showArticleBox);
   const { page, imageCell, titleCell, sizeCell, articleCell, colorCell, barcodeCell } = thermalLayout;

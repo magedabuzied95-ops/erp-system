@@ -48,6 +48,8 @@ import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCache
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
 const ENABLE_SOCIAL_FAST_CENTER = true;
+const truthy = (value) => ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
+const DEBUG_SOCIAL_PERF = truthy(import.meta.env?.VITE_DEBUG_SOCIAL_PERF) || truthy(import.meta.env?.VITE_SOCIAL_PERF_DEBUG);
 const firstNonEmpty = (...values) => {
   for (const value of values) {
     if (value === null || value === undefined) continue;
@@ -491,7 +493,6 @@ const isSocialCommentThread = (item = {}) => {
 const DEBUG_SOCIAL_COMMENTS =
   import.meta.env.DEV ||
   ["1", "true", "yes", "on"].includes(String(import.meta.env.VITE_AI_SUPPORT_SOCIAL_COMMENTS_DEBUG || import.meta.env.VITE_AI_SUPPORT_DEBUG || "").toLowerCase());
-const DEBUG_SOCIAL_PERF = false;
 
 const getMessagePlatform = (item = {}) => {
   if (isSocialCommentThread(item)) return "";
@@ -2336,16 +2337,13 @@ export default function AiInboxPwa() {
   const socialWorkspaceLoadSeqRef = useRef(0);
   const socialWorkspaceLoadStartRef = useRef(0);
   const socialWorkspaceLoadKeyRef = useRef("");
-  const previousSocketHealthyRef = useRef(socketHealthy);
-  const refreshTimerRef = useRef(null);
-  const refreshQueuedRef = useRef(false);
-  const refreshMetricsRef = useRef({
-    socket_refresh_count: 0,
-    polling_refresh_count: 0,
-    skipped_duplicate_refresh_count: 0,
-    mark_read_local_update: 0,
+  const refreshQueueRef = useRef(null);
+  const requestRefreshRef = useRef(null);
+  const markReadLocalUpdateRef = useRef(0);
+  const refreshStateRef = useRef({
+    pageVisible: false,
+    socketHealthy: false,
   });
-  const scheduleRefreshRef = useRef(null);
 
   const openCustomerDrawer = useCallback((customer = {}, context = {}) => {
     const customerProfile = customer?.customer_profile || customer?.profile || {};
@@ -2550,10 +2548,6 @@ export default function AiInboxPwa() {
 
   const loadConversations = useCallback(
     async ({ silent = false } = {}) => {
-      if (refreshInFlightRef.current) {
-        refreshQueuedRef.current = true;
-        return;
-      }
       refreshInFlightRef.current = true;
       isHydratingConversationRef.current = true;
       const seq = ++requestSeqRef.current;
@@ -2653,81 +2647,94 @@ export default function AiInboxPwa() {
         window.requestAnimationFrame(() => {
           isHydratingConversationRef.current = false;
         });
-        if (refreshQueuedRef.current) {
-          refreshQueuedRef.current = false;
-          scheduleRefreshRef.current?.("queued", { silent: true, delay: 650 });
+        const queuedRefresh = refreshQueueRef.current;
+        if (queuedRefresh && refreshStateRef.current.pageVisible) {
+          refreshQueueRef.current = null;
+          requestRefreshRef.current?.(queuedRefresh.source, {
+            silent: queuedRefresh.silent,
+            force: true,
+          });
         }
       }
     },
-    [conversationParam, debouncedSearch, headers, loadSocialComments, tab, tenantId, updateUrlState]
+    [conversationParam, debouncedSearch, headers, loadSocialComments, pageVisible, tab, tenantId, updateUrlState]
   );
 
-  const scheduleRefresh = useCallback(
-    (source = "unknown", { silent = true, delay = 750 } = {}) => {
-      const counters = refreshMetricsRef.current;
-      if (source === "socket") counters.socket_refresh_count += 1;
-      if (source === "polling") counters.polling_refresh_count += 1;
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-        counters.skipped_duplicate_refresh_count += 1;
-      }
-      console.debug("[AiInboxPwa][refresh-metrics]", {
+  const requestRefresh = useCallback(
+    (source = "manual", { silent = true, force = false } = {}) => {
+      const queueLength = refreshQueueRef.current ? 1 : 0;
+      const debugPayload = {
         source,
-        silent,
-        delay,
         page_visible: pageVisible,
         socket_healthy: socketHealthy,
-        ...counters,
-      });
-      refreshTimerRef.current = window.setTimeout(() => {
-        refreshTimerRef.current = null;
-        if (refreshInFlightRef.current) {
-          counters.skipped_duplicate_refresh_count += 1;
-          refreshQueuedRef.current = true;
-          console.debug("[AiInboxPwa][refresh-metrics]", {
-            source,
-            silent,
-            delay,
-            status: "deferred",
-            reason: "refresh_in_flight",
-            page_visible: pageVisible,
-            socket_healthy: socketHealthy,
-            ...counters,
-          });
-          return;
+        queue_length: queueLength,
+        in_flight: refreshInFlightRef.current,
+      };
+      const log = (label, payload = {}) => {
+        if (!DEBUG_SOCIAL_PERF || typeof console === "undefined") return;
+        console.info(label, payload);
+      };
+
+      if (!pageVisible && source === "polling") {
+        log("REFRESH_SKIPPED_DUPLICATE", { ...debugPayload, reason: "page_hidden" });
+        return;
+      }
+
+      if (!pageVisible && source !== "visibility") {
+        if (!refreshQueueRef.current) {
+          refreshQueueRef.current = { source, silent };
+          log("REFRESH_QUEUE_LENGTH", { ...debugPayload, queue_length: 1 });
+        } else {
+          log("REFRESH_SKIPPED_DUPLICATE", debugPayload);
         }
-        void loadConversations({ silent });
-      }, delay);
+        return;
+      }
+
+      if (refreshInFlightRef.current) {
+        if (!refreshQueueRef.current) {
+          refreshQueueRef.current = { source, silent };
+          log("REFRESH_QUEUE_LENGTH", { ...debugPayload, queue_length: 1 });
+        } else {
+          log("REFRESH_SKIPPED_DUPLICATE", debugPayload);
+        }
+        return;
+      }
+
+      if (refreshQueueRef.current && !force) {
+        log("REFRESH_SKIPPED_DUPLICATE", debugPayload);
+        return;
+      }
+
+      if (refreshQueueRef.current && force) {
+        refreshQueueRef.current = null;
+        log("REFRESH_QUEUE_LENGTH", { ...debugPayload, queue_length: 0 });
+      }
+
+      const sourceLabel =
+        source === "socket"
+          ? "REFRESH_SOURCE_SOCKET"
+          : source === "polling"
+            ? "REFRESH_SOURCE_POLLING"
+            : source === "visibility"
+              ? "REFRESH_SOURCE_VISIBILITY"
+              : "REFRESH_SOURCE_MANUAL";
+      log(sourceLabel, { ...debugPayload, queue_length: 0 });
+      void loadConversations({ silent });
     },
     [loadConversations, pageVisible, socketHealthy]
   );
 
   useEffect(() => {
-    scheduleRefreshRef.current = scheduleRefresh;
+    requestRefreshRef.current = requestRefresh;
     return () => {
-      scheduleRefreshRef.current = null;
+      requestRefreshRef.current = null;
     };
-  }, [scheduleRefresh]);
-
-  useEffect(
-    () => () => {
-      if (refreshTimerRef.current) {
-        window.clearTimeout(refreshTimerRef.current);
-        refreshTimerRef.current = null;
-      }
-    },
-    []
-  );
+  }, [requestRefresh]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search), 250);
     return () => window.clearTimeout(timer);
   }, [search]);
-
-  useEffect(() => {
-    void loadConversations();
-  }, [loadConversations]);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -2768,21 +2775,30 @@ export default function AiInboxPwa() {
       window.clearInterval(pollRef.current);
       pollRef.current = null;
     }
-    if (pageVisible && socketHealthy) return undefined;
+    if (!pageVisible || socketHealthy) return undefined;
     pollRef.current = window.setInterval(() => {
-      scheduleRefresh("polling", { silent: true, delay: 750 });
-    }, 15000);
+      requestRefresh("polling", { silent: true });
+    }, 24000);
     return () => {
       if (pollRef.current) window.clearInterval(pollRef.current);
     };
-  }, [pageVisible, scheduleRefresh, socketHealthy]);
+  }, [pageVisible, requestRefresh, socketHealthy]);
 
   useEffect(() => {
-    const wasSocketHealthy = previousSocketHealthyRef.current;
-    previousSocketHealthyRef.current = socketHealthy;
-    if (!pageVisible || !socketHealthy || wasSocketHealthy) return;
-    scheduleRefresh("socket", { silent: true, delay: 650 });
-  }, [pageVisible, scheduleRefresh, socketHealthy]);
+    const previous = refreshStateRef.current;
+    refreshStateRef.current = { pageVisible, socketHealthy };
+
+    if (!pageVisible) return;
+
+    if (!previous.pageVisible) {
+      requestRefresh("visibility", { silent: true, force: true });
+      return;
+    }
+
+    if (!previous.socketHealthy && socketHealthy) {
+      requestRefresh("socket", { silent: true, force: true });
+    }
+  }, [pageVisible, requestRefresh, socketHealthy]);
 
   useEffect(() => {
     const onMessage = (payload = {}) => {
@@ -2872,7 +2888,7 @@ export default function AiInboxPwa() {
       try {
         const payloadTenantId = clean(payload.tenant_id || payload.tenantId || "");
         if (payloadTenantId && payloadTenantId !== clean(tenantId)) return;
-        scheduleRefresh("socket", { silent: true, delay: 650 });
+        requestRefresh("socket", { silent: true, force: true });
       } catch (error) {
         console.warn("[AiInboxPwa][realtime-refresh-error]", {
           event: "ai_inbox:refresh",
@@ -2889,7 +2905,7 @@ export default function AiInboxPwa() {
       offMessage();
       offRefresh();
     };
-  }, [conversationParam, pageVisible, scheduleRefresh, tenantId]);
+  }, [conversationParam, requestRefresh, tenantId]);
 
   useEffect(() => {
     if (!ENABLE_SOCIAL_FAST_CENTER) return undefined;
@@ -3363,9 +3379,9 @@ export default function AiInboxPwa() {
       if (!sessionId) return false;
 
       isHydratingConversationRef.current = true;
-      refreshMetricsRef.current.mark_read_local_update += 1;
+      markReadLocalUpdateRef.current += 1;
       console.debug("[AiInboxPwa][mark-read-local-update]", {
-        mark_read_local_update: refreshMetricsRef.current.mark_read_local_update,
+        mark_read_local_update: markReadLocalUpdateRef.current,
         conversation_id: sessionId,
       });
       patchConversation(conversationIdentifier, (currentConversation) => ({
@@ -4094,7 +4110,7 @@ export default function AiInboxPwa() {
         ai_enabled: returnedConversation.ai_enabled !== undefined ? returnedConversation.ai_enabled : (workflowStatus === "human_takeover" ? true : nextEnabled),
       }));
       toast.success(workflowStatus === "human_takeover" ? "أعيدت المحادثة إلى الذكاء الاصطناعي." : (nextEnabled ? "AI enabled" : "AI paused"));
-      await loadConversations({ silent: true });
+      requestRefresh("manual", { silent: true });
       setMenuOpen(false);
     } catch (toggleError) {
       toast.error(toggleError?.message || "Failed to update AI state");
@@ -4116,7 +4132,7 @@ export default function AiInboxPwa() {
         const resolvedEnabled = payload?.ai_assistant_global_enabled !== false;
         setAiAssistantGlobalEnabled(resolvedEnabled);
         toast.success(resolvedEnabled ? "تم تشغيل مساعد الذكاء الاصطناعي لكل المحادثات." : "مساعد الذكاء الاصطناعي متوقف على كل المحادثات.");
-        await loadConversations({ silent: true });
+        requestRefresh("manual", { silent: true });
       } catch (err) {
         toast.error(err?.message || "تعذر تحديث حالة مساعد الذكاء الاصطناعي العامة");
       } finally {
@@ -4153,7 +4169,7 @@ export default function AiInboxPwa() {
             lead_status: returned.lead_status || leadStatus,
           },
         }));
-        await loadConversations({ silent: true });
+        requestRefresh("manual", { silent: true });
       } catch (err) {
         toast.error(err?.message || "تعذر تحديث حالة العميل المحتمل");
       } finally {
@@ -4183,7 +4199,7 @@ export default function AiInboxPwa() {
           channel_metadata: payload.conversation.channel_metadata || conversation.channel_metadata,
         }));
       }
-      await loadConversations({ silent: true });
+      requestRefresh("manual", { silent: true });
       toast.success("تم إنشاء العميل");
     } catch (err) {
       toast.error(err?.message || "تعذر إنشاء العميل");
@@ -4212,7 +4228,7 @@ export default function AiInboxPwa() {
           channel_metadata: payload.conversation.channel_metadata || conversation.channel_metadata,
         }));
       }
-      await loadConversations({ silent: true });
+      requestRefresh("manual", { silent: true });
       toast.success("تم إنشاء فرصة البيع");
     } catch (err) {
       toast.error(err?.message || "تعذر إنشاء فرصة البيع");
@@ -4253,7 +4269,7 @@ export default function AiInboxPwa() {
         last_activity_at: returnedMessage.created_at || sentAt,
         updated_at: returnedMessage.created_at || sentAt,
       }));
-      await loadConversations({ silent: true });
+      requestRefresh("manual", { silent: true });
       toast.success("تم إرسال الرسالة الخاصة");
     } catch (err) {
       toast.error(err?.message || "تعذر إرسال الرسالة الخاصة");
@@ -4302,7 +4318,7 @@ export default function AiInboxPwa() {
           updated_at: payload.message.created_at || sentAt,
         }));
       }
-      await loadConversations({ silent: true });
+      requestRefresh("manual", { silent: true });
       toast.success("تم رد الكومنت");
     } catch (err) {
       toast.error(err?.message || "تعذر إرسال رد الكومنت");
@@ -4323,7 +4339,7 @@ export default function AiInboxPwa() {
         { headers, perfComponent: "AiInboxPwa.socialReplySettings" }
       );
       toast.success("تم حفظ إعدادات الرد التلقائي العامة");
-      await loadConversations({ silent: true });
+        requestRefresh("manual", { silent: true });
     } catch (err) {
       toast.error(err?.message || "تعذر حفظ إعدادات الرد التلقائي العامة");
     } finally {
@@ -4346,7 +4362,7 @@ export default function AiInboxPwa() {
         { headers, perfComponent: "AiInboxPwa.socialPostTemplate" }
       );
       toast.success("تم حفظ قالب الرد لهذا البوست");
-      await loadConversations({ silent: true });
+        requestRefresh("manual", { silent: true });
     } catch (err) {
       toast.error(err?.message || "تعذر حفظ قالب الرد لهذا البوست");
     } finally {
@@ -4361,9 +4377,9 @@ export default function AiInboxPwa() {
       ...payload,
     });
     if (!socketHealthy) {
-      await loadConversations({ silent: true });
+      requestRefresh("manual", { silent: true });
     }
-  }, [loadConversations, socketHealthy]);
+  }, [requestRefresh, socketHealthy]);
 
   const sendSelectedSocialCommentAction = useCallback(async (comment, action = "reply") => {
     const commentId = clean(comment?.comment_id || comment?.id || "");
