@@ -1006,9 +1006,22 @@ export const resolveProductMappingForSiblingPost = async ({
     WITH sibling_candidates AS (
       SELECT
         COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) AS sibling_post_id,
+        COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) AS mapped_post_id,
+        COALESCE(NULLIF(ppl.media_id, ''), NULLIF(mp.external_post_id, ''), NULLIF(mp.platform_post_id, ''), NULLIF(ppl.post_id, '')) AS mapped_media_id,
         ppl.product_id,
+        COALESCE(NULLIF(p.name, ''), '') AS product_name,
+        COALESCE(NULLIF(mp.permalink_url, ''), NULLIF(mp.post_permalink_url, ''), '') AS permalink_url,
         ppl.is_primary,
         ppl.updated_at,
+        (
+          mp.platform_post_id = ANY($4::text[])
+          OR mp.external_post_id = ANY($4::text[])
+          OR ppl.post_id = ANY($4::text[])
+          OR ppl.media_id = ANY($4::text[])
+        ) AS source_id_match,
+        lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[]) AS image_url_match,
+        lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) AS text_hash_match,
+        lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) AS slug_match,
         CASE
           WHEN (
             mp.platform_post_id = ANY($4::text[])
@@ -1062,12 +1075,26 @@ export const resolveProductMappingForSiblingPost = async ({
           OR lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[])
         )
     )
-    SELECT sibling_post_id, product_id, match_reason, match_score
+    SELECT
+      sibling_post_id,
+      mapped_post_id,
+      mapped_media_id,
+      product_id,
+      product_name,
+      permalink_url,
+      source_id_match,
+      image_url_match,
+      text_hash_match,
+      slug_match,
+      match_reason,
+      match_score,
+      CASE
+        WHEN sibling_post_id = '' THEN 'missing_sibling_post_id'
+        WHEN match_score <= 0 THEN 'no_match_signal'
+        ELSE ''
+      END AS rejected_reason
     FROM sibling_candidates
-    WHERE sibling_post_id <> ''
-      AND match_score > 0
     ORDER BY match_score DESC, is_primary DESC, updated_at DESC, sibling_post_id ASC
-    LIMIT 1
     `,
     params
   ).catch((error) => {
@@ -1080,8 +1107,34 @@ export const resolveProductMappingForSiblingPost = async ({
     });
     return { rows: [] };
   });
-  const siblingRow = siblingResult.rows?.[0] || null;
+  const siblingCandidates = Array.isArray(siblingResult.rows) ? siblingResult.rows : [];
+  const siblingRow = siblingCandidates.find((candidate) => text(candidate.sibling_post_id || "") && Number(candidate.match_score || 0) > 0) || null;
   if (!siblingRow?.sibling_post_id) {
+    const candidatePreview = siblingCandidates.slice(0, 10).map((candidate) => ({
+      mapped_post_id: text(candidate.mapped_post_id || ""),
+      mapped_media_id: text(candidate.mapped_media_id || ""),
+      product_id: Number(candidate.product_id || 0) || null,
+      product_name: text(candidate.product_name || ""),
+      permalink_url: text(candidate.permalink_url || ""),
+      text_hash_match: Boolean(candidate.text_hash_match),
+      image_url_match: Boolean(candidate.image_url_match),
+      source_id_match: Boolean(candidate.source_id_match),
+      slug_match: Boolean(candidate.slug_match),
+      rejected_reason: text(candidate.rejected_reason || "no_matching_sibling"),
+    }));
+    console.info("POST_PRODUCT_LINKS_SIBLING_CANDIDATES", {
+      tenant_id: safeTenantId || null,
+      platform: normalizedPlatform,
+      post_id: text(postId || row?.post_id || post?.post_id || ""),
+      candidate_count: siblingCandidates.length,
+      current_post_ids: currentPostIds,
+      text_hash_count: signals.text_hashes.length,
+      image_url_count: signals.image_urls.length,
+      source_id_count: signals.source_ids.length,
+      slug_hint_count: signals.slug_hints.length,
+      rejected_reason: siblingCandidates.length ? "no_matching_sibling" : "no_candidates_returned",
+      candidates: candidatePreview,
+    });
     console.info("POST_PRODUCT_LINKS_SIBLING_NOT_FOUND", {
       tenant_id: safeTenantId || null,
       platform: normalizedPlatform,
