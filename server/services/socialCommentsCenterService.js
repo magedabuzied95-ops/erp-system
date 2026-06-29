@@ -4,6 +4,11 @@ import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { fetchMetaPostPreviewDetails } from "./metaIntegrationService.js";
 import { likeComment, replyToComment, renderTemplate } from "./marketingCommentAutomationService.js";
 import { getMappings } from "./postProductMappingService.js";
+import {
+  ensureSocialPostIdentityAliasSchema,
+  migrateCanonicalSocialPostRecords,
+  resolveSocialPostCanonicalIdentity,
+} from "./socialPostIdentityService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -258,6 +263,7 @@ const ensureSocialCommentsCenterSchema = async () => {
           UNIQUE (tenant_id, platform, platform_post_id, product_id)
         )
       `);
+      await ensureSocialPostIdentityAliasSchema();
       await db.query(`ALTER TABLE IF EXISTS social_comment_auto_reply_runs ADD COLUMN IF NOT EXISTS reply_status TEXT NOT NULL DEFAULT 'pending'`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_social_auto_reply_settings_updated ON social_auto_reply_settings (updated_at DESC)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_social_post_auto_reply_templates_lookup ON social_post_auto_reply_templates (tenant_id, platform, post_id)`);
@@ -1126,10 +1132,16 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     ""
   ) || (safeRow.post_id && !isWrapperSocialCommentPostId(safeRow.post_id) ? text(safeRow.post_id) : "");
   const postId = storedPostId || text(safeRow.post_id || safeRow.conversation_id || metadata.conversation_id || "");
-  const duplicateIdentity = tenantId && postId
-    ? await compareSocialCommentDuplicateIdentity({ tenantId, platform, row: safeRow, post: safeRow }).catch(() => null)
+  const canonicalIdentity = tenantId && postId
+    ? await resolveSocialPostCanonicalIdentity({ tenantId, platform, postId, row: safeRow, post: safeRow, source: "enrichSocialCommentPostRow" }).catch(() => null)
     : null;
-  const canonicalIdentityPostId = text(duplicateIdentity?.canonical_post_id || duplicateIdentity?.final_canonical_post_id || postId || "");
+  const canonicalIdentityPostId = text(canonicalIdentity?.canonical_post_id || postId || "");
+  void migrateCanonicalSocialPostRecords({
+    tenantId,
+    platform,
+    canonicalPostId: canonicalIdentityPostId,
+    aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
+  }).catch(() => {});
   const graphPostId = resolveSocialCommentGraphPostId(safeRow);
   const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
   const graphLookupPostIds = resolveSocialCommentGraphLookupIds({ row: safeRow, pageId });
@@ -1148,13 +1160,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   const appendMappingSummary = (value = {}) => ({
     ...value,
     canonical_post_id: canonicalIdentityPostId,
-    final_canonical_post_id: duplicateIdentity?.final_canonical_post_id || canonicalIdentityPostId,
-    duplicate_identity: duplicateIdentity || null,
-    compared_post_ids: duplicateIdentity?.compared_post_ids || [],
-    compared_row_ids: duplicateIdentity?.compared_row_ids || [],
-    duplicate_permalink_match: Boolean(duplicateIdentity?.permalink_match),
-    duplicate_image_match: Boolean(duplicateIdentity?.image_match),
-    duplicate_text_match: Boolean(duplicateIdentity?.text_match),
+    canonical_identity: canonicalIdentity || null,
     post_text: text(value.post_text || safeRow.post_text || safeRow.post_message || metadata.post_text || metadata.message || value.post_message || value.post_caption || ""),
     message: text(value.message || safeRow.message || safeRow.post_message || metadata.message || value.post_message || value.post_caption || ""),
     marketing_published_at: text(value.marketing_published_at || safeRow.marketing_published_at || ""),
@@ -2213,19 +2219,6 @@ const migrateSocialCommentAutomationConfigPostId = async ({ tenantId = null, pla
 
   const canonicalRow = rows.find((item) => text(item.post_id) === safeCanonicalPostId) || null;
   if (canonicalRow) {
-    const staleRows = rows.filter((item) => text(item.post_id) !== safeCanonicalPostId);
-    if (staleRows.length) {
-      await db.query(
-        `
-        DELETE FROM social_comment_post_automation_configs
-        WHERE tenant_id = $1::bigint
-          AND platform = $2::text
-          AND post_id = ANY($3::text[])
-          AND post_id <> $4::text
-        `,
-        [safeTenantId, normalizedPlatform, candidatePostIds, safeCanonicalPostId]
-      ).catch(() => {});
-    }
     return canonicalRow;
   }
 
@@ -2242,18 +2235,6 @@ const migrateSocialCommentAutomationConfigPostId = async ({ tenantId = null, pla
     `,
     [safeTenantId, normalizedPlatform, rowToPromote.id, safeCanonicalPostId]
   ).catch(() => {});
-  const duplicateIds = rows.filter((item) => Number(item.id) !== Number(rowToPromote.id)).map((item) => Number(item.id)).filter(Boolean);
-  if (duplicateIds.length) {
-    await db.query(
-      `
-      DELETE FROM social_comment_post_automation_configs
-      WHERE tenant_id = $1::bigint
-        AND platform = $2::text
-        AND id = ANY($3::bigint[])
-      `,
-      [safeTenantId, normalizedPlatform, duplicateIds]
-    ).catch(() => {});
-  }
   return { ...rowToPromote, post_id: safeCanonicalPostId };
 };
 
@@ -2296,7 +2277,16 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
   if (!safeTenantId && !metadataObject(row)?.tenant_id) return null;
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
+  const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+    row,
+    post,
+    source: "getSocialCommentAutomationConfig",
+  }).catch(() => null);
   const canonicalPostId = text(
+    canonicalIdentity?.canonical_post_id ||
     post?.canonical_post_id ||
     row?.canonical_post_id ||
     resolveSocialCommentCanonicalPostId(post || row || {}) ||
@@ -2310,6 +2300,12 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
       row,
       post,
     }).catch(() => {});
+    void migrateCanonicalSocialPostRecords({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      canonicalPostId,
+      aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
+    }).catch(() => {});
   }
   const candidateEntries = collectSocialCommentAutomationConfigCandidates({ postId: safePostId, row, post });
   const candidatePostIds = Array.from(new Set(candidateEntries.map((entry) => entry.value).filter(Boolean)));
@@ -2322,7 +2318,7 @@ export const getSocialCommentAutomationConfig = async ({ tenantId = null, platfo
     incoming_internal_post_id: text(row?.internal_post_id || post?.internal_post_id || row?.metadata?.internal_post_id || post?.metadata?.internal_post_id || ""),
     candidate_keys: candidateEntries.map((entry) => ({ key: entry.key, value: entry.value })),
   });
-  const candidateLookupIds = candidatePostIds.length ? candidatePostIds : [text(canonicalPostId || safePostId)].filter(Boolean);
+  const candidateLookupIds = [text(canonicalPostId || safePostId)].filter(Boolean);
   if (!candidateLookupIds.length) {
     return null;
   }
@@ -2381,7 +2377,22 @@ export const upsertSocialCommentAutomationConfig = async ({ tenantId = null, pla
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
   const defaults = await resolveSocialCommentAutomationDefaultConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
-  const canonicalPostId = text(payload.canonical_post_id || payload.canonicalPostId || payload.selected_post_id || payload.selectedPostId || safePostId);
+  const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+    row: payload,
+    post: payload,
+    source: "upsertSocialCommentAutomationConfig",
+  }).catch(() => null);
+  const canonicalPostId = text(
+    canonicalIdentity?.canonical_post_id ||
+    payload.canonical_post_id ||
+    payload.canonicalPostId ||
+    payload.selected_post_id ||
+    payload.selectedPostId ||
+    safePostId
+  );
   if (canonicalPostId) {
     await migrateSocialCommentAutomationConfigPostId({
       tenantId: safeTenantId,
@@ -2389,6 +2400,12 @@ export const upsertSocialCommentAutomationConfig = async ({ tenantId = null, pla
       canonicalPostId,
       row: payload,
       post: payload,
+    }).catch(() => {});
+    void migrateCanonicalSocialPostRecords({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      canonicalPostId,
+      aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
     }).catch(() => {});
   }
   const rawSettings = metadataObject(payload.settings || {});
@@ -2472,6 +2489,13 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   if (!safeTenantId || !safePostId) return null;
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
+  const inputCanonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+    source: "loadSocialCommentPost:input",
+  }).catch(() => null);
+  const lookupPostId = text(inputCanonicalIdentity?.canonical_post_id || safePostId);
   const detailQueryStartedAt = Date.now();
   const result = await db.query(
     `
@@ -2626,11 +2650,18 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
         OR c.metadata->>'canonical_post_id' = $2::text
         OR c.external_conversation_id = $2::text
         OR c.metadata->>'conversation_id' = $2::text
+        OR c.metadata->>'post_id' = $4::text
+        OR c.metadata->>'platform_post_id' = $4::text
+        OR c.metadata->>'external_post_id' = $4::text
+        OR c.metadata->>'source_post_id' = $4::text
+        OR c.metadata->>'canonical_post_id' = $4::text
+        OR c.external_conversation_id = $4::text
+        OR c.metadata->>'conversation_id' = $4::text
       )
       AND c.channel = $3::text
     LIMIT 1
     `,
-    [safeTenantId, safePostId, normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"]
+    [safeTenantId, safePostId, normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment", lookupPostId]
   );
   logSocialSqlTiming({
     logName: "SOCIAL_SQL_THREAD_DETAIL_MS",
@@ -2644,11 +2675,24 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   const row = result.rows?.[0] || null;
   if (!row) return null;
   const enriched = await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform });
-  const duplicateIdentity = await compareSocialCommentDuplicateIdentity({ tenantId: safeTenantId, platform: normalizedPlatform, row: enriched || row, post: enriched || row }).catch(() => null);
+  const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+    row: enriched || row,
+    post: enriched || row,
+    source: "loadSocialCommentPost",
+  }).catch(() => null);
   const canonicalPostId =
-    text(duplicateIdentity?.canonical_post_id || "") ||
+    text(canonicalIdentity?.canonical_post_id || "") ||
     resolveSocialCommentCanonicalPostId(enriched || row) ||
     text(enriched?.post_id || row.post_id || row.conversation_id || row.external_conversation_id || "");
+  void migrateCanonicalSocialPostRecords({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    canonicalPostId,
+    aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
+  }).catch(() => {});
   void ensureSocialCommentAutomationConfigRecord({
     tenantId: safeTenantId,
     platform: normalizedPlatform,
@@ -2659,7 +2703,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   return {
     ...(enriched || {}),
     canonical_post_id: canonicalPostId,
-    duplicate_identity: duplicateIdentity || null,
+    canonical_identity: canonicalIdentity || null,
     selected_post_id: text(postId),
   };
 };
@@ -2856,8 +2900,29 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
   );
   const groupedPosts = new Map();
   const sourceRows = result.rows || [];
-  for (const row of sourceRows) {
-    const canonicalPostId = resolveSocialCommentCanonicalPostId(row) || text(row.metadata?.post_id || row.post_id || row.conversation_id || row.external_conversation_id || "");
+  const resolvedRows = await Promise.all(sourceRows.map(async (row) => {
+    const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: text(row.metadata?.post_id || row.post_id || row.conversation_id || row.external_conversation_id || ""),
+      row,
+      post: row,
+      source: "listSocialCommentPosts",
+    }).catch(() => null);
+    const canonicalPostId = text(
+      canonicalIdentity?.canonical_post_id ||
+      resolveSocialCommentCanonicalPostId(row) ||
+      text(row.metadata?.post_id || row.post_id || row.conversation_id || row.external_conversation_id || "")
+    );
+    void migrateCanonicalSocialPostRecords({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      canonicalPostId,
+      aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
+    }).catch(() => {});
+    return { row, canonicalPostId };
+  }));
+  for (const { row, canonicalPostId } of resolvedRows) {
     const key = canonicalPostId || text(row.conversation_id || row.external_conversation_id || row.post_id || "");
     if (!groupedPosts.has(key)) {
       groupedPosts.set(key, []);

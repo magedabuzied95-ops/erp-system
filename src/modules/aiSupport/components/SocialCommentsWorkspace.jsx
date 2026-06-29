@@ -2204,7 +2204,7 @@ function SocialCommentsWorkspace({
                     </span>
                     {activePostSourceId ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-[10px] font-black text-cyan-800">
-                        Loaded post_id: {activePostSourceId}
+                        Active alias id: {activePostSourceId}
                       </span>
                     ) : null}
                     {activePostConversationId ? (

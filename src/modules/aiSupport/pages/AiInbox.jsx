@@ -6284,19 +6284,43 @@ export default function AiInbox() {
                 <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
                   <SectionTitle icon={Sparkles} title="Performance snapshot" />
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <InfoCard label="Reply rate" value={replyRate ? `${replyRate.toFixed(0)}%` : "—"} />
-                    <InfoCard label="Revenue" value={revenue ? money(revenue) : "—"} />
-                    <InfoCard label="Performance" value={performance ? `${Number(performance).toFixed(0)}%` : "—"} />
-                    <InfoCard label="Engagement" value={engagement ? `${Number(engagement).toFixed(0)}%` : "—"} />
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Reply rate</div>
+                      <div className="mt-1.5 text-2xl font-black text-emerald-100">{replyRate ? `${replyRate.toFixed(0)}%` : "—"}</div>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Revenue</div>
+                      <div className="mt-1.5 text-2xl font-black text-emerald-100">{revenue ? money(revenue) : "—"}</div>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Performance</div>
+                      <div className="mt-1.5 text-2xl font-black text-white">{performance ? `${Number(performance).toFixed(0)}%` : "—"}</div>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Engagement</div>
+                      <div className="mt-1.5 text-2xl font-black text-violet-100">{engagement ? `${Number(engagement).toFixed(0)}%` : "—"}</div>
+                    </div>
                   </div>
                 </div>
                 <div className="rounded-3xl border border-white/10 bg-slate-950/55 p-3">
                   <SectionTitle icon={MessageSquareText} title="Comment stats" />
                   <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    <InfoCard label="Comments" value={totalComments} />
-                    <InfoCard label="New" value={newComments} />
-                    <InfoCard label="Needs reply" value={needsReply} />
-                    <InfoCard label="Replied" value={replied} />
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Comments</div>
+                      <div className="mt-1.5 text-2xl font-black text-white">{totalComments}</div>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">New</div>
+                      <div className="mt-1.5 text-2xl font-black text-white">{newComments}</div>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Needs reply</div>
+                      <div className="mt-1.5 text-2xl font-black text-amber-100">{needsReply}</div>
+                    </div>
+                    <div className="rounded-3xl border border-white/10 bg-white/[0.035] p-3">
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Replied</div>
+                      <div className="mt-1.5 text-2xl font-black text-cyan-100">{replied}</div>
+                    </div>
                   </div>
                 </div>
               </div>

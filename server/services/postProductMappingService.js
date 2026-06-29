@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { migrateCanonicalSocialPostRecords, resolveSocialPostCanonicalIdentity } from "./socialPostIdentityService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -547,16 +548,16 @@ const fetchVariantsByProductIds = async ({ tenantId = null, productIds = [] } = 
   return fallbackRows.rows || [];
 };
 
-const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "" } = {}) => {
+const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", canonicalPostId = "" } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const normalizedPlatform = normalizePlatform(platform || post?.platform || "");
-  const candidatePostIds = getPostIdentityCandidates({ postId, selectedPostId, row: post, post });
-  if (!safeTenantId || !candidatePostIds.length) return [];
+  const canonicalIdentityPostId = text(canonicalPostId || post?.canonical_post_id || postId || selectedPostId || post?.post_id || "");
+  if (!safeTenantId || !canonicalIdentityPostId) return [];
   debugSocialCommentsWarn("SOCIAL_COMMENTS_POSTS_SQL_2", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
     post_id: text(postId || post?.post_id || ""),
-    candidate_post_ids: candidatePostIds,
+    canonical_post_id: canonicalIdentityPostId,
     sql: `
     SELECT *
     FROM marketing_post_product_links
@@ -566,9 +567,9 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
       )
       AND platform = $2::text
       AND (
-        platform_post_id = ANY($3::text[])
-        OR post_id = ANY($3::text[])
-        OR media_id = ANY($3::text[])
+        platform_post_id = $3::text
+        OR post_id = $3::text
+        OR media_id = $3::text
       )
     ORDER BY is_primary DESC, priority ASC, updated_at DESC, id DESC
     `,
@@ -583,19 +584,19 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
       )
       AND platform = $2::text
       AND (
-        platform_post_id = ANY($3::text[])
-        OR post_id = ANY($3::text[])
-        OR media_id = ANY($3::text[])
+        platform_post_id = $3::text
+        OR post_id = $3::text
+        OR media_id = $3::text
       )
     ORDER BY is_primary DESC, priority ASC, updated_at DESC, id DESC
     `,
-    [safeTenantId, normalizedPlatform, candidatePostIds]
+    [safeTenantId, normalizedPlatform, canonicalIdentityPostId]
   ).catch(() => ({ rows: [] }));
   return result.rows || [];
 };
 
 const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", canonicalPostId = "", platformPostId = "", productIds = [], rowsAffected = null } = {}) => {
-  const rows = await fetchLinkRows({ tenantId, platform, post, postId, selectedPostId });
+  const rows = await fetchLinkRows({ tenantId, platform, post, postId, selectedPostId, canonicalPostId });
   const identityCandidates = collectPostIdentityCandidates({ postId, selectedPostId, row: post, post });
   const matchedMappingKey = rows.length ? resolveMatchedMappingKey({ row: rows[0], candidates: identityCandidates }) : "";
   if (!rows.length) {
@@ -715,7 +716,25 @@ export const getMappings = async ({ tenantId = null, platform = "", postId = "",
   await ensurePostProductMappingSchema();
   const safeTenantId = toTenantId(tenantId || row?.tenant_id || post?.tenant_id || 0);
   const normalizedPlatform = normalizePlatform(platform || row?.platform || post?.platform || "");
-  const identityPostId = getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" });
+  const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: postId || row?.post_id || post?.post_id || "",
+    row,
+    post,
+    source: "getMappings",
+  }).catch(() => null);
+  const identityPostId = text(
+    canonicalIdentity?.canonical_post_id ||
+    canonicalPostId ||
+    getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" })
+  );
+  void migrateCanonicalSocialPostRecords({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    canonicalPostId: identityPostId,
+    aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
+  }).catch(() => {});
   return mapRowsToLinkedProducts({
     tenantId: safeTenantId,
     platform: normalizedPlatform,
@@ -743,10 +762,26 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
   await ensurePostProductMappingSchema();
   const safeTenantId = toTenantId(tenantId || row?.tenant_id || post?.tenant_id || 0);
   const normalizedPlatform = normalizePlatform(platform || row?.platform || post?.platform || "");
-  const platformPostId = getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" });
+  const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: postId || row?.post_id || post?.post_id || "",
+    row,
+    post,
+    source: "saveMappings",
+  }).catch(() => null);
+  const platformPostId = text(
+    canonicalIdentity?.canonical_post_id ||
+    getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" })
+  );
+  void migrateCanonicalSocialPostRecords({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    canonicalPostId: platformPostId,
+    aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
+  }).catch(() => {});
   const safeProductIds = Array.from(new Set((Array.isArray(productIds) ? productIds : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)));
   const primaryId = Number(primaryProductId ?? safeProductIds[0] ?? 0) || null;
-  const candidatePostIds = getPostIdentityCandidates({ postId: platformPostId, selectedPostId: selectedPostId || postId || row?.post_id || post?.post_id || "", row, post });
   const selectedIdentity = text(selectedPostId || postId || row?.post_id || post?.post_id || "");
   const identityTrace = resolvePostIdentityTrace({
     tenantId: safeTenantId,
@@ -761,35 +796,35 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
   });
   console.info("POST_PRODUCT_LINK_IDENTITY_TRACE", {
     ...identityTrace,
-    candidate_post_ids: candidatePostIds,
+    canonical_post_id: platformPostId,
     primary_product_id: primaryId,
   });
   console.info("POST_PRODUCT_LINKS_SAVE_REQUEST", {
     ...identityTrace,
     primary_product_id: primaryId,
-    candidate_post_ids: candidatePostIds,
+    canonical_post_id: platformPostId,
   });
-  if (!safeTenantId || !platformPostId) return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId, selectedPostId: selectedIdentity });
+  if (!safeTenantId || !platformPostId) return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId, selectedPostId: selectedIdentity, canonicalPostId: platformPostId });
 
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-    if (candidatePostIds.length) {
+    if (platformPostId) {
       await client.query(
         `
         DELETE FROM marketing_post_product_links
         WHERE (
             tenant_id = $1::bigint
-            OR business_id = $1::bigint
-          )
+          OR business_id = $1::bigint
+        )
           AND platform = $2::text
           AND (
-            platform_post_id = ANY($3::text[])
-            OR post_id = ANY($3::text[])
-            OR media_id = ANY($3::text[])
+            platform_post_id = $3::text
+            OR post_id = $3::text
+            OR media_id = $3::text
           )
         `,
-        [safeTenantId, normalizedPlatform, candidatePostIds]
+        [safeTenantId, normalizedPlatform, platformPostId]
       );
     }
 
@@ -799,7 +834,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       const isPrimary = primaryId ? Number(primaryId) === Number(productId) : index === 0;
       console.info("POST_PRODUCT_LINKS_DB_INSERT", {
         ...identityTrace,
-        candidate_post_ids: candidatePostIds,
+        canonical_post_id: platformPostId,
         primary_product_id: primaryId,
         is_primary: Boolean(isPrimary),
         product_ids: [productId],
@@ -848,7 +883,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       rowsAffected += Number(insertResult.rowCount || 0) || 0;
       console.info("POST_PRODUCT_LINKS_DB_UPSERT", {
         ...identityTrace,
-        candidate_post_ids: candidatePostIds,
+        canonical_post_id: platformPostId,
         primary_product_id: primaryId,
         is_primary: Boolean(isPrimary),
         product_ids: [productId],
@@ -879,7 +914,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
         post,
         productIds: safeProductIds,
         rowsAffected,
-        matchedMappingKey: resolveMatchedMappingKey({ row: dbResult.rows?.[0] || {}, candidates: candidatePostIds }),
+        matchedMappingKey: resolveMatchedMappingKey({ row: dbResult.rows?.[0] || {}, candidates: [] }),
       }),
       count: Number(dbResult.rows?.length || 0) || 0,
       rows: dbResult.rows || [],
@@ -897,7 +932,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
         post,
         productIds: safeProductIds,
         rowsAffected,
-        matchedMappingKey: resolveMatchedMappingKey({ row: dbResult.rows?.[0] || {}, candidates: candidatePostIds }),
+        matchedMappingKey: resolveMatchedMappingKey({ row: dbResult.rows?.[0] || {}, candidates: [] }),
       }),
       post_id: platformPostId,
       product_ids: safeProductIds,
@@ -929,10 +964,26 @@ export const removeMapping = async ({ tenantId = null, platform = "", postId = "
   await ensurePostProductMappingSchema();
   const safeTenantId = toTenantId(tenantId || row?.tenant_id || post?.tenant_id || 0);
   const normalizedPlatform = normalizePlatform(platform || row?.platform || post?.platform || "");
-  const platformPostId = getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" });
-  const candidatePostIds = getPostIdentityCandidates({ postId: platformPostId, row, post });
-  if (!safeTenantId || !platformPostId || !candidatePostIds.length) {
-    return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId });
+  const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: postId || row?.post_id || post?.post_id || "",
+    row,
+    post,
+    source: "removeMapping",
+  }).catch(() => null);
+  const platformPostId = text(
+    canonicalIdentity?.canonical_post_id ||
+    getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" })
+  );
+  void migrateCanonicalSocialPostRecords({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    canonicalPostId: platformPostId,
+    aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
+  }).catch(() => {});
+  if (!safeTenantId || !platformPostId) {
+    return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId, canonicalPostId: platformPostId });
   }
   const productIdValue = Number(productId || 0);
   if (Number.isFinite(productIdValue) && productIdValue > 0) {
@@ -951,7 +1002,7 @@ export const removeMapping = async ({ tenantId = null, platform = "", postId = "
           OR media_id = ANY($4::text[])
         )
       `,
-      [safeTenantId, normalizedPlatform, productIdValue, candidatePostIds]
+      [safeTenantId, normalizedPlatform, productIdValue, platformPostId]
     );
   } else {
     await db.query(
@@ -968,10 +1019,10 @@ export const removeMapping = async ({ tenantId = null, platform = "", postId = "
           OR media_id = ANY($3::text[])
         )
       `,
-      [safeTenantId, normalizedPlatform, candidatePostIds]
+      [safeTenantId, normalizedPlatform, platformPostId]
     );
   }
-  return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId });
+  return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId, canonicalPostId: platformPostId });
 };
 
 export default {

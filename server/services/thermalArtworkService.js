@@ -12,6 +12,10 @@ const THERMAL_IMAGE_PUBLIC_PREFIX = "/uploads/products/thermal";
 const THERMAL_IMAGE_MAX_SIDE = Number(process.env.THERMAL_IMAGE_MAX_SIDE || 1400);
 const THERMAL_IMAGE_FILE_FORMAT = "png";
 const THERMAL_JOB_IN_FLIGHT = new Map();
+const THERMAL_ARTWORK_BACKGROUND_THRESHOLD = 245;
+const THERMAL_ARTWORK_FILL_TARGET = 0.9;
+const THERMAL_ARTWORK_FILL_MIN = 0.84;
+const THERMAL_ARTWORK_FILL_MAX = 0.94;
 
 sharp.cache(false);
 sharp.concurrency(1);
@@ -131,6 +135,103 @@ const outputPathFor = async (options = {}) => {
 const outputUrlFor = async (options = {}) => `${THERMAL_IMAGE_PUBLIC_PREFIX}/${await outputFileNameFor(options)}`;
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+
+const detectArtworkBounds = (data = Buffer.alloc(0), info = {}) => {
+  const width = Number(info.width || 0);
+  const height = Number(info.height || 0);
+  const channels = Number(info.channels || 3);
+  if (!width || !height) return null;
+
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const index = ((y * width) + x) * channels;
+      const red = data[index] ?? 255;
+      const green = data[index + 1] ?? 255;
+      const blue = data[index + 2] ?? 255;
+      if (red >= THERMAL_ARTWORK_BACKGROUND_THRESHOLD && green >= THERMAL_ARTWORK_BACKGROUND_THRESHOLD && blue >= THERMAL_ARTWORK_BACKGROUND_THRESHOLD) {
+        continue;
+      }
+
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+  }
+
+  if (maxX < minX || maxY < minY) return null;
+
+  return {
+    left: minX,
+    top: minY,
+    width: (maxX - minX) + 1,
+    height: (maxY - minY) + 1,
+  };
+};
+
+const optimizeThermalArtworkBuffer = async (inputBuffer) => {
+  const prepared = sharp(inputBuffer, { animated: false })
+    .rotate()
+    .flatten({ background: { r: 255, g: 255, b: 255, alpha: 1 } })
+    .removeAlpha();
+
+  const { data, info } = await prepared.raw().toBuffer({ resolveWithObject: true });
+  const width = Number(info.width || 0);
+  const height = Number(info.height || 0);
+  if (!width || !height) {
+    return inputBuffer;
+  }
+
+  const bounds = detectArtworkBounds(data, info);
+  if (!bounds) {
+    return sharp(data, { raw: { width, height, channels: Number(info.channels || 3) } })
+      .png({
+        compressionLevel: 9,
+        adaptiveFiltering: true,
+        force: true,
+      })
+      .toBuffer();
+  }
+
+  const trimmed = sharp(data, { raw: { width, height, channels: Number(info.channels || 3) } }).extract(bounds);
+  const fitScale = Math.min(width / Math.max(1, bounds.width), height / Math.max(1, bounds.height));
+  const targetScale = clamp(fitScale * THERMAL_ARTWORK_FILL_TARGET, fitScale * THERMAL_ARTWORK_FILL_MIN, fitScale * THERMAL_ARTWORK_FILL_MAX);
+  const scaledWidth = Math.max(1, Math.round(bounds.width * targetScale));
+  const scaledHeight = Math.max(1, Math.round(bounds.height * targetScale));
+  const offsetLeft = Math.max(0, Math.round((width - scaledWidth) / 2));
+  const offsetTop = Math.max(0, Math.round((height - scaledHeight) / 2));
+  const resizedArtwork = await trimmed.resize({
+    width: scaledWidth,
+    height: scaledHeight,
+    fit: "fill",
+    withoutEnlargement: false,
+  }).png({
+    compressionLevel: 9,
+    adaptiveFiltering: true,
+    force: true,
+  }).toBuffer();
+
+  return sharp({
+    create: {
+      width,
+      height,
+      channels: 4,
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    },
+  })
+    .composite([{ input: resizedArtwork, left: offsetLeft, top: offsetTop }])
+    .png({
+      compressionLevel: 9,
+      adaptiveFiltering: true,
+      force: true,
+    })
+    .toBuffer();
+};
 
 const generateBinaryThermalArtwork = async (sourceBuffer) => {
   const resized = await sharp(sourceBuffer, { animated: false })
@@ -377,7 +478,7 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
     }
 
     await ensureDir();
-    const thermalBuffer = await generateBinaryThermalArtwork(sourceBuffer);
+    const thermalBuffer = await optimizeThermalArtworkBuffer(await generateBinaryThermalArtwork(sourceBuffer));
     await fs.writeFile(outputPath, thermalBuffer);
     await updateThermalRecord({
       entityType,

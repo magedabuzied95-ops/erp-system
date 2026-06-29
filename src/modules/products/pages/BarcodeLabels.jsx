@@ -1271,8 +1271,8 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
 
 function ThermalLandscapeLabel({ item, printSettings, print = false, preview = false }) {
   const { t } = useTranslation();
-  const [previewHost, setPreviewHost] = useState(null);
   const [previewScale, setPreviewScale] = useState(1);
+  const hostRef = useRef(null);
   const imageUrl = resolveBarcodeLabelImage(item);
   const safeImage = getSafeLabelImage(imageUrl, item);
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
@@ -1311,28 +1311,30 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const landscapeWidthMm = Number(printSettings.labelWidthMm || 100);
   const landscapeHeightMm = Number(printSettings.labelHeightMm || 50);
   useEffect(() => {
-    if (!preview || print || !previewHost) return undefined;
+    if (!preview || print) return undefined;
 
     const intrinsicWidthPx = (landscapeWidthMm * 96) / 25.4;
     const intrinsicHeightPx = (landscapeHeightMm * 96) / 25.4;
     const updateScale = () => {
-      const parent = previewHost.parentElement;
+      const host = hostRef.current;
+      const parent = host?.parentElement;
       if (!parent) return;
-      const availableWidthPx = Math.max(0, parent.clientWidth - 8);
+      const availableWidthPx = Math.max(0, parent.clientWidth - 16);
       const availableHeightPx = Math.max(0, parent.clientHeight || parent.getBoundingClientRect().height);
       const nextScale = Math.min(
         availableWidthPx > 0 ? availableWidthPx / intrinsicWidthPx : 1,
         availableHeightPx > 0 ? availableHeightPx / intrinsicHeightPx : 1,
-        1.35,
+        2.2,
       );
-      setPreviewScale(Number.isFinite(nextScale) && nextScale > 0 ? Math.max(0.85, nextScale) : 1);
+      setPreviewScale(Number.isFinite(nextScale) && nextScale > 0 ? Math.max(1, nextScale) : 1);
     };
 
     updateScale();
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateScale) : null;
-    if (observer) observer.observe(previewHost.parentElement || previewHost);
+    const observedNode = hostRef.current?.parentElement || hostRef.current;
+    if (observer && observedNode) observer.observe(observedNode);
     return () => observer?.disconnect();
-  }, [landscapeHeightMm, landscapeWidthMm, preview, print, previewHost]);
+  }, [landscapeHeightMm, landscapeWidthMm, preview, print]);
   const hasImage = Boolean(printSettings.showProductImage);
   const contentColumns = hasImage ? `${thermalLayout.imageCell.w}mm minmax(0, 1fr)` : "minmax(0, 1fr)";
   const contentRows = `${thermalLayout.titleCell.h}mm ${thermalLayout.sizeCell.h}mm ${thermalLayout.colorCell.h}mm ${thermalLayout.barcodeCell.h}mm`;
@@ -1564,14 +1566,14 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   if (!print) {
     return (
       <div
-        ref={setPreviewHost}
-        className="inline-flex"
+        className="flex w-full items-center justify-center overflow-hidden"
         style={{
-          width: `${landscapeWidthMm * previewScale}mm`,
-          height: `${landscapeHeightMm * previewScale}mm`,
+          width: "100%",
+          minHeight: "clamp(260px, 34vw, 430px)",
         }}
       >
         <div
+          ref={hostRef}
           className="origin-top-left"
           style={{
             width: `${landscapeWidthMm}mm`,
