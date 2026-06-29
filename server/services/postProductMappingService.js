@@ -1103,6 +1103,11 @@ export const resolveProductMappingForSiblingPost = async ({
   const imageIndex = params.push(signals.image_urls);
   const textIndex = params.push(signals.text_hashes);
   const slugIndex = params.push(signals.slug_hints);
+  const siblingStageParams = [safeTenantId, normalizedPlatform, currentPostIds];
+  console.info("POST_PRODUCT_LINKS_SIBLING_SQL_PARAM_COUNT", {
+    placeholder_count: 3,
+    params_count: siblingStageParams.length,
+  });
   const siblingQueryStageCounts = await db.query(
     `
     WITH base_rows AS (
@@ -1152,7 +1157,7 @@ export const resolveProductMappingForSiblingPost = async ({
       (SELECT COUNT(*)::bigint FROM alias_join_rows WHERE marketing_post_row_id IS NOT NULL) AS after_alias_join_rows,
       (SELECT COUNT(*)::bigint FROM product_join_rows WHERE product_row_id IS NOT NULL) AS after_product_join_rows
     `,
-    params
+    siblingStageParams
   ).catch(() => ({ rows: [] }));
   const siblingStageCounts = siblingQueryStageCounts.rows?.[0] || {};
   console.info("AFTER_BASE_QUERY_ROWS", {
