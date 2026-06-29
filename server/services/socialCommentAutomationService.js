@@ -82,7 +82,15 @@ const logAutomationSkipReason = (payload = {}) => {
   debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_SKIP_REASON", payload);
 };
 
-const buildRuntimeContextSnapshot = ({ row = {}, config = null, productContext = null, stepResults = [], summary = null } = {}) => ({
+const buildRuntimeContextSnapshot = ({
+  row = {},
+  config = null,
+  productContext = null,
+  stepResults = [],
+  summary = null,
+  salesContext = null,
+  aiSales = null,
+} = {}) => ({
   row: {
     tenant_id: row.tenant_id ?? null,
     platform: text(row.platform || ""),
@@ -109,6 +117,26 @@ const buildRuntimeContextSnapshot = ({ row = {}, config = null, productContext =
         product_id: productContext.product_id ?? null,
         product_name: text(productContext.product_name || ""),
         source: text(productContext.source || ""),
+      }
+    : null,
+  sales_context: salesContext
+    ? {
+        product_name: text(salesContext.product_name || ""),
+        brand: text(salesContext.brand || ""),
+        price: text(salesContext.price || ""),
+        stock_status: text(salesContext.stock_status || ""),
+        product_url: text(salesContext.product_url || ""),
+        sizes: asArray(salesContext.sizes || []),
+        colors: asArray(salesContext.colors || []),
+      }
+    : null,
+  ai_sales: aiSales
+    ? {
+        intent: text(aiSales.intent || ""),
+        confidence: Number(aiSales.confidence || 0) || 0,
+        public_reply: text(aiSales.public_reply || ""),
+        private_reply: text(aiSales.private_reply || ""),
+        approval_status: text(aiSales.approval_status || ""),
       }
     : null,
   summary: summary
@@ -184,6 +212,211 @@ const normalizeCommentText = (value = "") =>
     .replace(NON_TEXT_RE, " ")
     .replace(/\s+/g, " ")
     .trim();
+
+const dedupeTextList = (value = []) =>
+  asArray(value)
+    .map((item) => text(item))
+    .filter(Boolean)
+    .filter((item, index, array) => array.indexOf(item) === index);
+
+const firstNonEmptyText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+
+const SALES_INTENT_RULES = [
+  {
+    intent: "price_question",
+    confidence: 0.98,
+    patterns: ["السعر", "بكام", "بكم", "كام", "price", "cost", "sa3r", "s3r", "bkam"],
+  },
+  {
+    intent: "size_question",
+    confidence: 0.97,
+    patterns: ["مقاس", "مقاسات", "سايز", "size", "sizes", "fit"],
+  },
+  {
+    intent: "availability_question",
+    confidence: 0.96,
+    patterns: ["متوفر", "موجود", "available", "availability", "stock", "in stock"],
+  },
+  {
+    intent: "color_question",
+    confidence: 0.95,
+    patterns: ["لون", "الوان", "ألوان", "color", "colors", "colour"],
+  },
+  {
+    intent: "product_link_request",
+    confidence: 0.95,
+    patterns: ["لينك", "رابط", "link", "url", "details", "تفاصيل"],
+  },
+  {
+    intent: "delivery_shipping_question",
+    confidence: 0.95,
+    patterns: ["شحن", "توصيل", "shipping", "delivery", "ship"],
+  },
+  {
+    intent: "order_intent",
+    confidence: 0.96,
+    patterns: ["احجز", "احجزلي", "أحجز", "اطلب", "اطلبه", "عايز", "عاوزه", "هاخده", "طلب", "order", "reserve", "buy"],
+  },
+];
+
+const detectSocialCommentSalesIntent = ({ commentText = "" } = {}) => {
+  const normalized = normalizeCommentText(commentText);
+  if (!normalized || EMOJI_ONLY_RE.test(text(commentText))) {
+    return { intent: "generic_interest", confidence: 0.62, matched_pattern: "", normalized_text: normalized };
+  }
+  for (const rule of SALES_INTENT_RULES) {
+    const matchedPattern = rule.patterns.find((pattern) => {
+      if (pattern instanceof RegExp) return pattern.test(commentText) || pattern.test(normalized);
+      const candidate = normalizeCommentText(pattern);
+      return candidate && normalized.includes(candidate);
+    });
+    if (matchedPattern) {
+      return {
+        intent: rule.intent,
+        confidence: rule.confidence,
+        matched_pattern: text(matchedPattern),
+        normalized_text: normalized,
+      };
+    }
+  }
+  return { intent: "generic_interest", confidence: 0.7, matched_pattern: "", normalized_text: normalized };
+};
+
+const buildSalesPriceLabel = (salesContext = {}) =>
+  firstNonEmptyText(
+    salesContext.price,
+    salesContext.final_price,
+    salesContext.sale_price,
+    salesContext.selling_price
+  );
+
+const buildArabicListLabel = (values = []) => dedupeTextList(values).join("، ");
+
+const buildStockLabel = (salesContext = {}) => {
+  const stockStatus = lower(salesContext.stock_status || "");
+  if (stockStatus === "out_of_stock") return "المنتج غير متوفر حالياً";
+  if (stockStatus === "in_stock") return "المنتج متوفر";
+  if (stockStatus) return text(salesContext.stock_status);
+  const availableStock = Number(salesContext.available_stock ?? null);
+  if (Number.isFinite(availableStock)) {
+    return availableStock > 0 ? `متوفر حالياً (${availableStock})` : "المنتج غير متوفر حالياً";
+  }
+  return "";
+};
+
+const buildSocialCommentSalesContext = ({ row = {}, productContext = {}, websiteLinks = {}, templateContext = {} } = {}) => {
+  const metadata = row.metadata && typeof row.metadata === "object" && !Array.isArray(row.metadata) ? row.metadata : {};
+  const rawPayload = row.raw_payload && typeof row.raw_payload === "object" && !Array.isArray(row.raw_payload) ? row.raw_payload : {};
+  const productMetadata = productContext.metadata && typeof productContext.metadata === "object" && !Array.isArray(productContext.metadata) ? productContext.metadata : {};
+  const sizes = dedupeTextList([
+    ...(asArray(productContext.sizes || [])),
+    ...(asArray(productContext.available_sizes || [])),
+    ...(asArray(row.sizes || [])),
+    ...(asArray(row.product_sizes || [])),
+  ]);
+  const colors = dedupeTextList([
+    ...(asArray(productContext.colors || [])),
+    ...(asArray(productContext.available_colors || [])),
+    ...(asArray(row.colors || [])),
+    ...(asArray(row.product_colors || [])),
+    text(productContext.color || ""),
+    text(row.product_color || row.color || ""),
+  ]);
+  return {
+    found: Boolean(productContext?.found),
+    product_id: productContext?.product_id ?? row.product_id ?? metadata.product_id ?? null,
+    product_name: firstNonEmptyText(productContext.product_name, row.product_name, metadata.product_name, templateContext.product_name),
+    brand: firstNonEmptyText(productContext.brand, row.product_brand, metadata.product_brand, productMetadata.brand),
+    price: firstNonEmptyText(productContext.price, row.product_price, metadata.product_price, templateContext.price),
+    final_price: firstNonEmptyText(productContext.final_price, row.final_price, metadata.final_price),
+    sale_price: firstNonEmptyText(productContext.sale_price, row.product_sale_price, row.sale_price, metadata.product_sale_price),
+    selling_price: firstNonEmptyText(productContext.selling_price, row.product_selling_price, metadata.product_selling_price),
+    stock_status: firstNonEmptyText(productContext.stock_status, row.stock_status, metadata.stock_status, templateContext.stock_status),
+    available_stock: productContext.available_stock ?? row.available_stock ?? metadata.available_stock ?? null,
+    total_stock: productContext.total_stock ?? row.total_stock ?? metadata.total_stock ?? null,
+    sizes,
+    colors,
+    product_url: firstNonEmptyText(websiteLinks.product_link, websiteLinks.product_url, productContext.product_url, row.product_url, metadata.product_url),
+    storefront_url: firstNonEmptyText(websiteLinks.product_link, productContext.storefront_url, metadata.storefront_url),
+    image_url: firstNonEmptyText(productContext.image_url, row.product_image_url, metadata.product_image_url, rawPayload.product_image_url),
+    store_policy: firstNonEmptyText(metadata.store_policy, rawPayload.store_policy, productMetadata.store_policy),
+    store_address: firstNonEmptyText(metadata.store_address, rawPayload.store_address, productMetadata.store_address),
+    delivery_notes: firstNonEmptyText(metadata.delivery_notes, rawPayload.delivery_notes, metadata.shipping_notes, rawPayload.shipping_notes),
+  };
+};
+
+const buildSocialCommentSalesReplies = ({
+  salesContext = {},
+  intent = "generic_interest",
+  fallbackPublicReply = "",
+  fallbackPrivateReply = "",
+  customerName = "",
+} = {}) => {
+  const productName = text(salesContext.product_name || "");
+  const brand = text(salesContext.brand || "");
+  const priceLabel = buildSalesPriceLabel(salesContext);
+  const sizesLabel = buildArabicListLabel(salesContext.sizes || []);
+  const colorsLabel = buildArabicListLabel(salesContext.colors || []);
+  const stockLabel = buildStockLabel(salesContext);
+  const productLink = firstNonEmptyText(salesContext.product_url, salesContext.storefront_url);
+  const deliveryLabel = firstNonEmptyText(salesContext.delivery_notes, salesContext.store_policy, salesContext.store_address);
+  if (!productName && !priceLabel && !sizesLabel && !colorsLabel && !productLink) {
+    return {
+      public_reply: text(fallbackPublicReply || ""),
+      private_reply: text(fallbackPrivateReply || ""),
+      used_fallback: true,
+    };
+  }
+
+  const publicParts = [];
+  if (intent === "price_question" && priceLabel) {
+    publicParts.push(`السعر ${priceLabel} يا فندم ✅`);
+  } else if (intent === "size_question" && sizesLabel) {
+    publicParts.push(`متوفر مقاسات ${sizesLabel} ✅`);
+  } else if (intent === "availability_question" && stockLabel) {
+    publicParts.push(`${stockLabel} ✅`);
+  } else if (intent === "color_question" && colorsLabel) {
+    publicParts.push(`متوفر ألوان ${colorsLabel} ✅`);
+  } else if (intent === "product_link_request") {
+    publicParts.push("ابعت لحضرتك التفاصيل في الخاص ✅");
+  } else if (intent === "delivery_shipping_question" && deliveryLabel) {
+    publicParts.push(`${deliveryLabel} ✅`);
+  } else if (intent === "order_intent") {
+    publicParts.push("تمام يا فندم ✅");
+  } else {
+    if (stockLabel) publicParts.push(`${stockLabel} ✅`);
+    else if (productName) publicParts.push(`${productName} متوفر ✅`);
+  }
+  if (!publicParts.some((part) => part.includes("السعر")) && priceLabel && ["availability_question", "generic_interest", "order_intent"].includes(intent)) {
+    publicParts.push(`السعر ${priceLabel}`);
+  }
+  if (!publicParts.some((part) => part.includes("مقاسات")) && sizesLabel && ["price_question", "order_intent", "generic_interest"].includes(intent)) {
+    publicParts.push(`مقاسات ${sizesLabel}`);
+  }
+  if (productLink) {
+    publicParts.push("ابعت لحضرتك التفاصيل في الخاص.");
+  }
+  const publicReply = text(publicParts.join(" ").replace(/\s+/g, " ").trim() || fallbackPublicReply);
+
+  const privateLines = [];
+  privateLines.push(customerName ? `أهلاً بحضرتك يا ${customerName}` : "أهلاً بحضرتك");
+  if (productName) privateLines.push(`المنتج: ${productName}`);
+  if (brand) privateLines.push(`البراند: ${brand}`);
+  if (priceLabel) privateLines.push(`السعر: ${priceLabel}`);
+  if (stockLabel) privateLines.push(stockLabel);
+  if (sizesLabel) privateLines.push(`المقاسات المتاحة: ${sizesLabel}`);
+  if (colorsLabel) privateLines.push(`الألوان المتاحة: ${colorsLabel}`);
+  if (productLink) privateLines.push(`لينك المنتج: ${productLink}`);
+  if (deliveryLabel) privateLines.push(`التوصيل/الاستلام: ${deliveryLabel}`);
+  privateLines.push("ابعتلي المقاس المناسب لحضرتك ولو حابب نكمل الطلب دلوقتي.");
+  const privateReply = text(privateLines.join("\n").trim() || fallbackPrivateReply);
+
+  return {
+    public_reply: publicReply,
+    private_reply: privateReply,
+    used_fallback: false,
+  };
+};
 
 const COMMENT_INTENT_RULES = [
   {
@@ -576,6 +809,12 @@ export const upsertSocialCommentAutomationRunSummary = async ({
     config: diagnostics?.config || null,
     productContext: diagnostics?.product_context || null,
   });
+  const rawRuntimeContext = safeDiagnostics.raw_runtime_context && typeof safeDiagnostics.raw_runtime_context === "object" && !Array.isArray(safeDiagnostics.raw_runtime_context)
+    ? safeDiagnostics.raw_runtime_context
+    : {};
+  const runtimeAiSales = rawRuntimeContext.ai_sales && typeof rawRuntimeContext.ai_sales === "object" && !Array.isArray(rawRuntimeContext.ai_sales)
+    ? rawRuntimeContext.ai_sales
+    : {};
   const result = await db.query(
     `
     INSERT INTO social_comment_automation_runs (
@@ -689,6 +928,11 @@ export const upsertSocialCommentAutomationRunSummary = async ({
           product_link: text(row.product_link || row.metadata?.product_link || row.metadata?.website_product_link || ""),
           checkout_link: text(row.checkout_link || row.metadata?.checkout_link || ""),
           guidance_mode: text(row.guidance_mode || row.metadata?.guidance_mode || "website_checkout") || "website_checkout",
+          detected_intent: text(runtimeAiSales.intent || ""),
+          generated_public_reply: text(runtimeAiSales.public_reply || ""),
+          generated_private_reply: text(runtimeAiSales.private_reply || ""),
+          approval_status: text(runtimeAiSales.approval_status || ""),
+          ai_sales: runtimeAiSales,
           raw_runtime_context: safeDiagnostics.raw_runtime_context,
           updated_at: new Date().toISOString(),
         },
@@ -1682,6 +1926,67 @@ const executeSocialCommentAutomationRuntime = async ({
     originalCommentText: safeRow.original_comment_text || "",
     postPermalink: templateContext.postPermalink || "",
   }), templateContext).trim();
+  const salesContext = buildSocialCommentSalesContext({
+    row: safeRow,
+    productContext: effectiveProductContext || {},
+    websiteLinks,
+    templateContext,
+  });
+  console.log("SOCIAL_COMMENT_AI_SALES_CONTEXT", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    product_id: salesContext.product_id ?? null,
+    product_name: salesContext.product_name || "",
+    brand: salesContext.brand || "",
+    price: buildSalesPriceLabel(salesContext),
+    stock_status: salesContext.stock_status || "",
+    sizes_count: asArray(salesContext.sizes || []).length,
+    colors_count: asArray(salesContext.colors || []).length,
+    product_url: salesContext.product_url || "",
+  });
+  const detectedIntent = detectSocialCommentSalesIntent({
+    commentText: safeRow.original_comment_text || safeRow.comment_text || "",
+  });
+  console.log("SOCIAL_COMMENT_AI_INTENT_DETECTED", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    intent: detectedIntent.intent,
+    confidence: detectedIntent.confidence,
+    matched_pattern: detectedIntent.matched_pattern,
+  });
+  const salesReplies = buildSocialCommentSalesReplies({
+    salesContext,
+    intent: detectedIntent.intent,
+    fallbackPublicReply: renderedPublicReply,
+    fallbackPrivateReply: renderedPrivateReply,
+    customerName: templateContext.customerName || "",
+  });
+  const effectiveRenderedPublicReply = text(salesReplies.public_reply || renderedPublicReply);
+  const effectiveRenderedPrivateReply = text(salesReplies.private_reply || renderedPrivateReply);
+  const aiSalesRuntime = {
+    intent: detectedIntent.intent,
+    confidence: detectedIntent.confidence,
+    matched_pattern: detectedIntent.matched_pattern,
+    public_reply: effectiveRenderedPublicReply,
+    private_reply: effectiveRenderedPrivateReply,
+    approval_status: "generated",
+    delivery_status: "generated",
+    used_fallback: Boolean(salesReplies.used_fallback),
+  };
+  console.log("SOCIAL_COMMENT_AI_REPLY_GENERATED", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    intent: aiSalesRuntime.intent,
+    used_fallback: aiSalesRuntime.used_fallback,
+    public_reply: effectiveRenderedPublicReply,
+    private_reply: effectiveRenderedPrivateReply,
+  });
   const automationCommenter = resolveAutomationCommenterIdentity(safeRow);
   const automationWebsiteProductLink = text(websiteLinks?.product_link || templateContext.product_link || templateContext.productUrl || "");
   const automationWebsiteCheckoutLink = text(websiteLinks?.checkout_link || templateContext.checkout_link || "");
@@ -1719,6 +2024,8 @@ const executeSocialCommentAutomationRuntime = async ({
       post_id: safePostId,
       platform: normalizedPlatform,
       ai_opening_prompt: renderedAiOpeningPrompt || aiOpeningPrompt,
+      sales_context: salesContext,
+      ai_sales: aiSalesRuntime,
       message_templates: {
         publicReplyTemplate,
         privateReplyTemplate,
@@ -1729,12 +2036,14 @@ const executeSocialCommentAutomationRuntime = async ({
     public_reply: {
       ...(safeRow.automation_state?.public_reply || {}),
       template: publicReplyTemplate,
-      rendered_reply: renderedPublicReply,
+      rendered_reply: effectiveRenderedPublicReply,
+      intent: aiSalesRuntime.intent,
     },
     private_reply: {
       ...(safeRow.automation_state?.private_reply || {}),
       template: privateReplyTemplate,
-      rendered_reply: renderedPrivateReply,
+      rendered_reply: effectiveRenderedPrivateReply,
+      intent: aiSalesRuntime.intent,
     },
   };
 
@@ -1801,14 +2110,17 @@ const executeSocialCommentAutomationRuntime = async ({
       enabled: true,
       stepResults,
       run: async () => {
-        await replyToComment(normalizedPlatform, safeCommentId, renderedPublicReply, safeTenantId);
+        await replyToComment(normalizedPlatform, safeCommentId, effectiveRenderedPublicReply, safeTenantId);
         workingRow.public_reply_status = "sent";
         persistedRuntimeState.public_reply = {
           ...(persistedRuntimeState.public_reply || {}),
           status: "sent",
-          rendered_reply: renderedPublicReply,
+          rendered_reply: effectiveRenderedPublicReply,
           sent_at: new Date().toISOString(),
         };
+        aiSalesRuntime.approval_status = "sent";
+        aiSalesRuntime.delivery_status = "sent_public_reply";
+        persistedRuntimeState.social_comment_runtime.ai_sales = aiSalesRuntime;
         await persistRuntimeState({
           publicReplyStatus: "sent",
           automationState: persistedRuntimeState,
@@ -1840,8 +2152,8 @@ const executeSocialCommentAutomationRuntime = async ({
         post_id: safePostId,
         comment_id: safeCommentId,
         loaded_template: privateReplyTemplate,
-        rendered_template: renderedPrivateReply,
-        enqueue_template: renderedPrivateReply,
+        rendered_template: effectiveRenderedPrivateReply,
+        enqueue_template: effectiveRenderedPrivateReply,
       });
       const queuedAt = new Date().toISOString();
       workingRow.dm_status = "queued";
@@ -1850,8 +2162,11 @@ const executeSocialCommentAutomationRuntime = async ({
         status: "queued",
       queued_at: queuedAt,
       template: privateReplyTemplate,
-      rendered_reply: renderedPrivateReply,
+      rendered_reply: effectiveRenderedPrivateReply,
     };
+    aiSalesRuntime.approval_status = "queued";
+    aiSalesRuntime.delivery_status = "pending_private_reply";
+    persistedRuntimeState.social_comment_runtime.ai_sales = aiSalesRuntime;
     await persistRuntimeState({
       dmStatus: "queued",
       automationState: persistedRuntimeState,
@@ -1868,19 +2183,19 @@ const executeSocialCommentAutomationRuntime = async ({
         platform: normalizedPlatform,
         post_id: safePostId,
         comment_id: safeCommentId,
-        enqueue_template: renderedPrivateReply,
+        enqueue_template: effectiveRenderedPrivateReply,
       });
       stepResults.push({
         step: "privateReply",
         status: "queued",
         reason: "enqueued_to_worker",
-      message: renderedPrivateReply,
+      message: effectiveRenderedPrivateReply,
     });
     console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULT", {
       step: "privateReply",
       status: "queued",
       reason: "enqueued_to_worker",
-      message: renderedPrivateReply,
+      message: effectiveRenderedPrivateReply,
     });
   }
 
@@ -2157,6 +2472,8 @@ const executeSocialCommentAutomationRuntime = async ({
         productContext: effectiveProductContext,
         stepResults,
         summary,
+        salesContext,
+        aiSales: aiSalesRuntime,
       }),
     },
     row: {
@@ -2177,6 +2494,17 @@ const executeSocialCommentAutomationRuntime = async ({
     post_id: safePostId,
     comment_id: safeCommentId,
     step_results: stepResults,
+  });
+  console.log("SOCIAL_COMMENT_AI_REPLY_APPLIED", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    intent: aiSalesRuntime.intent,
+    approval_status: aiSalesRuntime.approval_status,
+    delivery_status: aiSalesRuntime.delivery_status,
+    public_reply_status: workingRow.public_reply_status || "",
+    private_reply_status: workingRow.dm_status || "",
   });
 
   return {

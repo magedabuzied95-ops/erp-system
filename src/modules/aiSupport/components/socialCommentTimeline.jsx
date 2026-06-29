@@ -347,6 +347,16 @@ export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "fac
       ""
   );
   const leadState = deriveLeadState(leadSource);
+  const runtimeMonitor =
+    automationState.runtime_monitor && typeof automationState.runtime_monitor === "object" && !Array.isArray(automationState.runtime_monitor)
+      ? automationState.runtime_monitor
+      : {};
+  const aiSales =
+    runtimeMonitor.ai_sales && typeof runtimeMonitor.ai_sales === "object" && !Array.isArray(runtimeMonitor.ai_sales)
+      ? runtimeMonitor.ai_sales
+      : automationState.social_comment_runtime?.ai_sales && typeof automationState.social_comment_runtime.ai_sales === "object" && !Array.isArray(automationState.social_comment_runtime.ai_sales)
+        ? automationState.social_comment_runtime.ai_sales
+        : {};
 
   return {
     key: clean(comment.id || comment.comment_id || comment.external_message_id || comment.provider_message_id || raw.id || raw.comment_id || metadata.comment_id || ""),
@@ -363,6 +373,10 @@ export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "fac
     platform,
     platformMeta: platformMeta(platform),
     initials: initialsFromName(customerName),
+    detectedIntent: clean(comment.detected_intent || runtimeMonitor.detected_intent || aiSales.intent || raw.detected_intent || metadata.detected_intent || ""),
+    generatedPublicReply: clean(comment.generated_public_reply || runtimeMonitor.generated_public_reply || aiSales.public_reply || ""),
+    generatedPrivateReply: clean(comment.generated_private_reply || runtimeMonitor.generated_private_reply || aiSales.private_reply || ""),
+    approvalStatus: clean(comment.approval_status || runtimeMonitor.approval_status || aiSales.approval_status || ""),
     statuses: [
       { key: "like", label: "Like", status: likeState, className: statusToneClass(likeState) },
       { key: "public_reply", label: "Public Reply", status: publicReplyState, className: statusToneClass(publicReplyState) },
@@ -469,8 +483,18 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 </span>
                 <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
                   <Clock3 className="h-3.5 w-3.5" />
-                  {data.createdAt ? getRelativeTimeLabel(data.createdAt) : "Unknown"}
+                  {data.createdAt ? getRelativeTimeLabel(data.createdAt) : "—"}
                 </span>
+                {data.detectedIntent ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700">
+                    Intent: {data.detectedIntent}
+                  </span>
+                ) : null}
+                {data.approvalStatus ? (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-fuchsia-200 bg-fuchsia-50 px-2.5 py-1 text-fuchsia-700">
+                    {data.approvalStatus}
+                  </span>
+                ) : null}
               </div>
             </div>
 
@@ -490,6 +514,19 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
           <div className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-[14px] leading-7 text-slate-900">
             <div className="whitespace-pre-wrap">{data.text || "No comment text available."}</div>
           </div>
+
+          {data.generatedPublicReply || data.generatedPrivateReply ? (
+            <div className="mt-3 grid gap-2 lg:grid-cols-2">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">Generated Public Reply</div>
+                <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-slate-800">{data.generatedPublicReply || "—"}</div>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">Generated Private Reply</div>
+                <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-slate-800">{data.generatedPrivateReply || "—"}</div>
+              </div>
+            </div>
+          ) : null}
 
           {children ? <div className="mt-3">{children}</div> : null}
         </div>

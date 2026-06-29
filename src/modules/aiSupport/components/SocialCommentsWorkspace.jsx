@@ -1,5 +1,6 @@
 ﻿import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  AlertTriangle,
   ArrowUpRight,
   Bot,
   Clock3,
@@ -91,15 +92,26 @@ const getSocialCommentActionDebugData = (comment = {}) => {
 };
 
 const absoluteTime = (value) => {
-  if (!value) return "وقت غير معروف";
+  if (!value) return dash;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "وقت غير معروف";
+  if (Number.isNaN(date.getTime())) return dash;
   return date.toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" });
 };
 
 const normalizeComment = (raw) => {
   const comment = raw || {};
   const metadata = comment.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
+  const automationState = comment.automation_state && typeof comment.automation_state === "object" && !Array.isArray(comment.automation_state) ? comment.automation_state : {};
+  const runtimeMonitor =
+    automationState.runtime_monitor && typeof automationState.runtime_monitor === "object" && !Array.isArray(automationState.runtime_monitor)
+      ? automationState.runtime_monitor
+      : {};
+  const aiSales =
+    runtimeMonitor.ai_sales && typeof runtimeMonitor.ai_sales === "object" && !Array.isArray(runtimeMonitor.ai_sales)
+      ? runtimeMonitor.ai_sales
+      : automationState.social_comment_runtime?.ai_sales && typeof automationState.social_comment_runtime.ai_sales === "object" && !Array.isArray(automationState.social_comment_runtime.ai_sales)
+        ? automationState.social_comment_runtime.ai_sales
+        : {};
   const customerName = clean(
     comment.customer_name ||
       comment.commenter_name ||
@@ -150,6 +162,11 @@ const normalizeComment = (raw) => {
     platform: clean(comment.platform || metadata.platform || ""),
     permalinkUrl: clean(comment.permalink_url || comment.comment_url || metadata.permalink_url || metadata.comment_url || ""),
     replyText: clean(comment.reply_text || comment.rendered_reply || metadata.reply_text || metadata.rendered_reply || ""),
+    detected_intent: clean(comment.detected_intent || runtimeMonitor.detected_intent || aiSales.intent || metadata.detected_intent || ""),
+    generated_public_reply: clean(comment.generated_public_reply || runtimeMonitor.generated_public_reply || aiSales.public_reply || ""),
+    generated_private_reply: clean(comment.generated_private_reply || runtimeMonitor.generated_private_reply || aiSales.private_reply || ""),
+    approval_status: clean(comment.approval_status || runtimeMonitor.approval_status || aiSales.approval_status || ""),
+    automation_state: automationState,
     raw: comment,
   };
 };
@@ -568,6 +585,175 @@ const templatePreviewText = (template = {}, context = {}) => {
 };
 
 const selectFirst = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
+const dash = "—";
+
+const resolveFirstField = (...values) => clean(values.map((value) => clean(value)).find(Boolean) || "");
+
+const resolveProductCardFields = (post = {}) => {
+  const metadata = post?.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
+  const mappingSummary = post?.mapping_summary && typeof post.mapping_summary === "object" && !Array.isArray(post.mapping_summary) ? post.mapping_summary : {};
+  const linkedProducts = Array.isArray(post?.linked_products) ? post.linked_products : [];
+  const primary = post?.primary_linked_product || post?.primary_product || linkedProducts[0] || mappingSummary.primary_product || null;
+  const productName = clean(
+    post?.productName ||
+      post?.product_name ||
+      primary?.name ||
+      primary?.title ||
+      primary?.product_name ||
+      metadata.product_name ||
+      metadata.product_title ||
+      mappingSummary.primary_product_name ||
+      ""
+  );
+  const productBrand = clean(
+    primary?.brand ||
+      primary?.brand_name ||
+      primary?.vendor ||
+      post?.product_brand ||
+      post?.brand ||
+      metadata.product_brand ||
+      metadata.brand ||
+      ""
+  );
+  const priceValue = resolveFirstField(
+    post?.productPrice,
+    post?.product_price,
+    primary?.final_price,
+    primary?.sale_price,
+    primary?.price,
+    primary?.selling_price,
+    metadata.product_price
+  );
+  const salePriceValue = resolveFirstField(
+    post?.productSalePrice,
+    post?.product_sale_price,
+    primary?.sale_price,
+    primary?.final_price,
+    metadata.product_sale_price
+  );
+  const stockValue = resolveFirstField(
+    post?.productStock,
+    post?.product_stock,
+    primary?.total_stock,
+    primary?.available_stock,
+    primary?.stock,
+    primary?.stock_status,
+    metadata.product_stock
+  );
+  const sizesValue = resolveFirstField(
+    post?.productSizes,
+    post?.product_sizes,
+    Array.isArray(primary?.available_sizes) ? primary.available_sizes.join(", ") : "",
+    primary?.sizes,
+    metadata.product_sizes
+  );
+  const colorsValue = resolveFirstField(
+    post?.productColors,
+    post?.product_colors,
+    Array.isArray(primary?.available_colors) ? primary.available_colors.join(", ") : "",
+    primary?.colors,
+    metadata.product_colors
+  );
+  const productLink = resolveFirstField(
+    post?.productLink,
+    post?.product_storefront_url,
+    post?.product_url,
+    primary?.product_url,
+    primary?.storefront_url,
+    primary?.storefrontUrl,
+    metadata.product_link,
+    metadata.product_storefront_url,
+    metadata.product_url
+  );
+  const productImage = resolveFirstField(
+    primary?.image_url,
+    primary?.image,
+    primary?.thumbnail_url,
+    post?.product_image_url,
+    post?.product_image,
+    metadata.product_image_url,
+    metadata.product_image
+  );
+  const productCount = Number(
+    post?.linkedProductsCount ??
+      post?.linked_products_count ??
+      post?.product_links_count ??
+      metadata.linked_products_count ??
+      metadata.product_links_count ??
+      linkedProducts.length ??
+      0
+  ) || 0;
+  return {
+    productName,
+    productBrand,
+    priceValue,
+    salePriceValue,
+    stockValue,
+    sizesValue,
+    colorsValue,
+    productLink,
+    productImage,
+    productCount,
+    primary,
+  };
+};
+
+const resolveAutomationStateLabel = ({ post = {}, config = null, productCount = 0 } = {}) => {
+  const hasProduct = Number(productCount) > 0;
+  const normalizedConfig = config && typeof config === "object" ? config : null;
+  const configId = clean(normalizedConfig?.config_id || normalizedConfig?.id || post?.automation_config_id || post?.config_id || "");
+  const enabledValue = normalizedConfig?.enabled ?? post?.auto_reply_enabled ?? post?.template_enabled ?? post?.autoReplyEnabled ?? false;
+  if (!hasProduct) {
+    return {
+      label: "Link Product",
+      tone: "amber",
+      configId,
+      enabled: Boolean(enabledValue),
+      hint: "No linked product",
+    };
+  }
+  if (configId && Boolean(enabledValue)) {
+    return {
+      label: "Automation Enabled",
+      tone: "emerald",
+      configId,
+      enabled: true,
+      hint: "Config active",
+    };
+  }
+  if (configId) {
+    return {
+      label: "Automation Disabled",
+      tone: "slate",
+      configId,
+      enabled: false,
+      hint: "Config saved",
+    };
+  }
+  return {
+    label: "Ready",
+    tone: "cyan",
+    configId,
+    enabled: Boolean(enabledValue),
+    hint: "Product linked",
+  };
+};
+
+const automationToneClass = (tone = "slate") => {
+  if (tone === "emerald" || tone === "success") return "border-emerald-300/20 bg-emerald-400/10 text-emerald-800";
+  if (tone === "amber" || tone === "pending") return "border-amber-300/20 bg-amber-50 text-amber-800";
+  if (tone === "failed") return "border-rose-300/20 bg-rose-50 text-rose-800";
+  if (tone === "cyan") return "border-cyan-300/20 bg-cyan-50 text-cyan-800";
+  return "border-slate-200 bg-slate-50 text-slate-700";
+};
+
+const normalizeAutomationRuntimeTone = (value = "") => {
+  const key = clean(value).toLowerCase().replace(/\s+/g, "_");
+  if (["success", "sent", "done", "completed", "delivered", "ok", "applied"].includes(key)) return "success";
+  if (["pending", "queued", "running", "processing", "review"].includes(key)) return "pending";
+  if (["failed", "error", "blocked", "rejected"].includes(key)) return "failed";
+  return "slate";
+};
 
 const initialsFromName = (value = "") => {
   const parts = clean(value)
@@ -963,6 +1149,14 @@ function SocialCommentsWorkspace({
   const activePostDisplay = useMemo(() => normalizeSocialPostDisplay(activeThreadPost || activePostDetails || activePost || {}), [activeThreadPost, activePostDetails, activePost]);
   const activeDisplayPost = activeThreadPost || activePostDetails || activePost || {};
   const activeDisplayLinkedProducts = getPostLinkedProducts(activeDisplayPost);
+  const activeAutomationDraftKey = automationDrawerPostKey || activePostKey;
+  const activeProductCard = resolveProductCardFields(activeDisplayPost);
+  const activeAutomationConfig = automationSavedConfigs[activeAutomationDraftKey] || activePostDetails?.automation_config || activePostDetails?.automationConfig || null;
+  const activeAutomationState = resolveAutomationStateLabel({
+    post: activePostDetails,
+    config: activeAutomationConfig,
+    productCount: activeProductCard.productCount,
+  });
 
   useEffect(() => {
     setGlobalDraft({
@@ -1130,7 +1324,6 @@ function SocialCommentsWorkspace({
   const activePostLikes = activePostDetails?.likesCount;
   const activePostShares = activePostDetails?.sharesCount;
   const activePostMediaBadge = resolvePostMediaBadge(activePostDetails) || postTypeMeta(activePostDetails);
-  const activeAutomationDraftKey = automationDrawerPostKey || activePostKey;
   const automationDrawerPost = useMemo(() => {
     const drawerKey = clean(automationDrawerPostKey);
     if (!drawerKey) return null;
@@ -1139,6 +1332,17 @@ function SocialCommentsWorkspace({
   const activeAutomationDraft =
     automationDrafts[activeAutomationDraftKey] ||
     buildAutomationDraft(automationDrawerPost || activePostDetails || activePost || {});
+  const activeAutomationRuntime = automationRuns?.[0] || automationTestResult || null;
+  const activeAutomationRuntimeMonitor =
+    activeAutomationRuntime?.runtime_monitor && typeof activeAutomationRuntime.runtime_monitor === "object" && !Array.isArray(activeAutomationRuntime.runtime_monitor)
+      ? activeAutomationRuntime.runtime_monitor
+      : {};
+  const activeAutomationAiSales =
+    activeAutomationRuntimeMonitor?.ai_sales && typeof activeAutomationRuntimeMonitor.ai_sales === "object" && !Array.isArray(activeAutomationRuntimeMonitor.ai_sales)
+      ? activeAutomationRuntimeMonitor.ai_sales
+      : activeAutomationRuntime?.raw_runtime_context?.ai_sales && typeof activeAutomationRuntime.raw_runtime_context.ai_sales === "object" && !Array.isArray(activeAutomationRuntime.raw_runtime_context.ai_sales)
+        ? activeAutomationRuntime.raw_runtime_context.ai_sales
+        : {};
   const productLinksDrawerPost = useMemo(() => {
     const drawerKey = clean(productLinksDrawerPostKey);
     if (!drawerKey) return null;
@@ -1148,6 +1352,51 @@ function SocialCommentsWorkspace({
       (drawerKey === activePostKey ? activePostDetails : null)
     );
   }, [activePostDetails, activePostKey, normalizedPosts, productLinksDrawerPostKey, productLinksDrawerPostSnapshot]);
+
+  useEffect(() => {
+    if (!activePostKey) return;
+    console.info("SOCIAL_UI_POST_STATUS_FIELDS", {
+      post_id: activePostPostId,
+      active_alias_id: activePostSourceId,
+      canonical_post_id: activePostPostId,
+      conversation_id: activePostConversationId,
+      permalink_present: Boolean(activePostLink),
+      linked_product_count: activeProductCard.productCount,
+      config_id: activeAutomationState.configId || "",
+      automation_enabled: Boolean(activeAutomationState.enabled),
+      status_label: activeAutomationState.label,
+    });
+  }, [activeAutomationState, activePostConversationId, activePostKey, activePostLink, activePostPostId, activePostSourceId, activeProductCard.productCount]);
+
+  useEffect(() => {
+    if (!activePostKey) return;
+    console.info("SOCIAL_UI_PRODUCT_CARD_FIELDS", {
+      post_id: activePostPostId,
+      product_name: activeProductCard.productName || "",
+      brand: activeProductCard.productBrand || "",
+      price: activeProductCard.priceValue || "",
+      sale_price: activeProductCard.salePriceValue || "",
+      stock: activeProductCard.stockValue || "",
+      sizes: activeProductCard.sizesValue || "",
+      colors: activeProductCard.colorsValue || "",
+      product_link: activeProductCard.productLink || "",
+      image_present: Boolean(activeProductCard.productImage),
+      linked_count: activeProductCard.productCount,
+    });
+  }, [activePostKey, activePostPostId, activeProductCard]);
+
+  useEffect(() => {
+    if (!activePostKey) return;
+    console.info("SOCIAL_UI_TIMELINE_FIELDS", {
+      post_id: activePostPostId,
+      loading: Boolean(activeThread.loading),
+      error: activeThread.error || "",
+      total_comments: displayComments.length,
+      rendered_comments: commentsToRender.length,
+      first_comment_time: commentsToRender[0]?.createdTime || commentsToRender[0]?.created_at || "",
+      last_comment_time: commentsToRender[commentsToRender.length - 1]?.createdTime || commentsToRender[commentsToRender.length - 1]?.created_at || "",
+    });
+  }, [activePostKey, activePostPostId, activeThread.error, activeThread.loading, commentsToRender, displayComments.length]);
 
   const getPostVisibleTime = useCallback((post = {}) => {
     const time = clean(
@@ -1167,7 +1416,7 @@ function SocialCommentsWorkspace({
         post_created_time: clean(post?.postCreatedTime || post?.post_created_time || ""),
         real_comment_created_time: clean(post?.realCommentCreatedTime || post?.real_comment_created_time || ""),
         comment_created_time: clean(post?.commentCreatedTime || post?.comment_created_time || ""),
-        rendered_label: time ? absoluteTime(time) : "Unknown",
+        rendered_label: time ? absoluteTime(time) : dash,
       });
     }
     return time;
@@ -1290,6 +1539,13 @@ function SocialCommentsWorkspace({
     },
     [activePostKey, activePostPlatform, automationDrawerPostKey, resolvedTenantId]
   );
+
+  useEffect(() => {
+    if (!activePostKey) return;
+    if (automationSavedConfigs[activePostKey]?.config_id) return;
+    const postForAutomation = activeThreadPost || activePostDetails || activePost || {};
+    void loadAutomationConfig(activePostKey, postForAutomation).catch(() => {});
+  }, [activePostKey, activePostDetails, activePost, activeThreadPost, automationSavedConfigs, loadAutomationConfig]);
 
   const handleAutomationSaveLocal = (draftPatch = null) => {
     const drawerKey = clean(automationDrawerPostKey || activePostKey);
@@ -1506,6 +1762,11 @@ function SocialCommentsWorkspace({
       setRefreshing(false);
     }
   };
+
+  useEffect(() => {
+    if (!activePostKey) return;
+    void handleAutomationLoadRuns(activePostKey);
+  }, [activePostKey]);
 
   const handleProductLinksSaved = async (payload = {}) => {
     const postId = clean(payload?.post_id || payload?.postId || productLinksDrawerPostKey || activePostKey);
@@ -1999,6 +2260,12 @@ function SocialCommentsWorkspace({
                             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
                               <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{post.commentsCount} comments</span>
                               <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-[#E2E8F0] bg-white text-slate-600"}`}>{post.newCount} new</span>
+                              <span
+                                title={resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).hint}
+                                className={`rounded-full border px-2.5 py-1 ${automationToneClass(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).tone)}`}
+                              >
+                                {resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).label}
+                              </span>
                               {post.linkedProductsCount > 0 ? (
                                 <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-700">
                                   ✓ {post.primaryLinkedProduct?.name || "Linked Product"}
@@ -2036,7 +2303,7 @@ function SocialCommentsWorkspace({
                                 return (
                                   <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
                                     <Clock3 className="h-3.5 w-3.5" />
-                                    {visibleTime ? absoluteTime(visibleTime) : "Unknown"}
+                                    {visibleTime ? absoluteTime(visibleTime) : dash}
                                   </span>
                                 );
                               })()}
@@ -2110,6 +2377,12 @@ function SocialCommentsWorkspace({
                           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
                             <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{post.commentsCount} comments</span>
                             <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-[#E2E8F0] bg-white text-slate-600"}`}>{post.newCount} new</span>
+                            <span
+                              title={resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).hint}
+                              className={`rounded-full border px-2.5 py-1 ${automationToneClass(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).tone)}`}
+                            >
+                              {resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).label}
+                            </span>
                             {post.linkedProductsCount > 0 ? (
                               <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-700">
                                 ✓ {post.primaryLinkedProduct?.name || "Linked Product"}
@@ -2147,7 +2420,7 @@ function SocialCommentsWorkspace({
                               return (
                                 <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
                                   <Clock3 className="h-3.5 w-3.5" />
-                                  {visibleTime ? absoluteTime(visibleTime) : "Unknown"}
+                                  {visibleTime ? absoluteTime(visibleTime) : dash}
                                 </span>
                               );
                             })()}
@@ -2212,11 +2485,14 @@ function SocialCommentsWorkspace({
                         Conversation: {activePostConversationId}
                       </span>
                     ) : null}
-                    {activePostPostId && activePostPostId !== activePostSourceId ? (
+                    {activePostPostId ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-800">
                         Canonical post_id: {activePostPostId}
                       </span>
                     ) : null}
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${automationToneClass(activeAutomationState.tone)}`}>
+                      Automation: {activeAutomationState.configId ? `${activeAutomationState.configId} · ${activeAutomationState.enabled ? "Enabled" : "Disabled"}` : activeAutomationState.label}
+                    </span>
                     {activePostLink ? (
                       <a
                         href={activePostLink}
@@ -2224,14 +2500,15 @@ function SocialCommentsWorkspace({
                         rel="noreferrer"
                         className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-800"
                       >
-                        Permalink
+                        Permalink target
                       </a>
                     ) : null}
-                    {activeDisplayLinkedProducts.linkedProductsCount > 0 ? (
+                    {activeProductCard.productCount > 0 ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-700">
                         ✓ Linked Products
-                        {activeDisplayLinkedProducts.primaryProductName ? ` · ${activeDisplayLinkedProducts.primaryProductName}` : ""}
-                        {activeDisplayLinkedProducts.linkedProductsCount > 1 ? ` +${activeDisplayLinkedProducts.linkedProductsCount - 1}` : ""}
+                        {activeProductCard.productName ? ` · ${activeProductCard.productName}` : ""}
+                        {activeProductCard.productBrand ? ` · ${activeProductCard.productBrand}` : ""}
+                        {activeProductCard.productCount > 1 ? ` +${activeProductCard.productCount - 1}` : ""}
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
@@ -2252,7 +2529,7 @@ function SocialCommentsWorkspace({
                   type="button"
                   onClick={handleOpenPost}
                   disabled={!activePostLink || openingPost}
-                  title={activePostLink ? "" : "No permalink"}
+                  title={activePostLink ? "" : "No permalink available"}
                   className="inline-flex h-9 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-900 shadow-sm disabled:opacity-50"
                 >
                   {openingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
@@ -2297,6 +2574,7 @@ function SocialCommentsWorkspace({
                           void handleOpenPost();
                         }}
                         disabled={!activePostLink || openingPost}
+                        title={activePostLink ? "" : "No permalink available"}
                         className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/20 bg-white/90 px-3 text-[11px] font-black text-slate-900 shadow-sm disabled:opacity-50"
                       >
                         {openingPost ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
@@ -2326,35 +2604,45 @@ function SocialCommentsWorkspace({
                       </div>
                     </div>
 
-                    {activeDisplayPost?.productName || activeDisplayPost?.productPrice || activeDisplayPost?.productSalePrice || activeDisplayPost?.productSizes || activeDisplayPost?.productColors ? (
-                      <div className="rounded-[22px] border border-[#E2E8F0] bg-[#F8FAFC] p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
-                            <div className="mt-1 text-sm font-black text-slate-900">{selectFirst(activeDisplayPost?.productName, "Linked product")}</div>
+                    <div className="rounded-[22px] border border-[#E2E8F0] bg-[#F8FAFC] p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
+                          <div className="mt-1 text-sm font-black text-slate-900">{activeProductCard.productName || "Linked product"}</div>
+                          <div className="mt-1 text-xs font-semibold text-slate-500">
+                            {activeProductCard.productBrand || dash}
                           </div>
-                          {selectFirst(activeDisplayPost?.productLink) ? (
-                            <a
-                              href={selectFirst(activeDisplayPost?.productLink)}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex h-8 shrink-0 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-[11px] font-black text-slate-900 shadow-sm"
-                            >
-                              Product link
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          ) : null}
                         </div>
-                        <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                          <InfoChip label="Price" value={selectFirst(activeDisplayPost?.productPrice, "—")} />
-                          <InfoChip label="Sale" value={selectFirst(activeDisplayPost?.productSalePrice, "—")} />
-                          <InfoChip label="Sizes" value={selectFirst(activeDisplayPost?.productSizes, "—")} />
-                          <InfoChip label="Colors" value={selectFirst(activeDisplayPost?.productColors, "—")} />
-                          <InfoChip label="Stock" value={selectFirst(activeDisplayPost?.productStock, "—")} />
-                          <InfoChip label="Variants" value={selectFirst(activeDisplayPost?.productVariantCount, "—")} />
-                        </div>
+                        {activeProductCard.productLink ? (
+                          <a
+                            href={activeProductCard.productLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex h-8 shrink-0 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-[11px] font-black text-slate-900 shadow-sm"
+                          >
+                            Product link
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        ) : (
+                          <span className="inline-flex h-8 shrink-0 items-center rounded-xl border border-dashed border-[#E2E8F0] bg-white px-3 text-[11px] font-black text-slate-400">
+                            No product link
+                          </span>
+                        )}
                       </div>
-                    ) : null}
+                      {activeProductCard.productImage ? (
+                        <div className="mt-3 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white">
+                          <img src={activeProductCard.productImage} alt="" className="h-40 w-full object-cover" loading="lazy" />
+                        </div>
+                      ) : null}
+                      <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                        <InfoChip label="Price" value={activeProductCard.priceValue || dash} />
+                        <InfoChip label="Sale" value={activeProductCard.salePriceValue || dash} />
+                        <InfoChip label="Stock" value={activeProductCard.stockValue || dash} />
+                        <InfoChip label="Sizes" value={activeProductCard.sizesValue || dash} />
+                        <InfoChip label="Colors" value={activeProductCard.colorsValue || dash} />
+                        <InfoChip label="Product" value={activeProductCard.productCount > 0 ? `${activeProductCard.productCount} linked` : dash} />
+                      </div>
+                    </div>
 
                   <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
                       <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePost.commentsCount || 0} comments</span>
@@ -2377,19 +2665,29 @@ function SocialCommentsWorkspace({
                       <div className="mt-1 text-sm font-black text-white">{displayComments.length} comments</div>
                       <div className="mt-1 text-xs text-slate-500">Showing the latest social thread activity</div>
                     </div>
-                    {hasMoreComments ? (
+                    <div className="flex items-center gap-2">
+                      {hasMoreComments ? (
+                        <button
+                          type="button"
+                          onClick={() => setCommentWindowSize((current) => Math.min(displayComments.length, current + 50))}
+                          className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200"
+                        >
+                          Load older comments
+                          <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px]">
+                            +{Math.min(50, displayComments.length - commentsToRender.length)}
+                          </span>
+                        </button>
+                      ) : null}
                       <button
                         type="button"
-                        onClick={() => setCommentWindowSize((current) => Math.min(displayComments.length, current + 50))}
-                        className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200"
+                        onClick={() => void handleRefresh()}
+                        disabled={refreshing || activeThread.loading}
+                        className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
                       >
-                        Load older comments
-                        <span className="rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[10px]">
-                          +{Math.min(50, displayComments.length - commentsToRender.length)}
-                        </span>
+                        {refreshing || activeThread.loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                        Reload
                       </button>
-                    ) : null}
-                    {activeThread.loading ? <Loader2 className="h-4 w-4 animate-spin text-slate-300" /> : null}
+                    </div>
                   </div>
 
                   {activeThread.error ? (
@@ -2415,7 +2713,16 @@ function SocialCommentsWorkspace({
                             <MessageSquareText className="h-5 w-5" />
                           </div>
                           <div className="mt-3 text-sm font-black text-white">لا توجد تعليقات للعرض الآن</div>
-                          <div className="mt-1 text-xs text-slate-500">عندما تصل تعليقات جديدة ستظهر هنا مباشرة</div>
+                          <div className="mt-1 text-xs text-slate-500">لم يتم تحميل أي تعليقات لهذا المنشور بعد.</div>
+                          <button
+                            type="button"
+                            onClick={() => void handleRefresh()}
+                            disabled={refreshing}
+                            className="mt-4 inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3 text-[11px] font-black text-slate-200 disabled:opacity-50"
+                          >
+                            {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                            Reload comments
+                          </button>
                         </div>
                       </div>
                     ) : null}
@@ -2527,6 +2834,63 @@ function SocialCommentsWorkspace({
               </section>
 
               <aside className="flex min-h-0 min-w-0 flex-col gap-2.5 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
+                <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Automation Status</div>
+                      <div className="mt-1 text-sm font-black text-white">Config and runtime summary</div>
+                    </div>
+                    <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black ${automationToneClass(activeAutomationState.tone)}`}>
+                      {activeAutomationState.enabled ? "Enabled" : activeAutomationState.label}
+                    </span>
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm text-slate-200">
+                    <SidebarRow label="Config ID" value={activeAutomationState.configId || dash} icon={<Bot className="h-4 w-4 text-cyan-100" />} />
+                    <SidebarRow label="Enabled" value={activeAutomationState.enabled ? "Yes" : "No"} icon={<Sparkles className="h-4 w-4 text-emerald-100" />} />
+                    <SidebarRow label="Template Key" value={clean(activeAutomationConfig?.template_key || activeAutomationDraft?.templateId || "") || dash} icon={<MessageSquareText className="h-4 w-4 text-violet-100" />} />
+                    <SidebarRow label="Product Linked" value={activeProductCard.productCount > 0 ? "Yes" : "No"} icon={<ShoppingBag className="h-4 w-4 text-amber-100" />} />
+                    <SidebarRow label="Runtime Status" value={clean(activeAutomationRuntime?.status || activeAutomationRuntimeMonitor?.status || "") || dash} icon={<ThumbsUp className="h-4 w-4 text-sky-100" />} />
+                    <SidebarRow
+                      label="Last Reason"
+                      value={clean(activeAutomationRuntime?.skipped_reason || activeAutomationRuntime?.duplicate_reason || activeAutomationRuntime?.error_message || activeAutomationRuntimeMonitor?.skipped_reason || "") || dash}
+                      icon={<AlertTriangle className="h-4 w-4 text-rose-100" />}
+                    />
+                    <SidebarRow label="Detected Intent" value={clean(activeAutomationRuntimeMonitor?.detected_intent || activeAutomationAiSales?.intent || "") || dash} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
+                    <SidebarRow label="Approval State" value={clean(activeAutomationRuntimeMonitor?.approval_status || activeAutomationAiSales?.approval_status || "") || dash} icon={<Bot className="h-4 w-4 text-fuchsia-100" />} />
+                  </div>
+                  <div className="mt-3 grid gap-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Generated Public Reply</div>
+                      <div className="mt-2 whitespace-pre-wrap text-xs leading-6 text-slate-200">
+                        {clean(activeAutomationRuntimeMonitor?.generated_public_reply || activeAutomationAiSales?.public_reply || "") || dash}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Generated Private Reply</div>
+                      <div className="mt-2 whitespace-pre-wrap text-xs leading-6 text-slate-200">
+                        {clean(activeAutomationRuntimeMonitor?.generated_private_reply || activeAutomationAiSales?.private_reply || "") || dash}
+                      </div>
+                    </div>
+                  </div>
+                  {Array.isArray(activeAutomationRuntime?.step_results) && activeAutomationRuntime.step_results.length ? (
+                    <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-2.5">
+                      <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Last Steps</div>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {activeAutomationRuntime.step_results.slice(0, 6).map((step, index) => (
+                          <span
+                            key={`${step?.step || step?.name || "step"}:${index}`}
+                            className={`rounded-full border px-2.5 py-1 text-[10px] font-black ${automationToneClass(
+                              normalizeAutomationRuntimeTone(step?.status || step?.result || step?.outcome || "")
+                            )}`}
+                          >
+                            {clean(step?.step || step?.name || `step_${index + 1}`)}: {clean(step?.status || step?.result || step?.outcome || "") || dash}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+
                 <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div>
