@@ -1277,7 +1277,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const sizeValue = safeText(item.size, t("products.barcodeLabels.oneSize"));
   const rawColorValue = safeText(item.color, t("products.barcodeLabels.default"));
   const colorValue = /[\u0600-\u06FF]/.test(rawColorValue) ? rawColorValue : rawColorValue.toUpperCase();
-  const articleValue = safeText(item.sku, "").trim();
+  const articleValue = safeText(item.article_code || item.articleCode, "").trim();
   const showArticleBox = Boolean(articleValue);
   const thermalLayout = getThermalLandscapeLabelLayout(showArticleBox);
   const titleStyle = {
@@ -1344,12 +1344,6 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
       })
     : null;
-  const colorTextLayout = getBoxTextLayout(colorFrame, {
-    topPaddingMm: 1.5,
-    labelGapMm: 1.0,
-    labelFontSize: thermalLayout.colorLabelFontSize,
-    valueFontSize: thermalLayout.colorValueFontSize,
-  });
   const landscapeCard = (
     <article
       className="overflow-hidden border border-zinc-200 bg-white text-zinc-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)]"
@@ -1459,7 +1453,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                   fontSize: `${thermalLayout.articleLabelFontSize}px`,
                 }}
               >
-                {t("products.barcodeLabels.sku", "ARTICLE/SKU")}
+                {t("products.barcodeLabels.articleCode", "ARTICLE CODE")}
               </div>
               <div
                 className="truncate font-black leading-none"
@@ -1492,29 +1486,15 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             marginTop: `${(thermalLayout.colorCell.h - colorFrame.h) / 2}mm`,
           }}
         >
-          <div
-            className="font-black uppercase leading-none tracking-[0.22em] text-zinc-500"
-            style={{
-              position: "absolute",
-              top: `${colorTextLayout.labelTopMm - colorFrame.y}mm`,
-              left: 0,
-              right: 0,
-              fontSize: `${thermalLayout.colorLabelFontSize}px`,
-            }}
-          >
-            {t("products.barcodeLabels.color")}
-          </div>
-          <div
-            className="truncate font-black uppercase leading-none"
-            style={{
-              position: "absolute",
-              top: `${colorTextLayout.valueTopMm - colorFrame.y}mm`,
-              left: 0,
-              right: 0,
-              fontSize: `${thermalLayout.colorValueFontSize}px`,
-            }}
-          >
-            {colorValue}
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[1mm]">
+            <div className="flex items-center justify-between gap-[1mm]">
+              <div className="font-black uppercase leading-none tracking-[0.22em] text-zinc-500" style={{ fontSize: `${thermalLayout.colorLabelFontSize}px` }}>
+                {t("products.barcodeLabels.color")}
+              </div>
+              <div className="truncate text-right font-black uppercase leading-none" style={{ fontSize: `${Math.max(thermalLayout.sizeValueFontSize * 0.82, thermalLayout.colorValueFontSize * 1.45)}px` }}>
+                {colorValue}
+              </div>
+            </div>
           </div>
         </div>
 
