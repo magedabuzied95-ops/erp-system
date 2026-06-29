@@ -1280,22 +1280,6 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const articleValue = resolveLabelArticleCode(item);
   const showArticleBox = Boolean(articleValue);
   const thermalLayout = getThermalLandscapeLabelLayout(showArticleBox);
-  const titleStyle = {
-    fontSize: `${thermalLayout.titleFontSize}px`,
-    lineHeight: thermalLayout.titleLineHeight,
-    display: "-webkit-box",
-    WebkitBoxOrient: "vertical",
-    WebkitLineClamp: thermalLayout.titleMaxLines,
-    height: `${thermalLayout.titleCell.h}mm`,
-    maxHeight: `${thermalLayout.titleCell.h}mm`,
-    paddingTop: "2mm",
-    paddingBottom: "2mm",
-    overflow: "hidden",
-    minHeight: `${thermalLayout.titleCell.h}mm`,
-    width: "100%",
-    wordBreak: "break-word",
-    overflowWrap: "anywhere",
-  };
   const sizeBadgeStyle = {
     width: "100%",
     minHeight: `${thermalLayout.sizeBadgeHeight}mm`,
@@ -1337,13 +1321,21 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   });
   const articleTextLayout = showArticleBox
     ? getBoxTextLayout(thermalLayout.articleCell, {
-        topPaddingMm: 1.5,
+        topPaddingMm: 1.1,
         labelGapMm: 1.0,
         labelFontSize: thermalLayout.articleLabelFontSize,
         valueFontSize: thermalLayout.articleFontSize,
         valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
       })
     : null;
+  const titleBadgeStyle = {
+    background: "#020617",
+    color: "#fff",
+    borderRadius: "8px",
+    border: "1px solid #020617",
+    padding: "1.2mm 1.4mm",
+    minHeight: `${thermalLayout.titleCell.h}mm`,
+  };
   const landscapeCard = (
     <article
       className="overflow-hidden border border-zinc-200 bg-white text-zinc-900 shadow-[0_12px_30px_rgba(15,23,42,0.06)]"
@@ -1379,16 +1371,34 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         ) : null}
 
         {printSettings.showProductName ? (
-          <h3
-            className="min-w-0 font-black text-zinc-950"
+          <div
+            className="min-w-0 overflow-hidden"
             style={{
-              ...titleStyle,
+              ...titleBadgeStyle,
               gridColumn: hasImage ? "2" : "1",
               gridRow: "1",
             }}
           >
-            {productName}
-          </h3>
+            <h3
+              className="min-w-0 font-black leading-[1.03] text-white"
+              style={{
+                display: "-webkit-box",
+                WebkitBoxOrient: "vertical",
+                WebkitLineClamp: 2,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                fontSize: `${thermalLayout.titleFontSize}px`,
+                lineHeight: thermalLayout.titleLineHeight,
+                width: "100%",
+                wordBreak: "break-word",
+                overflowWrap: "anywhere",
+                margin: 0,
+                paddingTop: "0.2mm",
+              }}
+            >
+              {productName}
+            </h3>
+          </div>
         ) : null}
 
         <div
@@ -1447,7 +1457,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                 className="font-black uppercase leading-none tracking-[0.22em] text-zinc-300"
                 style={{
                   position: "absolute",
-                  top: `${articleTextLayout.labelTopMm - thermalLayout.articleCell.y}mm`,
+                  top: `${Math.max(0.6, articleTextLayout.labelTopMm - thermalLayout.articleCell.y - 0.5)}mm`,
                   left: 0,
                   right: 0,
                   fontSize: `${thermalLayout.articleLabelFontSize}px`,
@@ -1479,26 +1489,30 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             overflow: "hidden",
             gridColumn: hasImage ? "2" : "1",
             gridRow: "3",
-            width: `${colorFrame.w}mm`,
+            width: `${thermalLayout.colorCell.w}mm`,
             height: `${colorFrame.h}mm`,
             minHeight: `${colorFrame.h}mm`,
             marginInline: "auto",
             marginTop: `${(thermalLayout.colorCell.h - colorFrame.h) / 2}mm`,
           }}
         >
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[1mm]">
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[1.2mm]">
             <div className="relative h-full min-h-0" style={{ height: `${thermalLayout.colorBoxHeight}mm` }}>
               <div className="absolute left-[1.2mm] top-1/2 -translate-y-1/2 font-black uppercase leading-none tracking-[0.22em] text-zinc-300" style={{ fontSize: `${thermalLayout.colorLabelFontSize}px` }}>
                 {t("products.barcodeLabels.color")}
               </div>
               <div
+                className="absolute top-[15%] bottom-[15%] left-[17.1mm] w-px bg-white/45"
+                aria-hidden="true"
+              />
+              <div
                 className="truncate font-black uppercase leading-none"
                 style={{
                   position: "absolute",
-                  left: "18.5mm",
+                  left: "18.8mm",
                   top: "50%",
                   transform: "translateY(-50%)",
-                  fontSize: `${Math.max(thermalLayout.sizeValueFontSize * 0.9, thermalLayout.colorValueFontSize * 1.45)}px`,
+                  fontSize: `${Math.max(thermalLayout.sizeValueFontSize * 0.98, thermalLayout.colorValueFontSize * 1.5)}px`,
                 }}
               >
                 {colorValue}

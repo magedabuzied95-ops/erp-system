@@ -1238,7 +1238,9 @@ export const buildBarcodePrintHtml = ({
       if (resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
         return `
           <article class="landscape-label">
-            <div class="landscape-title">${escapeHtml(item.productName || "")}</div>
+            <div class="landscape-title-box">
+              <div class="landscape-title">${escapeHtml(item.productName || "")}</div>
+            </div>
             <div class="landscape-body">
               <div class="landscape-image">
                 <div class="image-fallback" aria-hidden="true">
@@ -1256,8 +1258,9 @@ export const buildBarcodePrintHtml = ({
                   <strong>${escapeHtml(item.size || "ONE SIZE")}</strong>
                 </div>
                 <div class="landscape-meta-row">
-                  <div class="landscape-pill">
+                  <div class="landscape-pill landscape-color-pill">
                     <span>${escapeHtml(printCopy.color || "Color")}</span>
+                    <span class="landscape-pill-divider" aria-hidden="true"></span>
                     <strong>${escapeHtml(item.color || "")}</strong>
                   </div>
                   <div class="landscape-pill">
@@ -1497,7 +1500,17 @@ export const buildBarcodePrintHtml = ({
             font-size: 13px;
             line-height: 1.04;
             font-weight: 900;
-            color: #020617;
+            color: #ffffff;
+          }
+          .landscape-title-box {
+            border: 1px solid #020617;
+            border-radius: 8px;
+            background: #020617;
+            color: #ffffff;
+            padding: 1.1mm 1.2mm;
+          }
+          .landscape-title-box .landscape-title {
+            min-height: 0;
           }
           .landscape-body {
             display: grid;
@@ -1569,10 +1582,12 @@ export const buildBarcodePrintHtml = ({
             background: #020617;
             padding: 0.8mm 1mm;
             color: #ffffff;
+          }
+          .landscape-color-pill {
             display: grid;
-            grid-template-columns: 18mm minmax(0, 1fr);
+            grid-template-columns: 17mm 1px minmax(0, 1fr);
             align-items: center;
-            column-gap: 1mm;
+            column-gap: 0.9mm;
           }
           .landscape-pill span {
             display: block;
@@ -1582,6 +1597,15 @@ export const buildBarcodePrintHtml = ({
             letter-spacing: 0.18em;
             text-transform: uppercase;
             color: #cbd5e1;
+          }
+          .landscape-pill-divider {
+            display: block;
+            align-self: stretch;
+            width: 1px;
+            background: rgba(255, 255, 255, 0.45);
+          }
+          .landscape-color-pill span:first-child {
+            text-align: left;
           }
           .landscape-pill strong {
             display: block;

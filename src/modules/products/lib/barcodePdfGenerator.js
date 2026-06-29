@@ -215,12 +215,17 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   if (titleLinesToRender.length === thermalLayout.titleMaxLines) {
     titleLinesToRender[titleLinesToRender.length - 1] = ellipsizeLine(doc, titleLinesToRender[titleLinesToRender.length - 1], titleCell.w);
   }
-  doc.setTextColor(2, 6, 23);
+  drawRoundedRect(doc, titleCell.x, titleCell.y, titleCell.w, titleCell.h, 1.8, [2, 6, 23], [2, 6, 23]);
+  doc.setTextColor(203, 213, 225);
   doc.setFont("helvetica", "bold");
-  const titleOffsetY = 2;
+  const titleMaxWidth = Math.max(1, titleCell.w - 2.4);
+  const titleBaseFontSize = fitTextSize(doc, titleLinesToRender[0] || productName, titleMaxWidth, thermalLayout.titleFontSize, 6);
+  const titleLineStep = Math.max(3.8, thermalLayout.titleLineStepMm * 0.78);
+  const titleStartY = titleCell.y + 3.0;
   titleLinesToRender.forEach((line, lineIndex) => {
-    doc.setFontSize(lineIndex === 0 ? thermalLayout.titleFontSize : thermalLayout.titleFontSize * 0.86);
-    doc.text(line, titleCell.x, titleCell.y + titleOffsetY + (lineIndex * thermalLayout.titleLineStepMm), { maxWidth: titleCell.w });
+    const nextSize = lineIndex === 0 ? titleBaseFontSize : Math.max(6, titleBaseFontSize * 0.88);
+    doc.setFontSize(nextSize);
+    doc.text(line, titleCell.x + (titleCell.w / 2), titleStartY + (lineIndex * titleLineStep), { align: "center", maxWidth: titleMaxWidth });
   });
 
   const sizeFrame = getBoxFrameLayout(sizeCell, { boxWidthFactor: 0.9 });
@@ -250,7 +255,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
       valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
     });
     doc.setFontSize(thermalLayout.articleLabelFontSize);
-    doc.text("ARTICLE CODE", articleCell.x + thermalLayout.articleBoxWidth / 2, articleTextLayout.labelTextY, { align: "center" });
+    doc.text("ARTICLE CODE", articleCell.x + thermalLayout.articleBoxWidth / 2, articleTextLayout.labelTextY - 0.4, { align: "center" });
     doc.setTextColor(255, 255, 255);
     const skuFontSize = fitTextSize(doc, skuValue, thermalLayout.articleBoxWidth - 2, Math.max(thermalLayout.sizeValueFontSize * 0.92, thermalLayout.articleFontSize), thermalLayout.articleFontSizeCompact);
     doc.setFontSize(skuFontSize);
@@ -263,10 +268,13 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setFontSize(thermalLayout.colorLabelFontSize);
   const colorMidY = colorFrame.y + colorFrame.h / 2;
   doc.text("COLOR", colorFrame.x + 1.2, colorMidY, { align: "left", baseline: "middle" });
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(0.12);
+  doc.line(colorFrame.x + 17.2, colorFrame.y + 1, colorFrame.x + 17.2, colorFrame.y + colorFrame.h - 1);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(Math.max(thermalLayout.sizeValueFontSize * 0.9, thermalLayout.colorValueFontSize * 1.45));
   doc.setFont("helvetica", "bold");
-  doc.text(colorValue || "-", colorFrame.x + 18.5, colorMidY, { align: "left", baseline: "middle", maxWidth: colorFrame.w - 20 });
+  doc.text(colorValue || "-", colorFrame.x + 18.8, colorMidY, { align: "left", baseline: "middle", maxWidth: colorFrame.w - 20.5 });
 
   if (!showArticleBox) {
     doc.setTextColor(15, 23, 42);
