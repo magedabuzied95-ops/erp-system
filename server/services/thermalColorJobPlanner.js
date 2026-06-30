@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { upsertBarcodePrintQueueItem } from "./barcodePrintQueueService.js";
 import { regenerateThermalImageForProductImage } from "./thermalArtworkService.js";
 
 const normalizeText = (value = "") => String(value || "").trim();
@@ -235,6 +236,25 @@ const scheduleColorJob = ({
 } = {}) => {
   const colorKey = normalizeColorKey(group?.colorKey || group?.color);
   const primaryImageUrl = normalizeText(group?.primaryImageUrl);
+  const queueColorKey = primaryImageUrl.toLowerCase();
+  const queueLabelCount = Math.max(1, Array.isArray(group?.variantIds) ? group.variantIds.length : 0);
+  const queueVariantIds = Array.isArray(group?.variantIds) ? group.variantIds : [];
+  const queueSource =
+    group?.source === "product-image"
+      ? "product_create"
+      : group?.source === "variant" || group?.source === "color-group"
+        ? "color_add"
+        : "thermal_ready";
+  const queuePayloadBase = {
+    tenantId,
+    productId,
+    color: group?.color || "",
+    colorKey: queueColorKey,
+    imageUrl: primaryImageUrl,
+    source: queueSource,
+    labelCount: queueLabelCount,
+    variantIds: queueVariantIds,
+  };
   if (!primaryImageUrl) {
     console.log("THERMAL_COLOR_JOB_SKIPPED_EXISTING", {
       productId,
@@ -249,6 +269,17 @@ const scheduleColorJob = ({
   const existingThermalUrl = previousThermalUrlMap.get(primaryImageUrl.toLowerCase()) || "";
   const jobKey = `${productId || "product"}|${colorKey || "default"}|${primaryImageUrl.toLowerCase()}`;
   if (existingThermalUrl) {
+    void upsertBarcodePrintQueueItem({
+      ...queuePayloadBase,
+      thermalImageUrl: existingThermalUrl,
+      status: "ready",
+    }).catch((error) => {
+      console.warn("[barcode-print-queue] ready sync failed", {
+        productId,
+        color: group?.color || "",
+        message: error?.message || String(error),
+      });
+    });
     console.log("THERMAL_COLOR_JOB_SKIPPED_EXISTING", {
       productId,
       color: group?.color || "",
@@ -275,6 +306,17 @@ const scheduleColorJob = ({
   }
 
   if (THERMAL_COLOR_JOB_IN_FLIGHT.has(jobKey)) {
+    void upsertBarcodePrintQueueItem({
+      ...queuePayloadBase,
+      thermalImageUrl: normalizeText(group?.existingThermalUrl),
+      status: "pending",
+    }).catch((error) => {
+      console.warn("[barcode-print-queue] pending sync failed", {
+        productId,
+        color: group?.color || "",
+        message: error?.message || String(error),
+      });
+    });
     console.log("THERMAL_COLOR_JOB_SKIPPED_IN_FLIGHT", {
       productId,
       color: group?.color || "",
@@ -293,6 +335,17 @@ const scheduleColorJob = ({
     variantIds: Array.isArray(group?.variantIds) ? group.variantIds : [],
     representativeVariantId: group?.representativeVariantId || null,
   });
+  void upsertBarcodePrintQueueItem({
+    ...queuePayloadBase,
+    thermalImageUrl: normalizeText(group?.existingThermalUrl),
+    status: "pending",
+  }).catch((error) => {
+    console.warn("[barcode-print-queue] queue sync failed", {
+      productId,
+      color: group?.color || "",
+      message: error?.message || String(error),
+    });
+  });
 
   const job = (async () => {
     const result = await regenerateThermalImageForProductImage({
@@ -307,8 +360,31 @@ const scheduleColorJob = ({
     });
 
     if (!result?.success || !result?.thermal_image_url) {
+      await upsertBarcodePrintQueueItem({
+        ...queuePayloadBase,
+        thermalImageUrl: "",
+        status: "failed",
+      }).catch((error) => {
+        console.warn("[barcode-print-queue] failed sync failed", {
+          productId,
+          color: group?.color || "",
+          message: error?.message || String(error),
+        });
+      });
       throw Object.assign(new Error(result?.error || "Thermal generation failed"), { result });
     }
+
+    await upsertBarcodePrintQueueItem({
+      ...queuePayloadBase,
+      thermalImageUrl: result.thermal_image_url,
+      status: "ready",
+    }).catch((error) => {
+      console.warn("[barcode-print-queue] ready sync failed", {
+        productId,
+        color: group?.color || "",
+        message: error?.message || String(error),
+      });
+    });
 
     if (typeof onSync === "function") {
       await onSync({
@@ -337,6 +413,17 @@ const scheduleColorJob = ({
       sourceImageUrl: primaryImageUrl,
       message: error?.message || String(error),
       stack: error?.stack,
+    });
+    void upsertBarcodePrintQueueItem({
+      ...queuePayloadBase,
+      thermalImageUrl: "",
+      status: "failed",
+    }).catch((queueError) => {
+      console.warn("[barcode-print-queue] failed sync failed", {
+        productId,
+        color: group?.color || "",
+        message: queueError?.message || String(queueError),
+      });
     });
     return {
       success: false,

@@ -643,6 +643,7 @@
     "units": "Units",
     "variants": "Variants",
     "barcodeLabels": "Barcode Labels",
+    "barcodePrintQueue": "Barcode Print Queue",
     "orders": "Orders",
     "websiteOrders": "Website Orders",
     "posPro": "POS PRO",

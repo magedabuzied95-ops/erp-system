@@ -441,3 +441,16 @@ export const createManufacturer = async (body) => unwrapItem(await api.post("/ma
 export const updateManufacturer = async (id, body) => unwrapItem(await api.put(`/manufacturers/${id}`, body));
 
 export const deleteManufacturer = async (id) => api.delete(`/manufacturers/${id}`);
+
+export const getBarcodePrintQueue = async (options = {}) => {
+  const response = await api.get("/products/barcode-print-queue", options);
+  return unwrapArray(response);
+};
+
+export const markBarcodePrintQueuePrinted = async (id) =>
+  unwrapItem(await api.post(`/products/barcode-print-queue/${id}/mark-printed`));
+
+export const requeueBarcodePrintQueue = async (id) =>
+  unwrapItem(await api.post(`/products/barcode-print-queue/${id}/requeue`));
+
+export const deleteBarcodePrintQueue = async (id) => api.delete(`/products/barcode-print-queue/${id}`);

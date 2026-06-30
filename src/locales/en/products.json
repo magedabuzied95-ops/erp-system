@@ -411,6 +411,34 @@
     "a4": "A4",
     "thermal": "Thermal"
   },
+  "barcodePrintQueue": {
+    "title": "Barcode Print Queue",
+    "description": "Prepared thermal label jobs waiting for manual printing.",
+    "eyebrow": "Barcode queue",
+    "showPrinted": "Show printed",
+    "ready": "Ready",
+    "pending": "Pending",
+    "failed": "Failed",
+    "printed": "Printed",
+    "printLabels": "Print labels",
+    "markPrinted": "Mark printed",
+    "requeue": "Requeue",
+    "remove": "Remove",
+    "labels": "{{count}} labels",
+    "createdAt": "Created",
+    "updatedAt": "Updated",
+    "color": "Color",
+    "defaultColor": "Default",
+    "loadFailed": "Failed to load barcode print queue",
+    "empty": "No barcode print queue items yet.",
+    "noImage": "No image",
+    "status": {
+      "ready": "Ready",
+      "pending": "Pending",
+      "failed": "Failed",
+      "printed": "Printed"
+    }
+  },
   "editor": {
     "title": "Edit product",
     "save": "Save changes",

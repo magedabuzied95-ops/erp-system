@@ -46,6 +46,7 @@ const Manufacturers = lazy(() => import("./modules/products/pages/Manufacturers"
 const Units = lazy(() => import("./modules/products/pages/Units"));
 const Variants = lazy(() => import("./modules/products/pages/Variants"));
 const BarcodeLabels = lazy(() => import("./modules/products/pages/BarcodeLabels"));
+const BarcodePrintQueue = lazy(() => import("./modules/products/pages/BarcodePrintQueue"));
 
 /* ======================================================
    INVENTORY
@@ -747,6 +748,15 @@ function App() {
           element={
             <DebugErrorBoundary>
               <BarcodeLabels />
+            </DebugErrorBoundary>
+          }
+        />
+
+        <Route
+          path="products/barcode-print-queue"
+          element={
+            <DebugErrorBoundary>
+              <BarcodePrintQueue />
             </DebugErrorBoundary>
           }
         />

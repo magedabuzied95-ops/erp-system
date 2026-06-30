@@ -19,6 +19,12 @@ import { suggestMirrorEditionName } from "../controllers/editionSuggestionsContr
 import { generateProductDescription, generateSocialPublisherCaption } from "../services/openaiProductDescriptionService.js";
 import { generateThermalArtwork } from "../services/thermalArtworkService.js";
 import { getTenantId, tenantContextMissingResponse } from "../utils/requestScope.js";
+import {
+  deleteBarcodePrintQueueController,
+  getBarcodePrintQueue,
+  markBarcodePrintQueuePrintedController,
+  requeueBarcodePrintQueueController,
+} from "../controllers/barcodePrintQueueController.js";
 
 const router = express.Router();
 
@@ -358,6 +364,10 @@ router.post("/:id/generate-ai-thermal-artwork", protect, async (req, res) => {
 });
 router.post("/suggest-edition", protect, suggestMirrorEditionName);
 router.post("/edition-suggestions", protect, suggestMirrorEditionName);
+router.get("/barcode-print-queue", protect, getBarcodePrintQueue);
+router.post("/barcode-print-queue/:id/mark-printed", protect, markBarcodePrintQueuePrintedController);
+router.post("/barcode-print-queue/:id/requeue", protect, requeueBarcodePrintQueueController);
+router.delete("/barcode-print-queue/:id", protect, deleteBarcodePrintQueueController);
 router.post("/", protect, createProduct);
 router.post("/:id/variants", protect, createVariant);
 router.put("/variants/:id", protect, updateVariant);

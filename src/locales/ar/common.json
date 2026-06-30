@@ -639,6 +639,7 @@
     "units": "الوحدات",
     "variants": "المتغيرات",
     "barcodeLabels": "ملصقات الباركود",
+    "barcodePrintQueue": "ملصقات جاهزة للطباعة",
     "orders": "الطلبات",
     "posPro": "نقطة البيع الاحترافية",
     "customers": "العملاء",

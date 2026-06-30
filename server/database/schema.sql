@@ -279,6 +279,32 @@ CREATE INDEX IF NOT EXISTS idx_product_variant_images_product_color ON product_v
 CREATE INDEX IF NOT EXISTS idx_product_variant_images_variant ON product_variant_images (variant_id, sort_order, id);
 CREATE INDEX IF NOT EXISTS idx_product_variant_images_primary ON product_variant_images (product_id, color_name, is_primary);
 
+CREATE TABLE IF NOT EXISTS barcode_print_queue (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  color TEXT NOT NULL DEFAULT '',
+  color_key TEXT NOT NULL,
+  image_url TEXT NOT NULL DEFAULT '',
+  thermal_image_url TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending',
+  source TEXT NOT NULL DEFAULT 'thermal_ready',
+  label_count INTEGER NOT NULL DEFAULT 0,
+  variant_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  printed_at TIMESTAMP NULL,
+  printed_by BIGINT NULL REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_barcode_print_queue_active_unique
+  ON barcode_print_queue (tenant_id, product_id, color_key)
+  WHERE status <> 'printed';
+CREATE INDEX IF NOT EXISTS idx_barcode_print_queue_tenant_status_updated
+  ON barcode_print_queue (tenant_id, status, updated_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_barcode_print_queue_product
+  ON barcode_print_queue (tenant_id, product_id, color_key, updated_at DESC, id DESC);
+
 CREATE TABLE IF NOT EXISTS warehouses (
   id BIGSERIAL PRIMARY KEY,
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,

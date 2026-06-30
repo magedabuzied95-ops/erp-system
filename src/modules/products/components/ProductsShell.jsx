@@ -11,6 +11,7 @@ import {
   LayoutGrid,
   ListChecks,
   PackagePlus,
+  Printer,
 } from "lucide-react";
 import { ResponsiveTabs } from "../../../shared/components/mobile/ResponsiveMobile";
 
@@ -32,6 +33,7 @@ export default function ProductsShell({
     { to: "/products/units", label: t("sidebar.units"), icon: Boxes },
     { to: "/products/variants", label: t("sidebar.variants"), icon: BarChart3 },
     { to: "/products/barcode-labels", label: t("sidebar.barcodeLabels"), icon: Barcode },
+    { to: "/products/barcode-print-queue", label: t("sidebar.barcodePrintQueue"), icon: Printer },
   ];
 
   return (

@@ -453,6 +453,37 @@ function BarcodeLabels() {
   const mode = searchParams.get("mode");
   const isBarcodeShopMode = mode === "barcode-shop";
   const availableOnly = String(searchParams.get("availableOnly") || "").toLowerCase() === "true";
+  const routeColorKey = String(searchParams.get("colorKey") || searchParams.get("color_key") || searchParams.get("color") || "").trim().toLowerCase();
+  const routeVariantIds = useMemo(
+    () =>
+      new Set(
+        String(searchParams.get("variantIds") || searchParams.get("variant_ids") || "")
+          .split(",")
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+      ),
+    [searchParams]
+  );
+  const hasRoutePrintFilter = routeVariantIds.size > 0 || Boolean(routeColorKey);
+  const routeProductVariants = useMemo(() => {
+    if (!routeLocked || !activeProduct) return [];
+    const variants = Array.isArray(activeProduct.variants) ? activeProduct.variants : [];
+    const filteredByVariantIds = routeVariantIds.size
+      ? variants.filter((variant) => routeVariantIds.has(String(variant?.variant_id ?? variant?.id ?? "")))
+      : variants;
+    const filteredByColor = routeColorKey
+      ? filteredByVariantIds.filter((variant) => String(variant?.color || variant?.color_name || "").trim().toLowerCase() === routeColorKey)
+      : filteredByVariantIds;
+    return filteredByColor.length ? filteredByColor : filteredByVariantIds;
+  }, [activeProduct, routeColorKey, routeLocked, routeVariantIds]);
+
+  const routeActiveProduct = useMemo(() => {
+    if (!routeLocked || !activeProduct) return activeProduct;
+    return {
+      ...activeProduct,
+      variants: routeProductVariants,
+    };
+  }, [activeProduct, routeLocked, routeProductVariants]);
   const sheetModes = useMemo(
     () => [
       { value: "a4", label: t("products.barcodeLabels.a4Sheet") },
@@ -525,7 +556,13 @@ function BarcodeLabels() {
         if (matchedProduct) {
           setActiveProduct(matchedProduct);
           setRouteLocked(true);
-          const variantCount = (matchedProduct.variants || []).filter((variant) =>
+          const routeVariantCountSource = routeVariantIds.size
+            ? (matchedProduct.variants || []).filter((variant) => routeVariantIds.has(String(variant?.variant_id ?? variant?.id ?? "")))
+            : (matchedProduct.variants || []);
+          const filteredRouteVariants = routeColorKey
+            ? routeVariantCountSource.filter((variant) => String(variant?.color || variant?.color_name || "").trim().toLowerCase() === routeColorKey)
+            : routeVariantCountSource;
+          const variantCount = (filteredRouteVariants.length ? filteredRouteVariants : routeVariantCountSource).filter((variant) =>
             availableOnly ? Number(variant.stock || 0) > 0 : true
           ).length;
           setActiveProductNotice(
@@ -565,23 +602,27 @@ function BarcodeLabels() {
 
   const visibleCatalog = useMemo(() => {
     const query = search.trim().toLowerCase();
-    if (routeLocked && activeProduct) return [activeProduct];
+    if (routeLocked && routeActiveProduct) {
+      if (hasRoutePrintFilter && routeProductVariants.length === 0) return [];
+      return [routeActiveProduct];
+    }
     if (routeLocked && !activeProduct) return [];
     if (!query) return catalog;
     return catalog.filter((product) => toSearchText(product).includes(query));
-  }, [catalog, search, routeLocked, activeProduct]);
+  }, [catalog, search, routeLocked, activeProduct, routeActiveProduct, routeProductVariants.length, hasRoutePrintFilter]);
 
   const selectedProduct = useMemo(
     () => {
       if (!Number.isFinite(productId)) return activeProduct;
       return (
+        routeActiveProduct ||
         activeProduct ||
         catalog.find((product) => Number(product.id) === Number(productId)) ||
         products.find((product) => Number(product.id) === Number(productId)) ||
         null
       );
     },
-    [catalog, products, productId, activeProduct]
+    [catalog, products, productId, activeProduct, routeActiveProduct]
   );
 
   const selectedProductVariants = useMemo(
@@ -601,20 +642,24 @@ function BarcodeLabels() {
 
   const selectedProductPriceFallbackVariant = useMemo(
     () =>
-      selectedProductVariants.find((variant) =>
+      (routeProductVariants.length ? routeProductVariants : selectedProductVariants).find((variant) =>
         Number(variant?.sale_price || variant?.selling_price || variant?.regular_price || variant?.price || variant?.variant_price || 0) > 0
-      ) || selectedProductVariants[0] || null,
-    [selectedProductVariants]
+      ) || (routeProductVariants.length ? routeProductVariants[0] : selectedProductVariants[0]) || null,
+    [routeProductVariants, selectedProductVariants]
   );
 
   const selectedItems = useMemo(
-    () =>
-      isBarcodeShopMode && activeProduct
-        ? [buildBarcodeShopLabelItem(activeProduct, barcodeShopQuantity, selectedProductPriceFallbackVariant)].filter(Boolean)
-        : routeLocked && activeProduct
-        ? buildProductLabelItems({ product: activeProduct, availableOnly })
-        : buildSelectedLabelItems(catalog, selectedQuantities),
-    [catalog, selectedQuantities, routeLocked, activeProduct, availableOnly, isBarcodeShopMode, barcodeShopQuantity, selectedProductPriceFallbackVariant]
+    () => {
+      if (isBarcodeShopMode && routeActiveProduct) {
+        return [buildBarcodeShopLabelItem(routeActiveProduct, barcodeShopQuantity, selectedProductPriceFallbackVariant)].filter(Boolean);
+      }
+      if (routeLocked && routeActiveProduct) {
+        if (hasRoutePrintFilter && routeProductVariants.length === 0) return [];
+        return buildProductLabelItems({ product: routeActiveProduct, availableOnly });
+      }
+      return buildSelectedLabelItems(catalog, selectedQuantities);
+    },
+    [catalog, selectedQuantities, routeLocked, routeActiveProduct, availableOnly, isBarcodeShopMode, barcodeShopQuantity, selectedProductPriceFallbackVariant, routeProductVariants.length, hasRoutePrintFilter]
   );
 
   const qrReadyItems = useMemo(
