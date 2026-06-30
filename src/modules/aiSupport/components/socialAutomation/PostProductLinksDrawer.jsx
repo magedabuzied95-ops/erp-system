@@ -10,6 +10,10 @@ import {
 } from "../../services/postProductMappingApi.js";
 
 const clean = (value = "") => String(value ?? "").trim();
+const isSocialDebugEnabled = () => import.meta.env.DEV && window.localStorage.getItem("social_debug") === "1";
+const socialDebugLog = (...args) => {
+  if (isSocialDebugEnabled()) console.log(...args);
+};
 
 const normalizeProduct = (raw = {}) => {
   const image = clean(raw.image_url || raw.product_image_url || raw.cover_image_url || raw.primary_media_url || raw.thumbnail_url || raw.thumbnailUrl || raw.image || raw.main_image || raw.variant_image_url || "");
@@ -70,6 +74,7 @@ const buildPostIdentityPayload = (post = {}) => ({
   permalink_post_id: clean(post?.permalink_post_id || ""),
   canonical_post_id: clean(post?.canonicalPostId || post?.canonical_post_id || ""),
   post_id: clean(post?.sourcePostId || post?.postId || post?.post_id || ""),
+  object_id: clean(post?.object_id || post?.permalink_post_id || ""),
 });
 
 export default function PostProductLinksDrawer({
@@ -155,6 +160,12 @@ export default function PostProductLinksDrawer({
         platform: safePlatform,
         tenantId,
         postIdentity: postIdentityPayload,
+      });
+      socialDebugLog("SOCIAL_PRODUCT_LINK_DRAWER_READBACK_TRACE", {
+        post_id: safePostId,
+        post_identity: postIdentityPayload,
+        returned_product_ids: Array.isArray(payload?.product_ids) ? payload.product_ids : [],
+        returned_product_names: Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => clean(item?.name || item?.title || item?.product_name || "")) : [],
       });
       const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
       setSelectedProducts(mapped);
@@ -291,6 +302,13 @@ export default function PostProductLinksDrawer({
         productIds: selectedProductIds,
         primaryProductId: safePrimaryProductId,
         postIdentity: postIdentityPayload,
+      });
+      socialDebugLog("SOCIAL_PRODUCT_LINK_UPSERT_TRACE", {
+        post_id: safePostId,
+        post_identity: postIdentityPayload,
+        saved_product_ids: selectedProductIds,
+        returned_product_ids: Array.isArray(payload?.product_ids) ? payload.product_ids : [],
+        primary_product_id: Number(payload?.primary_product?.id || payload?.primary_product?.product_id || 0) || null,
       });
       const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
       setSelectedProducts(mapped);

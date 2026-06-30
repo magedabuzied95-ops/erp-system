@@ -508,6 +508,14 @@ router.get("/posts/:postId/product-links", protect, permit("settings", "view"), 
       saved_platform_post_id: String(mapping?.post_id || post?.platform_post_id || post?.post_id || requestedPostId || "").trim(),
       primary_product_name: String(mapping?.primary_product?.name || mapping?.primary_product?.title || mapping?.primary_product?.product_name || "").trim(),
       platform: String(mapping?.platform || platform || "facebook").trim() || "facebook",
+      post_identity: {
+        platform_post_id: clean(resolvedPost?.platform_post_id || ""),
+        source_post_id: clean(resolvedPost?.source_post_id || ""),
+        permalink_post_id: clean(resolvedPost?.permalink_post_id || ""),
+        canonical_post_id: clean(resolvedPost?.canonical_post_id || canonicalPostId || ""),
+        post_id: clean(resolvedPost?.post_id || ""),
+        object_id: clean(resolvedPost?.object_id || ""),
+      },
     });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load product links" });
@@ -627,6 +635,7 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
         permalink_post_id: clean(manualIdentity.permalink_post_id || resolvedPost?.permalink_post_id || ""),
         canonical_post_id: clean(manualIdentity.canonical_post_id || canonicalPostId || ""),
         post_id: clean(manualIdentity.post_id || resolvedPost?.post_id || ""),
+        object_id: clean(manualIdentity.object_id || resolvedPost?.object_id || ""),
       },
     });
   } catch (error) {
