@@ -391,6 +391,11 @@ const normalizePost = (raw) => {
     has_direct_product_link: hasDirectProductLink,
     hasSiblingProductContext,
     has_sibling_product_context: hasSiblingProductContext,
+    selected_post_identity: post.selected_post_identity || metadata.selected_post_identity || null,
+    latest_comment_post_identity: post.latest_comment_post_identity || metadata.latest_comment_post_identity || null,
+    permalink_post_id: clean(post.permalink_post_id || metadata.permalink_post_id || ""),
+    post_identity_mismatch: Boolean(post.post_identity_mismatch ?? metadata.post_identity_mismatch),
+    post_identity_mismatch_reason: clean(post.post_identity_mismatch_reason || metadata.post_identity_mismatch_reason || ""),
     mapping_summary: mappingSummary,
     duplicateIdentity: post.duplicate_identity || metadata.duplicate_identity || null,
     duplicatePostIds: Array.isArray(post.compared_post_ids) ? post.compared_post_ids : Array.isArray(metadata.compared_post_ids) ? metadata.compared_post_ids : [],
@@ -523,13 +528,102 @@ const postIdentityFingerprint = (item = {}) =>
     clean(item?.permalinkUrl || item?.display_permalink || ""),
   ].join("|");
 
+const extractPermalinkPostId = (value = "") => {
+  const permalink = clean(value);
+  if (!permalink) return "";
+  const patterns = [
+    /facebook\.com\/[^/]+\/posts\/(\d+)/i,
+    /facebook\.com\/[^/]+\/videos\/(\d+)/i,
+    /facebook\.com\/photo\.php\?(?:[^#&]*&)*fbid=(\d+)/i,
+    /facebook\.com\/permalink\.php\?(?:[^#&]*&)*story_fbid=(\d+)/i,
+    /facebook\.com\/story\.php\?(?:[^#&]*&)*story_fbid=(\d+)/i,
+    /facebook\.com\/watch\/\?v=(\d+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = permalink.match(pattern);
+    if (match?.[1]) return clean(match[1]);
+  }
+  return "";
+};
+
+const buildPostIdentitySnapshot = (post = {}) => {
+  const normalized = normalizePost(post || {});
+  const metadata = normalized?.metadata && typeof normalized.metadata === "object" && !Array.isArray(normalized.metadata) ? normalized.metadata : {};
+  const raw = normalized?.raw && typeof normalized.raw === "object" && !Array.isArray(normalized.raw) ? normalized.raw : {};
+  const selectedIdentity = post?.selected_post_identity && typeof post.selected_post_identity === "object" && !Array.isArray(post.selected_post_identity)
+    ? post.selected_post_identity
+    : normalized?.raw?.selected_post_identity && typeof normalized.raw.selected_post_identity === "object" && !Array.isArray(normalized.raw.selected_post_identity)
+      ? normalized.raw.selected_post_identity
+      : {};
+  const permalink = clean(
+    selectedIdentity?.permalink_url ||
+    normalized?.permalinkUrl ||
+    normalized?.display_permalink ||
+    normalized?.post_permalink ||
+    raw?.permalink_url ||
+    metadata?.permalink_url ||
+    ""
+  );
+  const permalinkPostId = clean(
+    selectedIdentity?.permalink_post_id ||
+    raw?.permalink_post_id ||
+    extractPermalinkPostId(permalink)
+  );
+  const ids = new Set(
+    [
+      normalized?.canonicalPostId,
+      normalized?.finalCanonicalPostId,
+      normalized?.platformPostId,
+      normalized?.sourcePostId,
+      normalized?.postId,
+      raw?.post_id,
+      raw?.platform_post_id,
+      raw?.source_post_id,
+      metadata?.post_id,
+      metadata?.platform_post_id,
+      metadata?.source_post_id,
+      selectedIdentity?.canonical_post_id,
+      selectedIdentity?.platform_post_id,
+      selectedIdentity?.source_post_id,
+      selectedIdentity?.post_id,
+      selectedIdentity?.object_id,
+      permalinkPostId,
+    ]
+      .map((value) => clean(value))
+      .filter(Boolean)
+      .flatMap((value) => (value.includes("_") ? [value, clean(value.split("_").pop() || "")] : [value]))
+  );
+  return {
+    normalized,
+    permalink,
+    permalinkPostId,
+    ids,
+  };
+};
+
+const comparePostIdentitySnapshots = (left = null, right = null) => {
+  const leftSnapshot = left?.ids ? left : buildPostIdentitySnapshot(left || {});
+  const rightSnapshot = right?.ids ? right : buildPostIdentitySnapshot(right || {});
+  const shared = Array.from(leftSnapshot.ids || []).filter((value) => rightSnapshot.ids?.has(value));
+  if (!leftSnapshot.ids?.size || !rightSnapshot.ids?.size) {
+    return { matches: false, reason: "missing_identity" };
+  }
+  if (shared.length) {
+    return { matches: true, reason: "", shared };
+  }
+  if (leftSnapshot.permalinkPostId && rightSnapshot.permalinkPostId && leftSnapshot.permalinkPostId !== rightSnapshot.permalinkPostId) {
+    return { matches: false, reason: "permalink_post_id_mismatch", shared: [] };
+  }
+  return { matches: false, reason: "identity_values_disagree", shared: [] };
+};
+
 const findMatchingNormalizedPost = (items = [], target = null) => {
   const normalizedTarget = normalizePost(target || {});
   const targetKey = postKey(normalizedTarget);
-  const targetFingerprint = postIdentityFingerprint(normalizedTarget);
+  const targetSnapshot = buildPostIdentitySnapshot(normalizedTarget);
   const list = Array.isArray(items) ? items : [];
-  if (targetFingerprint) {
-    const exact = list.find((item) => postIdentityFingerprint(item) === targetFingerprint);
+  if (targetSnapshot.ids.size) {
+    const exact = list.find((item) => comparePostIdentitySnapshots(item, targetSnapshot).matches);
     if (exact) return exact;
   }
   if (targetKey) {
@@ -1310,12 +1404,15 @@ function SocialCommentsWorkspace({
   const activeThread = selectedThread || { post: null, comments: [], loading: false, error: "" };
   const comments = useMemo(() => (Array.isArray(activeThread.comments) ? activeThread.comments.filter(Boolean) : []), [activeThread.comments]);
   const normalizedComments = useMemo(() => comments.map((comment) => normalizeComment(comment)).filter(Boolean), [comments]);
-  const activeThreadPostKey = clean(postKey(normalizePost(activeThread.post || {})));
   const activeThreadPost = activeThread.post ? findMatchingNormalizedPost(normalizedPosts, activeThread.post) : normalizePost(null);
-  const syncedThreadPost = activeThreadPostKey && activeThreadPostKey === activePostKey ? activeThreadPost : null;
+  const threadPostIdentityComparison = useMemo(
+    () => comparePostIdentitySnapshots(activePost || {}, activeThreadPost || {}),
+    [activePost, activeThreadPost]
+  );
+  const syncedThreadPost = threadPostIdentityComparison.matches ? activeThreadPost : null;
   const activePostDetails = normalizePost(syncedThreadPost || activePost || null);
   const activePostDisplay = useMemo(() => normalizeSocialPostDisplay(syncedThreadPost || activePostDetails || activePost || {}), [syncedThreadPost, activePostDetails, activePost]);
-  const activeDisplayPost = activeThreadPost || activePostDetails || activePost || {};
+  const activeDisplayPost = syncedThreadPost || activePostDetails || activePost || {};
   const activeDisplayLinkedProducts = getPostLinkedProducts(activeDisplayPost);
   const activeAutomationDraftKey = automationDrawerPostKey || activePostKey;
   const activeProductCard = resolveProductCardFields(activeDisplayPost);
@@ -1552,66 +1649,69 @@ function SocialCommentsWorkspace({
       sourcePostId: clean(
         activeAutomationRuntime?.resolved_platform_post_id ||
           runtimeMonitor?.resolved_platform_post_id ||
-          rawRuntimeContext?.resolved_platform_post_id ||
-          latestCommentPostId
+        rawRuntimeContext?.resolved_platform_post_id ||
+        latestCommentPostId
       ),
+      selectedPostIdentity: activePostDetails?.selected_post_identity || activePostDetails?.raw?.selected_post_identity || null,
+      latestCommentIdentity: activePostDetails?.latest_comment_post_identity || activePostDetails?.raw?.latest_comment_post_identity || null,
+      postIdentityMismatch: Boolean(activePostDetails?.post_identity_mismatch || activePostDetails?.raw?.post_identity_mismatch),
+      postIdentityMismatchReason: clean(activePostDetails?.post_identity_mismatch_reason || activePostDetails?.raw?.post_identity_mismatch_reason || ""),
     };
-  }, [activeAutomationRuntime, activePostPlatform]);
-  const latestRuntimePostOpen = useMemo(
-    () => resolvePostOpenLink({
-      postId: latestRuntimePostSnapshot.postId,
-      canonicalPostId: latestRuntimePostSnapshot.postId,
-      sourcePostId: latestRuntimePostSnapshot.sourcePostId,
-      platform: latestRuntimePostSnapshot.platform,
-      permalink_url: latestRuntimePostSnapshot.permalink,
-      post_permalink: latestRuntimePostSnapshot.permalink,
-      post_permalink_url: latestRuntimePostSnapshot.permalink,
-    }),
-    [latestRuntimePostSnapshot]
-  );
+  }, [activeAutomationRuntime, activePostDetails, activePostPlatform]);
   const latestCommentMismatch = useMemo(() => {
     const latestCommentPostId = clean(latestRuntimePostSnapshot.postId);
     if (!latestCommentPostId || !activePostKey) return null;
-    const selectedIds = new Set([activePostPostId, activePostSourceId].map(clean).filter(Boolean));
-    if (selectedIds.has(latestCommentPostId)) return null;
-    const latestKnownPost =
-      normalizedPosts.find((item) => {
-        const candidateIds = [
-          item?.postId,
-          item?.canonicalPostId,
-          item?.sourcePostId,
-          item?.platformPostId,
-          item?.raw?.post_id,
-          item?.raw?.id,
-        ].map(clean).filter(Boolean);
-        return candidateIds.includes(latestCommentPostId);
-      }) || null;
+    const latestIdentitySeed = {
+      postId: latestCommentPostId,
+      canonicalPostId: clean(latestRuntimePostSnapshot.latestCommentIdentity?.canonical_post_id || latestCommentPostId),
+      sourcePostId: clean(latestRuntimePostSnapshot.latestCommentIdentity?.source_post_id || latestRuntimePostSnapshot.sourcePostId || latestCommentPostId),
+      platformPostId: clean(latestRuntimePostSnapshot.latestCommentIdentity?.platform_post_id || latestRuntimePostSnapshot.sourcePostId || latestCommentPostId),
+      permalink_url: clean(latestRuntimePostSnapshot.latestCommentIdentity?.permalink_url || latestRuntimePostSnapshot.permalink || ""),
+      raw: {
+        permalink_post_id: clean(latestRuntimePostSnapshot.latestCommentIdentity?.permalink_post_id || ""),
+        object_id: clean(latestRuntimePostSnapshot.latestCommentIdentity?.object_id || ""),
+      },
+    };
+    const selectedIdentitySeed = {
+      ...(activePostDetails || {}),
+      selected_post_identity: latestRuntimePostSnapshot.selectedPostIdentity || activePostDetails?.selected_post_identity || null,
+    };
+    const latestIdentitySnapshot = buildPostIdentitySnapshot(latestIdentitySeed);
+    const selectedIdentitySnapshot = buildPostIdentitySnapshot(selectedIdentitySeed);
+    const latestKnownPost = normalizedPosts.find((item) => comparePostIdentitySnapshots(item, latestIdentitySnapshot).matches) || null;
     const latestKnownPostNormalized = latestKnownPost ? normalizePost(latestKnownPost) : null;
     const latestKnownProductCount = latestKnownPostNormalized ? resolveProductCardFields(latestKnownPostNormalized).productCount : 0;
+    const identityComparison = comparePostIdentitySnapshots(selectedIdentitySnapshot, latestKnownPostNormalized || latestIdentitySnapshot);
+    if (!latestRuntimePostSnapshot.postIdentityMismatch && identityComparison.matches) return null;
     const selectedStatusLabel = [
       activeProductCard.productCount > 0 ? "already linked" : "not linked",
       activeAutomationState.enabled ? "automation enabled" : "automation disabled",
     ].join(" / ");
     const latestStatusLabel = latestKnownProductCount > 0 ? "already linked" : "needs product link";
+    const resolvedLatestPost = latestKnownPostNormalized || normalizePost(latestIdentitySeed);
+    const resolvedLatestOpen = resolvePostOpenLink(resolvedLatestPost, normalizeSocialPostDisplay(resolvedLatestPost));
+    socialDebugLog("SOCIAL_LATEST_COMMENT_IDENTITY_TRACE", {
+      selectedPostIdentity: latestRuntimePostSnapshot.selectedPostIdentity || activePostDetails?.selected_post_identity || null,
+      latestCommentIdentity: latestRuntimePostSnapshot.latestCommentIdentity || latestIdentitySeed,
+      selectedPermalink: activePostLink || "",
+      latestCommentPermalink: clean(resolvedLatestOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
+      resolvedLatestNormalizedPost: resolvedLatestPost,
+      resolvedSelectedNormalizedPost: activePostDetails,
+      post_identity_mismatch: true,
+      reason: clean(latestRuntimePostSnapshot.postIdentityMismatchReason || identityComparison.reason || "identity_values_disagree"),
+    });
     return {
       selectedPostId: activePostPostId || dash,
       latestCommentPostId,
       selectedPermalink: activePostLink || "",
-      latestCommentPermalink: clean(latestRuntimePostOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
+      latestCommentPermalink: clean(resolvedLatestOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
       selectedStatusLabel,
       latestStatusLabel,
       latestKnownPost: latestKnownPostNormalized,
-      latestPost: {
-        postId: latestCommentPostId,
-        canonicalPostId: latestCommentPostId,
-        sourcePostId: latestRuntimePostSnapshot.sourcePostId || latestCommentPostId,
-        platform: latestRuntimePostSnapshot.platform,
-        permalink_url: clean(latestRuntimePostOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
-        post_permalink: clean(latestRuntimePostOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
-        post_permalink_url: clean(latestRuntimePostOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
-      },
+      latestPost: resolvedLatestPost,
+      reason: clean(latestRuntimePostSnapshot.postIdentityMismatchReason || identityComparison.reason || "identity_values_disagree"),
     };
-  }, [activeAutomationState.enabled, activePostKey, activePostLink, activePostPostId, activePostSourceId, activeProductCard.productCount, latestRuntimePostOpen, latestRuntimePostSnapshot, normalizedPosts]);
+  }, [activeAutomationState.enabled, activePostDetails, activePostKey, activePostLink, activePostPostId, activePostSourceId, activeProductCard.productCount, latestRuntimePostSnapshot, normalizedPosts]);
   const productLinksDrawerPost = useMemo(() => {
     const drawerKey = clean(productLinksDrawerPostKey);
     if (!drawerKey) return null;

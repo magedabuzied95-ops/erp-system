@@ -299,68 +299,258 @@ const findCanonicalAliasValue = (canonicalIdentity = null, aliasKey = "") => {
   return firstTextValue(...aliases.filter((alias) => text(alias?.alias_key) === text(aliasKey)).map((alias) => alias?.alias_value));
 };
 const resolveHydratedPermalinkFields = ({ value = {}, safeRow = {}, metadata = {}, canonicalIdentity = null } = {}) => {
+  const expectedPostIds = collectExpectedSocialPostIdentityValues({ value, safeRow, metadata, canonicalIdentity });
   const aliasPermalinkUrl = findCanonicalAliasValue(canonicalIdentity, "permalink_url");
   const aliasPostPermalink = findCanonicalAliasValue(canonicalIdentity, "post_permalink");
   const aliasPostPermalinkUrl = findCanonicalAliasValue(canonicalIdentity, "post_permalink_url");
   const aliasDisplayPermalink = findCanonicalAliasValue(canonicalIdentity, "display_permalink");
-  const permalinkUrl = firstTextValue(
-    value.permalink_url,
-    safeRow.permalink_url,
-    metadata.permalink_url,
-    aliasPermalinkUrl,
-    value.post_permalink_url,
-    safeRow.post_permalink_url,
-    metadata.post_permalink_url,
-    aliasPostPermalinkUrl,
-    value.post_permalink,
-    safeRow.post_permalink,
-    metadata.post_permalink,
-    aliasPostPermalink
-  );
+  const candidates = [
+    { source: "value.permalink_url", value: value.permalink_url },
+    { source: "row.permalink_url", value: safeRow.permalink_url },
+    { source: "metadata.permalink_url", value: metadata.permalink_url },
+    { source: "alias.permalink_url", value: aliasPermalinkUrl },
+    { source: "value.post_permalink", value: value.post_permalink },
+    { source: "row.post_permalink", value: safeRow.post_permalink },
+    { source: "metadata.post_permalink", value: metadata.post_permalink },
+    { source: "alias.post_permalink", value: aliasPostPermalink },
+    { source: "value.post_permalink_url", value: value.post_permalink_url },
+    { source: "row.post_permalink_url", value: safeRow.post_permalink_url },
+    { source: "metadata.post_permalink_url", value: metadata.post_permalink_url },
+    { source: "alias.post_permalink_url", value: aliasPostPermalinkUrl },
+    { source: "value.display_permalink", value: value.display_permalink },
+    { source: "row.display_permalink", value: safeRow.display_permalink },
+    { source: "metadata.display_permalink", value: metadata.display_permalink },
+    { source: "alias.display_permalink", value: aliasDisplayPermalink },
+  ];
+  const sanitizedCandidates = candidates
+    .map((candidate) => sanitizeSocialPostPermalinkCandidate({
+      permalink: candidate.value,
+      source: candidate.source,
+      expectedPostIds,
+      row: { ...safeRow, ...value },
+      canonicalIdentity,
+    }))
+    .filter((candidate) => candidate.accepted && candidate.permalink);
+  const rejectedCandidates = candidates
+    .map((candidate) => sanitizeSocialPostPermalinkCandidate({
+      permalink: candidate.value,
+      source: candidate.source,
+      expectedPostIds,
+      row: { ...safeRow, ...value },
+      canonicalIdentity,
+    }))
+    .filter((candidate) => candidate.permalink && !candidate.accepted);
+  const resolved = sanitizedCandidates[0] || null;
+  const permalinkUrl = text(resolved?.permalink || "");
   const postPermalink = firstTextValue(
-    value.post_permalink,
-    safeRow.post_permalink,
-    metadata.post_permalink,
-    aliasPostPermalink,
-    value.post_permalink_url,
-    safeRow.post_permalink_url,
-    metadata.post_permalink_url,
-    aliasPostPermalinkUrl,
+    sanitizedCandidates.find((candidate) => /post_permalink/.test(candidate.source))?.permalink,
+    sanitizedCandidates.find((candidate) => candidate.source === "value.permalink_url" || candidate.source === "row.permalink_url" || candidate.source === "metadata.permalink_url" || candidate.source === "alias.permalink_url")?.permalink,
     permalinkUrl
   );
   const displayPermalink = firstTextValue(
-    value.display_permalink,
-    safeRow.display_permalink,
-    metadata.display_permalink,
-    aliasDisplayPermalink,
+    sanitizedCandidates.find((candidate) => candidate.source.includes("display_permalink"))?.permalink,
     permalinkUrl,
     postPermalink
   );
-  const source =
-    (value.permalink_url && "value.permalink_url") ||
-    (safeRow.permalink_url && "row.permalink_url") ||
-    (metadata.permalink_url && "metadata.permalink_url") ||
-    (aliasPermalinkUrl && "alias.permalink_url") ||
-    (value.post_permalink && "value.post_permalink") ||
-    (safeRow.post_permalink && "row.post_permalink") ||
-    (metadata.post_permalink && "metadata.post_permalink") ||
-    (aliasPostPermalink && "alias.post_permalink") ||
-    (value.post_permalink_url && "value.post_permalink_url") ||
-    (safeRow.post_permalink_url && "row.post_permalink_url") ||
-    (metadata.post_permalink_url && "metadata.post_permalink_url") ||
-    (aliasPostPermalinkUrl && "alias.post_permalink_url") ||
-    (value.display_permalink && "value.display_permalink") ||
-    (safeRow.display_permalink && "row.display_permalink") ||
-    (metadata.display_permalink && "metadata.display_permalink") ||
-    (aliasDisplayPermalink && "alias.display_permalink") ||
-    "";
+  const source = text(resolved?.source || "");
   return {
     permalink_url: permalinkUrl,
     post_permalink: postPermalink,
     display_permalink: displayPermalink,
+    permalink_post_id: text(resolved?.permalinkPostId || ""),
+    post_identity_mismatch: Boolean(!resolved && rejectedCandidates.length),
+    post_identity_mismatch_reason: text((!resolved && rejectedCandidates[0]?.rejectedReason) || ""),
     source,
   };
 };
+
+function extractSocialPermalinkPostId(value = "") {
+  const permalink = text(value);
+  if (!permalink) return "";
+  const patterns = [
+    /facebook\.com\/[^/]+\/posts\/(\d+)/i,
+    /facebook\.com\/[^/]+\/videos\/(\d+)/i,
+    /facebook\.com\/photo\.php\?(?:[^#&]*&)*fbid=(\d+)/i,
+    /facebook\.com\/permalink\.php\?(?:[^#&]*&)*story_fbid=(\d+)/i,
+    /facebook\.com\/story\.php\?(?:[^#&]*&)*story_fbid=(\d+)/i,
+    /facebook\.com\/watch\/\?v=(\d+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = permalink.match(pattern);
+    if (match?.[1]) return text(match[1]);
+  }
+  return "";
+}
+
+function isSocialCommentPermalink(value = "") {
+  const permalink = text(value);
+  if (!permalink) return false;
+  return /[?&]comment_id=/i.test(permalink) || /\/comment\//i.test(permalink);
+}
+
+function collectExpectedSocialPostIdentityValues({ value = {}, safeRow = {}, metadata = {}, canonicalIdentity = null } = {}) {
+  const rawPayload = metadataObject(safeRow.raw_payload || metadata.raw_payload || {});
+  const rawValue = metadataObject(rawPayload.value || {});
+  const values = [
+    value.canonical_post_id,
+    value.post_id,
+    value.platform_post_id,
+    value.source_post_id,
+    value.external_post_id,
+    value.object_id,
+    value.media_id,
+    safeRow.canonical_post_id,
+    safeRow.post_id,
+    safeRow.platform_post_id,
+    safeRow.source_post_id,
+    safeRow.external_post_id,
+    safeRow.object_id,
+    safeRow.media_id,
+    metadata.canonical_post_id,
+    metadata.post_id,
+    metadata.platform_post_id,
+    metadata.source_post_id,
+    metadata.external_post_id,
+    metadata.object_id,
+    metadata.media_id,
+    rawPayload.post_id,
+    rawPayload.platform_post_id,
+    rawPayload.source_post_id,
+    rawPayload.object_id,
+    rawPayload.media_id,
+    rawValue.post_id,
+    rawValue.platform_post_id,
+    rawValue.source_post_id,
+    rawValue.object_id,
+    rawValue.media_id,
+    extractPermalinkObjectId(value.permalink_url || value.post_permalink_url || value.post_permalink || ""),
+    extractPermalinkObjectId(safeRow.permalink_url || safeRow.post_permalink_url || safeRow.post_permalink || ""),
+    extractPermalinkObjectId(metadata.permalink_url || metadata.post_permalink_url || metadata.post_permalink || ""),
+  ];
+  if (Array.isArray(canonicalIdentity?.aliases)) {
+    for (const alias of canonicalIdentity.aliases) {
+      values.push(alias?.alias_value || "");
+    }
+  }
+  const normalized = new Set();
+  for (const entry of values) {
+    const raw = text(entry || "");
+    if (!raw) continue;
+    normalized.add(raw);
+    const objectId = raw.includes("_") ? raw.split("_").pop() : "";
+    if (objectId) normalized.add(objectId);
+  }
+  return Array.from(normalized);
+}
+
+function sanitizeSocialPostPermalinkCandidate({ permalink = "", source = "", expectedPostIds = [], row = {}, canonicalIdentity = null } = {}) {
+  const safePermalink = text(permalink);
+  const permalinkPostId = extractSocialPermalinkPostId(safePermalink);
+  const expectedIds = Array.isArray(expectedPostIds) ? expectedPostIds.map((value) => text(value)).filter(Boolean) : [];
+  let accepted = false;
+  let rejectedReason = "";
+  if (!safePermalink) {
+    rejectedReason = "empty_permalink";
+  } else if (isSocialCommentPermalink(safePermalink)) {
+    rejectedReason = "comment_permalink";
+  } else if (!permalinkPostId) {
+    accepted = true;
+  } else if (expectedIds.includes(permalinkPostId)) {
+    accepted = true;
+  } else {
+    rejectedReason = "permalink_post_id_mismatch";
+  }
+  console.info("SOCIAL_POST_PERMALINK_SANITIZE_TRACE", {
+    row_id: text(row.id || ""),
+    canonical_post_id: text(row.canonical_post_id || canonicalIdentity?.canonical_post_id || ""),
+    platform_post_id: text(row.platform_post_id || row.post_id || ""),
+    stored_permalink: safePermalink,
+    permalink_post_id: permalinkPostId,
+    expected_post_ids: expectedIds,
+    accepted,
+    rejected_reason: rejectedReason,
+    source,
+  });
+  return {
+    permalink: accepted ? safePermalink : "",
+    permalinkPostId,
+    accepted,
+    rejectedReason,
+    source,
+  };
+}
+
+function buildSocialPostIdentityRecord({ row = {}, canonicalPostId = "", permalinkUrl = "" } = {}) {
+  const safeRow = metadataObject(row || {});
+  const metadata = metadataObject(safeRow.metadata || {});
+  const rawPayload = metadataObject(safeRow.automation_run_raw_payload || safeRow.raw_payload || metadata.raw_payload || {});
+  const rawValue = metadataObject(rawPayload.value || {});
+  const canonical = text(canonicalPostId || safeRow.canonical_post_id || metadata.canonical_post_id || "");
+  const platformPostId = text(
+    safeRow.platform_post_id ||
+    safeRow.post_id ||
+    metadata.platform_post_id ||
+    metadata.post_id ||
+    rawPayload.platform_post_id ||
+    rawPayload.post_id ||
+    rawValue.platform_post_id ||
+    rawValue.post_id ||
+    ""
+  );
+  const sourcePostId = text(
+    safeRow.source_post_id ||
+    metadata.source_post_id ||
+    rawPayload.source_post_id ||
+    rawValue.source_post_id ||
+    platformPostId ||
+    ""
+  );
+  const objectId = firstTextValue(
+    safeRow.object_id,
+    metadata.object_id,
+    rawPayload.object_id,
+    rawValue.object_id,
+    extractPermalinkObjectId(permalinkUrl),
+    platformPostId.includes("_") ? platformPostId.split("_").pop() : ""
+  );
+  return {
+    canonical_post_id: canonical,
+    platform_post_id: platformPostId,
+    source_post_id: sourcePostId,
+    conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || metadata.conversation_id || ""),
+    permalink_url: text(permalinkUrl || ""),
+    permalink_post_id: extractSocialPermalinkPostId(permalinkUrl),
+    object_id: objectId,
+    post_id: text(canonical || platformPostId || sourcePostId || ""),
+  };
+}
+
+function compareSocialPostIdentityRecords(selectedIdentity = null, latestIdentity = null) {
+  const selected = selectedIdentity && typeof selectedIdentity === "object" ? selectedIdentity : {};
+  const latest = latestIdentity && typeof latestIdentity === "object" ? latestIdentity : {};
+  const selectedIds = new Set([
+    selected.canonical_post_id,
+    selected.platform_post_id,
+    selected.source_post_id,
+    selected.permalink_post_id,
+    selected.object_id,
+  ].map((value) => text(value)).filter(Boolean));
+  const latestIds = new Set([
+    latest.canonical_post_id,
+    latest.platform_post_id,
+    latest.source_post_id,
+    latest.permalink_post_id,
+    latest.object_id,
+  ].map((value) => text(value)).filter(Boolean));
+  const shared = Array.from(selectedIds).filter((value) => latestIds.has(value));
+  if (!selectedIds.size || !latestIds.size) {
+    return { matches: false, reason: "missing_identity" };
+  }
+  if (shared.length) {
+    return { matches: true, reason: "" };
+  }
+  return { matches: false, reason: "identity_values_disagree" };
+}
 
 const SOCIAL_COMMENT_THUMBNAIL_PLACEHOLDER =
   "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='96' height='96' viewBox='0 0 96 96'%3E%3Crect width='96' height='96' rx='18' fill='%23f3f4f6'/%3E%3Cpath d='M18 67l17-17 11 11 9-9 23 23H18z' fill='%23d1d5db'/%3E%3Ccircle cx='37' cy='35' r='7' fill='%23d1d5db'/%3E%3C/svg%3E";
@@ -1246,6 +1436,41 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     const hasSiblingProductContext = !hasDirectProductLink && genericProductSignals;
     const productLinkSource = hasDirectProductLink ? "direct" : (hasSiblingProductContext ? "sibling" : "none");
     const permalinkFields = resolveHydratedPermalinkFields({ value, safeRow, metadata, canonicalIdentity });
+    const selectedPostIdentity = buildSocialPostIdentityRecord({
+      row: {
+        ...safeRow,
+        ...value,
+        canonical_post_id: canonicalIdentityPostId,
+      },
+      canonicalPostId: canonicalIdentityPostId,
+      permalinkUrl: permalinkFields.permalink_url,
+    });
+    const latestRuntimePayload = metadataObject(safeRow.automation_run_raw_payload || safeRow.raw_payload || {});
+    const latestRuntimeValue = metadataObject(latestRuntimePayload.value || {});
+    const latestCommentPermalink = firstTextValue(
+      latestRuntimePayload.post_permalink_url,
+      latestRuntimePayload.post_permalink,
+      latestRuntimePayload.permalink_url,
+      latestRuntimeValue.post_permalink_url,
+      latestRuntimeValue.post_permalink,
+      latestRuntimeValue.permalink_url
+    );
+    const latestCommentPostIdentity = buildSocialPostIdentityRecord({
+      row: {
+        canonical_post_id: text(safeRow.automation_run_post_id || latestRuntimePayload.post_id || latestRuntimeValue.post_id || ""),
+        post_id: text(safeRow.automation_run_post_id || latestRuntimePayload.post_id || latestRuntimeValue.post_id || ""),
+        platform_post_id: text(latestRuntimePayload.platform_post_id || latestRuntimeValue.platform_post_id || safeRow.automation_run_post_id || ""),
+        source_post_id: text(latestRuntimePayload.source_post_id || latestRuntimeValue.source_post_id || ""),
+        object_id: text(latestRuntimePayload.object_id || latestRuntimeValue.object_id || ""),
+        conversation_id: text(safeRow.conversation_id || safeRow.external_conversation_id || ""),
+      },
+      canonicalPostId: text(safeRow.automation_run_post_id || latestRuntimePayload.post_id || latestRuntimeValue.post_id || ""),
+      permalinkUrl: latestCommentPermalink,
+    });
+    const identityComparison = compareSocialPostIdentityRecords(
+      selectedPostIdentity,
+      latestCommentPostIdentity?.post_id ? latestCommentPostIdentity : null
+    );
     console.info("SOCIAL_POST_PERMALINK_HYDRATED", {
       post_id: text(value.post_id || safeRow.post_id || safeRow.conversation_id || ""),
       canonical_post_id: canonicalIdentityPostId,
@@ -1303,6 +1528,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     published_at: text(value.published_at || value.post_created_time || safeRow.published_at || safeRow.post_created_time || metadata.published_at || metadata.post_created_time || ""),
     permalink_url: permalinkFields.permalink_url,
     display_permalink: permalinkFields.display_permalink,
+    permalink_post_id: permalinkFields.permalink_post_id,
     post_permalink_url: firstTextValue(
       value.post_permalink_url,
       safeRow.post_permalink_url,
@@ -1315,6 +1541,16 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     linked_products: directLinkedProducts,
     primary_product: mappingSummary?.primary_product || null,
     primary_linked_product: mappingSummary?.primary_product || null,
+    selected_post_identity: selectedPostIdentity,
+    latest_comment_post_identity: latestCommentPostIdentity?.post_id ? latestCommentPostIdentity : null,
+    post_identity_mismatch: Boolean(
+      permalinkFields.post_identity_mismatch ||
+      (latestCommentPostIdentity?.post_id && !identityComparison.matches)
+    ),
+    post_identity_mismatch_reason: text(
+      permalinkFields.post_identity_mismatch_reason ||
+      ((latestCommentPostIdentity?.post_id && !identityComparison.matches) ? identityComparison.reason : "")
+    ),
     };
   };
   const hasAnyMediaBefore = Boolean(
