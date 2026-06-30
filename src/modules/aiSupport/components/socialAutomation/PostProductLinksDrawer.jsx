@@ -64,6 +64,14 @@ const postTypeLabel = (post = {}) => {
 const postImage = (post = {}) =>
   clean(post?.thumbnailUrl || post?.thumbnail_url || post?.postThumbnail || post?.post_thumbnail || post?.product_image_url || post?.image_url || post?.image || "");
 
+const buildPostIdentityPayload = (post = {}) => ({
+  platform_post_id: clean(post?.platformPostId || post?.platform_post_id || ""),
+  source_post_id: clean(post?.sourcePostId || post?.source_post_id || post?.postId || post?.post_id || ""),
+  permalink_post_id: clean(post?.permalink_post_id || ""),
+  canonical_post_id: clean(post?.canonicalPostId || post?.canonical_post_id || ""),
+  post_id: clean(post?.sourcePostId || post?.postId || post?.post_id || ""),
+});
+
 export default function PostProductLinksDrawer({
   open = false,
   post = null,
@@ -73,6 +81,7 @@ export default function PostProductLinksDrawer({
 }) {
   const safePostId = clean(post?.canonicalPostId || post?.canonical_post_id || post?.postId || post?.post_id || post?.id || post?.conversationId || post?.conversation_id || "");
   const safePlatform = clean(post?.platform || "facebook").toLowerCase() || "facebook";
+  const postIdentityPayload = useMemo(() => buildPostIdentityPayload(post || {}), [post]);
   const [initialLoading, setInitialLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState("");
@@ -145,6 +154,7 @@ export default function PostProductLinksDrawer({
         postId: safePostId,
         platform: safePlatform,
         tenantId,
+        postIdentity: postIdentityPayload,
       });
       const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
       setSelectedProducts(mapped);
@@ -169,7 +179,7 @@ export default function PostProductLinksDrawer({
       if (searchTimerRef.current) window.clearTimeout(searchTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, safePostId, safePlatform, tenantId]);
+  }, [open, postIdentityPayload, safePostId, safePlatform, tenantId]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -245,6 +255,7 @@ export default function PostProductLinksDrawer({
           postId: safePostId,
           platform: safePlatform,
           tenantId,
+          postIdentity: postIdentityPayload,
         });
         setSelectedProducts([]);
         setPrimaryProductId(null);
@@ -252,6 +263,7 @@ export default function PostProductLinksDrawer({
           postId: safePostId,
           platform: safePlatform,
           tenantId,
+          postIdentity: postIdentityPayload,
         });
         const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
         setSelectedProducts(mapped);
@@ -278,6 +290,7 @@ export default function PostProductLinksDrawer({
         tenantId,
         productIds: selectedProductIds,
         primaryProductId: safePrimaryProductId,
+        postIdentity: postIdentityPayload,
       });
       const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
       setSelectedProducts(mapped);
@@ -302,11 +315,18 @@ export default function PostProductLinksDrawer({
         postId: safePostId,
         platform: safePlatform,
         tenantId,
+        postIdentity: postIdentityPayload,
       });
       setSelectedProducts([]);
       setPrimaryProductId(null);
       notify("emerald", "تمت إزالة روابط المنتجات");
-      await Promise.resolve(onSaved?.());
+      const payload = await getPostProductLinks({
+        postId: safePostId,
+        platform: safePlatform,
+        tenantId,
+        postIdentity: postIdentityPayload,
+      });
+      await Promise.resolve(onSaved?.(payload));
     } catch (error) {
       notify("rose", error?.message || "تعذر إزالة روابط المنتجات");
     } finally {

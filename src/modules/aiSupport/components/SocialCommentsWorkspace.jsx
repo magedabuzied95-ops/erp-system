@@ -393,6 +393,7 @@ const normalizePost = (raw) => {
     has_sibling_product_context: hasSiblingProductContext,
     selected_post_identity: post.selected_post_identity || metadata.selected_post_identity || null,
     latest_comment_post_identity: post.latest_comment_post_identity || metadata.latest_comment_post_identity || null,
+    permalinkPostId: clean(post.permalink_post_id || metadata.permalink_post_id || ""),
     permalink_post_id: clean(post.permalink_post_id || metadata.permalink_post_id || ""),
     post_identity_mismatch: Boolean(post.post_identity_mismatch ?? metadata.post_identity_mismatch),
     post_identity_mismatch_reason: clean(post.post_identity_mismatch_reason || metadata.post_identity_mismatch_reason || ""),
@@ -506,18 +507,16 @@ const normalizeSocialPostDisplay = (raw = {}) => {
   };
 };
 
-const postKey = (item = {}) =>
-  clean(
-    item?.platformPostId ||
-      item?.sourcePostId ||
-      item?.canonicalPostId ||
-      item?.finalCanonicalPostId ||
-      item?.display_permalink ||
-      item?.permalinkUrl ||
-      item?.postId ||
-      item?.id ||
-      ""
-  );
+const postKey = (item = {}) => {
+  const platform = clean(item?.platform || "facebook");
+  const platformPostId = clean(item?.platformPostId || item?.platform_post_id || "");
+  const sourcePostId = clean(item?.sourcePostId || item?.source_post_id || item?.postId || item?.post_id || "");
+  const permalinkPostId = clean(item?.permalinkPostId || item?.permalink_post_id || "");
+  const canonicalPostId = clean(item?.canonicalPostId || item?.canonical_post_id || item?.finalCanonicalPostId || item?.final_canonical_post_id || "");
+  const composite = [platform, platformPostId, sourcePostId, permalinkPostId, canonicalPostId].join("|");
+  if (platformPostId || sourcePostId || permalinkPostId || canonicalPostId) return composite;
+  return clean(item?.display_permalink || item?.permalinkUrl || item?.postId || item?.id || "");
+};
 
 const postIdentityFingerprint = (item = {}) =>
   [
@@ -1688,8 +1687,12 @@ function SocialCommentsWorkspace({
       activeAutomationState.enabled ? "automation enabled" : "automation disabled",
     ].join(" / ");
     const latestStatusLabel = latestKnownProductCount > 0 ? "already linked" : "needs product link";
-    const resolvedLatestPost = latestKnownPostNormalized || normalizePost(latestIdentitySeed);
-    const resolvedLatestOpen = resolvePostOpenLink(resolvedLatestPost, normalizeSocialPostDisplay(resolvedLatestPost));
+    const resolvedLatestPost = latestKnownPostNormalized || null;
+    const latestFallbackPost = normalizePost(latestIdentitySeed);
+    const resolvedLatestOpen = resolvePostOpenLink(
+      resolvedLatestPost || latestFallbackPost,
+      normalizeSocialPostDisplay(resolvedLatestPost || latestFallbackPost)
+    );
     socialDebugLog("SOCIAL_LATEST_COMMENT_IDENTITY_TRACE", {
       selectedPostIdentity: latestRuntimePostSnapshot.selectedPostIdentity || activePostDetails?.selected_post_identity || null,
       latestCommentIdentity: latestRuntimePostSnapshot.latestCommentIdentity || latestIdentitySeed,
@@ -1707,8 +1710,10 @@ function SocialCommentsWorkspace({
       latestCommentPermalink: clean(resolvedLatestOpen.finalUrl || latestRuntimePostSnapshot.permalink || ""),
       selectedStatusLabel,
       latestStatusLabel,
+      hasResolvedLatestPost: Boolean(resolvedLatestPost?.postId),
       latestKnownPost: latestKnownPostNormalized,
       latestPost: resolvedLatestPost,
+      latestFallbackPost,
       reason: clean(latestRuntimePostSnapshot.postIdentityMismatchReason || identityComparison.reason || "identity_values_disagree"),
     };
   }, [activeAutomationState.enabled, activePostDetails, activePostKey, activePostLink, activePostPostId, activePostSourceId, activeProductCard.productCount, latestRuntimePostSnapshot, normalizedPosts]);
@@ -2105,21 +2110,52 @@ function SocialCommentsWorkspace({
   }, [activePostKey]);
 
   const handleProductLinksSaved = async (payload = {}) => {
-    const postId = clean(payload?.post_id || payload?.postId || productLinksDrawerPostKey || activePostKey);
+    const savedIdentity = payload?.post_identity && typeof payload.post_identity === "object" && !Array.isArray(payload.post_identity)
+      ? payload.post_identity
+      : {};
     const linkedProducts = Array.isArray(payload?.linked_products) ? payload.linked_products : [];
     const primaryProduct = payload?.primary_product || payload?.primary_linked_product || linkedProducts[0] || null;
-    if (postId) {
+    const targetPost = productLinksDrawerPost || activePostDetails || activePost || {};
+    const overrideTarget = {
+      ...(targetPost?.raw || targetPost || {}),
+      platform: clean(targetPost?.platform || payload?.platform || "facebook") || "facebook",
+      platformPostId: clean(savedIdentity.platform_post_id || targetPost?.platformPostId || targetPost?.platform_post_id || ""),
+      sourcePostId: clean(savedIdentity.source_post_id || targetPost?.sourcePostId || targetPost?.source_post_id || targetPost?.postId || targetPost?.post_id || ""),
+      permalinkPostId: clean(savedIdentity.permalink_post_id || targetPost?.permalinkPostId || targetPost?.permalink_post_id || ""),
+      canonicalPostId: clean(savedIdentity.canonical_post_id || targetPost?.canonicalPostId || targetPost?.canonical_post_id || payload?.canonical_post_id || payload?.post_id || ""),
+    };
+    const updatedCardKey = clean(postKey(overrideTarget));
+    if (updatedCardKey) {
       const nextOverride = {
         ...payload,
         linked_products: linkedProducts,
         linked_products_count: Number(payload?.count ?? payload?.linked_products_count ?? linkedProducts.length ?? 0) || 0,
         primary_product: primaryProduct,
         primary_linked_product: primaryProduct,
+        product_link_source: linkedProducts.length ? "direct" : "none",
+        has_direct_product_link: linkedProducts.length > 0,
+        has_sibling_product_context: false,
       };
-      setProductMappingOverrides((current) => ({
-        ...current,
-        [postId]: nextOverride,
-      }));
+      socialDebugLog("SOCIAL_MANUAL_LINK_WRITE_TRACE", {
+        selected_normalized_post_identity: {
+          platform_post_id: clean(overrideTarget.platformPostId || ""),
+          source_post_id: clean(overrideTarget.sourcePostId || ""),
+          permalink_post_id: clean(overrideTarget.permalinkPostId || ""),
+          canonical_post_id: clean(overrideTarget.canonicalPostId || ""),
+        },
+        write_payload: {
+          product_ids: linkedProducts.map((item) => item.product_id || item.id || null).filter(Boolean),
+          primary_product_id: primaryProduct?.product_id || primaryProduct?.id || null,
+        },
+        returned_linked_products: linkedProducts.map((item) => clean(item?.name || item?.title || item?.product_name || "")),
+        updated_card_key: updatedCardKey,
+      });
+      setProductMappingOverrides((current) => {
+        const next = { ...current };
+        delete next[productLinksDrawerPostKey];
+        next[updatedCardKey] = nextOverride;
+        return next;
+      });
     }
     if (onRefresh) {
       void Promise.resolve(onRefresh());
@@ -2164,7 +2200,7 @@ function SocialCommentsWorkspace({
   };
 
   const handleSwitchToLatestCommentPost = () => {
-    if (!latestCommentMismatch?.latestPost?.postId || !onSelectPost) {
+    if (!latestCommentMismatch?.hasResolvedLatestPost || !latestCommentMismatch?.latestPost?.postId || !onSelectPost) {
       notify("amber", "تعذر فتح البوست الأحدث داخل مساحة العمل");
       return;
     }
@@ -2574,6 +2610,23 @@ function SocialCommentsWorkspace({
                       has_direct_product_link: Boolean(post?.hasDirectProductLink),
                       has_sibling_product_context: Boolean(post?.hasSiblingProductContext),
                     });
+                    socialDebugLog("SOCIAL_DIRECT_LINK_READBACK_TRACE", {
+                      card_key: key,
+                      row_post_identity: {
+                        platform_post_id: clean(post?.platformPostId || ""),
+                        source_post_id: clean(post?.sourcePostId || ""),
+                        permalink_post_id: clean(post?.permalinkPostId || ""),
+                        canonical_post_id: clean(post?.canonicalPostId || ""),
+                      },
+                      link_row_identity: {
+                        platform_post_id: clean(post?.directPrimaryLinkedProduct?.platform_post_id || ""),
+                      },
+                      product_name: clean(post?.directPrimaryLinkedProduct?.name || post?.directPrimaryLinkedProduct?.title || post?.directPrimaryLinkedProduct?.product_name || ""),
+                      accepted: Boolean(post?.hasDirectProductLink || clean(post?.productLinkSource || "none") === "direct"),
+                      rejected_reason: clean(post?.hasDirectProductLink ? "" : (post?.hasSiblingProductContext ? "sibling_only" : "no_direct_link")),
+                      product_link_source: clean(post?.productLinkSource || "none"),
+                      has_direct_product_link: Boolean(post?.hasDirectProductLink),
+                    });
                     let hoverTimer = null;
                     const schedulePrefetch = () => {
                       if (!onPrefetchPost) return;
@@ -2708,6 +2761,23 @@ function SocialCommentsWorkspace({
                     product_link_source: clean(post?.productLinkSource || "none"),
                     has_direct_product_link: Boolean(post?.hasDirectProductLink),
                     has_sibling_product_context: Boolean(post?.hasSiblingProductContext),
+                  });
+                  socialDebugLog("SOCIAL_DIRECT_LINK_READBACK_TRACE", {
+                    card_key: key,
+                    row_post_identity: {
+                      platform_post_id: clean(post?.platformPostId || ""),
+                      source_post_id: clean(post?.sourcePostId || ""),
+                      permalink_post_id: clean(post?.permalinkPostId || ""),
+                      canonical_post_id: clean(post?.canonicalPostId || ""),
+                    },
+                    link_row_identity: {
+                      platform_post_id: clean(post?.directPrimaryLinkedProduct?.platform_post_id || ""),
+                    },
+                    product_name: clean(post?.directPrimaryLinkedProduct?.name || post?.directPrimaryLinkedProduct?.title || post?.directPrimaryLinkedProduct?.product_name || ""),
+                    accepted: Boolean(post?.hasDirectProductLink || clean(post?.productLinkSource || "none") === "direct"),
+                    rejected_reason: clean(post?.hasDirectProductLink ? "" : (post?.hasSiblingProductContext ? "sibling_only" : "no_direct_link")),
+                    product_link_source: clean(post?.productLinkSource || "none"),
+                    has_direct_product_link: Boolean(post?.hasDirectProductLink),
                   });
                   let hoverTimer = null;
                   const schedulePrefetch = () => {
@@ -2951,7 +3021,8 @@ function SocialCommentsWorkspace({
                           <button
                             type="button"
                             onClick={handleSwitchToLatestCommentPost}
-                            disabled={!onSelectPost}
+                            disabled={!onSelectPost || !latestCommentMismatch.hasResolvedLatestPost}
+                            title={latestCommentMismatch.hasResolvedLatestPost ? "" : "No latest post found in the current post list"}
                             className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-900 shadow-sm disabled:opacity-50"
                           >
                             <ArrowUpRight className="h-4 w-4" />

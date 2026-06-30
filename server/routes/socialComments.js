@@ -60,6 +60,36 @@ const normalizeAutomationRoutePostId = (value = "") => {
     .replace(/^(facebook|instagram):/i, "")
     .trim();
 };
+const clean = (value = "") => String(value ?? "").trim();
+const buildManualLinkPostContext = (req, post = {}) => {
+  const identityObject = req.body?.post_identity && typeof req.body.post_identity === "object" && !Array.isArray(req.body.post_identity)
+    ? req.body.post_identity
+    : req.query?.post_identity && typeof req.query.post_identity === "object" && !Array.isArray(req.query.post_identity)
+      ? req.query.post_identity
+      : {};
+  const identity = {
+    ...identityObject,
+    platform_post_id: clean(identityObject.platform_post_id || req.body?.platform_post_id || req.query?.platform_post_id || ""),
+    source_post_id: clean(identityObject.source_post_id || req.body?.source_post_id || req.query?.source_post_id || ""),
+    permalink_post_id: clean(identityObject.permalink_post_id || req.body?.permalink_post_id || req.query?.permalink_post_id || ""),
+    canonical_post_id: clean(identityObject.canonical_post_id || req.body?.canonical_post_id || req.query?.canonical_post_id || ""),
+    post_id: clean(identityObject.post_id || req.body?.post_identity_post_id || req.query?.post_identity_post_id || req.body?.post_id || req.query?.post_id || ""),
+    object_id: clean(identityObject.object_id || req.body?.object_id || req.query?.object_id || ""),
+  };
+  const merged = {
+    ...(post || {}),
+    platform_post_id: clean(identity.platform_post_id || post?.platform_post_id || ""),
+    source_post_id: clean(identity.source_post_id || post?.source_post_id || ""),
+    permalink_post_id: clean(identity.permalink_post_id || post?.permalink_post_id || ""),
+    object_id: clean(identity.object_id || post?.object_id || ""),
+    canonical_post_id: clean(identity.canonical_post_id || post?.canonical_post_id || ""),
+    post_id: clean(identity.post_id || post?.post_id || ""),
+  };
+  return {
+    identity,
+    merged,
+  };
+};
 
 router.use(async (_req, _res, next) => {
   await ensureSocialCommentsSchemaReady().catch(() => {});
@@ -456,9 +486,10 @@ router.get("/posts/:postId/product-links", protect, permit("settings", "view"), 
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.query?.platform || req.body?.platform || "").trim();
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
+    const { merged: resolvedPost } = buildManualLinkPostContext(req, post || {});
     const canonicalPostId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
     const postId = canonicalPostId;
-    const mapping = await getPostProductMappings({ tenantId, platform, postId, row: post || {}, post: post || {} });
+    const mapping = await getPostProductMappings({ tenantId, platform, postId, selectedPostId: requestedPostId, row: resolvedPost || {}, post: resolvedPost || {} });
     const responseProductIds = Array.isArray(mapping?.product_ids)
       ? mapping.product_ids
       : Array.isArray(mapping?.linked_products)
@@ -517,6 +548,7 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       return res.status(400).json({ success: false, message: "No product ids received" });
     }
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
+    const { identity: manualIdentity, merged: resolvedPost } = buildManualLinkPostContext(req, post || {});
     const canonicalPostId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
     const postId = canonicalPostId;
     const mapping = await savePostProductMappings({
@@ -524,13 +556,13 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       platform,
       postId,
       selectedPostId: requestedPostId,
-      row: post || {},
-      post: post || {},
+      row: resolvedPost || {},
+      post: resolvedPost || {},
       productIds,
       primaryProductId,
       userId: req.user?.id || req.user?.user_id || null,
     });
-    const readback = await getPostProductMappings({ tenantId, platform, postId, selectedPostId: requestedPostId, row: post || {}, post: post || {} });
+    const readback = await getPostProductMappings({ tenantId, platform, postId, selectedPostId: requestedPostId, row: resolvedPost || {}, post: resolvedPost || {} });
     const rowsAffected = Number(mapping?.rows_affected ?? readback?.rows_affected ?? 0) || 0;
     const responseProductIds = Array.isArray(readback?.product_ids)
       ? readback.product_ids
@@ -589,6 +621,13 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       saved_platform_post_id: String(readback?.post_id || post?.platform_post_id || post?.post_id || requestedPostId || "").trim(),
       primary_product_name: String(readback?.primary_product?.name || readback?.primary_product?.title || readback?.primary_product?.product_name || "").trim(),
       platform: String(readback?.platform || platform || "facebook").trim() || "facebook",
+      post_identity: {
+        platform_post_id: clean(manualIdentity.platform_post_id || resolvedPost?.platform_post_id || ""),
+        source_post_id: clean(manualIdentity.source_post_id || resolvedPost?.source_post_id || ""),
+        permalink_post_id: clean(manualIdentity.permalink_post_id || resolvedPost?.permalink_post_id || ""),
+        canonical_post_id: clean(manualIdentity.canonical_post_id || canonicalPostId || ""),
+        post_id: clean(manualIdentity.post_id || resolvedPost?.post_id || ""),
+      },
     });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to save product links" });
@@ -601,14 +640,15 @@ router.delete("/posts/:postId/product-links", protect, permit("settings", "edit"
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
+    const { merged: resolvedPost } = buildManualLinkPostContext(req, post || {});
     const postId = String(post?.canonical_post_id || post?.post_id || requestedPostId || "").trim();
     const productId = req.body?.product_id ?? req.body?.productId ?? req.query?.product_id ?? req.query?.productId ?? null;
     const mapping = await removePostProductMapping({
       tenantId,
       platform,
       postId,
-      row: post || {},
-      post: post || {},
+      row: resolvedPost || {},
+      post: resolvedPost || {},
       productId,
     });
     return res.json({

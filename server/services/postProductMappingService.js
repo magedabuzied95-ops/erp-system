@@ -528,6 +528,123 @@ const hydrateProduct = (product = {}, variants = []) => {
 const getPostIdentityCandidates = ({ postId = "", selectedPostId = "", row = {}, post = {} } = {}) =>
   collectPostIdentityCandidates({ postId, selectedPostId, row, post }).map((candidate) => candidate.value);
 
+const extractPermalinkPostId = (value = "") => {
+  const permalink = text(value);
+  if (!permalink) return "";
+  const patterns = [
+    /facebook\.com\/[^/]+\/posts\/(\d+)/i,
+    /facebook\.com\/[^/]+\/videos\/(\d+)/i,
+    /facebook\.com\/photo\.php\?(?:[^#&]*&)*fbid=(\d+)/i,
+    /facebook\.com\/permalink\.php\?(?:[^#&]*&)*story_fbid=(\d+)/i,
+    /facebook\.com\/story\.php\?(?:[^#&]*&)*story_fbid=(\d+)/i,
+    /facebook\.com\/watch\/\?v=(\d+)/i,
+  ];
+  for (const pattern of patterns) {
+    const match = permalink.match(pattern);
+    if (match?.[1]) return text(match[1]);
+  }
+  return "";
+};
+
+const collectDirectLinkIdentity = ({ postId = "", selectedPostId = "", canonicalPostId = "", row = {}, post = {} } = {}) => {
+  const safeRow = objectValue(row);
+  const safePost = objectValue(post);
+  const rowMetadata = objectValue(safeRow.metadata);
+  const postMetadata = objectValue(safePost.metadata);
+  const rowRawPayload = objectValue(safeRow.raw_payload || rowMetadata.raw_payload);
+  const postRawPayload = objectValue(safePost.raw_payload || postMetadata.raw_payload);
+  const rowRawValue = objectValue(rowRawPayload.value || {});
+  const postRawValue = objectValue(postRawPayload.value || {});
+  const exactCandidates = [];
+  const fallbackCandidates = [];
+  const exactSeen = new Set();
+  const fallbackSeen = new Set();
+  const pushExact = (value = "") => {
+    const normalized = normalizePostIdentityValue(value);
+    if (!normalized || exactSeen.has(normalized)) return;
+    exactSeen.add(normalized);
+    exactCandidates.push(normalized);
+  };
+  const pushFallback = (value = "") => {
+    const normalized = normalizePostIdentityValue(value);
+    if (!normalized || fallbackSeen.has(normalized) || exactSeen.has(normalized)) return;
+    fallbackSeen.add(normalized);
+    fallbackCandidates.push(normalized);
+  };
+
+  [
+    safeRow.platform_post_id,
+    safePost.platform_post_id,
+    rowMetadata.platform_post_id,
+    postMetadata.platform_post_id,
+    safeRow.source_post_id,
+    safePost.source_post_id,
+    rowMetadata.source_post_id,
+    postMetadata.source_post_id,
+    safeRow.permalink_post_id,
+    safePost.permalink_post_id,
+    rowMetadata.permalink_post_id,
+    postMetadata.permalink_post_id,
+    safeRow.object_id,
+    safePost.object_id,
+    rowMetadata.object_id,
+    postMetadata.object_id,
+    safeRow.raw_graph_post_id,
+    safePost.raw_graph_post_id,
+    rowRawPayload.graph_post_id,
+    postRawPayload.graph_post_id,
+    rowRawValue.graph_post_id,
+    postRawValue.graph_post_id,
+    extractPermalinkPostId(safeRow.permalink_url || safeRow.post_permalink_url || rowMetadata.permalink_url || rowMetadata.post_permalink_url || ""),
+    extractPermalinkPostId(safePost.permalink_url || safePost.post_permalink_url || postMetadata.permalink_url || postMetadata.post_permalink_url || ""),
+  ].forEach(pushExact);
+
+  [
+    selectedPostId,
+    postId,
+    canonicalPostId,
+    safeRow.canonical_post_id,
+    safePost.canonical_post_id,
+    rowMetadata.canonical_post_id,
+    postMetadata.canonical_post_id,
+    safeRow.post_id,
+    safePost.post_id,
+    rowMetadata.post_id,
+    postMetadata.post_id,
+    rowRawPayload.post_id,
+    postRawPayload.post_id,
+    rowRawValue.post_id,
+    postRawValue.post_id,
+  ].forEach(pushFallback);
+
+  return {
+    exactCandidates,
+    fallbackCandidates,
+    lookupIds: exactCandidates.length ? exactCandidates : fallbackCandidates,
+    primaryExactId: exactCandidates[0] || "",
+  };
+};
+
+const resolveLinkRowIdentityCandidates = (row = {}) =>
+  Array.from(
+    new Set(
+      [
+        row?.platform_post_id,
+        row?.post_id,
+        row?.media_id,
+        row?.canonical_post_id,
+        row?.source_post_id,
+      ].map((value) => normalizePostIdentityValue(value)).filter(Boolean)
+    )
+  );
+
+const doesLinkRowMatchCandidates = (row = {}, candidates = []) => {
+  if (!Array.isArray(candidates) || !candidates.length) return false;
+  const candidateSet = new Set(candidates.map((value) => normalizePostIdentityValue(value)).filter(Boolean));
+  if (!candidateSet.size) return false;
+  return resolveLinkRowIdentityCandidates(row).some((value) => candidateSet.has(value));
+};
+
 const getPlatformPostId = ({ postId = "", row = {}, post = {}, platform = "" } = {}) =>
   firstText(
     postId,
@@ -839,15 +956,15 @@ const fetchVariantsByProductIds = async ({ tenantId = null, productIds = [] } = 
 const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", canonicalPostId = "" } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const normalizedPlatform = normalizePlatform(platform || post?.platform || "");
+  const directIdentity = collectDirectLinkIdentity({
+    postId,
+    selectedPostId,
+    canonicalPostId: canonicalPostId || post?.canonical_post_id || "",
+    row: post,
+    post,
+  });
   const canonicalIdentityPostId = text(canonicalPostId || post?.canonical_post_id || postId || selectedPostId || post?.post_id || "");
-  const lookupPostIds = Array.from(
-    new Set(
-      [
-        canonicalIdentityPostId,
-        ...getPostIdentityCandidates({ postId: canonicalIdentityPostId || postId, selectedPostId, row: post, post }),
-      ].map((value) => text(value)).filter(Boolean)
-    )
-  );
+  const lookupPostIds = Array.from(new Set(directIdentity.lookupIds.map((value) => text(value)).filter(Boolean)));
   if (!safeTenantId || !lookupPostIds.length) return [];
   debugSocialCommentsWarn("SOCIAL_COMMENTS_POSTS_SQL_2", {
     tenant_id: safeTenantId,
@@ -888,7 +1005,14 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
     `,
     [safeTenantId, normalizedPlatform, lookupPostIds]
   ).catch(() => ({ rows: [] }));
-  return result.rows || [];
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+  if (directIdentity.exactCandidates.length) {
+    return rows.filter((row) => doesLinkRowMatchCandidates(row, directIdentity.exactCandidates));
+  }
+  if (directIdentity.fallbackCandidates.length) {
+    return rows.filter((row) => doesLinkRowMatchCandidates(row, directIdentity.fallbackCandidates));
+  }
+  return rows;
 };
 
 const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", canonicalPostId = "", platformPostId = "", productIds = [], rowsAffected = null } = {}) => {
@@ -1905,9 +2029,34 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     post,
     source: "saveMappings",
   }).catch(() => null);
+  const directIdentity = collectDirectLinkIdentity({
+    postId,
+    selectedPostId,
+    canonicalPostId: canonicalIdentity?.canonical_post_id || "",
+    row,
+    post,
+  });
   const platformPostId = text(
-    canonicalIdentity?.canonical_post_id ||
-    getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" })
+    directIdentity.primaryExactId ||
+    getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" }) ||
+    canonicalIdentity?.canonical_post_id
+  );
+  const storedPostId = text(
+    row?.source_post_id ||
+    post?.source_post_id ||
+    row?.post_id ||
+    post?.post_id ||
+    selectedPostId ||
+    platformPostId
+  );
+  const storedMediaId = text(
+    row?.permalink_post_id ||
+    post?.permalink_post_id ||
+    row?.object_id ||
+    post?.object_id ||
+    row?.raw_graph_post_id ||
+    post?.raw_graph_post_id ||
+    platformPostId
   );
   void migrateCanonicalSocialPostRecords({
     tenantId: safeTenantId,
@@ -1946,6 +2095,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
   try {
     await client.query("BEGIN");
     if (platformPostId) {
+      const deleteLookupIds = Array.from(new Set((directIdentity.exactCandidates.length ? directIdentity.exactCandidates : [platformPostId]).map((value) => text(value)).filter(Boolean)));
       await client.query(
         `
         DELETE FROM marketing_post_product_links
@@ -1955,12 +2105,12 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
         )
           AND platform = $2::text
           AND (
-            platform_post_id = $3::text
-            OR post_id = $3::text
-            OR media_id = $3::text
+            platform_post_id = ANY($3::text[])
+            OR post_id = ANY($3::text[])
+            OR media_id = ANY($3::text[])
           )
         `,
-        [safeTenantId, normalizedPlatform, platformPostId]
+        [safeTenantId, normalizedPlatform, deleteLookupIds]
       );
     }
 
@@ -2007,8 +2157,8 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
           safeTenantId,
           normalizedPlatform,
           platformPostId,
-          selectedIdentity || identityTrace.raw_webhook_post_id || platformPostId,
-          identityTrace.raw_graph_post_id || identityTrace.raw_webhook_post_id || selectedIdentity || platformPostId,
+          storedPostId,
+          storedMediaId,
           productId,
           index + 1,
           isPrimary,
@@ -2107,9 +2257,17 @@ export const removeMapping = async ({ tenantId = null, platform = "", postId = "
     post,
     source: "removeMapping",
   }).catch(() => null);
+  const directIdentity = collectDirectLinkIdentity({
+    postId,
+    selectedPostId: postId,
+    canonicalPostId: canonicalIdentity?.canonical_post_id || "",
+    row,
+    post,
+  });
   const platformPostId = text(
-    canonicalIdentity?.canonical_post_id ||
-    getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" })
+    directIdentity.primaryExactId ||
+    getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" }) ||
+    canonicalIdentity?.canonical_post_id
   );
   void migrateCanonicalSocialPostRecords({
     tenantId: safeTenantId,
@@ -2120,8 +2278,7 @@ export const removeMapping = async ({ tenantId = null, platform = "", postId = "
   const lookupPostIds = Array.from(
     new Set(
       [
-        platformPostId,
-        ...(Array.isArray(canonicalIdentity?.aliases) ? canonicalIdentity.aliases.map((alias) => text(alias?.alias_value || "")) : []),
+        ...(directIdentity.exactCandidates.length ? directIdentity.exactCandidates : [platformPostId]),
       ].map((value) => text(value)).filter(Boolean)
     )
   );

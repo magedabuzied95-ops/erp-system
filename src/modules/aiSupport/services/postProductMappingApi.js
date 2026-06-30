@@ -18,11 +18,17 @@ const unwrapList = (payload) => {
 
 const unwrapObject = (payload) => payload?.data || payload || {};
 
-export const getPostProductLinks = async ({ postId = "", platform = "", tenantId = "", timeoutMs = 15000 } = {}) => {
+export const getPostProductLinks = async ({ postId = "", platform = "", tenantId = "", postIdentity = null, timeoutMs = 15000 } = {}) => {
+  const safeIdentity = postIdentity && typeof postIdentity === "object" ? postIdentity : {};
   const response = await api.get(`/social-comments/posts/${encodeURIComponent(clean(postId))}/product-links`, {
     params: {
       platform: clean(platform),
       tenant_id: clean(tenantId),
+      platform_post_id: clean(safeIdentity.platform_post_id || ""),
+      source_post_id: clean(safeIdentity.source_post_id || ""),
+      permalink_post_id: clean(safeIdentity.permalink_post_id || ""),
+      canonical_post_id: clean(safeIdentity.canonical_post_id || ""),
+      post_identity_post_id: clean(safeIdentity.post_id || ""),
     },
     timeoutMs,
   });
@@ -35,7 +41,7 @@ export const getPostProductLinks = async ({ postId = "", platform = "", tenantId
   };
 };
 
-export const savePostProductLinks = async ({ postId = "", platform = "", tenantId = "", productIds = [], primaryProductId = null, timeoutMs = 15000 } = {}) => {
+export const savePostProductLinks = async ({ postId = "", platform = "", tenantId = "", productIds = [], primaryProductId = null, postIdentity = null, timeoutMs = 15000 } = {}) => {
   const safePostId = clean(postId);
   const safePlatform = clean(platform);
   const safeTenantId = clean(tenantId);
@@ -57,6 +63,7 @@ export const savePostProductLinks = async ({ postId = "", platform = "", tenantI
         tenant_id: safeTenantId,
         product_ids: normalizedProductIds,
         primary_product_id: primaryProductId,
+        ...(postIdentity && typeof postIdentity === "object" ? { post_identity: postIdentity } : {}),
       },
       { timeoutMs }
     );
@@ -85,12 +92,18 @@ export const savePostProductLinks = async ({ postId = "", platform = "", tenantI
   }
 };
 
-export const removePostProductLink = async ({ postId = "", platform = "", tenantId = "", productId = null, timeoutMs = 15000 } = {}) => {
+export const removePostProductLink = async ({ postId = "", platform = "", tenantId = "", productId = null, postIdentity = null, timeoutMs = 15000 } = {}) => {
+  const safeIdentity = postIdentity && typeof postIdentity === "object" ? postIdentity : {};
   const response = await api.delete(`/social-comments/posts/${encodeURIComponent(clean(postId))}/product-links`, {
     params: {
       platform: clean(platform),
       tenant_id: clean(tenantId),
       product_id: productId ?? "",
+      platform_post_id: clean(safeIdentity.platform_post_id || ""),
+      source_post_id: clean(safeIdentity.source_post_id || ""),
+      permalink_post_id: clean(safeIdentity.permalink_post_id || ""),
+      canonical_post_id: clean(safeIdentity.canonical_post_id || ""),
+      post_identity_post_id: clean(safeIdentity.post_id || ""),
     },
     timeoutMs,
   });
