@@ -523,34 +523,68 @@ export const migrateCanonicalSocialPostRecords = async ({ tenantId = null, platf
   ).catch(() => ({ rows: [] }));
   const templateResult = await db.query(
     `
-    INSERT INTO social_post_auto_reply_templates (
-      tenant_id,
-      platform,
-      post_id,
-      enabled,
-      like_enabled,
-      reply_enabled,
-      template,
-      mode,
-      created_at,
-      updated_at
-    )
-    SELECT DISTINCT ON (tenant_id, platform, post_id)
-      tenant_id,
-      platform,
-      $4::text,
-      enabled,
-      like_enabled,
-      reply_enabled,
-      template,
-      mode,
-      CURRENT_TIMESTAMP,
-      CURRENT_TIMESTAMP
-    FROM social_post_auto_reply_templates
-    WHERE tenant_id = $1::bigint
-      AND platform = $2::text
-      AND post_id = ANY($3::text[])
-    ORDER BY tenant_id, platform, post_id, updated_at DESC, created_at DESC, id DESC
+    WITH source_rows AS (
+      SELECT
+        tenant_id,
+        platform,
+        $4::text AS post_id,
+        enabled,
+        like_enabled,
+        reply_enabled,
+        template,
+        mode,
+        created_at,
+        updated_at,
+        id,
+        ROW_NUMBER() OVER (
+          PARTITION BY tenant_id, platform, $4::text
+          ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC NULLS LAST
+        ) AS rn
+      FROM social_post_auto_reply_templates
+      WHERE tenant_id = $1::bigint
+        AND platform = $2::text
+        AND post_id = ANY($3::text[])
+    ),
+    selected_rows AS (
+      SELECT
+        tenant_id,
+        platform,
+        post_id,
+        enabled,
+        like_enabled,
+        reply_enabled,
+        template,
+        mode,
+        CURRENT_TIMESTAMP AS created_at,
+        CURRENT_TIMESTAMP AS updated_at
+      FROM source_rows
+      WHERE rn = 1
+    ),
+    upserted AS (
+      INSERT INTO social_post_auto_reply_templates (
+        tenant_id,
+        platform,
+        post_id,
+        enabled,
+        like_enabled,
+        reply_enabled,
+        template,
+        mode,
+        created_at,
+        updated_at
+      )
+      SELECT
+        tenant_id,
+        platform,
+        post_id,
+        enabled,
+        like_enabled,
+        reply_enabled,
+        template,
+        mode,
+        created_at,
+        updated_at
+      FROM selected_rows
     ON CONFLICT (tenant_id, platform, post_id) DO UPDATE SET
       enabled = EXCLUDED.enabled,
       like_enabled = EXCLUDED.like_enabled,
@@ -558,10 +592,22 @@ export const migrateCanonicalSocialPostRecords = async ({ tenantId = null, platf
       template = EXCLUDED.template,
       mode = EXCLUDED.mode,
       updated_at = CURRENT_TIMESTAMP
-    RETURNING id
+      RETURNING id
+    )
+    SELECT
+      (SELECT COUNT(*)::int FROM source_rows) AS source_count,
+      (SELECT COUNT(*)::int FROM selected_rows) AS deduped_count,
+      (SELECT COUNT(*)::int FROM upserted) AS upserted_count
     `,
     [safeTenantId, normalizedPlatform, safeAliasValues, safeCanonicalPostId]
   ).catch(() => ({ rows: [] }));
+  const templateMigrationSummary = templateResult.rows?.[0] || {};
+  console.info("SOCIAL_POST_AUTO_REPLY_TEMPLATE_MIGRATION_DEDUPED", {
+    source_count: Number(templateMigrationSummary.source_count || 0) || 0,
+    deduped_count: Number(templateMigrationSummary.deduped_count || 0) || 0,
+    canonical_post_id: safeCanonicalPostId,
+    post_id: safeCanonicalPostId,
+  });
   const mappingResult = await db.query(
     `
     INSERT INTO marketing_post_product_links (
