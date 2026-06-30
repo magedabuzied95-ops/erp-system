@@ -57,6 +57,27 @@ const buildPrivateReplyLogPayload = ({ postId = "", commentId = "", productConte
   reply_preview: String(replyPreview || "").trim(),
   message_preview: String(messagePreview || replyPreview || "").trim(),
 });
+const buildPrivateReplyExitPayload = ({
+  reason = "",
+  job = {},
+  postId = "",
+  commentId = "",
+  productContext = null,
+  message = "",
+  renderedReply = "",
+  privateReplyPayload = null,
+  status = "",
+} = {}) => ({
+  reason: String(reason || "").trim(),
+  job_id: job?.id || null,
+  post_id: String(postId || "").trim(),
+  comment_id: String(commentId || "").trim(),
+  has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
+  has_message: Boolean(String(message || "").trim()),
+  has_rendered_reply: Boolean(String(renderedReply || "").trim()),
+  has_private_reply_payload: Boolean(privateReplyPayload),
+  status: String(status || "").trim(),
+});
 const buildProductAwarePrivateReply = ({ row = {}, productContext = {}, settings = {} } = {}) => {
   const defaultTemplate = [
     "أهلًا بحضرتك",
@@ -138,6 +159,24 @@ export const registerBackgroundJobHandlers = () => {
       attempt: job?.attemptsMade || 1,
       max_attempts: job?.maxAttempts || 1,
     });
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PAYLOAD_DEBUG", {
+      ...buildPrivateReplyExitPayload({
+        reason: "queue_dequeued",
+        job,
+        postId: postId || row.post_id || "",
+        commentId,
+        productContext: row.product_context || row.raw_payload?.product_context || null,
+        message: row.automation_state?.private_reply?.message || "",
+        renderedReply: row.automation_state?.private_reply?.rendered_reply || "",
+        privateReplyPayload: row.automation_state?.private_reply || null,
+        status: row.dm_status || row.automation_state?.private_reply?.status || "",
+      }),
+      message_preview: String(
+        row.automation_state?.private_reply?.rendered_reply ||
+        row.automation_state?.private_reply?.message ||
+        ""
+      ).trim(),
+    });
 
     const privateReplyContext = PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT({ row });
     if (privateReplyContext.source === "meta_comment_poll") {
@@ -156,6 +195,17 @@ export const registerBackgroundJobHandlers = () => {
           post_id: postId || row.post_id || "",
           reason: privateReplyContext.rejectReason,
         });
+        console.log("SOCIAL_COMMENT_PRIVATE_REPLY_EXIT", buildPrivateReplyExitPayload({
+          reason: privateReplyContext.rejectReason,
+          job,
+          postId: postId || row.post_id || "",
+          commentId,
+          productContext: row.product_context || row.raw_payload?.product_context || null,
+          message: row.automation_state?.private_reply?.message || "",
+          renderedReply: row.automation_state?.private_reply?.rendered_reply || "",
+          privateReplyPayload: row.automation_state?.private_reply || null,
+          status: row.dm_status || row.automation_state?.private_reply?.status || "",
+        }));
         return { ok: true, skipped: true, reason: privateReplyContext.rejectReason };
       }
 
@@ -177,6 +227,17 @@ export const registerBackgroundJobHandlers = () => {
         comment_id: commentId,
         reason: currentPrivateReplyStatus === "sending" ? "already_sending" : "already_sent",
       });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_EXIT", buildPrivateReplyExitPayload({
+        reason: currentPrivateReplyStatus === "sending" ? "already_sending" : "already_sent",
+        job,
+        postId: postId || row.post_id || "",
+        commentId,
+        productContext: row.product_context || row.raw_payload?.product_context || null,
+        message: row.automation_state?.private_reply?.message || "",
+        renderedReply: row.automation_state?.private_reply?.rendered_reply || "",
+        privateReplyPayload: row.automation_state?.private_reply || null,
+        status: currentPrivateReplyStatus,
+      }));
       return { ok: true, skipped: true, reason: currentPrivateReplyStatus === "sending" ? "already_sending" : "already_sent" };
     }
 
@@ -369,6 +430,17 @@ export const registerBackgroundJobHandlers = () => {
         post_id: postId || row.post_id || "",
         external_id: result?.id || result?.message_id || result?.reply_id || "",
       });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_EXIT", buildPrivateReplyExitPayload({
+        reason: "sent",
+        job,
+        postId: postId || row.post_id || "",
+        commentId,
+        productContext,
+        message,
+        renderedReply: row.automation_state?.private_reply?.rendered_reply || "",
+        privateReplyPayload: row.automation_state?.private_reply || null,
+        status: "sent",
+      }));
       return result;
     } catch (error) {
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_RESPONSE", {
@@ -424,6 +496,17 @@ export const registerBackgroundJobHandlers = () => {
         attempt: job?.attemptsMade || 1,
         max_attempts: job?.maxAttempts || 1,
       });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_EXIT", buildPrivateReplyExitPayload({
+        reason: retryable ? "send_failed_retryable" : "send_failed_non_retryable",
+        job,
+        postId: postId || row.post_id || "",
+        commentId,
+        productContext,
+        message,
+        renderedReply: row.automation_state?.private_reply?.rendered_reply || "",
+        privateReplyPayload: row.automation_state?.private_reply || null,
+        status: job?.attemptsMade >= (job?.maxAttempts || 1) ? "failed" : "retrying",
+      }));
       throw error;
     }
   });
