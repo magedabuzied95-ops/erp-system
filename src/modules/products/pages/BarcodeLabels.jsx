@@ -1538,7 +1538,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                     ART
                   </div>
                   <div className="self-stretch w-px bg-white/45" aria-hidden="true" />
-                  <div className="truncate text-left font-black leading-none text-white" style={{ ...articleValueStyle, fontSize: `${articleValueStyle.fontSize}` }}>
+                  <div className="truncate text-center font-black leading-none text-white" style={{ ...articleValueStyle, fontSize: `${articleValueStyle.fontSize}` }}>
                     {articleValue}
                   </div>
                 </div>

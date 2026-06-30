@@ -264,7 +264,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
       },
     );
     doc.setFontSize(skuFontSize);
-    doc.text(skuValue, articleCell.x + thermalLayout.articleValueX, sizeMidY, { align: "left", baseline: "middle", maxWidth: thermalLayout.articleValueWidth });
+    doc.text(skuValue, articleCell.x + thermalLayout.articleValueX + (thermalLayout.articleValueWidth / 2), sizeMidY, { align: "center", baseline: "middle", maxWidth: thermalLayout.articleValueWidth });
   }
 
   const colorFrame = getBoxFrameLayout(colorCell, { boxHeightFactor: 1.0 });
