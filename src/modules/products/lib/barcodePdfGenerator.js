@@ -210,7 +210,23 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
 
   await drawImageOrPlaceholder(doc, item, imageCell.x, imageCell.y + 1, imageCell.w, imageCell.h - 1);
 
-  const titleLayout = fitThermalTitleLayout(productName, titleCell.w - 1.2, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
+  const titleLayout = fitThermalTitleLayout(
+    productName,
+    titleCell.w - 1.2,
+    thermalLayout.titleMaxLines,
+    thermalLayout.titleFontSize,
+    {
+      measureTextWidth: (fontSize, text) => {
+        const previousSize = doc.getFontSize?.() || fontSize;
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(fontSize);
+        const processed = maybeProcessArabic(doc, text);
+        const width = doc.getTextWidth(processed);
+        doc.setFontSize(previousSize);
+        return width;
+      },
+    }
+  );
   const titleLinesToRender = titleLayout.lines.slice(0, thermalLayout.titleMaxLines);
   const titleLeftX = titleCell.x + 0.85;
   const titleMaxWidth = Math.max(1, titleCell.w - 1.7);

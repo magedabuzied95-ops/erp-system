@@ -1451,7 +1451,23 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const contentRows = `${thermalLayout.titleCell.h}mm ${thermalLayout.sizeCell.h}mm ${thermalLayout.colorCell.h}mm ${thermalLayout.barcodeCell.h}mm`;
   const sizeFrame = getBoxFrameLayout(thermalLayout.sizeCell, { boxWidthFactor: thermalLayout.sizeBoxWidthFactor || 1 });
   const colorFrame = getBoxFrameLayout(thermalLayout.colorCell, { boxHeightFactor: 1.0 });
-  const titleLayoutFit = fitThermalTitleLayout(productName, thermalLayout.titleCell.w - 1.2, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
+  const titleMeasureTextWidth = useMemo(() => {
+    if (typeof document === "undefined") return null;
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    if (!context) return null;
+    return (fontSize, text) => {
+      context.font = `900 ${fontSize}px Arial, Helvetica, sans-serif`;
+      return (context.measureText(String(text || "")).width * 25.4) / 96;
+    };
+  }, []);
+  const titleLayoutFit = fitThermalTitleLayout(
+    productName,
+    thermalLayout.titleCell.w - 1.2,
+    thermalLayout.titleMaxLines,
+    thermalLayout.titleFontSize,
+    { measureTextWidth: titleMeasureTextWidth }
+  );
   const titleLines = titleLayoutFit.lines;
   const titleFontSize = titleLayoutFit.fontSize;
   const sizeValueFontSize = fitThermalSizeValueFontSize(sizeValue, thermalLayout.sizeValueWidth, thermalLayout.sizeValueFontSize);

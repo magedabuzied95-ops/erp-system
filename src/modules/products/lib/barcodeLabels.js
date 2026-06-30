@@ -959,39 +959,84 @@ const splitThermalTitleLines = (value = "") => {
   return right ? [left, right] : [text];
 };
 
-export const fitThermalTitleLayout = (value = "", maxWidthMm = 0, maxLines = 2, baseFontSize = THERMAL_LANDSCAPE_TITLE_FONT_SIZE) => {
+const ellipsizeThermalTitleLine = (value = "", maxWidthMm = 0, fontSize = THERMAL_LANDSCAPE_TITLE_FONT_SIZE, measureTextWidth = null) => {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const limitMm = Math.max(0.5, Number(maxWidthMm || 0));
+  const measure = typeof measureTextWidth === "function"
+    ? measureTextWidth
+    : (size, textValue) => {
+        const weight = measureThermalTitleWeight(textValue);
+        return ((Math.max(size, 1) * Math.max(weight, 1)) / 3.62);
+      };
+
+  if (measure(fontSize, text) <= limitMm) return text;
+
+  let output = text;
+  while (output.length > 1) {
+    const next = `${output.slice(0, -1).trimEnd()}...`;
+    if (measure(fontSize, next) <= limitMm) return next;
+    output = output.slice(0, -1);
+  }
+  return "...";
+};
+
+export const fitThermalTitleLayout = (value = "", maxWidthMm = 0, maxLines = 2, baseFontSize = THERMAL_LANDSCAPE_TITLE_FONT_SIZE, options = {}) => {
   const text = String(value || "").trim();
   if (!text) {
     return {
       lines: ["Unnamed product"],
-      fontSize: Math.round(Number(baseFontSize || THERMAL_LANDSCAPE_TITLE_FONT_SIZE) * 1.1 * 10) / 10,
-      lineHeight: 1.14,
+      fontSize: Math.round(Number(baseFontSize || THERMAL_LANDSCAPE_TITLE_FONT_SIZE) * 10) / 10,
+      lineHeight: 1.12,
     };
   }
 
   const base = Number(baseFontSize || THERMAL_LANDSCAPE_TITLE_FONT_SIZE);
   const availableWidthMm = Math.max(1, Number(maxWidthMm || 0) - 1.0);
-  const fullTextWeight = measureThermalTitleWeight(text);
-  const fullTextFontSize = availableWidthMm > 0 ? (availableWidthMm * 3.62) / fullTextWeight : base * 1.1;
-  const maxFontSize = base * 1.12;
-  const minFontSize = Math.max(6.2, base * 0.86);
-  if (fullTextFontSize >= base * 1.02 || !text.includes(" ")) {
+  const maxFontSize = Number(options?.maxFontSize ?? base);
+  const minFontSize = Math.max(6.2, Number(options?.minFontSize ?? (base * 0.84)));
+  const step = Math.max(0.2, Number(options?.step ?? 0.25));
+  const measureTextWidth = typeof options?.measureTextWidth === "function" ? options.measureTextWidth : null;
+  const measure = (fontSize, valueText) => {
+    if (measureTextWidth) return Number(measureTextWidth(fontSize, valueText));
+    const weight = measureThermalTitleWeight(valueText);
+    return ((Math.max(fontSize, 1) * Math.max(weight, 1)) / 3.62);
+  };
+  const fitsLine = (fontSize, line) => measure(fontSize, line) <= availableWidthMm;
+  const shrinkToFit = (lines = []) => {
+    let currentSize = maxFontSize;
+    while (currentSize >= minFontSize) {
+      if (lines.every((line) => fitsLine(currentSize, line))) {
+        return Math.round(currentSize * 10) / 10;
+      }
+      currentSize = Math.max(minFontSize, currentSize - step);
+      if (currentSize === minFontSize) break;
+    }
+    return Math.round(minFontSize * 10) / 10;
+  };
+
+  const oneLine = [text];
+  const oneLineFitsAtBase = fitsLine(base, text);
+  if (oneLineFitsAtBase || !text.includes(" ")) {
+    const fontSize = shrinkToFit(oneLine);
     return {
-      lines: [text],
-      fontSize: Math.round(clamp(Math.min(maxFontSize, Math.max(fullTextFontSize, base)), base * 1.02, maxFontSize) * 10) / 10,
-      lineHeight: 1.14,
+      lines: [ellipsizeThermalTitleLine(text, availableWidthMm, fontSize, measureTextWidth)],
+      fontSize,
+      lineHeight: 1.12,
     };
   }
 
-  const lines = splitThermalTitleLines(text).slice(0, Math.max(1, maxLines));
-  const maxLineWeight = Math.max(...lines.map(measureThermalTitleWeight), fullTextWeight);
-  const estimatedFontSize = availableWidthMm > 0 ? (availableWidthMm * 3.62) / maxLineWeight : base * 1.1;
-  const startingFontSize = Math.min(maxFontSize, estimatedFontSize);
-  const minSplitFontSize = Math.max(6.2, base * 0.86);
+  const splitCandidates = splitThermalTitleLines(text).slice(0, Math.max(1, maxLines));
+  const lines = splitCandidates.length > 1 ? splitCandidates : [text];
+  const fontSize = shrinkToFit(lines);
+  const fitsAll = lines.every((line) => fitsLine(fontSize, line));
+  const displayLines = fitsAll
+    ? lines
+    : lines.map((line) => ellipsizeThermalTitleLine(line, availableWidthMm, fontSize, measureTextWidth));
   return {
-    lines,
-    fontSize: Math.round(clamp(startingFontSize, minSplitFontSize, maxFontSize) * 10) / 10,
-    lineHeight: 1.14,
+    lines: displayLines,
+    fontSize,
+    lineHeight: 1.12,
   };
 };
 
@@ -1354,8 +1399,6 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const hasArticleBox = Boolean(skuValue);
   const layout = getThermalLandscapeLabelLayout(hasArticleBox);
   const { imageCell, titleCell, sizeCell, articleCell, colorCell, barcodeCell } = layout;
-  const titleLayout = fitThermalTitleLayout(productName, titleCell.w - 1.2, layout.titleMaxLines, layout.titleFontSize);
-  const productLines = titleLayout.lines;
   const smallLabelFontSize = layout.colorLabelFontSize;
   const articleBaseFontSize = Math.max(layout.sizeValueFontSize * 0.92, layout.articleFontSize);
   const articleFontSize = fitThermalArticleValueFontSize(skuValue, layout.articleValueWidth, articleBaseFontSize, layout.articleFontSizeCompact);
@@ -1366,12 +1409,14 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
     barTop: barcodeCell.y,
     barHeight: barcodeCell.h,
   });
+  const titleLayout = fitThermalTitleLayout(productName, titleCell.w - 1.2, layout.titleMaxLines, layout.titleFontSize);
+  const titleLines = titleLayout.lines;
 
-  const productText = productLines.length
+  const productText = titleLines.length
     ? (() => {
         const centerY = titleCell.y + (titleCell.h / 2);
-        const startY = centerY - (((productLines.length - 1) * layout.titleLineStepMm) / 2);
-        return productLines.map((line, index) => `<text x="${titleCell.x + 0.85}" y="${startY + (index * layout.titleLineStepMm)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * (index === 0 ? 0.48 : 0.45)}" font-weight="900">${escapeHtml(line)}</text>`).join("");
+        const startY = centerY - (((titleLines.length - 1) * layout.titleLineStepMm) / 2);
+        return titleLines.map((line, index) => `<text x="${titleCell.x + 0.85}" y="${startY + (index * layout.titleLineStepMm)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * (index === 0 ? 0.48 : 0.45)}" font-weight="900">${escapeHtml(line)}</text>`).join("");
       })()
     : `<text x="${titleCell.x + 0.85}" y="${titleCell.y + (titleCell.h / 2)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * 0.48}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
 
@@ -1522,11 +1567,16 @@ export const buildBarcodePrintHtml = ({
         displayText: item.barcode,
       });
       const resolvedArticleCode = resolveLabelArticleCode(item);
+      const thermalLayout = getThermalLandscapeLabelLayout(Boolean(resolvedArticleCode));
+      const titleLayout = fitThermalTitleLayout(item.productName || "", thermalLayout.titleCell.w - 1.2, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
+      const titleMarkup = titleLayout.lines
+        .map((line, index) => `<span class="landscape-title-line${index === 0 ? " landscape-title-line-primary" : ""}">${escapeHtml(line)}</span>`)
+        .join("");
       if (resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100) {
         return `
           <article class="landscape-label">
             <div class="landscape-title-box">
-              <div class="landscape-title">${escapeHtml(item.productName || "")}</div>
+              <div class="landscape-title" style="font-size:${titleLayout.fontSize}px; line-height:${titleLayout.lineHeight};">${titleMarkup}</div>
             </div>
             <div class="landscape-body">
               <div class="landscape-image">
@@ -1781,14 +1831,18 @@ export const buildBarcodePrintHtml = ({
           }
           .landscape-title {
             margin: 0;
-            display: -webkit-box;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 0.15mm;
             overflow: hidden;
-            -webkit-box-orient: vertical;
-            -webkit-line-clamp: 2;
+            width: 100%;
             font-size: 13px;
-            line-height: 1.04;
+            line-height: 1.12;
             font-weight: 900;
             color: #ffffff;
+            text-align: left;
           }
           .landscape-title-box {
             border: 1px solid #020617;
@@ -1799,6 +1853,13 @@ export const buildBarcodePrintHtml = ({
           }
           .landscape-title-box .landscape-title {
             min-height: 0;
+          }
+          .landscape-title-line {
+            display: block;
+            max-width: 100%;
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
           }
           .landscape-body {
             display: grid;
