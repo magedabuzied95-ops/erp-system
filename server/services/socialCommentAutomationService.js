@@ -500,6 +500,35 @@ const buildSocialCommentProductContextResolvedLog = ({ productContext = null, ro
   };
 };
 
+const buildPrivateReplyEnqueuePayloadLog = ({ row = {}, productContext = null } = {}) => {
+  const privateReplyPayload = row?.automation_state?.private_reply || null;
+  const messagePreview = text(
+    privateReplyPayload?.rendered_reply ||
+    privateReplyPayload?.message ||
+    ""
+  );
+  return {
+    post_id: text(row.post_id || ""),
+    comment_id: text(row.comment_id || ""),
+    has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
+    has_message: Boolean(text(privateReplyPayload?.message || "")),
+    has_rendered_reply: Boolean(text(privateReplyPayload?.rendered_reply || "")),
+    has_private_reply_payload: Boolean(privateReplyPayload),
+    message_preview: messagePreview,
+    product_ids: Array.isArray(productContext?.product_ids)
+      ? productContext.product_ids
+      : asArray(productContext?.mapped_products || [])
+        .map((item) => Number(item?.product_id || item?.id || 0))
+        .filter((value) => Number.isFinite(value) && value > 0),
+    primary_product_id: Number(
+      productContext?.primary_product?.product_id ||
+      productContext?.primary_product?.id ||
+      productContext?.product_id ||
+      0
+    ) || null,
+  };
+};
+
 const COMMENT_INTENT_RULES = [
   {
     label: "lead_inbox",
@@ -2456,10 +2485,17 @@ const executeSocialCommentAutomationRuntime = async ({
       persistedRuntimeState.private_reply = {
         ...(persistedRuntimeState.private_reply || {}),
         status: "queued",
-      queued_at: queuedAt,
-      template: privateReplyTemplate,
-      rendered_reply: effectiveRenderedPrivateReply,
+        queued_at: queuedAt,
+        template: privateReplyTemplate,
+        message: effectiveRenderedPrivateReply,
+        rendered_reply: effectiveRenderedPrivateReply,
+      };
+    workingRow.product_context = effectiveProductContext || {};
+    workingRow.raw_payload = {
+      ...(workingRow.raw_payload || {}),
+      product_context: effectiveProductContext || {},
     };
+    workingRow.automation_state = persistedRuntimeState;
     aiSalesRuntime.approval_status = "queued";
     aiSalesRuntime.delivery_status = "pending_private_reply";
     persistedRuntimeState.social_comment_runtime.ai_sales = aiSalesRuntime;
@@ -2467,6 +2503,10 @@ const executeSocialCommentAutomationRuntime = async ({
       dmStatus: "queued",
       automationState: persistedRuntimeState,
     }).catch(() => {});
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_PAYLOAD", buildPrivateReplyEnqueuePayloadLog({
+        row: workingRow,
+        productContext: effectiveProductContext || {},
+      }));
       await enqueueSocialCommentPrivateReplyJob({
         tenantId: safeTenantId,
         platform: normalizedPlatform,
@@ -5829,8 +5869,14 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           status: "queued",
           queued_at: new Date().toISOString(),
           template: renderedPrivateReplyTemplate || renderedPrivateReplyFallback || "",
+          message: queuedPrivateReplyText,
           rendered_reply: queuedPrivateReplyText,
         },
+      };
+      storedRow.product_context = productContext || {};
+      storedRow.raw_payload = {
+        ...(storedRow.raw_payload || {}),
+        product_context: productContext || {},
       };
       await persistSocialCommentAutomationState({
         tenantId: storedRow.tenant_id,
@@ -5848,6 +5894,10 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         source: privateReplySource,
         private_reply_status: privateReplyStatus || "empty",
       });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_PAYLOAD", buildPrivateReplyEnqueuePayloadLog({
+        row: storedRow,
+        productContext: productContext || {},
+      }));
       await enqueueSocialCommentPrivateReplyJob({
         tenantId: storedRow.tenant_id,
         platform: storedRow.platform,
