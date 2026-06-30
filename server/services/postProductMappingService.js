@@ -1451,6 +1451,13 @@ export const resolveProductMappingForSiblingPost = async ({
     row_count: Number(siblingJoinRows.rows?.length || 0) || 0,
     rows: siblingJoinRowPreview,
   });
+  const siblingMainPlaceholderCount = 8;
+  console.info("POST_PRODUCT_LINKS_SIBLING_MAIN_SQL_PARAM_COUNT", {
+    placeholder_count: siblingMainPlaceholderCount,
+    params_count: params.length,
+    post_id: text(postId || row?.post_id || post?.post_id || ""),
+    canonical_post_id: canonicalPostId,
+  });
   const siblingResult = await db.query(
     `
     WITH sibling_candidates AS (
@@ -1591,7 +1598,7 @@ export const resolveProductMappingForSiblingPost = async ({
           OR ppl.business_id = $1::bigint
         )
         AND ppl.platform = $2::text
-        AND spa.alias_value = ANY($4::text[])
+        AND spa.alias_value = ANY($8::text[])
         AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
     )
     SELECT
@@ -1618,6 +1625,12 @@ export const resolveProductMappingForSiblingPost = async ({
     `,
     params
   ).catch((error) => {
+    console.warn("POST_PRODUCT_LINKS_SIBLING_MAIN_QUERY_ERROR", {
+      message: error?.message || "",
+      code: text(error?.code || ""),
+      params_count: params.length,
+      placeholder_count: siblingMainPlaceholderCount,
+    });
     console.warn("POST_PRODUCT_LINKS_SIBLING_QUERY_ERROR", {
       tenant_id: safeTenantId || null,
       platform: normalizedPlatform,
