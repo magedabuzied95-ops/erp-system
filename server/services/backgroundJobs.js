@@ -36,7 +36,7 @@ const isGenericSocialCommentPrivateReply = (value = "") => {
   const normalized = String(value || "").replace(/\s+/g, " ").trim();
   return SOCIAL_COMMENT_GENERIC_PRIVATE_REPLIES.has(normalized);
 };
-const buildPrivateReplyLogPayload = ({ postId = "", commentId = "", productContext = null, replyPreview = "" } = {}) => ({
+const buildPrivateReplyLogPayload = ({ postId = "", commentId = "", productContext = null, replyPreview = "", messagePreview = "" } = {}) => ({
   post_id: String(postId || "").trim(),
   comment_id: String(commentId || "").trim(),
   has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
@@ -55,6 +55,7 @@ const buildPrivateReplyLogPayload = ({ postId = "", commentId = "", productConte
   ) || null,
   product_name: String(productContext?.product_name || productContext?.primary_product?.name || "").trim(),
   reply_preview: String(replyPreview || "").trim(),
+  message_preview: String(messagePreview || replyPreview || "").trim(),
 });
 const buildProductAwarePrivateReply = ({ row = {}, productContext = {}, settings = {} } = {}) => {
   const defaultTemplate = [
@@ -220,9 +221,10 @@ export const registerBackgroundJobHandlers = () => {
         commentId,
         productContext,
         replyPreview: initialMessage,
+        messagePreview: initialMessage,
       }));
     }
-    const message = String(
+    let message = String(
       (productContext?.found || productContext?.has_product_context) && productAwareMessage
         ? productAwareMessage
         : initialMessage
@@ -234,12 +236,14 @@ export const registerBackgroundJobHandlers = () => {
       comment_id: commentId,
       has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
       reply_preview: message,
+      message_preview: message,
     });
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_CONTEXT_USED", buildPrivateReplyLogPayload({
       postId: postId || row.post_id || "",
       commentId,
       productContext,
       replyPreview: message,
+      messagePreview: message,
     }));
 
     debugSocialCommentsLog("[social-comments][private-reply] sending", {
@@ -272,11 +276,45 @@ export const registerBackgroundJobHandlers = () => {
     } catch {}
 
     try {
+      if ((productContext?.found || productContext?.has_product_context) && isGenericSocialCommentPrivateReply(message) && productAwareMessage) {
+        console.warn("SOCIAL_COMMENT_PRIVATE_REPLY_PRODUCT_CONTEXT_DROPPED", buildPrivateReplyLogPayload({
+          postId: postId || row.post_id || "",
+          commentId,
+          productContext,
+          replyPreview: message,
+          messagePreview: productAwareMessage,
+        }));
+        message = String(productAwareMessage || "").trim() || message;
+      }
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_CONTEXT_USED", buildPrivateReplyLogPayload({
+        postId: postId || row.post_id || "",
+        commentId,
+        productContext,
+        replyPreview: message,
+        messagePreview: message,
+      }));
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_START", {
         tenant_id: tenantId,
         platform,
         post_id: postId || row.post_id || "",
         comment_id: commentId,
+        has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
+        product_ids: Array.isArray(productContext?.product_ids)
+          ? productContext.product_ids
+          : Array.isArray(productContext?.mapped_products)
+            ? productContext.mapped_products
+              .map((item) => Number(item?.product_id || item?.id || 0))
+              .filter((value) => Number.isFinite(value) && value > 0)
+            : [],
+        primary_product_id: Number(
+          productContext?.primary_product?.product_id ||
+          productContext?.primary_product?.id ||
+          productContext?.product_id ||
+          0
+        ) || null,
+        product_name: String(productContext?.product_name || productContext?.primary_product?.name || "").trim(),
+        reply_preview: message,
+        message_preview: message,
       });
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_REQUEST", {
         target_comment_id: commentId,
