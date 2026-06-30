@@ -924,24 +924,24 @@ const THERMAL_LANDSCAPE_MARGIN_MM = 2;
 const THERMAL_LANDSCAPE_GAP_MM = 1;
 const THERMAL_LANDSCAPE_ROW_GAP_MM = 1.2;
 const THERMAL_LANDSCAPE_IMAGE_WIDTH_MM = 34.6;
-const THERMAL_LANDSCAPE_TITLE_HEIGHT_MM = 8.4;
+const THERMAL_LANDSCAPE_TITLE_HEIGHT_MM = 9.2;
 const THERMAL_LANDSCAPE_SIZE_HEIGHT_MM = 13;
 const THERMAL_LANDSCAPE_COLOR_HEIGHT_MM = 8.8;
 const THERMAL_LANDSCAPE_SIZE_BOX_WIDTH_FACTOR = 1;
-const THERMAL_LANDSCAPE_BARCODE_X_MM = 5;
-const THERMAL_LANDSCAPE_BARCODE_W_MM = 90;
-const THERMAL_LANDSCAPE_BARCODE_H_MM = 7;
-const THERMAL_LANDSCAPE_BARCODE_TEXT_Y_MM = 48.8;
+const THERMAL_LANDSCAPE_BARCODE_X_MM = 2.75;
+const THERMAL_LANDSCAPE_BARCODE_W_MM = 94.5;
+const THERMAL_LANDSCAPE_BARCODE_H_MM = 8.05;
+const THERMAL_LANDSCAPE_BARCODE_TEXT_Y_MM = 48.35;
 const THERMAL_LANDSCAPE_TITLE_FONT_SIZE = 11.4;
 const THERMAL_LANDSCAPE_TITLE_LINE_HEIGHT = 1.08;
 const THERMAL_LANDSCAPE_TITLE_LINE_STEP_MM = 4.15;
 const THERMAL_LANDSCAPE_TITLE_MAX_LINES = 2;
-const THERMAL_LANDSCAPE_SIZE_LABEL_FONT_SIZE = 4.8;
+const THERMAL_LANDSCAPE_SIZE_LABEL_FONT_SIZE = 5.4;
 const THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE = 25;
-const THERMAL_LANDSCAPE_ARTICLE_LABEL_FONT_SIZE = 4.7;
+const THERMAL_LANDSCAPE_ARTICLE_LABEL_FONT_SIZE = 5.3;
 const THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE = 11.2;
 const THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT = 10;
-const THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE = 4.4;
+const THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE = 5.0;
 const THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE = 13;
 
 const buildThermalLandscapeCellLayout = (hasArticleBox = false) => {
@@ -981,7 +981,7 @@ const buildThermalLandscapeCellLayout = (hasArticleBox = false) => {
   });
   const barcodeCell = Object.freeze({
     x: THERMAL_LANDSCAPE_BARCODE_X_MM,
-    y: 39.8,
+    y: 38.6,
     w: THERMAL_LANDSCAPE_BARCODE_W_MM,
     h: THERMAL_LANDSCAPE_BARCODE_H_MM,
     textY: THERMAL_LANDSCAPE_BARCODE_TEXT_Y_MM,
@@ -1207,8 +1207,8 @@ export const buildBarcodePrintHtml = ({
         marginRightMm: 0,
         marginBottomMm: 0,
         marginLeftMm: 0,
-        barcodeWidthScale: 100,
-        barcodeHeight: Math.max(100, Number(baseSettings.barcodeHeight || 88)),
+        barcodeWidthScale: 105,
+        barcodeHeight: Math.max(129, Number(baseSettings.barcodeHeight || 88) * 1.15),
       })
     : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
       ? normalizeBarcodePrintSettings({
@@ -1263,7 +1263,7 @@ export const buildBarcodePrintHtml = ({
       ? Math.round(PREMIUM_RETAIL_BARCODE_WIDTH * (Number(normalizedSettings.barcodeWidthScale || 100) / 100))
     : Math.round(420 * (Number(normalizedSettings.barcodeWidthScale || 100) / 100));
   const barcodeHeight = resolvedTemplate === LABEL_TEMPLATE_THERMAL_LANDSCAPE_50X100
-    ? Math.max(112, Number(normalizedSettings.barcodeHeight || 88))
+    ? Math.max(129, Number(normalizedSettings.barcodeHeight || 88))
     : resolvedTemplate === LABEL_TEMPLATE_PREMIUM_RETAIL_50X100
       ? PREMIUM_RETAIL_BARCODE_HEIGHT
       : Number(normalizedSettings.barcodeHeight || 88);
@@ -1603,7 +1603,7 @@ export const buildBarcodePrintHtml = ({
             border-radius: 8px;
             background: #020617;
             color: #ffffff;
-            padding: 1.05mm 1.2mm;
+            padding: 1.15mm 1.2mm;
             text-align: center;
             display: flex;
             flex-direction: column;
@@ -1617,7 +1617,7 @@ export const buildBarcodePrintHtml = ({
             font-weight: 900;
             letter-spacing: 0.2em;
             text-transform: uppercase;
-            color: #cbd5e1;
+            color: #ffffff;
           }
           .landscape-size-badge strong {
             display: block;
@@ -1635,7 +1635,7 @@ export const buildBarcodePrintHtml = ({
             border-radius: 8px;
             background: #020617;
             color: #ffffff;
-            padding: 1.05mm 1.2mm;
+            padding: 1.15mm 1.2mm;
             text-align: center;
             display: flex;
             flex-direction: column;
@@ -1649,7 +1649,7 @@ export const buildBarcodePrintHtml = ({
             font-weight: 900;
             letter-spacing: 0.2em;
             text-transform: uppercase;
-            color: #cbd5e1;
+            color: #ffffff;
           }
           .landscape-article-box strong {
             display: block;
@@ -1681,7 +1681,7 @@ export const buildBarcodePrintHtml = ({
             font-weight: 900;
             letter-spacing: 0.18em;
             text-transform: uppercase;
-            color: #cbd5e1;
+            color: #ffffff;
           }
           .landscape-pill-divider {
             display: block;
@@ -1710,17 +1710,17 @@ export const buildBarcodePrintHtml = ({
           .landscape-barcode {
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            gap: 0.4mm;
+            justify-content: flex-start;
+            gap: 0.2mm;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
             background: #ffffff;
-            padding: 0.8mm 1mm 0.4mm;
+            padding: 0.35mm 1mm 0.25mm;
             overflow: hidden;
           }
           .landscape-barcode-svg {
             width: 100%;
-            min-height: 14mm;
+            min-height: 12.4mm;
           }
           .landscape-barcode-svg svg {
             width: 100%;

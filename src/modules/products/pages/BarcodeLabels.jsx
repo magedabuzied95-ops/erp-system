@@ -75,8 +75,8 @@ const resolveTemplatePrintContext = (template, settings, sheetMode) => {
       marginRightMm: 1.5,
       marginBottomMm: 1.5,
       marginLeftMm: 1.5,
-      barcodeWidthScale: 100,
-      barcodeHeight: Math.max(100, Number(normalized.barcodeHeight || 88)),
+      barcodeWidthScale: 105,
+      barcodeHeight: Math.max(129, Number(normalized.barcodeHeight || 88) * 1.15),
     });
     return {
       template,
@@ -1366,7 +1366,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   };
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
     width: Math.round(720 * (Number(printSettings.barcodeWidthScale || 100) / 100)),
-    height: Math.max(112, Number(printSettings.barcodeHeight || 88)),
+    height: Math.max(129, Number(printSettings.barcodeHeight || 88)),
     displayText: item.barcode,
   });
   const landscapeWidthMm = Number(printSettings.labelWidthMm || 100);
@@ -1612,10 +1612,10 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         </div>
 
         <div
-          className="rounded-[8px] border border-zinc-200 bg-white px-[1.2mm] pb-[0.6mm] pt-[0.8mm]"
+          className="rounded-[8px] border border-zinc-200 bg-white px-[1.2mm] pb-[0.6mm] pt-[0.2mm]"
           style={{ gridColumn: "1 / -1", gridRow: "4" }}
         >
-          <div className="w-full overflow-hidden" style={{ minHeight: "14mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+          <div className="w-full overflow-hidden" style={{ minHeight: "15.6mm" }} dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
           <div className="mt-[0.5mm] text-center text-[8px] font-black leading-none text-zinc-800">
             {item.barcode}
           </div>
