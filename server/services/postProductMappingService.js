@@ -840,7 +840,15 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
   const safeTenantId = toTenantId(tenantId);
   const normalizedPlatform = normalizePlatform(platform || post?.platform || "");
   const canonicalIdentityPostId = text(canonicalPostId || post?.canonical_post_id || postId || selectedPostId || post?.post_id || "");
-  if (!safeTenantId || !canonicalIdentityPostId) return [];
+  const lookupPostIds = Array.from(
+    new Set(
+      [
+        canonicalIdentityPostId,
+        ...getPostIdentityCandidates({ postId: canonicalIdentityPostId || postId, selectedPostId, row: post, post }),
+      ].map((value) => text(value)).filter(Boolean)
+    )
+  );
+  if (!safeTenantId || !lookupPostIds.length) return [];
   debugSocialCommentsWarn("SOCIAL_COMMENTS_POSTS_SQL_2", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
@@ -855,9 +863,9 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
       )
       AND platform = $2::text
       AND (
-        platform_post_id = $3::text
-        OR post_id = $3::text
-        OR media_id = $3::text
+        platform_post_id = ANY($3::text[])
+        OR post_id = ANY($3::text[])
+        OR media_id = ANY($3::text[])
       )
     ORDER BY is_primary DESC, priority ASC, updated_at DESC, id DESC
     `,
@@ -872,13 +880,13 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
       )
       AND platform = $2::text
       AND (
-        platform_post_id = $3::text
-        OR post_id = $3::text
-        OR media_id = $3::text
+        platform_post_id = ANY($3::text[])
+        OR post_id = ANY($3::text[])
+        OR media_id = ANY($3::text[])
       )
     ORDER BY is_primary DESC, priority ASC, updated_at DESC, id DESC
     `,
-    [safeTenantId, normalizedPlatform, canonicalIdentityPostId]
+    [safeTenantId, normalizedPlatform, lookupPostIds]
   ).catch(() => ({ rows: [] }));
   return result.rows || [];
 };
