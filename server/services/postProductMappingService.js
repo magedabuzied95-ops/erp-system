@@ -2130,7 +2130,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     getPlatformPostId({ tenantId: safeTenantId, platform: normalizedPlatform, post: post || row || {}, postId: postId || row?.post_id || "" }) ||
     canonicalIdentity?.canonical_post_id
   );
-  const storedPostId = text(
+  const storedPostId = normalizePostIdentityValue(
     row?.source_post_id ||
     post?.source_post_id ||
     row?.post_id ||
@@ -2138,7 +2138,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     selectedPostId ||
     platformPostId
   );
-  const storedMediaId = text(
+  const storedMediaId = normalizePostIdentityValue(
     row?.permalink_post_id ||
     post?.permalink_post_id ||
     row?.object_id ||
@@ -2147,7 +2147,8 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     post?.raw_graph_post_id ||
     platformPostId
   );
-  const permalinkPostId = text(
+  const normalizedPlatformPostId = normalizePostIdentityValue(platformPostId);
+  const permalinkPostId = normalizePostIdentityValue(
     row?.permalink_post_id ||
     post?.permalink_post_id ||
     row?.metadata?.permalink_post_id ||
@@ -2270,7 +2271,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
         ORDER BY updated_at DESC, id DESC
         LIMIT 1
         `,
-        [safeTenantId, normalizedPlatform, platformPostId, productId]
+        [safeTenantId, normalizedPlatform, normalizedPlatformPostId, productId]
       ).catch(() => ({ rows: [] }));
       const legacyExactResult = await client.query(
         `
@@ -2322,7 +2323,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
           normalizedPlatform,
           productId,
           identityLookupIds,
-          platformPostId,
+          normalizedPlatformPostId,
           storedPostId,
           storedMediaId,
         ]
@@ -2334,18 +2335,28 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
         null;
       const existingMatchesExactly = Boolean(
         existingRow &&
-        text(existingRow.platform_post_id || "") === platformPostId &&
-        text(existingRow.post_id || "") === storedPostId &&
-        text(existingRow.media_id || "") === storedMediaId &&
+        normalizePostIdentityValue(existingRow.platform_post_id || "") === normalizedPlatformPostId &&
+        normalizePostIdentityValue(existingRow.post_id || "") === storedPostId &&
+        normalizePostIdentityValue(existingRow.media_id || "") === storedMediaId &&
         Boolean(existingRow.is_primary) === Boolean(isPrimary) &&
         (Number(existingRow.priority ?? 0) || 0) === index + 1
       );
       let action = "insert";
       let writeResult = { rowCount: 0, rows: [] };
+      console.info("SOCIAL_PRODUCT_LINK_UPSERT_TRACE", {
+        business_id: safeTenantId,
+        platform: normalizedPlatform,
+        post_id: storedPostId,
+        product_id: productId,
+        canonical_post_id: platformPostId,
+        source_post_id: storedPostId,
+        platform_post_id: normalizedPlatformPostId,
+        permalink_post_id: permalinkPostId || storedMediaId,
+      });
       console.info("POST_PRODUCT_LINKS_DB_INSERT", {
         ...identityTrace,
         canonical_post_id: platformPostId,
-        platform_post_id: platformPostId,
+        platform_post_id: normalizedPlatformPostId,
         source_post_id: storedPostId,
         permalink_post_id: permalinkPostId || storedMediaId,
         primary_product_id: primaryId,
@@ -2390,7 +2401,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
               Number(existingRow.id),
               safeTenantId,
               normalizedPlatform,
-              platformPostId,
+              normalizedPlatformPostId,
               storedPostId,
               storedMediaId,
               index + 1,
@@ -2418,9 +2429,9 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
               created_at
             )
             VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::text, $6::text, $7::bigint, $8::integer, $9::boolean, $10::bigint, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-            ON CONFLICT (tenant_id, platform, platform_post_id, product_id)
+            ON CONFLICT (business_id, platform, post_id, product_id)
             DO UPDATE SET
-              business_id = EXCLUDED.business_id,
+              platform_post_id = COALESCE(EXCLUDED.platform_post_id, marketing_post_product_links.platform_post_id),
               post_id = EXCLUDED.post_id,
               media_id = EXCLUDED.media_id,
               priority = EXCLUDED.priority,
@@ -2432,7 +2443,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
               safeTenantId,
               safeTenantId,
               normalizedPlatform,
-              platformPostId,
+              normalizedPlatformPostId,
               storedPostId,
               storedMediaId,
               productId,
@@ -2464,7 +2475,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
             ORDER BY updated_at DESC, id DESC
             LIMIT 1
             `,
-            [safeTenantId, normalizedPlatform, productId, platformPostId, storedPostId, storedMediaId]
+            [safeTenantId, normalizedPlatform, productId, normalizedPlatformPostId, storedPostId, storedMediaId]
           ).catch(() => ({ rows: [] }));
           const legacyConflictResult = await client.query(
             `
@@ -2490,7 +2501,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
             ORDER BY updated_at DESC, id DESC
             LIMIT 1
             `,
-            [safeTenantId, normalizedPlatform, platformPostId, productId]
+            [safeTenantId, normalizedPlatform, normalizedPlatformPostId, productId]
           ).catch(() => ({ rows: [] }));
           const conflictRow =
             canonicalConflictResult.rows?.[0] ||
@@ -2521,7 +2532,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
               Number(conflictRow.id),
               safeTenantId,
               normalizedPlatform,
-              platformPostId,
+              normalizedPlatformPostId,
               storedPostId,
               storedMediaId,
               index + 1,
@@ -2534,7 +2545,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       rowsAffected += Number(writeResult.rowCount || 0) || 0;
       console.info("SOCIAL_PRODUCT_LINK_UPSERT_TRACE", {
         canonical_post_id: platformPostId,
-        platform_post_id: platformPostId,
+        platform_post_id: normalizedPlatformPostId,
         source_post_id: storedPostId,
         permalink_post_id: permalinkPostId || storedMediaId,
         product_id: productId,
@@ -2543,7 +2554,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       console.info("POST_PRODUCT_LINKS_DB_UPSERT", {
         ...identityTrace,
         canonical_post_id: platformPostId,
-        platform_post_id: platformPostId,
+        platform_post_id: normalizedPlatformPostId,
         source_post_id: storedPostId,
         permalink_post_id: permalinkPostId || storedMediaId,
         primary_product_id: primaryId,
