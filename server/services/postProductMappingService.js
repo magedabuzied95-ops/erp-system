@@ -1423,7 +1423,9 @@ export const resolveProductMappingForSiblingPost = async ({
     const textHashMatch = Boolean(joinRow.text_hash_match);
     const slugMatch = Boolean(joinRow.slug_match);
     let rejectedReason = "";
-    if (!sourceIdMatch && !imageUrlMatch && !textHashMatch && !slugMatch) {
+    if (!sourceIdMatch && !imageUrlMatch && !textHashMatch && !slugMatch && text(joinRow.mapping_source || "") === "marketing_post_product_links" && Number(joinRow.product_id || 0) > 0) {
+      rejectedReason = "existing_manual_mapping";
+    } else if (!sourceIdMatch && !imageUrlMatch && !textHashMatch && !slugMatch) {
       rejectedReason = "no_signal_match";
     } else if (!text(joinRow.mapped_post_id || "")) {
       rejectedReason = "missing_mapped_post_id";
@@ -1498,6 +1500,7 @@ export const resolveProductMappingForSiblingPost = async ({
           WHEN lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[]) THEN 'image_url'
           WHEN lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) THEN 'text_hash'
           WHEN lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) THEN 'product_slug'
+          WHEN ppl.product_id IS NOT NULL THEN 'existing_manual_mapping'
           ELSE ''
         END AS match_reason,
         CASE
@@ -1510,6 +1513,7 @@ export const resolveProductMappingForSiblingPost = async ({
           WHEN lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[]) THEN 300
           WHEN lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) THEN 200
           WHEN lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) THEN 100
+          WHEN ppl.product_id IS NOT NULL THEN 50
           ELSE 0
         END AS match_score
       FROM marketing_post_product_links ppl
