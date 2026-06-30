@@ -418,6 +418,58 @@ const buildSocialCommentSalesReplies = ({
   };
 };
 
+const SOCIAL_COMMENT_GENERIC_PUBLIC_REPLIES = new Set([
+  "تم الرد على حضرتك في الخاص ✅",
+  "تم إرسال التفاصيل في رسالة خاصة",
+  "تم إرسال التفاصيل في رسالة خاصة ",
+]);
+
+const isGenericSocialCommentPublicReply = (value = "") => {
+  const normalized = text(value).replace(/\s+/g, " ").trim();
+  return SOCIAL_COMMENT_GENERIC_PUBLIC_REPLIES.has(normalized);
+};
+
+const buildProductAwarePublicReply = ({ salesContext = {}, intent = "generic_interest" } = {}) => {
+  const productName = text(salesContext.product_name || "");
+  const priceLabel = buildSalesPriceLabel(salesContext);
+  const sizesLabel = buildArabicListLabel(salesContext.sizes || []);
+  const colorsLabel = buildArabicListLabel(salesContext.colors || []);
+  const productLink = firstNonEmptyText(salesContext.product_url, salesContext.storefront_url);
+  const parts = [];
+  if (productName) parts.push(productName);
+  if (priceLabel) parts.push(`السعر ${priceLabel}`);
+  if (sizesLabel && ["generic_interest", "price_question", "size_question", "order_intent", "availability_question"].includes(intent)) {
+    parts.push(`المقاسات المتاحة ${sizesLabel}`);
+  }
+  if (colorsLabel && ["generic_interest", "color_question", "order_intent"].includes(intent)) {
+    parts.push(`الألوان المتاحة ${colorsLabel}`);
+  }
+  if (productLink) parts.push(`لينك المنتج ${productLink}`);
+  return text(parts.join(" - ").replace(/\s+/g, " ").trim());
+};
+
+const buildSocialCommentProductContextResolvedLog = ({ productContext = null, row = {} } = {}) => {
+  const mappedProducts = asArray(productContext?.mapped_products || []);
+  const productIds = mappedProducts
+    .map((item) => Number(item?.product_id || item?.id || 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const primaryProductId = Number(
+    productContext?.primary_product?.product_id ||
+    productContext?.primary_product?.id ||
+    productContext?.product_id ||
+    0
+  ) || null;
+  return {
+    post_id: text(productContext?.post_id || row.post_id || ""),
+    comment_id: text(row.comment_id || ""),
+    product_ids: productIds,
+    primary_product_id: primaryProductId,
+    product_name: text(productContext?.product_name || productContext?.primary_product?.name || ""),
+    price: text(productContext?.price || productContext?.sale_price || productContext?.selling_price || ""),
+    has_product_context: Boolean(productContext?.found),
+  };
+};
+
 const COMMENT_INTENT_RULES = [
   {
     label: "lead_inbox",
@@ -1170,12 +1222,20 @@ const buildAutomationTemplateContext = ({ row = {}, productContext = {}, website
   const customerName = text(row.commenter_name || row.customer_name || row.from?.name || row.metadata?.from?.name || "");
   const productName = text(productContext?.product_name || row.product_name || row.metadata?.product_name || "");
   const price = text(productContext?.price || productContext?.sale_price || productContext?.selling_price || row.product_price || row.sale_price || row.price || "");
+  const finalPrice = text(productContext?.final_price || row.final_price || row.metadata?.final_price || "");
+  const salePrice = text(productContext?.sale_price || row.sale_price || row.product_sale_price || "");
+  const sellingPrice = text(productContext?.selling_price || row.selling_price || row.product_selling_price || "");
   const availableSizesList = asArray(productContext?.sizes || row.sizes || row.product_sizes || [])
     .map((value) => text(value))
     .filter(Boolean)
     .filter((value, index, array) => array.indexOf(value) === index);
   const availableSizes = availableSizesList.join(", ");
-  const color = text(productContext?.color || row.color || "");
+  const availableColorsList = asArray(productContext?.colors || productContext?.available_colors || row.colors || row.product_colors || [])
+    .map((value) => text(value))
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index);
+  const availableColors = availableColorsList.join(", ");
+  const color = text(productContext?.color || availableColorsList[0] || row.color || "");
   const stockStatus = text(productContext?.stock_status || row.stock_status || (availableSizesList.length ? "in_stock" : "") || "");
   const productLink = text(
     websiteLinks?.product_link ||
@@ -1203,8 +1263,17 @@ const buildAutomationTemplateContext = ({ row = {}, productContext = {}, website
     productName,
     product_name: productName,
     price,
+    finalPrice,
+    final_price: finalPrice,
+    salePrice,
+    sale_price: salePrice,
+    sellingPrice,
+    selling_price: sellingPrice,
     size: text(productContext?.size || row.size || ""),
     color,
+    colors: availableColors,
+    available_colors: availableColors,
+    available_colors_list: availableColorsList,
     productUrl,
     product_url: productUrl,
     product_link: productLink,
@@ -1221,6 +1290,7 @@ const buildAutomationTemplateContext = ({ row = {}, productContext = {}, website
     variants: availableSizes,
     stock_status: stockStatus,
     stockStatus,
+    product_id: text(productContext?.product_id || row.product_id || ""),
   };
 };
 
@@ -2132,7 +2202,26 @@ const executeSocialCommentAutomationRuntime = async ({
     fallbackPrivateReply: renderedPrivateReply,
     customerName: templateContext.customerName || "",
   });
-  const effectiveRenderedPublicReply = text(salesReplies.public_reply || renderedPublicReply);
+  const productAwarePublicReply = buildProductAwarePublicReply({
+    salesContext,
+    intent: detectedIntent.intent,
+  });
+  const initialRenderedPublicReply = text(salesReplies.public_reply || renderedPublicReply);
+  if (hasProductContext && isGenericSocialCommentPublicReply(initialRenderedPublicReply)) {
+    console.warn("SOCIAL_COMMENT_AUTO_REPLY_PRODUCT_CONTEXT_DROPPED", {
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      product_ids: asArray(effectiveProductContext?.mapped_products || [])
+        .map((item) => Number(item?.product_id || item?.id || 0))
+        .filter((value) => Number.isFinite(value) && value > 0),
+      reply_preview: initialRenderedPublicReply,
+    });
+  }
+  const effectiveRenderedPublicReply = text(
+    hasProductContext && isGenericSocialCommentPublicReply(initialRenderedPublicReply) && productAwarePublicReply
+      ? productAwarePublicReply
+      : initialRenderedPublicReply
+  );
   const effectiveRenderedPrivateReply = text(salesReplies.private_reply || renderedPrivateReply);
   const aiSalesRuntime = {
     intent: detectedIntent.intent,
@@ -2153,6 +2242,16 @@ const executeSocialCommentAutomationRuntime = async ({
     used_fallback: aiSalesRuntime.used_fallback,
     public_reply: effectiveRenderedPublicReply,
     private_reply: effectiveRenderedPrivateReply,
+  });
+  console.log("SOCIAL_COMMENT_AUTO_REPLY_CONTEXT_USED", {
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    reply_channel: "public_comment",
+    has_product_context: hasProductContext,
+    product_ids: asArray(effectiveProductContext?.mapped_products || [])
+      .map((item) => Number(item?.product_id || item?.id || 0))
+      .filter((value) => Number.isFinite(value) && value > 0),
+    reply_preview: effectiveRenderedPublicReply,
   });
   const automationCommenter = resolveAutomationCommenterIdentity(safeRow);
   const automationWebsiteProductLink = text(websiteLinks?.product_link || templateContext.product_link || templateContext.productUrl || "");
@@ -3903,6 +4002,13 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         tenant_id: safeTenantId,
       },
     }).catch(() => null);
+    console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_RESOLVED", buildSocialCommentProductContextResolvedLog({
+      productContext: runtimeProductContext,
+      row: {
+        ...runtimeProductContextInput.row,
+        tenant_id: safeTenantId,
+      },
+    }));
     const automationConfig = await loadPostAutomationConfig({
       tenantId: safeTenantId,
       platform,
@@ -5616,6 +5722,10 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         tenantId: storedRow.tenant_id,
         row: runtimeProductContextInput.row,
       }).catch(() => null);
+      console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_RESOLVED", buildSocialCommentProductContextResolvedLog({
+        productContext: runtimeProductContext,
+        row: runtimeProductContextInput.row,
+      }));
       const automationRuntimeResult = await executeSocialCommentAutomationRuntime({
         tenantId: storedRow.tenant_id,
         platform: storedRow.platform,
