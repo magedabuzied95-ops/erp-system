@@ -1403,21 +1403,6 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const contentRows = `${thermalLayout.titleCell.h}mm ${thermalLayout.sizeCell.h}mm ${thermalLayout.colorCell.h}mm ${thermalLayout.barcodeCell.h}mm`;
   const sizeFrame = getBoxFrameLayout(thermalLayout.sizeCell, { boxWidthFactor: thermalLayout.sizeBoxWidthFactor || 1 });
   const colorFrame = getBoxFrameLayout(thermalLayout.colorCell, { boxHeightFactor: 1.0 });
-  const sizeTextLayout = getBoxTextLayout(thermalLayout.sizeCell, {
-    topPaddingMm: 1.5,
-    labelGapMm: 1.0,
-    labelFontSize: thermalLayout.sizeLabelFontSize,
-    valueFontSize: thermalLayout.sizeValueFontSize,
-  });
-  const articleTextLayout = showArticleBox
-    ? getBoxTextLayout(thermalLayout.articleCell, {
-        topPaddingMm: 1.1,
-        labelGapMm: 1.0,
-        labelFontSize: thermalLayout.articleLabelFontSize,
-        valueFontSize: thermalLayout.articleFontSize,
-      valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
-    })
-    : null;
   const titleLayoutFit = fitThermalTitleLayout(productName, thermalLayout.titleCell.w - 1.2, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
   const titleLines = titleLayoutFit.lines;
   const titleFontSize = titleLayoutFit.fontSize;
@@ -1524,29 +1509,16 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
               marginInline: "auto",
             }}
           >
-            <div
-              className="font-black uppercase leading-none tracking-[0.22em] text-white"
-              style={{
-                position: "absolute",
-                top: `${sizeTextLayout.labelTopMm - thermalLayout.sizeCell.y}mm`,
-                left: 0,
-                right: 0,
-                fontSize: `${thermalLayout.sizeLabelFontSize}px`,
-              }}
-            >
-              {t("products.barcodeLabels.size")}
-            </div>
-            <div
-              className="font-black leading-none"
-              style={{
-                position: "absolute",
-                top: `${sizeTextLayout.valueTopMm - thermalLayout.sizeCell.y}mm`,
-                left: 0,
-                right: 0,
-                fontSize: `${thermalLayout.sizeValueFontSize}px`,
-              }}
-            >
-              {sizeValue}
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[0.3mm]">
+              <div className="grid min-w-0 items-center" style={{ gridTemplateColumns: "8.45mm 1px minmax(0, 1fr)", columnGap: "0.45mm" }}>
+                <div className="truncate text-left font-black uppercase leading-none tracking-[0.16em] text-white" style={{ fontSize: `${thermalLayout.sizeLabelFontSize * 0.62}px` }}>
+                  {t("products.barcodeLabels.size")}
+                </div>
+                <div className="self-stretch w-px bg-white/45" aria-hidden="true" />
+                <div className="truncate text-center font-black leading-none text-white" style={{ fontSize: `${thermalLayout.sizeValueFontSize}px` }}>
+                  {sizeValue}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1555,29 +1527,16 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
               className="min-w-0 rounded-[8px] border border-zinc-950 bg-zinc-950 text-center text-white"
               style={{ ...articleStyle, position: "relative", overflow: "hidden" }}
             >
-              <div
-              className="font-black uppercase leading-none tracking-[0.22em] text-white"
-              style={{
-                position: "absolute",
-                top: `${Math.max(0.6, articleTextLayout.labelTopMm - thermalLayout.articleCell.y - 0.5)}mm`,
-                left: 0,
-                right: 0,
-                fontSize: `${thermalLayout.articleLabelFontSize}px`,
-              }}
-            >
-              ARTICLE CODE
-            </div>
-              <div
-                className="truncate font-black leading-none"
-                style={{
-                  ...articleValueStyle,
-                  position: "absolute",
-                  top: `${articleTextLayout.valueTopMm - thermalLayout.articleCell.y}mm`,
-                  left: 0,
-                  right: 0,
-                }}
-              >
-                {articleValue}
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[0.3mm]">
+                <div className="grid min-w-0 items-center" style={{ gridTemplateColumns: "7.95mm 1px minmax(0, 1fr)", columnGap: "0.4mm" }}>
+                  <div className="truncate text-left font-black uppercase leading-none tracking-[0.16em] text-white" style={{ fontSize: `${thermalLayout.articleLabelFontSize * 0.62}px` }}>
+                    ART
+                  </div>
+                  <div className="self-stretch w-px bg-white/45" aria-hidden="true" />
+                  <div className="truncate text-center font-black leading-none text-white" style={{ ...articleValueStyle, fontSize: `${articleValueStyle.fontSize}` }}>
+                    {articleValue}
+                  </div>
+                </div>
               </div>
             </div>
           ) : null}

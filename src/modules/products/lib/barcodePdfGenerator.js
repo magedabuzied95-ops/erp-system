@@ -229,34 +229,28 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   drawRoundedRect(doc, sizeFrame.x, sizeFrame.y, sizeFrame.w, sizeFrame.h, 1.8, [2, 6, 23]);
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(thermalLayout.sizeLabelFontSize);
-  const sizeTextLayout = getBoxTextLayout(sizeCell, {
-    topPaddingMm: 1.5,
-    labelGapMm: 1.0,
-    labelFontSize: thermalLayout.sizeLabelFontSize,
-    valueFontSize: thermalLayout.sizeValueFontSize,
-  });
-  doc.text("SIZE", sizeFrame.x + sizeFrame.w / 2, sizeTextLayout.labelTextY, { align: "center" });
+  doc.setFontSize(thermalLayout.sizeLabelFontSize * 0.62);
+  const sizeMidY = sizeFrame.y + sizeFrame.h / 2;
+  doc.text("SIZE", sizeFrame.x + thermalLayout.sizeLabelX, sizeMidY, { align: "left", baseline: "middle" });
+  doc.setDrawColor(255, 255, 255);
+  doc.setLineWidth(0.12);
+  doc.line(sizeFrame.x + thermalLayout.sizeDividerX, sizeFrame.y + 1, sizeFrame.x + thermalLayout.sizeDividerX, sizeFrame.y + sizeFrame.h - 1);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(thermalLayout.sizeValueFontSize);
-  doc.text(sizeValue, sizeFrame.x + sizeFrame.w / 2, sizeTextLayout.valueTextY, { align: "center" });
+  doc.text(sizeValue, sizeFrame.x + thermalLayout.sizeValueX + (thermalLayout.sizeValueWidth / 2), sizeMidY, { align: "center", baseline: "middle" });
 
   if (showArticleBox) {
     drawRoundedRect(doc, articleCell.x, articleCell.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [2, 6, 23], [2, 6, 23]);
     doc.setTextColor(255, 255, 255);
-    const articleTextLayout = getBoxTextLayout(articleCell, {
-      topPaddingMm: 1.5,
-      labelGapMm: 1.0,
-      labelFontSize: thermalLayout.articleLabelFontSize,
-      valueFontSize: thermalLayout.articleFontSize,
-      valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
-    });
-    doc.setFontSize(thermalLayout.articleLabelFontSize);
-    doc.text("ARTICLE CODE", articleCell.x + thermalLayout.articleBoxWidth / 2, articleTextLayout.labelTextY - 0.4, { align: "center" });
+    doc.setFontSize(thermalLayout.articleLabelFontSize * 0.62);
+    doc.text("ART", articleCell.x + thermalLayout.articleLabelX, sizeMidY, { align: "left", baseline: "middle" });
+    doc.setDrawColor(255, 255, 255);
+    doc.setLineWidth(0.12);
+    doc.line(articleCell.x + thermalLayout.articleDividerX, articleCell.y + 1, articleCell.x + thermalLayout.articleDividerX, articleCell.y + articleCell.h - 1);
     doc.setTextColor(255, 255, 255);
     const skuFontSize = fitTextSize(doc, skuValue, thermalLayout.articleBoxWidth - 2, Math.max(thermalLayout.sizeValueFontSize * 0.92, thermalLayout.articleFontSize), thermalLayout.articleFontSizeCompact);
     doc.setFontSize(skuFontSize);
-    doc.text(skuValue, articleCell.x + thermalLayout.articleBoxWidth / 2, articleTextLayout.valueTextY, { align: "center" });
+    doc.text(skuValue, articleCell.x + thermalLayout.articleValueX + (thermalLayout.articleValueWidth / 2), sizeMidY, { align: "center", baseline: "middle" });
   }
 
   const colorFrame = getBoxFrameLayout(colorCell, { boxHeightFactor: 1.0 });
