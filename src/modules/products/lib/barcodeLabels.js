@@ -919,6 +919,16 @@ const formatDisplayColor = (value = "") => {
   return text.toUpperCase();
 };
 
+export const fitThermalColorValueFontSize = (value = "", boxWidthMm = 0, baseFontSize = THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) => {
+  const text = String(value || "").trim();
+  if (!text) return Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE);
+  const base = Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE);
+  const length = Math.max(1, text.length);
+  const widthFactor = boxWidthMm > 0 ? clamp(boxWidthMm / 18, 0.82, 1.18) : 1;
+  const lengthFactor = length <= 8 ? 1.18 : length <= 11 ? 1.05 : length <= 14 ? 0.92 : 0.82;
+  return clamp(Math.round(base * Math.min(widthFactor, lengthFactor) * 10) / 10, Math.max(10.2, base * 0.76), base * 1.18);
+};
+
 const THERMAL_LANDSCAPE_PAGE = Object.freeze({ width: 100, height: 50 });
 const THERMAL_LANDSCAPE_MARGIN_MM = 2;
 const THERMAL_LANDSCAPE_GAP_MM = 1;
@@ -1160,8 +1170,8 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
       ` : ""}
 
       <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#020617" stroke="#020617" stroke-width="0.18" />
-      <text x="${colorCell.x + 1.2}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.68}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
-      <text x="${colorCell.x + 18.2}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(layout.sizeValueFontSize * 0.9, layout.colorValueFontSize * 1.45)}" font-weight="900">${escapeHtml(colorValue)}</text>
+      <text x="${colorCell.x + 1.1}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.68}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
+      <text x="${colorCell.x + 14.8}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalColorValueFontSize(colorValue, colorCell.w - 14.8, layout.colorValueFontSize)}" font-weight="900">${escapeHtml(colorValue)}</text>
 
       ${hasArticleBox ? "" : `<text x="${layout.page.width / 2}" y="${barcodeCell.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}
@@ -1669,7 +1679,7 @@ export const buildBarcodePrintHtml = ({
             padding: 1.15mm 1.2mm;
             color: #ffffff;
             display: grid;
-            grid-template-columns: 18.2mm 1px minmax(0, 1fr);
+            grid-template-columns: 13.4mm 1px minmax(0, 1fr);
             align-items: center;
             column-gap: 1.1mm;
             min-height: 14.1mm;
@@ -1698,7 +1708,7 @@ export const buildBarcodePrintHtml = ({
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
-            font-size: 18px;
+            font-size: 16px;
             line-height: 1;
             font-weight: 900;
             color: #ffffff;

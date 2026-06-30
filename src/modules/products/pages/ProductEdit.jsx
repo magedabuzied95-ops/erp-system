@@ -2475,7 +2475,7 @@ function ProductEdit() {
         barcode: product.barcode || "",
         status: product.status || "active",
         image_url: coverImageUrl,
-        thermal_image_url: thermalImageUrl,
+        thermal_image_url: thermalImageUrl || product.thermal_image_url || "",
         gallery_images: galleryPayload,
         variants: isSimpleMode ? [] : variantPayloads,
         colorImages: isSimpleMode ? [] : colorImagesPayload.map((group) => ({
@@ -2552,7 +2552,7 @@ function ProductEdit() {
         status: product.status || "active",
         active: product.status !== "inactive" && product.status !== "archived",
         image_url: coverImageUrl,
-        thermal_image_url: thermalImageUrl,
+        thermal_image_url: thermalImageUrl || product.thermal_image_url || "",
         gallery: galleryPayload,
         gallery_images: galleryPayload,
       });

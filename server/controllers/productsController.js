@@ -3326,22 +3326,10 @@ export const updateProduct = async (req, res) => {
     const thermalImageUrlProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "thermal_image_url");
     const normalizedProductImageUrl = String(image_url || "").trim();
     const normalizedThermalImageUrl = String(thermal_image_url || "").trim();
-    let nextThermalImageStatus = imageUrlProvided && normalizedProductImageUrl
-      ? "pending"
-      : thermalImageUrlProvided
-        ? "ready"
-        : null;
-    let nextThermalImageUrl = imageUrlProvided && normalizedProductImageUrl
-      ? ""
-      : thermalImageUrlProvided
-        ? normalizedThermalImageUrl
-        : null;
-    let nextThermalImageGeneratedAt = imageUrlProvided && normalizedProductImageUrl
-      ? null
-      : thermalImageUrlProvided
-        ? new Date().toISOString()
-        : null;
-    let nextThermalImageError = thermalImageUrlProvided ? "" : null;
+    let nextThermalImageStatus = thermalImageUrlProvided && normalizedThermalImageUrl ? "ready" : null;
+    let nextThermalImageUrl = thermalImageUrlProvided && normalizedThermalImageUrl ? normalizedThermalImageUrl : null;
+    let nextThermalImageGeneratedAt = thermalImageUrlProvided && normalizedThermalImageUrl ? new Date().toISOString() : null;
+    let nextThermalImageError = thermalImageUrlProvided && normalizedThermalImageUrl ? "" : null;
     const galleryImagesProvided =
       Object.prototype.hasOwnProperty.call(req.body || {}, "gallery_images") ||
       Object.prototype.hasOwnProperty.call(req.body || {}, "gallery");
@@ -3395,25 +3383,7 @@ export const updateProduct = async (req, res) => {
     const currentProductRow = currentProductResult.rows[0] || {};
     const currentProductImageUrl = String(currentProductRow.image_url || "").trim();
     const productImageChanged = Boolean(imageUrlProvided && normalizedProductImageUrl && normalizedProductImageUrl !== currentProductImageUrl);
-    const thermalImageMetadataResetNeeded = productImageChanged;
-    if (productImageChanged) {
-      console.log("THERMAL_IMAGE_STALE_RESET", {
-        entityType: "product",
-        productId,
-        tenantId,
-        previousImageUrl: currentProductImageUrl,
-        nextImageUrl: normalizedProductImageUrl,
-      });
-      nextThermalImageStatus = "pending";
-      nextThermalImageUrl = "";
-      nextThermalImageGeneratedAt = null;
-      nextThermalImageError = "";
-    } else if (imageUrlProvided && normalizedProductImageUrl) {
-      nextThermalImageStatus = normalizeThermalImageStatus(currentProductRow.thermal_image_status, currentProductRow.thermal_image_url || "");
-      nextThermalImageUrl = String(currentProductRow.thermal_image_url || "").trim();
-      nextThermalImageGeneratedAt = normalizeThermalTimestamp(currentProductRow.thermal_image_generated_at);
-      nextThermalImageError = normalizeThermalError(currentProductRow.thermal_image_error);
-    }
+    const thermalImageMetadataResetNeeded = false;
     const finalProductSku = await makeUniqueSku(client, {
       tenantId,
       productId,
@@ -3491,9 +3461,9 @@ export const updateProduct = async (req, res) => {
       `sku = ${addUpdateValue(finalProductSku)}`,
       `barcode = ${addUpdateValue(barcode || "")}`,
       `image_url = COALESCE(${addUpdateValue(imageUrlProvided ? image_url || "" : null)}, image_url)`,
-      `thermal_image_status = CASE WHEN ${addUpdateValue(thermalImageMetadataResetNeeded)} THEN ${addUpdateValue("pending")} ELSE COALESCE(${addUpdateValue(nextThermalImageStatus)}, thermal_image_status) END`,
-      `thermal_image_generated_at = CASE WHEN ${addUpdateValue(thermalImageMetadataResetNeeded)} THEN NULL ELSE COALESCE(${addUpdateValue(nextThermalImageGeneratedAt)}, thermal_image_generated_at) END`,
-      `thermal_image_error = CASE WHEN ${addUpdateValue(thermalImageMetadataResetNeeded)} THEN ${addUpdateValue("")} ELSE COALESCE(${addUpdateValue(nextThermalImageError)}, thermal_image_error) END`,
+      `thermal_image_status = COALESCE(${addUpdateValue(nextThermalImageStatus)}, thermal_image_status)`,
+      `thermal_image_generated_at = COALESCE(${addUpdateValue(nextThermalImageGeneratedAt)}, thermal_image_generated_at)`,
+      `thermal_image_error = COALESCE(${addUpdateValue(nextThermalImageError)}, thermal_image_error)`,
       `gallery_images = COALESCE(${addUpdateValue(galleryImagesProvided ? JSON.stringify(normalizedGalleryImages) : null)}::jsonb, gallery_images)`,
       `variation_mode = ${addUpdateValue(normalizedVariationMode)}`,
       `fixed_size_label = ${addUpdateValue(normalizedFixedSizeLabel)}`,

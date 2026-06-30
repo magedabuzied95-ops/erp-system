@@ -34,6 +34,7 @@ import {
   getBoxFrameLayout,
   getBoxTextLayout,
   getThermalLandscapeLabelLayout,
+  fitThermalColorValueFontSize,
   getThermalImageStatus,
   resolveBarcodeLabelImage,
   resolveLabelArticleCode,
@@ -1416,6 +1417,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
       })
     : null;
+  const colorValueFontSize = fitThermalColorValueFontSize(colorValue, thermalLayout.colorCell.w - 14, thermalLayout.colorValueFontSize);
   const titleBadgeStyle = {
     background: "#020617",
     color: "#fff",
@@ -1588,21 +1590,21 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         >
           <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[1.2mm]">
             <div className="relative h-full min-h-0" style={{ height: `${thermalLayout.colorBoxHeight}mm` }}>
-              <div className="absolute left-[1.2mm] top-1/2 -translate-y-1/2 font-black uppercase leading-none tracking-[0.22em] text-zinc-300" style={{ fontSize: `${thermalLayout.colorLabelFontSize}px` }}>
+              <div className="absolute left-[1.1mm] top-1/2 -translate-y-1/2 font-black uppercase leading-none tracking-[0.22em] text-white" style={{ fontSize: `${thermalLayout.colorLabelFontSize}px` }}>
                 {t("products.barcodeLabels.color")}
               </div>
               <div
-                className="absolute top-[15%] bottom-[15%] left-[17.1mm] w-px bg-white/45"
+                className="absolute top-[15%] bottom-[15%] left-[13.9mm] w-px bg-white/45"
                 aria-hidden="true"
               />
               <div
                 className="truncate font-black uppercase leading-none"
                 style={{
                   position: "absolute",
-                  left: "18.8mm",
+                  left: "15.0mm",
                   top: "50%",
                   transform: "translateY(-50%)",
-                  fontSize: `${Math.max(thermalLayout.sizeValueFontSize * 0.98, thermalLayout.colorValueFontSize * 1.5)}px`,
+                  fontSize: `${colorValueFontSize}px`,
                 }}
               >
                 {colorValue}

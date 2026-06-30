@@ -4,7 +4,7 @@ import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { loadImageDataUrl } from "./thermalImageOptimizer";
-import { BARCODE_LABEL_LAYOUT, getBoxFrameLayout, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage, resolveLabelArticleCode } from "./barcodeLabels";
+import { BARCODE_LABEL_LAYOUT, fitThermalColorValueFontSize, getBoxFrameLayout, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage, resolveLabelArticleCode } from "./barcodeLabels";
 
 const thermalImageCache = new Map();
 
@@ -246,7 +246,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
 
   if (showArticleBox) {
     drawRoundedRect(doc, articleCell.x, articleCell.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [2, 6, 23], [2, 6, 23]);
-    doc.setTextColor(203, 213, 225);
+    doc.setTextColor(255, 255, 255);
     const articleTextLayout = getBoxTextLayout(articleCell, {
       topPaddingMm: 1.5,
       labelGapMm: 1.0,
@@ -267,14 +267,14 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(thermalLayout.colorLabelFontSize);
   const colorMidY = colorFrame.y + colorFrame.h / 2;
-  doc.text("COLOR", colorFrame.x + 1.2, colorMidY, { align: "left", baseline: "middle" });
+  doc.text("COLOR", colorFrame.x + 1.1, colorMidY, { align: "left", baseline: "middle" });
   doc.setDrawColor(255, 255, 255);
   doc.setLineWidth(0.12);
-  doc.line(colorFrame.x + 17.2, colorFrame.y + 1, colorFrame.x + 17.2, colorFrame.y + colorFrame.h - 1);
+  doc.line(colorFrame.x + 13.9, colorFrame.y + 1, colorFrame.x + 13.9, colorFrame.y + colorFrame.h - 1);
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(Math.max(thermalLayout.sizeValueFontSize * 0.9, thermalLayout.colorValueFontSize * 1.45));
+  doc.setFontSize(fitThermalColorValueFontSize(colorValue, colorFrame.w - 14, thermalLayout.colorValueFontSize));
   doc.setFont("helvetica", "bold");
-  doc.text(colorValue || "-", colorFrame.x + 18.8, colorMidY, { align: "left", baseline: "middle", maxWidth: colorFrame.w - 20.5 });
+  doc.text(colorValue || "-", colorFrame.x + 15.0, colorMidY, { align: "left", baseline: "middle", maxWidth: colorFrame.w - 16.1 });
 
   if (!showArticleBox) {
     doc.setTextColor(15, 23, 42);
