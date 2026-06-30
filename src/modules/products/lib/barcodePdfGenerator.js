@@ -4,7 +4,7 @@ import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { loadImageDataUrl } from "./thermalImageOptimizer";
-import { BARCODE_LABEL_LAYOUT, fitThermalColorValueFontSize, fitThermalTitleLayout, getBoxFrameLayout, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage, resolveLabelArticleCode } from "./barcodeLabels";
+import { BARCODE_LABEL_LAYOUT, fitThermalArticleValueFontSize, fitThermalColorValueFontSize, fitThermalTitleLayout, getBoxFrameLayout, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage, resolveLabelArticleCode } from "./barcodeLabels";
 
 const thermalImageCache = new Map();
 
@@ -250,9 +250,9 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
     doc.setLineWidth(0.12);
     doc.line(articleCell.x + thermalLayout.articleDividerX, articleCell.y + 1, articleCell.x + thermalLayout.articleDividerX, articleCell.y + articleCell.h - 1);
     doc.setTextColor(255, 255, 255);
-    const skuFontSize = fitTextSize(doc, skuValue, thermalLayout.articleBoxWidth - 2, Math.max(thermalLayout.sizeValueFontSize * 0.92, thermalLayout.articleFontSize), thermalLayout.articleFontSizeCompact);
+    const skuFontSize = fitThermalArticleValueFontSize(skuValue, thermalLayout.articleValueWidth, thermalLayout.articleFontSize, thermalLayout.articleFontSizeCompact);
     doc.setFontSize(skuFontSize);
-    doc.text(skuValue, articleCell.x + thermalLayout.articleValueX + (thermalLayout.articleValueWidth / 2), sizeMidY, { align: "center", baseline: "middle" });
+    doc.text(skuValue, articleCell.x + thermalLayout.articleValueX, sizeMidY, { align: "left", baseline: "middle", maxWidth: thermalLayout.articleValueWidth });
   }
 
   const colorFrame = getBoxFrameLayout(colorCell, { boxHeightFactor: 1.0 });

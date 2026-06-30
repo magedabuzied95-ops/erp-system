@@ -34,6 +34,7 @@ import {
   getBoxFrameLayout,
   getBoxTextLayout,
   getThermalLandscapeLabelLayout,
+  fitThermalArticleValueFontSize,
   fitThermalColorValueFontSize,
   fitThermalTitleLayout,
   getThermalImageStatus,
@@ -1359,8 +1360,9 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
     width: "100%",
     minHeight: `${thermalLayout.colorBoxHeight}mm`,
   };
+  const articleValueFontSize = fitThermalArticleValueFontSize(articleValue, thermalLayout.articleValueWidth, thermalLayout.articleFontSize, thermalLayout.articleFontSizeCompact);
   const articleValueStyle = {
-    fontSize: `${articleValue.length > 10 ? Math.max(thermalLayout.articleFontSizeCompact, thermalLayout.sizeValueFontSize * 0.78) : Math.max(thermalLayout.articleFontSize, thermalLayout.sizeValueFontSize * 0.92)}px`,
+    fontSize: `${articleValueFontSize}px`,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
@@ -1536,7 +1538,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                     ART
                   </div>
                   <div className="self-stretch w-px bg-white/45" aria-hidden="true" />
-                  <div className="truncate text-center font-black leading-none text-white" style={{ ...articleValueStyle, fontSize: `${articleValueStyle.fontSize}` }}>
+                  <div className="truncate text-left font-black leading-none text-white" style={{ ...articleValueStyle, fontSize: `${articleValueStyle.fontSize}` }}>
                     {articleValue}
                   </div>
                 </div>

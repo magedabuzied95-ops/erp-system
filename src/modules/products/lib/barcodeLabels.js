@@ -1013,6 +1013,38 @@ export const fitThermalColorValueFontSize = (value = "", boxWidthMm = 0, baseFon
   return clamp(Math.round(Math.min(startingFontSize, estimatedFontSize) * 10) / 10, minFontSize, startingFontSize);
 };
 
+export const fitThermalArticleValueFontSize = (
+  value = "",
+  boxWidthMm = 0,
+  baseFontSize = THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE,
+  minFontSize = THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT,
+) => {
+  const text = String(value || "").trim();
+  if (!text) return Number(baseFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE);
+  const startingFontSize = Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE), Number(minFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT));
+  const minimumFontSize = Math.max(8.5, Number(minFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT));
+  let characterWeight = 0;
+  for (const char of text) {
+    if (char === " ") {
+      characterWeight += 0.34;
+    } else if (char === "&") {
+      characterWeight += 0.74;
+    } else if (char === "/") {
+      characterWeight += 0.48;
+    } else if (char === "-") {
+      characterWeight += 0.42;
+    } else if (/[A-Z0-9]/.test(char)) {
+      characterWeight += 0.58;
+    } else {
+      characterWeight += 0.5;
+    }
+  }
+  const estimatedFontSize = boxWidthMm > 0
+    ? ((Math.max(0, boxWidthMm - 0.28) * 3.05) / Math.max(characterWeight, 1))
+    : startingFontSize;
+  return clamp(Math.round(Math.min(startingFontSize, estimatedFontSize) * 10) / 10, minimumFontSize, startingFontSize);
+};
+
 const THERMAL_LANDSCAPE_PAGE = Object.freeze({ width: 100, height: 50 });
 const THERMAL_LANDSCAPE_MARGIN_MM = 2;
 const THERMAL_LANDSCAPE_GAP_MM = 1;
@@ -1277,9 +1309,9 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const { imageCell, titleCell, sizeCell, articleCell, colorCell, barcodeCell } = layout;
   const titleLayout = fitThermalTitleLayout(productName, titleCell.w - 1.2, layout.titleMaxLines, layout.titleFontSize);
   const productLines = titleLayout.lines;
-  const smallLabelFontSize = layout.colorLabelFontSize * 0.64;
+  const smallLabelFontSize = layout.colorLabelFontSize;
   const articleBaseFontSize = Math.max(layout.sizeValueFontSize * 0.92, layout.articleFontSize);
-  const articleFontSize = Math.max(layout.articleFontSizeCompact, articleBaseFontSize - Math.max(0, skuValue.length - 10) * 0.08);
+  const articleFontSize = fitThermalArticleValueFontSize(skuValue, layout.articleValueWidth, articleBaseFontSize, layout.articleFontSizeCompact);
   const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, {
     width: barcodeCell.w + 2,
     height: 8,
@@ -1313,7 +1345,7 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
       <rect x="${articleCell.x}" y="${articleCell.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#020617" stroke="#020617" stroke-width="0.18" />
       <text x="${articleCell.x + layout.articleLabelX}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16">ART</text>
       <line x1="${articleCell.x + layout.articleDividerX}" y1="${articleCell.y + 1}" x2="${articleCell.x + layout.articleDividerX}" y2="${articleCell.y + layout.articleBoxHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
-      <text x="${articleCell.x + layout.articleValueX + (layout.articleValueWidth / 2)}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
+      <text x="${articleCell.x + layout.articleValueX}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
       ` : ""}
 
       <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#020617" stroke="#020617" stroke-width="0.18" />
@@ -1468,10 +1500,10 @@ export const buildBarcodePrintHtml = ({
                     <strong>${escapeHtml(item.size || "ONE SIZE")}</strong>
                   </div>
                   ${resolvedArticleCode ? `
-                    <div class="landscape-article-box">
+                  <div class="landscape-article-box">
                       <span>ART</span>
                       <span class="landscape-pill-divider" aria-hidden="true"></span>
-                      <strong>${escapeHtml(resolvedArticleCode)}</strong>
+                      <strong style="font-size:${fitThermalArticleValueFontSize(resolvedArticleCode, BARCODE_LABEL_LAYOUT.articleBox.valueWidth, BARCODE_LABEL_LAYOUT.articleBox.valueFontSize, BARCODE_LABEL_LAYOUT.articleBox.valueFontSizeCompact)}px">${escapeHtml(resolvedArticleCode)}</strong>
                     </div>
                   ` : ""}
                 </div>
@@ -1838,7 +1870,7 @@ export const buildBarcodePrintHtml = ({
             line-height: 1;
             font-weight: 900;
             color: #ffffff;
-            text-align: center;
+            text-align: left;
           }
           .landscape-color-box {
             border: 1px solid #020617;
