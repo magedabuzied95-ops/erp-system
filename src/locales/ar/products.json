@@ -417,12 +417,13 @@
     "eyebrow": "طابور الملصقات",
     "showPrinted": "اظهر المطبوع",
     "ready": "جاهز",
+    "processing": "قيد التوليد",
     "pending": "قيد التجهيز",
     "failed": "فشل",
     "printed": "طُبع",
     "printLabels": "طباعة الملصقات",
     "markPrinted": "تعليم أنه تم طبعه",
-    "requeue": "إعادة إدخال",
+    "regenerateThermal": "إعادة توليد الثرمال",
     "remove": "إزالة",
     "labels": "‏{{count}} ملصق",
     "createdAt": "الإنشاء",
@@ -434,6 +435,7 @@
     "noImage": "لا توجد صورة",
     "status": {
       "ready": "جاهز",
+      "processing": "قيد التوليد",
       "pending": "قيد التجهيز",
       "failed": "فشل",
       "printed": "طُبع"

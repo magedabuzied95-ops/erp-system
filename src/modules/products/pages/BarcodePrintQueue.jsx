@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Clock3, FileCheck2, Printer, RefreshCw, Trash2 } from "lucide-react";
@@ -15,6 +15,7 @@ import {
 
 const statusTone = {
   ready: "border-emerald-400/30 bg-emerald-500/10 text-emerald-100",
+  processing: "border-sky-400/30 bg-sky-500/10 text-sky-100",
   pending: "border-amber-400/30 bg-amber-500/10 text-amber-100",
   failed: "border-rose-400/30 bg-rose-500/10 text-rose-100",
   printed: "border-sky-400/30 bg-sky-500/10 text-sky-100",
@@ -50,9 +51,9 @@ export default function BarcodePrintQueue() {
   const [showPrinted, setShowPrinted] = useState(false);
   const [busyId, setBusyId] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async ({ silent = false } = {}) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError("");
       const rows = await getBarcodePrintQueue({
         params: {
@@ -65,17 +66,29 @@ export default function BarcodePrintQueue() {
       setItems([]);
       setError(loadError?.message || t("products.barcodePrintQueue.loadFailed", "Failed to load barcode print queue"));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  };
+  }, [showPrinted, t]);
 
   useEffect(() => {
     void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showPrinted]);
+  }, [load]);
+
+  const hasProcessing = useMemo(
+    () => Array.isArray(items) && items.some((item) => String(item?.status || "").toLowerCase() === "processing"),
+    [items]
+  );
+
+  useEffect(() => {
+    if (!hasProcessing) return undefined;
+    const interval = setInterval(() => {
+      void load({ silent: true });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [hasProcessing, load]);
 
   const counts = useMemo(() => {
-    const summary = { ready: 0, pending: 0, failed: 0, printed: 0 };
+    const summary = { ready: 0, processing: 0, pending: 0, failed: 0, printed: 0 };
     for (const item of Array.isArray(items) ? items : []) {
       const status = String(item?.status || "pending").toLowerCase();
       if (summary[status] !== undefined) summary[status] += 1;
@@ -98,12 +111,12 @@ export default function BarcodePrintQueue() {
       setBusyId(item.id);
       if (action === "printed") {
         await markBarcodePrintQueuePrinted(item.id);
-      } else if (action === "requeue") {
+      } else if (action === "regenerate") {
         await requeueBarcodePrintQueue(item.id);
       } else if (action === "delete") {
         await deleteBarcodePrintQueue(item.id);
       }
-      await load();
+      await load({ silent: true });
     } catch (actionError) {
       console.error("[barcode-print-queue] action failed", {
         action,
@@ -152,9 +165,10 @@ export default function BarcodePrintQueue() {
           </label>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {[
             ["ready", t("products.barcodePrintQueue.ready", "Ready")],
+            ["processing", t("products.barcodePrintQueue.processing", "Processing")],
             ["pending", t("products.barcodePrintQueue.pending", "Pending")],
             ["failed", t("products.barcodePrintQueue.failed", "Failed")],
             ["printed", t("products.barcodePrintQueue.printed", "Printed")],
@@ -232,6 +246,11 @@ export default function BarcodePrintQueue() {
                           {t("products.barcodePrintQueue.updatedAt", "Updated")}: {formatDateTime(item?.updated_at, i18n.language)}
                         </span>
                       </div>
+                      {item?.error_message ? (
+                        <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-sm text-rose-100">
+                          {item.error_message}
+                        </div>
+                      ) : null}
                     </div>
 
                     <div className="flex flex-wrap gap-2 lg:flex-col lg:items-stretch">
@@ -255,12 +274,12 @@ export default function BarcodePrintQueue() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => runAction(item, "requeue")}
-                        disabled={busyId === item.id}
+                        onClick={() => runAction(item, "regenerate")}
+                        disabled={busyId === item.id || status === "processing"}
                         className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         <RefreshCw size={16} />
-                        {t("products.barcodePrintQueue.requeue", "Requeue")}
+                        {t("products.barcodePrintQueue.regenerateThermal", "Regenerate thermal")}
                       </button>
                       <button
                         type="button"

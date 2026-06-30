@@ -417,12 +417,13 @@
     "eyebrow": "Barcode queue",
     "showPrinted": "Show printed",
     "ready": "Ready",
+    "processing": "Processing",
     "pending": "Pending",
     "failed": "Failed",
     "printed": "Printed",
     "printLabels": "Print labels",
     "markPrinted": "Mark printed",
-    "requeue": "Requeue",
+    "regenerateThermal": "Regenerate thermal",
     "remove": "Remove",
     "labels": "{{count}} labels",
     "createdAt": "Created",
@@ -434,6 +435,7 @@
     "noImage": "No image",
     "status": {
       "ready": "Ready",
+      "processing": "Processing",
       "pending": "Pending",
       "failed": "Failed",
       "printed": "Printed"

@@ -291,6 +291,7 @@ CREATE TABLE IF NOT EXISTS barcode_print_queue (
   source TEXT NOT NULL DEFAULT 'thermal_ready',
   label_count INTEGER NOT NULL DEFAULT 0,
   variant_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+  error_message TEXT NOT NULL DEFAULT '',
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   printed_at TIMESTAMP NULL,

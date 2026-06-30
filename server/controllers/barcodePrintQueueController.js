@@ -102,14 +102,14 @@ export const requeueBarcodePrintQueueController = async (req, res) => {
       queue: row,
     });
   } catch (error) {
-    console.error("[barcode-print-queue] requeue failed", {
+    console.error("[barcode-print-queue] regenerate failed", {
       id: req.params.id,
       message: error?.message,
       stack: error?.stack,
     });
     return res.status(500).json({
       success: false,
-      message: "Failed to requeue barcode print item",
+      message: "Failed to regenerate barcode print item",
     });
   }
 };
