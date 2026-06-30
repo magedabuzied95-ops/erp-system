@@ -2,6 +2,7 @@ import process from "node:process";
 
 import db from "../database/db.js";
 import { generateThermalArtwork } from "../services/thermalArtworkService.js";
+import { syncThermalImageToVariantGroup } from "../services/thermalColorJobPlanner.js";
 
 const DEFAULT_BATCH_SIZE = 25;
 const MAX_BATCH_SIZE = 50;
@@ -22,6 +23,40 @@ const batchSize = parseBatchSize();
 const sleep = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const countCandidates = async (tableName) => {
+  if (tableName === "product_variants") {
+    const result = await db.query(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM (
+        SELECT
+          v.product_id,
+          LOWER(TRIM(COALESCE(v.color, ''))) AS color_key,
+          COALESCE(NULLIF(pvi.image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.variant_image_url, ''), NULLIF(v.color_image_url, '')) AS primary_image_url
+        FROM product_variants v
+        LEFT JOIN LATERAL (
+          SELECT pvi.image_url
+          FROM product_variant_images pvi
+          WHERE pvi.product_id = v.product_id
+            AND LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))) = LOWER(TRIM(COALESCE(v.color, '')))
+          ORDER BY pvi.is_primary DESC, pvi.sort_order ASC, pvi.id ASC
+          LIMIT 1
+        ) pvi ON TRUE
+        WHERE COALESCE(NULLIF(pvi.image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.variant_image_url, ''), NULLIF(v.color_image_url, '')) IS NOT NULL
+        GROUP BY v.product_id, color_key, primary_image_url
+        HAVING NOT BOOL_OR(
+          LOWER(COALESCE(NULLIF(v.thermal_image_status, ''), 'pending')) = 'ready'
+          AND COALESCE(
+            NULLIF(v.thermal_image_url, ''),
+            NULLIF(v.variant_color_thermal_image_url, ''),
+            NULLIF(v.color_thermal_image_url, ''),
+            NULLIF(v.product_thermal_image_url, '')
+          ) <> ''
+        )
+      ) grouped
+      `
+    );
+    return Number(result.rows[0]?.count || 0);
+  }
   const result = await db.query(
     `
     SELECT COUNT(*)::int AS count
@@ -61,25 +96,38 @@ const fetchVariantBatch = async (lastId = 0) => {
   const result = await db.query(
     `
     SELECT
-      v.id,
       v.product_id,
       v.tenant_id,
-      v.sku,
-      v.article_code,
-      v.color,
-      v.image_url,
-      v.thermal_image_url,
-      v.thermal_image_status,
-      p.name AS product_name
+      p.name AS product_name,
+      LOWER(TRIM(COALESCE(v.color, ''))) AS color_key,
+      COALESCE(NULLIF(pvi.image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.variant_image_url, ''), NULLIF(v.color_image_url, '')) AS primary_image_url,
+      MIN(v.id) AS id,
+      ARRAY_AGG(v.id ORDER BY v.id ASC) AS variant_ids,
+      MIN(v.id) AS representative_variant_id,
+      MAX(COALESCE(NULLIF(v.thermal_image_url, ''), NULLIF(v.variant_color_thermal_image_url, ''), NULLIF(v.color_thermal_image_url, ''), NULLIF(v.product_thermal_image_url, ''))) AS existing_thermal_url
     FROM product_variants v
     LEFT JOIN products p ON p.id = v.product_id
+    LEFT JOIN LATERAL (
+      SELECT pvi.image_url
+      FROM product_variant_images pvi
+      WHERE pvi.product_id = v.product_id
+        AND LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))) = LOWER(TRIM(COALESCE(v.color, '')))
+      ORDER BY pvi.is_primary DESC, pvi.sort_order ASC, pvi.id ASC
+      LIMIT 1
+    ) pvi ON TRUE
     WHERE v.id > $1
-      AND COALESCE(NULLIF(v.image_url, ''), '') <> ''
-      AND (
-        COALESCE(NULLIF(v.thermal_image_url, ''), '') = ''
-        OR LOWER(COALESCE(NULLIF(v.thermal_image_status, ''), 'pending')) <> 'ready'
-      )
-    ORDER BY v.id ASC
+      AND COALESCE(NULLIF(pvi.image_url, ''), NULLIF(v.image_url, ''), NULLIF(v.variant_image_url, ''), NULLIF(v.color_image_url, '')) IS NOT NULL
+    GROUP BY v.product_id, v.tenant_id, p.name, color_key, primary_image_url
+    HAVING NOT BOOL_OR(
+      LOWER(COALESCE(NULLIF(v.thermal_image_status, ''), 'pending')) = 'ready'
+      AND COALESCE(
+        NULLIF(v.thermal_image_url, ''),
+        NULLIF(v.variant_color_thermal_image_url, ''),
+        NULLIF(v.color_thermal_image_url, ''),
+        NULLIF(v.product_thermal_image_url, '')
+      ) <> ''
+    )
+    ORDER BY MIN(v.id) ASC
     LIMIT $2
     `,
     [lastId, batchSize]
@@ -89,37 +137,68 @@ const fetchVariantBatch = async (lastId = 0) => {
 };
 
 const processBatch = async ({ entityType, rows, counters }) => {
-  for (const row of rows) {
+  const batchRows = rows;
+  for (const row of batchRows) {
     try {
-      const result = await generateThermalArtwork({
-        entityType,
-        tenantId: row.tenant_id,
-        productId: entityType === "variant" ? row.product_id : row.id,
-        variantId: entityType === "variant" ? row.id : null,
-        sourceImageUrl: row.image_url || "",
-        existingThermalImageUrl: row.thermal_image_url || "",
-        regenerate: false,
-        productName:
-          entityType === "variant"
-            ? row.product_name || row.color || row.sku || row.article_code || `variant-${row.id}`
-            : row.name || `product-${row.id}`,
-      });
-
-      if (result?.success) {
-        if (result?.cached) {
-          counters.cached += 1;
-        } else {
-          counters.generated += 1;
-        }
-      } else {
-        counters.failed += 1;
-        console.error("THERMAL_BACKFILL_ITEM_FAILED", {
+      if (entityType === "variant" && row.existing_thermal_url) {
+        counters.cached += 1;
+        console.log("THERMAL_COLOR_JOB_SKIPPED_EXISTING", {
           entityType,
-          id: row.id,
-          productId: entityType === "variant" ? row.product_id : row.id,
-          tenantId: row.tenant_id,
-          message: result?.error || "Thermal generation returned failure",
+          productId: row.product_id || null,
+          color: row.color || row.color_key || "",
+          sourceImageUrl: row.primary_image_url || "",
+          thermalImageUrl: row.existing_thermal_url,
+          variantIds: row.variant_ids || [],
         });
+        await syncThermalImageToVariantGroup({
+          productId: row.product_id || null,
+          tenantId: row.tenant_id,
+          variantIds: row.variant_ids || [],
+          thermalImageUrl: row.existing_thermal_url,
+          thermalImageStatus: "ready",
+          thermalImageGeneratedAt: new Date().toISOString(),
+        });
+      } else {
+        const result = await generateThermalArtwork({
+          entityType,
+          tenantId: row.tenant_id,
+          productId: entityType === "variant" ? row.product_id : row.id,
+          variantId: entityType === "variant" ? row.representative_variant_id || row.id : null,
+          sourceImageUrl: row.primary_image_url || row.image_url || "",
+          existingThermalImageUrl: row.existing_thermal_url || row.thermal_image_url || "",
+          regenerate: false,
+          productName:
+            entityType === "variant"
+              ? row.product_name || row.color || row.sku || row.article_code || `variant-${row.representative_variant_id || row.id}`
+              : row.name || `product-${row.id}`,
+        });
+
+        if (result?.success) {
+          if (result?.cached) {
+            counters.cached += 1;
+          } else {
+            counters.generated += 1;
+          }
+          if (entityType === "variant" && result?.thermal_image_url) {
+            await syncThermalImageToVariantGroup({
+              productId: row.product_id,
+              tenantId: row.tenant_id,
+              variantIds: row.variant_ids || [row.representative_variant_id || row.id],
+              thermalImageUrl: result.thermal_image_url,
+              thermalImageStatus: "ready",
+              thermalImageGeneratedAt: new Date().toISOString(),
+            });
+          }
+        } else {
+          counters.failed += 1;
+          console.error("THERMAL_BACKFILL_ITEM_FAILED", {
+            entityType,
+            id: row.id,
+            productId: entityType === "variant" ? row.product_id : row.id,
+            tenantId: row.tenant_id,
+            message: result?.error || "Thermal generation returned failure",
+          });
+        }
       }
     } catch (error) {
       counters.failed += 1;

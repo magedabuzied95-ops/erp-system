@@ -7,7 +7,11 @@ import {
   loadProductVariantImages,
   replaceProductVariantImages,
 } from "../services/productVariantImagesService.js";
-import { regenerateThermalImageForProductImage } from "../services/thermalArtworkService.js";
+import {
+  buildThermalColorJobGroups,
+  buildThermalImageUrlMap,
+  scheduleThermalColorArtworkJobs,
+} from "../services/thermalColorJobPlanner.js";
 import { normalizeClassificationInput } from "../services/productClassificationsService.js";
 import { getTenantId, isSuperAdminUser, tenantContextMissingResponse } from "../utils/requestScope.js";
 import { slugifyEdition } from "../utils/mirrorProduct.js";
@@ -1050,42 +1054,6 @@ const replaceProductAudiences = async (client, productId, audiences = []) => {
     );
   }
   return normalizedAudiences;
-};
-
-const scheduleThermalImageGeneration = ({
-  entityType = "product",
-  productId = null,
-  variantId = null,
-  tenantId = null,
-  sourceImageUrl = "",
-  existingThermalImageUrl = "",
-  productName = "",
-  regenerate = false,
-} = {}) => {
-  const normalizedSourceImageUrl = String(sourceImageUrl || "").trim();
-  if (!normalizedSourceImageUrl) return;
-
-  setImmediate(() => {
-    void regenerateThermalImageForProductImage({
-      entityType,
-      productId,
-      variantId,
-      tenantId,
-      sourceImageUrl: normalizedSourceImageUrl,
-      existingThermalImageUrl,
-      productName,
-      regenerate,
-    }).catch((error) => {
-      console.warn("[products] thermal image generation enqueue failed", {
-        entityType,
-        productId,
-        variantId,
-        tenantId,
-        sourceImageUrl: normalizedSourceImageUrl,
-        message: error?.message || String(error),
-      });
-    });
-  });
 };
 
 const normalizeVariantRow = (row = {}) => {
@@ -2184,7 +2152,7 @@ const archiveProductVariantsByIds = async (client, { productId, tenantId, varian
 const loadActiveProductVariantSnapshot = async (client, { productId, tenantId }) => {
   const result = await client.query(
     `
-    SELECT id, color, size, stock, default_purchase_qty, image_url, is_active, deleted_at
+    SELECT id, color, size, stock, default_purchase_qty, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error, is_active, deleted_at
     FROM product_variants
     WHERE product_id = $1
       AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
@@ -3089,29 +3057,20 @@ export const createProduct = async (req, res) => {
     await client.query("COMMIT");
     transactionStarted = false;
     const createdProduct = normalizeProductRow(created.rows[0]);
-
-    scheduleThermalImageGeneration({
-      entityType: "product",
+    const thermalColorJobs = buildThermalColorJobGroups({
+      productId,
+      productName: createdProduct.name || "",
+      variants: hydratedVariants,
+      colorImages: colorImagesPayload,
+      productImageUrl: createdProduct.image_url || createdProduct.product_image_url || "",
+    });
+    scheduleThermalColorArtworkJobs({
       productId,
       tenantId,
-      sourceImageUrl: createdProduct.image_url || createdProduct.product_image_url || "",
-      existingThermalImageUrl: createdProduct.thermal_image_url || "",
       productName: createdProduct.name || "",
-      regenerate: true,
+      groups: thermalColorJobs,
+      previousThermalUrlMap: new Map(),
     });
-    for (const variant of insertedVariants) {
-      if (!variant?.thermal_image_generation_needed) continue;
-      scheduleThermalImageGeneration({
-        entityType: "variant",
-        productId,
-        variantId: variant?.variant_id ?? variant?.id ?? null,
-        tenantId,
-        sourceImageUrl: variant?.image_url || variant?.variant_image_url || variant?.color_image_url || "",
-        existingThermalImageUrl: variant?.thermal_image_url || "",
-        productName: `${createdProduct.name || ""} ${variant?.color || ""}`.trim(),
-        regenerate: true,
-      });
-    }
 
     return res.status(201).json({
       success: true,
@@ -3403,6 +3362,14 @@ export const updateProduct = async (req, res) => {
     });
     const reservedVariantSkus = new Set([finalProductSku.toLowerCase()]);
     const activeVariantsBeforeSave = await loadActiveProductVariantSnapshot(client, { productId, tenantId });
+    const previousImageBundleMap = await loadProductVariantImages(client, [productId]).catch(() => new Map());
+    const previousImageBundle = previousImageBundleMap.get(String(productId)) || null;
+    const previousHydratedVariants = attachVariantImages(activeVariantsBeforeSave.map(normalizeVariantRow), previousImageBundle);
+    const previousColorImages = attachGroupedColorImages(
+      deriveColorGroupsFromVariants(previousHydratedVariants),
+      previousImageBundle
+    );
+    const previousThermalUrlMap = buildThermalImageUrlMap(previousColorImages);
     console.log("[products:update] variant sync start", {
       productId,
       tenantId,
@@ -3718,30 +3685,20 @@ export const updateProduct = async (req, res) => {
       variants: thermalReadbackVariants.rows || [],
     });
 
-    if (imageUrlProvided && normalizedProductImageUrl) {
-      scheduleThermalImageGeneration({
-        entityType: "product",
-        productId,
-        tenantId,
-        sourceImageUrl: normalizedProductImageUrl,
-        existingThermalImageUrl: updatedProduct.thermal_image_url || "",
-        productName: updatedProduct.name || "",
-        regenerate: true,
-      });
-    }
-    for (const variant of savedVariants) {
-      if (!variant?.thermal_image_generation_needed) continue;
-      scheduleThermalImageGeneration({
-        entityType: "variant",
-        productId,
-        variantId: variant?.variant_id ?? variant?.id ?? null,
-        tenantId,
-        sourceImageUrl: variant?.image_url || variant?.variant_image_url || variant?.color_image_url || "",
-        existingThermalImageUrl: variant?.thermal_image_url || "",
-        productName: `${updatedProduct.name || ""} ${variant?.color || ""}`.trim(),
-        regenerate: true,
-      });
-    }
+    const thermalColorJobs = buildThermalColorJobGroups({
+      productId,
+      productName: updatedProduct.name || "",
+      variants: hydratedVariants,
+      colorImages: colorImagesPayload,
+      productImageUrl: updatedProduct.image_url || updatedProduct.product_image_url || "",
+    });
+    scheduleThermalColorArtworkJobs({
+      productId,
+      tenantId,
+      productName: updatedProduct.name || "",
+      groups: thermalColorJobs,
+      previousThermalUrlMap,
+    });
 
     return res.json({
       success: true,
@@ -4353,11 +4310,20 @@ export const createVariant = async (req, res) => {
     } = req.body || {};
     const normalizedManufacturerId = normalizeOptionalForeignKey(manufacturer_id);
     const productResult = await client.query(
-      `SELECT sku, name, brand, category, product_type, gender, grade FROM products WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+      `SELECT sku, name, brand, category, product_type, gender, grade, image_url, thermal_image_url FROM products WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [req.params.id, tenantId]
     );
     const productForSku = productResult.rows[0] || {};
     const skuPrefix = productForSku.sku || buildSmartSkuPrefix(productForSku);
+    const previousActiveVariants = await loadActiveProductVariantSnapshot(client, { productId: req.params.id, tenantId });
+    const previousImageBundleMap = await loadProductVariantImages(client, [req.params.id]).catch(() => new Map());
+    const previousImageBundle = previousImageBundleMap.get(String(req.params.id)) || null;
+    const previousHydratedVariants = attachVariantImages(previousActiveVariants.map(normalizeVariantRow), previousImageBundle);
+    const previousColorImages = attachGroupedColorImages(
+      deriveColorGroupsFromVariants(previousHydratedVariants),
+      previousImageBundle
+    );
+    const previousThermalUrlMap = buildThermalImageUrlMap(previousColorImages);
 
     const createdVariant = await insertProductVariant(client, {
       productId: req.params.id,
@@ -4392,18 +4358,28 @@ export const createVariant = async (req, res) => {
 
     await client.query("COMMIT");
     const createdVariantRow = normalizeVariantRow(createdVariant);
-    if (createdVariantRow.thermal_image_generation_needed) {
-      scheduleThermalImageGeneration({
-        entityType: "variant",
-        productId: req.params.id,
-        variantId: createdVariantRow.variant_id ?? createdVariantRow.id ?? null,
-        tenantId,
-        sourceImageUrl: createdVariantRow.image_url || createdVariantRow.variant_image_url || createdVariantRow.color_image_url || "",
-        existingThermalImageUrl: createdVariantRow.thermal_image_url || "",
-        productName: `${createdVariantRow.product_name || ""} ${createdVariantRow.color || ""}`.trim(),
-        regenerate: true,
-      });
-    }
+    const currentActiveVariants = await loadActiveProductVariantSnapshot(client, { productId: req.params.id, tenantId });
+    const currentImageBundleMap = await loadProductVariantImages(client, [req.params.id]).catch(() => new Map());
+    const currentImageBundle = currentImageBundleMap.get(String(req.params.id)) || null;
+    const hydratedVariants = attachVariantImages(currentActiveVariants.map(normalizeVariantRow), currentImageBundle);
+    const colorImagesPayload = attachGroupedColorImages(
+      deriveColorGroupsFromVariants(hydratedVariants),
+      currentImageBundle
+    );
+    const thermalColorJobs = buildThermalColorJobGroups({
+      productId: req.params.id,
+      productName: productForSku.name || "",
+      variants: hydratedVariants,
+      colorImages: colorImagesPayload,
+      productImageUrl: productForSku.image_url || productForSku.product_image_url || "",
+    });
+    scheduleThermalColorArtworkJobs({
+      productId: req.params.id,
+      tenantId,
+      productName: productForSku.name || "",
+      groups: thermalColorJobs,
+      previousThermalUrlMap,
+    });
 
     return res.status(201).json({
       success: true,
@@ -4481,11 +4457,20 @@ export const updateVariant = async (req, res) => {
 
     const currentVariant = currentResult.rows[0];
     const productResult = await client.query(
-      `SELECT sku, name, brand, category, product_type, gender, grade FROM products WHERE id = $1 LIMIT 1`,
+      `SELECT sku, name, brand, category, product_type, gender, grade, image_url, thermal_image_url FROM products WHERE id = $1 LIMIT 1`,
       [currentVariant.product_id]
     );
     const productForSku = productResult.rows[0] || {};
     const skuPrefix = productForSku.sku || buildSmartSkuPrefix(productForSku);
+    const previousActiveVariants = await loadActiveProductVariantSnapshot(client, { productId: currentVariant.product_id, tenantId });
+    const previousImageBundleMap = await loadProductVariantImages(client, [currentVariant.product_id]).catch(() => new Map());
+    const previousImageBundle = previousImageBundleMap.get(String(currentVariant.product_id)) || null;
+    const previousHydratedVariants = attachVariantImages(previousActiveVariants.map(normalizeVariantRow), previousImageBundle);
+    const previousColorImages = attachGroupedColorImages(
+      deriveColorGroupsFromVariants(previousHydratedVariants),
+      previousImageBundle
+    );
+    const previousThermalUrlMap = buildThermalImageUrlMap(previousColorImages);
     const finalSku = await makeUniqueSku(client, {
       tenantId,
       sku: sku || buildVariantSku({ prefix: skuPrefix, color, size }),
@@ -4550,18 +4535,28 @@ export const updateVariant = async (req, res) => {
 
     await client.query("COMMIT");
     const updatedVariantRow = normalizeVariantRow(updated.rows[0]);
-    if (updatedVariantRow.thermal_image_generation_needed) {
-      scheduleThermalImageGeneration({
-        entityType: "variant",
-        productId: currentVariant.product_id,
-        variantId: updatedVariantRow.variant_id ?? updatedVariantRow.id ?? req.params.id,
-        tenantId,
-        sourceImageUrl: updatedVariantRow.image_url || updatedVariantRow.variant_image_url || updatedVariantRow.color_image_url || "",
-        existingThermalImageUrl: updatedVariantRow.thermal_image_url || "",
-        productName: `${updatedVariantRow.product_name || ""} ${updatedVariantRow.color || ""}`.trim(),
-        regenerate: true,
-      });
-    }
+    const currentActiveVariants = await loadActiveProductVariantSnapshot(client, { productId: currentVariant.product_id, tenantId });
+    const currentImageBundleMap = await loadProductVariantImages(client, [currentVariant.product_id]).catch(() => new Map());
+    const currentImageBundle = currentImageBundleMap.get(String(currentVariant.product_id)) || null;
+    const hydratedVariants = attachVariantImages(currentActiveVariants.map(normalizeVariantRow), currentImageBundle);
+    const colorImagesPayload = attachGroupedColorImages(
+      deriveColorGroupsFromVariants(hydratedVariants),
+      currentImageBundle
+    );
+    const thermalColorJobs = buildThermalColorJobGroups({
+      productId: currentVariant.product_id,
+      productName: productForSku.name || "",
+      variants: hydratedVariants,
+      colorImages: colorImagesPayload,
+      productImageUrl: productForSku.image_url || productForSku.product_image_url || "",
+    });
+    scheduleThermalColorArtworkJobs({
+      productId: currentVariant.product_id,
+      tenantId,
+      productName: productForSku.name || "",
+      groups: thermalColorJobs,
+      previousThermalUrlMap,
+    });
 
     return res.json({
       success: true,
