@@ -1252,7 +1252,7 @@ export const resolveProductMappingForSiblingPost = async ({
           OR ppl.business_id = $1::bigint
         )
         AND ppl.platform = $2::text
-        AND spa.alias_value = ANY($8::text[])
+        AND spa.alias_value = ANY($4::text[])
         AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
     ),
     alias_join_rows AS (
