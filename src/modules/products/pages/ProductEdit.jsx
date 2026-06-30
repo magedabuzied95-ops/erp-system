@@ -233,6 +233,50 @@ const getPrimaryColorImage = (group = {}) => {
   return primary?.image_url || group.image_url || group.imagePreview || "";
 };
 
+const getResolvedThermalImageUrl = ({ product = {}, groups = [], variants = [] } = {}) => {
+  const firstText = (...values) => {
+    for (const value of values) {
+      const text = String(value || "").trim();
+      if (text) return text;
+    }
+    return "";
+  };
+
+  const productThermal = firstText(
+    product.thermal_image_url,
+    product.thermalImageUrl,
+    product.product_thermal_image_url,
+    product.productThermalImageUrl
+  );
+  if (productThermal) return productThermal;
+
+  for (const group of Array.isArray(groups) ? groups : []) {
+    const groupThermal = firstText(
+      group?.thermal_image_url,
+      group?.thermalImageUrl,
+      group?.color_thermal_image_url,
+      group?.colorThermalImageUrl,
+      group?.variant_color_thermal_image_url,
+      group?.variantColorThermalImageUrl
+    );
+    if (groupThermal) return groupThermal;
+  }
+
+  for (const variant of Array.isArray(variants) ? variants : []) {
+    const variantThermal = firstText(
+      variant?.thermal_image_url,
+      variant?.thermalImageUrl,
+      variant?.color_thermal_image_url,
+      variant?.colorThermalImageUrl,
+      variant?.variant_color_thermal_image_url,
+      variant?.variantColorThermalImageUrl
+    );
+    if (variantThermal) return variantThermal;
+  }
+
+  return "";
+};
+
 const getThermalArtworkSourceImage = (fallbackImage = "", colorGroup = null, groups = []) => {
   const selectedGroup = colorGroup || groups.find((group) => String(group?.color || "").trim()) || null;
   const groupImage = selectedGroup ? getPrimaryColorImage(selectedGroup) : "";
@@ -1085,7 +1129,7 @@ function ProductEdit() {
             unit: hydratedUnit.unit || firstRow.unit || "",
           });
           setCoverImage(resolveAssetUrl(firstRow.product_image_url || firstRow.image_url || ""));
-          setThermalImageUrl(resolveAssetUrl(firstRow.thermal_image_url || ""));
+          setThermalImageUrl(resolveAssetUrl(getResolvedThermalImageUrl({ product: firstRow, variants: variantRows }) || firstRow.thermal_image_url || ""));
           setCoverLabel(firstRow.product_image_url || firstRow.image_url ? t("products.editor.currentProductImage") : "");
           setGallery(normalizeGalleryImages(firstRow.gallery_images));
           setDefaultManufacturerId("");
@@ -1098,7 +1142,7 @@ function ProductEdit() {
           setError(t("products.editor.variantsFailed"));
           setProduct(normalizedProduct);
           setCoverImage(resolveAssetUrl(firstRow.product_image_url || firstRow.image_url || ""));
-          setThermalImageUrl(resolveAssetUrl(firstRow.thermal_image_url || ""));
+          setThermalImageUrl(resolveAssetUrl(getResolvedThermalImageUrl({ product: firstRow, variants: variantRows }) || firstRow.thermal_image_url || ""));
           setCoverLabel(firstRow.product_image_url || firstRow.image_url ? t("products.editor.currentProductImage") : "");
           setGallery(normalizeGalleryImages(firstRow.gallery_images));
           setColorGroups([]);
@@ -1180,6 +1224,11 @@ function ProductEdit() {
             colorImageUrlsRef.current.set(group.id, primaryImage);
           }
         });
+        const hydratedThermalImageUrl = getResolvedThermalImageUrl({
+          product: firstRow,
+          groups: skuAwareColorGroups,
+          variants: variantRows,
+        });
 
         setProduct({
           ...normalizedProduct,
@@ -1188,7 +1237,7 @@ function ProductEdit() {
           unit: hydratedUnit.unit || firstRow.unit || "",
         });
         setCoverImage(resolveAssetUrl(firstRow.product_image_url || firstRow.image_url || ""));
-        setThermalImageUrl(resolveAssetUrl(firstRow.thermal_image_url || ""));
+        setThermalImageUrl(resolveAssetUrl(hydratedThermalImageUrl || firstRow.thermal_image_url || ""));
         setCoverLabel(firstRow.product_image_url || firstRow.image_url ? t("products.editor.currentProductImage") : "");
         setGallery(normalizeGalleryImages(firstRow.gallery_images));
         setDefaultManufacturerId(resolvedDefaultManufacturerId);
@@ -2234,6 +2283,16 @@ function ProductEdit() {
         };
       })
       .filter(Boolean);
+    const resolvedThermalImageUrl = getResolvedThermalImageUrl({
+      product: {
+        thermal_image_url: thermalImageUrl,
+        thermalImageUrl: thermalImageUrl,
+        product_thermal_image_url: product.thermal_image_url || product.product_thermal_image_url || "",
+        productThermalImageUrl: product.thermal_image_url || product.product_thermal_image_url || "",
+      },
+      groups: normalizedGroups,
+      variants: variantPayloads,
+    }) || String(thermalImageUrl || product.thermal_image_url || product.product_thermal_image_url || "").trim();
 
     const usedVariantSkus = new Set(existingSkuValues);
     normalizedGroups.forEach((group) => {
@@ -2377,7 +2436,7 @@ function ProductEdit() {
     console.log("[edit-product] save payload size rows count", variantPayloads.length);
     console.log("[edit-product] save payload variants", variantPayloads);
     console.log("PRODUCT_EDIT_THERMAL_SAVE_PAYLOAD", {
-      productThermalImageUrl: thermalImageUrl,
+      productThermalImageUrl: resolvedThermalImageUrl,
       colorGroups: colorGroups.map((group) => ({
         color: group.color,
         thermal_image_url: group.thermal_image_url,
@@ -2475,7 +2534,7 @@ function ProductEdit() {
         barcode: product.barcode || "",
         status: product.status || "active",
         image_url: coverImageUrl,
-        thermal_image_url: thermalImageUrl || product.thermal_image_url || "",
+        thermal_image_url: resolvedThermalImageUrl,
         gallery_images: galleryPayload,
         variants: isSimpleMode ? [] : variantPayloads,
         colorImages: isSimpleMode ? [] : colorImagesPayload.map((group) => ({
@@ -2552,7 +2611,7 @@ function ProductEdit() {
         status: product.status || "active",
         active: product.status !== "inactive" && product.status !== "archived",
         image_url: coverImageUrl,
-        thermal_image_url: thermalImageUrl || product.thermal_image_url || "",
+        thermal_image_url: resolvedThermalImageUrl,
         gallery: galleryPayload,
         gallery_images: galleryPayload,
       });

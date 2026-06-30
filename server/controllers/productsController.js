@@ -2013,25 +2013,28 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
   await assertVariantSkuBarcodeAvailable(client, { tenantId, productId, variant: nextVariant });
   const currentVariantRow = currentResult.rows[0] || {};
   const incomingVariantImageUrl = String(variant.image_url || variant.variant_image_url || variant.color_image_url || variant.image || "").trim();
+  const incomingVariantThermalImageUrl = String(
+    variant.thermal_image_url ||
+    variant.thermalImageUrl ||
+    variant.variant_thermal_image_url ||
+    variant.color_thermal_image_url ||
+    variant.variant_color_thermal_image_url ||
+    ""
+  ).trim();
   const currentImageUrl = String(currentVariantRow.image_url || "").trim();
   const imageChanged = Boolean(incomingVariantImageUrl && incomingVariantImageUrl !== currentImageUrl);
   const nextVariantImageUrl = imageChanged ? incomingVariantImageUrl : currentImageUrl;
-  const nextVariantThermalImageUrl = imageChanged ? "" : String(currentVariantRow.thermal_image_url || "").trim();
-  const nextVariantThermalImageStatus = imageChanged
-    ? "pending"
-    : normalizeThermalImageStatus(currentVariantRow.thermal_image_status, currentVariantRow.thermal_image_url || "");
-  const nextVariantThermalImageGeneratedAt = imageChanged ? null : normalizeThermalTimestamp(currentVariantRow.thermal_image_generated_at);
-  const nextVariantThermalImageError = imageChanged ? "" : normalizeThermalError(currentVariantRow.thermal_image_error);
-  if (imageChanged) {
-    console.log("THERMAL_IMAGE_STALE_RESET", {
-      entityType: "variant",
-      productId,
-      variantId: resolvedVariantId,
-      tenantId,
-      previousImageUrl: currentImageUrl,
-      nextImageUrl: nextVariantImageUrl,
-    });
-  }
+  const nextVariantThermalImageUrl = incomingVariantThermalImageUrl || String(currentVariantRow.thermal_image_url || "").trim();
+  const nextVariantThermalImageStatus = normalizeThermalImageStatus(
+    incomingVariantThermalImageUrl ? variant.thermal_image_status : currentVariantRow.thermal_image_status,
+    nextVariantThermalImageUrl
+  );
+  const nextVariantThermalImageGeneratedAt = incomingVariantThermalImageUrl
+    ? normalizeThermalTimestamp(variant.thermal_image_generated_at || variant.thermalImageGeneratedAt)
+    : normalizeThermalTimestamp(currentVariantRow.thermal_image_generated_at);
+  const nextVariantThermalImageError = incomingVariantThermalImageUrl
+    ? normalizeThermalError(variant.thermal_image_error || variant.thermalImageError)
+    : normalizeThermalError(currentVariantRow.thermal_image_error);
   const updated = await client.query(
     `
     UPDATE product_variants
