@@ -4,7 +4,7 @@ import Code128Reader from "@zxing/library/esm/core/oned/Code128Reader";
 import { APP_NAME } from "../../../shared/constants/app";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { loadImageDataUrl } from "./thermalImageOptimizer";
-import { BARCODE_LABEL_LAYOUT, fitThermalColorValueFontSize, getBoxFrameLayout, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage, resolveLabelArticleCode } from "./barcodeLabels";
+import { BARCODE_LABEL_LAYOUT, fitThermalColorValueFontSize, fitThermalTitleLayout, getBoxFrameLayout, getBoxTextLayout, getThermalLandscapeLabelLayout, resolveBarcodeLabelImage, resolveLabelArticleCode } from "./barcodeLabels";
 
 const thermalImageCache = new Map();
 
@@ -210,21 +210,18 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
 
   await drawImageOrPlaceholder(doc, item, imageCell.x, imageCell.y + 1, imageCell.w, imageCell.h - 1);
 
-  const titleLines = toTextLines(doc, productName, titleCell.w, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
-  const titleLinesToRender = titleLines.slice(0, thermalLayout.titleMaxLines);
-  if (titleLinesToRender.length === thermalLayout.titleMaxLines) {
-    titleLinesToRender[titleLinesToRender.length - 1] = ellipsizeLine(doc, titleLinesToRender[titleLinesToRender.length - 1], titleCell.w);
-  }
+  const titleLayout = fitThermalTitleLayout(productName, titleCell.w - 1.2, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
+  const titleLinesToRender = titleLayout.lines.slice(0, thermalLayout.titleMaxLines);
   drawRoundedRect(doc, titleCell.x, titleCell.y, titleCell.w, titleCell.h, 1.8, [2, 6, 23], [2, 6, 23]);
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  const titleMaxWidth = Math.max(1, titleCell.w - 2.4);
-  const titleBaseFontSize = fitTextSize(doc, titleLinesToRender[0] || productName, titleMaxWidth, thermalLayout.titleFontSize, 6);
-  const titleLineStep = Math.max(3.8, thermalLayout.titleLineStepMm * 0.78);
-  const titleStartY = titleCell.y + 3.0;
+  const titleMaxWidth = Math.max(1, titleCell.w - 1.4);
+  const titleBaseFontSize = titleLayout.fontSize;
+  const titleLineStep = Math.max(4.2, thermalLayout.titleLineStepMm * 0.94);
+  const titleCenterY = titleCell.y + (titleCell.h / 2);
+  const titleStartY = titleCenterY - (((titleLinesToRender.length - 1) * titleLineStep) / 2);
   titleLinesToRender.forEach((line, lineIndex) => {
-    const nextSize = lineIndex === 0 ? titleBaseFontSize : Math.max(6, titleBaseFontSize * 0.88);
-    doc.setFontSize(nextSize);
+    doc.setFontSize(titleBaseFontSize);
     doc.text(line, titleCell.x + (titleCell.w / 2), titleStartY + (lineIndex * titleLineStep), { align: "center", maxWidth: titleMaxWidth });
   });
 

@@ -35,6 +35,7 @@ import {
   getBoxTextLayout,
   getThermalLandscapeLabelLayout,
   fitThermalColorValueFontSize,
+  fitThermalTitleLayout,
   getThermalImageStatus,
   resolveBarcodeLabelImage,
   resolveLabelArticleCode,
@@ -1414,18 +1415,22 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         labelGapMm: 1.0,
         labelFontSize: thermalLayout.articleLabelFontSize,
         valueFontSize: thermalLayout.articleFontSize,
-        valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
-      })
+      valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
+    })
     : null;
+  const titleLayoutFit = fitThermalTitleLayout(productName, thermalLayout.titleCell.w - 1.2, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
+  const titleLines = titleLayoutFit.lines;
+  const titleFontSize = titleLayoutFit.fontSize;
   const colorValueFontSize = fitThermalColorValueFontSize(colorValue, thermalLayout.colorValueWidth, thermalLayout.colorValueFontSize);
   const titleBadgeStyle = {
     background: "#020617",
     color: "#fff",
     borderRadius: "8px",
     border: "1px solid #020617",
-    padding: "0.95mm 1.2mm",
+    padding: "0.65mm 0.85mm",
     minHeight: `${thermalLayout.titleCell.h}mm`,
     display: "flex",
+    justifyContent: "center",
     alignItems: "center",
   };
   const landscapeCard = (
@@ -1472,23 +1477,28 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             }}
           >
             <h3
-              className="min-w-0 font-black leading-[1.03] text-white"
+              className="min-w-0 font-black text-white"
               style={{
-                display: "-webkit-box",
-                WebkitBoxOrient: "vertical",
-                WebkitLineClamp: 2,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "0.25mm",
                 overflow: "hidden",
                 textOverflow: "ellipsis",
-                fontSize: `${thermalLayout.titleFontSize}px`,
-                lineHeight: thermalLayout.titleLineHeight,
+                fontSize: `${titleFontSize}px`,
+                lineHeight: titleLayoutFit.lineHeight,
                 width: "100%",
                 wordBreak: "break-word",
                 overflowWrap: "anywhere",
                 margin: 0,
                 paddingTop: 0,
+                textAlign: "center",
               }}
             >
-              {productName}
+              {titleLines.map((line, index) => (
+                <span key={`${line}-${index}`}>{line}</span>
+              ))}
             </h3>
           </div>
         ) : null}

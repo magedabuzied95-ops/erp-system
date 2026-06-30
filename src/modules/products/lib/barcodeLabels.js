@@ -919,6 +919,77 @@ const formatDisplayColor = (value = "") => {
   return text.toUpperCase();
 };
 
+const measureThermalTitleWeight = (value = "") => {
+  let weight = 0;
+  for (const char of String(value || "").trim()) {
+    if (char === " ") {
+      weight += 0.34;
+    } else if (char === "-") {
+      weight += 0.42;
+    } else if (/[A-Z0-9]/i.test(char)) {
+      weight += 0.58;
+    } else {
+      weight += 0.5;
+    }
+  }
+  return weight || 1;
+};
+
+const splitThermalTitleLines = (value = "") => {
+  const text = String(value || "").trim();
+  if (!text) return [];
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= 1) return [text];
+  let bestSplit = 1;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (let i = 1; i < words.length; i += 1) {
+    const left = words.slice(0, i).join(" ");
+    const right = words.slice(i).join(" ");
+    const score = Math.abs(measureThermalTitleWeight(left) - measureThermalTitleWeight(right));
+    if (score < bestScore) {
+      bestScore = score;
+      bestSplit = i;
+    }
+  }
+  const left = words.slice(0, bestSplit).join(" ");
+  const right = words.slice(bestSplit).join(" ");
+  return right ? [left, right] : [text];
+};
+
+export const fitThermalTitleLayout = (value = "", maxWidthMm = 0, maxLines = 2, baseFontSize = THERMAL_LANDSCAPE_TITLE_FONT_SIZE) => {
+  const text = String(value || "").trim();
+  if (!text) {
+    return {
+      lines: ["Unnamed product"],
+      fontSize: Math.round(Number(baseFontSize || THERMAL_LANDSCAPE_TITLE_FONT_SIZE) * 1.1 * 10) / 10,
+      lineHeight: 1.14,
+    };
+  }
+
+  const base = Number(baseFontSize || THERMAL_LANDSCAPE_TITLE_FONT_SIZE);
+  const availableWidthMm = Math.max(1, Number(maxWidthMm || 0) - 1.0);
+  const fullTextWeight = measureThermalTitleWeight(text);
+  const fullTextFontSize = availableWidthMm > 0 ? (availableWidthMm * 3.62) / fullTextWeight : base * 1.1;
+  const maxFontSize = base * 1.12;
+  if (fullTextFontSize >= base * 1.02 || !text.includes(" ")) {
+    return {
+      lines: [text],
+      fontSize: Math.round(clamp(Math.min(maxFontSize, Math.max(fullTextFontSize, base)), base * 1.02, maxFontSize) * 10) / 10,
+      lineHeight: 1.14,
+    };
+  }
+  const lines = splitThermalTitleLines(text).slice(0, Math.max(1, maxLines));
+  const maxLineWeight = Math.max(...lines.map(measureThermalTitleWeight), fullTextWeight);
+  const estimatedFontSize = availableWidthMm > 0 ? (availableWidthMm * 3.62) / maxLineWeight : base * 1.1;
+  const startingFontSize = Math.min(maxFontSize, estimatedFontSize);
+  const minFontSize = Math.max(6.2, base * 0.86);
+  return {
+    lines,
+    fontSize: Math.round(clamp(startingFontSize, minFontSize, maxFontSize) * 10) / 10,
+    lineHeight: 1.14,
+  };
+};
+
 export const fitThermalColorValueFontSize = (value = "", boxWidthMm = 0, baseFontSize = THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) => {
   const text = String(value || "").trim();
   if (!text) return Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE);
@@ -947,17 +1018,17 @@ const THERMAL_LANDSCAPE_MARGIN_MM = 2;
 const THERMAL_LANDSCAPE_GAP_MM = 1;
 const THERMAL_LANDSCAPE_ROW_GAP_MM = 1.2;
 const THERMAL_LANDSCAPE_IMAGE_WIDTH_MM = 34.6;
-const THERMAL_LANDSCAPE_TITLE_HEIGHT_MM = 9.2;
-const THERMAL_LANDSCAPE_SIZE_HEIGHT_MM = 13;
+const THERMAL_LANDSCAPE_TITLE_HEIGHT_MM = 10.5;
+const THERMAL_LANDSCAPE_SIZE_HEIGHT_MM = 11.8;
 const THERMAL_LANDSCAPE_COLOR_HEIGHT_MM = 8.8;
 const THERMAL_LANDSCAPE_SIZE_BOX_WIDTH_FACTOR = 1;
 const THERMAL_LANDSCAPE_BARCODE_X_MM = 2.75;
 const THERMAL_LANDSCAPE_BARCODE_W_MM = 94.5;
 const THERMAL_LANDSCAPE_BARCODE_H_MM = 8.05;
 const THERMAL_LANDSCAPE_BARCODE_TEXT_Y_MM = 48.35;
-const THERMAL_LANDSCAPE_TITLE_FONT_SIZE = 11.4;
-const THERMAL_LANDSCAPE_TITLE_LINE_HEIGHT = 1.08;
-const THERMAL_LANDSCAPE_TITLE_LINE_STEP_MM = 4.15;
+const THERMAL_LANDSCAPE_TITLE_FONT_SIZE = 12.6;
+const THERMAL_LANDSCAPE_TITLE_LINE_HEIGHT = 1.14;
+const THERMAL_LANDSCAPE_TITLE_LINE_STEP_MM = 4.45;
 const THERMAL_LANDSCAPE_TITLE_MAX_LINES = 2;
 const THERMAL_LANDSCAPE_SIZE_LABEL_FONT_SIZE = 5.4;
 const THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE = 25;
@@ -1168,7 +1239,8 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const hasArticleBox = Boolean(skuValue);
   const layout = getThermalLandscapeLabelLayout(hasArticleBox);
   const { imageCell, titleCell, sizeCell, articleCell, colorCell, barcodeCell } = layout;
-  const productLines = splitSvgText(productName, titleCell.w / 2.55, layout.titleMaxLines);
+  const titleLayout = fitThermalTitleLayout(productName, titleCell.w - 1.2, layout.titleMaxLines, layout.titleFontSize);
+  const productLines = titleLayout.lines;
   const articleBaseFontSize = Math.max(layout.sizeValueFontSize * 0.92, layout.articleFontSize);
   const articleFontSize = Math.max(layout.articleFontSizeCompact, articleBaseFontSize - Math.max(0, skuValue.length - 10) * 0.08);
   const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, {
@@ -1180,8 +1252,12 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   });
 
   const productText = productLines.length
-    ? productLines.map((line, index) => `<text x="${titleCell.x}" y="${titleCell.y + (index * layout.titleLineStepMm)}" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${index === 0 ? layout.titleFontSize * 0.46 : layout.titleFontSize * 0.4}" font-weight="900">${escapeHtml(line)}</text>`).join("")
-    : `<text x="${titleCell.x}" y="${titleCell.y}" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.titleFontSize * 0.46}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
+    ? (() => {
+        const centerY = titleCell.y + (titleCell.h / 2);
+        const startY = centerY - (((productLines.length - 1) * layout.titleLineStepMm) / 2);
+        return productLines.map((line, index) => `<text x="${titleCell.x + (titleCell.w / 2)}" y="${startY + (index * layout.titleLineStepMm)}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * (index === 0 ? 0.48 : 0.45)}" font-weight="900">${escapeHtml(line)}</text>`).join("");
+      })()
+    : `<text x="${titleCell.x + (titleCell.w / 2)}" y="${titleCell.y + (titleCell.h / 2)}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * 0.48}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
 
   return `
     <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
