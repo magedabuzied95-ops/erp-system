@@ -230,12 +230,42 @@ export default function PostProductLinksDrawer({
       .map((item) => Number(item?.id ?? item?.product_id ?? 0))
       .filter((value) => Number.isFinite(value) && value > 0);
     const safePrimaryProductId = Number(primaryProductId || selectedProductIds[0] || 0) || null;
+    const isClearOperation = !selectedProductIds.length;
     console.info("PRODUCT_LINKS_FRONTEND_SAVE_CLICK", {
       postId: safePostId,
       platform: safePlatform,
       selectedProductIds,
       primaryProductId: safePrimaryProductId,
+      isClearOperation,
     });
+    if (isClearOperation) {
+      setSaving(true);
+      try {
+        await removePostProductLink({
+          postId: safePostId,
+          platform: safePlatform,
+          tenantId,
+        });
+        setSelectedProducts([]);
+        setPrimaryProductId(null);
+        const payload = await getPostProductLinks({
+          postId: safePostId,
+          platform: safePlatform,
+          tenantId,
+        });
+        const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
+        setSelectedProducts(mapped);
+        const primaryId = Number(payload?.primary_product?.id || payload?.primary_product?.product_id || mapped[0]?.id || 0) || null;
+        setPrimaryProductId(primaryId);
+        notify("emerald", "طھظ…طھ ط¥ط²ط§ظ„ط© ط±ظˆط§ط¨ط· ط§ظ„ظ…ظ†طھط¬ط§طھ");
+        await Promise.resolve(onSaved?.(payload));
+      } catch (error) {
+        notify("rose", error?.message || "طھط¹ط°ط± ط¥ط²ط§ظ„ط© ط±ظˆط§ط¨ط· ط§ظ„ظ…ظ†طھط¬ط§طھ");
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     if (!selectedProductIds.length) {
       notify("amber", "اختر منتجًا واحدًا على الأقل قبل الحفظ");
       return;
