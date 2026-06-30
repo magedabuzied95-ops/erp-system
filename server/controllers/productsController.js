@@ -3692,6 +3692,19 @@ export const updateProduct = async (req, res) => {
       colorImages: colorImagesPayload,
       productImageUrl: updatedProduct.image_url || updatedProduct.product_image_url || "",
     });
+    console.log("THERMAL_COLOR_GROUP_BUILD_RESULT", {
+      productId,
+      groupsCount: Array.isArray(thermalColorJobs) ? thermalColorJobs.length : 0,
+      groups: Array.isArray(thermalColorJobs)
+        ? thermalColorJobs.map((group) => ({
+            color: group.color,
+            primaryImageUrl: group.primaryImageUrl,
+            existingThermalUrl: group.existingThermalUrl,
+            previousThermalUrl: group.previousThermalUrl,
+            variantsCount: Array.isArray(group.variants) ? group.variants.length : Array.isArray(group.variantIds) ? group.variantIds.length : 0,
+          }))
+        : [],
+    });
     scheduleThermalColorArtworkJobs({
       productId,
       tenantId,

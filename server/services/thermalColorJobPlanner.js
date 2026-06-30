@@ -358,6 +358,10 @@ export const scheduleThermalColorArtworkJobs = ({
   previousThermalUrlMap = new Map(),
   onSync = null,
 } = {}) => {
+  console.log("THERMAL_COLOR_PLANNER_START", {
+    productId,
+    groupsCount: Array.isArray(groups) ? groups.length : 0,
+  });
   for (const group of Array.isArray(groups) ? groups : []) {
     setImmediate(() => {
       void scheduleColorJob({
