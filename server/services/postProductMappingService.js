@@ -2189,6 +2189,9 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
 
   const client = await db.connect();
   let rowsAffected = 0;
+  let cleanupDeletedExactCount = 0;
+  let cleanupDeletedStaleCount = 0;
+  let cleanupRemovedProductIds = [];
   try {
     await client.query("BEGIN");
     if (platformPostId) {
@@ -2225,10 +2228,12 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
         const productId = Number(linkRow.product_id || 0) || 0;
         return productId > 0 && !safeProductIds.includes(productId);
       });
-      const staleRows = safeProductIds.length && directIdentity.exactCandidates.length
+      const staleRows = directIdentity.exactCandidates.length
         ? candidateIdentityRows.filter((linkRow) => {
           const productId = Number(linkRow.product_id || 0) || 0;
-          return productId > 0 && safeProductIds.includes(productId) && !doesLinkRowMatchExactIdentity(linkRow, directIdentity);
+          if (productId <= 0 || doesLinkRowMatchExactIdentity(linkRow, directIdentity)) return false;
+          if (!safeProductIds.length) return true;
+          return safeProductIds.includes(productId);
         })
         : [];
       const cleanupRowIds = Array.from(new Set(
@@ -2244,10 +2249,26 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
         ).catch(() => ({ rowCount: 0 }));
         rowsAffected += Number(deleteCleanupResult.rowCount || 0) || 0;
       }
+      cleanupDeletedExactCount = Number(deselectedRows.length || 0) || 0;
+      cleanupDeletedStaleCount = Number(staleRows.length || 0) || 0;
+      cleanupRemovedProductIds = !safeProductIds.length
+        ? Array.from(new Set(candidateIdentityRows.map((linkRow) => Number(linkRow.product_id || 0)).filter((value) => value > 0)))
+        : deselectedRows.map((row) => Number(row.product_id || 0)).filter((value) => value > 0);
 
+      console.info("SOCIAL_PRODUCT_LINK_REMOVE_CLEANUP_TRACE", {
+        selected_post_id: selectedIdentity,
+        canonical_post_id: platformPostId,
+        platform_post_id: normalizedPlatformPostId,
+        source_post_id: storedPostId,
+        permalink_post_id: permalinkPostId || storedMediaId,
+        removed_product_ids: cleanupRemovedProductIds,
+        deleted_exact_count: cleanupDeletedExactCount,
+        deleted_stale_count: cleanupDeletedStaleCount,
+        returned_linked_products_count: 0,
+      });
       console.info("SOCIAL_PRODUCT_LINK_STALE_CLEANUP_TRACE", {
         canonical_post_id: platformPostId,
-        platform_post_id: platformPostId,
+        platform_post_id: normalizedPlatformPostId,
         source_post_id: storedPostId,
         permalink_post_id: permalinkPostId || storedMediaId,
         selected_product_ids: safeProductIds,
@@ -2620,7 +2641,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     client.release();
   }
 
-  return getMappings({
+  const readback = await getMappings({
     tenantId: safeTenantId,
     platform: normalizedPlatform,
     postId: platformPostId,
@@ -2632,6 +2653,18 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     productIds: safeProductIds,
     rowsAffected,
   });
+  console.info("SOCIAL_PRODUCT_LINK_REMOVE_CLEANUP_TRACE", {
+    selected_post_id: selectedIdentity,
+    canonical_post_id: platformPostId,
+    platform_post_id: normalizedPlatformPostId,
+    source_post_id: storedPostId,
+    permalink_post_id: permalinkPostId || storedMediaId,
+    removed_product_ids: cleanupRemovedProductIds,
+    deleted_exact_count: cleanupDeletedExactCount,
+    deleted_stale_count: cleanupDeletedStaleCount,
+    returned_linked_products_count: Number(readback?.linked_products?.length || 0) || 0,
+  });
+  return readback;
 };
 
 export const removeMapping = async ({ tenantId = null, platform = "", postId = "", row = {}, post = {}, productId = null } = {}) => {

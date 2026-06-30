@@ -4,7 +4,6 @@ import toast from "react-hot-toast";
 
 import {
   getPostProductLinks,
-  removePostProductLink,
   savePostProductLinks,
   searchStorefrontProducts,
 } from "../../services/postProductMappingApi.js";
@@ -262,18 +261,12 @@ export default function PostProductLinksDrawer({
     if (isClearOperation) {
       setSaving(true);
       try {
-        await removePostProductLink({
+        const payload = await savePostProductLinks({
           postId: safePostId,
           platform: safePlatform,
           tenantId,
-          postIdentity: postIdentityPayload,
-        });
-        setSelectedProducts([]);
-        setPrimaryProductId(null);
-        const payload = await getPostProductLinks({
-          postId: safePostId,
-          platform: safePlatform,
-          tenantId,
+          productIds: [],
+          primaryProductId: null,
           postIdentity: postIdentityPayload,
         });
         const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
@@ -329,6 +322,21 @@ export default function PostProductLinksDrawer({
     if (!confirmed) return;
     setSaving(true);
     try {
+      const payload = await savePostProductLinks({
+        postId: safePostId,
+        platform: safePlatform,
+        tenantId,
+        productIds: [],
+        primaryProductId: null,
+        postIdentity: postIdentityPayload,
+      });
+      const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
+      setSelectedProducts(mapped);
+      const primaryId = Number(payload?.primary_product?.id || payload?.primary_product?.product_id || mapped[0]?.id || 0) || null;
+      setPrimaryProductId(primaryId);
+      notify("emerald", "طھظ…طھ ط¥ط²ط§ظ„ط© ط±ظˆط§ط¨ط· ط§ظ„ظ…ظ†طھط¬ط§طھ");
+      await Promise.resolve(onSaved?.(payload));
+      return;
       await removePostProductLink({
         postId: safePostId,
         platform: safePlatform,
@@ -338,13 +346,13 @@ export default function PostProductLinksDrawer({
       setSelectedProducts([]);
       setPrimaryProductId(null);
       notify("emerald", "تمت إزالة روابط المنتجات");
-      const payload = await getPostProductLinks({
+      const reloadedPayload = await getPostProductLinks({
         postId: safePostId,
         platform: safePlatform,
         tenantId,
         postIdentity: postIdentityPayload,
       });
-      await Promise.resolve(onSaved?.(payload));
+      await Promise.resolve(onSaved?.(reloadedPayload));
     } catch (error) {
       notify("rose", error?.message || "تعذر إزالة روابط المنتجات");
     } finally {
