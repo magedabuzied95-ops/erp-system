@@ -1417,7 +1417,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         valueFontSizeCompact: thermalLayout.articleFontSizeCompact,
       })
     : null;
-  const colorValueFontSize = fitThermalColorValueFontSize(colorValue, thermalLayout.colorCell.w - 14, thermalLayout.colorValueFontSize);
+  const colorValueFontSize = fitThermalColorValueFontSize(colorValue, thermalLayout.colorValueWidth, thermalLayout.colorValueFontSize);
   const titleBadgeStyle = {
     background: "#020617",
     color: "#fff",
@@ -1588,20 +1588,24 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             marginTop: `${(thermalLayout.colorCell.h - colorFrame.h) / 2}mm`,
           }}
         >
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[1.2mm]">
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[0.5mm]">
             <div className="relative h-full min-h-0" style={{ height: `${thermalLayout.colorBoxHeight}mm` }}>
-              <div className="absolute left-[1.1mm] top-1/2 -translate-y-1/2 font-black uppercase leading-none tracking-[0.22em] text-white" style={{ fontSize: `${thermalLayout.colorLabelFontSize}px` }}>
+              <div
+                className="absolute top-1/2 -translate-y-1/2 font-black uppercase leading-none tracking-[0.16em] text-white"
+                style={{ left: `${thermalLayout.colorLabelX}mm`, fontSize: `${Math.max(thermalLayout.colorLabelFontSize, 4.8)}px` }}
+              >
                 {t("products.barcodeLabels.color")}
               </div>
               <div
-                className="absolute top-[15%] bottom-[15%] left-[12.8mm] w-px bg-white/45"
+                className="absolute top-[15%] bottom-[15%] w-px bg-white/45"
+                style={{ left: `${thermalLayout.colorDividerX}mm` }}
                 aria-hidden="true"
               />
               <div
                 className="truncate font-black uppercase leading-none"
                 style={{
                   position: "absolute",
-                  left: "13.9mm",
+                  left: `${thermalLayout.colorValueX}mm`,
                   top: "50%",
                   transform: "translateY(-50%)",
                   fontSize: `${colorValueFontSize}px`,

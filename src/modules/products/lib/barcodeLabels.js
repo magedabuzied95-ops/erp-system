@@ -922,11 +922,24 @@ const formatDisplayColor = (value = "") => {
 export const fitThermalColorValueFontSize = (value = "", boxWidthMm = 0, baseFontSize = THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) => {
   const text = String(value || "").trim();
   if (!text) return Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE);
-  const base = Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE);
-  const length = Math.max(1, text.length);
-  const widthFactor = boxWidthMm > 0 ? clamp(boxWidthMm / 18, 0.82, 1.18) : 1;
-  const lengthFactor = length <= 8 ? 1.18 : length <= 11 ? 1.05 : length <= 14 ? 0.92 : 0.82;
-  return clamp(Math.round(base * Math.min(widthFactor, lengthFactor) * 10) / 10, Math.max(10.2, base * 0.76), base * 1.18);
+  const startingFontSize = Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE), 17.5);
+  const minFontSize = Math.max(11.5, Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) * 0.84);
+  let characterWeight = 0;
+  for (const char of text) {
+    if (char === " ") {
+      characterWeight += 0.34;
+    } else if (char === "&") {
+      characterWeight += 0.78;
+    } else if (/[A-Z0-9]/.test(char)) {
+      characterWeight += 0.58;
+    } else {
+      characterWeight += 0.52;
+    }
+  }
+  const estimatedFontSize = boxWidthMm > 0
+    ? ((Math.max(0, boxWidthMm - 0.35) * 3.78) / Math.max(characterWeight, 1))
+    : startingFontSize;
+  return clamp(Math.round(Math.min(startingFontSize, estimatedFontSize) * 10) / 10, minFontSize, startingFontSize);
 };
 
 const THERMAL_LANDSCAPE_PAGE = Object.freeze({ width: 100, height: 50 });
@@ -951,8 +964,12 @@ const THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE = 25;
 const THERMAL_LANDSCAPE_ARTICLE_LABEL_FONT_SIZE = 5.3;
 const THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE = 11.2;
 const THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT = 10;
-const THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE = 5.0;
+const THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE = 4.8;
 const THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE = 13;
+const THERMAL_LANDSCAPE_COLOR_LABEL_X_MM = 0.8;
+const THERMAL_LANDSCAPE_COLOR_DIVIDER_X_MM = 8.75;
+const THERMAL_LANDSCAPE_COLOR_VALUE_X_MM = 9.6;
+const THERMAL_LANDSCAPE_COLOR_VALUE_WIDTH_MM = 50.4;
 
 const buildThermalLandscapeCellLayout = (hasArticleBox = false) => {
   const imageCell = Object.freeze({
@@ -1093,7 +1110,18 @@ export const BARCODE_LABEL_LAYOUT = Object.freeze({
     valueFontSize: THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE,
     valueFontSizeCompact: THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT,
   },
-  colorBox: { x: THERMAL_LANDSCAPE_MARGIN_MM + THERMAL_LANDSCAPE_IMAGE_WIDTH_MM + THERMAL_LANDSCAPE_GAP_MM, y: 26.8, w: THERMAL_LANDSCAPE_PAGE.width - THERMAL_LANDSCAPE_MARGIN_MM - (THERMAL_LANDSCAPE_MARGIN_MM + THERMAL_LANDSCAPE_IMAGE_WIDTH_MM + THERMAL_LANDSCAPE_GAP_MM), h: THERMAL_LANDSCAPE_COLOR_HEIGHT_MM, labelFontSize: THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE, valueFontSize: THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE },
+  colorBox: {
+    x: THERMAL_LANDSCAPE_MARGIN_MM + THERMAL_LANDSCAPE_IMAGE_WIDTH_MM + THERMAL_LANDSCAPE_GAP_MM,
+    y: 26.8,
+    w: THERMAL_LANDSCAPE_PAGE.width - THERMAL_LANDSCAPE_MARGIN_MM - (THERMAL_LANDSCAPE_MARGIN_MM + THERMAL_LANDSCAPE_IMAGE_WIDTH_MM + THERMAL_LANDSCAPE_GAP_MM),
+    h: THERMAL_LANDSCAPE_COLOR_HEIGHT_MM,
+    labelFontSize: THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE,
+    valueFontSize: THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE,
+    labelX: THERMAL_LANDSCAPE_COLOR_LABEL_X_MM,
+    dividerX: THERMAL_LANDSCAPE_COLOR_DIVIDER_X_MM,
+    valueX: THERMAL_LANDSCAPE_COLOR_VALUE_X_MM,
+    valueWidth: THERMAL_LANDSCAPE_COLOR_VALUE_WIDTH_MM,
+  },
   barcode: { x: THERMAL_LANDSCAPE_BARCODE_X_MM, y: 39.8, w: THERMAL_LANDSCAPE_BARCODE_W_MM, h: THERMAL_LANDSCAPE_BARCODE_H_MM, textY: THERMAL_LANDSCAPE_BARCODE_TEXT_Y_MM, fontSize: 7.2 },
   articleLabelFontSize: THERMAL_LANDSCAPE_ARTICLE_LABEL_FONT_SIZE,
 });
@@ -1118,6 +1146,10 @@ export const THERMAL_LANDSCAPE_LABEL_LAYOUT = Object.freeze({
   sizeValueFontSize: BARCODE_LABEL_LAYOUT.sizeBadge.valueFontSize,
   colorLabelFontSize: BARCODE_LABEL_LAYOUT.colorBox.labelFontSize,
   colorValueFontSize: BARCODE_LABEL_LAYOUT.colorBox.valueFontSize,
+  colorLabelX: BARCODE_LABEL_LAYOUT.colorBox.labelX,
+  colorDividerX: BARCODE_LABEL_LAYOUT.colorBox.dividerX,
+  colorValueX: BARCODE_LABEL_LAYOUT.colorBox.valueX,
+  colorValueWidth: BARCODE_LABEL_LAYOUT.colorBox.valueWidth,
   articleLabelFontSize: BARCODE_LABEL_LAYOUT.articleLabelFontSize,
 });
 
@@ -1170,9 +1202,9 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
       ` : ""}
 
       <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#020617" stroke="#020617" stroke-width="0.18" />
-      <text x="${colorCell.x + 1.1}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.68}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
-      <line x1="${colorCell.x + 12.8}" y1="${colorCell.y + 1}" x2="${colorCell.x + 12.8}" y2="${colorCell.y + layout.colorBoxHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
-      <text x="${colorCell.x + 13.9}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalColorValueFontSize(colorValue, colorCell.w - 13.9, layout.colorValueFontSize)}" font-weight="900">${escapeHtml(colorValue)}</text>
+      <text x="${colorCell.x + layout.colorLabelX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.64}" font-weight="900" letter-spacing="0.16">${escapeHtml(printCopy.color || "COLOR")}</text>
+      <line x1="${colorCell.x + layout.colorDividerX}" y1="${colorCell.y + 1}" x2="${colorCell.x + layout.colorDividerX}" y2="${colorCell.y + layout.colorBoxHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
+      <text x="${colorCell.x + layout.colorValueX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalColorValueFontSize(colorValue, layout.colorValueWidth, layout.colorValueFontSize)}" font-weight="900">${escapeHtml(colorValue)}</text>
 
       ${hasArticleBox ? "" : `<text x="${layout.page.width / 2}" y="${barcodeCell.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}
@@ -1327,9 +1359,9 @@ export const buildBarcodePrintHtml = ({
                   ` : ""}
                 </div>
                 <div class="landscape-color-box">
-                  <span>${escapeHtml(printCopy.color || "Color")}</span>
+                  <span style="font-size:${Math.max(5.6, thermalLayout.colorLabelFontSize * 1.05)}px">${escapeHtml(printCopy.color || "Color")}</span>
                   <span class="landscape-pill-divider" aria-hidden="true"></span>
-                  <strong>${escapeHtml(item.color || "")}</strong>
+                  <strong style="font-size:${fitThermalColorValueFontSize(item.color || "", BARCODE_LABEL_LAYOUT.colorBox.valueWidth, BARCODE_LABEL_LAYOUT.colorBox.valueFontSize)}px">${escapeHtml(item.color || "")}</strong>
                 </div>
                 ${resolvedArticleCode ? `
                   <div class="landscape-article-spacer"></div>
@@ -1680,7 +1712,7 @@ export const buildBarcodePrintHtml = ({
             padding: 1.15mm 1.2mm;
             color: #ffffff;
             display: grid;
-            grid-template-columns: 13.4mm 1px minmax(0, 1fr);
+            grid-template-columns: 8.8mm 1px minmax(0, 1fr);
             align-items: center;
             column-gap: 1.1mm;
             min-height: 14.1mm;
@@ -1709,7 +1741,7 @@ export const buildBarcodePrintHtml = ({
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
-            font-size: 16px;
+            font-size: 17px;
             line-height: 1;
             font-weight: 900;
             color: #ffffff;
