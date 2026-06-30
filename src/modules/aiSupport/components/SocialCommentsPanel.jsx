@@ -1,11 +1,9 @@
-import { memo, useCallback, useEffect, useMemo, useRef } from "react";
+import { memo, useCallback, useMemo, useRef } from "react";
 import { Clock3, ExternalLink, MessageSquareText, RefreshCw, User } from "lucide-react";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
 
 const clean = (value = "") => String(value ?? "").trim();
-const DEBUG_SOCIAL_PERF = false;
-
 const absoluteTime = (value) => {
   if (!value) return "";
   const date = new Date(value);
@@ -185,15 +183,6 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
               <Clock3 className="h-3.5 w-3.5" />
               {(() => {
                 const time = getPostVisibleTime(item);
-                if (import.meta.env.DEV) {
-                  console.log("AI_POST_TIME_RENDER", {
-                    post_id: clean(item.post_id || item.postId || item.id || ""),
-                    post_created_time: clean(item.post_created_time || item.postCreatedTime || ""),
-                    real_comment_created_time: clean(item.real_comment_created_time || item.realCommentCreatedTime || ""),
-                    comment_created_time: clean(item.comment_created_time || item.commentCreatedTime || ""),
-                    rendered_label: time ? absoluteTime(time) : "Unknown",
-                  });
-                }
                 return time ? absoluteTime(time) : "Unknown";
               })()}
             </span>
@@ -280,15 +269,6 @@ function SocialCommentsPanel({
     [filter, items, mode]
   );
   const useVirtualRows = filteredItems.length > 50;
-
-  useEffect(() => {
-    if (!DEBUG_SOCIAL_PERF) return;
-    console.log("[SocialCommentsPanel][rendered-rows]", {
-      mode,
-      total: filteredItems.length,
-      rendered: useVirtualRows ? Math.min(filteredItems.length, 18) : filteredItems.length,
-    });
-  }, [filteredItems.length, mode, useVirtualRows]);
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_12px_32px_rgba(15,23,42,0.06)]">

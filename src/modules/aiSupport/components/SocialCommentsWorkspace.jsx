@@ -34,7 +34,10 @@ import { CommentTimelineCard, getSocialCommentRealTimestamp } from "./socialComm
 import { useRef } from "react";
 
 const clean = (value = "") => String(value ?? "").trim();
-const DEBUG_SOCIAL_PERF = false;
+const isSocialDebugEnabled = () => import.meta.env.DEV && window.localStorage.getItem("social_debug") === "1";
+const socialDebugLog = (...args) => {
+  if (isSocialDebugEnabled()) console.log(...args);
+};
 const isEventLikeObject = (value) =>
   Boolean(
     value &&
@@ -1166,6 +1169,8 @@ function SocialCommentsWorkspace({
   const commentRefs = useRef(new Map());
   const composerRef = useRef(null);
   const highlightTimerRef = useRef(null);
+  const automationConfigCacheRef = useRef(new Map());
+  const automationConfigInFlightRef = useRef(new Map());
   const normalizedPosts = useMemo(
     () =>
       [...(Array.isArray(items) ? items.filter(Boolean) : [])]
@@ -1495,60 +1500,6 @@ function SocialCommentsWorkspace({
     );
   }, [activePostDetails, activePostKey, normalizedPosts, productLinksDrawerPostKey, productLinksDrawerPostSnapshot]);
 
-  useEffect(() => {
-    if (!activePostKey) return;
-    console.info("SOCIAL_UI_POST_STATUS_FIELDS", {
-      post_id: activePostPostId,
-      active_alias_id: activePostSourceId,
-      canonical_post_id: activePostPostId,
-      conversation_id: activePostConversationId,
-      permalink_present: Boolean(activePostLink),
-      linked_product_count: activeProductCard.productCount,
-      config_id: activeAutomationState.configId || "",
-      automation_enabled: Boolean(activeAutomationState.enabled),
-      status_label: activeAutomationState.label,
-    });
-  }, [activeAutomationState, activePostConversationId, activePostKey, activePostLink, activePostPostId, activePostSourceId, activeProductCard.productCount]);
-
-  useEffect(() => {
-    if (!activePostKey) return;
-    console.info("SOCIAL_UI_OPEN_POST_FINAL_URL", {
-      resolved_url: activePostOpen.finalUrl || "",
-      source: activePostOpen.sourceField || "",
-      has_permalink: Boolean(activePostOpen.hasPermalink),
-    });
-  }, [activePostKey, activePostOpen]);
-
-  useEffect(() => {
-    if (!activePostKey) return;
-    console.info("SOCIAL_UI_PRODUCT_CARD_FIELDS", {
-      post_id: activePostPostId,
-      product_name: activeProductCard.productName || "",
-      brand: activeProductCard.productBrand || "",
-      price: activeProductCard.priceValue || "",
-      sale_price: activeProductCard.salePriceValue || "",
-      stock: activeProductCard.stockValue || "",
-      sizes: activeProductCard.sizesValue || "",
-      colors: activeProductCard.colorsValue || "",
-      product_link: activeProductCard.productLink || "",
-      image_present: Boolean(activeProductCard.productImage),
-      linked_count: activeProductCard.productCount,
-    });
-  }, [activePostKey, activePostPostId, activeProductCard]);
-
-  useEffect(() => {
-    if (!activePostKey) return;
-    console.info("SOCIAL_UI_TIMELINE_FIELDS", {
-      post_id: activePostPostId,
-      loading: Boolean(activeThread.loading),
-      error: activeThread.error || "",
-      total_comments: displayComments.length,
-      rendered_comments: commentsToRender.length,
-      first_comment_time: commentsToRender[0]?.createdTime || commentsToRender[0]?.created_at || "",
-      last_comment_time: commentsToRender[commentsToRender.length - 1]?.createdTime || commentsToRender[commentsToRender.length - 1]?.created_at || "",
-    });
-  }, [activePostKey, activePostPostId, activeThread.error, activeThread.loading, commentsToRender, displayComments.length]);
-
   const getPostVisibleTime = useCallback((post = {}) => {
     const time = clean(
       post?.postCreatedTime ||
@@ -1561,28 +1512,8 @@ function SocialCommentsWorkspace({
         post?.comment_created_time ||
         ""
     );
-    if (import.meta.env.DEV) {
-      console.log("AI_POST_TIME_RENDER", {
-        post_id: clean(post?.postId || post?.post_id || post?.id || ""),
-        post_created_time: clean(post?.postCreatedTime || post?.post_created_time || ""),
-        real_comment_created_time: clean(post?.realCommentCreatedTime || post?.real_comment_created_time || ""),
-        comment_created_time: clean(post?.commentCreatedTime || post?.comment_created_time || ""),
-        rendered_label: time ? absoluteTime(time) : dash,
-      });
-    }
     return time;
   }, []);
-
-  useEffect(() => {
-    if (!productLinksDrawerPostKey) return;
-    console.info("DRAWER_OPEN_STATE", {
-      open: Boolean(productLinksDrawerPostKey),
-      drawerPostKey: clean(productLinksDrawerPostKey),
-      hasSnapshot: Boolean(productLinksDrawerPostSnapshot),
-      resolvedPostKey: clean(productLinksDrawerPost?.canonicalPostId || productLinksDrawerPost?.platformPostId || productLinksDrawerPost?.conversationId || productLinksDrawerPost?.postId || productLinksDrawerPost?.id || ""),
-      activePostKey,
-    });
-  }, [activePostKey, productLinksDrawerPost, productLinksDrawerPostKey, productLinksDrawerPostSnapshot]);
 
   const updateAutomationDraft = (patch = {}) => {
     const drawerKey = clean(automationDrawerPostKey || activePostKey);
@@ -1662,37 +1593,58 @@ function SocialCommentsWorkspace({
   };
 
   const loadAutomationConfig = useCallback(
-    async (drawerKey = "", postForAutomation = {}) => {
+    async (drawerKey = "", postForAutomation = {}, options = {}) => {
       const key = clean(drawerKey || automationDrawerPostKey || activePostKey);
       if (!key) return null;
+      const force = Boolean(options?.force);
+      if (!force && automationConfigCacheRef.current.has(key)) {
+        return automationConfigCacheRef.current.get(key);
+      }
+      if (!force && automationConfigInFlightRef.current.has(key)) {
+        return automationConfigInFlightRef.current.get(key);
+      }
       const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
-      const payload = await api.get(`/social-comments/automation/${encodeURIComponent(key)}`, {
+      const request = api.get(`/social-comments/automation/${encodeURIComponent(key)}`, {
         params: { tenant_id: resolvedTenantId, platform: platformForAutomation },
-      });
-      const config = payload?.config || payload?.data || payload || {};
-      const normalized = normalizeAutomationConfig(config, postForAutomation);
-      const savedConfig = {
-        config_id: clean(config?.id || config?.config_id || ""),
-        tenant_id: clean(config?.tenant_id || resolvedTenantId || ""),
-        platform: clean(config?.platform || platformForAutomation || "facebook") || "facebook",
-        saved_post_id: clean(config?.post_id || key),
-        enabled: Boolean(config?.enabled),
-        template_key: clean(config?.template_key || normalized.templateId || ""),
-        settings: config?.settings || {},
-        message_templates: config?.message_templates || {},
-        raw: config,
-      };
-      setAutomationSavedConfigs((current) => ({
-        ...current,
-        [key]: savedConfig,
-      }));
-      return { normalized, savedConfig };
+      })
+        .then((payload) => {
+          const config = payload?.config || payload?.data || payload || {};
+          const normalized = normalizeAutomationConfig(config, postForAutomation);
+          const savedConfig = {
+            config_id: clean(config?.id || config?.config_id || ""),
+            tenant_id: clean(config?.tenant_id || resolvedTenantId || ""),
+            platform: clean(config?.platform || platformForAutomation || "facebook") || "facebook",
+            saved_post_id: clean(config?.post_id || key),
+            enabled: Boolean(config?.enabled),
+            template_key: clean(config?.template_key || normalized.templateId || ""),
+            settings: config?.settings || {},
+            message_templates: config?.message_templates || {},
+            raw: config,
+          };
+          const result = { normalized, savedConfig };
+          automationConfigCacheRef.current.set(key, result);
+          setAutomationSavedConfigs((current) => ({
+            ...current,
+            [key]: savedConfig,
+          }));
+          return result;
+        })
+        .catch((error) => {
+          automationConfigCacheRef.current.set(key, null);
+          throw error;
+        })
+        .finally(() => {
+          automationConfigInFlightRef.current.delete(key);
+        });
+      automationConfigInFlightRef.current.set(key, request);
+      return request;
     },
     [activePostKey, activePostPlatform, automationDrawerPostKey, resolvedTenantId]
   );
 
   useEffect(() => {
     if (!activePostKey) return;
+    if (automationConfigCacheRef.current.has(activePostKey)) return;
     if (automationSavedConfigs[activePostKey]?.config_id) return;
     const postForAutomation = activeThreadPost || activePostDetails || activePost || {};
     void loadAutomationConfig(activePostKey, postForAutomation).catch(() => {});
@@ -1705,7 +1657,7 @@ function SocialCommentsWorkspace({
     const currentDraft = automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
     const safeDraftPatch = isEventLikeObject(draftPatch) ? null : draftPatch;
     const nextDraft = safeDraftPatch ? { ...currentDraft, ...safeDraftPatch } : currentDraft;
-    console.info("AUTOMATION_ENABLE_UI_CLICK", {
+    socialDebugLog("SOCIAL_COMMENT_UI_AUTOMATION_ENABLE_CLICK", {
       config_id: clean(automationSavedConfigs[drawerKey]?.config_id || ""),
       canonical_post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
       enabled_before: Boolean(currentDraft?.enabled),
@@ -1713,7 +1665,7 @@ function SocialCommentsWorkspace({
       trigger: safeDraftPatch ? "patched_save" : "save_button",
     });
     if (Object.prototype.hasOwnProperty.call(safeDraftPatch || {}, "enabled")) {
-      console.info("AUTOMATION_ENABLE_UI_CLICK", {
+      socialDebugLog("SOCIAL_COMMENT_UI_AUTOMATION_ENABLE_PATCH", {
         config_id: clean(automationSavedConfigs[drawerKey]?.config_id || ""),
         canonical_post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
         enabled_before: Boolean(currentDraft?.enabled),
@@ -1746,28 +1698,12 @@ function SocialCommentsWorkspace({
   const handleOpenProductLinksDrawer = (post = null, key = "") => {
     const drawerPostKey = clean(key || postKey(post || activePostDetails || activePost || {}));
     if (!drawerPostKey) return;
-    console.info("LINK_PRODUCTS_CLICK", {
+    socialDebugLog("POST_PRODUCT_LINKS_UI_OPEN_DRAWER", {
       drawerPostKey,
       clickedPostKey: clean(postKey(post || {})),
       activePostKey,
       activeItemId: clean(activePostDetails?.conversationId || activePostDetails?.postId || activePostDetails?.id || ""),
       selectedPostKey: clean(postKey(selectedPost || {})),
-    });
-    console.info("SELECTED_POST", {
-      selectedPost: selectedPost
-        ? {
-            key: clean(postKey(selectedPost || {})),
-            platform: clean(selectedPost?.platform || ""),
-            postId: clean(selectedPost?.postId || selectedPost?.post_id || selectedPost?.conversationId || selectedPost?.conversation_id || selectedPost?.id || ""),
-          }
-        : null,
-      activePost: activePostDetails
-        ? {
-            key: clean(postKey(activePostDetails || {})),
-            platform: clean(activePostDetails?.platform || ""),
-            postId: clean(activePostDetails?.postId || activePostDetails?.post_id || activePostDetails?.conversationId || activePostDetails?.conversation_id || activePostDetails?.id || ""),
-          }
-        : null,
     });
     setProductLinksDrawerPostSnapshot(post ? normalizePost(post) : null);
     setProductLinksDrawerPostKey(drawerPostKey);
@@ -1845,7 +1781,7 @@ function SocialCommentsWorkspace({
     const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
     const draft = draftOverride || automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
     const payload = serializeAutomationDraft(draft, postForAutomation);
-    console.info("AUTOMATION_ENABLE_API_REQUEST", {
+    socialDebugLog("SOCIAL_COMMENT_UI_AUTOMATION_API_REQUEST", {
       config_id: clean(automationSavedConfigs[drawerKey]?.config_id || ""),
       canonical_post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
       enabled_before: Boolean(automationSavedConfigs[drawerKey]?.enabled),
@@ -1862,6 +1798,7 @@ function SocialCommentsWorkspace({
         post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
         ...payload,
       });
+      automationConfigCacheRef.current.delete(drawerKey);
       const savedConfig = response?.config || response?.data || response || {};
       const normalized = normalizeAutomationConfig(savedConfig, postForAutomation);
       const verification = await loadAutomationConfig(drawerKey, postForAutomation);
@@ -2088,7 +2025,7 @@ function SocialCommentsWorkspace({
   const handlePreviewReply = async () => {
     const actionId = resolveSocialCommentActionId(actionableComment);
     const actionCandidates = getSocialCommentActionIdCandidates(actionableComment);
-    console.warn("[social-comments:action-id-debug]", {
+    socialDebugLog("SOCIAL_COMMENT_UI_ACTION_ID_DEBUG", {
       action: "preview_reply",
       candidate_ids: actionCandidates,
       rejected_small_numeric_ids: actionCandidates.filter(({ value }) => isSmallNumericId(value)),
@@ -2152,7 +2089,7 @@ function SocialCommentsWorkspace({
     const messageText = clean(replyText || suggestedReply);
     if (replyLoadingKey) return;
     const replyIdCandidates = getSocialCommentActionIdCandidates(comment);
-    console.warn("[social-comments:action-id-debug]", {
+    socialDebugLog("SOCIAL_COMMENT_UI_ACTION_ID_DEBUG", {
       action: "reply_send",
       candidate_ids: replyIdCandidates,
       rejected_small_numeric_ids: replyIdCandidates.filter(({ value }) => isSmallNumericId(value)),
@@ -2219,11 +2156,11 @@ function SocialCommentsWorkspace({
       return;
     }
     const debugData = getSocialCommentActionDebugData(clickedComment);
-    console.warn("[social-comments:private-action-click-debug]", {
+    socialDebugLog("SOCIAL_COMMENT_UI_PRIVATE_ACTION_CLICK", {
       ...debugData,
       resolved_id: actionId,
     });
-    console.warn("[social-comments:action-id-debug]", {
+    socialDebugLog("SOCIAL_COMMENT_UI_ACTION_ID_DEBUG", {
       action: "private_message",
       candidate_ids: actionCandidates,
       rejected_small_numeric_ids: actionCandidates.filter(({ value }) => isSmallNumericId(value)),
@@ -2324,14 +2261,6 @@ function SocialCommentsWorkspace({
 
   const firstMatchingComment = (predicate) => visibleComments.find(predicate) || actionableComment || null;
   const useVirtualPosts = normalizedPosts.length > 50;
-
-  useEffect(() => {
-    if (!DEBUG_SOCIAL_PERF) return;
-    console.log("[SocialCommentsWorkspace][rendered-rows]", {
-      posts: useVirtualPosts ? 50 : normalizedPosts.length,
-      comments: commentsToRender.length,
-    });
-  }, [commentsToRender.length, normalizedPosts.length, useVirtualPosts]);
 
   const renderCommentTags = (comment = {}) => {
     const tags = getCommentTags(comment);
