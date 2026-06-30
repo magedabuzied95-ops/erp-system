@@ -34,6 +34,7 @@ import {
   getBoxFrameLayout,
   getBoxTextLayout,
   getThermalLandscapeLabelLayout,
+  fitThermalSizeValueFontSize,
   fitThermalArticleValueFontSize,
   fitThermalColorValueFontSize,
   fitThermalTitleLayout,
@@ -1408,6 +1409,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const titleLayoutFit = fitThermalTitleLayout(productName, thermalLayout.titleCell.w - 1.2, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
   const titleLines = titleLayoutFit.lines;
   const titleFontSize = titleLayoutFit.fontSize;
+  const sizeValueFontSize = fitThermalSizeValueFontSize(sizeValue, thermalLayout.sizeValueWidth, thermalLayout.sizeValueFontSize);
   const colorValueFontSize = fitThermalColorValueFontSize(colorValue, thermalLayout.colorValueWidth, thermalLayout.colorValueFontSize);
   const smallLabelFontSize = Math.max(thermalLayout.colorLabelFontSize, 4.8);
   const titleBadgeStyle = {
@@ -1520,7 +1522,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                   {t("products.barcodeLabels.size")}
                 </div>
                 <div className="self-stretch w-px bg-white/45" aria-hidden="true" />
-                <div className="truncate text-center font-black leading-none text-white" style={{ fontSize: `${thermalLayout.sizeValueFontSize}px` }}>
+                <div className="truncate text-center font-black leading-none text-white" style={{ fontSize: `${sizeValueFontSize}px` }}>
                   {sizeValue}
                 </div>
               </div>
