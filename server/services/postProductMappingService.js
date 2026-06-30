@@ -1470,7 +1470,7 @@ export const resolveProductMappingForSiblingPost = async ({
   });
   const siblingResult = await db.query(
     `
-    WITH sibling_candidates AS (
+    WITH sibling_candidates_raw AS (
       SELECT
         COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) AS sibling_post_id,
         COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) AS mapped_post_id,
@@ -1614,6 +1614,59 @@ export const resolveProductMappingForSiblingPost = async ({
         AND ppl.platform = $2::text
         AND spa.alias_value = ANY($8::text[])
         AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
+    ),
+    sibling_candidates AS (
+      SELECT
+        sibling_post_id,
+        mapped_post_id,
+        mapped_media_id,
+        product_id,
+        product_name,
+        permalink_url,
+        mapping_source,
+        is_primary,
+        updated_at,
+        source_id_match,
+        image_url_match,
+        text_hash_match,
+        slug_match,
+        CASE
+          WHEN mapping_source = 'marketing_post_product_links' AND product_id IS NOT NULL THEN 'existing_manual_mapping'
+          ELSE match_reason
+        END AS match_reason,
+        CASE
+          WHEN mapping_source = 'marketing_post_product_links' AND product_id IS NOT NULL THEN 50
+          ELSE match_score
+        END AS match_score,
+        CASE
+          WHEN mapping_source = 'marketing_post_product_links' AND product_id IS NOT NULL THEN 'existing_manual_mapping'
+          WHEN sibling_post_id = '' THEN 'missing_sibling_post_id'
+          WHEN match_score <= 0 THEN 'no_match_signal'
+          ELSE ''
+        END AS rejected_reason
+      FROM sibling_candidates_raw
+      WHERE
+        (mapping_source = 'marketing_post_product_links' AND product_id IS NOT NULL)
+        OR (
+          sibling_post_id <> ''
+          AND (
+            text_hash_match
+            OR image_url_match
+            OR source_id_match
+            OR slug_match
+            OR match_score > 0
+          )
+        )
+    ),
+    sibling_candidate_counts AS (
+      SELECT
+        COUNT(*)::int AS row_count_before_filter,
+        COUNT(*) FILTER (WHERE mapping_source = 'marketing_post_product_links' AND product_id IS NOT NULL)::int AS existing_manual_mapping_count
+      FROM sibling_candidates_raw
+    ),
+    sibling_candidate_filtered_counts AS (
+      SELECT COUNT(*)::int AS row_count_after_filter
+      FROM sibling_candidates
     )
     SELECT
       sibling_post_id,
@@ -1629,12 +1682,14 @@ export const resolveProductMappingForSiblingPost = async ({
       slug_match,
       match_reason,
       match_score,
-      CASE
-        WHEN sibling_post_id = '' THEN 'missing_sibling_post_id'
-        WHEN match_score <= 0 THEN 'no_match_signal'
-        ELSE ''
-      END AS rejected_reason
-    FROM sibling_candidates
+      rejected_reason,
+      sibling_candidate_counts.row_count_before_filter,
+      sibling_candidate_filtered_counts.row_count_after_filter,
+      sibling_candidate_counts.existing_manual_mapping_count
+    FROM sibling_candidate_counts
+    CROSS JOIN sibling_candidate_filtered_counts
+    LEFT JOIN sibling_candidates
+      ON TRUE
     ORDER BY match_score DESC, is_primary DESC, updated_at DESC, sibling_post_id ASC
     `,
     params
@@ -1654,9 +1709,34 @@ export const resolveProductMappingForSiblingPost = async ({
     });
     return { rows: [] };
   });
-  const siblingCandidates = Array.isArray(siblingResult.rows) ? siblingResult.rows : [];
-  const siblingRow = siblingCandidates.find((candidate) => text(candidate.sibling_post_id || "") && Number(candidate.match_score || 0) > 0) || null;
+  const siblingCandidateRows = Array.isArray(siblingResult.rows) ? siblingResult.rows : [];
+  const siblingFilterDebug = {
+    row_count_before_filter: Number(siblingCandidateRows[0]?.row_count_before_filter || 0) || 0,
+    row_count_after_filter: Number(siblingCandidateRows[0]?.row_count_after_filter || 0) || 0,
+    existing_manual_mapping_count: Number(siblingCandidateRows[0]?.existing_manual_mapping_count || 0) || 0,
+  };
+  const siblingCandidates = siblingCandidateRows.filter((candidate) => (
+    text(candidate.sibling_post_id || "")
+    || text(candidate.mapped_post_id || "")
+    || Number(candidate.product_id || 0) > 0
+    || text(candidate.mapping_source || "")
+  ));
+  const siblingRow = siblingCandidates.find((candidate) => (
+    text(candidate.sibling_post_id || "")
+    && (
+      (text(candidate.mapping_source || "") === "marketing_post_product_links" && Number(candidate.product_id || 0) > 0)
+      || Number(candidate.match_score || 0) > 0
+    )
+  )) || null;
   if (!siblingRow?.sibling_post_id) {
+    console.info("POST_PRODUCT_LINKS_SIBLING_CANDIDATE_FILTER_DEBUG", {
+      tenant_id: safeTenantId || null,
+      platform: normalizedPlatform,
+      post_id: text(postId || row?.post_id || post?.post_id || ""),
+      row_count_before_filter: siblingFilterDebug.row_count_before_filter,
+      row_count_after_filter: siblingFilterDebug.row_count_after_filter,
+      existing_manual_mapping_count: siblingFilterDebug.existing_manual_mapping_count,
+    });
     const candidatePreview = siblingCandidates.slice(0, 10).map((candidate) => ({
       mapped_post_id: text(candidate.mapped_post_id || ""),
       mapped_media_id: text(candidate.mapped_media_id || ""),
