@@ -44,7 +44,19 @@ const tenantIdFromAuth = () => {
 };
 
 const socialPostIdentity = (item = {}) =>
-  clean(item?.canonical_post_id || item?.final_canonical_post_id || item?.post_id || item?.conversation_id || item?.id || item?.comment_id || `${clean(item?.platform || "social")}:${clean(item?.post_id || item?.comment_id || "")}`);
+  clean(
+    item?.platform_post_id ||
+      item?.sourcePostId ||
+      item?.post_id ||
+      item?.canonical_post_id ||
+      item?.final_canonical_post_id ||
+      item?.permalink_url ||
+      item?.post_permalink_url ||
+      item?.conversation_id ||
+      item?.id ||
+      item?.comment_id ||
+      `${clean(item?.platform || "social")}:${clean(item?.post_id || item?.comment_id || "")}`
+  );
 
 const matchesValue = (left = "", right = "") => Boolean(clean(left)) && clean(left) === clean(right);
 
@@ -466,6 +478,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
 
   useEffect(() => {
     if (!selectedPostFromParams) return;
+    if (selectedPostIdentity) return;
     if (selectedPostIdentity === socialPostIdentity(selectedPostFromParams)) return;
     if (isUrlLockedPost && resolvedPostByUrl) return;
     setSelectedPost(normalizeSocialPostDisplay(selectedPostFromParams));

@@ -235,6 +235,17 @@ const normalizePost = (raw) => {
   const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
   const mappingSummary = post.mapping_summary && typeof post.mapping_summary === "object" && !Array.isArray(post.mapping_summary) ? post.mapping_summary : {};
   const attachmentImage = getAttachmentImage(post);
+  const productLinkSource = clean(post.product_link_source || metadata.product_link_source || "none") || "none";
+  const hasDirectProductLink = Boolean(
+    post.has_direct_product_link ??
+    metadata.has_direct_product_link ??
+    (productLinkSource === "direct")
+  );
+  const hasSiblingProductContext = Boolean(
+    post.has_sibling_product_context ??
+    metadata.has_sibling_product_context ??
+    (productLinkSource === "sibling")
+  );
   const linkedProducts = Array.isArray(post.linked_products)
     ? post.linked_products
     : Array.isArray(metadata.linked_products)
@@ -252,6 +263,20 @@ const normalizePost = (raw) => {
       0
   ) || 0;
   const primaryLinkedProduct = post.primary_linked_product || post.primary_product || metadata.primary_linked_product || metadata.primary_product || mappingSummary.primary_linked_product || mappingSummary.primary_product || linkedProducts[0] || null;
+  const directLinkedProducts = hasDirectProductLink ? linkedProducts : [];
+  const directLinkedProductsCount = hasDirectProductLink
+    ? (Number(
+      post.linked_products_count ??
+        post.product_links_count ??
+        metadata.linked_products_count ??
+        metadata.product_links_count ??
+        linkedProducts.length ??
+        0
+    ) || directLinkedProducts.length || 0)
+    : 0;
+  const directPrimaryLinkedProduct = hasDirectProductLink
+    ? (post.primary_linked_product || metadata.primary_linked_product || linkedProducts[0] || primaryLinkedProduct || null)
+    : null;
   const mappedProductName = clean(primaryLinkedProduct?.name || primaryLinkedProduct?.title || primaryLinkedProduct?.product_name || "");
   const mappedProductPrice = clean(primaryLinkedProduct?.final_price || primaryLinkedProduct?.sale_price || primaryLinkedProduct?.price || primaryLinkedProduct?.selling_price || "");
   const mappedProductSizes = Array.isArray(primaryLinkedProduct?.available_sizes)
@@ -352,8 +377,20 @@ const normalizePost = (raw) => {
     linked_products_count: linkedProductsCount,
     linkedProducts,
     linked_products: linkedProducts,
+    directLinkedProductsCount,
+    direct_linked_products_count: directLinkedProductsCount,
+    directLinkedProducts,
+    direct_linked_products: directLinkedProducts,
     primaryLinkedProduct,
     primary_linked_product: primaryLinkedProduct,
+    directPrimaryLinkedProduct,
+    direct_primary_linked_product: directPrimaryLinkedProduct,
+    productLinkSource,
+    product_link_source: productLinkSource,
+    hasDirectProductLink,
+    has_direct_product_link: hasDirectProductLink,
+    hasSiblingProductContext,
+    has_sibling_product_context: hasSiblingProductContext,
     mapping_summary: mappingSummary,
     duplicateIdentity: post.duplicate_identity || metadata.duplicate_identity || null,
     duplicatePostIds: Array.isArray(post.compared_post_ids) ? post.compared_post_ids : Array.isArray(metadata.compared_post_ids) ? metadata.compared_post_ids : [],
@@ -464,7 +501,43 @@ const normalizeSocialPostDisplay = (raw = {}) => {
   };
 };
 
-const postKey = (item = {}) => clean(item?.canonicalPostId || item?.platformPostId || item?.conversationId || item?.postId || item?.id || "");
+const postKey = (item = {}) =>
+  clean(
+    item?.platformPostId ||
+      item?.sourcePostId ||
+      item?.canonicalPostId ||
+      item?.finalCanonicalPostId ||
+      item?.display_permalink ||
+      item?.permalinkUrl ||
+      item?.postId ||
+      item?.id ||
+      ""
+  );
+
+const postIdentityFingerprint = (item = {}) =>
+  [
+    clean(item?.platform || ""),
+    clean(item?.platformPostId || ""),
+    clean(item?.sourcePostId || ""),
+    clean(item?.canonicalPostId || item?.finalCanonicalPostId || ""),
+    clean(item?.permalinkUrl || item?.display_permalink || ""),
+  ].join("|");
+
+const findMatchingNormalizedPost = (items = [], target = null) => {
+  const normalizedTarget = normalizePost(target || {});
+  const targetKey = postKey(normalizedTarget);
+  const targetFingerprint = postIdentityFingerprint(normalizedTarget);
+  const list = Array.isArray(items) ? items : [];
+  if (targetFingerprint) {
+    const exact = list.find((item) => postIdentityFingerprint(item) === targetFingerprint);
+    if (exact) return exact;
+  }
+  if (targetKey) {
+    const keyed = list.find((item) => postKey(item) === targetKey);
+    if (keyed) return keyed;
+  }
+  return normalizedTarget;
+};
 
 const commentKey = (item = {}) => clean(item?.id || "");
 
@@ -1232,15 +1305,16 @@ function SocialCommentsWorkspace({
   );
 
   const selectedPostKey = clean(postKey(normalizePost(selectedPost || {})));
-  const activePost = normalizedPosts.find((item) => postKey(item) === selectedPostKey) || normalizePost(selectedPost || normalizedPosts[0] || null);
+  const activePost = selectedPost ? findMatchingNormalizedPost(normalizedPosts, selectedPost) : normalizePost(normalizedPosts[0] || null);
   const activePostKey = clean(postKey(activePost));
   const activeThread = selectedThread || { post: null, comments: [], loading: false, error: "" };
   const comments = useMemo(() => (Array.isArray(activeThread.comments) ? activeThread.comments.filter(Boolean) : []), [activeThread.comments]);
   const normalizedComments = useMemo(() => comments.map((comment) => normalizeComment(comment)).filter(Boolean), [comments]);
   const activeThreadPostKey = clean(postKey(normalizePost(activeThread.post || {})));
-  const activeThreadPost = normalizedPosts.find((item) => postKey(item) === activeThreadPostKey) || normalizePost(activeThread.post || null);
-  const activePostDetails = normalizePost(activeThreadPost || activePost || null);
-  const activePostDisplay = useMemo(() => normalizeSocialPostDisplay(activeThreadPost || activePostDetails || activePost || {}), [activeThreadPost, activePostDetails, activePost]);
+  const activeThreadPost = activeThread.post ? findMatchingNormalizedPost(normalizedPosts, activeThread.post) : normalizePost(null);
+  const syncedThreadPost = activeThreadPostKey && activeThreadPostKey === activePostKey ? activeThreadPost : null;
+  const activePostDetails = normalizePost(syncedThreadPost || activePost || null);
+  const activePostDisplay = useMemo(() => normalizeSocialPostDisplay(syncedThreadPost || activePostDetails || activePost || {}), [syncedThreadPost, activePostDetails, activePost]);
   const activeDisplayPost = activeThreadPost || activePostDetails || activePost || {};
   const activeDisplayLinkedProducts = getPostLinkedProducts(activeDisplayPost);
   const activeAutomationDraftKey = automationDrawerPostKey || activePostKey;
@@ -2340,19 +2414,19 @@ function SocialCommentsWorkspace({
   };
 
   return (
-    <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.035] text-slate-900 shadow-[0_16px_50px_rgba(0,0,0,0.22)] backdrop-blur">
+    <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/55 text-white shadow-[0_16px_50px_rgba(0,0,0,0.22)] backdrop-blur">
       <div className="grid h-full min-h-0 w-full min-w-0 gap-2.5 p-2.5 min-[1024px]:grid-cols-[312px_minmax(0,1fr)] min-[1280px]:grid-cols-[312px_minmax(0,1fr)_348px]">
-        <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-[#E2E8F0] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-          <div className="flex items-center justify-between gap-2 border-b border-[#E2E8F0] px-2.5 py-2.5">
+        <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 shadow-[0_10px_30px_rgba(0,0,0,0.16)]">
+          <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2.5 py-2.5">
             <div className="min-w-0">
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Social Comments</div>
-              <div className="mt-1 text-sm font-black text-slate-900">Posts</div>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-cyan-100">Social Comments</div>
+              <div className="mt-1 text-sm font-black text-white">Posts</div>
             </div>
             <button
               type="button"
               onClick={() => void handleRefresh()}
               disabled={loading || refreshing}
-              className="inline-flex h-8 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-[11px] font-black text-slate-900 shadow-sm disabled:opacity-50"
+              className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-[11px] font-black text-white shadow-sm disabled:opacity-50"
             >
               {loading || refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
               Refresh
@@ -2361,12 +2435,12 @@ function SocialCommentsWorkspace({
 
           <div className="flex-1 min-h-0 overflow-y-auto p-1.5">
             {!normalizedPosts.length && !loading ? (
-              <div className="rounded-2xl border border-dashed border-[#E2E8F0] bg-[#F8FAFC] p-6 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-[#E2E8F0] bg-white text-slate-400">
+              <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-6 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.05] text-slate-400">
                   <Sparkles className="h-5 w-5" />
                 </div>
-                <div className="mt-3 text-sm font-black text-slate-900">لا توجد منشورات بعد</div>
-                <div className="mt-1 text-xs text-slate-500">سيظهر هنا المنشور المرتبط بالتعليقات عندما يتوفر</div>
+                <div className="mt-3 text-sm font-black text-white">لا توجد منشورات بعد</div>
+                <div className="mt-1 text-xs text-slate-400">سيظهر هنا المنشور المرتبط بالتعليقات عندما يتوفر</div>
               </div>
             ) : null}
 
@@ -2383,6 +2457,23 @@ function SocialCommentsWorkspace({
                     const active = activePostKey === key;
                     const meta = platformMeta(post.platform);
                     const thumb = post.thumbnailUrl;
+                    socialDebugLog("SOCIAL_POST_CARD_ID_TRACE", {
+                      card_post_id: clean(post?.postId || ""),
+                      card_platform_post_id: clean(post?.platformPostId || ""),
+                      card_canonical_post_id: clean(post?.canonicalPostId || ""),
+                      card_permalink_url: clean(post?.permalinkUrl || ""),
+                      card_image_url: clean(thumb || ""),
+                      selected_post_id: clean(activePost?.postId || activePost?.canonicalPostId || ""),
+                      open_post_url: clean(resolvePostOpenLink(post, normalizeSocialPostDisplay(post)).finalUrl || ""),
+                    });
+                    socialDebugLog("SOCIAL_POST_CARD_PRODUCT_LINK_TRACE", {
+                      canonical_post_id: clean(post?.canonicalPostId || ""),
+                      platform_post_id: clean(post?.platformPostId || post?.postId || ""),
+                      displayed_product_name: clean(post?.directPrimaryLinkedProduct?.name || post?.directPrimaryLinkedProduct?.title || post?.directPrimaryLinkedProduct?.product_name || ""),
+                      product_link_source: clean(post?.productLinkSource || "none"),
+                      has_direct_product_link: Boolean(post?.hasDirectProductLink),
+                      has_sibling_product_context: Boolean(post?.hasSiblingProductContext),
+                    });
                     let hoverTimer = null;
                     const schedulePrefetch = () => {
                       if (!onPrefetchPost) return;
@@ -2399,7 +2490,7 @@ function SocialCommentsWorkspace({
                         key={key}
                         role={onSelectPost ? "button" : undefined}
                         tabIndex={onSelectPost ? 0 : undefined}
-                        onClick={onSelectPost ? () => onSelectPost(post.raw, key) : undefined}
+                        onClick={onSelectPost ? () => onSelectPost(post, key) : undefined}
                         onMouseEnter={onPrefetchPost ? schedulePrefetch : undefined}
                         onMouseLeave={onPrefetchPost ? clearPrefetch : undefined}
                         onFocus={onPrefetchPost ? schedulePrefetch : undefined}
@@ -2407,24 +2498,24 @@ function SocialCommentsWorkspace({
                         onKeyDown={
                           onSelectPost
                             ? (event) => {
-                                if (event.key === "Enter" || event.key === " ") onSelectPost(post.raw, key);
+                                if (event.key === "Enter" || event.key === " ") onSelectPost(post, key);
                               }
                             : undefined
                         }
-                        className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(15,23,42,0.04)] ${
-                          active ? "border-[#CBD5E1] bg-white ring-1 ring-slate-200" : "border-[#E2E8F0] bg-white hover:border-slate-300"
+                        className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(0,0,0,0.16)] ${
+                          active ? "border-cyan-300/30 bg-white/[0.08] ring-1 ring-cyan-300/20" : "border-white/10 bg-white/[0.04] hover:border-white/20"
                         }`}
                         style={{ minHeight: "176px" }}
                       >
                         <div className="flex gap-3">
-                          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-slate-50">
+                          <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
                             {thumb ? (
-                              <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
+                              <img key={`${clean(post?.canonicalPostId || key)}:${clean(thumb)}`} src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
                             ) : (
-                              <div className="grid h-full w-full place-items-center bg-slate-50 text-slate-400">
+                              <div className="grid h-full w-full place-items-center bg-white/[0.04] text-slate-400">
                                 <div className="flex flex-col items-center gap-1">
                                   <ImageIcon className="h-4 w-4" />
-                                  <span className="rounded-full border border-[#E2E8F0] bg-white px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-500">
+                                  <span className="rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-400">
                                     لا توجد صورة
                                   </span>
                                 </div>
@@ -2434,36 +2525,36 @@ function SocialCommentsWorkspace({
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0 flex-1">
-                                <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{post.caption || "Post"}</div>
+                                <div className="line-clamp-2 text-sm font-black leading-6 text-white">{post.caption || "Post"}</div>
                               </div>
                               <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                             </div>
-                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
-                              <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{post.commentsCount} comments</span>
-                              <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-[#E2E8F0] bg-white text-slate-600"}`}>{post.newCount} new</span>
+                            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
+                              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1">{post.commentsCount} comments</span>
+                              <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>{post.newCount} new</span>
                               <span
-                                title={resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).hint}
-                                className={`rounded-full border px-2.5 py-1 ${automationToneClass(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).tone)}`}
+                                title={resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).hint}
+                                className={`rounded-full border px-2.5 py-1 ${automationToneClass(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).tone)}`}
                               >
-                                {resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).label}
+                                {resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).label}
                               </span>
-                              {post.linkedProductsCount > 0 ? (
-                                <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-700">
-                                  ✓ {post.primaryLinkedProduct?.name || "Linked Product"}
-                                  {post.linkedProductsCount > 1 ? ` +${post.linkedProductsCount - 1}` : ""}
-                                </span>
-                              ) : (
-                                <span className="rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-amber-700">⚠ No Product Linked</span>
-                              )}
+                              {post.hasDirectProductLink ? (
+                                <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-100">
+                                ✓ {post.directPrimaryLinkedProduct?.name || post.directPrimaryLinkedProduct?.title || post.directPrimaryLinkedProduct?.product_name || "Linked Product"}
+                                {post.directLinkedProductsCount > 1 ? ` +${post.directLinkedProductsCount - 1}` : ""}
+                              </span>
+                            ) : (
+                              <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">⚠ No Product Linked</span>
+                            )}
                               {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
-                              {post.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
+                              {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
                               <button
                                 type="button"
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   handleOpenAutomationDrawer(post, key);
                                 }}
-                                className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700"
+                                className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-slate-200"
                               >
                                 Automation
                               </button>
@@ -2473,7 +2564,7 @@ function SocialCommentsWorkspace({
                                   event.stopPropagation();
                                   handleOpenProductLinksDrawer(post, key);
                                 }}
-                                className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700"
+                                className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-cyan-100"
                               >
                                 Link Products
                               </button>
@@ -2501,6 +2592,23 @@ function SocialCommentsWorkspace({
                   const active = activePostKey === key;
                   const meta = platformMeta(post.platform);
                   const thumb = post.thumbnailUrl;
+                  socialDebugLog("SOCIAL_POST_CARD_ID_TRACE", {
+                    card_post_id: clean(post?.postId || ""),
+                    card_platform_post_id: clean(post?.platformPostId || ""),
+                    card_canonical_post_id: clean(post?.canonicalPostId || ""),
+                    card_permalink_url: clean(post?.permalinkUrl || ""),
+                    card_image_url: clean(thumb || ""),
+                    selected_post_id: clean(activePost?.postId || activePost?.canonicalPostId || ""),
+                    open_post_url: clean(resolvePostOpenLink(post, normalizeSocialPostDisplay(post)).finalUrl || ""),
+                  });
+                  socialDebugLog("SOCIAL_POST_CARD_PRODUCT_LINK_TRACE", {
+                    canonical_post_id: clean(post?.canonicalPostId || ""),
+                    platform_post_id: clean(post?.platformPostId || post?.postId || ""),
+                    displayed_product_name: clean(post?.directPrimaryLinkedProduct?.name || post?.directPrimaryLinkedProduct?.title || post?.directPrimaryLinkedProduct?.product_name || ""),
+                    product_link_source: clean(post?.productLinkSource || "none"),
+                    has_direct_product_link: Boolean(post?.hasDirectProductLink),
+                    has_sibling_product_context: Boolean(post?.hasSiblingProductContext),
+                  });
                   let hoverTimer = null;
                   const schedulePrefetch = () => {
                     if (!onPrefetchPost) return;
@@ -2517,7 +2625,7 @@ function SocialCommentsWorkspace({
                       key={key}
                       role={onSelectPost ? "button" : undefined}
                       tabIndex={onSelectPost ? 0 : undefined}
-                      onClick={onSelectPost ? () => onSelectPost(post.raw, key) : undefined}
+                      onClick={onSelectPost ? () => onSelectPost(post, key) : undefined}
                       onMouseEnter={onPrefetchPost ? schedulePrefetch : undefined}
                       onMouseLeave={onPrefetchPost ? clearPrefetch : undefined}
                       onFocus={onPrefetchPost ? schedulePrefetch : undefined}
@@ -2525,23 +2633,23 @@ function SocialCommentsWorkspace({
                       onKeyDown={
                         onSelectPost
                           ? (event) => {
-                              if (event.key === "Enter" || event.key === " ") onSelectPost(post.raw, key);
+                              if (event.key === "Enter" || event.key === " ") onSelectPost(post, key);
                             }
                           : undefined
                       }
-                      className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(15,23,42,0.04)] ${
-                        active ? "border-[#CBD5E1] bg-white ring-1 ring-slate-200" : "border-[#E2E8F0] bg-white hover:border-slate-300"
+                      className={`rounded-2xl border p-2.5 transition shadow-[0_8px_24px_rgba(0,0,0,0.16)] ${
+                        active ? "border-cyan-300/30 bg-white/[0.08] ring-1 ring-cyan-300/20" : "border-white/10 bg-white/[0.04] hover:border-white/20"
                       }`}
                     >
                       <div className="flex gap-3">
-                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-slate-50">
+                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
                           {thumb ? (
-                            <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
+                            <img key={`${clean(post?.canonicalPostId || key)}:${clean(thumb)}`} src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" />
                           ) : (
-                            <div className="grid h-full w-full place-items-center bg-slate-50 text-slate-400">
+                            <div className="grid h-full w-full place-items-center bg-white/[0.04] text-slate-400">
                               <div className="flex flex-col items-center gap-1">
                                 <ImageIcon className="h-4 w-4" />
-                                <span className="rounded-full border border-[#E2E8F0] bg-white px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-500">
+                                <span className="rounded-full border border-white/10 bg-white/[0.06] px-1.5 py-0.5 text-[8px] font-black tracking-[0.08em] text-slate-400">
                                   لا توجد صورة
                                 </span>
                               </div>
@@ -2551,36 +2659,36 @@ function SocialCommentsWorkspace({
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0 flex-1">
-                              <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{post.caption || "Post"}</div>
+                              <div className="line-clamp-2 text-sm font-black leading-6 text-white">{post.caption || "Post"}</div>
                             </div>
                             <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
-                            <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{post.commentsCount} comments</span>
-                            <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-[#E2E8F0] bg-white text-slate-600"}`}>{post.newCount} new</span>
+                          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
+                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1">{post.commentsCount} comments</span>
+                            <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>{post.newCount} new</span>
                             <span
-                              title={resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).hint}
-                              className={`rounded-full border px-2.5 py-1 ${automationToneClass(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).tone)}`}
+                              title={resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).hint}
+                              className={`rounded-full border px-2.5 py-1 ${automationToneClass(resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).tone)}`}
                             >
-                              {resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.linkedProductsCount }).label}
+                              {resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).label}
                             </span>
-                            {post.linkedProductsCount > 0 ? (
-                              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-700">
-                                ✓ {post.primaryLinkedProduct?.name || "Linked Product"}
-                                {post.linkedProductsCount > 1 ? ` +${post.linkedProductsCount - 1}` : ""}
+                            {post.hasDirectProductLink ? (
+                              <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-100">
+                                ✓ {post.directPrimaryLinkedProduct?.name || post.directPrimaryLinkedProduct?.title || post.directPrimaryLinkedProduct?.product_name || "Linked Product"}
+                                {post.directLinkedProductsCount > 1 ? ` +${post.directLinkedProductsCount - 1}` : ""}
                               </span>
                             ) : (
-                              <span className="rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-amber-700">⚠ No Product Linked</span>
+                              <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">⚠ No Product Linked</span>
                             )}
                             {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
-                            {post.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
+                            {post.needsReply ? <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">Needs reply</span> : null}
                             <button
                               type="button"
                               onClick={(event) => {
                                 event.stopPropagation();
                                 handleOpenAutomationDrawer(post, key);
                               }}
-                              className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-slate-700"
+                                className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-slate-200"
                             >
                               Automation
                             </button>
@@ -2590,7 +2698,7 @@ function SocialCommentsWorkspace({
                                 event.stopPropagation();
                                 handleOpenProductLinksDrawer(post, key);
                               }}
-                              className="rounded-full border border-cyan-200 bg-cyan-50 px-2.5 py-1 text-cyan-700"
+                                className="rounded-full border border-cyan-300/20 bg-cyan-400/10 px-2.5 py-1 text-cyan-100"
                             >
                               Link Products
                             </button>
@@ -2599,7 +2707,7 @@ function SocialCommentsWorkspace({
                             {(() => {
                               const visibleTime = getPostVisibleTime(post);
                               return (
-                                <span className="inline-flex items-center gap-1 rounded-xl border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
+                                <span className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.05] px-2.5 py-1 text-slate-300">
                                   <Clock3 className="h-3.5 w-3.5" />
                                   {visibleTime ? absoluteTime(visibleTime) : dash}
                                 </span>
@@ -2619,7 +2727,7 @@ function SocialCommentsWorkspace({
                   type="button"
                   onClick={onLoadMore}
                   disabled={loadingMore}
-                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-900 shadow-sm disabled:opacity-50"
+                  className="inline-flex h-9 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-white shadow-sm disabled:opacity-50"
                 >
                   {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                   Load more
@@ -2629,16 +2737,16 @@ function SocialCommentsWorkspace({
           </div>
         </aside>
 
-        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-[#E2E8F0] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+        <main className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 shadow-[0_10px_30px_rgba(0,0,0,0.16)]">
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="border-b border-[#E2E8F0] p-3">
+            <div className="border-b border-white/10 p-3">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">
                     <ArrowUpRight className="h-3.5 w-3.5" />
                     Post Workspace
                   </div>
-                  <h2 className="mt-1 line-clamp-2 text-2xl font-black leading-8 text-slate-900 min-[1600px]:text-3xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
+                  <h2 className="mt-1 line-clamp-2 text-2xl font-black leading-8 text-white min-[1600px]:text-3xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     {activePostMediaBadge ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostMediaBadge.className}`}>{activePostMediaBadge.label}</span> : activePostType ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostType.className}`}>{activePostType.label}</span> : null}
@@ -2785,7 +2893,7 @@ function SocialCommentsWorkspace({
 
             <div className="grid min-h-0 flex-1 gap-2.5 p-3 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(0,348px)]">
               <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 overflow-hidden">
-                <div className="overflow-hidden rounded-[24px] border border-[#E2E8F0] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+                <div className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
                   <button
                     type="button"
                     onClick={handleOpenPost}
@@ -2849,11 +2957,11 @@ function SocialCommentsWorkspace({
                       </div>
                     </div>
 
-                    <div className="rounded-[22px] border border-[#E2E8F0] bg-[#F8FAFC] p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.04)]">
+                    <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
-                          <div className="mt-1 text-sm font-black text-slate-900">{activeProductCard.productName || "Linked product"}</div>
+                          <div className="mt-1 text-sm font-black text-white">{activeProductCard.productName || "Linked product"}</div>
                           <div className="mt-1 text-xs font-semibold text-slate-500">
                             {activeProductCard.productBrand || dash}
                           </div>
@@ -2875,7 +2983,7 @@ function SocialCommentsWorkspace({
                         )}
                       </div>
                       {activeProductCard.productImage ? (
-                        <div className="mt-3 overflow-hidden rounded-2xl border border-[#E2E8F0] bg-white">
+                        <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
                           <img src={activeProductCard.productImage} alt="" className="h-40 w-full object-cover" loading="lazy" />
                         </div>
                       ) : null}
