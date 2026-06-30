@@ -1226,6 +1226,25 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     }).catch(() => null)
     : null;
   const appendMappingSummary = (value = {}) => {
+    const directLinkedProducts = Array.isArray(mappingSummary?.linked_products) ? mappingSummary.linked_products : [];
+    const directLinkedProductsCount = Number(mappingSummary?.count || directLinkedProducts.length || 0) || 0;
+    const hasDirectProductLink = directLinkedProductsCount > 0;
+    const genericProductSignals = [
+      value.product_id,
+      value.product_name,
+      value.primary_product?.product_id,
+      value.primary_product?.id,
+      safeRow.product_id,
+      safeRow.product_name,
+      safeRow.primary_product?.product_id,
+      safeRow.primary_product?.id,
+      metadata.product_id,
+      metadata.product_name,
+      metadata.primary_product?.product_id,
+      metadata.primary_product?.id,
+    ].some((entry) => text(entry || ""));
+    const hasSiblingProductContext = !hasDirectProductLink && genericProductSignals;
+    const productLinkSource = hasDirectProductLink ? "direct" : (hasSiblingProductContext ? "sibling" : "none");
     const permalinkFields = resolveHydratedPermalinkFields({ value, safeRow, metadata, canonicalIdentity });
     console.info("SOCIAL_POST_PERMALINK_HYDRATED", {
       post_id: text(value.post_id || safeRow.post_id || safeRow.conversation_id || ""),
@@ -1254,7 +1273,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         post_created_time: value.post_created_time || safeRow.post_created_time || "",
       },
     }),
-    linked_products: mappingSummary?.linked_products || [],
+    linked_products: directLinkedProducts,
     primary_linked_product: mappingSummary?.primary_product || null,
     primary_product: mappingSummary?.primary_product || null,
     primary_product_name: text(mappingSummary?.primary_product?.name || mappingSummary?.primary_product?.title || mappingSummary?.primary_product?.product_name || ""),
@@ -1266,8 +1285,11 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     product_storefront_url: text(mappingSummary?.primary_product?.storefront_url || mappingSummary?.primary_product?.product_url || value.product_storefront_url || safeRow.product_storefront_url || ""),
     product_sizes: text(mappingSummary?.primary_product?.available_sizes?.join ? mappingSummary.primary_product.available_sizes.join(", ") : mappingSummary?.primary_product?.sizes || value.product_sizes || safeRow.product_sizes || ""),
     product_colors: text(mappingSummary?.primary_product?.available_colors?.join ? mappingSummary.primary_product.available_colors.join(", ") : mappingSummary?.primary_product?.colors || value.product_colors || safeRow.product_colors || ""),
-    linked_products_count: Number(mappingSummary?.count || 0) || 0,
-    product_links_count: Number(mappingSummary?.count || 0) || 0,
+    linked_products_count: directLinkedProductsCount,
+    product_links_count: directLinkedProductsCount,
+    product_link_source: productLinkSource,
+    has_direct_product_link: hasDirectProductLink,
+    has_sibling_product_context: hasSiblingProductContext,
     mapping_summary: mappingSummary || null,
     caption: text(value.caption || value.post_caption || value.post_message || safeRow.caption || safeRow.post_caption || safeRow.post_message || metadata.caption || metadata.post_caption || metadata.post_message || ""),
     post_caption: text(value.post_caption || safeRow.post_caption || metadata.post_caption || value.post_message || ""),
@@ -1290,7 +1312,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     ),
     post_permalink: permalinkFields.post_permalink,
     comments_count: Number(value.comments_count ?? safeRow.comments_count ?? metadata.comments_count ?? 0) || 0,
-    linked_products: mappingSummary?.linked_products || [],
+    linked_products: directLinkedProducts,
     primary_product: mappingSummary?.primary_product || null,
     primary_linked_product: mappingSummary?.primary_product || null,
     };
