@@ -1407,6 +1407,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   const titleLines = titleLayoutFit.lines;
   const titleFontSize = titleLayoutFit.fontSize;
   const colorValueFontSize = fitThermalColorValueFontSize(colorValue, thermalLayout.colorValueWidth, thermalLayout.colorValueFontSize);
+  const smallLabelFontSize = Math.max(thermalLayout.colorLabelFontSize, 4.8);
   const titleBadgeStyle = {
     background: "#020617",
     color: "#fff",
@@ -1455,18 +1456,18 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         {printSettings.showProductName ? (
           <div
             className="min-w-0 overflow-hidden"
-            style={{
-              ...titleBadgeStyle,
-              gridColumn: hasImage ? "2" : "1",
-              gridRow: "1",
-            }}
+              style={{
+                ...titleBadgeStyle,
+                gridColumn: hasImage ? "2" : "1",
+                gridRow: "1",
+              }}
           >
             <h3
               className="min-w-0 font-black text-white"
               style={{
                 display: "flex",
                 flexDirection: "column",
-                alignItems: "center",
+                alignItems: "flex-start",
                 justifyContent: "center",
                 gap: "0.25mm",
                 overflow: "hidden",
@@ -1478,11 +1479,13 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                 overflowWrap: "anywhere",
                 margin: 0,
                 paddingTop: 0,
-                textAlign: "center",
+                textAlign: "left",
               }}
             >
               {titleLines.map((line, index) => (
-                <span key={`${line}-${index}`}>{line}</span>
+                <span key={`${line}-${index}`} className="block w-full">
+                  {line}
+                </span>
               ))}
             </h3>
           </div>
@@ -1508,10 +1511,10 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
               minHeight: `${sizeFrame.h}mm`,
               marginInline: "auto",
             }}
-          >
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[0.3mm]">
-              <div className="grid min-w-0 items-center" style={{ gridTemplateColumns: "8.45mm 1px minmax(0, 1fr)", columnGap: "0.45mm" }}>
-                <div className="truncate text-left font-black uppercase leading-none tracking-[0.16em] text-white" style={{ fontSize: `${thermalLayout.sizeLabelFontSize * 0.62}px` }}>
+            >
+              <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[0.3mm]">
+              <div className="grid min-w-0 items-center" style={{ gridTemplateColumns: "8.8mm 1px minmax(0, 1fr)", columnGap: "1.1mm" }}>
+                <div className="truncate text-left font-black uppercase leading-none tracking-[0.16em] text-white" style={{ fontSize: `${smallLabelFontSize}px` }}>
                   {t("products.barcodeLabels.size")}
                 </div>
                 <div className="self-stretch w-px bg-white/45" aria-hidden="true" />
@@ -1528,8 +1531,8 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
               style={{ ...articleStyle, position: "relative", overflow: "hidden" }}
             >
               <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 px-[0.3mm]">
-                <div className="grid min-w-0 items-center" style={{ gridTemplateColumns: "7.95mm 1px minmax(0, 1fr)", columnGap: "0.4mm" }}>
-                  <div className="truncate text-left font-black uppercase leading-none tracking-[0.16em] text-white" style={{ fontSize: `${thermalLayout.articleLabelFontSize * 0.62}px` }}>
+                <div className="grid min-w-0 items-center" style={{ gridTemplateColumns: "8.8mm 1px minmax(0, 1fr)", columnGap: "1.1mm" }}>
+                  <div className="truncate text-left font-black uppercase leading-none tracking-[0.16em] text-white" style={{ fontSize: `${smallLabelFontSize}px` }}>
                     ART
                   </div>
                   <div className="self-stretch w-px bg-white/45" aria-hidden="true" />
@@ -1561,7 +1564,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             <div className="relative h-full min-h-0" style={{ height: `${thermalLayout.colorBoxHeight}mm` }}>
               <div
                 className="absolute top-1/2 -translate-y-1/2 font-black uppercase leading-none tracking-[0.16em] text-white"
-                style={{ left: `${thermalLayout.colorLabelX}mm`, fontSize: `${Math.max(thermalLayout.colorLabelFontSize, 4.8)}px` }}
+                style={{ left: `${thermalLayout.colorLabelX}mm`, fontSize: `${smallLabelFontSize}px` }}
               >
                 {t("products.barcodeLabels.color")}
               </div>

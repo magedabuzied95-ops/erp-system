@@ -212,24 +212,26 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
 
   const titleLayout = fitThermalTitleLayout(productName, titleCell.w - 1.2, thermalLayout.titleMaxLines, thermalLayout.titleFontSize);
   const titleLinesToRender = titleLayout.lines.slice(0, thermalLayout.titleMaxLines);
+  const titleLeftX = titleCell.x + 0.85;
+  const titleMaxWidth = Math.max(1, titleCell.w - 1.7);
   drawRoundedRect(doc, titleCell.x, titleCell.y, titleCell.w, titleCell.h, 1.8, [2, 6, 23], [2, 6, 23]);
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  const titleMaxWidth = Math.max(1, titleCell.w - 1.4);
   const titleBaseFontSize = titleLayout.fontSize;
   const titleLineStep = Math.max(4.2, thermalLayout.titleLineStepMm * 0.94);
   const titleCenterY = titleCell.y + (titleCell.h / 2);
   const titleStartY = titleCenterY - (((titleLinesToRender.length - 1) * titleLineStep) / 2);
   titleLinesToRender.forEach((line, lineIndex) => {
     doc.setFontSize(titleBaseFontSize);
-    doc.text(line, titleCell.x + (titleCell.w / 2), titleStartY + (lineIndex * titleLineStep), { align: "center", maxWidth: titleMaxWidth });
+    doc.text(line, titleLeftX, titleStartY + (lineIndex * titleLineStep), { align: "left", maxWidth: titleMaxWidth, baseline: "middle" });
   });
 
   const sizeFrame = getBoxFrameLayout(sizeCell, { boxWidthFactor: thermalLayout.sizeBoxWidthFactor || 1 });
+  const smallLabelFontSize = thermalLayout.colorLabelFontSize;
   drawRoundedRect(doc, sizeFrame.x, sizeFrame.y, sizeFrame.w, sizeFrame.h, 1.8, [2, 6, 23]);
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(thermalLayout.sizeLabelFontSize * 0.62);
+  doc.setFontSize(smallLabelFontSize);
   const sizeMidY = sizeFrame.y + sizeFrame.h / 2;
   doc.text("SIZE", sizeFrame.x + thermalLayout.sizeLabelX, sizeMidY, { align: "left", baseline: "middle" });
   doc.setDrawColor(255, 255, 255);
@@ -242,7 +244,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   if (showArticleBox) {
     drawRoundedRect(doc, articleCell.x, articleCell.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [2, 6, 23], [2, 6, 23]);
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(thermalLayout.articleLabelFontSize * 0.62);
+    doc.setFontSize(smallLabelFontSize);
     doc.text("ART", articleCell.x + thermalLayout.articleLabelX, sizeMidY, { align: "left", baseline: "middle" });
     doc.setDrawColor(255, 255, 255);
     doc.setLineWidth(0.12);
@@ -256,7 +258,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   const colorFrame = getBoxFrameLayout(colorCell, { boxHeightFactor: 1.0 });
   drawRoundedRect(doc, colorFrame.x, colorFrame.y, colorFrame.w, colorFrame.h, 1, [2, 6, 23], [2, 6, 23]);
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(thermalLayout.colorLabelFontSize);
+  doc.setFontSize(smallLabelFontSize);
   const colorMidY = colorFrame.y + colorFrame.h / 2;
   doc.text("COLOR", colorFrame.x + thermalLayout.colorLabelX, colorMidY, { align: "left", baseline: "middle" });
   doc.setDrawColor(255, 255, 255);

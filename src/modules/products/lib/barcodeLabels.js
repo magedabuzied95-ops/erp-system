@@ -1049,6 +1049,10 @@ const THERMAL_LANDSCAPE_COLOR_LABEL_X_MM = 0.8;
 const THERMAL_LANDSCAPE_COLOR_DIVIDER_X_MM = 8.75;
 const THERMAL_LANDSCAPE_COLOR_VALUE_X_MM = 9.6;
 const THERMAL_LANDSCAPE_COLOR_VALUE_WIDTH_MM = 50.4;
+const THERMAL_LANDSCAPE_SMALL_LABEL_FONT_SIZE = THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE;
+const THERMAL_LANDSCAPE_SMALL_LABEL_X_MM = THERMAL_LANDSCAPE_COLOR_LABEL_X_MM;
+const THERMAL_LANDSCAPE_SMALL_DIVIDER_X_MM = THERMAL_LANDSCAPE_COLOR_DIVIDER_X_MM;
+const THERMAL_LANDSCAPE_SMALL_VALUE_X_MM = THERMAL_LANDSCAPE_COLOR_VALUE_X_MM;
 
 const buildThermalLandscapeCellLayout = (hasArticleBox = false) => {
   const imageCell = Object.freeze({
@@ -1109,19 +1113,19 @@ const buildThermalLandscapeCellLayout = (hasArticleBox = false) => {
     titleLineHeight: THERMAL_LANDSCAPE_TITLE_LINE_HEIGHT,
     titleLineStepMm: THERMAL_LANDSCAPE_TITLE_LINE_STEP_MM,
     titleMaxLines: THERMAL_LANDSCAPE_TITLE_MAX_LINES,
-    sizeLabelFontSize: THERMAL_LANDSCAPE_SIZE_LABEL_FONT_SIZE,
+    sizeLabelFontSize: THERMAL_LANDSCAPE_SMALL_LABEL_FONT_SIZE,
     sizeValueFontSize: THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE,
-    sizeLabelX: THERMAL_LANDSCAPE_SIZE_LABEL_X_MM,
-    sizeDividerX: THERMAL_LANDSCAPE_SIZE_DIVIDER_X_MM,
-    sizeValueX: THERMAL_LANDSCAPE_SIZE_VALUE_X_MM,
-    sizeValueWidth: THERMAL_LANDSCAPE_SIZE_VALUE_WIDTH_MM,
-    articleLabelFontSize: THERMAL_LANDSCAPE_ARTICLE_LABEL_FONT_SIZE,
+    sizeLabelX: THERMAL_LANDSCAPE_SMALL_LABEL_X_MM,
+    sizeDividerX: THERMAL_LANDSCAPE_SMALL_DIVIDER_X_MM,
+    sizeValueX: THERMAL_LANDSCAPE_SMALL_VALUE_X_MM,
+    sizeValueWidth: Math.max(12, sizeCell.w - THERMAL_LANDSCAPE_SMALL_VALUE_X_MM - 0.7),
+    articleLabelFontSize: THERMAL_LANDSCAPE_SMALL_LABEL_FONT_SIZE,
     articleFontSize: THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE,
     articleFontSizeCompact: THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT,
-    articleLabelX: THERMAL_LANDSCAPE_ARTICLE_LABEL_X_MM,
-    articleDividerX: THERMAL_LANDSCAPE_ARTICLE_DIVIDER_X_MM,
-    articleValueX: THERMAL_LANDSCAPE_ARTICLE_VALUE_X_MM,
-    articleValueWidth: Math.max(18, articleCell.w - THERMAL_LANDSCAPE_ARTICLE_VALUE_X_MM - 0.7),
+    articleLabelX: THERMAL_LANDSCAPE_SMALL_LABEL_X_MM,
+    articleDividerX: THERMAL_LANDSCAPE_SMALL_DIVIDER_X_MM,
+    articleValueX: THERMAL_LANDSCAPE_SMALL_VALUE_X_MM,
+    articleValueWidth: Math.max(18, articleCell.w - THERMAL_LANDSCAPE_SMALL_VALUE_X_MM - 0.7),
     colorLabelFontSize: THERMAL_LANDSCAPE_COLOR_LABEL_FONT_SIZE,
     colorValueFontSize: THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE,
     sizeBoxWidthFactor: THERMAL_LANDSCAPE_SIZE_BOX_WIDTH_FACTOR,
@@ -1273,6 +1277,7 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const { imageCell, titleCell, sizeCell, articleCell, colorCell, barcodeCell } = layout;
   const titleLayout = fitThermalTitleLayout(productName, titleCell.w - 1.2, layout.titleMaxLines, layout.titleFontSize);
   const productLines = titleLayout.lines;
+  const smallLabelFontSize = layout.colorLabelFontSize * 0.64;
   const articleBaseFontSize = Math.max(layout.sizeValueFontSize * 0.92, layout.articleFontSize);
   const articleFontSize = Math.max(layout.articleFontSizeCompact, articleBaseFontSize - Math.max(0, skuValue.length - 10) * 0.08);
   const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, {
@@ -1287,9 +1292,9 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
     ? (() => {
         const centerY = titleCell.y + (titleCell.h / 2);
         const startY = centerY - (((productLines.length - 1) * layout.titleLineStepMm) / 2);
-        return productLines.map((line, index) => `<text x="${titleCell.x + (titleCell.w / 2)}" y="${startY + (index * layout.titleLineStepMm)}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * (index === 0 ? 0.48 : 0.45)}" font-weight="900">${escapeHtml(line)}</text>`).join("");
+        return productLines.map((line, index) => `<text x="${titleCell.x + 0.85}" y="${startY + (index * layout.titleLineStepMm)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * (index === 0 ? 0.48 : 0.45)}" font-weight="900">${escapeHtml(line)}</text>`).join("");
       })()
-    : `<text x="${titleCell.x + (titleCell.w / 2)}" y="${titleCell.y + (titleCell.h / 2)}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * 0.48}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
+    : `<text x="${titleCell.x + 0.85}" y="${titleCell.y + (titleCell.h / 2)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * 0.48}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
 
   return `
     <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
@@ -1301,18 +1306,18 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
       ${productText}
 
       <rect x="${sizeCell.x}" y="${sizeCell.y}" width="${layout.sizeBadgeWidth}" height="${layout.sizeBadgeHeight}" rx="1.8" fill="#020617" />
-      <text x="${sizeCell.x + layout.sizeLabelX}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeLabelFontSize * 0.62}" font-weight="900" letter-spacing="0.16">${escapeHtml(printCopy.size || "SIZE")}</text>
+      <text x="${sizeCell.x + layout.sizeLabelX}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16">${escapeHtml(printCopy.size || "SIZE")}</text>
       <line x1="${sizeCell.x + layout.sizeDividerX}" y1="${sizeCell.y + 1}" x2="${sizeCell.x + layout.sizeDividerX}" y2="${sizeCell.y + layout.sizeBadgeHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
       <text x="${sizeCell.x + layout.sizeValueX + (layout.sizeValueWidth / 2)}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.sizeValueFontSize * 0.432}" font-weight="900">${escapeHtml(sizeValue)}</text>
       ${hasArticleBox ? `
       <rect x="${articleCell.x}" y="${articleCell.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#020617" stroke="#020617" stroke-width="0.18" />
-      <text x="${articleCell.x + layout.articleLabelX}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.articleLabelFontSize * 0.62}" font-weight="900" letter-spacing="0.16">ART</text>
+      <text x="${articleCell.x + layout.articleLabelX}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16">ART</text>
       <line x1="${articleCell.x + layout.articleDividerX}" y1="${articleCell.y + 1}" x2="${articleCell.x + layout.articleDividerX}" y2="${articleCell.y + layout.articleBoxHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
       <text x="${articleCell.x + layout.articleValueX + (layout.articleValueWidth / 2)}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
       ` : ""}
 
       <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#020617" stroke="#020617" stroke-width="0.18" />
-      <text x="${colorCell.x + layout.colorLabelX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.64}" font-weight="900" letter-spacing="0.16">${escapeHtml(printCopy.color || "COLOR")}</text>
+      <text x="${colorCell.x + layout.colorLabelX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16">${escapeHtml(printCopy.color || "COLOR")}</text>
       <line x1="${colorCell.x + layout.colorDividerX}" y1="${colorCell.y + 1}" x2="${colorCell.x + layout.colorDividerX}" y2="${colorCell.y + layout.colorBoxHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
       <text x="${colorCell.x + layout.colorValueX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalColorValueFontSize(colorValue, layout.colorValueWidth, layout.colorValueFontSize)}" font-weight="900">${escapeHtml(colorValue)}</text>
 
@@ -1760,9 +1765,9 @@ export const buildBarcodePrintHtml = ({
             color: #ffffff;
             padding: 1.15mm 0.9mm;
             display: grid;
-            grid-template-columns: 8.45mm 1px minmax(0, 1fr);
+            grid-template-columns: 8.8mm 1px minmax(0, 1fr);
             align-items: center;
-            column-gap: 0.45mm;
+            column-gap: 1.1mm;
             min-height: 14.1mm;
           }
           .landscape-size-badge span {
@@ -1801,14 +1806,14 @@ export const buildBarcodePrintHtml = ({
             color: #ffffff;
             padding: 1.15mm 0.9mm;
             display: grid;
-            grid-template-columns: 7.95mm 1px minmax(0, 1fr);
+            grid-template-columns: 8.8mm 1px minmax(0, 1fr);
             align-items: center;
-            column-gap: 0.4mm;
+            column-gap: 1.1mm;
             min-height: 14.1mm;
           }
           .landscape-article-box span {
             display: block;
-            font-size: 6.2px;
+            font-size: 6.4px;
             line-height: 1;
             font-weight: 900;
             letter-spacing: 0.16em;
