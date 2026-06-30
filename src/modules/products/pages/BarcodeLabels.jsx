@@ -1594,14 +1594,14 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
                 {t("products.barcodeLabels.color")}
               </div>
               <div
-                className="absolute top-[15%] bottom-[15%] left-[13.9mm] w-px bg-white/45"
+                className="absolute top-[15%] bottom-[15%] left-[12.8mm] w-px bg-white/45"
                 aria-hidden="true"
               />
               <div
                 className="truncate font-black uppercase leading-none"
                 style={{
                   position: "absolute",
-                  left: "15.0mm",
+                  left: "13.9mm",
                   top: "50%",
                   transform: "translateY(-50%)",
                   fontSize: `${colorValueFontSize}px`,

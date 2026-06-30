@@ -1171,7 +1171,8 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
 
       <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#020617" stroke="#020617" stroke-width="0.18" />
       <text x="${colorCell.x + 1.1}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${layout.colorLabelFontSize * 0.68}" font-weight="900" letter-spacing="0.2">${escapeHtml(printCopy.color || "COLOR")}</text>
-      <text x="${colorCell.x + 14.8}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalColorValueFontSize(colorValue, colorCell.w - 14.8, layout.colorValueFontSize)}" font-weight="900">${escapeHtml(colorValue)}</text>
+      <line x1="${colorCell.x + 12.8}" y1="${colorCell.y + 1}" x2="${colorCell.x + 12.8}" y2="${colorCell.y + layout.colorBoxHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
+      <text x="${colorCell.x + 13.9}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalColorValueFontSize(colorValue, colorCell.w - 13.9, layout.colorValueFontSize)}" font-weight="900">${escapeHtml(colorValue)}</text>
 
       ${hasArticleBox ? "" : `<text x="${layout.page.width / 2}" y="${barcodeCell.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}

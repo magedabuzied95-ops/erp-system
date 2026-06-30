@@ -270,11 +270,11 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.text("COLOR", colorFrame.x + 1.1, colorMidY, { align: "left", baseline: "middle" });
   doc.setDrawColor(255, 255, 255);
   doc.setLineWidth(0.12);
-  doc.line(colorFrame.x + 13.9, colorFrame.y + 1, colorFrame.x + 13.9, colorFrame.y + colorFrame.h - 1);
+  doc.line(colorFrame.x + 12.8, colorFrame.y + 1, colorFrame.x + 12.8, colorFrame.y + colorFrame.h - 1);
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(fitThermalColorValueFontSize(colorValue, colorFrame.w - 14, thermalLayout.colorValueFontSize));
+  doc.setFontSize(fitThermalColorValueFontSize(colorValue, colorFrame.w - 13.9, thermalLayout.colorValueFontSize));
   doc.setFont("helvetica", "bold");
-  doc.text(colorValue || "-", colorFrame.x + 15.0, colorMidY, { align: "left", baseline: "middle", maxWidth: colorFrame.w - 16.1 });
+  doc.text(colorValue || "-", colorFrame.x + 13.9, colorMidY, { align: "left", baseline: "middle", maxWidth: colorFrame.w - 15.0 });
 
   if (!showArticleBox) {
     doc.setTextColor(15, 23, 42);
