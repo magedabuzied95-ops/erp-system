@@ -2134,6 +2134,32 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     for (let index = 0; index < safeProductIds.length; index += 1) {
       const productId = safeProductIds[index];
       const isPrimary = primaryId ? Number(primaryId) === Number(productId) : index === 0;
+      const canonicalExactResult = await client.query(
+        `
+        SELECT *
+        FROM marketing_post_product_links
+        WHERE tenant_id = $1::bigint
+          AND platform = $2::text
+          AND platform_post_id = $3::text
+          AND product_id = $4::bigint
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1
+        `,
+        [safeTenantId, normalizedPlatform, platformPostId, productId]
+      ).catch(() => ({ rows: [] }));
+      const legacyExactResult = await client.query(
+        `
+        SELECT *
+        FROM marketing_post_product_links
+        WHERE business_id = $1::bigint
+          AND platform = $2::text
+          AND post_id = $3::text
+          AND product_id = $4::bigint
+        ORDER BY updated_at DESC, id DESC
+        LIMIT 1
+        `,
+        [safeTenantId, normalizedPlatform, storedPostId, productId]
+      ).catch(() => ({ rows: [] }));
       const identityLookupIds = Array.from(new Set([
         platformPostId,
         storedPostId,
@@ -2176,7 +2202,11 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
           storedMediaId,
         ]
       ).catch(() => ({ rows: [] }));
-      const existingRow = existingResult.rows?.[0] || null;
+      const existingRow =
+        canonicalExactResult.rows?.[0] ||
+        legacyExactResult.rows?.[0] ||
+        existingResult.rows?.[0] ||
+        null;
       const existingMatchesExactly = Boolean(
         existingRow &&
         text(existingRow.platform_post_id || "") === platformPostId &&
@@ -2197,6 +2227,18 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
         is_primary: Boolean(isPrimary),
         product_ids: [productId],
         rows_affected: 0,
+        legacy_unique_columns: {
+          business_id: safeTenantId,
+          platform: normalizedPlatform,
+          post_id: storedPostId,
+          product_id: productId,
+        },
+        canonical_unique_columns: {
+          tenant_id: safeTenantId,
+          platform: normalizedPlatform,
+          platform_post_id: platformPostId,
+          product_id: productId,
+        },
       });
       if (existingRow) {
         if (existingMatchesExactly) {
@@ -2299,7 +2341,37 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
             `,
             [safeTenantId, normalizedPlatform, productId, platformPostId, storedPostId, storedMediaId]
           ).catch(() => ({ rows: [] }));
-          const conflictRow = conflictResult.rows?.[0] || null;
+          const legacyConflictResult = await client.query(
+            `
+            SELECT *
+            FROM marketing_post_product_links
+            WHERE business_id = $1::bigint
+              AND platform = $2::text
+              AND post_id = $3::text
+              AND product_id = $4::bigint
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 1
+            `,
+            [safeTenantId, normalizedPlatform, storedPostId, productId]
+          ).catch(() => ({ rows: [] }));
+          const canonicalConflictResult = await client.query(
+            `
+            SELECT *
+            FROM marketing_post_product_links
+            WHERE tenant_id = $1::bigint
+              AND platform = $2::text
+              AND platform_post_id = $3::text
+              AND product_id = $4::bigint
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 1
+            `,
+            [safeTenantId, normalizedPlatform, platformPostId, productId]
+          ).catch(() => ({ rows: [] }));
+          const conflictRow =
+            canonicalConflictResult.rows?.[0] ||
+            legacyConflictResult.rows?.[0] ||
+            conflictResult.rows?.[0] ||
+            null;
           if (!conflictRow?.id) {
             throw error;
           }
