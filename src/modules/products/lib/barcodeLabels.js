@@ -1022,14 +1022,11 @@ export const fitThermalArticleValueFontSize = (
 ) => {
   const text = String(value || "").trim();
   if (!text) return Number(baseFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE);
-  const startingFontSize = Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE), Number(minFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT));
+  const startingFontSize = Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE), Number(minFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT), 18.5);
   const minimumFontSize = Math.max(8.5, Number(minFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT));
   const step = Math.max(0.25, Number(options?.step ?? 0.25));
   const triggerRatio = Math.min(0.95, Math.max(0.92, Number(options?.triggerRatio ?? 0.95)));
   const measureTextWidth = typeof options?.measureTextWidth === "function" ? options.measureTextWidth : null;
-  if (text.length <= 7) {
-    return Math.round(startingFontSize * 10) / 10;
-  }
   const estimateWidthMm = (fontSize) => {
     let characterWeight = 0;
     for (const char of text) {
