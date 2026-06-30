@@ -2058,6 +2058,13 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     post?.raw_graph_post_id ||
     platformPostId
   );
+  const permalinkPostId = text(
+    row?.permalink_post_id ||
+    post?.permalink_post_id ||
+    row?.metadata?.permalink_post_id ||
+    post?.metadata?.permalink_post_id ||
+    ""
+  );
   void migrateCanonicalSocialPostRecords({
     tenantId: safeTenantId,
     platform: normalizedPlatform,
@@ -2095,7 +2102,12 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
   try {
     await client.query("BEGIN");
     if (platformPostId) {
-      const deleteLookupIds = Array.from(new Set((directIdentity.exactCandidates.length ? directIdentity.exactCandidates : [platformPostId]).map((value) => text(value)).filter(Boolean)));
+      const deleteLookupIds = Array.from(new Set([
+        ...(directIdentity.exactCandidates.length ? directIdentity.exactCandidates : [platformPostId]),
+        platformPostId,
+        storedPostId,
+        storedMediaId,
+      ].map((value) => text(value)).filter(Boolean)));
       await client.query(
         `
         DELETE FROM marketing_post_product_links
@@ -2109,71 +2121,240 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
             OR post_id = ANY($3::text[])
             OR media_id = ANY($3::text[])
           )
+          AND (
+            $4::bigint[] IS NULL
+            OR cardinality($4::bigint[]) = 0
+            OR product_id <> ALL($4::bigint[])
+          )
         `,
-        [safeTenantId, normalizedPlatform, deleteLookupIds]
+        [safeTenantId, normalizedPlatform, deleteLookupIds, safeProductIds.length ? safeProductIds : null]
       );
     }
 
     for (let index = 0; index < safeProductIds.length; index += 1) {
       const productId = safeProductIds[index];
       const isPrimary = primaryId ? Number(primaryId) === Number(productId) : index === 0;
+      const identityLookupIds = Array.from(new Set([
+        platformPostId,
+        storedPostId,
+        storedMediaId,
+        permalinkPostId,
+        ...directIdentity.exactCandidates,
+        ...directIdentity.fallbackCandidates,
+      ].map((value) => text(value)).filter(Boolean)));
+      const existingResult = await client.query(
+        `
+        SELECT *
+        FROM marketing_post_product_links
+        WHERE (
+            tenant_id = $1::bigint
+          OR business_id = $1::bigint
+        )
+          AND platform = $2::text
+          AND product_id = $3::bigint
+          AND (
+            platform_post_id = ANY($4::text[])
+            OR post_id = ANY($4::text[])
+            OR media_id = ANY($4::text[])
+          )
+        ORDER BY
+          CASE WHEN platform_post_id = $5::text THEN 0 ELSE 1 END,
+          CASE WHEN post_id = $6::text THEN 0 ELSE 1 END,
+          CASE WHEN media_id = $7::text THEN 0 ELSE 1 END,
+          is_primary DESC,
+          updated_at DESC,
+          id DESC
+        LIMIT 1
+        `,
+        [
+          safeTenantId,
+          normalizedPlatform,
+          productId,
+          identityLookupIds,
+          platformPostId,
+          storedPostId,
+          storedMediaId,
+        ]
+      ).catch(() => ({ rows: [] }));
+      const existingRow = existingResult.rows?.[0] || null;
+      const existingMatchesExactly = Boolean(
+        existingRow &&
+        text(existingRow.platform_post_id || "") === platformPostId &&
+        text(existingRow.post_id || "") === storedPostId &&
+        text(existingRow.media_id || "") === storedMediaId &&
+        Boolean(existingRow.is_primary) === Boolean(isPrimary) &&
+        (Number(existingRow.priority ?? 0) || 0) === index + 1
+      );
+      let action = "insert";
+      let writeResult = { rowCount: 0, rows: [] };
       console.info("POST_PRODUCT_LINKS_DB_INSERT", {
         ...identityTrace,
         canonical_post_id: platformPostId,
+        platform_post_id: platformPostId,
+        source_post_id: storedPostId,
+        permalink_post_id: permalinkPostId || storedMediaId,
         primary_product_id: primaryId,
         is_primary: Boolean(isPrimary),
         product_ids: [productId],
         rows_affected: 0,
       });
-      const insertResult = await client.query(
-        `
-        INSERT INTO marketing_post_product_links (
-          tenant_id,
-          business_id,
-          platform,
-          platform_post_id,
-          post_id,
-          media_id,
-          product_id,
-          priority,
-          is_primary,
-          created_by,
-          updated_at,
-          created_at
-        )
-        VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::text, $6::text, $7::bigint, $8::integer, $9::boolean, $10::bigint, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        ON CONFLICT (tenant_id, platform, platform_post_id, product_id)
-        DO UPDATE SET
-          business_id = EXCLUDED.business_id,
-          post_id = EXCLUDED.post_id,
-          media_id = EXCLUDED.media_id,
-          priority = EXCLUDED.priority,
-          is_primary = EXCLUDED.is_primary,
-          created_by = COALESCE(marketing_post_product_links.created_by, EXCLUDED.created_by),
-          updated_at = CURRENT_TIMESTAMP
-        `,
-        [
-          safeTenantId,
-          safeTenantId,
-          normalizedPlatform,
-          platformPostId,
-          storedPostId,
-          storedMediaId,
-          productId,
-          index + 1,
-          isPrimary,
-          userId ? Number(userId) : null,
-        ]
-      );
-      rowsAffected += Number(insertResult.rowCount || 0) || 0;
+      if (existingRow) {
+        if (existingMatchesExactly) {
+          action = "already_exists";
+        } else {
+          action = "update";
+          writeResult = await client.query(
+            `
+            UPDATE marketing_post_product_links
+            SET
+              tenant_id = $2::bigint,
+              business_id = $2::bigint,
+              platform = $3::text,
+              platform_post_id = $4::text,
+              post_id = $5::text,
+              media_id = $6::text,
+              priority = $7::integer,
+              is_primary = $8::boolean,
+              created_by = COALESCE(marketing_post_product_links.created_by, $9::bigint),
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1::bigint
+            `,
+            [
+              Number(existingRow.id),
+              safeTenantId,
+              normalizedPlatform,
+              platformPostId,
+              storedPostId,
+              storedMediaId,
+              index + 1,
+              isPrimary,
+              userId ? Number(userId) : null,
+            ]
+          );
+        }
+      } else {
+        try {
+          writeResult = await client.query(
+            `
+            INSERT INTO marketing_post_product_links (
+              tenant_id,
+              business_id,
+              platform,
+              platform_post_id,
+              post_id,
+              media_id,
+              product_id,
+              priority,
+              is_primary,
+              created_by,
+              updated_at,
+              created_at
+            )
+            VALUES ($1::bigint, $2::bigint, $3::text, $4::text, $5::text, $6::text, $7::bigint, $8::integer, $9::boolean, $10::bigint, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (tenant_id, platform, platform_post_id, product_id)
+            DO UPDATE SET
+              business_id = EXCLUDED.business_id,
+              post_id = EXCLUDED.post_id,
+              media_id = EXCLUDED.media_id,
+              priority = EXCLUDED.priority,
+              is_primary = EXCLUDED.is_primary,
+              created_by = COALESCE(marketing_post_product_links.created_by, EXCLUDED.created_by),
+              updated_at = CURRENT_TIMESTAMP
+            `,
+            [
+              safeTenantId,
+              safeTenantId,
+              normalizedPlatform,
+              platformPostId,
+              storedPostId,
+              storedMediaId,
+              productId,
+              index + 1,
+              isPrimary,
+              userId ? Number(userId) : null,
+            ]
+          );
+          action = "insert";
+        } catch (error) {
+          if (text(error?.code || "") !== "23505") {
+            throw error;
+          }
+          const conflictResult = await client.query(
+            `
+            SELECT *
+            FROM marketing_post_product_links
+            WHERE (
+                tenant_id = $1::bigint
+              OR business_id = $1::bigint
+            )
+              AND platform = $2::text
+              AND product_id = $3::bigint
+              AND (
+                platform_post_id = $4::text
+                OR post_id = $5::text
+                OR media_id = $6::text
+              )
+            ORDER BY updated_at DESC, id DESC
+            LIMIT 1
+            `,
+            [safeTenantId, normalizedPlatform, productId, platformPostId, storedPostId, storedMediaId]
+          ).catch(() => ({ rows: [] }));
+          const conflictRow = conflictResult.rows?.[0] || null;
+          if (!conflictRow?.id) {
+            throw error;
+          }
+          action = "update";
+          writeResult = await client.query(
+            `
+            UPDATE marketing_post_product_links
+            SET
+              tenant_id = $2::bigint,
+              business_id = $2::bigint,
+              platform = $3::text,
+              platform_post_id = $4::text,
+              post_id = $5::text,
+              media_id = $6::text,
+              priority = $7::integer,
+              is_primary = $8::boolean,
+              created_by = COALESCE(marketing_post_product_links.created_by, $9::bigint),
+              updated_at = CURRENT_TIMESTAMP
+            WHERE id = $1::bigint
+            `,
+            [
+              Number(conflictRow.id),
+              safeTenantId,
+              normalizedPlatform,
+              platformPostId,
+              storedPostId,
+              storedMediaId,
+              index + 1,
+              isPrimary,
+              userId ? Number(userId) : null,
+            ]
+          );
+        }
+      }
+      rowsAffected += Number(writeResult.rowCount || 0) || 0;
+      console.info("SOCIAL_MANUAL_LINK_UPSERT_TRACE", {
+        canonical_post_id: platformPostId,
+        platform_post_id: platformPostId,
+        source_post_id: storedPostId,
+        permalink_post_id: permalinkPostId || storedMediaId,
+        product_id: productId,
+        action,
+      });
       console.info("POST_PRODUCT_LINKS_DB_UPSERT", {
         ...identityTrace,
         canonical_post_id: platformPostId,
+        platform_post_id: platformPostId,
+        source_post_id: storedPostId,
+        permalink_post_id: permalinkPostId || storedMediaId,
         primary_product_id: primaryId,
         is_primary: Boolean(isPrimary),
         product_ids: [productId],
-        rows_affected: insertResult.rowCount || 0,
-        rows: insertResult.rows || [],
+        rows_affected: writeResult.rowCount || 0,
+        rows: writeResult.rows || [],
+        action,
       });
     }
 
