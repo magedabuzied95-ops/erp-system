@@ -25,6 +25,37 @@ const renderSocialCommentTemplateText = (template = "", context = {}) =>
     const key = leftKey || rightKey || "";
     return String(context[key] ?? context[key.toLowerCase()] ?? "").trim();
   });
+const SOCIAL_COMMENT_GENERIC_PRIVATE_REPLIES = new Set([
+  "تم الرد على حضرتك خاص",
+  "تم الرد على حضرتك في الخاص",
+  "تم الرد على حضرتك في الخاص ✅",
+  "تم إرسال التفاصيل في رسالة خاصة",
+  "تم إرسال التفاصيل في رسالة خاصة ",
+]);
+const isGenericSocialCommentPrivateReply = (value = "") => {
+  const normalized = String(value || "").replace(/\s+/g, " ").trim();
+  return SOCIAL_COMMENT_GENERIC_PRIVATE_REPLIES.has(normalized);
+};
+const buildPrivateReplyLogPayload = ({ postId = "", commentId = "", productContext = null, replyPreview = "" } = {}) => ({
+  post_id: String(postId || "").trim(),
+  comment_id: String(commentId || "").trim(),
+  has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
+  product_ids: Array.isArray(productContext?.product_ids)
+    ? productContext.product_ids
+    : Array.isArray(productContext?.mapped_products)
+      ? productContext.mapped_products
+        .map((item) => Number(item?.product_id || item?.id || 0))
+        .filter((value) => Number.isFinite(value) && value > 0)
+      : [],
+  primary_product_id: Number(
+    productContext?.primary_product?.product_id ||
+    productContext?.primary_product?.id ||
+    productContext?.product_id ||
+    0
+  ) || null,
+  product_name: String(productContext?.product_name || productContext?.primary_product?.name || "").trim(),
+  reply_preview: String(replyPreview || "").trim(),
+});
 const buildProductAwarePrivateReply = ({ row = {}, productContext = {}, settings = {} } = {}) => {
   const defaultTemplate = [
     "أهلًا بحضرتك",
@@ -98,6 +129,14 @@ export const registerBackgroundJobHandlers = () => {
     if (!row) {
       throw Object.assign(new Error("Social comment row not found"), { status: 404 });
     }
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_QUEUE_DEQUEUED", {
+      tenant_id: tenantId,
+      platform,
+      post_id: postId || row.post_id || "",
+      comment_id: commentId,
+      attempt: job?.attemptsMade || 1,
+      max_attempts: job?.maxAttempts || 1,
+    });
 
     const privateReplyContext = PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT({ row });
     if (privateReplyContext.source === "meta_comment_poll") {
@@ -145,6 +184,13 @@ export const registerBackgroundJobHandlers = () => {
     if (platform === "facebook" && !productContext) {
       productContext = await resolveSocialCommentPublishedProductContext({ tenantId, row }).catch(() => null);
     }
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_RENDER_START", {
+      tenant_id: tenantId,
+      platform,
+      post_id: postId || row.post_id || "",
+      comment_id: commentId,
+      has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
+    });
     const runtimePrivateReplyMessage = String(
       row.automation_state?.private_reply?.rendered_reply ||
       row.automation_state?.private_reply?.message ||
@@ -157,15 +203,44 @@ export const registerBackgroundJobHandlers = () => {
       postPermalink: row.post_permalink || row.post_permalink_url || "",
     });
     const template = String(settings?.private_message_template || "").trim();
-    const message = runtimePrivateReplyMessage || (productContext?.found
+    const renderedFallbackMessage = renderTemplate(template || fallbackMessage, {
+      commenter_name: row.commenter_name || "",
+      original_comment_text: row.original_comment_text || "",
+      post_permalink: row.post_permalink || row.post_permalink_url || "",
+      post_id: row.post_id || postId || "",
+      platform,
+    }).trim() || fallbackMessage;
+    const initialMessage = runtimePrivateReplyMessage || renderedFallbackMessage;
+    const productAwareMessage = (productContext?.found || productContext?.has_product_context)
       ? buildProductAwarePrivateReply({ row, productContext, settings })
-      : (renderTemplate(template || fallbackMessage, {
-          commenter_name: row.commenter_name || "",
-          original_comment_text: row.original_comment_text || "",
-          post_permalink: row.post_permalink || row.post_permalink_url || "",
-          post_id: row.post_id || postId || "",
-          platform,
-        }).trim() || fallbackMessage));
+      : "";
+    if ((productContext?.found || productContext?.has_product_context) && isGenericSocialCommentPrivateReply(initialMessage)) {
+      console.warn("SOCIAL_COMMENT_PRIVATE_REPLY_PRODUCT_CONTEXT_DROPPED", buildPrivateReplyLogPayload({
+        postId: postId || row.post_id || "",
+        commentId,
+        productContext,
+        replyPreview: initialMessage,
+      }));
+    }
+    const message = String(
+      (productContext?.found || productContext?.has_product_context) && productAwareMessage
+        ? productAwareMessage
+        : initialMessage
+    ).trim();
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_RENDER_END", {
+      tenant_id: tenantId,
+      platform,
+      post_id: postId || row.post_id || "",
+      comment_id: commentId,
+      has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
+      reply_preview: message,
+    });
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_CONTEXT_USED", buildPrivateReplyLogPayload({
+      postId: postId || row.post_id || "",
+      commentId,
+      productContext,
+      replyPreview: message,
+    }));
 
     debugSocialCommentsLog("[social-comments][private-reply] sending", {
       tenant_id: tenantId,
@@ -197,6 +272,12 @@ export const registerBackgroundJobHandlers = () => {
     } catch {}
 
     try {
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_START", {
+        tenant_id: tenantId,
+        platform,
+        post_id: postId || row.post_id || "",
+        comment_id: commentId,
+      });
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_REQUEST", {
         target_comment_id: commentId,
         platform,
@@ -237,6 +318,13 @@ export const registerBackgroundJobHandlers = () => {
         external_id: result?.id || result?.message_id || result?.reply_id || "",
       });
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SENT", {
+        tenant_id: tenantId,
+        platform,
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        external_id: result?.id || result?.message_id || result?.reply_id || "",
+      });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_SUCCESS", {
         tenant_id: tenantId,
         platform,
         comment_id: commentId,
