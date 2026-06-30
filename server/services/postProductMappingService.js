@@ -1423,7 +1423,7 @@ export const resolveProductMappingForSiblingPost = async ({
     const textHashMatch = Boolean(joinRow.text_hash_match);
     const slugMatch = Boolean(joinRow.slug_match);
     let rejectedReason = "";
-    if (!sourceIdMatch && !imageUrlMatch && !textHashMatch && !slugMatch && text(joinRow.mapping_source || "") === "marketing_post_product_links" && Number(joinRow.product_id || 0) > 0) {
+    if (text(joinRow.mapping_source || "") === "marketing_post_product_links" && Number(joinRow.product_id || 0) > 0) {
       rejectedReason = "existing_manual_mapping";
     } else if (!sourceIdMatch && !imageUrlMatch && !textHashMatch && !slugMatch) {
       rejectedReason = "no_signal_match";
@@ -1491,6 +1491,7 @@ export const resolveProductMappingForSiblingPost = async ({
         lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) AS text_hash_match,
         lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) AS slug_match,
         CASE
+          WHEN ppl.product_id IS NOT NULL THEN 'existing_manual_mapping'
           WHEN (
             mp.platform_post_id = ANY($4::text[])
             OR mp.external_post_id = ANY($4::text[])
@@ -1500,10 +1501,10 @@ export const resolveProductMappingForSiblingPost = async ({
           WHEN lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[]) THEN 'image_url'
           WHEN lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) THEN 'text_hash'
           WHEN lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) THEN 'product_slug'
-          WHEN ppl.product_id IS NOT NULL THEN 'existing_manual_mapping'
           ELSE ''
         END AS match_reason,
         CASE
+          WHEN ppl.product_id IS NOT NULL THEN 50
           WHEN (
             mp.platform_post_id = ANY($4::text[])
             OR mp.external_post_id = ANY($4::text[])
@@ -1513,7 +1514,6 @@ export const resolveProductMappingForSiblingPost = async ({
           WHEN lower(trim(COALESCE(NULLIF(mp.image_url, ''), ''))) = ANY($5::text[]) THEN 300
           WHEN lower(regexp_replace(COALESCE(NULLIF(mp.caption, ''), ''), '\\s+', ' ', 'g')) = ANY($6::text[]) THEN 200
           WHEN lower(trim(COALESCE(NULLIF(p.canonical_slug, ''), NULLIF(p.slug, '')))) = ANY($7::text[]) THEN 100
-          WHEN ppl.product_id IS NOT NULL THEN 50
           ELSE 0
         END AS match_score
       FROM marketing_post_product_links ppl
@@ -1536,6 +1536,8 @@ export const resolveProductMappingForSiblingPost = async ({
         AND ppl.platform = $2::text
         AND COALESCE(NULLIF(ppl.platform_post_id, ''), NULLIF(ppl.post_id, ''), NULLIF(ppl.media_id, '')) <> ALL($3::text[])
         AND (
+          ppl.product_id IS NOT NULL
+          OR
           mp.platform_post_id = ANY($4::text[])
           OR mp.external_post_id = ANY($4::text[])
           OR ppl.post_id = ANY($4::text[])
@@ -1788,6 +1790,7 @@ export const resolveProductMappingForSiblingPost = async ({
     post_id: text(postId || row?.post_id || post?.post_id || ""),
     sibling_post_id: text(siblingRow.sibling_post_id || ""),
     product_ids: siblingMappings.product_ids || [],
+    reason: text(siblingRow.match_reason || ""),
     mapping_source: text(siblingRow.mapping_source || "marketing_post_product_links"),
     match_reason: text(siblingRow.match_reason || ""),
     match_score: Number(siblingRow.match_score || 0) || 0,
