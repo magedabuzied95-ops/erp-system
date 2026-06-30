@@ -277,7 +277,7 @@ const normalizeSocialCommentPost = (raw) => {
     image: post.image || metadata.image || null,
     attachments: post.attachments || metadata.attachments || null,
     metadata,
-    permalinkUrl: String(post.permalink_url || post.post_permalink || post.post_permalink_url || post.post_url || metadata.permalink_url || metadata.post_permalink || metadata.post_permalink_url || metadata.post_url || "").trim(),
+    permalinkUrl: resolveExternalSocialPostUrl(post),
     commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || metadata.comments_count || 0),
     newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),
     lastActivity: String(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || "").trim(),
@@ -1011,6 +1011,58 @@ const getConversationSourceLabel = (item = {}) => {
 };
 
 const getConversationSourceIcon = (item = {}) => (isSocialCommentThread(item) ? MessageSquareText : FaFacebookMessenger);
+
+const normalizeExternalSocialUrl = (value = "") => {
+  const candidate = clean(value);
+  if (!candidate) return "";
+  if (/^social_comment:/i.test(candidate)) return "";
+  if (/^\/marketing\/social-comments/i.test(candidate)) return "";
+  if (/^https?:\/\/[^/]+\/marketing\/social-comments/i.test(candidate)) return "";
+  return candidate;
+};
+
+const buildFacebookPostUrlFromId = (value = "") => {
+  const candidate = clean(value);
+  if (!candidate || /^social_comment:/i.test(candidate)) return "";
+  const segments = candidate.split("_").map((part) => clean(part)).filter(Boolean);
+  if (segments.length >= 2) {
+    return `https://www.facebook.com/${segments[0]}/posts/${segments[1]}`;
+  }
+  return /^\d+$/.test(candidate) ? `https://www.facebook.com/${candidate}` : "";
+};
+
+const resolveExternalSocialPostUrl = (item = {}) => {
+  const metadata = item?.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata) ? item.metadata : {};
+  const platform = clean(item?.platform || item?.source_platform || metadata?.platform || "facebook").toLowerCase();
+  const directUrl = [
+    item?.permalink_url,
+    item?.post_permalink,
+    item?.post_permalink_url,
+    item?.post_url,
+    metadata?.permalink_url,
+    metadata?.post_permalink,
+    metadata?.post_permalink_url,
+    metadata?.post_url,
+  ]
+    .map((value) => normalizeExternalSocialUrl(value))
+    .find(Boolean);
+  if (directUrl) return directUrl;
+  const platformPostId = [
+    item?.platform_post_id,
+    item?.post_id,
+    item?.canonical_post_id,
+    item?.conversation_post_id,
+    item?.thread_post_id,
+    metadata?.platform_post_id,
+    metadata?.post_id,
+  ]
+    .map((value) => clean(value))
+    .find(Boolean);
+  if (platform.includes("facebook")) {
+    return buildFacebookPostUrlFromId(platformPostId);
+  }
+  return "";
+};
 
 const buildSocialCommentsCenterUrl = (item = {}, tenantId = "") => {
   const params = new URLSearchParams();
@@ -4577,7 +4629,6 @@ export default function AiInbox() {
     setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
   }, []);
   const openSocialCommentThread = useCallback((item = {}) => {
-    const nextUrl = buildSocialCommentsCenterUrl(item, tenantId);
     setSelectedSocialCommentId(socialCommentIdentity(item));
     setSelectedSessionId("");
     console.info("AI_INBOX_OPEN_SOCIAL_COMMENT", {
@@ -4587,13 +4638,12 @@ export default function AiInbox() {
       tenant: clean(tenantId),
       page_id: clean(item?.page_id || item?.metadata?.page_id || item?.channel_metadata?.page_id || ""),
       customer_name: clean(item?.customer_name || item?.commenter_name || item?.author_name || item?.from_name || item?.metadata?.customer_name || item?.metadata?.commenter_name || ""),
-      url: nextUrl,
+      selection_mode: "local_state",
     });
-    navigate(nextUrl);
     setMobileView("chat");
     setReplyText("");
     setUnseenSessions((current) => current.filter((id) => id !== clean(item?.conversation_key || item?.session_id || item?.conversation_id || socialCommentIdentity(item) || "")));
-  }, [navigate, socialCommentIdentity, tenantId]);
+  }, [socialCommentIdentity, tenantId]);
 
   const handleSelectConversation = useCallback((item) => {
     const kind = getInboxItemKind(item);

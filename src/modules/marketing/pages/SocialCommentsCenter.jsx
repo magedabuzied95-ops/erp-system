@@ -714,19 +714,19 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
   const missingCommentMessage = targetCommentMissing ? "Comment not found or already deleted." : "";
 
   return (
-    <div dir="rtl" className="min-h-[100dvh] bg-[#F8FAFC] px-2 py-2 text-slate-900 md:px-3 md:py-3">
+    <div dir="rtl" className="min-h-[100dvh] bg-[radial-gradient(circle_at_12%_8%,rgba(34,211,238,0.14),transparent_28%),linear-gradient(180deg,#020617,#0f172a)] px-2 py-2 text-white md:px-3 md:py-3">
       <div className="mx-auto flex min-h-[calc(100dvh-1rem)] w-full max-w-[1800px] flex-col gap-2 overflow-hidden">
-        <div className="flex items-start justify-between gap-3 rounded-3xl border border-[#E2E8F0] bg-white p-3 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
+        <div className="flex items-start justify-between gap-3 rounded-3xl border border-white/10 bg-white/[0.055] p-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] backdrop-blur">
           <div className="min-w-0">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Marketing / Social Comments</div>
-            <div className="mt-1 text-xl font-black text-slate-900">Social Comments Center</div>
-            <div className="mt-1 text-sm leading-6 text-slate-500">Open the post and the exact comment target from AI Inbox, with reply and moderation tools in one place.</div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-cyan-100">Marketing / Social Comments</div>
+            <div className="mt-1 text-xl font-black text-white">Social Comments Center</div>
+            <div className="mt-1 text-sm leading-6 text-slate-300">Open the post and the exact comment target from AI Inbox, with reply and moderation tools in one place.</div>
           </div>
           <button
             type="button"
             onClick={handleRefresh}
             disabled={loading}
-            className="inline-flex h-10 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-xs font-black text-slate-900 shadow-sm disabled:opacity-50"
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.07] px-3 text-xs font-black text-white shadow-sm disabled:opacity-50"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Refresh
@@ -819,7 +819,7 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
 
         <div className="min-h-0 flex-1 overflow-hidden">
           {loading && !items.length ? (
-            <div className="flex h-full min-h-[420px] flex-col gap-3 rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="flex h-full min-h-[420px] flex-col gap-3 rounded-3xl border border-white/10 bg-white/[0.055] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.18)]">
               <div className="h-5 w-40 rounded bg-slate-200/80" />
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, index) => (

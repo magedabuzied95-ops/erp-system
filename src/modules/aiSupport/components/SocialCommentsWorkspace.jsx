@@ -52,6 +52,51 @@ const isEventLikeObject = (value) =>
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
+const normalizeExternalSocialUrl = (value = "") => {
+  const candidate = clean(value);
+  if (!candidate) return "";
+  if (/^social_comment:/i.test(candidate)) return "";
+  if (/^\/marketing\/social-comments/i.test(candidate)) return "";
+  if (/^https?:\/\/[^/]+\/marketing\/social-comments/i.test(candidate)) return "";
+  return candidate;
+};
+
+const buildFacebookPostUrlFromId = (value = "") => {
+  const candidate = clean(value);
+  if (!candidate || /^social_comment:/i.test(candidate)) return "";
+  const segments = candidate.split("_").map((part) => clean(part)).filter(Boolean);
+  if (segments.length >= 2) {
+    return `https://www.facebook.com/${segments[0]}/posts/${segments[1]}`;
+  }
+  return /^\d+$/.test(candidate) ? `https://www.facebook.com/${candidate}` : "";
+};
+
+const buildCanonicalSocialPostUrl = (post = {}) => {
+  const metadata = post?.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
+  const raw = post?.raw && typeof post.raw === "object" && !Array.isArray(post.raw) ? post.raw : {};
+  const platform = clean(post?.platform || metadata?.platform || raw?.platform || "facebook").toLowerCase();
+  const platformPostId = [
+    post?.platformPostId,
+    post?.platform_post_id,
+    post?.sourcePostId,
+    post?.source_post_id,
+    post?.canonicalPostId,
+    post?.canonical_post_id,
+    post?.postId,
+    post?.post_id,
+    raw?.platform_post_id,
+    raw?.post_id,
+    metadata?.platform_post_id,
+    metadata?.post_id,
+  ]
+    .map((value) => clean(value))
+    .find(Boolean);
+  if (platform.includes("facebook")) {
+    return buildFacebookPostUrlFromId(platformPostId);
+  }
+  return "";
+};
+
 const pictureUrlFrom = (value = "") => {
   if (!value) return "";
   if (typeof value === "string") return clean(value);
@@ -784,18 +829,21 @@ const resolvePostOpenLink = (post = {}, display = {}) => {
     { source: "raw.permalink_url", value: raw?.permalink_url },
     { source: "displayPermalink", value: display?.displayPermalink },
   ];
-  const resolved = candidates.map((item) => ({ ...item, value: clean(item.value) })).find((item) => item.value) || null;
+  const resolved = candidates
+    .map((item) => ({ ...item, value: normalizeExternalSocialUrl(item.value) }))
+    .find((item) => item.value) || null;
+  const fallbackPermalink = buildCanonicalSocialPostUrl(post);
   const canonicalPostId = clean(post?.canonicalPostId || post?.canonical_post_id || post?.postId || post?.id || "");
   const activeAliasId = clean(post?.sourcePostId || post?.platformPostId || post?.platform_post_id || raw?.post_id || raw?.id || "");
   return {
     resolvedPermalink: resolved?.value || "",
-    fallbackPermalink: "",
-    finalUrl: resolved?.value || "",
-    sourceField: resolved?.source || "",
+    fallbackPermalink,
+    finalUrl: resolved?.value || fallbackPermalink,
+    sourceField: resolved?.source || (fallbackPermalink ? "platform_post_id_fallback" : ""),
     canonicalPostId,
     activeAliasId,
-    hasPermalink: Boolean(resolved?.value),
-    usedFallback: false,
+    hasPermalink: Boolean(resolved?.value || fallbackPermalink),
+    usedFallback: !resolved?.value && Boolean(fallbackPermalink),
   };
 };
 
@@ -2292,7 +2340,7 @@ function SocialCommentsWorkspace({
   };
 
   return (
-    <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-[#E2E8F0] bg-white text-slate-900 shadow-[0_16px_50px_rgba(15,23,42,0.08)]">
+    <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.035] text-slate-900 shadow-[0_16px_50px_rgba(0,0,0,0.22)] backdrop-blur">
       <div className="grid h-full min-h-0 w-full min-w-0 gap-2.5 p-2.5 min-[1024px]:grid-cols-[312px_minmax(0,1fr)] min-[1280px]:grid-cols-[312px_minmax(0,1fr)_348px]">
         <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-[#E2E8F0] bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
           <div className="flex items-center justify-between gap-2 border-b border-[#E2E8F0] px-2.5 py-2.5">
