@@ -78,6 +78,26 @@ const buildPrivateReplyExitPayload = ({
   has_private_reply_payload: Boolean(privateReplyPayload),
   status: String(status || "").trim(),
 });
+const parsePrivateReplyCommentTimestamp = (row = {}) => {
+  const candidates = [
+    row.created_at,
+    row.processed_at,
+    row.updated_at,
+    row.raw_payload?.received_at,
+    row.raw_payload?.entry?.[0]?.time,
+    row.raw_payload?.entry?.[0]?.changes?.[0]?.value?.created_time,
+    row.comment_created_time,
+  ];
+  for (const candidate of candidates) {
+    const value = String(candidate || "").trim();
+    if (!value) continue;
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return null;
+};
 const buildProductAwarePrivateReply = ({ row = {}, productContext = {}, settings = {} } = {}) => {
   const defaultTemplate = [
     "أهلًا بحضرتك",
@@ -179,24 +199,56 @@ export const registerBackgroundJobHandlers = () => {
     });
 
     const privateReplyContext = PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT({ row });
+    const privateReplyPayload = row.automation_state?.private_reply || null;
+    const queuedPrivateReplyIntent = Boolean(
+      privateReplyPayload &&
+      (
+        privateReplyPayload.requested ||
+        ["queued", "sending", "sent"].includes(String(privateReplyPayload.status || "").toLowerCase()) ||
+        String(privateReplyPayload.message || "").trim() ||
+        String(privateReplyPayload.rendered_reply || "").trim()
+      )
+    );
+    const queuedProductContext = row.product_context || row.raw_payload?.product_context || null;
+    const hasQueuedProductContext = Boolean(queuedProductContext?.found || queuedProductContext?.has_product_context);
+    const currentTime = new Date();
+    const commentCreatedAt = parsePrivateReplyCommentTimestamp(row);
+    const ageMs = commentCreatedAt ? currentTime.getTime() - commentCreatedAt.getTime() : Number.POSITIVE_INFINITY;
+    const maxAllowedAgeMs = 15 * 60 * 1000;
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_AGE_CHECK", {
+      post_id: postId || row.post_id || "",
+      comment_id: commentId,
+      comment_created_at: commentCreatedAt ? commentCreatedAt.toISOString() : "",
+      job_created_at: String(job?.createdAt || job?.timestamp || payload?.created_at || "").trim(),
+      current_time: currentTime.toISOString(),
+      age_ms: Number.isFinite(ageMs) ? ageMs : null,
+      max_allowed_age_ms: maxAllowedAgeMs,
+      has_product_context: hasQueuedProductContext,
+      has_private_reply_payload: Boolean(privateReplyPayload),
+      queued_private_reply_intent: queuedPrivateReplyIntent,
+      reject_reason: privateReplyContext.rejectReason,
+    });
     if (privateReplyContext.source === "meta_comment_poll") {
-      if (!privateReplyContext.allowFromPoll) {
+      const bypassPollAgeGuard = privateReplyContext.rejectReason === "poll_comment_too_old" && (hasQueuedProductContext || queuedPrivateReplyIntent);
+      const effectiveAllowFromPoll = privateReplyContext.allowFromPoll || bypassPollAgeGuard;
+      const effectiveRejectReason = bypassPollAgeGuard ? "allowed_queued_private_reply" : privateReplyContext.rejectReason;
+      if (!effectiveAllowFromPoll) {
         debugSocialCommentsWarn("[social-comments][private-reply] rejected", {
           tenant_id: tenantId,
           platform,
           comment_id: commentId,
           post_id: postId || row.post_id || "",
-          reason: privateReplyContext.rejectReason,
+          reason: effectiveRejectReason,
         });
         debugSocialCommentsWarn("SOCIAL_COMMENT_PRIVATE_REPLY_REJECTED", {
           tenant_id: tenantId,
           platform,
           comment_id: commentId,
           post_id: postId || row.post_id || "",
-          reason: privateReplyContext.rejectReason,
+          reason: effectiveRejectReason,
         });
         console.log("SOCIAL_COMMENT_PRIVATE_REPLY_EXIT", buildPrivateReplyExitPayload({
-          reason: privateReplyContext.rejectReason,
+          reason: effectiveRejectReason,
           job,
           postId: postId || row.post_id || "",
           commentId,
@@ -206,7 +258,7 @@ export const registerBackgroundJobHandlers = () => {
           privateReplyPayload: row.automation_state?.private_reply || null,
           status: row.dm_status || row.automation_state?.private_reply?.status || "",
         }));
-        return { ok: true, skipped: true, reason: privateReplyContext.rejectReason };
+        return { ok: true, skipped: true, reason: effectiveRejectReason };
       }
 
       debugSocialCommentsLog("SOCIAL_COMMENT_PRIVATE_REPLY_ALLOWED_FROM_POLL", {
@@ -216,6 +268,7 @@ export const registerBackgroundJobHandlers = () => {
         post_id: postId || row.post_id || "",
         created_at: row.created_at || null,
         processed_at: row.processed_at || null,
+        bypass_poll_age_guard: bypassPollAgeGuard,
       });
     }
 
