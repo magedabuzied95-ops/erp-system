@@ -250,7 +250,19 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
     doc.setLineWidth(0.12);
     doc.line(articleCell.x + thermalLayout.articleDividerX, articleCell.y + 1, articleCell.x + thermalLayout.articleDividerX, articleCell.y + articleCell.h - 1);
     doc.setTextColor(255, 255, 255);
-    const skuFontSize = fitThermalArticleValueFontSize(skuValue, thermalLayout.articleValueWidth, thermalLayout.articleFontSize, thermalLayout.articleFontSizeCompact);
+    const skuFontSize = fitThermalArticleValueFontSize(
+      skuValue,
+      thermalLayout.articleValueWidth,
+      thermalLayout.articleFontSize,
+      thermalLayout.articleFontSizeCompact,
+      {
+        measureTextWidth: (fontSize, text) => {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(fontSize);
+          return doc.getTextWidth(String(text || "").trim());
+        },
+      },
+    );
     doc.setFontSize(skuFontSize);
     doc.text(skuValue, articleCell.x + thermalLayout.articleValueX, sizeMidY, { align: "left", baseline: "middle", maxWidth: thermalLayout.articleValueWidth });
   }

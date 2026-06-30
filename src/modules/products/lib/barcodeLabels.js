@@ -1018,31 +1018,45 @@ export const fitThermalArticleValueFontSize = (
   boxWidthMm = 0,
   baseFontSize = THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE,
   minFontSize = THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT,
+  options = {},
 ) => {
   const text = String(value || "").trim();
   if (!text) return Number(baseFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE);
   const startingFontSize = Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE), Number(minFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT));
   const minimumFontSize = Math.max(8.5, Number(minFontSize || THERMAL_LANDSCAPE_ARTICLE_VALUE_FONT_SIZE_COMPACT));
-  let characterWeight = 0;
-  for (const char of text) {
-    if (char === " ") {
-      characterWeight += 0.34;
-    } else if (char === "&") {
-      characterWeight += 0.74;
-    } else if (char === "/") {
-      characterWeight += 0.48;
-    } else if (char === "-") {
-      characterWeight += 0.42;
-    } else if (/[A-Z0-9]/.test(char)) {
-      characterWeight += 0.58;
-    } else {
-      characterWeight += 0.5;
+  const step = Math.max(0.25, Number(options?.step ?? 0.25));
+  const measureTextWidth = typeof options?.measureTextWidth === "function" ? options.measureTextWidth : null;
+  const estimateWidthMm = (fontSize) => {
+    let characterWeight = 0;
+    for (const char of text) {
+      if (char === " ") {
+        characterWeight += 0.34;
+      } else if (char === "&") {
+        characterWeight += 0.74;
+      } else if (char === "/") {
+        characterWeight += 0.48;
+      } else if (char === "-") {
+        characterWeight += 0.42;
+      } else if (/[A-Z0-9]/.test(char)) {
+        characterWeight += 0.58;
+      } else {
+        characterWeight += 0.5;
+      }
     }
+    return ((Math.max(fontSize, minimumFontSize) * Math.max(characterWeight, 1)) / 3.05) + 0.28;
+  };
+  const fits = (fontSize) => {
+    const widthMm = measureTextWidth ? Number(measureTextWidth(fontSize, text)) : estimateWidthMm(fontSize);
+    return widthMm <= Math.max(0, Number(boxWidthMm || 0) - 0.2);
+  };
+  let currentSize = startingFontSize;
+  while (currentSize > minimumFontSize) {
+    if (fits(currentSize)) {
+      return Math.round(currentSize * 10) / 10;
+    }
+    currentSize = Math.max(minimumFontSize, currentSize - step);
   }
-  const estimatedFontSize = boxWidthMm > 0
-    ? ((Math.max(0, boxWidthMm - 0.28) * 3.05) / Math.max(characterWeight, 1))
-    : startingFontSize;
-  return clamp(Math.round(Math.min(startingFontSize, estimatedFontSize) * 10) / 10, minimumFontSize, startingFontSize);
+  return Math.round(minimumFontSize * 10) / 10;
 };
 
 const THERMAL_LANDSCAPE_PAGE = Object.freeze({ width: 100, height: 50 });
