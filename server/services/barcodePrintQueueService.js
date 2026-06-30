@@ -618,4 +618,22 @@ export const deleteBarcodePrintQueueItem = async ({ id = null, tenantId = null }
   return result.rows[0] ? queueRowFromDb(result.rows[0]) : null;
 };
 
+export const findBarcodePrintQueueItemByProductColorKey = async ({ tenantId = null, productId = null, colorKey = "" } = {}) => {
+  await ensureBarcodePrintQueueSchema();
+  const result = await db.query(
+    `
+    SELECT *
+    FROM barcode_print_queue
+    WHERE tenant_id = $1
+      AND product_id = $2
+      AND color_key = $3
+      AND status <> 'printed'
+    ORDER BY updated_at DESC, id DESC
+    LIMIT 1
+    `,
+    [Number(tenantId) || null, Number(productId) || null, normalizeText(colorKey).toLowerCase()]
+  );
+  return result.rows[0] ? queueRowFromDb(result.rows[0]) : null;
+};
+
 export { queueRowFromDb as normalizeBarcodePrintQueueRow };
