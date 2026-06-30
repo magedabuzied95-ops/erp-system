@@ -968,47 +968,26 @@ export const fitThermalTitleLayout = (value = "", maxWidthMm = 0, maxLines = 2, 
 
   const base = Number(baseFontSize || THERMAL_LANDSCAPE_TITLE_FONT_SIZE);
   const availableWidthMm = Math.max(1, Number(maxWidthMm || 0) - 1.0);
-  const maxFontSize = Math.max(base * 1.36, base, 13);
+  const fullTextWeight = measureThermalTitleWeight(text);
+  const fullTextFontSize = availableWidthMm > 0 ? (availableWidthMm * 3.62) / fullTextWeight : base * 1.1;
+  const maxFontSize = base * 1.12;
   const minFontSize = Math.max(6.2, base * 0.86);
-  const estimateTitleWidthMm = (valueText, fontSize) => {
-    const weight = measureThermalTitleWeight(valueText);
-    return ((Math.max(fontSize, minFontSize) * Math.max(weight, 1)) / 3.62) + 0.1;
-  };
-  const fitsWidth = (valueText, fontSize) => estimateTitleWidthMm(valueText, fontSize) <= (availableWidthMm * 0.95);
-  const fitLineSet = (lines) => {
-    let currentSize = maxFontSize;
-    while (currentSize >= minFontSize) {
-      if (lines.every((line) => fitsWidth(line, currentSize))) {
-        return Math.round(currentSize * 10) / 10;
-      }
-      currentSize = Math.max(minFontSize, currentSize - 0.25);
-      if (currentSize === minFontSize) {
-        break;
-      }
-    }
-    return Math.round(minFontSize * 10) / 10;
-  };
-  if (!text.includes(" ")) {
+  if (fullTextFontSize >= base * 1.02 || !text.includes(" ")) {
     return {
       lines: [text],
-      fontSize: fitLineSet([text]),
-      lineHeight: 1.14,
-    };
-  }
-
-  const oneLineSize = fitLineSet([text]);
-  if (oneLineSize >= base * 1.02) {
-    return {
-      lines: [text],
-      fontSize: oneLineSize,
+      fontSize: Math.round(clamp(Math.min(maxFontSize, Math.max(fullTextFontSize, base)), base * 1.02, maxFontSize) * 10) / 10,
       lineHeight: 1.14,
     };
   }
 
   const lines = splitThermalTitleLines(text).slice(0, Math.max(1, maxLines));
+  const maxLineWeight = Math.max(...lines.map(measureThermalTitleWeight), fullTextWeight);
+  const estimatedFontSize = availableWidthMm > 0 ? (availableWidthMm * 3.62) / maxLineWeight : base * 1.1;
+  const startingFontSize = Math.min(maxFontSize, estimatedFontSize);
+  const minSplitFontSize = Math.max(6.2, base * 0.86);
   return {
     lines,
-    fontSize: fitLineSet(lines),
+    fontSize: Math.round(clamp(startingFontSize, minSplitFontSize, maxFontSize) * 10) / 10,
     lineHeight: 1.14,
   };
 };
@@ -1076,10 +1055,10 @@ const fitThermalFilledTextFontSize = (
 
 export const fitThermalColorValueFontSize = (value = "", boxWidthMm = 0, baseFontSize = THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) =>
   fitThermalFilledTextFontSize(value, boxWidthMm, baseFontSize, Math.max(11.5, Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) * 0.84), {
-    startFontSize: Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE), 20),
+    startFontSize: Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) * 1.08, Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE), 14.8),
     triggerRatio: 0.95,
-    scale: 3.55,
-    paddingMm: 0.3,
+    scale: 3.68,
+    paddingMm: 0.4,
     ampWeight: 0.78,
     slashWeight: 0.48,
     dashWeight: 0.42,
@@ -1087,7 +1066,7 @@ export const fitThermalColorValueFontSize = (value = "", boxWidthMm = 0, baseFon
 
 export const fitThermalSizeValueFontSize = (value = "", boxWidthMm = 0, baseFontSize = THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE) =>
   fitThermalFilledTextFontSize(value, boxWidthMm, baseFontSize, Math.max(14, Number(baseFontSize || THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE) * 0.78), {
-    startFontSize: Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE), 30),
+    startFontSize: Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE) * 0.9, Number(baseFontSize || THERMAL_LANDSCAPE_SIZE_VALUE_FONT_SIZE) * 0.88),
     triggerRatio: 0.95,
     scale: 3.95,
     paddingMm: 0.2,
