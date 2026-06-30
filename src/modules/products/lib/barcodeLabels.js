@@ -945,7 +945,10 @@ const splitThermalTitleLines = (value = "") => {
   for (let i = 1; i < words.length; i += 1) {
     const left = words.slice(0, i).join(" ");
     const right = words.slice(i).join(" ");
-    const score = Math.abs(measureThermalTitleWeight(left) - measureThermalTitleWeight(right));
+    const leftWeight = measureThermalTitleWeight(left);
+    const rightWeight = measureThermalTitleWeight(right);
+    const balanceScore = Math.abs(leftWeight - rightWeight);
+    const score = (rightWeight * 0.65) + (balanceScore * 0.35);
     if (score < bestScore) {
       bestScore = score;
       bestSplit = i;
@@ -1055,7 +1058,7 @@ const fitThermalFilledTextFontSize = (
 
 export const fitThermalColorValueFontSize = (value = "", boxWidthMm = 0, baseFontSize = THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) =>
   fitThermalFilledTextFontSize(value, boxWidthMm, baseFontSize, Math.max(11.5, Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) * 0.84), {
-    startFontSize: Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) * 1.08, Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE), 14.8),
+    startFontSize: Math.max(Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE) * 1.16, Number(baseFontSize || THERMAL_LANDSCAPE_COLOR_VALUE_FONT_SIZE), 15.6),
     triggerRatio: 0.95,
     scale: 3.68,
     paddingMm: 0.4,
