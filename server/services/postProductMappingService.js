@@ -2009,6 +2009,14 @@ export const removeMapping = async ({ tenantId = null, platform = "", postId = "
     canonicalPostId: platformPostId,
     aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
   }).catch(() => {});
+  const lookupPostIds = Array.from(
+    new Set(
+      [
+        platformPostId,
+        ...(Array.isArray(canonicalIdentity?.aliases) ? canonicalIdentity.aliases.map((alias) => text(alias?.alias_value || "")) : []),
+      ].map((value) => text(value)).filter(Boolean)
+    )
+  );
   if (!safeTenantId || !platformPostId) {
     return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId, canonicalPostId: platformPostId });
   }
@@ -2029,7 +2037,7 @@ export const removeMapping = async ({ tenantId = null, platform = "", postId = "
           OR media_id = ANY($4::text[])
         )
       `,
-      [safeTenantId, normalizedPlatform, productIdValue, platformPostId]
+      [safeTenantId, normalizedPlatform, productIdValue, lookupPostIds]
     );
   } else {
     await db.query(
@@ -2046,7 +2054,7 @@ export const removeMapping = async ({ tenantId = null, platform = "", postId = "
           OR media_id = ANY($3::text[])
         )
       `,
-      [safeTenantId, normalizedPlatform, platformPostId]
+      [safeTenantId, normalizedPlatform, lookupPostIds]
     );
   }
   return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId, canonicalPostId: platformPostId });
