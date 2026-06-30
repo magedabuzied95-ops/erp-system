@@ -504,8 +504,68 @@ export const registerBackgroundJobHandlers = () => {
         status: error?.status || null,
         message: error?.message || "",
       });
-      const status = Number(error?.status || error?.metaResponse?.error?.code || 0);
+      const graphErrorCode = Number(
+        error?.metaResponse?.error?.code ||
+        error?.response?.data?.error?.code ||
+        error?.graphErrorCode ||
+        0
+      ) || 0;
+      const status = Number(error?.status || error?.response?.status || 0);
       const messageText = error?.message || "private reply failed";
+      const alreadyReplied = (
+        status === 400 &&
+        (
+          graphErrorCode === 10900 ||
+          /Activity already replied to/i.test(messageText)
+        )
+      );
+      if (alreadyReplied) {
+        console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ALREADY_REPLIED", {
+          tenant_id: tenantId,
+          platform,
+          post_id: postId || row.post_id || "",
+          comment_id: commentId,
+          graph_error_code: graphErrorCode || null,
+          message: messageText,
+        });
+        await persistSocialCommentAutomationState({
+          tenantId,
+          platform,
+          commentId,
+          sessionId: row.inbox_conversation_id || "",
+          channel: row.channel || "",
+          dmStatus: "sent",
+          errorCode: "",
+          automationState: {
+            ...(row.automation_state || {}),
+            private_reply: {
+              ...(row.automation_state?.private_reply || {}),
+              status: "duplicate",
+              reason: "already_replied",
+              sent_at: row.automation_state?.private_reply?.sent_at || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+          },
+        }).catch(() => {});
+        console.log("SOCIAL_COMMENT_PRIVATE_REPLY_EXIT", buildPrivateReplyExitPayload({
+          reason: "already_replied",
+          job,
+          postId: postId || row.post_id || "",
+          commentId,
+          productContext,
+          message,
+          renderedReply: row.automation_state?.private_reply?.rendered_reply || "",
+          privateReplyPayload: row.automation_state?.private_reply || null,
+          status: "duplicate",
+        }));
+        return {
+          ok: true,
+          duplicate: true,
+          status: "duplicate",
+          reason: "already_replied",
+          graph_error_code: graphErrorCode || null,
+        };
+      }
       const retryable = status === 429 || status >= 500 || /timeout|timed out|fetch failed|network|ECONNREFUSED|ENOTFOUND/i.test(messageText);
       if (job?.attemptsMade >= (job?.maxAttempts || 1)) {
         await persistSocialCommentAutomationState({
