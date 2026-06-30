@@ -87,6 +87,14 @@ export default function BarcodePrintQueue() {
     return () => clearInterval(interval);
   }, [hasProcessing, load]);
 
+  useEffect(() => {
+    const handleRefetch = () => {
+      void load({ silent: true });
+    };
+    window.addEventListener("barcode-print-queue:refetch", handleRefetch);
+    return () => window.removeEventListener("barcode-print-queue:refetch", handleRefetch);
+  }, [load]);
+
   const counts = useMemo(() => {
     const summary = { ready: 0, processing: 0, pending: 0, failed: 0, printed: 0 };
     for (const item of Array.isArray(items) ? items : []) {

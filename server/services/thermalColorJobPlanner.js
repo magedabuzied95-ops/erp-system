@@ -236,7 +236,7 @@ const scheduleColorJob = ({
 } = {}) => {
   const colorKey = normalizeColorKey(group?.colorKey || group?.color);
   const primaryImageUrl = normalizeText(group?.primaryImageUrl);
-  const queueColorKey = primaryImageUrl.toLowerCase();
+  const queueColorKey = colorKey || primaryImageUrl.toLowerCase();
   const queueLabelCount = Math.max(1, Array.isArray(group?.variantIds) ? group.variantIds.length : 0);
   const queueVariantIds = Array.isArray(group?.variantIds) ? group.variantIds : [];
   const queueSource =

@@ -20,6 +20,7 @@ import { generateProductDescription, generateSocialPublisherCaption } from "../s
 import { generateThermalArtwork } from "../services/thermalArtworkService.js";
 import { getTenantId, tenantContextMissingResponse } from "../utils/requestScope.js";
 import {
+  bulkAddBarcodePrintQueueController,
   deleteBarcodePrintQueueController,
   getBarcodePrintQueue,
   markBarcodePrintQueuePrintedController,
@@ -365,6 +366,7 @@ router.post("/:id/generate-ai-thermal-artwork", protect, async (req, res) => {
 router.post("/suggest-edition", protect, suggestMirrorEditionName);
 router.post("/edition-suggestions", protect, suggestMirrorEditionName);
 router.get("/barcode-print-queue", protect, getBarcodePrintQueue);
+router.post("/barcode-print-queue/bulk-add", protect, bulkAddBarcodePrintQueueController);
 router.post("/barcode-print-queue/:id/mark-printed", protect, markBarcodePrintQueuePrintedController);
 router.post("/barcode-print-queue/:id/requeue", protect, requeueBarcodePrintQueueController);
 router.delete("/barcode-print-queue/:id", protect, deleteBarcodePrintQueueController);

@@ -447,6 +447,9 @@ export const getBarcodePrintQueue = async (options = {}) => {
   return unwrapArray(response);
 };
 
+export const bulkAddBarcodePrintQueue = async (body) =>
+  unwrapItem(await api.post("/products/barcode-print-queue/bulk-add", body, { timeoutMs: 120000 }));
+
 export const markBarcodePrintQueuePrinted = async (id) =>
   unwrapItem(await api.post(`/products/barcode-print-queue/${id}/mark-printed`));
 

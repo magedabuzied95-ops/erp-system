@@ -48,6 +48,7 @@ import {
   normalizeClassificationValue,
 } from "../lib/productClassifications";
 import {
+  bulkAddBarcodePrintQueue,
   createProduct,
   deleteProduct,
   getProducts,
@@ -352,6 +353,110 @@ const getProductThumbnail = (row = {}) => {
 
   if (imageValue.startsWith("data:image/")) return imageValue;
   return resolveImageUrl(imageValue);
+};
+
+const normalizeQueueColorKey = (value = "") => String(value ?? "").trim().toLowerCase();
+
+const getProductQueueColorGroups = (row = {}) => {
+  const colorMap = new Map();
+  const addGroup = (source = {}, fallbackVariant = null) => {
+    const color = String(
+      source?.color ??
+        source?.color_name ??
+        source?.colorName ??
+        source?.color_value ??
+        source?.colorValue ??
+        fallbackVariant?.color ??
+        ""
+    ).trim();
+    const colorKey = normalizeQueueColorKey(color || source?.color_key || source?.colorKey || "");
+    const primaryImageUrl = String(
+      source?.colorPrimaryImageUrl ??
+        source?.primary_image_url ??
+        source?.primaryImageUrl ??
+        source?.image_url ??
+        source?.color_image_url ??
+        source?.colorImageUrl ??
+        fallbackVariant?.color_image_url ??
+        fallbackVariant?.variant_image_url ??
+        fallbackVariant?.image_url ??
+        row.product_image_url ??
+        row.image_url ??
+        ""
+    ).trim();
+    const thermalImageUrl = String(
+      source?.variant_color_thermal_image_url ??
+        source?.color_thermal_image_url ??
+        source?.thermal_image_url ??
+        source?.variantColorThermalImageUrl ??
+        source?.colorThermalImageUrl ??
+        fallbackVariant?.variant_color_thermal_image_url ??
+        fallbackVariant?.color_thermal_image_url ??
+        fallbackVariant?.thermal_image_url ??
+        row.product_thermal_image_url ??
+        row.thermal_image_url ??
+        ""
+    ).trim();
+    const variantId = Number(
+      source?.variant_id ??
+        source?.variantId ??
+        source?.id ??
+        fallbackVariant?.id ??
+        fallbackVariant?.variant_id ??
+        0
+    ) || null;
+
+    const groupKey = colorKey || normalizeQueueColorKey(primaryImageUrl || color || row.id || "default");
+    if (!colorMap.has(groupKey)) {
+      colorMap.set(groupKey, {
+        color: color || "Default",
+        colorKey: groupKey,
+        primaryImageUrl,
+        thermalImageUrl,
+        variantIds: [],
+      });
+    }
+    const group = colorMap.get(groupKey);
+    if (!group.primaryImageUrl) group.primaryImageUrl = primaryImageUrl;
+    if (!group.thermalImageUrl) group.thermalImageUrl = thermalImageUrl;
+    if (variantId) group.variantIds.push(variantId);
+  };
+
+  const colorImages = Array.isArray(row.color_images) ? row.color_images : [];
+  const variants = Array.isArray(row.variants) ? row.variants : [];
+  if (colorImages.length) {
+    colorImages.forEach((group) => {
+      const sizes = Array.isArray(group?.sizes) ? group.sizes : [];
+      const fallbackVariant = sizes.find((size) => Number(size?.variant_id || size?.id || 0) > 0) || null;
+      addGroup(group, fallbackVariant);
+      if (sizes.length) {
+        const normalized = colorMap.get(normalizeQueueColorKey(group?.color || group?.color_name || group?.color_value || group?.colorKey || ""));
+        if (normalized) {
+          normalized.variantIds = [...new Set([...normalized.variantIds, ...sizes.map((size) => Number(size?.variant_id || size?.id || 0)).filter(Boolean)])];
+        }
+      }
+    });
+  } else if (variants.length) {
+    variants.forEach((variant) => addGroup(variant, variant));
+  }
+
+  if (!colorMap.size) {
+    const productImageUrl = String(row.product_image_url || row.image_url || "").trim();
+    if (productImageUrl) {
+      colorMap.set("default", {
+        color: "Default",
+        colorKey: "default",
+        primaryImageUrl: productImageUrl,
+        thermalImageUrl: String(row.product_thermal_image_url || row.thermal_image_url || "").trim(),
+        variantIds: [],
+      });
+    }
+  }
+
+  return Array.from(colorMap.values()).map((group) => ({
+    ...group,
+    variantIds: [...new Set(group.variantIds)].filter(Boolean),
+  }));
 };
 
 const getErrorMessage = (error, fallback) =>
@@ -1074,6 +1179,11 @@ function ProductsList() {
   const [marketingEditorOpen, setMarketingEditorOpen] = useState(false);
   const [marketingEditorPost, setMarketingEditorPost] = useState(null);
   const [marketingSaving, setMarketingSaving] = useState(false);
+  const [barcodeQueueDialogOpen, setBarcodeQueueDialogOpen] = useState(false);
+  const [barcodeQueueDialogMode, setBarcodeQueueDialogMode] = useState("all");
+  const [barcodeQueueDialogRegenerateExisting, setBarcodeQueueDialogRegenerateExisting] = useState(false);
+  const [barcodeQueueDialogSelection, setBarcodeQueueDialogSelection] = useState({});
+  const [barcodeQueueSubmitting, setBarcodeQueueSubmitting] = useState(false);
   const actionMenuRef = useRef(null);
   const actionMenuTriggerRef = useRef(null);
   const filtersRef = useRef(null);
@@ -1343,6 +1453,10 @@ function ProductsList() {
   }, [currentPage, page]);
 
   const selectedCount = selectedIds.length;
+  const selectedRows = useMemo(
+    () => rows.filter((row) => selectedIds.includes(row.id)),
+    [rows, selectedIds]
+  );
 
   const toggleSelected = (id) => {
     setSelectedIds((prev) =>
@@ -1906,7 +2020,6 @@ function ProductsList() {
   };
 
   const handleBulkStatus = async (active) => {
-    const selectedRows = rows.filter((row) => selectedIds.includes(row.id));
     const toggleableRows = selectedRows.filter(isStatusToggleableProduct);
     if (!toggleableRows.length) {
       toast.error(t("products.toasts.statusToggleUnavailable", "Draft, archived, and deleted products keep their own status workflow."));
@@ -1927,6 +2040,63 @@ function ProductsList() {
       console.error("[products:list] bulk status failed", err);
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.statusUpdateFailed", "Failed to update product status"));
       await loadProducts();
+    }
+  };
+
+  const openBarcodeQueueDialog = () => {
+    if (!selectedRows.length) return;
+    const initialSelection = {};
+    selectedRows.forEach((row) => {
+      initialSelection[String(row.id)] = getProductQueueColorGroups(row).map((group) => group.colorKey || normalizeQueueColorKey(group.primaryImageUrl)).filter(Boolean);
+    });
+    setBarcodeQueueDialogMode("all");
+    setBarcodeQueueDialogRegenerateExisting(false);
+    setBarcodeQueueDialogSelection(initialSelection);
+    setBarcodeQueueDialogOpen(true);
+  };
+
+  const closeBarcodeQueueDialog = () => {
+    setBarcodeQueueDialogOpen(false);
+    setBarcodeQueueSubmitting(false);
+  };
+
+  const handleConfirmBarcodeQueueAdd = async () => {
+    if (!selectedRows.length || barcodeQueueSubmitting) return;
+
+    try {
+      setBarcodeQueueSubmitting(true);
+      const payload = {
+        regenerateExisting: barcodeQueueDialogRegenerateExisting,
+        colorMode: barcodeQueueDialogMode,
+        products: selectedRows.map((row) => {
+          const colorGroups = getProductQueueColorGroups(row);
+          const selectedColorKeys =
+            barcodeQueueDialogMode === "selected"
+              ? (barcodeQueueDialogSelection[String(row.id)] || [])
+              : colorGroups.map((group) => group.colorKey || normalizeQueueColorKey(group.primaryImageUrl)).filter(Boolean);
+          return {
+            productId: row.id,
+            productName: row.name || "",
+            productImageUrl: row.product_image_url || row.image_url || "",
+            colorImages: Array.isArray(row.color_images) ? row.color_images : [],
+            variants: Array.isArray(row.variants) ? row.variants : [],
+            selectedColorKeys,
+          };
+        }),
+      };
+      const result = await bulkAddBarcodePrintQueue(payload);
+      const addedCount = Number(result?.data?.addedCount || 0);
+      const regeneratedCount = Number(result?.data?.regeneratedCount || 0);
+      const totalColors = addedCount + regeneratedCount;
+      toast.success(t("products.barcodePrintQueue.addedToQueueToast", { count: totalColors, defaultValue: `تمت إضافة ${totalColors} لون إلى قائمة الملصقات` }));
+      window.dispatchEvent(new Event("barcode-print-queue:refetch"));
+      setBarcodeQueueDialogOpen(false);
+      await loadProducts();
+    } catch (err) {
+      console.error("[products:list] barcode print queue bulk add failed", err);
+      toast.error(err?.responseBody?.message || err?.message || t("common.noData"));
+    } finally {
+      setBarcodeQueueSubmitting(false);
     }
   };
 
@@ -2149,6 +2319,13 @@ function ProductsList() {
             >
               <Trash2 size={16} />
               {t("products.bulk.delete")}
+            </button>
+            <button
+              onClick={openBarcodeQueueDialog}
+              className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-200"
+            >
+              <Barcode size={16} />
+              {t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
             </button>
             <button
               onClick={() => handleBulkStatus(true)}
@@ -2653,7 +2830,258 @@ function ProductsList() {
           title={t("products.actionsMenu.generateMarketingPost", "إنشاء منشور تسويقي")}
         />
       ) : null}
+      <BarcodeQueueBulkModal
+        open={barcodeQueueDialogOpen}
+        selectedRows={selectedRows}
+        mode={barcodeQueueDialogMode}
+        regenerateExisting={barcodeQueueDialogRegenerateExisting}
+        selection={barcodeQueueDialogSelection}
+        submitting={barcodeQueueSubmitting}
+        onClose={closeBarcodeQueueDialog}
+        onModeChange={setBarcodeQueueDialogMode}
+        onRegenerateExistingChange={setBarcodeQueueDialogRegenerateExisting}
+        onSelectionChange={setBarcodeQueueDialogSelection}
+        onSubmit={handleConfirmBarcodeQueueAdd}
+        t={t}
+      />
     </ProductsShell>
+  );
+}
+
+function BarcodeQueueBulkModal({
+  open,
+  selectedRows = [],
+  mode = "all",
+  regenerateExisting = false,
+  selection = {},
+  submitting = false,
+  onClose,
+  onModeChange,
+  onRegenerateExistingChange,
+  onSelectionChange,
+  onSubmit,
+  t,
+}) {
+  const colorGroupsByProduct = useMemo(
+    () => (Array.isArray(selectedRows) ? selectedRows : []).map((row) => ({ row, groups: getProductQueueColorGroups(row) })),
+    [selectedRows]
+  );
+
+  const totalAvailableColors = useMemo(
+    () => colorGroupsByProduct.reduce((total, entry) => total + entry.groups.length, 0),
+    [colorGroupsByProduct]
+  );
+
+  const totalSelectedColors = useMemo(() => {
+    if (mode !== "selected") return totalAvailableColors;
+    return colorGroupsByProduct.reduce((total, entry) => {
+      const selected = new Set(Array.isArray(selection[String(entry.row.id)]) ? selection[String(entry.row.id)] : []);
+      return total + entry.groups.filter((group) => selected.has(normalizeQueueColorKey(group.colorKey || group.primaryImageUrl))).length;
+    }, 0);
+  }, [colorGroupsByProduct, mode, selection, totalAvailableColors]);
+
+  if (!open || typeof document === "undefined") return null;
+
+  const toggleGroupSelection = (productId, colorKey) => {
+    const key = String(productId);
+    const normalized = normalizeQueueColorKey(colorKey);
+    onSelectionChange((prev) => {
+      const current = Array.isArray(prev?.[key]) ? prev[key] : [];
+      const next = current.includes(normalized) ? current.filter((item) => item !== normalized) : [...current, normalized];
+      return { ...prev, [key]: next };
+    });
+  };
+
+  const setAllForProduct = (productId, groups, checked) => {
+    const key = String(productId);
+    const values = checked ? groups.map((group) => normalizeQueueColorKey(group.colorKey || group.primaryImageUrl)).filter(Boolean) : [];
+    onSelectionChange((prev) => ({ ...prev, [key]: values }));
+  };
+
+  return createPortal(
+    <div className="fixed inset-0 z-[100150] flex items-center justify-center bg-black/75 px-4 py-6 backdrop-blur-sm" dir="ltr">
+      <div className="w-full max-w-4xl overflow-hidden rounded-[32px] border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60">
+        <div className="flex items-start justify-between gap-4 border-b border-white/8 px-6 py-5">
+          <div className="min-w-0">
+            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-300">
+              {t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
+            </p>
+            <h2 className="mt-2 text-2xl font-black text-white">
+              {t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-400">
+              {t(
+                "products.bulk.addToBarcodePrintQueueDescription",
+                "Choose whether to queue every color or only specific colors. Existing items are skipped unless regeneration is enabled."
+              )}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-300 transition hover:bg-white/10 hover:text-white"
+            aria-label={t("common.close", "Close")}
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid gap-6 px-6 py-6 lg:grid-cols-[280px_minmax(0,1fr)]">
+          <div className="space-y-4">
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <input
+                type="radio"
+                name="barcode-queue-mode"
+                checked={mode === "all"}
+                onChange={() => onModeChange("all")}
+                className="mt-1 h-4 w-4 border-white/30 bg-transparent text-emerald-400"
+              />
+              <span>
+                <span className="block text-sm font-black text-white">{t("products.bulk.allColors", "All colors")}</span>
+                <span className="mt-1 block text-xs leading-5 text-zinc-400">
+                  {t("products.bulk.allColorsDescription", "Queue every color group for the selected products.")}
+                </span>
+              </span>
+            </label>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <input
+                type="radio"
+                name="barcode-queue-mode"
+                checked={mode === "selected"}
+                onChange={() => onModeChange("selected")}
+                className="mt-1 h-4 w-4 border-white/30 bg-transparent text-emerald-400"
+              />
+              <span>
+                <span className="block text-sm font-black text-white">{t("products.bulk.selectedColorsOnly", "Selected colors only")}</span>
+                <span className="mt-1 block text-xs leading-5 text-zinc-400">
+                  {t("products.bulk.selectedColorsOnlyDescription", "Pick only the colors you want to add to the queue.")}
+                </span>
+              </span>
+            </label>
+
+            <label className="flex cursor-pointer items-start gap-3 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <input
+                type="checkbox"
+                checked={regenerateExisting}
+                onChange={(event) => onRegenerateExistingChange(event.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-white/30 bg-transparent text-emerald-400"
+              />
+              <span>
+                <span className="block text-sm font-black text-white">
+                  {t("products.bulk.regenerateExisting", "Regenerate existing items")}
+                </span>
+                <span className="mt-1 block text-xs leading-5 text-zinc-400">
+                  {t("products.bulk.regenerateExistingDescription", "Create a fresh thermal job for colors already in the queue.")}
+                </span>
+              </span>
+            </label>
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-black uppercase tracking-[0.18em] text-zinc-400">
+                  {t("products.bulk.selectionSummary", "Selection")}
+                </h3>
+                <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-semibold text-zinc-300">
+                  {mode === "selected" ? `${totalSelectedColors}/${totalAvailableColors}` : totalAvailableColors}
+                </span>
+              </div>
+
+              <div className="mt-4 max-h-[54vh] space-y-4 overflow-auto pr-1">
+                {colorGroupsByProduct.map(({ row, groups }) => {
+                  const productKey = String(row.id);
+                  const selectedForProduct = Array.isArray(selection?.[productKey]) ? selection[productKey] : [];
+                  const normalizedSelected = new Set(selectedForProduct.map(normalizeQueueColorKey));
+                  return (
+                    <div key={productKey} className="rounded-2xl border border-white/10 bg-zinc-950/70 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-black text-white">{row.name || `Product #${row.id}`}</div>
+                          <div className="mt-1 text-xs text-zinc-500">
+                            {groups.length} {t("products.bulk.colors", "colors")}
+                          </div>
+                        </div>
+                        {mode === "selected" ? (
+                          <button
+                            type="button"
+                            onClick={() => setAllForProduct(row.id, groups, normalizedSelected.size !== groups.length)}
+                            className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/10"
+                          >
+                            {normalizedSelected.size === groups.length
+                              ? t("products.bulk.clearSelection", "Clear")
+                              : t("products.bulk.selectAll", "Select all")}
+                          </button>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {groups.length ? groups.map((group) => {
+                          const colorKey = normalizeQueueColorKey(group.colorKey || group.primaryImageUrl);
+                          const isChecked = mode !== "selected" || normalizedSelected.has(colorKey);
+                          return (
+                            <label
+                              key={`${productKey}-${colorKey || group.color || "color"}`}
+                              className={`inline-flex cursor-pointer items-center gap-2 rounded-full border px-3 py-2 text-sm font-semibold transition ${
+                                isChecked
+                                  ? "border-emerald-300/40 bg-emerald-500/15 text-emerald-100"
+                                  : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                disabled={mode !== "selected"}
+                                onChange={() => toggleGroupSelection(row.id, colorKey)}
+                                className="h-4 w-4 rounded border-white/30 bg-transparent text-emerald-400"
+                              />
+                              <span className="truncate">{group.color || t("products.bulk.defaultColor", "Default")}</span>
+                            </label>
+                          );
+                        }) : (
+                          <div className="text-sm text-zinc-500">{t("products.bulk.noColors", "No colors found")}</div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 border-t border-white/8 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-zinc-400">
+            {mode === "selected"
+              ? t("products.bulk.selectedColorsCount", { count: totalSelectedColors, defaultValue: `${totalSelectedColors} colors selected` })
+              : t("products.bulk.allColorsCount", { count: totalAvailableColors, defaultValue: `${totalAvailableColors} colors will be queued` })}
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10"
+              disabled={submitting}
+            >
+              {t("common.cancel", "Cancel")}
+            </button>
+            <button
+              type="button"
+              onClick={onSubmit}
+              disabled={submitting || !selectedRows.length || (mode === "selected" && totalSelectedColors === 0)}
+              className="inline-flex items-center gap-2 rounded-2xl bg-emerald-500 px-4 py-2.5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Barcode size={16} />
+              {submitting
+                ? t("common.loading", "Loading...")
+                : t("products.bulk.addToBarcodePrintQueue", "إضافة إلى قائمة الملصقات")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 }
 
