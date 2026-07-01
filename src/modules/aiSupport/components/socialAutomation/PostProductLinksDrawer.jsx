@@ -143,6 +143,7 @@ export default function PostProductLinksDrawer({
   const searchTimerRef = useRef(null);
   const loadVersionRef = useRef(0);
   const dirtyRef = useRef(false);
+  const initialProductIdsRef = useRef([]);
 
   const selectedIdSet = useMemo(() => new Set(selectedProducts.map((item) => Number(item.id)).filter(Boolean)), [selectedProducts]);
   const selectedCount = selectedProducts.length;
@@ -177,6 +178,7 @@ export default function PostProductLinksDrawer({
     setSelectedProducts(mapped);
     const primaryId = Number(payload?.primary_product?.id || payload?.primary_product?.product_id || mapped[0]?.id || 0) || null;
     setPrimaryProductId(primaryId);
+    initialProductIdsRef.current = mapped.map((item) => Number(item.id)).filter((value) => Number.isFinite(value) && value > 0);
     dirtyRef.current = false;
     logHydrationTrace({
       phase,
@@ -311,6 +313,7 @@ export default function PostProductLinksDrawer({
     setSearchTerm("");
     resetSearch();
     dirtyRef.current = false;
+    initialProductIdsRef.current = [];
     setSelectedProducts([]);
     setPrimaryProductId(null);
     void loadMappings();
@@ -424,10 +427,30 @@ export default function PostProductLinksDrawer({
       .filter((value) => Number.isFinite(value) && value > 0);
     const safePrimaryProductId = Number(primaryProductId || selectedProductIds[0] || 0) || null;
     const isClearOperation = !selectedProductIds.length;
+    const propLinkedProductIds = uniqueProductsById(
+      Array.isArray(post?.linked_products)
+        ? post.linked_products
+        : Array.isArray(post?.mapping_summary?.linked_products)
+          ? post.mapping_summary.linked_products
+          : []
+    ).map((item) => Number(item.id)).filter((value) => Number.isFinite(value) && value > 0);
+    const initialProductIds = Array.isArray(initialProductIdsRef.current)
+      ? Array.from(new Set(initialProductIdsRef.current.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)))
+      : [];
+    const outgoingProductIds = Array.from(new Set(selectedProductIds));
+    const ignoredExternalHydration = Boolean(dirtyRef.current);
+    console.info("SOCIAL_PRODUCT_DRAWER_SAVE_PAYLOAD_TRACE", {
+      selectedProductsLocalIds: selectedProductIds,
+      propLinkedProductIds,
+      initialProductIds,
+      outgoingProductIds,
+      dirty: Boolean(dirtyRef.current),
+      ignoredExternalHydration,
+    });
     console.info("PRODUCT_LINKS_FRONTEND_SAVE_CLICK", {
       postId: safePostId,
       platform: safePlatform,
-      selectedProductIds,
+      selectedProductIds: outgoingProductIds,
       primaryProductId: safePrimaryProductId,
       isClearOperation,
     });
@@ -487,6 +510,7 @@ export default function PostProductLinksDrawer({
     if (!safePostId) return;
     const confirmed = window.confirm("Remove all linked products from this post?");
     if (!confirmed) return;
+    return handleSave();
     setSaving(true);
     try {
       const payload = await savePostProductLinks({
