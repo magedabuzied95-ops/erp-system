@@ -4,6 +4,7 @@ import db, { withReadOnlyDbSession } from "../database/db.js";
 
 import { generateAiBrainV2Decision } from "../services/aiBrainV2Service.js";
 import { composeAiSalesReply } from "../services/aiSalesReplyComposerService.js";
+import { searchAiSalesProducts } from "../services/aiSalesAgentService.js";
 import { normalizeProductCards } from "../services/aiProductCards.js";
 import { resolveIntent } from "../services/aiIntentResolver.js";
 import { getPerfContext } from "../utils/perfDebug.js";
@@ -25,6 +26,11 @@ const regressionKeyFromRequest = (req) =>
 
 const toText = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const hasProductSearchSignal = ({ message = "", productQuery = "", intent = "" } = {}) => {
+  const normalizedIntent = toText(intent).toLowerCase();
+  const normalizedMessage = toText(message);
+  return Boolean(productQuery) || normalizedIntent === "product_search" || normalizedIntent.includes("product_search") || normalizedIntent.includes("product search") || resolveIntent(normalizedMessage) === "product_search";
+};
 const REGRESSION_RATE_LIMIT_MAX = 250;
 const REGRESSION_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const regressionRateLimitBucketsByIp = new Map();
@@ -94,6 +100,23 @@ const regressionAuditLog = (phase, payload = {}) => {
     dry_run: true,
     source: "ai_regression_test_endpoint",
   });
+};
+
+export const buildRegressionSeedProductCards = async ({
+  tenantId = 1,
+  message = "",
+  productQuery = "",
+  rawSeedProductCards = [],
+  intent = "",
+} = {}) => {
+  const explicitCards = normalizeProductCards(rawSeedProductCards, { limit: 24, preserveUnavailableCards: true });
+  if (explicitCards.length) return explicitCards;
+
+  const searchText = toText(productQuery || message);
+  if (!searchText || !hasProductSearchSignal({ message, productQuery, intent })) return [];
+
+  const searchedProducts = await searchAiSalesProducts({ tenantId, query: searchText, limit: 24 }).catch(() => []);
+  return normalizeProductCards(searchedProducts, { limit: 24, preserveUnavailableCards: true });
 };
 
 const primaryPrice = (product = {}) => {
@@ -434,11 +457,19 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
 
       const tenantId = Number(req.body?.tenant_id || req.body?.tenantId || 1);
       const baseMemory = req.body?.memory && typeof req.body.memory === "object" ? req.body.memory : {};
+      const productQuery = toText(req.body?.product_query || req.body?.productQuery || "");
+      const requestIntent = toText(req.body?.intent || req.body?.detected_intent || req.body?.detectedIntent || resolveIntent(message));
       const rawSeedProductCards = req.body?.product_cards ||
         req.body?.fixture?.product_cards ||
         req.body?.fixture?.productCards ||
         [];
-      const seedProductCards = normalizeProductCards(rawSeedProductCards, { limit: 24, preserveUnavailableCards: true });
+      const seedProductCards = await buildRegressionSeedProductCards({
+        tenantId,
+        message,
+        productQuery,
+        rawSeedProductCards,
+        intent: requestIntent,
+      });
       const composerProductCards = seedProductCards.length ? seedProductCards : asArray(rawSeedProductCards);
       const effectiveMemory = {
         ...baseMemory,
@@ -459,6 +490,8 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
         channel: "web_chat",
         original_message: message,
         normalized_for_intent: message,
+        product_query: productQuery,
+        request_intent: requestIntent,
         ai_memory: effectiveMemory,
         is_regression_test: true,
         dry_run: DRY_RUN_MODE,
@@ -472,6 +505,8 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
         normalized_for_intent: message,
         text: message,
         metadata: regressionMetadata,
+        product_query: productQuery,
+        request_intent: requestIntent,
         is_regression_test: true,
         dry_run: DRY_RUN_MODE,
         source: "ai_regression_test_endpoint",
