@@ -3144,7 +3144,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     SELECT
       ppl.product_id,
       ppl.post_id AS mapped_post_id,
-      ppl.media_id AS mapped_media_id,
+      NULL::text AS mapped_media_id,
       p.name AS product_name,
       p.price AS product_price,
       p.sale_price AS product_sale_price,

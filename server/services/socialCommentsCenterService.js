@@ -3184,7 +3184,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
         p.price AS product_price,
         p.sale_price AS product_sale_price,
         p.image_url AS product_image_url,
-        COALESCE(ppl.media_id, '') AS product_storefront_url,
+        NULL::text AS product_storefront_url,
         COALESCE(
           (SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
            FROM product_variants v
@@ -3427,7 +3427,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
           WHERE vi.product_id = ppl.product_id
             AND NULLIF(TRIM(vi.image_url), '') IS NOT NULL
         ), '[]'::jsonb) AS product_variant_images,
-        COALESCE(ppl.media_id, '') AS product_storefront_url,
+        NULL::text AS product_storefront_url,
         COALESCE(
           (SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
            FROM product_variants v
@@ -3647,7 +3647,7 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
           WHERE vi.product_id = ppl.product_id
             AND NULLIF(TRIM(vi.image_url), '') IS NOT NULL
         ), '[]'::jsonb) AS product_variant_images,
-        COALESCE(ppl.media_id, '') AS product_storefront_url,
+        NULL::text AS product_storefront_url,
         COALESCE(
           (SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
            FROM product_variants v
