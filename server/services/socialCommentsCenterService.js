@@ -3401,6 +3401,49 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
   const platformClause = normalizedPlatform === "facebook" || normalizedPlatform === "instagram"
     ? `AND c.channel = '${normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"}'`
     : "";
+  const parseSocialPostSortTime = (value = "") => {
+    const raw = text(value);
+    if (!raw) return null;
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const resolveSocialPostCardTitle = (row = {}) =>
+    text(
+      row.title ||
+      row.post_title ||
+      row.caption ||
+      row.post_caption ||
+      row.post_message ||
+      row.message ||
+      row.post_text ||
+      row.product_name ||
+      row.customer_name ||
+      row.post_permalink_url ||
+      row.permalink_url ||
+      row.post_link_key ||
+      row.canonical_post_id ||
+      row.id ||
+      row.conversation_id ||
+      ""
+    );
+  const resolveSocialPostSortDetails = (row = {}) => {
+    const candidates = [
+      { source: "display_post_time", value: row.display_post_time },
+      { source: "post_created_time", value: row.post_created_time },
+      { source: "metadata.post_created_time", value: row.metadata_post_created_time },
+      { source: "metadata.post_object_created_time", value: row.metadata_post_object_created_time },
+      { source: "graph.created_time", value: row.graph_created_time },
+      { source: "graph.post_created_time", value: row.graph_post_created_time },
+      { source: "marketing_published_at", value: row.marketing_published_at },
+      { source: "marketing_created_time", value: row.marketing_created_time },
+    ];
+    const selected = candidates.find((candidate) => parseSocialPostSortTime(candidate.value) !== null);
+    return {
+      sortTime: selected ? parseSocialPostSortTime(selected.value) : null,
+      sortTimeSource: selected?.source || "missing",
+      title: resolveSocialPostCardTitle(row),
+    };
+  };
   const postsSql = `
     SELECT
       c.tenant_id,
@@ -3669,7 +3712,36 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     sample_group_sizes: groupedSummaries.slice(0, 10).map((group) => ({ key: group.key, size: group.size })),
     sample_keys_with_sources: groupedSummaries.slice(0, 10).map((group) => ({ key: group.key, sources: group.sources.slice(0, 5) })),
   });
-  return Promise.all(groupedRows.map((row) => enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
+  const enrichedRows = await Promise.all(groupedRows.map((row) => enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
+  const sortedRows = [...enrichedRows].sort((left, right) => {
+    const leftDetails = resolveSocialPostSortDetails(left);
+    const rightDetails = resolveSocialPostSortDetails(right);
+    const leftHasTime = leftDetails.sortTime !== null;
+    const rightHasTime = rightDetails.sortTime !== null;
+    if (leftHasTime !== rightHasTime) {
+      return leftHasTime ? -1 : 1;
+    }
+    if (leftHasTime && rightHasTime && leftDetails.sortTime !== rightDetails.sortTime) {
+      return rightDetails.sortTime - leftDetails.sortTime;
+    }
+    const titleCompare = leftDetails.title.localeCompare(rightDetails.title, "en", { numeric: true, sensitivity: "base" });
+    if (titleCompare !== 0) return titleCompare;
+    const leftStable = text(left.post_link_key || left.canonical_post_id || left.id || left.conversation_id || "");
+    const rightStable = text(right.post_link_key || right.canonical_post_id || right.id || right.conversation_id || "");
+    return leftStable.localeCompare(rightStable, "en", { numeric: true, sensitivity: "base" });
+  });
+  sortedRows.forEach((row, index) => {
+    const details = resolveSocialPostSortDetails(row);
+    console.info("SOCIAL_POST_CARD_SORT_TRACE", {
+      post_link_key: text(row.post_link_key || row.canonical_post_id || row.id || row.conversation_id || ""),
+      title: details.title,
+      display_post_time: text(row.display_post_time || row.post_created_time || row.metadata_post_created_time || row.metadata_post_object_created_time || ""),
+      sort_time_source: details.sortTimeSource,
+      latest_comment_at: text(row.latest_comment_at || ""),
+      final_sort_rank: index + 1,
+    });
+  });
+  return sortedRows;
 };
 
 const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", limit = 200 } = {}) => {
