@@ -263,6 +263,8 @@ const normalizePost = (raw) => {
       0
   ) || 0;
   const primaryLinkedProduct = post.primary_linked_product || post.primary_product || metadata.primary_linked_product || metadata.primary_product || mappingSummary.primary_linked_product || mappingSummary.primary_product || linkedProducts[0] || null;
+  const productLinkIdentity = post.product_link_identity || metadata.product_link_identity || mappingSummary.product_link_identity || post.post_identity || metadata.post_identity || null;
+  const productLinkKey = clean(productLinkIdentity?.product_link_key || productLinkIdentity?.post_id || productLinkIdentity?.canonical_post_id || "");
   const directLinkedProducts = hasDirectProductLink ? linkedProducts : [];
   const directLinkedProductsCount = hasDirectProductLink
     ? (Number(
@@ -358,6 +360,10 @@ const normalizePost = (raw) => {
     productName: clean(post.product_name || post.product_title || metadata.product_name || metadata.product_title || mappingSummary.primary_product_name || mappedProductName || ""),
     productId: clean(post.product_id || metadata.product_id || primaryLinkedProduct?.id || primaryLinkedProduct?.product_id || ""),
     product_id: clean(post.product_id || metadata.product_id || primaryLinkedProduct?.id || primaryLinkedProduct?.product_id || ""),
+    productLinkIdentity: productLinkIdentity,
+    product_link_identity: productLinkIdentity,
+    productLinkKey,
+    product_link_key: productLinkKey,
     productPrice: clean(post.product_price || metadata.product_price || mappedProductPrice || ""),
     productSalePrice: clean(post.product_sale_price || metadata.product_sale_price || clean(primaryLinkedProduct?.sale_price || "")),
     productSizes: clean(post.product_sizes || metadata.product_sizes || mappedProductSizes || ""),
@@ -509,11 +515,23 @@ const normalizeSocialPostDisplay = (raw = {}) => {
 
 const postKey = (item = {}) => {
   const platform = clean(item?.platform || "facebook");
+  const productLinkIdentity = item?.product_link_identity && typeof item.product_link_identity === "object" && !Array.isArray(item.product_link_identity)
+    ? item.product_link_identity
+    : item?.post_identity && typeof item.post_identity === "object" && !Array.isArray(item.post_identity)
+      ? item.post_identity
+      : {};
+  const productLinkKey = clean(
+    productLinkIdentity.product_link_key ||
+      productLinkIdentity.post_id ||
+      productLinkIdentity.canonical_post_id ||
+      ""
+  );
   const platformPostId = clean(item?.platformPostId || item?.platform_post_id || "");
   const sourcePostId = clean(item?.sourcePostId || item?.source_post_id || item?.postId || item?.post_id || "");
   const permalinkPostId = clean(item?.permalinkPostId || item?.permalink_post_id || "");
   const canonicalPostId = clean(item?.canonicalPostId || item?.canonical_post_id || item?.finalCanonicalPostId || item?.final_canonical_post_id || "");
-  const composite = [platform, platformPostId, sourcePostId, permalinkPostId, canonicalPostId].join("|");
+  const composite = [platform, productLinkKey, platformPostId, sourcePostId, permalinkPostId, canonicalPostId].join("|");
+  if (productLinkKey) return composite;
   if (platformPostId || sourcePostId || permalinkPostId || canonicalPostId) return composite;
   return clean(item?.display_permalink || item?.permalinkUrl || item?.postId || item?.id || "");
 };
@@ -570,6 +588,10 @@ const buildPostIdentitySnapshot = (post = {}) => {
   );
   const ids = new Set(
     [
+      post?.product_link_identity?.product_link_key,
+      post?.product_link_identity?.post_id,
+      post?.post_identity?.product_link_key,
+      post?.post_identity?.post_id,
       normalized?.canonicalPostId,
       normalized?.finalCanonicalPostId,
       normalized?.platformPostId,

@@ -77,6 +77,7 @@ const buildPostIdentityPayload = (post = {}) => ({
 });
 
 const buildHydrationIdentity = (post = {}) => ({
+  product_link_key: clean(post?.product_link_identity?.product_link_key || post?.post_identity?.product_link_key || post?.product_link_key || ""),
   platform_post_id: clean(post?.platform_post_id || post?.platformPostId || ""),
   source_post_id: clean(post?.source_post_id || post?.sourcePostId || post?.post_id || post?.postId || ""),
   permalink_post_id: clean(post?.permalink_post_id || post?.permalinkPostId || ""),
@@ -124,7 +125,24 @@ export default function PostProductLinksDrawer({
   onClose,
   onSaved,
 }) {
-  const safePostId = clean(post?.canonicalPostId || post?.canonical_post_id || post?.postId || post?.post_id || post?.id || post?.conversationId || post?.conversation_id || "");
+  const productLinkIdentity = post?.product_link_identity && typeof post.product_link_identity === "object" && !Array.isArray(post.product_link_identity)
+    ? post.product_link_identity
+    : post?.post_identity && typeof post.post_identity === "object" && !Array.isArray(post.post_identity)
+      ? post.post_identity
+      : {};
+  const safePostId = clean(
+    productLinkIdentity.product_link_key ||
+      productLinkIdentity.post_id ||
+      productLinkIdentity.canonical_post_id ||
+      post?.canonicalPostId ||
+      post?.canonical_post_id ||
+      post?.postId ||
+      post?.post_id ||
+      post?.id ||
+      post?.conversationId ||
+      post?.conversation_id ||
+      ""
+  );
   const safePlatform = clean(post?.platform || "facebook").toLowerCase() || "facebook";
   const postIdentityPayload = useMemo(() => buildPostIdentityPayload(post || {}), [post]);
   const [initialLoading, setInitialLoading] = useState(false);

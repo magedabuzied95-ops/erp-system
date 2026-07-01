@@ -3,12 +3,13 @@ import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { fetchMetaPostPreviewDetails } from "./metaIntegrationService.js";
 import { likeComment, replyToComment, renderTemplate } from "./marketingCommentAutomationService.js";
-import { getMappings } from "./postProductMappingService.js";
+import { getPostProductLinksV2 } from "./socialPostProductLinksV2Service.js";
 import {
   ensureSocialPostIdentityAliasSchema,
   migrateCanonicalSocialPostRecords,
   resolveSocialPostCanonicalIdentity,
 } from "./socialPostIdentityService.js";
+import { resolveSocialPostProductLinkIdentity } from "../../shared/socialPostProductLinkIdentity.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -250,17 +251,20 @@ const ensureSocialCommentsCenterSchema = async () => {
         )
       `);
       await db.query(`
-        CREATE TABLE IF NOT EXISTS marketing_post_product_links (
+        CREATE TABLE IF NOT EXISTS social_post_product_links_v2 (
           id BIGSERIAL PRIMARY KEY,
           tenant_id BIGINT NOT NULL,
+          business_id BIGINT NOT NULL,
           platform TEXT NOT NULL,
-          platform_post_id TEXT NOT NULL,
+          post_link_key TEXT NOT NULL,
+          canonical_post_id TEXT NULL,
+          source_post_id TEXT NULL,
+          permalink_post_id TEXT NULL,
           product_id BIGINT NOT NULL,
-          priority INTEGER NOT NULL DEFAULT 1,
           is_primary BOOLEAN NOT NULL DEFAULT TRUE,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          UNIQUE (tenant_id, platform, platform_post_id, product_id)
+          UNIQUE (business_id, platform, post_link_key, product_id)
         )
       `);
       await ensureSocialPostIdentityAliasSchema();
@@ -277,7 +281,7 @@ const ensureSocialCommentsCenterSchema = async () => {
       await db.query(`CREATE INDEX IF NOT EXISTS idx_social_comment_auto_reply_runs_fast_reply ON social_comment_auto_reply_runs (tenant_id, platform, reply_status, updated_at DESC, id DESC)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_channel_conversations_social_post_lookup ON ai_channel_conversations (tenant_id, channel, thread_kind, (metadata->>'post_id'))`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_ai_support_messages_social_comment_lookup ON ai_support_messages (tenant_id, message_type, comment_id)`);
-      await db.query(`CREATE INDEX IF NOT EXISTS idx_marketing_post_product_links_social_comments_lookup ON marketing_post_product_links (business_id, platform, post_id, created_at DESC, id DESC)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_social_post_product_links_v2_social_comments_lookup ON social_post_product_links_v2 (business_id, platform, post_link_key, created_at DESC, id DESC)`);
     })().catch((error) => {
       socialCommentsCenterSchemaReadyPromise = null;
       throw error;
@@ -1394,6 +1398,13 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     ? await resolveSocialPostCanonicalIdentity({ tenantId, platform, postId, row: safeRow, post: safeRow, source: "enrichSocialCommentPostRow" }).catch(() => null)
     : null;
   const canonicalIdentityPostId = text(canonicalIdentity?.canonical_post_id || postId || "");
+  const productLinkIdentity = resolveSocialPostProductLinkIdentity({
+    tenant_id: tenantId,
+    platform,
+    ...safeRow,
+    canonical_post_id: canonicalIdentityPostId,
+    post_id: canonicalIdentityPostId || postId,
+  });
   void migrateCanonicalSocialPostRecords({
     tenantId,
     platform,
@@ -1407,11 +1418,10 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   const currentHasThumbnail = Boolean(currentDetails.has_thumbnail);
   const shouldLogMediaBackfill = !currentHasThumbnail;
   const mappingSummary = canonicalIdentityPostId && tenantId
-    ? await getMappings({
+    ? await getPostProductLinksV2({
       tenantId,
       platform,
-      postId: canonicalIdentityPostId,
-      row: { ...safeRow, canonical_post_id: canonicalIdentityPostId },
+      postId: productLinkIdentity.product_link_key || canonicalIdentityPostId,
       post: { ...safeRow, canonical_post_id: canonicalIdentityPostId },
     }).catch(() => null)
     : null;
@@ -1480,6 +1490,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     return {
       ...value,
       canonical_post_id: canonicalIdentityPostId,
+      product_link_identity: productLinkIdentity,
       canonical_identity: canonicalIdentity || null,
     post_text: text(value.post_text || safeRow.post_text || safeRow.post_message || metadata.post_text || metadata.message || value.post_message || value.post_caption || ""),
     message: text(value.message || safeRow.message || safeRow.post_message || metadata.message || value.post_message || value.post_caption || ""),
@@ -3186,11 +3197,11 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
            WHERE v.tenant_id = c.tenant_id AND v.product_id = ppl.product_id),
           ''
         ) AS product_colors
-      FROM marketing_post_product_links ppl
+      FROM social_post_product_links_v2 ppl
       LEFT JOIN products p ON p.id = ppl.product_id
       WHERE ppl.business_id = c.tenant_id
         AND ppl.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
-        AND ppl.post_id = c.metadata->>'post_id'
+        AND ppl.post_link_key = c.metadata->>'post_id'
       ORDER BY ppl.created_at DESC, ppl.id DESC
       LIMIT 1
     ) prod ON TRUE
@@ -3429,11 +3440,11 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
            WHERE v.tenant_id = c.tenant_id AND v.product_id = ppl.product_id),
           ''
         ) AS product_colors
-      FROM marketing_post_product_links ppl
+      FROM social_post_product_links_v2 ppl
       LEFT JOIN products p ON p.id = ppl.product_id
       WHERE ppl.business_id = c.tenant_id
         AND ppl.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
-        AND ppl.post_id = c.metadata->>'post_id'
+        AND ppl.post_link_key = c.metadata->>'post_id'
       ORDER BY ppl.created_at DESC, ppl.id DESC
       LIMIT 1
     ) prod ON TRUE
@@ -3649,11 +3660,11 @@ const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", 
            WHERE v.tenant_id = c.tenant_id AND v.product_id = ppl.product_id),
           ''
         ) AS product_colors
-      FROM marketing_post_product_links ppl
+      FROM social_post_product_links_v2 ppl
       LEFT JOIN products p ON p.id = ppl.product_id
       WHERE ppl.business_id = c.tenant_id
         AND ppl.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
-        AND ppl.post_id = c.metadata->>'post_id'
+        AND ppl.post_link_key = c.metadata->>'post_id'
       ORDER BY ppl.created_at DESC, ppl.id DESC
       LIMIT 1
     ) prod ON TRUE

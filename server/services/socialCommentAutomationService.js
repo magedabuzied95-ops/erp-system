@@ -11,7 +11,7 @@ import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
 import { getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
 import { enqueueSocialCommentJob } from "./socialCommentJobQueue.js";
-import { resolveMappedProducts, resolvePrimaryProduct, resolveProductMappingForSiblingPost } from "./postProductMappingService.js";
+import { resolveMappedProductsV2, resolvePrimaryProductV2 } from "./socialPostProductLinksV2Service.js";
 import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import {
@@ -2932,7 +2932,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     };
   }
 
-  const mappedProducts = await resolveMappedProducts({
+  const mappedProducts = await resolveMappedProductsV2({
     tenantId: safeTenantId,
     platform,
     postId: candidatePostIds[0] || "",
@@ -2941,7 +2941,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
   }).catch(() => []);
   directProductIdsCount = mappedProducts.length;
   if (mappedProducts.length) {
-    const primaryMappedProduct = await resolvePrimaryProduct({
+    const primaryMappedProduct = await resolvePrimaryProductV2({
       tenantId: safeTenantId,
       platform,
       postId: candidatePostIds[0] || "",
@@ -2983,7 +2983,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     const directProductContext = {
       found: true,
       has_product_context: true,
-      source: "marketing_post_product_links",
+      source: "social_post_product_links_v2",
       reason: "mapped_products",
       platform,
       post_id: text(primaryMappedProduct?.platform_post_id || candidatePostIds[0] || ""),
@@ -3052,18 +3052,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     comment_id: text(row.comment_id || ""),
     direct_product_ids_count: directProductIdsCount,
   });
-  const siblingMappings = await resolveProductMappingForSiblingPost({
-    tenantId: safeTenantId,
-    platform,
-    postId: candidatePostIds[0] || "",
-    permalinkUrl: text(row.post_permalink_url || row.post_permalink || row.permalink_url || row.raw_payload?.post_permalink_url || row.raw_payload?.permalink_url || ""),
-    message: text(row.post_message || row.post_text || row.message || ""),
-    caption: text(row.post_caption || row.caption || ""),
-    imageUrl: text(row.post_image_url || row.media_url || row.image_url || row.post_full_picture || row.full_picture || row.attachment_image || row.thumbnail_url || ""),
-    marketingPostId: text(row.marketing_post_id || row.metadata?.marketing_post_id || row.raw_payload?.marketing_post_id || row.raw_payload?.value?.marketing_post_id || ""),
-    row,
-    post: row,
-  }).catch(() => null);
+  const siblingMappings = null;
   siblingProductIdsCount = Array.isArray(siblingMappings?.linked_products) ? siblingMappings.linked_products.length : 0;
   if (siblingMappings?.linked_products?.length) {
     const primaryMappedProduct = siblingMappings.primary_product || siblingMappings.linked_products[0] || null;
@@ -3175,17 +3164,17 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
         WHERE v.tenant_id = ppl.business_id
           AND v.product_id = ppl.product_id
       ), '') AS product_colors
-    FROM marketing_post_product_links ppl
+    FROM social_post_product_links_v2 ppl
     LEFT JOIN products p ON p.id = ppl.product_id
     WHERE ppl.business_id = $1::bigint
       AND ppl.platform = $2::text
-      AND ppl.post_id = ANY($3::text[])
+      AND ppl.post_link_key = ANY($3::text[])
     ORDER BY ppl.created_at DESC, ppl.id DESC
     LIMIT 1
     `,
     [safeTenantId, platform, candidatePostIds]
   ).catch(() => ({ rows: [] }));
-  const linkedContext = await buildProductContext(linkResult.rows?.[0] || null, "marketing_post_product_links");
+  const linkedContext = await buildProductContext(linkResult.rows?.[0] || null, "social_post_product_links_v2");
   if (linkedContext) return linkedContext;
 
   const postResult = await db.query(
@@ -3234,7 +3223,7 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
 
   return {
     found: false,
-    source: "marketing_post_product_links",
+    source: "social_post_product_links_v2",
     reason: "product_not_found",
     platform,
     candidate_post_ids: candidatePostIds,
