@@ -1434,6 +1434,15 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   const graphPostId = resolveSocialCommentGraphPostId(safeRow);
   const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
   const graphLookupPostIds = resolveSocialCommentGraphLookupIds({ row: safeRow, pageId });
+  const graphLookupFallbackPostIds = Array.from(new Set([
+    ...(Array.isArray(graphLookupPostIds) ? graphLookupPostIds : []),
+    text(graphPostId || ""),
+  ].filter(Boolean)));
+  console.info("SOCIAL_GRAPH_FALLBACK_IDS_TRACE", {
+    post_id: text(postId || safeRow.post_id || safeRow.id || ""),
+    fallback_ids_count: graphLookupFallbackPostIds.length,
+    fallback_ids: graphLookupFallbackPostIds,
+  });
   const currentDetails = resolvePostThumbnailDetails(safeRow);
   const currentHasThumbnail = Boolean(currentDetails.has_thumbnail);
   const shouldLogMediaBackfill = !currentHasThumbnail;
@@ -1749,10 +1758,6 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     });
   }
   const permalinkUrl = safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "";
-  const graphLookupFallbackPostIds = Array.from(new Set([
-    ...(graphLookupPostIds.length ? graphLookupPostIds : [text(graphPostId || "")]),
-    text(graphPostId || ""),
-  ].filter(Boolean)));
   try {
     if (shouldLogMediaBackfill) {
       console.warn("[social-comments:media-backfill:start]", {
