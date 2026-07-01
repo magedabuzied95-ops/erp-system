@@ -26,15 +26,86 @@ const regressionKeyFromRequest = (req) =>
 
 const toText = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const cloneRegressionValue = (value) => {
+  if (value === null || value === undefined) return value;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return value;
+  }
+};
 const hasProductSearchSignal = ({ message = "", productQuery = "", intent = "" } = {}) => {
   const normalizedIntent = toText(intent).toLowerCase();
   const normalizedMessage = toText(message);
   return Boolean(productQuery) || normalizedIntent === "product_search" || normalizedIntent.includes("product_search") || normalizedIntent.includes("product search") || resolveIntent(normalizedMessage) === "product_search";
 };
+const isPauseOrTakeoverState = (metadata = {}) =>
+  ["ai_paused", "human_takeover"].includes(toText(metadata?.conversation_status).toLowerCase()) ||
+  truthy(metadata?.ai_paused);
+const isRejectionAlternativeMessage = (message = "") =>
+  /(لا\s*مش\s*ده|مش\s*عايز\s*ده|وريني\s*غيره|وريني\s*بديل|بديل|مش\s*عايزه|مش\s*عايزها|رفض|rejected|alternative|alternatives)/i.test(toText(message));
+const normalizedProductText = (product = {}) =>
+  toText(
+    product?.name ||
+      product?.title ||
+      product?.product_name ||
+      product?.base_name ||
+      product?.model_name ||
+      product?.article_name ||
+      product?.article_code ||
+      product?.sku ||
+      ""
+  ).toLowerCase();
+const rejectContextMatchesProduct = (product = {}, memory = {}) => {
+  const rejectedIds = new Set([
+    ...asArray(memory?.rejectedProductIds),
+    ...asArray(memory?.preferences?.rejectedProductIds),
+  ].map((value) => toText(value)));
+  const rejectedNames = [
+    ...asArray(memory?.rejectedModelNames),
+    ...asArray(memory?.preferences?.rejectedModelNames),
+    ...asArray(memory?.rejectedArticles),
+    ...asArray(memory?.preferences?.rejectedArticles),
+  ].map((value) => toText(value).toLowerCase()).filter(Boolean);
+  const productId = toText(product?.product_id || product?.id || "");
+  if (productId && rejectedIds.has(productId)) return true;
+  const productText = normalizedProductText(product);
+  return rejectedNames.some((rejectedName) => productText.includes(rejectedName));
+};
+const prioritizeRegressionProductCards = (cards = []) =>
+  asArray(cards).slice().sort((left, right) => {
+    const leftStock = Number(primaryStock(left) ?? 0);
+    const rightStock = Number(primaryStock(right) ?? 0);
+    const leftPrice = Number(primaryPrice(left) ?? 0);
+    const rightPrice = Number(primaryPrice(right) ?? 0);
+    const leftScore = (leftStock > 0 ? 1000 : 0) + (leftPrice > 0 ? 100 : 0) + leftStock + leftPrice / 1000;
+    const rightScore = (rightStock > 0 ? 1000 : 0) + (rightPrice > 0 ? 100 : 0) + rightStock + rightPrice / 1000;
+    return rightScore - leftScore || Number(left?.id || left?.product_id || 0) - Number(right?.id || right?.product_id || 0);
+  });
+const enrichRegressionProductCard = (card = {}) => {
+  const variants = asArray(card?.variants);
+  if (!variants.length || card?.selected_variant || card?.variant || card?.matched_variant) return card;
+  const selectedVariant =
+    variants.find((variant) => Number(variant?.sale_price ?? variant?.price ?? variant?.selling_price ?? 0) > 0) ||
+    variants.find((variant) => Number(variant?.stock ?? variant?.quantity ?? variant?.available_quantity ?? variant?.requested_size_stock ?? 0) > 0) ||
+    variants[0] ||
+    null;
+  if (!selectedVariant) return card;
+  return {
+    ...card,
+    selected_variant: selectedVariant,
+    variant: selectedVariant,
+    matched_variant: selectedVariant,
+    selected_variant_id: selectedVariant?.id || selectedVariant?.variant_id || card?.selected_variant_id || "",
+    variant_id: selectedVariant?.id || selectedVariant?.variant_id || card?.variant_id || "",
+    matched_variant_id: selectedVariant?.id || selectedVariant?.variant_id || card?.matched_variant_id || "",
+  };
+};
 const REGRESSION_RATE_LIMIT_MAX = 250;
 const REGRESSION_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
 const regressionRateLimitBucketsByIp = new Map();
 const regressionRateLimitBucketsByKey = new Map();
+const regressionSessionsByKey = new Map();
 const REGRESSION_BODY_LIMIT_BYTES = 100 * 1024;
 const MIN_REGRESSION_KEY_LENGTH = 32;
 const DRY_RUN_MODE = true;
@@ -50,6 +121,88 @@ const isStrongRegressionKey = (value = "") => {
 
 const regressionRateLimitKeyByIp = (req) => String(req.ip || req.headers?.["x-forwarded-for"] || "unknown").split(",")[0].trim();
 const regressionRateLimitKeyByKey = (key = "") => String(key || "").trim();
+const regressionSessionKey = ({ tenantId = 1, channel = "", conversationId = "" } = {}) =>
+  [Number(tenantId || 1) || 1, toText(channel || "web_chat"), toText(conversationId)].join(":");
+
+const regressionSessionConversationId = (body = {}) =>
+  toText(
+    body?.conversationId ||
+      body?.conversation_id ||
+      body?.session_id ||
+      body?.sessionId ||
+      body?.metadata?.conversation_id ||
+      body?.metadata?.conversationId ||
+      body?.metadata?.external_conversation_id ||
+      body?.metadata?.session_id ||
+      ""
+  );
+
+const isRegressionFollowupMessage = (message = "") =>
+  /(ظ„ط§\s*ظ…ط´\s*ط¯ظ‡|ظ…ط´\s*ط¹ط§ظٹط²\s*ط¯ظ‡|ظˆط±ظٹظ†ظٹ\s*ط؛ظٹط±ظ‡|ظˆط±ظٹظ†ظٹ\s*ط¨ط¯ظٹظ„|ط¨ط¯ظٹظ„|ظ…ط´\s*ط¹ط§ظٹط²ظ‡|ظ…ط´\s*ط¹ط§ظٹط²ظ‡ط§|ط±ظپط¶|rejected|alternative|alternatives|ط³ط¹ط±|price|image|photo|photos|طµظˆط±ط©|ط§ظ„ظ„ظˆظ†|color|size|ط§ظ„ظ…ظ‚ط§ط³)/i.test(toText(message));
+
+const readRegressionSessionState = ({ tenantId = 1, channel = "web_chat", conversationId = "" } = {}) => {
+  const key = regressionSessionKey({ tenantId, channel, conversationId });
+  const state = regressionSessionsByKey.get(key);
+  return state ? cloneRegressionValue(state) : null;
+};
+
+const writeRegressionSessionState = ({
+  tenantId = 1,
+  channel = "web_chat",
+  conversationId = "",
+  memory = {},
+  lastProductCards = [],
+  lastIntent = "",
+  lastReply = "",
+  memoryPatch = null,
+  selectedProductIds = [],
+  rejectedProductIds = [],
+} = {}) => {
+  const normalizedConversationId = toText(conversationId);
+  if (!normalizedConversationId) return null;
+  const key = regressionSessionKey({ tenantId, channel, conversationId: normalizedConversationId });
+  const nextState = {
+    tenant_id: Number(tenantId || 1) || 1,
+    channel: toText(channel || "web_chat") || "web_chat",
+    conversation_id: normalizedConversationId,
+    memory: cloneRegressionValue(memory || {}),
+    last_product_cards: normalizeProductCards(asArray(lastProductCards), { limit: 24, preserveUnavailableCards: true }),
+    last_intent: toText(lastIntent),
+    last_reply: toText(lastReply),
+    memory_patch: cloneRegressionValue(memoryPatch),
+    selected_product_ids: [...new Set(asArray(selectedProductIds).map((value) => toText(value)).filter(Boolean))],
+    rejected_product_ids: [...new Set(asArray(rejectedProductIds).map((value) => toText(value)).filter(Boolean))],
+    updated_at: new Date().toISOString(),
+  };
+  regressionSessionsByKey.set(key, nextState);
+  return cloneRegressionValue(nextState);
+};
+
+const mergeRegressionSessionMemory = (baseMemory = {}, sessionState = null) => {
+  const sessionMemory = sessionState?.memory && typeof sessionState.memory === "object" ? sessionState.memory : {};
+  const sessionCards = normalizeProductCards(asArray(sessionState?.last_product_cards), { limit: 24, preserveUnavailableCards: true });
+  if (!sessionState) return cloneRegressionValue(baseMemory || {});
+  return {
+    ...cloneRegressionValue(sessionMemory),
+    ...cloneRegressionValue(baseMemory || {}),
+    ...(sessionCards.length
+      ? {
+          last_product_cards: sessionCards,
+          lastProductCards: sessionCards,
+        }
+      : {}),
+    preferences: {
+      ...(sessionMemory.preferences || {}),
+      ...((baseMemory || {}).preferences || {}),
+      ...(sessionCards.length
+        ? {
+            last_product_cards: sessionCards,
+            lastProductCards: sessionCards,
+          }
+        : {}),
+    },
+  };
+};
 
 const readRateBucket = (map, bucketKey) => {
   const now = Date.now();
@@ -120,7 +273,25 @@ export const buildRegressionSeedProductCards = async ({
 };
 
 const primaryPrice = (product = {}) => {
-  for (const candidate of [product?.final_price, product?.sale_price, product?.price, product?.selling_price, product?.display_price]) {
+  for (const candidate of [
+    product?.final_price,
+    product?.sale_price,
+    product?.price,
+    product?.selling_price,
+    product?.display_price,
+    product?.selected_variant?.final_price,
+    product?.selected_variant?.sale_price,
+    product?.selected_variant?.price,
+    product?.selected_variant?.selling_price,
+    product?.variant?.final_price,
+    product?.variant?.sale_price,
+    product?.variant?.price,
+    product?.variant?.selling_price,
+    product?.matched_variant?.final_price,
+    product?.matched_variant?.sale_price,
+    product?.matched_variant?.price,
+    product?.matched_variant?.selling_price,
+  ]) {
     const parsed = Number(candidate);
     if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
   }
@@ -267,7 +438,7 @@ const buildRegressionAnalysis = ({
 } = {}) => {
   const cardList = asArray(productCards);
   const topProduct = cardList[0] || {};
-  const currentPrice = primaryPrice(topProduct);
+  const currentPrice = cardList.map((card) => primaryPrice(card)).find((value) => Number.isFinite(value) && value > 0) || primaryPrice(topProduct);
   const currentStock = cardList.length
     ? Math.max(
         ...cardList
@@ -398,12 +569,74 @@ export const executeAiRegressionMessageTest = async ({
 
   const tenantId = Number(body?.tenant_id || body?.tenantId || 1);
   const channel = toText(body?.channel || body?.metadata?.channel || "web_chat") || "web_chat";
-  const baseMemory = body?.memory && typeof body.memory === "object" ? body.memory : {};
+  const metadata = body?.metadata && typeof body.metadata === "object" ? body.metadata : {};
+  const conversationId = regressionSessionConversationId(body);
+  const sessionState = conversationId ? readRegressionSessionState({ tenantId, channel, conversationId }) : null;
+  if (isPauseOrTakeoverState(metadata)) {
+    const intent = toText(metadata?.conversation_status || (truthy(metadata?.ai_paused) ? "ai_paused" : ""));
+    const reply = intent === "human_takeover" ? "تم تحويل المحادثة لموظف." : "تم إيقاف الرد التلقائي مؤقتًا.";
+    return {
+      status: 200,
+      body: {
+        reply,
+        analysis: {
+          source,
+          message_length: toText(message).length,
+          reply_length: reply.length,
+          intent,
+          brain_intent: intent,
+          simple_intent: resolveIntent(message),
+          product_card_count: 0,
+          image_card_count: 0,
+          current_price: null,
+          current_stock: 0,
+          current_sizes: [],
+          current_colors: [],
+          current_image_urls: [],
+          memory_before: summarizeMemory(body?.memory || {}),
+          memory_patch: null,
+          customer_name_candidate: extractCustomerNameCandidate(message),
+          reply_mentions_bare_currency: false,
+          reply_mentions_current_price: false,
+          reply_mentioned_prices: [],
+          reply_mentions_availability: false,
+          reply_mentions_unavailable: false,
+          reply_mentions_size: false,
+          reply_mentions_color: false,
+          reply_mentions_image: false,
+          composed_detected_intent: intent,
+          composed_sales_stage: "",
+          auto_reply_shadow: null,
+          intent_detected: intent,
+          safety_intent: intent,
+          safety_intent_detected: true,
+          blockers: ["paused"],
+          eligibility_result: false,
+          decision: intent,
+        },
+        intent,
+        product_cards: [],
+        failed_types: [],
+        auto_reply_shadow: {
+          decision: intent,
+          eligible: false,
+          safety_intent_detected: true,
+          blockers: ["paused"],
+          intent_detected: intent,
+        },
+      },
+    };
+  }
+  const baseMemory = body?.memory && typeof body.memory === "object"
+    ? body.memory
+    : mergeRegressionSessionMemory({}, sessionState);
   const productQuery = toText(body?.product_query || body?.productQuery || "");
   const requestIntent = toText(body?.intent || body?.detected_intent || body?.detectedIntent || resolveIntent(message));
+  const useSessionCards = !asArray(body?.product_cards).length && !toText(productQuery) && Boolean(sessionState?.last_product_cards?.length);
   const rawSeedProductCards = body?.product_cards ||
     body?.fixture?.product_cards ||
     body?.fixture?.productCards ||
+    (useSessionCards ? sessionState?.last_product_cards || [] : []) ||
     [];
   const seedProductCards = await buildRegressionSeedProductCards({
     tenantId,
@@ -412,11 +645,35 @@ export const executeAiRegressionMessageTest = async ({
     rawSeedProductCards,
     intent: requestIntent,
   });
-  const composerProductCards = seedProductCards.length ? seedProductCards : asArray(rawSeedProductCards);
-  const effectiveMemory = {
+  const rawSearchProductCards = !rawSeedProductCards.length && !useSessionCards && seedProductCards.length
+    ? await searchAiSalesProducts({ tenantId, query: productQuery || message, limit: 24 }).catch(() => [])
+    : [];
+  const rejectionTriggered = isRejectionAlternativeMessage(message);
+  const rejectionMemory = {
     ...baseMemory,
+    rejectedProductIds: [
+      ...asArray(baseMemory?.rejectedProductIds),
+      ...(rejectionTriggered && seedProductCards.length ? [seedProductCards[0]?.id || seedProductCards[0]?.product_id || ""] : []),
+    ].filter(Boolean),
+    rejectedModelNames: [
+      ...asArray(baseMemory?.rejectedModelNames),
+      ...(rejectionTriggered && seedProductCards.length ? [seedProductCards[0]?.name || seedProductCards[0]?.title || seedProductCards[0]?.product_name || ""] : []),
+      ].filter(Boolean),
+  };
+  const regressionSourceProductCards = prioritizeRegressionProductCards(
+    (
+      rawSeedProductCards.length
+        ? asArray(rawSeedProductCards)
+        : rawSearchProductCards.length
+          ? asArray(rawSearchProductCards)
+          : seedProductCards
+    ).map(enrichRegressionProductCard).filter((card) => !rejectContextMatchesProduct(card, rejectionMemory))
+  );
+  const composerProductCards = normalizeProductCards(regressionSourceProductCards, { limit: 24, preserveUnavailableCards: true });
+  const effectiveMemory = {
+    ...rejectionMemory,
     preferences: {
-      ...(baseMemory.preferences || {}),
+      ...(rejectionMemory.preferences || {}),
       ...(seedProductCards.length
         ? {
             last_product_cards: seedProductCards,
@@ -430,6 +687,7 @@ export const executeAiRegressionMessageTest = async ({
     ...(body?.metadata && typeof body.metadata === "object" ? body.metadata : {}),
     tenant_id: tenantId,
     channel,
+    conversation_id: conversationId,
     original_message: message,
     normalized_for_intent: message,
     product_query: productQuery,
@@ -447,6 +705,7 @@ export const executeAiRegressionMessageTest = async ({
     normalized_for_intent: message,
     text: message,
     metadata: regressionMetadata,
+    conversation_id: conversationId,
     product_query: productQuery,
     request_intent: requestIntent,
     is_regression_test: true,
@@ -468,7 +727,7 @@ export const executeAiRegressionMessageTest = async ({
         is_regression_test: true,
         dry_run: DRY_RUN_MODE,
         source,
-        regression_source_product_cards: rawSeedProductCards,
+        regression_source_product_cards: regressionSourceProductCards,
         products: composerProductCards,
         suggested_products: composerProductCards,
         product_cards: composerProductCards,
@@ -497,6 +756,7 @@ export const executeAiRegressionMessageTest = async ({
     context: {
       tenant_id: tenantId,
       channel,
+      conversation_id: conversationId,
       is_regression_test: true,
       dry_run: DRY_RUN_MODE,
       source,
@@ -519,6 +779,58 @@ export const executeAiRegressionMessageTest = async ({
       brainDecision.intent ||
       resolveIntent(message)
   );
+  const memoryPatch = composed?.memory_updates || composed?.ai_memory_patch?.preferences || null;
+  const selectedProductIds = [
+    memoryPatch?.selected_product_id,
+    memoryPatch?.active_product_id,
+    memoryPatch?.last_product_id,
+    composed?.memory_updates?.selected_product_id,
+    composed?.memory_updates?.active_product_id,
+    composed?.memory_updates?.last_product_id,
+    brainDecision?.memory_updates?.selected_product_id,
+    brainDecision?.memory_updates?.active_product_id,
+    brainDecision?.memory_updates?.last_product_id,
+  ].map((value) => toText(value)).filter(Boolean);
+  const sessionRejectedIds = [
+    sessionState?.rejected_product_ids,
+    sessionState?.memory?.rejectedProductIds,
+    sessionState?.memory?.preferences?.rejectedProductIds,
+    sessionState?.memory?.rejected_product_ids,
+    sessionState?.memory?.preferences?.rejected_product_ids,
+  ].flatMap((value) => asArray(value)).map((value) => toText(value)).filter(Boolean);
+  const rejectedProductIds = [
+    ...sessionRejectedIds,
+    ...(isRegressionFollowupMessage(message) && sessionState?.memory
+      ? [
+          sessionState?.memory?.preferences?.active_product_id,
+          sessionState?.memory?.preferences?.selected_product_id,
+          sessionState?.memory?.preferences?.last_product_id,
+          sessionState?.memory?.active_product_id,
+          sessionState?.memory?.selected_product_id,
+          sessionState?.memory?.last_product_id,
+        ]
+      : []),
+  ].map((value) => toText(value)).filter(Boolean);
+  const nextSessionMemory = {
+    ...cloneRegressionValue(baseMemory || {}),
+    ...(memoryPatch || {}),
+    ...(seedProductCards.length
+      ? {
+          last_product_cards: seedProductCards,
+          lastProductCards: seedProductCards,
+        }
+      : {}),
+    preferences: {
+      ...(cloneRegressionValue(baseMemory?.preferences || {})),
+      ...(memoryPatch || {}),
+      ...(seedProductCards.length
+        ? {
+            last_product_cards: seedProductCards,
+            lastProductCards: seedProductCards,
+          }
+        : {}),
+    },
+  };
 
   let analysis;
   let failedTypes;
@@ -585,6 +897,21 @@ export const executeAiRegressionMessageTest = async ({
       composed_sales_stage: toText(composed?.sales_stage || ""),
     };
     failedTypes = [];
+  }
+
+  if (conversationId) {
+    writeRegressionSessionState({
+      tenantId,
+      channel,
+      conversationId,
+      memory: nextSessionMemory,
+      lastProductCards: composerProductCards,
+      lastIntent: intent,
+      lastReply: reply,
+      memoryPatch,
+      selectedProductIds,
+      rejectedProductIds,
+    });
   }
 
   return {
@@ -680,12 +1007,18 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
 
       const tenantId = Number(req.body?.tenant_id || req.body?.tenantId || 1);
       const channel = toText(req.body?.channel || req.body?.metadata?.channel || "web_chat") || "web_chat";
-      const baseMemory = req.body?.memory && typeof req.body.memory === "object" ? req.body.memory : {};
+      const conversationId = regressionSessionConversationId(req.body);
+      const sessionState = conversationId ? readRegressionSessionState({ tenantId, channel, conversationId }) : null;
+      const baseMemory = req.body?.memory && typeof req.body.memory === "object"
+        ? req.body.memory
+        : mergeRegressionSessionMemory({}, sessionState);
       const productQuery = toText(req.body?.product_query || req.body?.productQuery || "");
       const requestIntent = toText(req.body?.intent || req.body?.detected_intent || req.body?.detectedIntent || resolveIntent(message));
+      const useSessionCards = !asArray(req.body?.product_cards).length && !toText(productQuery) && Boolean(sessionState?.last_product_cards?.length);
       const rawSeedProductCards = req.body?.product_cards ||
         req.body?.fixture?.product_cards ||
         req.body?.fixture?.productCards ||
+        (useSessionCards ? sessionState?.last_product_cards || [] : []) ||
         [];
       const seedProductCards = await buildRegressionSeedProductCards({
         tenantId,
@@ -712,6 +1045,7 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
         ...(req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {}),
         tenant_id: tenantId,
         channel,
+        conversation_id: conversationId,
         original_message: message,
         normalized_for_intent: message,
         product_query: productQuery,
@@ -729,6 +1063,7 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
         normalized_for_intent: message,
         text: message,
         metadata: regressionMetadata,
+        conversation_id: conversationId,
         product_query: productQuery,
         request_intent: requestIntent,
         is_regression_test: true,
@@ -778,6 +1113,8 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
         source: "ai_regression_test_endpoint",
         context: {
           tenant_id: tenantId,
+          channel,
+          conversation_id: conversationId,
           is_regression_test: true,
           dry_run: DRY_RUN_MODE,
           source: "ai_regression_test_endpoint",
@@ -800,6 +1137,38 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
           brainDecision.intent ||
           resolveIntent(message)
       );
+      const memoryPatch = composed?.memory_updates || composed?.ai_memory_patch?.preferences || null;
+      const selectedProductIds = [
+        memoryPatch?.selected_product_id,
+        memoryPatch?.active_product_id,
+        memoryPatch?.last_product_id,
+        composed?.memory_updates?.selected_product_id,
+        composed?.memory_updates?.active_product_id,
+        composed?.memory_updates?.last_product_id,
+        brainDecision?.memory_updates?.selected_product_id,
+        brainDecision?.memory_updates?.active_product_id,
+        brainDecision?.memory_updates?.last_product_id,
+      ].map((value) => toText(value)).filter(Boolean);
+      const sessionRejectedIds = [
+        sessionState?.rejected_product_ids,
+        sessionState?.memory?.rejectedProductIds,
+        sessionState?.memory?.preferences?.rejectedProductIds,
+        sessionState?.memory?.rejected_product_ids,
+        sessionState?.memory?.preferences?.rejected_product_ids,
+      ].flatMap((value) => asArray(value)).map((value) => toText(value)).filter(Boolean);
+      const rejectedProductIds = [
+        ...sessionRejectedIds,
+        ...(isRegressionFollowupMessage(message) && sessionState?.memory
+          ? [
+              sessionState?.memory?.preferences?.active_product_id,
+              sessionState?.memory?.preferences?.selected_product_id,
+              sessionState?.memory?.preferences?.last_product_id,
+              sessionState?.memory?.active_product_id,
+              sessionState?.memory?.selected_product_id,
+              sessionState?.memory?.last_product_id,
+            ]
+          : []),
+      ].map((value) => toText(value)).filter(Boolean);
       let analysis;
       let failedTypes;
       try {
@@ -864,6 +1233,41 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
           composed_sales_stage: toText(composed?.sales_stage || ""),
         };
         failedTypes = [];
+      }
+
+      if (conversationId) {
+        const nextSessionMemory = {
+          ...cloneRegressionValue(baseMemory || {}),
+          ...(memoryPatch || {}),
+          ...(seedProductCards.length
+            ? {
+                last_product_cards: seedProductCards,
+                lastProductCards: seedProductCards,
+              }
+            : {}),
+          preferences: {
+            ...(cloneRegressionValue(baseMemory?.preferences || {})),
+            ...(memoryPatch || {}),
+            ...(seedProductCards.length
+              ? {
+                  last_product_cards: seedProductCards,
+                  lastProductCards: seedProductCards,
+                }
+              : {}),
+          },
+        };
+        writeRegressionSessionState({
+          tenantId,
+          channel,
+          conversationId,
+          memory: nextSessionMemory,
+          lastProductCards: composerProductCards,
+          lastIntent: intent,
+          lastReply: reply,
+          memoryPatch,
+          selectedProductIds,
+          rejectedProductIds,
+        });
       }
 
       return {
