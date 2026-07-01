@@ -279,20 +279,10 @@ const normalizeSocialCommentPost = (raw) => {
     post.created_time ||
     post.post_created_time ||
     post.published_at ||
-    post.timestamp ||
-    post.created_at ||
-    post.latest_comment_at ||
-    post.last_comment_at ||
-    post.updated_at ||
     metadata.display_post_time ||
     metadata.created_time ||
     metadata.post_created_time ||
     metadata.published_at ||
-    metadata.timestamp ||
-    metadata.created_at ||
-    metadata.latest_comment_at ||
-    metadata.last_comment_at ||
-    metadata.updated_at ||
     ""
   ).trim();
   return {

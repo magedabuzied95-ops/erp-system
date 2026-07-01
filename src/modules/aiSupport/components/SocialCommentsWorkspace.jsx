@@ -304,24 +304,11 @@ const normalizePost = (raw) => {
       post.created_time ||
       post.post_created_time ||
       post.published_at ||
-      post.timestamp ||
-      post.created_at ||
-      post.latest_comment_at ||
-      post.last_comment_at ||
-      post.updated_at ||
       metadata.display_post_time ||
       metadata.created_time ||
       metadata.post_created_time ||
       metadata.published_at ||
-      metadata.timestamp ||
-      metadata.created_at ||
-      metadata.latest_comment_at ||
-      metadata.last_comment_at ||
-      metadata.updated_at ||
-      post.marketing_published_at ||
-      post.marketing_created_time ||
       metadata.post?.created_time ||
-      metadata.post?.updated_time ||
       ""
   );
   console.info("SOCIAL_CARD_NORMALIZE_TRACE", {
@@ -336,10 +323,6 @@ const normalizePost = (raw) => {
       created_time: clean(post.created_time || metadata.created_time || ""),
       post_created_time: clean(post.post_created_time || metadata.post_created_time || ""),
       published_at: clean(post.published_at || metadata.published_at || ""),
-      timestamp: clean(post.timestamp || metadata.timestamp || ""),
-      created_at: clean(post.created_at || metadata.created_at || ""),
-      latest_comment_at: clean(post.latest_comment_at || metadata.latest_comment_at || ""),
-      updated_at: clean(post.updated_at || metadata.updated_at || ""),
     },
   });
   const mappedProductName = clean(primaryLinkedProduct?.name || primaryLinkedProduct?.title || primaryLinkedProduct?.product_name || "");
@@ -1824,11 +1807,8 @@ function SocialCommentsWorkspace({
         post?.displayPostTime ||
         post?.postCreatedTime ||
         post?.post_created_time ||
-      post?.publishedAt ||
-      post?.published_at ||
-      post?.latest_comment_at ||
-        post?.last_comment_at ||
-        post?.updated_at ||
+        post?.publishedAt ||
+        post?.published_at ||
         post?.realCommentCreatedTime ||
         post?.real_comment_created_time ||
         post?.commentCreatedTime ||

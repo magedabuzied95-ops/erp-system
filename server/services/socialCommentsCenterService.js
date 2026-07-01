@@ -1445,33 +1445,25 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     ].some((entry) => text(entry || ""));
     const hasSiblingProductContext = !hasDirectProductLink && genericProductSignals;
     const productLinkSource = hasDirectProductLink ? "v2_direct" : (hasSiblingProductContext ? "sibling" : "none");
-    const displayPostTime = text(
-      value.created_time ||
-      value.post_created_time ||
-      value.published_at ||
-      value.timestamp ||
-      value.created_at ||
-      value.latest_comment_at ||
-      value.last_comment_at ||
-      value.updated_at ||
-      safeRow.created_time ||
-      safeRow.post_created_time ||
-      safeRow.published_at ||
-      safeRow.timestamp ||
-      safeRow.created_at ||
-      safeRow.latest_comment_at ||
-      safeRow.last_comment_at ||
-      safeRow.updated_at ||
-      metadata.created_time ||
-      metadata.post_created_time ||
-      metadata.published_at ||
-      metadata.timestamp ||
-      metadata.created_at ||
-      metadata.latest_comment_at ||
-      metadata.last_comment_at ||
-      metadata.updated_at ||
-      ""
-    );
+    const displayPostTimeCandidates = [
+      { field: "value.post_created_time", value: value.post_created_time },
+      { field: "value.created_time", value: value.created_time },
+      { field: "value.published_at", value: value.published_at },
+      { field: "metadata.post_created_time", value: metadata.post_created_time },
+      { field: "metadata.created_time", value: metadata.created_time },
+      { field: "safeRow.raw_payload.created_time", value: safeRow.raw_payload?.created_time },
+      { field: "safeRow.raw_payload.value.created_time", value: safeRow.raw_payload?.value?.created_time },
+      { field: "safeRow.raw_payload.metadata.created_time", value: safeRow.raw_payload?.metadata?.created_time },
+      { field: "safeRow.raw_payload.value.post.created_time", value: safeRow.raw_payload?.value?.post?.created_time },
+      { field: "safeRow.raw_payload.metadata.post.created_time", value: safeRow.raw_payload?.metadata?.post?.created_time },
+      { field: "value.raw.created_time", value: value.raw?.created_time },
+      { field: "value.raw.value.created_time", value: value.raw?.value?.created_time },
+      { field: "value.raw.metadata.created_time", value: value.raw?.metadata?.created_time },
+      { field: "value.raw.value.post.created_time", value: value.raw?.value?.post?.created_time },
+      { field: "value.raw.metadata.post.created_time", value: value.raw?.metadata?.post?.created_time },
+    ];
+    const displayPostTimeCandidate = displayPostTimeCandidates.find((entry) => text(entry.value));
+    const displayPostTime = text(displayPostTimeCandidate?.value || "");
     const permalinkFields = resolveHydratedPermalinkFields({ value, safeRow, metadata, canonicalIdentity });
     const selectedPostIdentity = buildSocialPostIdentityRecord({
       row: {
@@ -1520,19 +1512,18 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       card_post_id: text(value.post_id || safeRow.post_id || safeRow.conversation_id || ""),
       card_title: text(value.caption || safeRow.caption || safeRow.post_caption || safeRow.post_message || metadata.caption || metadata.post_caption || metadata.post_message || ""),
     });
-    console.info("SOCIAL_CARD_TIME_NORMALIZE_TRACE", {
+    console.info("SOCIAL_CARD_POST_TIME_SOURCE_TRACE", {
       post_link_key: text(productLinkIdentity.product_link_key || canonicalIdentityPostId || postId || ""),
       card_post_id: text(value.post_id || safeRow.post_id || safeRow.conversation_id || ""),
       display_post_time: displayPostTime,
+      source_field: displayPostTimeCandidate?.field || "",
       raw_time_fields: {
-        post_created_time: text(value.post_created_time || safeRow.post_created_time || metadata.post_created_time || ""),
-        created_time: text(value.created_time || safeRow.created_time || metadata.created_time || ""),
-        timestamp: text(value.timestamp || safeRow.timestamp || metadata.timestamp || ""),
-        published_at: text(value.published_at || safeRow.published_at || metadata.published_at || ""),
-        created_at: text(value.created_at || safeRow.created_at || metadata.created_at || ""),
-        latest_comment_at: text(value.latest_comment_at || safeRow.latest_comment_at || metadata.latest_comment_at || ""),
-        last_comment_at: text(value.last_comment_at || safeRow.last_comment_at || metadata.last_comment_at || ""),
-        updated_at: text(value.updated_at || safeRow.updated_at || metadata.updated_at || ""),
+        post_created_time: text(value.post_created_time || metadata.post_created_time || ""),
+        created_time: text(value.created_time || metadata.created_time || value.raw?.created_time || value.raw?.value?.created_time || ""),
+        published_at: text(value.published_at || metadata.published_at || ""),
+        raw_payload_created_time: text(safeRow.raw_payload?.created_time || safeRow.raw_payload?.value?.created_time || safeRow.raw_payload?.metadata?.created_time || ""),
+        raw_created_time: text(value.raw?.created_time || value.raw?.value?.created_time || value.raw?.metadata?.created_time || ""),
+        raw_post_created_time: text(value.raw?.post_created_time || value.raw?.value?.post?.created_time || value.raw?.metadata?.post?.created_time || ""),
       },
     });
     return {
@@ -1608,6 +1599,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     published_at: displayPostTime,
     timestamp: displayPostTime,
     display_post_time: displayPostTime,
+    latest_comment_time: text(value.latest_comment_at || safeRow.latest_comment_at || metadata.latest_comment_at || ""),
     post_identity_mismatch: Boolean(
       permalinkFields.post_identity_mismatch ||
       (latestCommentPostIdentity?.post_id && !identityComparison.matches)
