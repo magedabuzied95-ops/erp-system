@@ -239,7 +239,7 @@ const normalizePost = (raw) => {
   const hasDirectProductLink = Boolean(
     post.has_direct_product_link ??
     metadata.has_direct_product_link ??
-    (productLinkSource === "direct")
+    (productLinkSource === "direct" || productLinkSource === "v2_direct")
   );
   const hasSiblingProductContext = Boolean(
     post.has_sibling_product_context ??
@@ -2154,7 +2154,7 @@ function SocialCommentsWorkspace({
         linked_products_count: Number(payload?.count ?? payload?.linked_products_count ?? linkedProducts.length ?? 0) || 0,
         primary_product: primaryProduct,
         primary_linked_product: primaryProduct,
-        product_link_source: linkedProducts.length ? "direct" : "none",
+        product_link_source: linkedProducts.length ? "v2_direct" : "none",
         has_direct_product_link: linkedProducts.length > 0,
         has_sibling_product_context: false,
       };
@@ -2629,8 +2629,8 @@ function SocialCommentsWorkspace({
                       has_direct_product_link: Boolean(post?.hasDirectProductLink),
                       has_sibling_product_context: Boolean(post?.hasSiblingProductContext),
                     });
-                    socialDebugLog("SOCIAL_DIRECT_LINK_READBACK_TRACE", {
-                      card_key: key,
+      socialDebugLog("SOCIAL_DIRECT_LINK_READBACK_TRACE", {
+        card_key: key,
                       row_post_identity: {
                         platform_post_id: clean(post?.platformPostId || ""),
                         source_post_id: clean(post?.sourcePostId || ""),
@@ -2641,7 +2641,7 @@ function SocialCommentsWorkspace({
                         platform_post_id: clean(post?.directPrimaryLinkedProduct?.platform_post_id || ""),
                       },
                       product_name: clean(post?.directPrimaryLinkedProduct?.name || post?.directPrimaryLinkedProduct?.title || post?.directPrimaryLinkedProduct?.product_name || ""),
-                      accepted: Boolean(post?.hasDirectProductLink || clean(post?.productLinkSource || "none") === "direct"),
+                      accepted: Boolean(post?.hasDirectProductLink || ["direct", "v2_direct"].includes(clean(post?.productLinkSource || "none"))),
                       rejected_reason: clean(post?.hasDirectProductLink ? "" : (post?.hasSiblingProductContext ? "sibling_only" : "no_direct_link")),
                       product_link_source: clean(post?.productLinkSource || "none"),
                       has_direct_product_link: Boolean(post?.hasDirectProductLink),
@@ -2793,7 +2793,7 @@ function SocialCommentsWorkspace({
                       platform_post_id: clean(post?.directPrimaryLinkedProduct?.platform_post_id || ""),
                     },
                     product_name: clean(post?.directPrimaryLinkedProduct?.name || post?.directPrimaryLinkedProduct?.title || post?.directPrimaryLinkedProduct?.product_name || ""),
-                    accepted: Boolean(post?.hasDirectProductLink || clean(post?.productLinkSource || "none") === "direct"),
+                    accepted: Boolean(post?.hasDirectProductLink || ["direct", "v2_direct"].includes(clean(post?.productLinkSource || "none"))),
                     rejected_reason: clean(post?.hasDirectProductLink ? "" : (post?.hasSiblingProductContext ? "sibling_only" : "no_direct_link")),
                     product_link_source: clean(post?.productLinkSource || "none"),
                     has_direct_product_link: Boolean(post?.hasDirectProductLink),

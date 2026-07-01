@@ -1444,7 +1444,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       metadata.primary_product?.id,
     ].some((entry) => text(entry || ""));
     const hasSiblingProductContext = !hasDirectProductLink && genericProductSignals;
-    const productLinkSource = hasDirectProductLink ? "direct" : (hasSiblingProductContext ? "sibling" : "none");
+    const productLinkSource = hasDirectProductLink ? "v2_direct" : (hasSiblingProductContext ? "sibling" : "none");
     const permalinkFields = resolveHydratedPermalinkFields({ value, safeRow, metadata, canonicalIdentity });
     const selectedPostIdentity = buildSocialPostIdentityRecord({
       row: {
@@ -1486,6 +1486,12 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       canonical_post_id: canonicalIdentityPostId,
       permalink_url: permalinkFields.permalink_url,
       source: permalinkFields.source,
+    });
+    console.info("SOCIAL_V2_CARD_LINK_ENRICH_TRACE", {
+      post_link_key: text(productLinkIdentity.product_link_key || canonicalIdentityPostId || postId || ""),
+      returned_product_ids: directLinkedProducts.map((item) => Number(item?.id || item?.product_id || 0)).filter((value) => Number.isFinite(value) && value > 0),
+      card_post_id: text(value.post_id || safeRow.post_id || safeRow.conversation_id || ""),
+      card_title: text(value.caption || safeRow.caption || safeRow.post_caption || safeRow.post_message || metadata.caption || metadata.post_caption || metadata.post_message || ""),
     });
     return {
       ...value,
