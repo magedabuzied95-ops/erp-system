@@ -9,7 +9,6 @@ import {
   migrateCanonicalSocialPostRecords,
   resolveSocialPostCanonicalIdentity,
 } from "./socialPostIdentityService.js";
-import { resolveSocialPostProductLinkIdentity } from "../../shared/socialPostProductLinkIdentity.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -3510,20 +3509,10 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     const coverImageUrl = resolveFacebookPostCoverImage(post);
     const postLinkKey = postId;
     const commentsCount = commentsByPostId.get(postId) || 0;
-    const productLinkIdentity = resolveSocialPostProductLinkIdentity({
-      tenant_id: safeTenantId,
-      platform: normalizedPlatform,
-      post_id: postId,
-      platform_post_id: postId,
-      source_post_id: postId,
-      canonical_post_id: postId,
-      permalink_url: text(post.permalink_url || ""),
-      object_id: text(postId.includes("_") ? postId.split("_").pop() || "" : postId),
-    });
     const mappingSummary = await getPostProductLinksV2({
       tenantId: safeTenantId,
       platform: normalizedPlatform,
-      postId: productLinkIdentity.product_link_key || postId,
+      postId: postLinkKey,
       post: {
         id: postId,
         post_id: postId,
@@ -3542,6 +3531,13 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     const linkedProductsCount = Number(mappingSummary?.count || linkedProducts.length || 0) || 0;
     const hasDirectProductLink = linkedProductsCount > 0;
     const productLinkSource = hasDirectProductLink ? "v2_direct" : "none";
+    console.info("SOCIAL_V2_FEED_ROW_PRODUCT_ENRICH_TRACE", {
+      post_id: postId,
+      post_link_key: postLinkKey,
+      linked_products_count: linkedProductsCount,
+      linked_product_names: linkedProducts.map((item) => text(item?.name || item?.title || item?.product_name || "")).filter(Boolean),
+      product_link_source: productLinkSource,
+    });
     const row = {
       tenant_id: safeTenantId,
       platform: normalizedPlatform,
@@ -3575,9 +3571,25 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       product_link_source: productLinkSource,
       primary_linked_product: mappingSummary?.primary_product || null,
       primary_product: mappingSummary?.primary_product || null,
-      product_link_identity: productLinkIdentity,
+      product_link_identity: {
+        post_link_key: postLinkKey,
+        canonical_post_id: postLinkKey,
+        platform_post_id: postLinkKey,
+        source_post_id: postLinkKey,
+        permalink_post_id: "",
+        object_id: postId.includes("_") ? postId.split("_").pop() || "" : postId,
+        post_id: postLinkKey,
+      },
       mapping_summary: mappingSummary || null,
-      selected_post_identity: productLinkIdentity,
+      selected_post_identity: {
+        post_link_key: postLinkKey,
+        canonical_post_id: postLinkKey,
+        platform_post_id: postLinkKey,
+        source_post_id: postLinkKey,
+        permalink_post_id: "",
+        object_id: postId.includes("_") ? postId.split("_").pop() || "" : postId,
+        post_id: postLinkKey,
+      },
       direct_primary_linked_product: mappingSummary?.primary_product || null,
       directLinkedProducts: linkedProducts,
       directLinkedProductsCount: linkedProductsCount,
