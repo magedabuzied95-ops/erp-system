@@ -112,7 +112,7 @@ const requestJson = async (payload, label, allowHttpStatus = null) => {
   const timeout = setTimeout(() => controller.abort(new Error(`Timed out waiting for ${label}`)), requestTimeout);
 
   try {
-    const response = await fetch(`${baseUrl}/api/ai/regression-test/message`, {
+    const response = await fetch(`${baseUrl}/api/internal/ai-regression/message`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

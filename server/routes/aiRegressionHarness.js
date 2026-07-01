@@ -2,9 +2,6 @@ import express from "express";
 
 import db, { withReadOnlyDbSession } from "../database/db.js";
 
-import { protect } from "../middleware/authMiddleware.js";
-
-import permit from "../middleware/permissionMiddleware.js";
 import { generateAiBrainV2Decision } from "../services/aiBrainV2Service.js";
 import { composeAiSalesReply } from "../services/aiSalesReplyComposerService.js";
 import { normalizeProductCards } from "../services/aiProductCards.js";
@@ -127,9 +124,9 @@ const normalizeArabic = (value = "") =>
   String(value || "")
     .toLowerCase()
     .replace(/[\u064b-\u065f\u0670\u0640]/g, "")
-    .replace(/[أإآ]/g, "ا")
-    .replace(/ى/g, "ي")
-    .replace(/ة/g, "ه")
+    .replace(/[ط£ط¥ط¢]/g, "ط§")
+    .replace(/ظ‰/g, "ظٹ")
+    .replace(/ط©/g, "ظ‡")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -150,19 +147,19 @@ const productColors = (product = {}) => [
   .filter(Boolean);
 
 const asksPrice = (message = "") =>
-  /(بكام|السعر|سعره|كام|price|cost)/i.test(String(message || ""));
+  /(ط¨ظƒط§ظ…|ط§ظ„ط³ط¹ط±|ط³ط¹ط±ظ‡|ظƒط§ظ…|price|cost)/i.test(String(message || ""));
 
 const asksAvailability = (message = "") =>
-  /(فيه|موجود|متاح|available|stock|عندكم)/i.test(String(message || ""));
+  /(ظپظٹظ‡|ظ…ظˆط¬ظˆط¯|ظ…طھط§ط­|available|stock|ط¹ظ†ط¯ظƒظ…)/i.test(String(message || ""));
 
 const asksColor = (message = "") => {
   const normalized = normalizeArabic(message);
-  return /(الوان|الألوان|لونه|لون|colors?|colour)/i.test(String(message || "")) ||
-    /(الوانه ايه|الوانها ايه|فيه الوان|في الوان|ايه الالوان|ايه الوانه|ايه الوانها|available colors|colors?)/i.test(normalized);
+  return /(ط§ظ„ظˆط§ظ†|ط§ظ„ط£ظ„ظˆط§ظ†|ظ„ظˆظ†ظ‡|ظ„ظˆظ†|colors?|colour)/i.test(String(message || "")) ||
+    /(ط§ظ„ظˆط§ظ†ظ‡ ط§ظٹظ‡|ط§ظ„ظˆط§ظ†ظ‡ط§ ط§ظٹظ‡|ظپظٹظ‡ ط§ظ„ظˆط§ظ†|ظپظٹ ط§ظ„ظˆط§ظ†|ط§ظٹظ‡ ط§ظ„ط§ظ„ظˆط§ظ†|ط§ظٹظ‡ ط§ظ„ظˆط§ظ†ظ‡|ط§ظٹظ‡ ط§ظ„ظˆط§ظ†ظ‡ط§|available colors|colors?)/i.test(normalized);
 };
 
 const asksSize = (message = "") =>
-  Boolean(extractExplicitSize(message) || /(مقاس|مقاسات|size)/i.test(String(message || "")));
+  Boolean(extractExplicitSize(message) || /(ظ…ظ‚ط§ط³|ظ…ظ‚ط§ط³ط§طھ|size)/i.test(String(message || "")));
 
 const primaryImage = (product = {}) =>
   toText(product?.image_url || product?.image || product?.url || product?.main_image || product?.thumbnail);
@@ -197,31 +194,31 @@ const summarizeMemory = (memory = {}) => {
 const extractCustomerNameCandidate = (message = "") => {
   const text = toText(message);
   if (!text) return "";
-  if (/^أكد\s+الأوردر$/i.test(text)) return "";
+  if (/^ط£ظƒط¯\s+ط§ظ„ط£ظˆط±ط¯ط±$/i.test(text)) return "";
   const patterns = [
-    /^(?:اسمي|انا|أنا|الاسم|name)\s*[:\-]?\s*([^\d]{2,40})$/i,
-    /(?:اسمي|انا|أنا|الاسم|name)\s*[:\-]?\s*([^\d]{2,40})/i,
+    /^(?:ط§ط³ظ…ظٹ|ط§ظ†ط§|ط£ظ†ط§|ط§ظ„ط§ط³ظ…|name)\s*[:\-]?\s*([^\d]{2,40})$/i,
+    /(?:ط§ط³ظ…ظٹ|ط§ظ†ط§|ط£ظ†ط§|ط§ظ„ط§ط³ظ…|name)\s*[:\-]?\s*([^\d]{2,40})/i,
   ];
   for (const pattern of patterns) {
     const match = text.match(pattern);
     const candidate = toText(match?.[1] || "");
     if (!candidate) continue;
-    if (/أكّد|أكد|الأوردر|order|confirm/i.test(candidate)) continue;
+    if (/ط£ظƒظ‘ط¯|ط£ظƒط¯|ط§ظ„ط£ظˆط±ط¯ط±|order|confirm/i.test(candidate)) continue;
     return candidate;
   }
   return "";
 };
 
 const extractMentionedPrices = (reply = "") =>
-  Array.from(String(reply).matchAll(/(\d[\d,.]*)\s*جنيه/gi))
+  Array.from(String(reply).matchAll(/(\d[\d,.]*)\s*ط¬ظ†ظٹظ‡/gi))
     .map((match) => Number(String(match[1]).replace(/,/g, "")))
     .filter((value) => Number.isFinite(value) && value > 0);
 
 const hasBareCurrencyWord = (reply = "") =>
-  /(^|[^\d])جنيه\b/i.test(String(reply)) && !/\d\s*جنيه\b/i.test(String(reply));
+  /(^|[^\d])ط¬ظ†ظٹظ‡\b/i.test(String(reply)) && !/\d\s*ط¬ظ†ظٹظ‡\b/i.test(String(reply));
 
 const hasAvailabilityClaim = (reply = "") =>
-  /(?:\bمتاح\b|\bموجود\b|\bin stock\b|\bavailable\b)/i.test(String(reply));
+  /(?:\bظ…طھط§ط­\b|\bظ…ظˆط¬ظˆط¯\b|\bin stock\b|\bavailable\b)/i.test(String(reply));
 
 const buildRegressionAnalysis = ({
   message = "",
@@ -271,10 +268,10 @@ const buildRegressionAnalysis = ({
     reply_mentions_current_price: currentPrice ? mentionedPrices.includes(currentPrice) : false,
     reply_mentioned_prices: mentionedPrices,
     reply_mentions_availability: hasAvailabilityClaim(reply),
-    reply_mentions_unavailable: /(?:غير\s*متاح|غير\s*موجود|نفد|out of stock|unavailable)/i.test(reply),
+    reply_mentions_unavailable: /(?:ط؛ظٹط±\s*ظ…طھط§ط­|ط؛ظٹط±\s*ظ…ظˆط¬ظˆط¯|ظ†ظپط¯|out of stock|unavailable)/i.test(reply),
     reply_mentions_size: currentSizes.some((size) => new RegExp(`\\b${String(size).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(reply)),
     reply_mentions_color: currentColors.some((color) => new RegExp(String(color).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(reply)),
-    reply_mentions_image: /(?:صورة|صور|image|photo|photos)/i.test(reply),
+    reply_mentions_image: /(?:طµظˆط±ط©|طµظˆط±|image|photo|photos)/i.test(reply),
     composed_detected_intent: toText(composedResponse?.detected_intent || composedResponse?.intent || ""),
     composed_sales_stage: toText(composedResponse?.sales_stage || ""),
     auto_reply_shadow: autoReplyShadow,
@@ -312,9 +309,9 @@ const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {},
   const memorySize = toText(analysis?.memory_before?.remembered_size || responseForComposer?.memory_updates?.selected_size || responseForComposer?.memory_updates?.active_size || "");
   const memoryColor = toText(analysis?.memory_before?.remembered_color || responseForComposer?.memory_updates?.selected_color || responseForComposer?.memory_updates?.active_color || "");
   const requestedSize = extractExplicitSize(message);
-  const availabilitySignal = /(متاح|موجود|available|availability|stock|فيه|available now)/i.test(normalizedMessage);
-  const sizeSignal = /(مقاس|size|نمرة|نمره)/i.test(normalizedMessage);
-  const colorSignal = /(لون|الوان|الألوان|colors?|colour|white|ابيض|أبيض|black|اسود|أسود)/i.test(normalizedMessage);
+  const availabilitySignal = /(ظ…طھط§ط­|ظ…ظˆط¬ظˆط¯|available|availability|stock|ظپظٹظ‡|available now)/i.test(normalizedMessage);
+  const sizeSignal = /(ظ…ظ‚ط§ط³|size|ظ†ظ…ط±ط©|ظ†ظ…ط±ظ‡)/i.test(normalizedMessage);
+  const colorSignal = /(ظ„ظˆظ†|ط§ظ„ظˆط§ظ†|ط§ظ„ط£ظ„ظˆط§ظ†|colors?|colour|white|ط§ط¨ظٹط¶|ط£ط¨ظٹط¶|black|ط§ط³ظˆط¯|ط£ط³ظˆط¯)/i.test(normalizedMessage);
   const asksPriceResult = asksPrice(message, responseForComposer, { type: analysis?.intent || "" });
   const asksAvailabilityResult = asksAvailability(message);
 
@@ -322,10 +319,10 @@ const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {},
     failures.push("safety-intent-eligible");
   }
 
-  if (availabilitySignal && !(analysis?.reply_mentions_availability || /(?:\bمتاح\b|\bموجود\b|\bin stock\b|\bavailable\b)/i.test(replyText))) failures.push("availability");
+  if (availabilitySignal && !(analysis?.reply_mentions_availability || /(?:\bظ…طھط§ط­\b|\bظ…ظˆط¬ظˆط¯\b|\bin stock\b|\bavailable\b)/i.test(replyText))) failures.push("availability");
   if (sizeSignal && requestedSize && !new RegExp(`\\b${String(requestedSize).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(replyText)) failures.push("size");
   if (colorSignal && currentColors.length < 2) failures.push("colors");
-  if ((currentStock === 0 || /(?:out of stock|unavailable|غير متاح|مش متاح|غير متوفر|نفد)/i.test(replyText)) && !analysis?.reply_mentions_unavailable) failures.push("stock-unavailable");
+  if ((currentStock === 0 || /(?:out of stock|unavailable|ط؛ظٹط± ظ…طھط§ط­|ظ…ظ´ ظ…طھط§ط­|ط؛ظٹط± ظ…طھظˆظپط±|ظ†ظپط¯)/i.test(replyText)) && !analysis?.reply_mentions_unavailable) failures.push("stock-unavailable");
   if (memorySize && !new RegExp(`\\b${String(memorySize).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(replyText)) failures.push("context-memory-step1");
   if (memoryColor && !new RegExp(String(memoryColor).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i").test(replyText)) failures.push("context-memory-step2");
 
@@ -378,86 +375,7 @@ const requireRegressionTestKey = (req, res, next) => {
   return next();
 };
 
-/* =========================
-   AI DASHBOARD SUMMARY
-========================= */
-
-router.get(
-  "/summary",
-
-  protect,
-  permit("dashboard", "view"),
-
-  async (req, res) => {
-
-    try {
-
-      const orders =
-        await db.query(
-          "SELECT * FROM orders"
-        );
-
-      const products =
-        await db.query(
-          "SELECT * FROM products"
-        );
-
-      const variants =
-        await db.query(
-          "SELECT * FROM product_variants"
-        );
-
-      const totalRevenue =
-        orders.rows.reduce(
-          (acc, o) =>
-            acc + Number(o.total_price || 0),
-          0
-        );
-
-      const lowStock =
-        variants.rows.filter(
-          (v) => v.stock <= 5
-        ).length;
-
-      const summary = {
-
-        message:
-
-          totalRevenue > 10000
-
-          ? "🔥 Your business is performing strongly with high revenue growth"
-
-          : "⚠️ Your business needs attention to increase sales",
-
-        insights: [
-
-          `Total Orders: ${orders.rows.length}`,
-
-          `Total Products: ${products.rows.length}`,
-
-          `Revenue: $${totalRevenue}`,
-
-          `Low Stock Items: ${lowStock}`
-
-        ]
-      };
-
-      res.json(summary);
-
-    } catch (error) {
-
-      console.log(error);
-
-      res.status(500).json({
-        message: "AI Error"
-      });
-
-    }
-
-  }
-);
-
-router.post("/regression-test/message", requireRegressionTestKey, async (req, res) => {
+router.post("/message", requireRegressionTestKey, async (req, res) => {
   const startedAt = new Date().toISOString();
   const sessionId = toText(req.body?.session_id || req.body?.sessionId || "");
   const testCount = Number(req.body?.test_count || 1) || 1;
@@ -729,7 +647,7 @@ router.post("/regression-test/message", requireRegressionTestKey, async (req, re
     const fallbackNormalizedMessage = normalizeArabic(fallbackMessage);
     const fallbackIsOrderConfirmation =
       fallbackLastAction === "ask_order" &&
-      /^(تمام|ايوه|ايوة|ماشي|ok|okay|أكد الأوردر|اكد الأوردر)$/i.test(fallbackNormalizedMessage);
+      /^(طھظ…ط§ظ…|ط§ظٹظˆظ‡|ط§ظٹظˆط©|ظ…ط§ط´ظٹ|ok|okay|ط£ظƒط¯ ط§ظ„ط£ظˆط±ط¯ط±|ط§ظƒط¯ ط§ظ„ط£ظˆط±ط¯ط±)$/i.test(fallbackNormalizedMessage);
 
     if (fallbackIsOrderConfirmation) {
       const fallbackCards = normalizeProductCards(
@@ -752,12 +670,12 @@ router.post("/regression-test/message", requireRegressionTestKey, async (req, re
         fallbackMemory.selected_color
       );
       const fallbackParts = [
-        fallbackSize ? `مقاس ${fallbackSize}` : "",
-        fallbackColor ? `لون ${fallbackColor}` : "",
+        fallbackSize ? `ظ…ظ‚ط§ط³ ${fallbackSize}` : "",
+        fallbackColor ? `ظ„ظˆظ† ${fallbackColor}` : "",
       ].filter(Boolean);
       const fallbackReply = fallbackParts.length
-        ? `تمام، هأكدلك ${fallbackParts.join(" ")}. ابعتلي الاسم ورقم الموبايل والعنوان ونأكد الأوردر.`
-        : "تمام، ابعتلي الاسم ورقم الموبايل والعنوان ونأكد الأوردر.";
+        ? `طھظ…ط§ظ…طŒ ظ‡ط£ظƒط¯ظ„ظƒ ${fallbackParts.join(" ")}. ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظˆظ†ط£ظƒط¯ ط§ظ„ط£ظˆط±ط¯ط±.`
+        : "طھظ…ط§ظ…طŒ ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظˆظ†ط£ظƒط¯ ط§ظ„ط£ظˆط±ط¯ط±.";
       const fallbackAnalysis = {
         source: "ai_regression_test_endpoint",
         message_length: fallbackMessage.length,

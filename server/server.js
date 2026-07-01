@@ -535,8 +535,7 @@ const { default: db } = await import("./database/db.js");
 const { startMetaTokenRefreshScheduler } = await import("./services/metaTokenAutoRefreshService.js");
 const { startMarketingAnalyticsSyncScheduler } = await import("./services/marketingAnalyticsService.js");
 const { startMarketingAttributionSyncScheduler, resolveTrackedProductRedirect } = await import("./services/marketingAttributionService.js");
-const { default: aiRoutes } = await import("./routes/ai.js");
-const { default: aiV2Routes } = await import("./routes/aiV2.js");
+const { default: aiRegressionHarnessRoutes } = await import("./routes/aiRegressionHarness.js");
 const { default: aiSupportRoutes } = await import("./routes/aiSupport.js");
 const { default: aiAgentOrderRoutes } = await import("./routes/aiAgentOrders.js");
 const { default: socialCommentsRoutes, socialCommentsDebugRoutes } = await import("./routes/socialComments.js");
@@ -1766,8 +1765,7 @@ app.get("/api/debug/display-refill-alerts", protect, permit("employees", "view")
    AI LAYERS 🧠
 ========================= */
 
-app.use("/api/ai", aiRoutes);
-app.use("/api/ai/v2", aiV2Routes);
+app.use("/api/internal/ai-regression", aiRegressionHarnessRoutes);
 app.use("/api/ai-support", aiSupportRoutes);
 app.use("/api/ai-agent", aiAgentOrderRoutes);
 app.use("/api/ai-inbox", aiAgentOrderRoutes);
