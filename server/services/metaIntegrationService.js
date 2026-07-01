@@ -4048,21 +4048,79 @@ const loadMetaCommentPollingConfigs = async ({ tenantId = null } = {}) => {
   return (result.rows || []).filter((row) => Boolean(text(row.facebook_page_id)) && Boolean(text(row.page_access_token_encrypted)));
 };
 
-const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
+const META_PAGE_FEED_FIELDS = "id,created_time,message,permalink_url,full_picture,picture,attachments{media,type,url,subattachments},status_type";
+
+const fetchMetaPagePostsPage = async ({ pageId, token, limit = 100, after = "" } = {}) => {
   debugSocialCommentsLog("META_COMMENTS_POLL_GRAPH_REQUEST", {
     object_id: text(pageId || ""),
     url: `/${encodeURIComponent(text(pageId))}/posts`,
-    fields: "id,message,created_time,permalink_url,full_picture,picture",
+    fields: META_PAGE_FEED_FIELDS,
   });
   const payload = await callMetaGet({
     endpoint: `/${encodeURIComponent(text(pageId))}/posts`,
     token,
     params: {
-      fields: "id,message,created_time,permalink_url,full_picture,picture",
-      limit: "100",
+      fields: META_PAGE_FEED_FIELDS,
+      limit: String(Math.min(100, Math.max(1, Number(limit) || 100))),
+      ...(after ? { after } : {}),
     },
   });
-  return Array.isArray(payload?.data) ? payload.data.slice(0, 100) : [];
+  return {
+    posts: Array.isArray(payload?.data) ? payload.data : [],
+    nextAfter: text(payload?.paging?.cursors?.after || ""),
+  };
+};
+
+export const fetchMetaPageFeedPostsForTenant = async ({ tenantId = null, limit = 100 } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  if (!safeTenantId) return { success: false, posts: [], page_id: "", graph_error: "tenant_id is required" };
+  const row = await getMetaIntegrationConfig({ tenantId: safeTenantId });
+  if (!row) return { success: false, posts: [], page_id: "", graph_error: "Meta integration is not configured" };
+  const token = getTokenForConfig(row);
+  const pageId = text(row.facebook_page_id || row.page_id || "");
+  if (!pageId) return { success: false, posts: [], page_id: "", graph_error: "Facebook page id is missing" };
+  if (!token) return { success: false, posts: [], page_id: pageId, graph_error: "Page access token is missing" };
+
+  const safeLimit = Math.min(500, Math.max(1, Number(limit) || 100));
+  const targetCount = Math.max(safeLimit, Math.min(500, safeLimit * 3));
+  const posts = [];
+  let after = "";
+  let pageCount = 0;
+  while (posts.length < targetCount && pageCount < 5) {
+    const page = await fetchMetaPagePostsPage({
+      pageId,
+      token,
+      limit: Math.min(100, targetCount - posts.length),
+      after,
+    }).catch((error) => ({
+      posts: [],
+      nextAfter: "",
+      error,
+    }));
+    if (page?.error) {
+      return {
+        success: false,
+        posts,
+        page_id: pageId,
+        graph_error: {
+          message: page.error?.message || "Unable to load page posts",
+          status: page.error?.status || null,
+          code: page.error?.meta?.code || page.error?.code || "",
+          subcode: page.error?.meta?.error_subcode || "",
+        },
+      };
+    }
+    posts.push(...asArray(page.posts));
+    pageCount += 1;
+    if (!page.nextAfter || !page.posts.length) break;
+    after = page.nextAfter;
+  }
+  return { success: true, posts: posts.slice(0, targetCount), page_id: pageId, graph_error: null };
+};
+
+const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
+  const page = await fetchMetaPagePostsPage({ pageId, token, limit: 100 }).catch(() => ({ posts: [] }));
+  return Array.isArray(page?.posts) ? page.posts.slice(0, 100) : [];
 };
 
 const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {

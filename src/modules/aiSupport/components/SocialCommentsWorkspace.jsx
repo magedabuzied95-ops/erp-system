@@ -373,7 +373,6 @@ const normalizePost = (raw) => {
       metadata.post_created_time ||
       metadata.created_time ||
       metadata.post?.created_time ||
-      metadata.post?.updated_time ||
       ""
   );
   return {
@@ -389,6 +388,8 @@ const normalizePost = (raw) => {
     platform: clean(post.platform || metadata.platform || "facebook").toLowerCase(),
     caption: clean(post.caption || post.post_caption || post.post_message || post.message || post.last_message || post.post_text || metadata.post_caption || metadata.post_message || metadata.caption || metadata.message || "منشور بدون نص"),
     thumbnailUrl:
+      post.cover_image_url ||
+      post.coverImageUrl ||
       post.thumbnailUrl ||
       post.thumbnail_url ||
       post.postThumbnail ||
@@ -421,6 +422,8 @@ const normalizePost = (raw) => {
       metadata.imageUrl ||
       metadata.image_url ||
       metadata.image ||
+      metadata.cover_image_url ||
+      metadata.coverImageUrl ||
       attachmentImage ||
       post.product_image_url ||
       post.product_image ||
@@ -572,7 +575,6 @@ const normalizeSocialPostDisplay = (raw = {}) => {
     metadata.post_created_time,
     metadata.published_at,
     metadata.post?.created_time,
-    metadata.post?.updated_time,
     normalized.postCreatedTime,
     normalized.publishedAt,
   ]
@@ -1502,8 +1504,7 @@ function SocialCommentsWorkspace({
           const normalized = normalizePost(post);
           const override = productMappingOverrides[postKey(normalized)];
           return override ? normalizePost({ ...(normalized.raw || post || {}), ...override }) : normalized;
-        })
-        .sort((left, right) => new Date(right.lastActivity || 0).getTime() - new Date(left.lastActivity || 0).getTime()),
+        }),
     [items, productMappingOverrides]
   );
 

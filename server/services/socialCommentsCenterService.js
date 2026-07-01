@@ -1,7 +1,7 @@
 import db from "../database/db.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
-import { fetchMetaPostPreviewDetails } from "./metaIntegrationService.js";
+import { fetchMetaPageFeedPostsForTenant, fetchMetaPostPreviewDetails } from "./metaIntegrationService.js";
 import { likeComment, replyToComment, renderTemplate } from "./marketingCommentAutomationService.js";
 import { getPostProductLinksV2 } from "./socialPostProductLinksV2Service.js";
 import {
@@ -1071,7 +1071,6 @@ const extractSocialCommentIdentitySnapshot = (row = {}) => {
     metadata.created_time ||
     metadata.published_at ||
     metadata.post?.created_time ||
-    metadata.post?.updated_time ||
     ""
   );
   return {
@@ -1646,7 +1645,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     marketing_created_time: text(value.marketing_created_time || safeRow.marketing_created_time || ""),
     marketing_post_created_time: text(value.marketing_post_created_time || safeRow.marketing_post_created_time || ""),
     metadata_post_created_time: text(value.metadata_post_created_time || safeRow.metadata_post_created_time || metadata.post_created_time || ""),
-    metadata_post_object_created_time: text(value.metadata_post_object_created_time || safeRow.metadata_post_object_created_time || metadata.post?.created_time || metadata.post?.updated_time || ""),
+    metadata_post_object_created_time: text(value.metadata_post_object_created_time || safeRow.metadata_post_object_created_time || metadata.post?.created_time || ""),
     post_created_time: resolveSocialCommentPostCreatedTime({
       row: { ...safeRow, ...value },
       metadata,
@@ -3241,7 +3240,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
       COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
       COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
       COALESCE(c.metadata->>'post_created_time', '') AS metadata_post_created_time,
-      COALESCE(c.metadata->'post'->>'created_time', c.metadata->'post'->>'updated_time', '') AS metadata_post_object_created_time,
+      COALESCE(c.metadata->'post'->>'created_time', '') AS metadata_post_object_created_time,
       COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
       c.metadata,
       runmeta.automation_run_post_id,
@@ -3437,365 +3436,186 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
   if (!safeTenantId) return [];
   await ensureSocialCommentsCenterSchema();
-  const normalizedPlatform = lower(platform);
-  const platformClause = normalizedPlatform === "facebook" || normalizedPlatform === "instagram"
-    ? `AND c.channel = '${normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment"}'`
-    : "";
+  const normalizedPlatform = lower(platform || "facebook") || "facebook";
+  if (normalizedPlatform !== "facebook" && normalizedPlatform !== "instagram") {
+    return [];
+  }
+
   const parseSocialPostSortTime = (value = "") => {
     const raw = text(value);
     if (!raw) return null;
     const parsed = Date.parse(raw);
     return Number.isFinite(parsed) ? parsed : null;
   };
-  const resolveSocialPostCardTitle = (row = {}) =>
-    text(
-      row.title ||
-      row.post_title ||
-      row.caption ||
-      row.post_caption ||
-      row.post_message ||
-      row.message ||
-      row.post_text ||
-      row.product_name ||
-      row.customer_name ||
-      row.post_permalink_url ||
-      row.permalink_url ||
-      row.post_link_key ||
-      row.canonical_post_id ||
-      row.id ||
-      row.conversation_id ||
-      ""
-    );
-  const resolveSocialPostSortDetails = (row = {}) => {
+
+  const resolveFacebookPostCoverImage = (post = {}) => {
+    const attachments = asArray(post.attachments?.data || post.attachments || []);
+    const firstAttachment = attachments[0] || {};
+    const firstSubattachment = asArray(firstAttachment.subattachments?.data || firstAttachment.subattachments || [])[0] || {};
     const candidates = [
-      { source: "display_post_time", value: row.display_post_time },
-      { source: "post_created_time", value: row.post_created_time },
-      { source: "metadata.post_created_time", value: row.metadata_post_created_time },
-      { source: "metadata.post_object_created_time", value: row.metadata_post_object_created_time },
-      { source: "graph.created_time", value: row.graph_created_time },
-      { source: "graph.post_created_time", value: row.graph_post_created_time },
+      { source: "full_picture", value: post.full_picture },
+      { source: "attachments.data[0].media.image.src", value: firstAttachment?.media?.image?.src || firstAttachment?.media?.image_url || firstAttachment?.media?.source || "" },
+      { source: "attachments.data[0].subattachments.data[0].media.image.src", value: firstSubattachment?.media?.image?.src || firstSubattachment?.media?.image_url || firstSubattachment?.media?.source || "" },
+      { source: "picture", value: post.picture },
+      { source: "existing_cached_image", value: post.cover_image_url || post.thumbnail_url || post.post_thumbnail || post.post_image_url || post.image_url || post.image || "" },
     ];
-    const selected = candidates.find((candidate) => parseSocialPostSortTime(candidate.value) !== null);
-    return {
-      sortTime: selected ? parseSocialPostSortTime(selected.value) : null,
-      sortTimeSource: selected?.source || "missing",
-      title: resolveSocialPostCardTitle(row),
-    };
-  };
-  const postsSql = `
-    SELECT
-      c.tenant_id,
-      c.channel,
-      CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END AS platform,
-      c.thread_kind,
-      c.external_conversation_id AS conversation_id,
-      c.external_customer_id,
-      c.customer_name,
-      c.customer_avatar_url,
-      c.last_message,
-      c.last_message_at,
-      c.read_at AS conversation_read_at,
-      COALESCE(c.metadata->>'post_full_picture', c.metadata->>'full_picture', '') AS post_full_picture,
-      COALESCE(c.metadata->>'attachment_image', '') AS attachment_image,
-      COALESCE(c.metadata->>'post_thumbnail', c.metadata->>'thumbnail_url', '') AS post_thumbnail,
-      COALESCE(c.metadata->>'post_caption', c.metadata->>'post_message', c.metadata->>'caption', '') AS post_caption,
-      COALESCE(c.metadata->>'post_message', c.metadata->>'message', '') AS post_message,
-      COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'post_permalink', c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS post_permalink_url,
-      COALESCE(c.metadata->>'permalink_url', c.metadata->>'post_url', '') AS permalink_url,
-      COALESCE(c.metadata->>'post_created_time', '') AS metadata_post_created_time,
-      COALESCE(c.metadata->'post'->>'created_time', c.metadata->'post'->>'updated_time', '') AS metadata_post_object_created_time,
-      COALESCE(c.metadata->>'thumbnail_url', '') AS thumbnail_url,
-      c.metadata,
-      runmeta.automation_run_post_id,
-      runmeta.automation_run_raw_payload,
-      s.read_at AS session_read_at,
-      s.status AS session_status,
-      s.updated_at AS session_updated_at,
-      agg.comments_count,
-      agg.new_comments_count,
-      agg.last_comment_text,
-      agg.last_comment_at,
-      agg.last_commenter_name,
-      agg.last_commenter_id,
-      agg.last_comment_id,
-      prod.product_id,
-      prod.product_name,
-      prod.product_price,
-      prod.product_sale_price,
-      prod.product_image_url,
-      prod.product_gallery_images,
-      prod.product_variant_images,
-      prod.product_storefront_url,
-      prod.product_sizes,
-      prod.product_colors,
-      postmeta.marketing_published_at,
-      postmeta.marketing_created_time,
-      postmeta.post_created_time,
-      reply.like_status,
-      reply.reply_status,
-      reply.auto_reply_mode,
-      COALESCE(tmpl.enabled, settings.generic_enabled, FALSE) AS auto_reply_enabled,
-      COALESCE(tmpl.enabled, FALSE) AS template_enabled,
-      COALESCE(settings.generic_enabled, FALSE) AS generic_enabled
-    FROM ai_channel_conversations c
-    LEFT JOIN ai_support_sessions s
-      ON s.tenant_id = c.tenant_id
-     AND s.session_id = c.external_conversation_id
-    LEFT JOIN LATERAL (
-      SELECT
-        (ARRAY_AGG(r.post_id ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_post_id,
-        (ARRAY_AGG(r.raw_payload ORDER BY r.created_at DESC, r.id DESC))[1] AS automation_run_raw_payload
-      FROM social_comment_automation_runs r
-      WHERE r.tenant_id = c.tenant_id
-        AND r.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
-        AND r.inbox_conversation_id = c.external_conversation_id
-    ) runmeta ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT
-        COUNT(*)::int AS comments_count,
-        COUNT(*) FILTER (WHERE msg.created_at > COALESCE(c.read_at, s.read_at))::int AS new_comments_count,
-        MAX(NULLIF(msg.comment_created_time, '')::timestamptz) AS real_comment_created_time,
-        MAX(msg.created_at) AS last_comment_at,
-        MAX(msg.created_at) AS msg_created_at,
-        (ARRAY_AGG(msg.customer_message ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_comment_text,
-        (ARRAY_AGG(msg.customer_name ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_commenter_name,
-        (ARRAY_AGG(msg.commenter_id ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_commenter_id,
-        (ARRAY_AGG(msg.comment_id ORDER BY NULLIF(msg.comment_created_time, '') DESC NULLS LAST, msg.id DESC))[1] AS last_comment_id
-      FROM ai_support_messages msg
-      WHERE msg.tenant_id = c.tenant_id
-        AND msg.session_id = c.external_conversation_id
-        AND msg.message_type = 'comment_inbound'
-    ) agg ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT
-        mp.published_at::text AS marketing_published_at,
-        mp.created_at::text AS marketing_created_time,
-        NULLIF(mp.published_at::text, '') AS post_created_time
-      FROM marketing_posts mp
-      WHERE mp.tenant_id = c.tenant_id
-        AND (
-          mp.platform_post_id = c.metadata->>'post_id'
-          OR mp.external_post_id = c.metadata->>'post_id'
-          OR mp.platform_post_id = c.metadata->>'platform_post_id'
-          OR mp.external_post_id = c.metadata->>'platform_post_id'
-          OR mp.platform_post_id = c.metadata->>'external_post_id'
-          OR mp.external_post_id = c.metadata->>'external_post_id'
-          OR mp.platform_post_id = c.external_conversation_id
-          OR mp.external_post_id = c.external_conversation_id
-        )
-      ORDER BY mp.published_at DESC NULLS LAST, mp.created_at DESC NULLS LAST, mp.updated_at DESC NULLS LAST, mp.id DESC
-      LIMIT 1
-    ) postmeta ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT
-        (ARRAY_AGG(run.like_status ORDER BY run.created_at DESC, run.id DESC))[1] AS like_status,
-        (ARRAY_AGG(run.reply_status ORDER BY run.created_at DESC, run.id DESC))[1] AS reply_status,
-        (ARRAY_AGG(run.mode ORDER BY run.created_at DESC, run.id DESC))[1] AS auto_reply_mode
-      FROM social_comment_auto_reply_runs run
-      WHERE run.tenant_id = c.tenant_id
-        AND run.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
-        AND run.post_id = c.metadata->>'post_id'
-    ) reply ON TRUE
-    LEFT JOIN LATERAL (
-      SELECT
-        ppl.product_id,
-        p.name AS product_name,
-        p.price AS product_price,
-        p.sale_price AS product_sale_price,
-        p.image_url AS product_image_url,
-        p.gallery_images AS product_gallery_images,
-        COALESCE((
-          SELECT jsonb_agg(
-            jsonb_build_object(
-              'id', vi.id,
-              'image_url', vi.image_url,
-              'color_name', vi.color_name,
-              'color_value', vi.color_value,
-              'sort_order', vi.sort_order,
-              'is_primary', vi.is_primary
-            )
-            ORDER BY vi.is_primary DESC, vi.sort_order ASC, vi.id ASC
-          )
-          FROM product_variant_images vi
-          WHERE vi.product_id = ppl.product_id
-            AND NULLIF(TRIM(vi.image_url), '') IS NOT NULL
-        ), '[]'::jsonb) AS product_variant_images,
-        NULL::text AS product_storefront_url,
-        COALESCE(
-          (SELECT string_agg(DISTINCT NULLIF(v.size, ''), ', ' ORDER BY NULLIF(v.size, ''))
-           FROM product_variants v
-           WHERE v.tenant_id = c.tenant_id AND v.product_id = ppl.product_id),
-          ''
-        ) AS product_sizes,
-        COALESCE(
-          (SELECT string_agg(DISTINCT NULLIF(v.color, ''), ', ' ORDER BY NULLIF(v.color, ''))
-           FROM product_variants v
-           WHERE v.tenant_id = c.tenant_id AND v.product_id = ppl.product_id),
-          ''
-        ) AS product_colors
-      FROM social_post_product_links_v2 ppl
-      LEFT JOIN products p ON p.id = ppl.product_id
-      WHERE ppl.business_id = c.tenant_id
-        AND ppl.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
-        AND ppl.post_link_key = c.metadata->>'post_id'
-      ORDER BY ppl.created_at DESC, ppl.id DESC
-      LIMIT 1
-    ) prod ON TRUE
-    LEFT JOIN social_post_auto_reply_templates tmpl
-      ON tmpl.tenant_id = c.tenant_id
-     AND tmpl.platform = CASE WHEN c.channel = 'instagram_comment' THEN 'instagram' ELSE 'facebook' END
-     AND tmpl.post_id = c.metadata->>'post_id'
-    LEFT JOIN social_auto_reply_settings settings
-      ON settings.tenant_id = c.tenant_id
-    WHERE c.tenant_id = $1::bigint
-      AND c.thread_kind = 'comment'
-      ${platformClause}
-    ORDER BY COALESCE(agg.last_comment_at, c.last_message_at, c.updated_at) DESC, c.updated_at DESC
-    LIMIT $2
-    `;
-  debugSocialCommentsWarn("SOCIAL_COMMENTS_POSTS_SQL_1", {
-    tenant_id: safeTenantId,
-    platform: normalizedPlatform,
-    limit: safeLimit,
-    sql: postsSql,
-  });
-  const result = await db.query(
-    postsSql,
-    [safeTenantId, safeLimit]
-  );
-  const groupedPosts = new Map();
-  const sourceRows = result.rows || [];
-  const resolvedRows = await Promise.all(sourceRows.map(async (row) => {
-    const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
-      tenantId: safeTenantId,
-      platform: normalizedPlatform,
-      postId: text(row.metadata?.post_id || row.post_id || row.conversation_id || row.external_conversation_id || ""),
-      row,
-      post: row,
-      source: "listSocialCommentPosts",
-    }).catch(() => null);
-    const canonicalPostId = text(
-      canonicalIdentity?.canonical_post_id ||
-      resolveSocialCommentCanonicalPostId(row) ||
-      text(row.metadata?.post_id || row.post_id || row.conversation_id || row.external_conversation_id || "")
-    );
-    void migrateCanonicalSocialPostRecords({
-      tenantId: safeTenantId,
-      platform: normalizedPlatform,
-      canonicalPostId,
-      aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
-    }).catch(() => {});
-    return { row, canonicalPostId };
-  }));
-  for (const { row, canonicalPostId } of resolvedRows) {
-    const key = canonicalPostId || text(row.conversation_id || row.external_conversation_id || row.post_id || "");
-    if (!groupedPosts.has(key)) {
-      groupedPosts.set(key, []);
-    }
-    groupedPosts.get(key).push(row);
-  }
-  const groupedSummaries = Array.from(groupedPosts.entries()).map(([key, rows]) => ({
-    key,
-    size: rows.length,
-    sources: Array.from(new Set(rows.flatMap((row) => [
-      text(row.metadata?.post_id || ""),
-      text(row.automation_run_post_id || ""),
-      text(row.post_id || ""),
-      text(row.conversation_id || ""),
-      text(row.external_conversation_id || ""),
-    ]).filter(Boolean))),
-  }));
-  const groupedRows = groupedSummaries.map(({ key, size }) => {
-    const rows = groupedPosts.get(key) || [];
-    const sortedRows = [...rows].sort((a, b) => {
-      const aTime = new Date(a.last_comment_at || a.last_message_at || a.updated_at || a.created_at || 0).getTime();
-      const bTime = new Date(b.last_comment_at || b.last_message_at || b.updated_at || b.created_at || 0).getTime();
-      return bTime - aTime;
+    const selected = candidates.find((candidate) => text(candidate.value));
+    const coverImageUrl = text(selected?.value || "");
+    console.info("SOCIAL_POST_IMAGE_PICK_TRACE", {
+      post_id: text(post.id || post.post_id || post.platform_post_id || ""),
+      chosen_source: text(selected?.source || "missing"),
+      cover_image_url: coverImageUrl,
     });
-    const primary = sortedRows[0] || rows[0] || {};
-    const commentsCount = rows.reduce((max, row) => Math.max(max, Number(row.comments_count || 0)), 0);
-    const newCommentsCount = rows.reduce((max, row) => Math.max(max, Number(row.new_comments_count || 0)), 0);
-    const latestActivity = sortedRows.reduce((latest, row) => {
-      const rowTime = row.last_comment_at || row.last_message_at || row.updated_at || row.created_at || null;
-      if (!latest) return rowTime;
-      if (!rowTime) return latest;
-      return new Date(rowTime).getTime() > new Date(latest).getTime() ? rowTime : latest;
-    }, primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null);
-    return {
-      ...primary,
-      id: key,
-      canonical_post_id: key,
-      post_id: key || text(primary.post_id || ""),
-      conversation_id: key || text(primary.conversation_id || primary.external_conversation_id || ""),
-      comment_created_time: primary.real_comment_created_time || primary.comment_created_time || null,
-      real_comment_created_time: primary.real_comment_created_time || primary.comment_created_time || null,
-      comments_count: commentsCount,
-      new_comments_count: newCommentsCount,
-      last_comment_at: latestActivity || primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null,
-      last_message_at: latestActivity || primary.last_message_at || primary.last_comment_at || primary.updated_at || primary.created_at || null,
-      last_activity_at: latestActivity || primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null,
-      grouped_conversation_ids: rows.map((row) => text(row.conversation_id || row.external_conversation_id || "")).filter(Boolean),
-      grouped_row_count: rows.length,
-      latest_activity_at: latestActivity || primary.last_comment_at || primary.last_message_at || primary.updated_at || primary.created_at || null,
-    };
-  }).sort((a, b) => {
-    const aTime = new Date(a.last_comment_at || a.last_message_at || a.updated_at || a.created_at || 0).getTime();
-    const bTime = new Date(b.last_comment_at || b.last_message_at || b.updated_at || b.created_at || 0).getTime();
-    return bTime - aTime;
-  });
-  debugSocialCommentsWarn("[social-comments:post-grouping-debug]", {
-    raw_rows: sourceRows.length,
-    grouped_posts: groupedRows.length,
-    duplicate_groups_count: groupedSummaries.filter((group) => group.size > 1).length,
-    sample_group_sizes: groupedSummaries.slice(0, 10).map((group) => ({ key: group.key, size: group.size })),
-    sample_keys_with_sources: groupedSummaries.slice(0, 10).map((group) => ({ key: group.key, sources: group.sources.slice(0, 5) })),
-  });
-  const enrichedRows = await Promise.all(groupedRows.map(async (row) => {
-    const postLinkKey = text(row.post_link_key || row.canonical_post_id || row.id || row.conversation_id || "");
-    const postId = text(row.post_id || row.canonical_post_id || row.conversation_id || row.external_conversation_id || "");
-    try {
-      return await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform });
-    } catch (error) {
-      console.error("SOCIAL_POST_CREATED_TIME_HYDRATION_ERROR_TRACE", {
-        post_link_key: postLinkKey,
-        post_id: postId,
-        error: text(error?.message || error || ""),
-      });
-      return {
-        ...row,
-        display_post_time: text(row.display_post_time || row.post_created_time || row.metadata_post_created_time || row.metadata_post_object_created_time || ""),
-      };
-    }
+    return coverImageUrl;
+  };
+
+  const feedResult = await fetchMetaPageFeedPostsForTenant({ tenantId: safeTenantId, limit: safeLimit }).catch((error) => ({
+    success: false,
+    posts: [],
+    page_id: "",
+    graph_error: error?.message || "Unable to load Facebook page posts",
   }));
-  const sortedRows = [...enrichedRows].sort((left, right) => {
-    const leftDetails = resolveSocialPostSortDetails(left);
-    const rightDetails = resolveSocialPostSortDetails(right);
-    const leftHasTime = leftDetails.sortTime !== null;
-    const rightHasTime = rightDetails.sortTime !== null;
-    if (leftHasTime !== rightHasTime) {
-      return leftHasTime ? -1 : 1;
+  const feedPosts = Array.isArray(feedResult?.posts) ? feedResult.posts.filter((post) => post && typeof post === "object") : [];
+  const feedPostIds = feedPosts.map((post) => text(post.id || "")).filter(Boolean);
+
+  const commentsByPostId = new Map();
+  if (feedPostIds.length) {
+    const commentsResult = await db.query(
+      `
+      SELECT
+        COALESCE(NULLIF(c.metadata->>'post_id', ''), NULLIF(c.metadata->>'platform_post_id', ''), NULLIF(c.metadata->>'external_post_id', ''), NULLIF(c.external_conversation_id, '')) AS post_id,
+        COUNT(*)::int AS comments_count
+      FROM ai_channel_conversations c
+      WHERE c.tenant_id = $1::bigint
+        AND c.thread_kind = 'comment'
+        AND (
+          c.channel = 'facebook_comment'
+          OR c.channel = 'instagram_comment'
+        )
+        AND COALESCE(NULLIF(c.metadata->>'post_id', ''), NULLIF(c.metadata->>'platform_post_id', ''), NULLIF(c.metadata->>'external_post_id', ''), NULLIF(c.external_conversation_id, '')) = ANY($2::text[])
+      GROUP BY 1
+      `,
+      [safeTenantId, feedPostIds]
+    ).catch(() => ({ rows: [] }));
+    for (const row of commentsResult.rows || []) {
+      const key = text(row.post_id || "");
+      if (!key) continue;
+      commentsByPostId.set(key, Number(row.comments_count || 0) || 0);
     }
-    if (leftHasTime && rightHasTime && leftDetails.sortTime !== rightDetails.sortTime) {
-      return rightDetails.sortTime - leftDetails.sortTime;
-    }
-    const titleCompare = leftDetails.title.localeCompare(rightDetails.title, "en", { numeric: true, sensitivity: "base" });
-    if (titleCompare !== 0) return titleCompare;
-    const leftStable = text(left.post_link_key || left.canonical_post_id || left.id || left.conversation_id || "");
-    const rightStable = text(right.post_link_key || right.canonical_post_id || right.id || right.conversation_id || "");
-    return leftStable.localeCompare(rightStable, "en", { numeric: true, sensitivity: "base" });
+  }
+
+  const normalizedRows = await Promise.all(feedPosts.map(async (post, index) => {
+    const postId = text(post.id || "");
+    const postTime = text(post.created_time || post.post_created_time || "");
+    const coverImageUrl = resolveFacebookPostCoverImage(post);
+    const postLinkKey = postId;
+    const commentsCount = commentsByPostId.get(postId) || 0;
+    const productLinkIdentity = resolveSocialPostProductLinkIdentity({
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: postId,
+      platform_post_id: postId,
+      source_post_id: postId,
+      canonical_post_id: postId,
+      permalink_url: text(post.permalink_url || ""),
+      object_id: text(postId.includes("_") ? postId.split("_").pop() || "" : postId),
+    });
+    const mappingSummary = await getPostProductLinksV2({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      postId: productLinkIdentity.product_link_key || postId,
+      post: {
+        id: postId,
+        post_id: postId,
+        platform_post_id: postId,
+        canonical_post_id: postId,
+        source_post_id: postId,
+        permalink_url: text(post.permalink_url || ""),
+        cover_image_url: coverImageUrl,
+        full_picture: text(post.full_picture || ""),
+        picture: text(post.picture || ""),
+        message: text(post.message || ""),
+        caption: text(post.message || ""),
+      },
+    }).catch(() => null);
+    const linkedProducts = Array.isArray(mappingSummary?.linked_products) ? mappingSummary.linked_products : [];
+    const linkedProductsCount = Number(mappingSummary?.count || linkedProducts.length || 0) || 0;
+    const hasDirectProductLink = linkedProductsCount > 0;
+    const productLinkSource = hasDirectProductLink ? "v2_direct" : "none";
+    const row = {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      id: postId,
+      post_id: postId,
+      platform_post_id: postId,
+      source_post_id: postId,
+      canonical_post_id: postId,
+      post_link_key: postLinkKey,
+      title: text(post.message || ""),
+      caption: text(post.message || ""),
+      message: text(post.message || ""),
+      post_text: text(post.message || ""),
+      permalink_url: text(post.permalink_url || ""),
+      post_permalink_url: text(post.permalink_url || ""),
+      display_post_time: postTime || null,
+      post_created_time: postTime || null,
+      created_time: postTime || null,
+      published_at: postTime || null,
+      cover_image_url: coverImageUrl,
+      thumbnail_url: coverImageUrl,
+      post_thumbnail: coverImageUrl,
+      post_full_picture: text(post.full_picture || ""),
+      full_picture: text(post.full_picture || ""),
+      picture: text(post.picture || ""),
+      comments_count: commentsCount,
+      comment_count: commentsCount,
+      linked_products: linkedProducts,
+      linked_products_count: linkedProductsCount,
+      has_direct_product_link: hasDirectProductLink,
+      product_link_source: productLinkSource,
+      primary_linked_product: mappingSummary?.primary_product || null,
+      primary_product: mappingSummary?.primary_product || null,
+      product_link_identity: productLinkIdentity,
+      mapping_summary: mappingSummary || null,
+      selected_post_identity: productLinkIdentity,
+      direct_primary_linked_product: mappingSummary?.primary_product || null,
+      directLinkedProducts: linkedProducts,
+      directLinkedProductsCount: linkedProductsCount,
+      raw: post,
+      feed_index: index,
+    };
+    return row;
+  }));
+
+  console.info("SOCIAL_PAGE_FEED_SYNC_TRACE", {
+    fetched_count: feedPosts.length,
+    returned_count: normalizedRows.length,
+    first_post_ids: normalizedRows.slice(0, 5).map((post) => text(post.post_id || post.id || "")),
+    missing_image_count: normalizedRows.filter((post) => !text(post.cover_image_url || post.thumbnail_url || "")).length,
   });
+
+  const sortedRows = [...normalizedRows].sort((left, right) => {
+    const leftTime = parseSocialPostSortTime(left.display_post_time || left.post_created_time || "");
+    const rightTime = parseSocialPostSortTime(right.display_post_time || right.post_created_time || "");
+    if (leftTime === null && rightTime === null) return left.feed_index - right.feed_index;
+    if (leftTime === null) return 1;
+    if (rightTime === null) return -1;
+    if (leftTime !== rightTime) return rightTime - leftTime;
+    return left.feed_index - right.feed_index;
+  });
+
   sortedRows.forEach((row, index) => {
-    const details = resolveSocialPostSortDetails(row);
     console.info("SOCIAL_POST_CARD_SORT_TRACE", {
-      post_link_key: text(row.post_link_key || row.canonical_post_id || row.id || row.conversation_id || ""),
-      title: details.title,
-      display_post_time: text(row.display_post_time || row.post_created_time || row.metadata_post_created_time || row.metadata_post_object_created_time || ""),
-      sort_time_source: details.sortTimeSource,
-      latest_comment_at: text(row.latest_comment_at || ""),
+      post_link_key: text(row.post_link_key || row.post_id || row.id || ""),
+      title: text(row.title || row.caption || row.message || ""),
+      display_post_time: text(row.display_post_time || row.post_created_time || ""),
+      sort_time_source: text(row.display_post_time || row.post_created_time ? "facebook.created_time" : "missing"),
+      latest_comment_at: "",
       final_sort_rank: index + 1,
     });
   });
-  return sortedRows;
+
+  return sortedRows.slice(0, safeLimit);
 };
 
 const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", limit = 200 } = {}) => {
