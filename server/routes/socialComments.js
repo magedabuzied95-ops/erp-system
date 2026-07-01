@@ -175,6 +175,8 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
     const posts = await listSocialCommentPosts({ tenantId, platform, limit: req.query?.limit || 50 });
     const responsePosts = posts.map((post) => ({
       ...post,
+      display_post_time: String(post?.display_post_time || post?.post_created_time || post?.metadata_post_created_time || post?.metadata_post_object_created_time || "").trim() || null,
+      post_created_time: String(post?.post_created_time || post?.display_post_time || post?.metadata_post_created_time || post?.metadata_post_object_created_time || "").trim() || null,
       id: String(post?.id || post?.post_id || post?.canonical_post_id || post?.platform_post_id || post?.source_post_id || post?.permalink_url || post?.post_link_key || "").trim(),
       post_id: String(post?.post_id || post?.id || post?.canonical_post_id || post?.platform_post_id || post?.source_post_id || post?.permalink_url || "").trim(),
       canonical_post_id: String(post?.canonical_post_id || post?.post_id || post?.id || post?.platform_post_id || post?.source_post_id || "").trim(),

@@ -753,30 +753,46 @@ const resolveTimestampFromPermalinkUrl = (value = "") => {
   }
 };
 
+const traceEmptySocialPostTime = ({ row = {}, field = "", value = "" } = {}) => {
+  const originalValue = value;
+  const normalizedValue = text(originalValue);
+  if (!(typeof originalValue === "string" && originalValue.trim() === "")) {
+    return normalizedValue || null;
+  }
+  console.warn("SOCIAL_POST_TIME_EMPTY_STRING_GUARD_TRACE", {
+    post_id: text(row.post_id || row.id || row.canonical_post_id || row.platform_post_id || row.source_post_id || ""),
+    post_link_key: text(row.post_link_key || row.postLinkKey || row.canonical_post_id || row.post_id || row.id || ""),
+    field,
+    original_value: originalValue,
+    normalized_value: normalizedValue || null,
+  });
+  return null;
+};
+
 const resolveSocialCommentPostCreatedTime = ({ row = {}, metadata = {}, postMeta = {} } = {}) => {
   const safeRow = metadataObject(row || {});
   const safeMetadata = metadataObject(metadata || {});
   const safePostMeta = metadataObject(postMeta || {});
-  return firstText(
-    safeRow.post_created_time,
-    safeRow.marketing_published_at,
-    safeRow.marketing_created_time,
-    safeRow.marketing_post_created_time,
-    safePostMeta.post_created_time,
-    safePostMeta.marketing_published_at,
-    safePostMeta.marketing_created_time,
-    safePostMeta.marketing_post_created_time,
-    safeMetadata.post_created_time,
-    safeMetadata.created_time,
-    safeMetadata.post?.created_time,
-    safeRow.metadata_post_created_time,
-    safeRow.metadata_post_object_created_time,
-    safeRow.raw_payload?.post_created_time,
-    safeRow.raw_payload?.metadata?.post_created_time,
-    safeRow.raw_payload?.value?.post_created_time,
-    safeRow.raw_payload?.value?.post?.created_time,
-    safeRow.raw_payload?.metadata?.post?.created_time,
-    resolveTimestampFromPermalinkUrl(
+  const candidates = [
+    { field: "row.post_created_time", value: safeRow.post_created_time },
+    { field: "row.marketing_published_at", value: safeRow.marketing_published_at },
+    { field: "row.marketing_created_time", value: safeRow.marketing_created_time },
+    { field: "row.marketing_post_created_time", value: safeRow.marketing_post_created_time },
+    { field: "postMeta.post_created_time", value: safePostMeta.post_created_time },
+    { field: "postMeta.marketing_published_at", value: safePostMeta.marketing_published_at },
+    { field: "postMeta.marketing_created_time", value: safePostMeta.marketing_created_time },
+    { field: "postMeta.marketing_post_created_time", value: safePostMeta.marketing_post_created_time },
+    { field: "metadata.post_created_time", value: safeMetadata.post_created_time },
+    { field: "metadata.created_time", value: safeMetadata.created_time },
+    { field: "metadata.post.created_time", value: safeMetadata.post?.created_time },
+    { field: "row.metadata_post_created_time", value: safeRow.metadata_post_created_time },
+    { field: "row.metadata_post_object_created_time", value: safeRow.metadata_post_object_created_time },
+    { field: "row.raw_payload.post_created_time", value: safeRow.raw_payload?.post_created_time },
+    { field: "row.raw_payload.metadata.post_created_time", value: safeRow.raw_payload?.metadata?.post_created_time },
+    { field: "row.raw_payload.value.post_created_time", value: safeRow.raw_payload?.value?.post_created_time },
+    { field: "row.raw_payload.value.post.created_time", value: safeRow.raw_payload?.value?.post?.created_time },
+    { field: "row.raw_payload.metadata.post.created_time", value: safeRow.raw_payload?.metadata?.post?.created_time },
+    { field: "permalink.created_time", value: resolveTimestampFromPermalinkUrl(
       safeRow.post_permalink_url ||
         safeRow.permalink_url ||
         safeMetadata.permalink_url ||
@@ -784,8 +800,13 @@ const resolveSocialCommentPostCreatedTime = ({ row = {}, metadata = {}, postMeta
         safeRow.raw_payload?.permalink_url ||
         safeRow.raw_payload?.value?.permalink_url ||
         ""
-    )
-  );
+    ) },
+  ];
+  for (const candidate of candidates) {
+    const normalized = traceEmptySocialPostTime({ row: safeRow, field: candidate.field, value: candidate.value });
+    if (normalized) return normalized;
+  }
+  return null;
 };
 
 const isWrapperSocialCommentPostId = (value = "") => /^(social_comment|facebook_comment|instagram_comment):/i.test(text(value));
@@ -1658,11 +1679,11 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     selected_post_identity: selectedPostIdentity,
     latest_comment_post_identity: latestCommentPostIdentity?.post_id ? latestCommentPostIdentity : null,
     post_link_key: text(productLinkIdentity.product_link_key || canonicalIdentityPostId || ""),
-    created_time: displayPostTime,
-    post_created_time: displayPostTime,
-    published_at: displayPostTime,
-    timestamp: displayPostTime,
-    display_post_time: displayPostTime,
+    created_time: displayPostTime || null,
+    post_created_time: displayPostTime || null,
+    published_at: displayPostTime || null,
+    timestamp: displayPostTime || null,
+    display_post_time: displayPostTime || null,
     latest_comment_time: text(value.latest_comment_at || safeRow.latest_comment_at || metadata.latest_comment_at || ""),
     post_identity_mismatch: Boolean(
       permalinkFields.post_identity_mismatch ||
@@ -3261,9 +3282,9 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
     ) agg ON TRUE
     LEFT JOIN LATERAL (
       SELECT
-        mp.published_at AS marketing_published_at,
-        mp.created_at AS marketing_created_time,
-        COALESCE(mp.published_at, '') AS post_created_time
+        mp.published_at::text AS marketing_published_at,
+        mp.created_at::text AS marketing_created_time,
+        NULLIF(mp.published_at::text, '') AS post_created_time
       FROM marketing_posts mp
       WHERE mp.tenant_id = c.tenant_id
         AND (
@@ -3528,9 +3549,9 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     ) agg ON TRUE
     LEFT JOIN LATERAL (
       SELECT
-        mp.published_at AS marketing_published_at,
-        mp.created_at AS marketing_created_time,
-        COALESCE(mp.published_at, '') AS post_created_time
+        mp.published_at::text AS marketing_published_at,
+        mp.created_at::text AS marketing_created_time,
+        NULLIF(mp.published_at::text, '') AS post_created_time
       FROM marketing_posts mp
       WHERE mp.tenant_id = c.tenant_id
         AND (
