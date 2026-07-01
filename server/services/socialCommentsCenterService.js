@@ -769,7 +769,6 @@ const resolveSocialCommentPostCreatedTime = ({ row = {}, metadata = {}, postMeta
     safeMetadata.post_created_time,
     safeMetadata.created_time,
     safeMetadata.post?.created_time,
-    safeMetadata.post?.updated_time,
     safeRow.metadata_post_created_time,
     safeRow.metadata_post_object_created_time,
     safeRow.raw_payload?.post_created_time,
@@ -1186,7 +1185,7 @@ const compareSocialCommentDuplicateIdentity = async ({ tenantId = null, platform
         COALESCE(c.metadata->>'post_permalink_url', c.metadata->>'permalink_url', c.metadata->>'post_permalink', c.metadata->>'post_url', '') AS permalink_url,
         COALESCE(c.metadata->>'post_full_picture', c.metadata->>'full_picture', c.metadata->>'attachment_image', c.metadata->>'thumbnail_url', c.metadata->>'image_url', c.metadata->>'picture', '') AS image_url,
         COALESCE(c.metadata->>'post_text', c.metadata->>'post_message', c.metadata->>'post_caption', c.metadata->>'message', c.metadata->>'caption', c.last_message, '') AS post_text,
-        COALESCE(c.metadata->>'post_created_time', c.metadata->>'created_time', c.metadata->>'published_at', c.created_at::text, '') AS post_created_time
+        COALESCE(c.metadata->>'post_created_time', c.metadata->>'created_time', c.metadata->>'published_at', '') AS post_created_time
       FROM ai_channel_conversations c
       WHERE c.tenant_id = $1::bigint
         AND c.channel = $2::text
@@ -1425,7 +1424,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       post: { ...safeRow, canonical_post_id: canonicalIdentityPostId },
     }).catch(() => null)
     : null;
-  const appendMappingSummary = (value = {}) => {
+  const appendMappingSummary = async (value = {}) => {
     const directLinkedProducts = Array.isArray(mappingSummary?.linked_products) ? mappingSummary.linked_products : [];
     const directLinkedProductsCount = Number(mappingSummary?.count || directLinkedProducts.length || 0) || 0;
     const hasDirectProductLink = directLinkedProductsCount > 0;
@@ -1445,12 +1444,76 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     ].some((entry) => text(entry || ""));
     const hasSiblingProductContext = !hasDirectProductLink && genericProductSignals;
     const productLinkSource = hasDirectProductLink ? "v2_direct" : (hasSiblingProductContext ? "sibling" : "none");
+    const fallbackRealPostTime = text(
+      value.post_created_time ||
+      metadata.post_created_time ||
+      value.created_time ||
+      metadata.created_time ||
+      safeRow.raw_payload?.post_created_time ||
+      safeRow.raw_payload?.value?.post_created_time ||
+      safeRow.raw_payload?.value?.created_time ||
+      safeRow.raw_payload?.metadata?.post_created_time ||
+      safeRow.raw_payload?.metadata?.created_time ||
+      ""
+    );
+    let hydratedPostCreatedTime = "";
+    let hydratedPostCreatedTimeSource = "";
+    if (!fallbackRealPostTime && isFacebook(platform) && tenantId && graphLookupFallbackPostIds.length) {
+      for (const candidatePostId of graphLookupFallbackPostIds) {
+        const candidateGraphPost = await fetchMetaPostPreviewDetails({
+          tenantId,
+          postId: candidatePostId,
+          pageId,
+          permalinkUrl,
+        }).catch((error) => {
+          debugSocialCommentsWarn("[social-comments:post-created-time-hydration-failed]", {
+            tenant_id: tenantId,
+            post_id: text(candidatePostId || ""),
+            message: error?.message || "graph fetch failed",
+          });
+          return null;
+        });
+        const candidateCreatedTime = text(candidateGraphPost?.created_time || candidateGraphPost?.post_created_time || "");
+        if (!candidateCreatedTime) continue;
+        hydratedPostCreatedTime = candidateCreatedTime;
+        hydratedPostCreatedTimeSource = text(candidateGraphPost?.created_time ? "graph.created_time" : "graph.post_created_time");
+        await persistSocialCommentPostMedia({
+          tenantId,
+          channel: safeRow.channel || (normalizePlatform(platform) === "instagram" ? "instagram_comment" : "facebook_comment"),
+          conversationId: safeRow.conversation_id || safeRow.external_conversation_id || "",
+          metadata: {
+            post_id: postId,
+            post_created_time: candidateCreatedTime,
+            created_time: candidateCreatedTime,
+            published_at: candidateCreatedTime,
+            post_permalink_url: text(candidateGraphPost?.permalink_url || permalinkUrl || safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || ""),
+            permalink_url: text(candidateGraphPost?.permalink_url || permalinkUrl || safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || ""),
+          },
+        });
+        break;
+      }
+    }
+    const resolvedDisplayPostTime = text(fallbackRealPostTime || hydratedPostCreatedTime || "");
+    const sourceField = fallbackRealPostTime
+      ? (value.post_created_time ? "value.post_created_time" : value.created_time ? "value.created_time" : metadata.post_created_time ? "metadata.post_created_time" : metadata.created_time ? "metadata.created_time" : safeRow.raw_payload?.post_created_time ? "safeRow.raw_payload.post_created_time" : safeRow.raw_payload?.value?.post_created_time ? "safeRow.raw_payload.value.post_created_time" : safeRow.raw_payload?.value?.created_time ? "safeRow.raw_payload.value.created_time" : safeRow.raw_payload?.metadata?.post_created_time ? "safeRow.raw_payload.metadata.post_created_time" : safeRow.raw_payload?.metadata?.created_time ? "safeRow.raw_payload.metadata.created_time" : "")
+      : hydratedPostCreatedTimeSource || "";
+    if (!fallbackRealPostTime && hydratedPostCreatedTime) {
+      console.info("SOCIAL_POST_CREATED_TIME_HYDRATION_TRACE", {
+        post_link_key: text(productLinkIdentity.product_link_key || canonicalIdentityPostId || postId || ""),
+        had_stored_time: false,
+        fetched_from_graph: true,
+        graph_created_time: hydratedPostCreatedTime,
+        saved: true,
+        error: "",
+      });
+    }
     const displayPostTimeCandidates = [
       { field: "value.post_created_time", value: value.post_created_time },
       { field: "value.created_time", value: value.created_time },
       { field: "value.published_at", value: value.published_at },
       { field: "metadata.post_created_time", value: metadata.post_created_time },
       { field: "metadata.created_time", value: metadata.created_time },
+      { field: "hydrated.graph.created_time", value: hydratedPostCreatedTime },
       { field: "safeRow.raw_payload.created_time", value: safeRow.raw_payload?.created_time },
       { field: "safeRow.raw_payload.value.created_time", value: safeRow.raw_payload?.value?.created_time },
       { field: "safeRow.raw_payload.metadata.created_time", value: safeRow.raw_payload?.metadata?.created_time },
@@ -1463,7 +1526,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       { field: "value.raw.metadata.post.created_time", value: value.raw?.metadata?.post?.created_time },
     ];
     const displayPostTimeCandidate = displayPostTimeCandidates.find((entry) => text(entry.value));
-    const displayPostTime = text(displayPostTimeCandidate?.value || "");
+    const displayPostTime = text(displayPostTimeCandidate?.value || resolvedDisplayPostTime || "");
     const permalinkFields = resolveHydratedPermalinkFields({ value, safeRow, metadata, canonicalIdentity });
     const selectedPostIdentity = buildSocialPostIdentityRecord({
       row: {
@@ -1516,11 +1579,12 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       post_link_key: text(productLinkIdentity.product_link_key || canonicalIdentityPostId || postId || ""),
       card_post_id: text(value.post_id || safeRow.post_id || safeRow.conversation_id || ""),
       display_post_time: displayPostTime,
-      source_field: displayPostTimeCandidate?.field || "",
+      source_field: displayPostTimeCandidate?.field || sourceField || "",
       raw_time_fields: {
-        post_created_time: text(value.post_created_time || metadata.post_created_time || ""),
-        created_time: text(value.created_time || metadata.created_time || value.raw?.created_time || value.raw?.value?.created_time || ""),
-        published_at: text(value.published_at || metadata.published_at || ""),
+        post_created_time: text(value.post_created_time || metadata.post_created_time || hydratedPostCreatedTime || ""),
+        created_time: text(value.created_time || metadata.created_time || value.raw?.created_time || value.raw?.value?.created_time || hydratedPostCreatedTime || ""),
+        published_at: text(value.published_at || metadata.published_at || hydratedPostCreatedTime || ""),
+        hydrated_graph_created_time: text(hydratedPostCreatedTime || ""),
         raw_payload_created_time: text(safeRow.raw_payload?.created_time || safeRow.raw_payload?.value?.created_time || safeRow.raw_payload?.metadata?.created_time || ""),
         raw_created_time: text(value.raw?.created_time || value.raw?.value?.created_time || value.raw?.metadata?.created_time || ""),
         raw_post_created_time: text(value.raw?.post_created_time || value.raw?.value?.post?.created_time || value.raw?.metadata?.post?.created_time || ""),
@@ -1854,6 +1918,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     const nextMetadata = {
       ...metadata,
       post_id: postId,
+      post_created_time: text(graphPost.created_time || metadata.post_created_time || safeRow.post_created_time || ""),
       post_type: graphPost.post_type || safeRow.post_type || metadata.post_type || "",
       media_type: graphPost.media_type || safeRow.media_type || metadata.media_type || "",
       graph_fields_present: asArray(graphPost.graph_fields_present || metadata.graph_fields_present || []),
@@ -1873,6 +1938,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     };
     const mergedRow = {
       ...safeRow,
+      post_created_time: nextMetadata.post_created_time,
       post_full_picture: nextMetadata.post_full_picture,
       attachment_image: nextMetadata.attachment_image,
       post_thumbnail: nextMetadata.post_thumbnail || nextMetadata.post_full_picture || nextMetadata.attachment_image || "",
@@ -3197,7 +3263,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
       SELECT
         mp.published_at AS marketing_published_at,
         mp.created_at AS marketing_created_time,
-        COALESCE(mp.published_at, mp.created_at, mp.updated_at, agg.real_comment_created_time) AS post_created_time
+        COALESCE(mp.published_at, '') AS post_created_time
       FROM marketing_posts mp
       WHERE mp.tenant_id = c.tenant_id
         AND (
@@ -3423,7 +3489,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       SELECT
         mp.published_at AS marketing_published_at,
         mp.created_at AS marketing_created_time,
-        COALESCE(mp.published_at, mp.created_at, mp.updated_at, agg.real_comment_created_time) AS post_created_time
+        COALESCE(mp.published_at, '') AS post_created_time
       FROM marketing_posts mp
       WHERE mp.tenant_id = c.tenant_id
         AND (

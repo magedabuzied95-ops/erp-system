@@ -4393,6 +4393,7 @@ const extractMetaPostGraphFieldPresence = (post = {}) => {
 const normalizeMetaPostPreview = (post = {}) => {
   const attachmentDetails = extractMetaPostAttachmentDetails(post);
   const graphFieldsPresent = extractMetaPostGraphFieldPresence(post);
+  const createdTime = text(post.created_time || post.post_created_time || "");
   const graphThumbnailUrl = text(post.thumbnail_url || "");
   const fullPicture = text(post.full_picture || post.picture || "");
   const picture = text(post.picture || "");
@@ -4415,6 +4416,8 @@ const normalizeMetaPostPreview = (post = {}) => {
   return {
     id: text(post.id || ""),
     post_id: text(post.id || ""),
+    created_time: createdTime,
+    post_created_time: createdTime,
     message: postMessage,
     caption: postCaption,
     permalink_url: permalinkUrl,
@@ -4519,6 +4522,7 @@ const buildMetaPostPreviewFields = ({ instagramCandidate = false, includeAttachm
   pushField(META_POST_BASE_FIELDS[0]);
   pushField(instagramCandidate ? META_POST_INSTAGRAM_TEXT_FIELD : META_POST_FACEBOOK_TEXT_FIELD);
   META_POST_BASE_FIELDS.slice(1).forEach(pushField);
+  pushField("created_time");
   if (includeAttachments) META_POST_ATTACHMENT_FIELDS.forEach(pushField);
   return fields.join(",");
 };
