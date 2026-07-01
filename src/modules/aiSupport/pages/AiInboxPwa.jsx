@@ -3038,6 +3038,10 @@ export default function AiInboxPwa() {
   const socialPostIdentity = useCallback((item = {}) => {
     const safeItem = item || {};
     return clean(
+      safeItem.post_link_key ||
+      safeItem.postLinkKey ||
+      safeItem.product_link_identity?.product_link_key ||
+      safeItem.product_link_identity?.post_id ||
       safeItem.conversation_id ||
       safeItem.session_id ||
       safeItem.post_id ||

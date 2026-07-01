@@ -27,6 +27,17 @@ export const resolveSocialPostLinkKey = (inputPost = {}) => {
   const rawValue = objectValue(raw.value || {});
   const platform = normalizePlatform(post.platform || metadata.platform || raw.platform || "");
   const businessId = Number(post.business_id || post.tenant_id || metadata.business_id || metadata.tenant_id || 0) || null;
+  const explicitPostLinkKey = text(
+    post.post_link_key ||
+    post.postLinkKey ||
+    metadata.post_link_key ||
+    metadata.postLinkKey ||
+    raw.post_link_key ||
+    raw.postLinkKey ||
+    rawValue.post_link_key ||
+    rawValue.postLinkKey ||
+    ""
+  );
   const canonicalPostId = text(
     post.canonical_post_id ||
     post.final_canonical_post_id ||
@@ -74,6 +85,7 @@ export const resolveSocialPostLinkKey = (inputPost = {}) => {
   );
   const objectId = text(post.object_id || metadata.object_id || raw.object_id || rawValue.object_id || "");
   const postId = text(
+    explicitPostLinkKey ||
     canonicalPostId ||
     (platform === "facebook" ? canonicalPostId : "") ||
     platformPostId ||
@@ -84,15 +96,16 @@ export const resolveSocialPostLinkKey = (inputPost = {}) => {
     metadata.post_id ||
     ""
   );
-  const postLinkKey = text(postId || canonicalPostId || platformPostId || sourcePostId || permalinkPostId || objectId);
+  const postLinkKey = text(explicitPostLinkKey || postId || canonicalPostId || platformPostId || sourcePostId || permalinkPostId || objectId);
   const permalinkUrl = text(post.permalink_url || post.post_permalink_url || metadata.permalink_url || metadata.post_permalink_url || raw.permalink_url || raw.post_permalink_url || "");
   const confidenceReasons = [];
+  if (explicitPostLinkKey) confidenceReasons.push("explicit_post_link_key");
   if (canonicalPostId) confidenceReasons.push("canonical_post_id");
   if (platformPostId) confidenceReasons.push("platform_post_id");
   if (sourcePostId) confidenceReasons.push("source_post_id");
   if (permalinkPostId) confidenceReasons.push("permalink_post_id");
   if (objectId) confidenceReasons.push("object_id");
-  const confidence = canonicalPostId ? "high" : platformPostId || sourcePostId || permalinkPostId ? "medium" : "low";
+  const confidence = explicitPostLinkKey ? "high" : canonicalPostId ? "high" : platformPostId || sourcePostId || permalinkPostId ? "medium" : "low";
   const identity = {
     post_link_key: postLinkKey,
     product_link_key: postLinkKey,
@@ -110,6 +123,7 @@ export const resolveSocialPostLinkKey = (inputPost = {}) => {
   };
   console.info("SOCIAL_PRODUCT_LINK_IDENTITY_RESOLVE_TRACE", {
     input_ids: {
+      post_link_key: text(post.post_link_key || post.postLinkKey || ""),
       post_id: text(post.post_id || ""),
       canonical_post_id: text(post.canonical_post_id || ""),
       platform_post_id: text(post.platform_post_id || ""),

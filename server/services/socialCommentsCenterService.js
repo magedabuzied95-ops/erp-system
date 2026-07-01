@@ -1451,16 +1451,25 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       value.published_at ||
       value.timestamp ||
       value.created_at ||
+      value.latest_comment_at ||
+      value.last_comment_at ||
+      value.updated_at ||
       safeRow.created_time ||
       safeRow.post_created_time ||
       safeRow.published_at ||
       safeRow.timestamp ||
       safeRow.created_at ||
+      safeRow.latest_comment_at ||
+      safeRow.last_comment_at ||
+      safeRow.updated_at ||
       metadata.created_time ||
       metadata.post_created_time ||
       metadata.published_at ||
       metadata.timestamp ||
       metadata.created_at ||
+      metadata.latest_comment_at ||
+      metadata.last_comment_at ||
+      metadata.updated_at ||
       ""
     );
     const permalinkFields = resolveHydratedPermalinkFields({ value, safeRow, metadata, canonicalIdentity });
@@ -1510,6 +1519,21 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       returned_product_ids: directLinkedProducts.map((item) => Number(item?.id || item?.product_id || 0)).filter((value) => Number.isFinite(value) && value > 0),
       card_post_id: text(value.post_id || safeRow.post_id || safeRow.conversation_id || ""),
       card_title: text(value.caption || safeRow.caption || safeRow.post_caption || safeRow.post_message || metadata.caption || metadata.post_caption || metadata.post_message || ""),
+    });
+    console.info("SOCIAL_CARD_TIME_NORMALIZE_TRACE", {
+      post_link_key: text(productLinkIdentity.product_link_key || canonicalIdentityPostId || postId || ""),
+      card_post_id: text(value.post_id || safeRow.post_id || safeRow.conversation_id || ""),
+      display_post_time: displayPostTime,
+      raw_time_fields: {
+        post_created_time: text(value.post_created_time || safeRow.post_created_time || metadata.post_created_time || ""),
+        created_time: text(value.created_time || safeRow.created_time || metadata.created_time || ""),
+        timestamp: text(value.timestamp || safeRow.timestamp || metadata.timestamp || ""),
+        published_at: text(value.published_at || safeRow.published_at || metadata.published_at || ""),
+        created_at: text(value.created_at || safeRow.created_at || metadata.created_at || ""),
+        latest_comment_at: text(value.latest_comment_at || safeRow.latest_comment_at || metadata.latest_comment_at || ""),
+        last_comment_at: text(value.last_comment_at || safeRow.last_comment_at || metadata.last_comment_at || ""),
+        updated_at: text(value.updated_at || safeRow.updated_at || metadata.updated_at || ""),
+      },
     });
     return {
       ...value,

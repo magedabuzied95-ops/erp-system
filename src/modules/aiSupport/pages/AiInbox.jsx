@@ -223,6 +223,12 @@ const normalizeSocialCommentPost = (raw) => {
   const post = raw || {};
   const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
   const mappingSummary = post.mapping_summary && typeof post.mapping_summary === "object" && !Array.isArray(post.mapping_summary) ? post.mapping_summary : {};
+  const postLinkKey = String(
+    post.post_link_key ||
+      post.postLinkKey ||
+      mappingSummary.post_link_key ||
+      ""
+  ).trim();
   const linkedProducts = Array.isArray(post.linked_products)
     ? post.linked_products
     : Array.isArray(mappingSummary.linked_products)
@@ -275,12 +281,18 @@ const normalizeSocialCommentPost = (raw) => {
     post.published_at ||
     post.timestamp ||
     post.created_at ||
+    post.latest_comment_at ||
+    post.last_comment_at ||
+    post.updated_at ||
     metadata.display_post_time ||
     metadata.created_time ||
     metadata.post_created_time ||
     metadata.published_at ||
     metadata.timestamp ||
     metadata.created_at ||
+    metadata.latest_comment_at ||
+    metadata.last_comment_at ||
+    metadata.updated_at ||
     ""
   ).trim();
   return {
@@ -337,6 +349,7 @@ const normalizeSocialCommentPost = (raw) => {
     product_link_source: productLinkSource,
     hasDirectProductLink,
     has_direct_product_link: hasDirectProductLink,
+    post_link_key: postLinkKey || String(post.post_id || post.id || post.conversation_id || "").trim(),
     displayPostTime,
     display_post_time: displayPostTime,
     raw: post,
@@ -1097,7 +1110,7 @@ const resolveExternalSocialPostUrl = (item = {}) => {
 
 const buildSocialCommentsCenterUrl = (item = {}, tenantId = "") => {
   const params = new URLSearchParams();
-  const postId = clean(item?.post_id || item?.conversation_post_id || item?.thread_post_id || item?.conversation_id || item?.id || socialCommentIdentity(item) || "");
+  const postId = clean(item?.post_link_key || item?.postLinkKey || item?.post_id || item?.conversation_post_id || item?.thread_post_id || item?.conversation_id || item?.id || socialCommentIdentity(item) || "");
   const commentId = clean(item?.comment_id || item?.external_comment_id || item?.provider_comment_id || item?.metadata?.comment_id || item?.channel_metadata?.comment_id || "");
   const platform = clean(item?.platform || item?.source_platform || item?.channel || item?.source || "");
   const pageId = clean(item?.page_id || item?.metadata?.page_id || item?.channel_metadata?.page_id || "");
@@ -4299,6 +4312,11 @@ export default function AiInbox() {
   const socialCommentIdentity = useCallback((item) => {
     const safeItem = item || {};
     return clean(
+      safeItem.post_link_key ||
+      safeItem.postLinkKey ||
+      safeItem.product_link_identity?.post_link_key ||
+      safeItem.product_link_identity?.product_link_key ||
+      safeItem.product_link_identity?.post_id ||
       safeItem.conversationId ||
       safeItem.sessionId ||
       safeItem.postId ||
@@ -4604,9 +4622,9 @@ export default function AiInbox() {
     }
   };
   const getActiveItemId = useCallback(() => {
-    if (isSocialMode) return clean(selectedSocialComment?.conversation_id || selectedSocialComment?.session_id || selectedSocialComment?.post_id || selectedSocialComment?.id || "");
+    if (isSocialMode) return clean(selectedSocialComment?.post_link_key || selectedSocialComment?.postLinkKey || selectedSocialComment?.conversation_id || selectedSocialComment?.session_id || selectedSocialComment?.post_id || selectedSocialComment?.id || "");
     return clean(selectedConversationThread?.conversation_key || selectedConversationThread?.session_id || selectedConversationThread?.conversation_id || conversationKey(selectedConversationThread || {}));
-  }, [conversationKey, isSocialMode, selectedConversationThread?.conversation_id, selectedConversationThread?.conversation_key, selectedConversationThread?.session_id, selectedSocialComment?.conversation_id, selectedSocialComment?.id, selectedSocialComment?.post_id, selectedSocialComment?.session_id]);
+  }, [conversationKey, isSocialMode, selectedConversationThread?.conversation_id, selectedConversationThread?.conversation_key, selectedConversationThread?.session_id, selectedSocialComment?.conversation_id, selectedSocialComment?.id, selectedSocialComment?.post_id, selectedSocialComment?.post_link_key, selectedSocialComment?.session_id]);
   const activeItemId = getActiveItemId();
   useEffect(() => {
     console.log("[ai-inbox-section]", {
