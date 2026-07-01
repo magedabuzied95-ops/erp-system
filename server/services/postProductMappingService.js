@@ -1049,9 +1049,42 @@ const fetchProductsByIds = async ({ tenantId = null, productIds = [] } = {}) => 
     product_ids: safeProductIds,
   });
   const primaryRows = await db.query(query, [safeTenantId, safeProductIds]).catch(() => ({ rows: [] }));
-  if (primaryRows.rows?.length) return primaryRows.rows;
-  const fallbackRows = await db.query(query.replace("WHERE p.tenant_id = $1::bigint", "WHERE ($1::bigint IS NULL OR p.tenant_id = $1::bigint)"), [null, safeProductIds]).catch(() => ({ rows: [] }));
-  return fallbackRows.rows || [];
+  return primaryRows.rows || [];
+};
+
+const buildStrictSaveResponseProducts = async ({ tenantId = null, submittedProductIds = [], primaryProductId = null } = {}) => {
+  const safeSubmittedProductIds = Array.from(new Set((Array.isArray(submittedProductIds) ? submittedProductIds : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)));
+  if (!safeSubmittedProductIds.length) {
+    return {
+      linkedProducts: [],
+      primaryProduct: null,
+      productIds: [],
+    };
+  }
+  const productRows = await fetchProductsByIds({ tenantId, productIds: safeSubmittedProductIds });
+  const normalizedProducts = Array.isArray(productRows) ? productRows.map((row) => normalizeProductRow(row)).filter((item) => Number(item.id) > 0) : [];
+  const byId = new Map(normalizedProducts.map((product) => [Number(product.id), product]));
+  const linkedProducts = safeSubmittedProductIds.map((productId) => byId.get(Number(productId))).filter(Boolean);
+  const attemptedReturnProductIds = Array.from(new Set(normalizedProducts.map((product) => Number(product.id)).filter((value) => Number.isFinite(value) && value > 0)));
+  const finalReturnProductIds = linkedProducts.map((product) => Number(product.id)).filter((value) => Number.isFinite(value) && value > 0);
+  const safePrimaryProductId = Number(primaryProductId || 0) || null;
+  const primaryProduct = safePrimaryProductId && byId.has(safePrimaryProductId)
+    ? byId.get(safePrimaryProductId)
+    : linkedProducts[0] || null;
+  const droppedProductIds = attemptedReturnProductIds.filter((productId) => !safeSubmittedProductIds.includes(productId));
+  if (droppedProductIds.length) {
+    console.info("SOCIAL_PRODUCT_LINK_RETURN_GUARD_TRACE", {
+      submitted_product_ids: safeSubmittedProductIds,
+      attempted_return_product_ids: attemptedReturnProductIds,
+      dropped_product_ids: droppedProductIds,
+      final_return_product_ids: finalReturnProductIds,
+    });
+  }
+  return {
+    linkedProducts,
+    primaryProduct,
+    productIds: finalReturnProductIds,
+  };
 };
 
 const fetchVariantsByProductIds = async ({ tenantId = null, productIds = [] } = {}) => {
@@ -2390,6 +2423,26 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       ).catch(() => ({ rowCount: 0 }));
       rowsAffected += Number(deleteExactRowsResult.rowCount || 0) || 0;
     }
+    if (exactIdentityLookupIds.length && safeProductIds.length) {
+      const deleteReplacementRowsResult = await client.query(
+        `
+        DELETE FROM marketing_post_product_links
+        WHERE (
+            tenant_id = $1::bigint
+            OR business_id = $1::bigint
+          )
+          AND platform = $2::text
+          AND (
+            platform_post_id = ANY($3::text[])
+            OR post_id = ANY($3::text[])
+            OR media_id = ANY($3::text[])
+          )
+          AND product_id <> ALL($4::bigint[])
+        `,
+        [safeTenantId, normalizedPlatform, exactIdentityLookupIds, safeProductIds]
+      ).catch(() => ({ rowCount: 0 }));
+      rowsAffected += Number(deleteReplacementRowsResult.rowCount || 0) || 0;
+    }
     const deletedNotInSubmittedProductIds = existingBeforeProductIds.filter((productId) => !safeProductIds.includes(productId));
     try {
       console.info("SOCIAL_PRODUCT_LINK_REPLACE_SET_TRACE", buildReplaceSetTrace({
@@ -2844,18 +2897,10 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     client.release();
   }
 
-  const readback = await getMappings({
+  const strictSaveResponse = await buildStrictSaveResponseProducts({
     tenantId: safeTenantId,
-    platform: normalizedPlatform,
-    postId: platformPostId,
-    row,
-    post,
-    selectedPostId: selectedIdentity,
-    canonicalPostId: platformPostId,
-    platformPostId,
-    productIds: safeProductIds,
-    rowsAffected,
-    directOnly: true,
+    submittedProductIds: safeProductIds,
+    primaryProductId: primaryId,
   });
   try {
     console.info("SOCIAL_PRODUCT_LINK_REPLACE_SET_TRACE", buildReplaceSetTrace({
@@ -2866,7 +2911,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       existingBeforeProductIds,
       deletedNotInSubmittedProductIds: existingBeforeProductIds.filter((productId) => !safeProductIds.includes(productId)),
       upsertedProductIds: safeProductIds,
-      returnedProductIds: Array.isArray(readback?.product_ids) ? readback.product_ids : [],
+      returnedProductIds: strictSaveResponse.productIds,
     }));
   } catch {}
   console.info("SOCIAL_PRODUCT_LINK_REMOVE_CLEANUP_TRACE", {
@@ -2878,9 +2923,21 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     removed_product_ids: cleanupRemovedProductIds,
     deleted_exact_count: cleanupDeletedExactCount,
     deleted_stale_count: cleanupDeletedStaleCount,
-    returned_linked_products_count: Number(readback?.linked_products?.length || 0) || 0,
+    returned_linked_products_count: Number(strictSaveResponse.linkedProducts?.length || 0) || 0,
   });
-  return readback;
+  return {
+    linked_products: strictSaveResponse.linkedProducts,
+    primary_product: strictSaveResponse.primaryProduct,
+    count: Number(strictSaveResponse.linkedProducts.length || 0) || 0,
+    linked_products_source: strictSaveResponse.linkedProducts.length ? "exact_direct" : "none",
+    rejected_sources: DRAWER_REJECTED_SOURCES,
+    product_ids: strictSaveResponse.productIds,
+    rows_affected: rowsAffected,
+    post_id: platformPostId,
+    platform: normalizedPlatform,
+    tenant_id: safeTenantId || null,
+    matched_mapping_key: "",
+  };
 };
 
 export const removeMapping = async ({ tenantId = null, platform = "", postId = "", row = {}, post = {}, productId = null } = {}) => {

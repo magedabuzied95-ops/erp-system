@@ -80,6 +80,7 @@ const names = (result) => result.products.map((product) => product.name);
     ],
   });
   assert.deepEqual(names(result), ["Vans Low Black White"]);
+  assert.equal(result.shouldSend, true);
 }
 
 console.log("AI product decision gate regression tests passed");

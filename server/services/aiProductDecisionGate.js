@@ -222,7 +222,20 @@ export const evaluateProductDecisionGate = ({
   } else {
     decision = accepted[0].scores.confidence >= 0.58 ? "medium" : "low";
   }
-  if (decision === "low") accepted = [];
+  if (decision === "low" && alternativesAllowed) {
+    const fallbackAlternative = evaluated
+      .filter((item) => item.reject_reason === "below_minimum_confidence")
+      .sort((left, right) => number(right.scores.confidence) - number(left.scores.confidence))[0] || null;
+    if (fallbackAlternative) {
+      accepted = [fallbackAlternative];
+      decision = "medium";
+      introText = "ط¯ظٹ ط£ظ‚ط±ط¨ ط§ط®طھظٹط§ط± ظ…طھط§ط­ ظ…ظ† ظ†ظپط³ ط§ظ„ظ„ظٹ ط¹ظ†ط¯ظ†ط§.";
+    } else {
+      accepted = [];
+    }
+  } else if (decision === "low") {
+    accepted = [];
+  }
   accepted = accepted
     .sort((left, right) => number(right.scores.confidence) - number(left.scores.confidence))
     .slice(0, decision === "exact" ? 1 : Math.max(1, limit));

@@ -2157,9 +2157,6 @@ function SocialCommentsWorkspace({
         return next;
       });
     }
-    if (onRefresh) {
-      void Promise.resolve(onRefresh());
-    }
   };
 
   const openSocialPostUrl = (url = "") => {
