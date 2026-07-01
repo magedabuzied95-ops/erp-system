@@ -3434,8 +3434,6 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       { source: "metadata.post_object_created_time", value: row.metadata_post_object_created_time },
       { source: "graph.created_time", value: row.graph_created_time },
       { source: "graph.post_created_time", value: row.graph_post_created_time },
-      { source: "marketing_published_at", value: row.marketing_published_at },
-      { source: "marketing_created_time", value: row.marketing_created_time },
     ];
     const selected = candidates.find((candidate) => parseSocialPostSortTime(candidate.value) !== null);
     return {
@@ -3712,7 +3710,23 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     sample_group_sizes: groupedSummaries.slice(0, 10).map((group) => ({ key: group.key, size: group.size })),
     sample_keys_with_sources: groupedSummaries.slice(0, 10).map((group) => ({ key: group.key, sources: group.sources.slice(0, 5) })),
   });
-  const enrichedRows = await Promise.all(groupedRows.map((row) => enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform })));
+  const enrichedRows = await Promise.all(groupedRows.map(async (row) => {
+    const postLinkKey = text(row.post_link_key || row.canonical_post_id || row.id || row.conversation_id || "");
+    const postId = text(row.post_id || row.canonical_post_id || row.conversation_id || row.external_conversation_id || "");
+    try {
+      return await enrichSocialCommentPostRow({ tenantId: safeTenantId, row, platform: normalizedPlatform });
+    } catch (error) {
+      console.error("SOCIAL_POST_CREATED_TIME_HYDRATION_ERROR_TRACE", {
+        post_link_key: postLinkKey,
+        post_id: postId,
+        error: text(error?.message || error || ""),
+      });
+      return {
+        ...row,
+        display_post_time: text(row.display_post_time || row.post_created_time || row.metadata_post_created_time || row.metadata_post_object_created_time || ""),
+      };
+    }
+  }));
   const sortedRows = [...enrichedRows].sort((left, right) => {
     const leftDetails = resolveSocialPostSortDetails(left);
     const rightDetails = resolveSocialPostSortDetails(right);
