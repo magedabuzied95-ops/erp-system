@@ -76,6 +76,47 @@ const buildPostIdentityPayload = (post = {}) => ({
   object_id: clean(post?.object_id || post?.permalink_post_id || ""),
 });
 
+const buildHydrationIdentity = (post = {}) => ({
+  platform_post_id: clean(post?.platform_post_id || post?.platformPostId || ""),
+  source_post_id: clean(post?.source_post_id || post?.sourcePostId || post?.post_id || post?.postId || ""),
+  permalink_post_id: clean(post?.permalink_post_id || post?.permalinkPostId || ""),
+  canonical_post_id: clean(post?.canonical_post_id || post?.canonicalPostId || post?.post_id || post?.postId || ""),
+  post_id: clean(post?.post_id || post?.postId || post?.id || ""),
+  object_id: clean(post?.object_id || post?.permalink_post_id || post?.permalinkPostId || ""),
+});
+
+const uniqueProductsById = (items = []) => {
+  const seen = new Set();
+  return (Array.isArray(items) ? items : []).filter((item) => {
+    const safeId = Number(item?.id || item?.product_id || 0);
+    if (!safeId || seen.has(safeId)) return false;
+    seen.add(safeId);
+    return true;
+  });
+};
+
+const logHydrationTrace = ({
+  phase = "",
+  postId = "",
+  canonicalPostId = "",
+  exactIdentity = "",
+  source = "",
+  productIds = [],
+  accepted = false,
+  rejectedReason = "",
+}) => {
+  console.info("SOCIAL_PRODUCT_HYDRATION_SOURCE_TRACE", {
+    phase: clean(phase),
+    post_id: clean(postId),
+    canonical_post_id: clean(canonicalPostId),
+    exact_identity: exactIdentity,
+    source: clean(source),
+    product_ids: Array.from(new Set((Array.isArray(productIds) ? productIds : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0))),
+    accepted: Boolean(accepted),
+    rejected_reason: clean(rejectedReason),
+  });
+};
+
 export default function PostProductLinksDrawer({
   open = false,
   post = null,
@@ -100,6 +141,8 @@ export default function PostProductLinksDrawer({
   const [draggedId, setDraggedId] = useState(null);
   const scrollRef = useRef(null);
   const searchTimerRef = useRef(null);
+  const loadVersionRef = useRef(0);
+  const dirtyRef = useRef(false);
 
   const selectedIdSet = useMemo(() => new Set(selectedProducts.map((item) => Number(item.id)).filter(Boolean)), [selectedProducts]);
   const selectedCount = selectedProducts.length;
@@ -107,6 +150,7 @@ export default function PostProductLinksDrawer({
     () => selectedProducts.find((item) => Number(item.id) === Number(primaryProductId)) || selectedProducts[0] || null,
     [primaryProductId, selectedProducts]
   );
+  const drawerPostIdentity = useMemo(() => buildHydrationIdentity(post || {}), [post]);
 
   const notify = (tone, message) => {
     const text = clean(message);
@@ -122,6 +166,29 @@ export default function PostProductLinksDrawer({
     setSearchPage(0);
     setSearchHasMore(true);
     setSearchError("");
+  };
+
+  const applySelectionResponse = (payload = {}, { phase = "", source = "" } = {}) => {
+    const mapped = uniqueProductsById(
+      Array.isArray(payload?.linked_products)
+        ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id)
+        : []
+    );
+    setSelectedProducts(mapped);
+    const primaryId = Number(payload?.primary_product?.id || payload?.primary_product?.product_id || mapped[0]?.id || 0) || null;
+    setPrimaryProductId(primaryId);
+    dirtyRef.current = false;
+    logHydrationTrace({
+      phase,
+      postId: safePostId,
+      canonicalPostId: clean(payload?.canonical_post_id || safePostId),
+      exactIdentity: JSON.stringify(payload?.post_identity || drawerPostIdentity || {}),
+      source,
+      productIds: mapped.map((item) => item.id),
+      accepted: true,
+      rejectedReason: clean(payload?.linked_products_source === "none" ? "empty_selection" : ""),
+    });
+    return mapped;
   };
 
   const loadSearch = async ({ reset = false } = {}) => {
@@ -151,8 +218,11 @@ export default function PostProductLinksDrawer({
 
   const loadMappings = async () => {
     if (!open || !safePostId) return;
+    const requestId = loadVersionRef.current + 1;
+    loadVersionRef.current = requestId;
     setInitialLoading(true);
     setLoadError("");
+    dirtyRef.current = false;
     try {
       const payload = await getPostProductLinks({
         postId: safePostId,
@@ -166,10 +236,20 @@ export default function PostProductLinksDrawer({
         returned_product_ids: Array.isArray(payload?.product_ids) ? payload.product_ids : [],
         returned_product_names: Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => clean(item?.name || item?.title || item?.product_name || "")) : [],
       });
-      const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
-      setSelectedProducts(mapped);
-      const primaryId = Number(payload?.primary_product?.id || payload?.primary_product?.product_id || mapped[0]?.id || 0) || null;
-      setPrimaryProductId(primaryId);
+      if (loadVersionRef.current !== requestId || dirtyRef.current) {
+        logHydrationTrace({
+          phase: "drawer_get",
+          postId: safePostId,
+          canonicalPostId: clean(payload?.canonical_post_id || safePostId),
+          exactIdentity: JSON.stringify(payload?.post_identity || drawerPostIdentity || {}),
+          source: "frontend_props_hydration",
+          productIds: Array.isArray(payload?.product_ids) ? payload.product_ids : [],
+          accepted: false,
+          rejectedReason: dirtyRef.current ? "dirty_local_state_active" : "stale_request",
+        });
+        return;
+      }
+      applySelectionResponse(payload, { phase: "drawer_get", source: payload?.linked_products_source || "drawer_get_response" });
     } catch (error) {
       setLoadError(error?.message || "تعذر تحميل روابط المنتجات");
       setSelectedProducts([]);
@@ -181,15 +261,65 @@ export default function PostProductLinksDrawer({
 
   useEffect(() => {
     if (!open) return;
+    logHydrationTrace({
+      phase: "drawer_open",
+      postId: safePostId,
+      canonicalPostId: clean(post?.canonical_post_id || post?.canonicalPostId || safePostId),
+      exactIdentity: JSON.stringify(drawerPostIdentity || {}),
+      source: "frontend_props_hydration",
+      productIds: uniqueProductsById(Array.isArray(post?.linked_products) ? post.linked_products : []).map((item) => item.id),
+      accepted: false,
+      rejectedReason: "editor_uses_get_response_only",
+    });
+    logHydrationTrace({
+      phase: "drawer_open",
+      postId: safePostId,
+      canonicalPostId: clean(post?.canonical_post_id || post?.canonicalPostId || safePostId),
+      exactIdentity: JSON.stringify(drawerPostIdentity || {}),
+      source: "canonical_fallback",
+      productIds: uniqueProductsById(Array.isArray(post?.mapping_summary?.linked_products) ? post.mapping_summary.linked_products : []).map((item) => item.id),
+      accepted: false,
+      rejectedReason: "disabled_in_drawer",
+    });
+    logHydrationTrace({
+      phase: "drawer_open",
+      postId: safePostId,
+      canonicalPostId: clean(post?.canonical_post_id || post?.canonicalPostId || safePostId),
+      exactIdentity: JSON.stringify(drawerPostIdentity || {}),
+      source: "automation_config_product_ids",
+      productIds: Array.from(new Set([
+        ...(Array.isArray(post?.automation_config?.product_ids) ? post.automation_config.product_ids : []),
+        post?.automation_config?.product_id,
+        post?.automation_config?.productId,
+      ].map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0))),
+      accepted: false,
+      rejectedReason: "disabled_in_drawer",
+    });
+    logHydrationTrace({
+      phase: "drawer_open",
+      postId: safePostId,
+      canonicalPostId: clean(post?.canonical_post_id || post?.canonicalPostId || safePostId),
+      exactIdentity: JSON.stringify(drawerPostIdentity || {}),
+      source: "sibling_auto_mapping",
+      productIds: Array.from(new Set([
+        ...(Array.isArray(post?.sibling_product_ids) ? post.sibling_product_ids : []),
+        ...(Array.isArray(post?.sibling_product_ids_count) ? post.sibling_product_ids_count : []),
+      ].map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0))),
+      accepted: false,
+      rejectedReason: "disabled_in_drawer",
+    });
     setSearchTerm("");
     resetSearch();
+    dirtyRef.current = false;
+    setSelectedProducts([]);
+    setPrimaryProductId(null);
     void loadMappings();
     void loadSearch({ reset: true });
     return () => {
       if (searchTimerRef.current) window.clearTimeout(searchTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, postIdentityPayload, safePostId, safePlatform, tenantId]);
+  }, [open, safePostId, safePlatform, tenantId]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -209,15 +339,36 @@ export default function PostProductLinksDrawer({
     if (!safeId) return;
     setSelectedProducts((current) => {
       const exists = current.some((item) => Number(item.id) === safeId);
+      dirtyRef.current = true;
       if (exists) {
         const next = current.filter((item) => Number(item.id) !== safeId);
         if (Number(primaryProductId) === safeId) {
           setPrimaryProductId(next[0]?.id || null);
         }
+        logHydrationTrace({
+          phase: "local_remove",
+          postId: safePostId,
+          canonicalPostId: safePostId,
+          exactIdentity: JSON.stringify(drawerPostIdentity || {}),
+          source: "frontend_local_state",
+          productIds: next.map((item) => Number(item.id)).filter(Boolean),
+          accepted: true,
+          rejectedReason: "",
+        });
         return next;
       }
       const next = [...current, product];
       if (!primaryProductId) setPrimaryProductId(safeId);
+      logHydrationTrace({
+        phase: "local_add",
+        postId: safePostId,
+        canonicalPostId: safePostId,
+        exactIdentity: JSON.stringify(drawerPostIdentity || {}),
+        source: "frontend_local_state",
+        productIds: next.map((item) => Number(item.id)).filter(Boolean),
+        accepted: true,
+        rejectedReason: "",
+      });
       return next;
     });
   };
@@ -227,9 +378,20 @@ export default function PostProductLinksDrawer({
     if (!safeId) return;
     setSelectedProducts((current) => {
       const next = current.filter((item) => Number(item.id) !== safeId);
+      dirtyRef.current = true;
       if (Number(primaryProductId) === safeId) {
         setPrimaryProductId(next[0]?.id || null);
       }
+      logHydrationTrace({
+        phase: "local_remove",
+        postId: safePostId,
+        canonicalPostId: safePostId,
+        exactIdentity: JSON.stringify(drawerPostIdentity || {}),
+        source: "frontend_local_state",
+        productIds: next.map((item) => Number(item.id)).filter(Boolean),
+        accepted: true,
+        rejectedReason: "",
+      });
       return next;
     });
   };
@@ -241,7 +403,18 @@ export default function PostProductLinksDrawer({
     const next = [...selectedProducts];
     const [moved] = next.splice(fromIndex, 1);
     next.splice(toIndex, 0, moved);
+    dirtyRef.current = true;
     setSelectedProducts(next);
+    logHydrationTrace({
+      phase: "local_reorder",
+      postId: safePostId,
+      canonicalPostId: safePostId,
+      exactIdentity: JSON.stringify(drawerPostIdentity || {}),
+      source: "frontend_local_state",
+      productIds: next.map((item) => Number(item.id)).filter(Boolean),
+      accepted: true,
+      rejectedReason: "",
+    });
   };
 
   const handleSave = async () => {
@@ -269,10 +442,7 @@ export default function PostProductLinksDrawer({
           primaryProductId: null,
           postIdentity: postIdentityPayload,
         });
-        const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
-        setSelectedProducts(mapped);
-        const primaryId = Number(payload?.primary_product?.id || payload?.primary_product?.product_id || mapped[0]?.id || 0) || null;
-        setPrimaryProductId(primaryId);
+        applySelectionResponse(payload, { phase: "drawer_save_clear", source: payload?.linked_products_source || "drawer_save_response" });
         notify("emerald", "طھظ…طھ ط¥ط²ط§ظ„ط© ط±ظˆط§ط¨ط· ط§ظ„ظ…ظ†طھط¬ط§طھ");
         await Promise.resolve(onSaved?.(payload));
       } catch (error) {
@@ -303,10 +473,7 @@ export default function PostProductLinksDrawer({
         returned_product_ids: Array.isArray(payload?.product_ids) ? payload.product_ids : [],
         primary_product_id: Number(payload?.primary_product?.id || payload?.primary_product?.product_id || 0) || null,
       });
-      const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
-      setSelectedProducts(mapped);
-      const primaryId = Number(payload?.primary_product?.id || payload?.primary_product?.product_id || mapped[0]?.id || 0) || null;
-      setPrimaryProductId(primaryId);
+      applySelectionResponse(payload, { phase: "drawer_save", source: payload?.linked_products_source || "drawer_save_response" });
       notify("emerald", "تم حفظ ربط المنتجات");
       await Promise.resolve(onSaved?.(payload));
     } catch (error) {
@@ -330,10 +497,7 @@ export default function PostProductLinksDrawer({
         primaryProductId: null,
         postIdentity: postIdentityPayload,
       });
-      const mapped = Array.isArray(payload?.linked_products) ? payload.linked_products.map((item) => normalizeProduct(item)).filter((item) => item.id) : [];
-      setSelectedProducts(mapped);
-      const primaryId = Number(payload?.primary_product?.id || payload?.primary_product?.product_id || mapped[0]?.id || 0) || null;
-      setPrimaryProductId(primaryId);
+      applySelectionResponse(payload, { phase: "drawer_save_clear", source: payload?.linked_products_source || "drawer_save_response" });
       notify("emerald", "طھظ…طھ ط¥ط²ط§ظ„ط© ط±ظˆط§ط¨ط· ط§ظ„ظ…ظ†طھط¬ط§طھ");
       await Promise.resolve(onSaved?.(payload));
       return;

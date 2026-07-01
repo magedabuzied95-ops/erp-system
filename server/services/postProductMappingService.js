@@ -206,6 +206,11 @@ const resolveMatchedMappingKey = ({ row = {}, candidates = [] } = {}) => {
 };
 
 const normalizePlatform = (value = "") => (lower(value) === "instagram" ? "instagram" : "facebook");
+const DRAWER_REJECTED_SOURCES = [
+  "canonical_fallback",
+  "automation_config_product_ids",
+  "sibling_auto_mapping",
+];
 
 const isNotEmpty = (value = "") => Boolean(text(value));
 
@@ -712,6 +717,30 @@ const doesLinkRowMatchCandidates = (row = {}, candidates = []) => {
   return resolveLinkRowIdentityCandidates(row).some((value) => candidateSet.has(value));
 };
 
+const logHydrationSourceTrace = ({
+  phase = "",
+  postId = "",
+  canonicalPostId = "",
+  exactIdentity = "",
+  source = "",
+  productIds = [],
+  accepted = false,
+  rejectedReason = "",
+} = {}) => {
+  console.info("SOCIAL_PRODUCT_HYDRATION_SOURCE_TRACE", {
+    phase: text(phase),
+    post_id: text(postId),
+    canonical_post_id: text(canonicalPostId),
+    exact_identity: text(exactIdentity),
+    source: text(source),
+    product_ids: Array.isArray(productIds)
+      ? Array.from(new Set(productIds.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)))
+      : [],
+    accepted: Boolean(accepted),
+    rejected_reason: text(rejectedReason),
+  });
+};
+
 const getPlatformPostId = ({ postId = "", row = {}, post = {}, platform = "" } = {}) =>
   firstText(
     postId,
@@ -1020,7 +1049,7 @@ const fetchVariantsByProductIds = async ({ tenantId = null, productIds = [] } = 
   return fallbackRows.rows || [];
 };
 
-const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", canonicalPostId = "" } = {}) => {
+const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", canonicalPostId = "", directOnly = false } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const normalizedPlatform = normalizePlatform(platform || post?.platform || "");
   const directIdentity = collectDirectLinkIdentity({
@@ -1031,8 +1060,22 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
     post,
   });
   const canonicalIdentityPostId = text(canonicalPostId || post?.canonical_post_id || postId || selectedPostId || post?.post_id || "");
-  const lookupPostIds = Array.from(new Set(directIdentity.lookupIds.map((value) => text(value)).filter(Boolean)));
-  if (!safeTenantId || !lookupPostIds.length) return [];
+  const lookupPostIds = Array.from(new Set((directOnly ? directIdentity.exactCandidates : directIdentity.lookupIds).map((value) => text(value)).filter(Boolean)));
+  if (!safeTenantId || !lookupPostIds.length) {
+    if (directOnly) {
+      logHydrationSourceTrace({
+        phase: "drawer_get",
+        postId: selectedPostId || postId,
+        canonicalPostId: canonicalIdentityPostId,
+        exactIdentity: JSON.stringify(directIdentity),
+        source: "marketing_post_product_links",
+        productIds: [],
+        accepted: false,
+        rejectedReason: "missing_exact_identity",
+      });
+    }
+    return [];
+  }
   debugSocialCommentsWarn("SOCIAL_COMMENTS_POSTS_SQL_2", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
@@ -1073,6 +1116,34 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
     [safeTenantId, normalizedPlatform, lookupPostIds]
   ).catch(() => ({ rows: [] }));
   const rows = Array.isArray(result.rows) ? result.rows : [];
+  if (directOnly) {
+    const exactRows = rows.filter((row) => doesLinkRowMatchExactIdentity(row, directIdentity));
+    const exactProductIds = exactRows.map((row) => Number(row.product_id || 0)).filter((value) => value > 0);
+    logHydrationSourceTrace({
+      phase: "drawer_get",
+      postId: selectedPostId || postId,
+      canonicalPostId: canonicalIdentityPostId,
+      exactIdentity: JSON.stringify(directIdentity),
+      source: "marketing_post_product_links",
+      productIds: exactProductIds,
+      accepted: exactRows.length > 0,
+      rejectedReason: exactRows.length ? "" : "direct_only_no_exact_rows",
+    });
+    console.info("SOCIAL_PRODUCT_LINK_DRAWER_READBACK_TRACE", {
+      canonical_post_id: canonicalIdentityPostId,
+      selected_post_id: text(selectedPostId || postId || ""),
+      exact_platform_post_ids: directIdentity.exactPlatformPostIds,
+      exact_source_post_ids: directIdentity.exactSourcePostIds,
+      exact_permalink_post_ids: directIdentity.exactPermalinkPostIds,
+      broad_row_count: rows.length,
+      strict_row_count: exactRows.length,
+      broad_product_ids: rows.map((row) => Number(row.product_id || 0)).filter((value) => value > 0),
+      strict_product_ids: exactProductIds,
+      linked_products_source: exactRows.length ? "exact_direct" : "none",
+      rejected_sources: DRAWER_REJECTED_SOURCES,
+    });
+    return exactRows;
+  }
   if (directIdentity.exactCandidates.length) {
     const strictRows = rows.filter((row) => doesLinkRowMatchExactIdentity(row, directIdentity));
     console.info("SOCIAL_PRODUCT_LINK_DRAWER_READBACK_TRACE", {
@@ -1104,8 +1175,8 @@ const fetchLinkRows = async ({ tenantId = null, platform = "", post = {}, postId
   return rows;
 };
 
-const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", canonicalPostId = "", platformPostId = "", productIds = [], rowsAffected = null } = {}) => {
-  const rows = await fetchLinkRows({ tenantId, platform, post, postId, selectedPostId, canonicalPostId });
+const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", canonicalPostId = "", platformPostId = "", productIds = [], rowsAffected = null, directOnly = false } = {}) => {
+  const rows = await fetchLinkRows({ tenantId, platform, post, postId, selectedPostId, canonicalPostId, directOnly });
   const identityCandidates = collectPostIdentityCandidates({ postId, selectedPostId, row: post, post });
   const matchedMappingKey = rows.length ? resolveMatchedMappingKey({ row: rows[0], candidates: identityCandidates }) : "";
   const resolvedPostId = getPlatformPostId({ tenantId, platform, post, postId });
@@ -1141,6 +1212,8 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
       linked_products: [],
       primary_product: null,
       count: 0,
+      linked_products_source: "none",
+      rejected_sources: directOnly ? DRAWER_REJECTED_SOURCES : [],
       product_ids: Array.isArray(productIds)
         ? Array.from(new Set(productIds.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)))
         : [],
@@ -1236,6 +1309,8 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
     linked_products: linkedProducts,
     primary_product: primaryProduct,
     count: linkedProducts.length,
+    linked_products_source: "exact_direct",
+    rejected_sources: directOnly ? DRAWER_REJECTED_SOURCES : [],
     product_ids: linkedProducts.map((item) => item.product_id || item.id || null).filter(Boolean),
     rows_affected: Number(rowsAffected || 0),
     post_id: resolvedPostId,
@@ -1245,7 +1320,7 @@ const mapRowsToLinkedProducts = async ({ tenantId = null, platform = "", post = 
   };
 };
 
-export const getMappings = async ({ tenantId = null, platform = "", postId = "", row = {}, post = {}, selectedPostId = "", canonicalPostId = "", platformPostId = "", productIds = [], rowsAffected = null } = {}) => {
+export const getMappings = async ({ tenantId = null, platform = "", postId = "", row = {}, post = {}, selectedPostId = "", canonicalPostId = "", platformPostId = "", productIds = [], rowsAffected = null, directOnly = false } = {}) => {
   await ensurePostProductMappingSchema();
   const safeTenantId = toTenantId(tenantId || row?.tenant_id || post?.tenant_id || 0);
   const normalizedPlatform = normalizePlatform(platform || row?.platform || post?.platform || "");
@@ -1278,6 +1353,7 @@ export const getMappings = async ({ tenantId = null, platform = "", postId = "",
     platformPostId: platformPostId || identityPostId,
     productIds,
     rowsAffected,
+    directOnly,
   });
 };
 
@@ -2185,7 +2261,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     primary_product_id: primaryId,
     canonical_post_id: platformPostId,
   });
-  if (!safeTenantId || !platformPostId) return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId, selectedPostId: selectedIdentity, canonicalPostId: platformPostId });
+  if (!safeTenantId || !platformPostId) return mapRowsToLinkedProducts({ tenantId: safeTenantId, platform: normalizedPlatform, post, postId: platformPostId, selectedPostId: selectedIdentity, canonicalPostId: platformPostId, directOnly: true });
 
   const client = await db.connect();
   let rowsAffected = 0;
@@ -2194,6 +2270,61 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
   let cleanupRemovedProductIds = [];
   try {
     await client.query("BEGIN");
+    if (!safeProductIds.length) {
+      const clearLookupIds = Array.from(new Set([
+        platformPostId,
+        selectedIdentity,
+        storedPostId,
+        storedMediaId,
+        permalinkPostId,
+        ...(canonicalIdentity?.aliases || []).map((alias) => text(alias?.alias_value || "")),
+        ...directIdentity.exactCandidates,
+        ...directIdentity.fallbackCandidates,
+      ].map((value) => text(value)).filter(Boolean)));
+      if (clearLookupIds.length) {
+        const deleteResult = await client.query(
+          `
+          DELETE FROM marketing_post_product_links
+          WHERE (
+              tenant_id = $1::bigint
+              OR business_id = $1::bigint
+            )
+            AND platform = $2::text
+            AND (
+              platform_post_id = ANY($3::text[])
+              OR post_id = ANY($3::text[])
+              OR media_id = ANY($3::text[])
+            )
+          `,
+          [safeTenantId, normalizedPlatform, clearLookupIds]
+        ).catch(() => ({ rowCount: 0 }));
+        rowsAffected += Number(deleteResult.rowCount || 0) || 0;
+        console.info("SOCIAL_PRODUCT_LINK_HYDRATION_SOURCE_TRACE", {
+          phase: "save_clear",
+          post_id: selectedIdentity || platformPostId,
+          canonical_post_id: platformPostId,
+          exact_identity: JSON.stringify(directIdentity),
+          source: "marketing_post_product_links",
+          product_ids: [],
+          accepted: true,
+          rejected_reason: "",
+        });
+      }
+      await client.query("COMMIT");
+      return {
+        linked_products: [],
+        primary_product: null,
+        count: 0,
+        linked_products_source: "none",
+        rejected_sources: DRAWER_REJECTED_SOURCES,
+        product_ids: [],
+        rows_affected: rowsAffected,
+        post_id: platformPostId,
+        platform: normalizedPlatform,
+        tenant_id: safeTenantId || null,
+        matched_mapping_key: "",
+      };
+    }
     if (platformPostId) {
       const deleteLookupIds = Array.from(new Set([
         ...(directIdentity.exactCandidates.length ? directIdentity.exactCandidates : [platformPostId]),
@@ -2652,6 +2783,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     platformPostId,
     productIds: safeProductIds,
     rowsAffected,
+    directOnly: true,
   });
   console.info("SOCIAL_PRODUCT_LINK_REMOVE_CLEANUP_TRACE", {
     selected_post_id: selectedIdentity,
