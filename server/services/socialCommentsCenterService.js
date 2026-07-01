@@ -1433,6 +1433,21 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
   }).catch(() => {});
   const graphPostId = resolveSocialCommentGraphPostId(safeRow);
   const pageId = text(metadata.page_id || metadata.facebook_page_id || "");
+  const permalinkUrl = text(
+    safeRow.permalink_url ||
+    safeRow.post_permalink_url ||
+    safeRow.post_permalink ||
+    safeRow.post_url ||
+    metadata.permalink_url ||
+    metadata.post_permalink_url ||
+    metadata.post_permalink ||
+    metadata.post_url ||
+    rawPayload.permalink_url ||
+    rawPayload.post_permalink_url ||
+    rawPayload.post_permalink ||
+    rawPayload.post_url ||
+    ""
+  );
   const graphLookupPostIds = resolveSocialCommentGraphLookupIds({ row: safeRow, pageId });
   const graphLookupFallbackPostIds = Array.from(new Set([
     ...(Array.isArray(graphLookupPostIds) ? graphLookupPostIds : []),
@@ -1757,7 +1772,6 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       object_id_thumbnail_present: false,
     });
   }
-  const permalinkUrl = safeRow.post_permalink_url || safeRow.permalink_url || metadata.post_permalink_url || metadata.permalink_url || "";
   try {
     if (shouldLogMediaBackfill) {
       console.warn("[social-comments:media-backfill:start]", {
