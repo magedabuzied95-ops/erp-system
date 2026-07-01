@@ -235,6 +235,16 @@ const normalizeSocialCommentPost = (raw) => {
     mappingSummary.primary_product ||
     linkedProducts[0] ||
     null;
+  const linkedProductsCount = Number(post.linked_products_count || mappingSummary.count || linkedProducts.length || 0) || 0;
+  const productLinkSourceRaw = String(post.product_link_source || metadata.product_link_source || mappingSummary.product_link_source || "none").trim() || "none";
+  const hasDirectProductLink = Boolean(
+    (post.has_direct_product_link ?? metadata.has_direct_product_link ?? false) ||
+    productLinkSourceRaw === "direct" ||
+    productLinkSourceRaw === "v2_direct" ||
+    linkedProductsCount > 0 ||
+    linkedProducts.length > 0
+  );
+  const productLinkSource = hasDirectProductLink && productLinkSourceRaw === "none" ? "v2_direct" : productLinkSourceRaw;
   const resolvedThumbnail =
     post.thumbnail_url ||
     post.thumbnailUrl ||
@@ -258,6 +268,21 @@ const normalizeSocialCommentPost = (raw) => {
     null;
   const mappedProductName = String(primaryLinkedProduct?.name || primaryLinkedProduct?.title || primaryLinkedProduct?.product_name || post.product_name || metadata.product_name || "").trim();
   const mappedProductPrice = String(primaryLinkedProduct?.final_price || primaryLinkedProduct?.sale_price || primaryLinkedProduct?.price || primaryLinkedProduct?.selling_price || post.product_price || metadata.product_price || "").trim();
+  const displayPostTime = String(
+    post.display_post_time ||
+    post.created_time ||
+    post.post_created_time ||
+    post.published_at ||
+    post.timestamp ||
+    post.created_at ||
+    metadata.display_post_time ||
+    metadata.created_time ||
+    metadata.post_created_time ||
+    metadata.published_at ||
+    metadata.timestamp ||
+    metadata.created_at ||
+    ""
+  ).trim();
   return {
     id: String(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
     postId: String(post.post_id || post.id || metadata.post_id || ""),
@@ -306,8 +331,14 @@ const normalizeSocialCommentPost = (raw) => {
     linked_products: linkedProducts,
     primaryLinkedProduct,
     primary_linked_product: primaryLinkedProduct,
-    linkedProductsCount: Number(post.linked_products_count || mappingSummary.count || linkedProducts.length || 0) || 0,
-    linked_products_count: Number(post.linked_products_count || mappingSummary.count || linkedProducts.length || 0) || 0,
+    linkedProductsCount,
+    linked_products_count: linkedProductsCount,
+    productLinkSource,
+    product_link_source: productLinkSource,
+    hasDirectProductLink,
+    has_direct_product_link: hasDirectProductLink,
+    displayPostTime,
+    display_post_time: displayPostTime,
     raw: post,
   };
 };

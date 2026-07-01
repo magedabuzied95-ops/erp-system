@@ -1445,6 +1445,24 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     ].some((entry) => text(entry || ""));
     const hasSiblingProductContext = !hasDirectProductLink && genericProductSignals;
     const productLinkSource = hasDirectProductLink ? "v2_direct" : (hasSiblingProductContext ? "sibling" : "none");
+    const displayPostTime = text(
+      value.created_time ||
+      value.post_created_time ||
+      value.published_at ||
+      value.timestamp ||
+      value.created_at ||
+      safeRow.created_time ||
+      safeRow.post_created_time ||
+      safeRow.published_at ||
+      safeRow.timestamp ||
+      safeRow.created_at ||
+      metadata.created_time ||
+      metadata.post_created_time ||
+      metadata.published_at ||
+      metadata.timestamp ||
+      metadata.created_at ||
+      ""
+    );
     const permalinkFields = resolveHydratedPermalinkFields({ value, safeRow, metadata, canonicalIdentity });
     const selectedPostIdentity = buildSocialPostIdentityRecord({
       row: {
@@ -1560,6 +1578,12 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     primary_linked_product: mappingSummary?.primary_product || null,
     selected_post_identity: selectedPostIdentity,
     latest_comment_post_identity: latestCommentPostIdentity?.post_id ? latestCommentPostIdentity : null,
+    post_link_key: text(productLinkIdentity.product_link_key || canonicalIdentityPostId || ""),
+    created_time: displayPostTime,
+    post_created_time: displayPostTime,
+    published_at: displayPostTime,
+    timestamp: displayPostTime,
+    display_post_time: displayPostTime,
     post_identity_mismatch: Boolean(
       permalinkFields.post_identity_mismatch ||
       (latestCommentPostIdentity?.post_id && !identityComparison.matches)

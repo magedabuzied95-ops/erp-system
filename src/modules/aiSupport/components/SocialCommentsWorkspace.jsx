@@ -235,17 +235,6 @@ const normalizePost = (raw) => {
   const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
   const mappingSummary = post.mapping_summary && typeof post.mapping_summary === "object" && !Array.isArray(post.mapping_summary) ? post.mapping_summary : {};
   const attachmentImage = getAttachmentImage(post);
-  const productLinkSource = clean(post.product_link_source || metadata.product_link_source || "none") || "none";
-  const hasDirectProductLink = Boolean(
-    post.has_direct_product_link ??
-    metadata.has_direct_product_link ??
-    (productLinkSource === "direct" || productLinkSource === "v2_direct")
-  );
-  const hasSiblingProductContext = Boolean(
-    post.has_sibling_product_context ??
-    metadata.has_sibling_product_context ??
-    (productLinkSource === "sibling")
-  );
   const linkedProducts = Array.isArray(post.linked_products)
     ? post.linked_products
     : Array.isArray(metadata.linked_products)
@@ -262,6 +251,20 @@ const normalizePost = (raw) => {
       linkedProducts.length ??
       0
   ) || 0;
+  const productLinkSourceRaw = clean(post.product_link_source || metadata.product_link_source || mappingSummary.product_link_source || "none") || "none";
+  const hasDirectProductLink = Boolean(
+    (post.has_direct_product_link ?? metadata.has_direct_product_link ?? false) ||
+    productLinkSourceRaw === "direct" ||
+    productLinkSourceRaw === "v2_direct" ||
+    linkedProductsCount > 0 ||
+    linkedProducts.length > 0
+  );
+  const productLinkSource = hasDirectProductLink && productLinkSourceRaw === "none" ? "v2_direct" : productLinkSourceRaw;
+  const hasSiblingProductContext = Boolean(
+    post.has_sibling_product_context ??
+    metadata.has_sibling_product_context ??
+    (productLinkSource === "sibling")
+  );
   const primaryLinkedProduct = post.primary_linked_product || post.primary_product || metadata.primary_linked_product || metadata.primary_product || mappingSummary.primary_linked_product || mappingSummary.primary_product || linkedProducts[0] || null;
   const productLinkIdentity = post.product_link_identity || metadata.product_link_identity || mappingSummary.product_link_identity || post.post_identity || metadata.post_identity || null;
   const productLinkKey = clean(productLinkIdentity?.product_link_key || productLinkIdentity?.post_id || productLinkIdentity?.canonical_post_id || "");
@@ -272,13 +275,48 @@ const normalizePost = (raw) => {
         post.product_links_count ??
         metadata.linked_products_count ??
         metadata.product_links_count ??
-        linkedProducts.length ??
-        0
+      linkedProducts.length ??
+      0
     ) || directLinkedProducts.length || 0)
     : 0;
   const directPrimaryLinkedProduct = hasDirectProductLink
     ? (post.primary_linked_product || metadata.primary_linked_product || linkedProducts[0] || primaryLinkedProduct || null)
     : null;
+  const displayPostTime = clean(
+    post.display_post_time ||
+      post.created_time ||
+      post.post_created_time ||
+      post.published_at ||
+      post.timestamp ||
+      post.created_at ||
+      metadata.display_post_time ||
+      metadata.created_time ||
+      metadata.post_created_time ||
+      metadata.published_at ||
+      metadata.timestamp ||
+      metadata.created_at ||
+      post.marketing_published_at ||
+      post.marketing_created_time ||
+      metadata.post?.created_time ||
+      metadata.post?.updated_time ||
+      ""
+  );
+  console.info("SOCIAL_CARD_NORMALIZE_TRACE", {
+    post_id: clean(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
+    post_link_key: clean(productLinkKey || post.post_link_key || metadata.post_link_key || ""),
+    product_link_source: clean(productLinkSource || "none"),
+    has_direct_product_link: Boolean(hasDirectProductLink),
+    linked_products_count: linkedProductsCount,
+    linked_product_names: linkedProducts.map((item) => clean(item?.name || item?.title || item?.product_name || "")).filter(Boolean),
+    display_post_time: displayPostTime,
+    raw_time_fields: {
+      created_time: clean(post.created_time || metadata.created_time || ""),
+      post_created_time: clean(post.post_created_time || metadata.post_created_time || ""),
+      published_at: clean(post.published_at || metadata.published_at || ""),
+      timestamp: clean(post.timestamp || metadata.timestamp || ""),
+      created_at: clean(post.created_at || metadata.created_at || ""),
+    },
+  });
   const mappedProductName = clean(primaryLinkedProduct?.name || primaryLinkedProduct?.title || primaryLinkedProduct?.product_name || "");
   const mappedProductPrice = clean(primaryLinkedProduct?.final_price || primaryLinkedProduct?.sale_price || primaryLinkedProduct?.price || primaryLinkedProduct?.selling_price || "");
   const mappedProductSizes = Array.isArray(primaryLinkedProduct?.available_sizes)
@@ -375,6 +413,8 @@ const normalizePost = (raw) => {
     shippingTime: clean(post.shipping_time || metadata.shipping_time || ""),
     postCreatedTime,
     post_created_time: postCreatedTime,
+    displayPostTime,
+    display_post_time: displayPostTime,
     realCommentCreatedTime: clean(post.real_comment_created_time || metadata.real_comment_created_time || ""),
     real_comment_created_time: clean(post.real_comment_created_time || metadata.real_comment_created_time || ""),
     commentCreatedTime: clean(post.comment_created_time || metadata.comment_created_time || ""),
@@ -1751,7 +1791,9 @@ function SocialCommentsWorkspace({
 
   const getPostVisibleTime = useCallback((post = {}) => {
     const time = clean(
-      post?.postCreatedTime ||
+      post?.display_post_time ||
+        post?.displayPostTime ||
+        post?.postCreatedTime ||
         post?.post_created_time ||
         post?.publishedAt ||
         post?.published_at ||
@@ -2612,6 +2654,12 @@ function SocialCommentsWorkspace({
                     const active = activePostKey === key;
                     const meta = platformMeta(post.platform);
                     const thumb = post.thumbnailUrl;
+                    const hasVisibleProductLink = Boolean(
+                      post.hasDirectProductLink ||
+                      post.has_direct_product_link ||
+                      Number(post.linkedProductsCount || post.linked_products_count || 0) > 0 ||
+                      ["direct", "v2_direct"].includes(clean(post.productLinkSource || post.product_link_source || ""))
+                    );
                     socialDebugLog("SOCIAL_POST_CARD_ID_TRACE", {
                       card_post_id: clean(post?.postId || ""),
                       card_platform_post_id: clean(post?.platformPostId || ""),
@@ -2710,7 +2758,7 @@ function SocialCommentsWorkspace({
                               >
                                 {resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).label}
                               </span>
-                              {post.hasDirectProductLink ? (
+                              {hasVisibleProductLink ? (
                                 <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-100">
                                 ✓ {post.directPrimaryLinkedProduct?.name || post.directPrimaryLinkedProduct?.title || post.directPrimaryLinkedProduct?.product_name || "Linked Product"}
                                 {post.directLinkedProductsCount > 1 ? ` +${post.directLinkedProductsCount - 1}` : ""}
@@ -2764,6 +2812,12 @@ function SocialCommentsWorkspace({
                   const active = activePostKey === key;
                   const meta = platformMeta(post.platform);
                   const thumb = post.thumbnailUrl;
+                  const hasVisibleProductLink = Boolean(
+                    post.hasDirectProductLink ||
+                    post.has_direct_product_link ||
+                    Number(post.linkedProductsCount || post.linked_products_count || 0) > 0 ||
+                    ["direct", "v2_direct"].includes(clean(post.productLinkSource || post.product_link_source || ""))
+                  );
                   socialDebugLog("SOCIAL_POST_CARD_ID_TRACE", {
                     card_post_id: clean(post?.postId || ""),
                     card_platform_post_id: clean(post?.platformPostId || ""),
@@ -2861,12 +2915,12 @@ function SocialCommentsWorkspace({
                             >
                               {resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).label}
                             </span>
-                            {post.hasDirectProductLink ? (
+                            {hasVisibleProductLink ? (
                               <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-emerald-100">
-                                ✓ {post.directPrimaryLinkedProduct?.name || post.directPrimaryLinkedProduct?.title || post.directPrimaryLinkedProduct?.product_name || "Linked Product"}
-                                {post.directLinkedProductsCount > 1 ? ` +${post.directLinkedProductsCount - 1}` : ""}
-                              </span>
-                            ) : (
+                              ✓ {post.directPrimaryLinkedProduct?.name || post.directPrimaryLinkedProduct?.title || post.directPrimaryLinkedProduct?.product_name || "Linked Product"}
+                              {post.directLinkedProductsCount > 1 ? ` +${post.directLinkedProductsCount - 1}` : ""}
+                            </span>
+                          ) : (
                               <span className="rounded-full border border-amber-300/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">⚠ No Product Linked</span>
                             )}
                             {postTypeMeta(post) ? <span className={`rounded-full border px-2.5 py-1 ${postTypeMeta(post).className}`}>{postTypeMeta(post).label}</span> : null}
