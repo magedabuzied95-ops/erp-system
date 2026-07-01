@@ -9,6 +9,7 @@ import {
   migrateCanonicalSocialPostRecords,
   resolveSocialPostCanonicalIdentity,
 } from "./socialPostIdentityService.js";
+import { resolveSocialPostProductLinkIdentity } from "../../shared/socialPostProductLinkIdentity.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
