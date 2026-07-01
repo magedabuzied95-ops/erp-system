@@ -128,7 +128,17 @@ const primaryPrice = (product = {}) => {
 };
 
 const primaryStock = (product = {}) => {
-  for (const candidate of [product?.stock, product?.quantity, product?.available_stock, product?.total_stock]) {
+  const variantStockTotal = Array.isArray(product?.variants)
+    ? product.variants.reduce((sum, variant) => {
+        const parsed = Number(variant?.total_stock ?? variant?.stock ?? variant?.quantity ?? 0);
+        return Number.isFinite(parsed) ? sum + parsed : sum;
+      }, 0)
+    : 0;
+  for (const candidate of [product?.total_stock, variantStockTotal, product?.quantity, product?.available_stock, product?.stock]) {
+    const parsed = Number(candidate);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.trunc(parsed);
+  }
+  for (const candidate of [product?.total_stock, variantStockTotal, product?.quantity, product?.available_stock, product?.stock]) {
     const parsed = Number(candidate);
     if (Number.isFinite(parsed)) return Math.trunc(parsed);
   }
@@ -377,6 +387,219 @@ const detectRegressionFailureTypes = ({ message = "", reply = "", analysis = {},
   return failures;
 };
 
+export const executeAiRegressionMessageTest = async ({
+  body = {},
+  source = "ai_regression_test_endpoint",
+} = {}) => withReadOnlyDbSession(async () => {
+  const message = toText(body?.message);
+  if (!message) {
+    return { status: 400, body: { success: false, message: "message is required" } };
+  }
+
+  const tenantId = Number(body?.tenant_id || body?.tenantId || 1);
+  const channel = toText(body?.channel || body?.metadata?.channel || "web_chat") || "web_chat";
+  const baseMemory = body?.memory && typeof body.memory === "object" ? body.memory : {};
+  const productQuery = toText(body?.product_query || body?.productQuery || "");
+  const requestIntent = toText(body?.intent || body?.detected_intent || body?.detectedIntent || resolveIntent(message));
+  const rawSeedProductCards = body?.product_cards ||
+    body?.fixture?.product_cards ||
+    body?.fixture?.productCards ||
+    [];
+  const seedProductCards = await buildRegressionSeedProductCards({
+    tenantId,
+    message,
+    productQuery,
+    rawSeedProductCards,
+    intent: requestIntent,
+  });
+  const composerProductCards = seedProductCards.length ? seedProductCards : asArray(rawSeedProductCards);
+  const effectiveMemory = {
+    ...baseMemory,
+    preferences: {
+      ...(baseMemory.preferences || {}),
+      ...(seedProductCards.length
+        ? {
+            last_product_cards: seedProductCards,
+            lastProductCards: seedProductCards,
+          }
+        : {}),
+    },
+  };
+
+  const regressionMetadata = {
+    ...(body?.metadata && typeof body.metadata === "object" ? body.metadata : {}),
+    tenant_id: tenantId,
+    channel,
+    original_message: message,
+    normalized_for_intent: message,
+    product_query: productQuery,
+    request_intent: requestIntent,
+    ai_memory: effectiveMemory,
+    is_regression_test: true,
+    dry_run: DRY_RUN_MODE,
+    source,
+  };
+
+  const inbound = {
+    channel,
+    message,
+    original_message: message,
+    normalized_for_intent: message,
+    text: message,
+    metadata: regressionMetadata,
+    product_query: productQuery,
+    request_intent: requestIntent,
+    is_regression_test: true,
+    dry_run: DRY_RUN_MODE,
+    source,
+  };
+
+  const brainDecision = await generateAiBrainV2Decision(inbound, {
+    tenantId,
+    memory: effectiveMemory,
+    is_regression_test: true,
+    dry_run: DRY_RUN_MODE,
+    source,
+  });
+
+  const responseForComposer = composerProductCards.length
+    ? {
+        ...brainDecision,
+        is_regression_test: true,
+        dry_run: DRY_RUN_MODE,
+        source,
+        regression_source_product_cards: rawSeedProductCards,
+        products: composerProductCards,
+        suggested_products: composerProductCards,
+        product_cards: composerProductCards,
+        visual_attachments: composerProductCards
+          .filter((card) => primaryImage(card))
+          .map((card) => ({
+            id: String(card.id || card.product_id || primaryImage(card)),
+            url: primaryImage(card),
+            image_url: primaryImage(card),
+            product_id: String(card.product_id || card.id || ""),
+          })),
+      }
+    : {
+        ...brainDecision,
+        is_regression_test: true,
+        dry_run: DRY_RUN_MODE,
+        source,
+      };
+
+  const composed = await composeAiSalesReply({
+    message,
+    response: responseForComposer,
+    intent: { type: responseForComposer?.detected_intent || responseForComposer?.intent || "" },
+    memory: effectiveMemory,
+    source,
+    context: {
+      tenant_id: tenantId,
+      channel,
+      is_regression_test: true,
+      dry_run: DRY_RUN_MODE,
+      source,
+    },
+  });
+
+  const productCards = normalizeProductCards(
+    composed.product_cards ||
+      composed.suggested_products ||
+      responseForComposer.product_cards ||
+      responseForComposer.suggested_products ||
+      seedProductCards,
+    { limit: 24 }
+  );
+  const reply = toText(composed.answer || composed.text || "");
+  const intent = toText(
+    composed.detected_intent ||
+      composed.intent ||
+      brainDecision.detected_intent ||
+      brainDecision.intent ||
+      resolveIntent(message)
+  );
+
+  let analysis;
+  let failedTypes;
+  try {
+    analysis = buildRegressionAnalysis({
+      message,
+      reply,
+      intent,
+      brainIntent: brainDecision.intent || brainDecision.detected_intent || "",
+      simpleIntent: resolveIntent(message),
+      memory: effectiveMemory,
+      productCards: composerProductCards,
+      composedResponse: composed,
+      autoReplyShadow: brainDecision.auto_reply_shadow || null,
+      source,
+    });
+    analysis.current_sizes = [...new Set(asArray(composerProductCards).flatMap((card) => productSizes(card)).filter(Boolean))];
+    analysis.current_colors = [...new Set(asArray(composerProductCards).flatMap((card) => productColors(card)).filter(Boolean))];
+    const regressionStockValues = asArray(composerProductCards).map((card) => primaryStock(card)).filter((value) => Number.isFinite(value));
+    analysis.current_stock = regressionStockValues.length ? Math.max(...regressionStockValues) : Number(analysis.current_stock ?? 0);
+    failedTypes = detectRegressionFailureTypes({
+      message,
+      reply,
+      analysis,
+      composedResponse: composed,
+      responseForComposer,
+      brainDecision,
+      normalizedProductCards: composerProductCards,
+      autoReplyShadow: brainDecision.auto_reply_shadow || null,
+    });
+  } catch (analysisError) {
+    console.error("[ai-regression-test:analysis-error]", {
+      message: analysisError?.message || String(analysisError || ""),
+      stack: analysisError?.stack || "",
+      phase: "build-analysis-or-detect-failures",
+    });
+    const regressionStockValues = asArray(composerProductCards).map((card) => primaryStock(card)).filter((value) => Number.isFinite(value));
+    analysis = {
+      source,
+      message_length: toText(message).length,
+      reply_length: toText(reply).length,
+      intent,
+      brain_intent: brainDecision.intent || brainDecision.detected_intent || "",
+      simple_intent: resolveIntent(message),
+      product_card_count: composerProductCards.length,
+      image_card_count: asArray(composerProductCards).filter((card) => primaryImage(card)).length,
+      current_price: primaryPrice(composerProductCards[0] || {}),
+      current_stock: regressionStockValues.length ? Math.max(...regressionStockValues) : Number(primaryStock(composerProductCards[0] || {}) || 0),
+      current_sizes: [...new Set(asArray(composerProductCards).flatMap((card) => productSizes(card)).filter(Boolean))],
+      current_colors: [...new Set(asArray(composerProductCards).flatMap((card) => productColors(card)).filter(Boolean))],
+      current_image_urls: asArray(composerProductCards).map((card) => primaryImage(card)).filter(Boolean),
+      memory_before: summarizeMemory(effectiveMemory),
+      memory_patch: composed?.memory_updates || composed?.ai_memory_patch?.preferences || null,
+      customer_name_candidate: extractCustomerNameCandidate(message),
+      reply_mentions_bare_currency: hasBareCurrencyWord(reply),
+      reply_mentions_current_price: false,
+      reply_mentioned_prices: extractMentionedPrices(reply),
+      reply_mentions_availability: false,
+      reply_mentions_unavailable: false,
+      reply_mentions_size: false,
+      reply_mentions_color: false,
+      reply_mentions_image: false,
+      composed_detected_intent: toText(composed?.detected_intent || composed?.intent || ""),
+      composed_sales_stage: toText(composed?.sales_stage || ""),
+    };
+    failedTypes = [];
+  }
+
+  return {
+    status: 200,
+    body: {
+      reply,
+      analysis,
+      intent,
+      product_cards: composerProductCards,
+      failed_types: failedTypes,
+      auto_reply_shadow: brainDecision.auto_reply_shadow || null,
+    },
+  };
+});
+
 const requireRegressionTestKey = (req, res, next) => {
   if (!regressionEndpointEnabled()) {
     return res.status(404).json({ success: false, message: "Not found" });
@@ -456,6 +679,7 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
       }
 
       const tenantId = Number(req.body?.tenant_id || req.body?.tenantId || 1);
+      const channel = toText(req.body?.channel || req.body?.metadata?.channel || "web_chat") || "web_chat";
       const baseMemory = req.body?.memory && typeof req.body.memory === "object" ? req.body.memory : {};
       const productQuery = toText(req.body?.product_query || req.body?.productQuery || "");
       const requestIntent = toText(req.body?.intent || req.body?.detected_intent || req.body?.detectedIntent || resolveIntent(message));
@@ -487,7 +711,7 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
       const regressionMetadata = {
         ...(req.body?.metadata && typeof req.body.metadata === "object" ? req.body.metadata : {}),
         tenant_id: tenantId,
-        channel: "web_chat",
+        channel,
         original_message: message,
         normalized_for_intent: message,
         product_query: productQuery,
@@ -499,7 +723,7 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
       };
 
       const inbound = {
-        channel: "web_chat",
+        channel,
         message,
         original_message: message,
         normalized_for_intent: message,
