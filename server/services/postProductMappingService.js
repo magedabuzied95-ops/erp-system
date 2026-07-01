@@ -143,6 +143,33 @@ const resolvePostIdentityTrace = ({
     rows_affected: rowsAffected === null ? null : Number(rowsAffected) || 0,
   };
 };
+const buildReplaceSetTrace = ({
+  selectedPostId = "",
+  canonicalPostId = "",
+  exactIdentity = "",
+  submittedProductIds = [],
+  existingBeforeProductIds = [],
+  deletedNotInSubmittedProductIds = [],
+  upsertedProductIds = [],
+  returnedProductIds = [],
+} = {}) => {
+  let safeExactIdentity = "";
+  try {
+    safeExactIdentity = typeof exactIdentity === "string" ? exactIdentity : JSON.stringify(exactIdentity || {});
+  } catch {
+    safeExactIdentity = "{}";
+  }
+  return {
+    selected_post_id: text(selectedPostId),
+    canonical_post_id: text(canonicalPostId),
+    exact_identity: safeExactIdentity,
+    submitted_product_ids: Array.isArray(submittedProductIds) ? submittedProductIds : [],
+    existing_before_product_ids: Array.isArray(existingBeforeProductIds) ? existingBeforeProductIds : [],
+    deleted_not_in_submitted_product_ids: Array.isArray(deletedNotInSubmittedProductIds) ? deletedNotInSubmittedProductIds : [],
+    upserted_product_ids: Array.isArray(upsertedProductIds) ? upsertedProductIds : [],
+    returned_product_ids: Array.isArray(returnedProductIds) ? returnedProductIds : [],
+  };
+};
 const collectPostIdentityCandidates = ({ postId = "", selectedPostId = "", row = {}, post = {} } = {}) => {
   const candidates = [];
   const seen = new Set();
@@ -2268,6 +2295,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
   let cleanupDeletedExactCount = 0;
   let cleanupDeletedStaleCount = 0;
   let cleanupRemovedProductIds = [];
+  let existingBeforeProductIds = [];
   const exactIdentityLookupIds = Array.from(new Set([
     platformPostId,
     selectedIdentity,
@@ -2289,7 +2317,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
           OR business_id = $1::bigint
         )
         AND platform = $2::text
-        AND (
+      AND (
           platform_post_id = ANY($3::text[])
           OR post_id = ANY($3::text[])
           OR media_id = ANY($3::text[])
@@ -2297,7 +2325,7 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       `,
       [safeTenantId, normalizedPlatform, exactIdentityLookupIds]
     ).catch(() => ({ rows: [] }));
-    const existingBeforeProductIds = Array.from(new Set((existingBeforeRowsResult.rows || []).map((row) => Number(row.product_id || 0)).filter((value) => Number.isFinite(value) && value > 0)));
+    existingBeforeProductIds = Array.from(new Set((existingBeforeRowsResult.rows || []).map((row) => Number(row.product_id || 0)).filter((value) => Number.isFinite(value) && value > 0)));
     if (!safeProductIds.length) {
       if (exactIdentityLookupIds.length) {
         const deleteResult = await client.query(
@@ -2363,16 +2391,18 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
       rowsAffected += Number(deleteExactRowsResult.rowCount || 0) || 0;
     }
     const deletedNotInSubmittedProductIds = existingBeforeProductIds.filter((productId) => !safeProductIds.includes(productId));
-    console.info("SOCIAL_PRODUCT_LINK_REPLACE_SET_TRACE", {
-      selected_post_id: selectedIdentity,
-      canonical_post_id: platformPostId,
-      exact_identity: JSON.stringify(directIdentity),
-      submitted_product_ids: safeProductIds,
-      existing_before_product_ids: existingBeforeProductIds,
-      deleted_not_in_submitted_product_ids: deletedNotInSubmittedProductIds,
-      upserted_product_ids: safeProductIds,
-      returned_product_ids: [],
-    });
+    try {
+      console.info("SOCIAL_PRODUCT_LINK_REPLACE_SET_TRACE", buildReplaceSetTrace({
+        selectedPostId: selectedIdentity,
+        canonicalPostId: platformPostId,
+        exactIdentity: directIdentity,
+        submittedProductIds: safeProductIds,
+        existingBeforeProductIds,
+        deletedNotInSubmittedProductIds,
+        upsertedProductIds: safeProductIds,
+        returnedProductIds: [],
+      }));
+    } catch {}
     if (platformPostId) {
       const candidateIdentityRowsResult = await client.query(
         `
@@ -2827,16 +2857,18 @@ export const saveMappings = async ({ tenantId = null, platform = "", postId = ""
     rowsAffected,
     directOnly: true,
   });
-  console.info("SOCIAL_PRODUCT_LINK_REPLACE_SET_TRACE", {
-    selected_post_id: selectedIdentity,
-    canonical_post_id: platformPostId,
-    exact_identity: JSON.stringify(directIdentity),
-    submitted_product_ids: safeProductIds,
-    existing_before_product_ids: existingBeforeProductIds,
-    deleted_not_in_submitted_product_ids: existingBeforeProductIds.filter((productId) => !safeProductIds.includes(productId)),
-    upserted_product_ids: safeProductIds,
-    returned_product_ids: Array.isArray(readback?.product_ids) ? readback.product_ids : [],
-  });
+  try {
+    console.info("SOCIAL_PRODUCT_LINK_REPLACE_SET_TRACE", buildReplaceSetTrace({
+      selectedPostId: selectedIdentity,
+      canonicalPostId: platformPostId,
+      exactIdentity: directIdentity,
+      submittedProductIds: safeProductIds,
+      existingBeforeProductIds,
+      deletedNotInSubmittedProductIds: existingBeforeProductIds.filter((productId) => !safeProductIds.includes(productId)),
+      upsertedProductIds: safeProductIds,
+      returnedProductIds: Array.isArray(readback?.product_ids) ? readback.product_ids : [],
+    }));
+  } catch {}
   console.info("SOCIAL_PRODUCT_LINK_REMOVE_CLEANUP_TRACE", {
     selected_post_id: selectedIdentity,
     canonical_post_id: platformPostId,
