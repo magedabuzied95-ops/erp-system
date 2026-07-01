@@ -285,9 +285,42 @@ const normalizeSocialCommentPost = (raw) => {
     metadata.published_at ||
     ""
   ).trim();
+  const resolvedIdentityId = String(
+    post.id ||
+    post.post_id ||
+    post.canonical_post_id ||
+    post.platform_post_id ||
+    post.source_post_id ||
+    post.permalink_url ||
+    post.post_permalink_url ||
+    post.conversation_id ||
+    post.session_id ||
+    metadata.post_id ||
+    metadata.canonical_post_id ||
+    metadata.platform_post_id ||
+    metadata.source_post_id ||
+    metadata.permalink_url ||
+    ""
+  ).trim();
+  if (!resolvedIdentityId) {
+    console.warn("SOCIAL_CARD_NORMALIZE_REJECT_TRACE", {
+      raw_keys: Object.keys(post || {}),
+      raw_ids: [
+        post.id,
+        post.post_id,
+        post.canonical_post_id,
+        post.platform_post_id,
+        post.source_post_id,
+        post.permalink_url,
+        post.post_permalink_url,
+        post.post_link_key,
+      ].map((value) => String(value ?? "").trim()).filter(Boolean),
+      reject_reason: "missing_identity",
+    });
+  }
   return {
-    id: String(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
-    postId: String(post.post_id || post.id || metadata.post_id || ""),
+    id: resolvedIdentityId || String(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || post.permalink_url || ""),
+    postId: String(post.post_id || post.id || post.canonical_post_id || post.platform_post_id || post.source_post_id || metadata.post_id || post.permalink_url || ""),
     conversationId: String(post.conversation_id || post.session_id || post.conversation_key || post.thread_id || metadata.conversation_id || ""),
     sessionId: String(post.session_id || metadata.session_id || ""),
     platform: String(post.platform || metadata.platform || "facebook").toLowerCase(),
@@ -304,7 +337,10 @@ const normalizeSocialCommentPost = (raw) => {
     image: post.image || metadata.image || null,
     attachments: post.attachments || metadata.attachments || null,
     metadata,
+    platform_post_id: String(post.platform_post_id || post.post_id || post.id || metadata.platform_post_id || metadata.post_id || ""),
+    source_post_id: String(post.source_post_id || post.post_id || post.id || metadata.source_post_id || metadata.post_id || ""),
     permalinkUrl: resolveExternalSocialPostUrl(post),
+    permalink_url: String(post.permalink_url || post.post_permalink_url || metadata.permalink_url || metadata.post_permalink_url || ""),
     commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || metadata.comments_count || 0),
     newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),
     lastActivity: String(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || "").trim(),
@@ -3917,7 +3953,7 @@ export default function AiInbox() {
           }).catch(() => ({ settings: null })),
         ]);
         if (seq !== requestSeqRef.current) return;
-        const items = asArray(postsPayload.posts || postsPayload.items).filter(Boolean).map((item) => normalizeSocialCommentPost(item));
+        const items = asArray(postsPayload.posts || postsPayload.items || postsPayload.data?.posts || postsPayload.data?.items).filter(Boolean).map((item) => normalizeSocialCommentPost(item));
         const status = Number(postsPayload?.__status || 200) || 200;
         if (socialCommentsDebugEnabled()) {
           console.info("[ai-support] social_comments_response", {
@@ -4307,6 +4343,12 @@ export default function AiInbox() {
       safeItem.product_link_identity?.post_link_key ||
       safeItem.product_link_identity?.product_link_key ||
       safeItem.product_link_identity?.post_id ||
+      safeItem.permalink_url ||
+      safeItem.post_permalink_url ||
+      safeItem.platform_post_id ||
+      safeItem.source_post_id ||
+      safeItem.canonical_post_id ||
+      safeItem.final_canonical_post_id ||
       safeItem.conversationId ||
       safeItem.sessionId ||
       safeItem.postId ||

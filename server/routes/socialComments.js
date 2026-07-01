@@ -173,10 +173,37 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
       });
     }
     const posts = await listSocialCommentPosts({ tenantId, platform, limit: req.query?.limit || 50 });
+    const responsePosts = posts.map((post) => ({
+      ...post,
+      id: String(post?.id || post?.post_id || post?.canonical_post_id || post?.platform_post_id || post?.source_post_id || post?.permalink_url || post?.post_link_key || "").trim(),
+      post_id: String(post?.post_id || post?.id || post?.canonical_post_id || post?.platform_post_id || post?.source_post_id || post?.permalink_url || "").trim(),
+      canonical_post_id: String(post?.canonical_post_id || post?.post_id || post?.id || post?.platform_post_id || post?.source_post_id || "").trim(),
+      platform_post_id: String(post?.platform_post_id || post?.post_id || post?.canonical_post_id || post?.id || "").trim(),
+      source_post_id: String(post?.source_post_id || post?.post_id || post?.canonical_post_id || post?.id || "").trim(),
+      post_link_key: String(post?.post_link_key || post?.postLinkKey || post?.canonical_post_id || post?.post_id || post?.id || post?.permalink_url || "").trim() || null,
+      permalink_url: String(post?.permalink_url || post?.post_permalink_url || post?.display_permalink || "").trim() || null,
+      comments_count: Number(post?.comments_count || post?.comment_count || 0) || 0,
+      linked_products: Array.isArray(post?.linked_products) ? post.linked_products : [],
+      linked_products_count: Number(post?.linked_products_count || post?.product_links_count || (Array.isArray(post?.linked_products) ? post.linked_products.length : 0) || 0) || 0,
+    }));
+    console.log("SOCIAL_POSTS_API_RESPONSE_SHAPE_TRACE", {
+      rows_count: responsePosts.length,
+      first_row_keys: Array.isArray(responsePosts) && responsePosts[0] && typeof responsePosts[0] === "object" ? Object.keys(responsePosts[0]).slice(0, 50) : [],
+      sample_ids: responsePosts.slice(0, 5).map((post) => String(
+        post?.id ||
+        post?.post_id ||
+        post?.canonical_post_id ||
+        post?.platform_post_id ||
+        post?.source_post_id ||
+        post?.permalink_url ||
+        post?.post_link_key ||
+        ""
+      ).trim()).filter(Boolean),
+    });
     console.log("AI_POST_TIME_PAYLOAD", {
       tenant_id: tenantId,
       platform,
-      sample: posts.slice(0, 5).map((post) => ({
+      sample: responsePosts.slice(0, 5).map((post) => ({
         post_id: post.post_id || post.conversation_id || "",
         marketing_published_at: post.marketing_published_at || "",
         marketing_created_time: post.marketing_created_time || "",
@@ -189,8 +216,8 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
       console.log("[social-comments-posts-debug]", {
         tenant_id: tenantId,
         platform,
-        total: posts.length,
-        sample: posts.slice(0, 3).map((post) => ({
+        total: responsePosts.length,
+        sample: responsePosts.slice(0, 3).map((post) => ({
           post_id: post.post_id || post.conversation_id || "",
           has_thumbnail: Boolean(post.has_thumbnail),
           thumbnail_source: post.thumbnail_source || "",
@@ -199,7 +226,7 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
         })),
       });
     }
-    return res.json({ success: true, posts, total: posts.length });
+    return res.json({ success: true, posts: responsePosts, total: responsePosts.length });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment posts" });
   }

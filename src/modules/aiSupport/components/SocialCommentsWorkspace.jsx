@@ -311,6 +311,39 @@ const normalizePost = (raw) => {
       metadata.post?.created_time ||
       ""
   );
+  const resolvedIdentityId = clean(
+    post.id ||
+      post.post_id ||
+      post.canonical_post_id ||
+      post.platform_post_id ||
+      post.source_post_id ||
+      post.permalink_url ||
+      post.post_permalink_url ||
+      post.conversation_id ||
+      post.session_id ||
+      metadata.post_id ||
+      metadata.canonical_post_id ||
+      metadata.platform_post_id ||
+      metadata.source_post_id ||
+      metadata.permalink_url ||
+      ""
+  );
+  if (!resolvedIdentityId) {
+    console.warn("SOCIAL_CARD_NORMALIZE_REJECT_TRACE", {
+      raw_keys: Object.keys(post || {}),
+      raw_ids: [
+        post.id,
+        post.post_id,
+        post.canonical_post_id,
+        post.platform_post_id,
+        post.source_post_id,
+        post.permalink_url,
+        post.post_permalink_url,
+        post.post_link_key,
+      ].map((value) => clean(value)).filter(Boolean),
+      reject_reason: "missing_identity",
+    });
+  }
   console.info("SOCIAL_CARD_NORMALIZE_TRACE", {
     post_id: clean(post.post_id || post.id || post.conversation_id || post.session_id || metadata.post_id || ""),
     post_link_key: clean(productLinkKey || post.post_link_key || metadata.post_link_key || ""),
@@ -344,8 +377,8 @@ const normalizePost = (raw) => {
       ""
   );
   return {
-    id: clean(post.canonical_post_id || post.final_canonical_post_id || post.platform_post_id || post.post_id || post.id || post.conversation_id || post.session_id || metadata.canonical_post_id || metadata.post_id || ""),
-    postId: clean(post.canonical_post_id || post.final_canonical_post_id || post.platform_post_id || post.post_id || post.id || metadata.canonical_post_id || metadata.post_id || ""),
+    id: resolvedIdentityId || clean(post.canonical_post_id || post.final_canonical_post_id || post.platform_post_id || post.post_id || post.id || post.conversation_id || post.session_id || metadata.canonical_post_id || metadata.post_id || post.permalink_url || ""),
+    postId: clean(post.canonical_post_id || post.final_canonical_post_id || post.platform_post_id || post.post_id || post.id || metadata.canonical_post_id || metadata.post_id || post.permalink_url || ""),
     sourcePostId: clean(post.post_id || post.id || post.platform_post_id || metadata.post_id || metadata.platform_post_id || ""),
     sourceConversationId: clean(post.conversation_id || post.session_id || post.conversation_key || post.thread_id || metadata.conversation_id || ""),
     platformPostId: clean(post.platform_post_id || metadata.platform_post_id || post.post_id || ""),
@@ -410,6 +443,9 @@ const normalizePost = (raw) => {
     product_link_identity: productLinkIdentity,
     productLinkKey,
     product_link_key: productLinkKey,
+    platform_post_id: clean(post.platform_post_id || metadata.platform_post_id || post.post_id || ""),
+    source_post_id: clean(post.source_post_id || metadata.source_post_id || post.post_id || ""),
+    permalink_url: clean(post.permalink_url || post.post_permalink_url || metadata.permalink_url || metadata.post_permalink_url || ""),
     productPrice: clean(post.product_price || metadata.product_price || mappedProductPrice || ""),
     productSalePrice: clean(post.product_sale_price || metadata.product_sale_price || clean(primaryLinkedProduct?.sale_price || "")),
     productSizes: clean(post.product_sizes || metadata.product_sizes || mappedProductSizes || ""),

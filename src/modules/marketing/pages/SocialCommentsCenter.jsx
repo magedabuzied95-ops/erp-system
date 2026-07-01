@@ -46,17 +46,40 @@ const tenantIdFromAuth = () => {
 const socialPostIdentity = (item = {}) =>
   clean(
     item?.platform_post_id ||
+      item?.source_post_id ||
       item?.sourcePostId ||
       item?.post_id ||
       item?.canonical_post_id ||
       item?.final_canonical_post_id ||
       item?.permalink_url ||
       item?.post_permalink_url ||
+      item?.display_permalink ||
       item?.conversation_id ||
       item?.id ||
       item?.comment_id ||
       `${clean(item?.platform || "social")}:${clean(item?.post_id || item?.comment_id || "")}`
   );
+
+const logSocialCardNormalizeRejectTrace = (raw = {}, rejectReason = "") => {
+  const keys = raw && typeof raw === "object" ? Object.keys(raw) : [];
+  const ids = [
+    raw?.id,
+    raw?.post_id,
+    raw?.canonical_post_id,
+    raw?.platform_post_id,
+    raw?.source_post_id,
+    raw?.permalink_url,
+    raw?.post_permalink_url,
+    raw?.post_link_key,
+  ]
+    .map((value) => clean(value))
+    .filter(Boolean);
+  console.warn("SOCIAL_CARD_NORMALIZE_REJECT_TRACE", {
+    raw_keys: keys,
+    raw_ids: ids,
+    reject_reason: clean(rejectReason || "missing_identity"),
+  });
+};
 
 const matchesValue = (left = "", right = "") => Boolean(clean(left)) && clean(left) === clean(right);
 
@@ -72,11 +95,29 @@ const normalizeFastSocialCommentItem = (item = {}) => {
       ? Boolean(item.unread)
       : !["sent", "delivered", "ignored", "processed", "closed", "resolved"].includes(status.toLowerCase()) &&
         !["sent", "delivered"].includes(automationStatus.toLowerCase());
+  const resolvedIdentityId = clean(
+    item?.id ||
+    item?.post_id ||
+    item?.canonical_post_id ||
+    item?.platform_post_id ||
+    item?.source_post_id ||
+    item?.permalink_url ||
+    item?.post_permalink_url ||
+    item?.conversation_id ||
+    commentId ||
+    postId ||
+    ""
+  );
+  if (!resolvedIdentityId) {
+    logSocialCardNormalizeRejectTrace(item, "missing_identity");
+  }
 
   return {
     ...item,
-    id: clean(item?.id || commentId || postId || ""),
+    id: resolvedIdentityId || clean(item?.id || commentId || postId || ""),
     post_id: postId,
+    platform_post_id: clean(item?.platform_post_id || item?.post_id || postId || ""),
+    source_post_id: clean(item?.source_post_id || item?.post_id || postId || ""),
     conversation_id: clean(item?.conversation_id || postId || ""),
     canonical_post_id: clean(item?.canonical_post_id || item?.final_canonical_post_id || postId || ""),
     final_canonical_post_id: clean(item?.final_canonical_post_id || item?.canonical_post_id || postId || ""),
@@ -105,6 +146,7 @@ const normalizeFastSocialCommentItem = (item = {}) => {
     post_full_picture: clean(item?.post_full_picture || ""),
     post_permalink_url: clean(item?.post_permalink_url || item?.permalink_url || ""),
     permalink_url: clean(item?.permalink_url || item?.post_permalink_url || ""),
+    post_link_key: clean(item?.post_link_key || item?.postLinkKey || resolvedIdentityId || postId || ""),
     product_id: clean(item?.product_id || ""),
     product_name: clean(item?.product_name || ""),
     auto_reply_enabled: Boolean(item?.auto_reply_enabled),
@@ -304,15 +346,20 @@ const fastSocialCommentItemsEqual = (left = {}, right = {}) =>
           perfComponent: "SocialCommentsCenter.posts",
         });
       }
-      const nextItems = ENABLE_SOCIAL_FAST_CENTER && payload?.items && !Array.isArray(payload?.data?.items)
-        ? payload.items.map(normalizeFastSocialCommentItem)
+      const responseItems = Array.isArray(payload?.posts)
+        ? payload.posts
         : Array.isArray(payload?.items)
           ? payload.items
-          : Array.isArray(payload?.data?.items)
-            ? payload.data.items
-            : Array.isArray(payload)
-              ? payload
-              : [];
+          : Array.isArray(payload?.data?.posts)
+            ? payload.data.posts
+            : Array.isArray(payload?.data?.items)
+              ? payload.data.items
+              : Array.isArray(payload)
+                ? payload
+                : [];
+      const nextItems = ENABLE_SOCIAL_FAST_CENTER && Array.isArray(payload?.items) && !Array.isArray(payload?.data?.items)
+        ? payload.items.map(normalizeFastSocialCommentItem)
+        : responseItems;
       setItems((current) => (append ? [...current, ...nextItems] : nextItems));
       setNextCursor(clean(payload?.next_cursor || payload?.data?.next_cursor || ""));
     } catch (loadError) {
