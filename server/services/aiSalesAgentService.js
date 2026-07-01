@@ -4246,6 +4246,7 @@ export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } 
     const totalStockExpr = variantColumns.has("stock")
       ? `COALESCE(SUM(CASE WHEN ${variantActive} THEN ${vNumber("stock")} ELSE 0 END), ${pNumber("stock")}, 0)::int`
       : `COALESCE(${pNumber("stock")}, 0)::int`;
+    const stockPriorityExpr = `CASE WHEN ${totalStockExpr} > 0 THEN 0 ELSE 1 END`;
     const variantImageJoin = variantImageColumns.has("product_id") && variantImageColumns.has("image_url")
       ? `LEFT JOIN product_variant_images pvi ON pvi.product_id = p.id${variantImageColumns.has("variant_id") && variantColumns.has("id") ? " AND (pvi.variant_id = v.id OR pvi.variant_id IS NULL)" : ""}`
       : "";
@@ -4284,6 +4285,7 @@ export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } 
         ${variantColumns.has("size") ? "STRING_AGG(DISTINCT NULLIF(v.size, ''), ', ')" : "''"} AS sizes,
         COALESCE(${variantImageExpr}) AS variant_image_url,
         ${variantPriceExpr.length ? `MAX(COALESCE(${variantPriceExpr.join(", ")}, 0))` : "0"} AS variant_price,
+        ${stockPriorityExpr} AS stock_priority,
         (${scoreParts.join(" + ")} + CASE WHEN ${totalStockExpr} > 0 THEN 10 ELSE 0 END) AS score
       FROM products p
       ${variantJoin}
@@ -4292,7 +4294,7 @@ export const searchAiSalesProducts = async ({ tenantId, query = "", limit = 8 } 
       ${brandJoin}
       WHERE ${whereParts.join("\n        AND ")}
       GROUP BY p.id, c.name, b.name
-      ORDER BY score DESC, total_stock DESC, ${orderUpdated} p.id DESC
+      ORDER BY stock_priority ASC, score DESC, total_stock DESC, ${orderUpdated} p.id DESC
       LIMIT $4
       `,
       [safeTenantId, likeQuery, likeTerms.length ? likeTerms : [likeQuery], safeLimit]
