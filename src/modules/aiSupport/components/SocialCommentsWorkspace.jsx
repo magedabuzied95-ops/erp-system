@@ -3068,7 +3068,7 @@ function SocialCommentsWorkspace({
                     <ArrowUpRight className="h-3.5 w-3.5" />
                     Post Workspace
                   </div>
-                  <h2 className="mt-1 line-clamp-2 text-2xl font-black leading-8 text-white min-[1600px]:text-3xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
+                  <h2 className="mt-1 line-clamp-1 text-xl font-black leading-7 text-white min-[1600px]:text-2xl">{activePostCaption || "اختر منشورًا من القائمة"}</h2>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     {activePostMediaBadge ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostMediaBadge.className}`}>{activePostMediaBadge.label}</span> : activePostType ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostType.className}`}>{activePostType.label}</span> : null}
@@ -3221,10 +3221,10 @@ function SocialCommentsWorkspace({
                     type="button"
                     onClick={handleOpenPost}
                     disabled={!activePostLink || openingPost}
-                    className="group relative flex h-[340px] items-center justify-center overflow-hidden bg-slate-100 text-left outline-none min-[1600px]:h-[420px] disabled:cursor-default"
+                    className="group relative flex h-[200px] items-center justify-center overflow-hidden bg-slate-100 text-left outline-none min-[1600px]:h-[220px] disabled:cursor-default"
                   >
                     {activePostImage ? (
-                      <img src={activePostImage} alt="" className="h-full w-full object-cover" loading="lazy" />
+                      <img src={activePostImage} alt="" className="h-full w-full object-contain bg-slate-100 p-3" loading="lazy" />
                     ) : (
                       <div className="grid h-full w-full place-items-center bg-slate-100 text-slate-500">
                         <div className="flex flex-col items-center gap-2">
@@ -3259,25 +3259,17 @@ function SocialCommentsWorkspace({
                     </div>
                   </button>
 
-                  <div className="space-y-4 p-4">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                      <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Post Summary</div>
-                      <div className="mt-2 text-sm leading-7 text-slate-700">
-                        <p className={expandedCaption ? "whitespace-pre-wrap" : "line-clamp-2 whitespace-pre-wrap"}>
-                            {activePostCaption || "لا يوجد وصف للمنشور"}
-                          </p>
-                          {activePostCaption && activePostCaption.length > 140 ? (
-                            <button
-                              type="button"
-                              onClick={() => setExpandedCaption((current) => !current)}
-                              className="mt-2 inline-flex items-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-700"
-                            >
-                              {expandedCaption ? "Collapse" : "Expand"}
-                            </button>
-                          ) : null}
-                        </div>
-                      </div>
+                  <div className="space-y-3 p-4">
+                    <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                      <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePost.commentsCount || 0} comments</span>
+                      {typeof activePostLikes === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostLikes} likes</span> : null}
+                      {typeof activePostShares === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostShares} shares</span> : null}
+                      {activePostPublishedAt ? (
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
+                          <Clock3 className="h-3.5 w-3.5" />
+                          {absoluteTime(activePostPublishedAt)}
+                        </span>
+                      ) : null}
                     </div>
 
                     <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
@@ -3307,7 +3299,7 @@ function SocialCommentsWorkspace({
                       </div>
                       {activeProductCard.productImage ? (
                         <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
-                          <img src={activeProductCard.productImage} alt="" className="h-40 w-full object-cover" loading="lazy" />
+                          <img src={activeProductCard.productImage} alt="" className="h-20 w-full object-cover" loading="lazy" />
                         </div>
                       ) : null}
                       <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
@@ -3321,16 +3313,7 @@ function SocialCommentsWorkspace({
                     </div>
 
                   <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                      <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePost.commentsCount || 0} comments</span>
-                      {typeof activePostLikes === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostLikes} likes</span> : null}
-                      {typeof activePostShares === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostShares} shares</span> : null}
-                      {activePostPublishedAt ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-slate-600">
-                          <Clock3 className="h-3.5 w-3.5" />
-                          {absoluteTime(activePostPublishedAt)}
-                        </span>
-                      ) : null}
-                    </div>
+                  </div>
                   </div>
                 </div>
 
