@@ -845,12 +845,36 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
           });
         }
       }
-      const response = await fetch(target.toString(), {
+      let response = await fetch(target.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestBody),
       });
-      const payload = await parseMetaResponse(response);
+      let payload = await parseMetaResponse(response);
+      if (!response.ok && quickReplies.length) {
+        console.warn("SOCIAL_COMMENT_QUICK_REPLY_FALLBACK", {
+          tenant_id: businessId,
+          platform: normalizedPlatform,
+          conversation_id: "",
+          session_id: "",
+          product_id: normalizedProductContext.productId,
+          size: "",
+          color: "",
+          step: "initial_private_reply",
+          message: getMetaErrorMessage(payload),
+        });
+        response = await fetch(target.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipient: requestBody.recipient,
+            message: {
+              text: selectedMessage,
+            },
+          }),
+        });
+        payload = await parseMetaResponse(response);
+      }
       if (!response.ok) {
         const error = new Error(getMetaErrorMessage(payload));
         error.status = response.status;
