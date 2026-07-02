@@ -1889,7 +1889,10 @@ export const scheduleAiFollowupIfNeeded = async ({ tenantId, sessionId = "", met
 export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30, before = "", beforeId = "" } = {}) => {
   await ensureAiSalesAgentSchema();
   await ensureAiInboxSchema();
-  const safeConversationId = normalizeWhatsappSessionId(conversationId) || text(conversationId);
+  const rawConversationId = text(conversationId);
+  const safeConversationId = lower(rawConversationId).startsWith("whatsapp:")
+    ? normalizeWhatsappSessionId(rawConversationId) || rawConversationId
+    : rawConversationId;
   if (isGroupJid(safeConversationId)) {
     return { messages: [], total: 0, has_more: false, next_before: "" };
   }
@@ -1959,7 +1962,9 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
     [tenantId, safeConversationId]
   );
   const messages = result.rows.map((row) => {
-    const canonicalSessionId = normalizeWhatsappSessionId(row.session_id, row.resolved_phone || row.remote_jid || "");
+    const canonicalSessionId = lower(row.channel || row.session_id || "").startsWith("whatsapp")
+      ? normalizeWhatsappSessionId(row.session_id, row.resolved_phone || row.remote_jid || "")
+      : "";
     return normalizeInboxMessage({
       ...row,
       session_id: canonicalSessionId || row.session_id,

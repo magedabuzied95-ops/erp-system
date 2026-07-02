@@ -1407,9 +1407,7 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
         channel: AI_AGENT_CHANNELS.WHATSAPP,
         externalConversationId: message.external_conversation_id,
         externalCustomerId: message.external_customer_id,
-        customerName: ["facebook_messenger", "facebook", "messenger"].includes(String(channel || message.channel || "").toLowerCase())
-          ? String(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "").trim()
-          : message.customer_name,
+        customerName: message.customer_name,
         metadata: {
           phone_number_id: metadata.phone_number_id || process.env.WHATSAPP_PHONE_NUMBER_ID || "",
           display_phone_number: metadata.display_phone_number || "",

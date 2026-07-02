@@ -2387,7 +2387,6 @@ export const logAiSupportMessage = async ({
       safeMessage,
       safeExternalMessageId,
       safeProviderMessageId,
-      repairText(source, "manual_admin"),
       repairText(sourcePath, "manual_admin"),
       repairText(insertSource),
     ]
