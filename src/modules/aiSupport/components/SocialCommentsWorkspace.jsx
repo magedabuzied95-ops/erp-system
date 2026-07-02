@@ -2208,11 +2208,6 @@ function SocialCommentsWorkspace({
     setPreviewReply("");
   }, [activePostKey, activeSuggestedReply]);
 
-  useEffect(() => {
-    setExpandedCaption(false);
-  }, [activePostKey]);
-
-
   const isBusy = (key) =>
     Boolean(
       key &&
