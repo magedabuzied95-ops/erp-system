@@ -68,6 +68,7 @@ const postImage = (post = {}) =>
   clean(post?.thumbnailUrl || post?.thumbnail_url || post?.postThumbnail || post?.post_thumbnail || post?.product_image_url || post?.image_url || post?.image || "");
 
 const buildPostIdentityPayload = (post = {}) => ({
+  post_link_key: clean(post?.post_link_key || post?.postLinkKey || post?.product_link_identity?.post_link_key || post?.post_identity?.post_link_key || ""),
   platform_post_id: clean(post?.platformPostId || post?.platform_post_id || ""),
   source_post_id: clean(post?.sourcePostId || post?.source_post_id || post?.postId || post?.post_id || ""),
   permalink_post_id: clean(post?.permalink_post_id || ""),
@@ -77,7 +78,7 @@ const buildPostIdentityPayload = (post = {}) => ({
 });
 
 const buildHydrationIdentity = (post = {}) => ({
-  product_link_key: clean(post?.product_link_identity?.product_link_key || post?.post_identity?.product_link_key || post?.product_link_key || ""),
+  product_link_key: clean(post?.post_link_key || post?.postLinkKey || post?.product_link_identity?.product_link_key || post?.post_identity?.product_link_key || post?.product_link_key || ""),
   platform_post_id: clean(post?.platform_post_id || post?.platformPostId || ""),
   source_post_id: clean(post?.source_post_id || post?.sourcePostId || post?.post_id || post?.postId || ""),
   permalink_post_id: clean(post?.permalink_post_id || post?.permalinkPostId || ""),
@@ -131,7 +132,9 @@ export default function PostProductLinksDrawer({
       ? post.post_identity
       : {};
   const safePostId = clean(
-    productLinkIdentity.product_link_key ||
+    post?.post_link_key ||
+      post?.postLinkKey ||
+      productLinkIdentity.product_link_key ||
       productLinkIdentity.post_id ||
       productLinkIdentity.canonical_post_id ||
       post?.canonicalPostId ||

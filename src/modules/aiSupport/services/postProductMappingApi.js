@@ -24,6 +24,7 @@ export const getPostProductLinks = async ({ postId = "", platform = "", tenantId
     params: {
       platform: clean(platform),
       tenant_id: clean(tenantId),
+      post_link_key: clean(safeIdentity.post_link_key || ""),
       platform_post_id: clean(safeIdentity.platform_post_id || ""),
       source_post_id: clean(safeIdentity.source_post_id || ""),
       permalink_post_id: clean(safeIdentity.permalink_post_id || ""),
@@ -61,6 +62,7 @@ export const savePostProductLinks = async ({ postId = "", platform = "", tenantI
       {
         platform: safePlatform,
         tenant_id: safeTenantId,
+        post_link_key: clean(safeIdentity.post_link_key || ""),
         product_ids: normalizedProductIds,
         primary_product_id: primaryProductId,
         ...(postIdentity && typeof postIdentity === "object" ? { post_identity: postIdentity } : {}),
@@ -99,6 +101,7 @@ export const removePostProductLink = async ({ postId = "", platform = "", tenant
       platform: clean(platform),
       tenant_id: clean(tenantId),
       product_id: productId ?? "",
+      post_link_key: clean(safeIdentity.post_link_key || ""),
       platform_post_id: clean(safeIdentity.platform_post_id || ""),
       source_post_id: clean(safeIdentity.source_post_id || ""),
       permalink_post_id: clean(safeIdentity.permalink_post_id || ""),

@@ -1465,6 +1465,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       tenantId,
       platform,
       postId: productLinkIdentity.product_link_key || canonicalIdentityPostId,
+      postLinkKey: productLinkIdentity.product_link_key || canonicalIdentityPostId,
       post: { ...safeRow, canonical_post_id: canonicalIdentityPostId },
     }).catch(() => null)
     : null;
@@ -3514,6 +3515,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       tenantId: safeTenantId,
       platform: normalizedPlatform,
       postId: postLinkKey,
+      postLinkKey,
       post: {
         id: postId,
         post_id: postId,

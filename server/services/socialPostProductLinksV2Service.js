@@ -92,10 +92,98 @@ const readV2Rows = async ({ tenantId = null, platform = "", postLinkKey = "" } =
   return Array.isArray(result.rows) ? result.rows : [];
 };
 
+const uniqueTextValues = (values = []) => Array.from(new Set((Array.isArray(values) ? values : []).map((value) => text(value)).filter(Boolean)));
+
+const mergeAliasRowsToPostLinkKey = async ({ tenantId = null, platform = "", authoritativePostLinkKey = "", aliasPostLinkKeys = [] } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const normalizedPlatform = normalizePlatform(platform);
+  const safeAuthoritativePostLinkKey = text(authoritativePostLinkKey);
+  const safeAliasPostLinkKeys = uniqueTextValues(aliasPostLinkKeys).filter((value) => value !== safeAuthoritativePostLinkKey);
+  if (!safeTenantId || !safeAuthoritativePostLinkKey || !safeAliasPostLinkKeys.length) {
+    return { merged: 0, alias_post_link_keys: safeAliasPostLinkKeys, authoritative_post_link_key: safeAuthoritativePostLinkKey };
+  }
+
+  const client = await db.connect();
+  let merged = 0;
+  try {
+    await client.query("BEGIN");
+    for (const aliasPostLinkKey of safeAliasPostLinkKeys) {
+      const aliasRows = await client.query(
+        `
+        SELECT tenant_id, business_id, platform, post_link_key, canonical_post_id, source_post_id, permalink_post_id, product_id, is_primary, created_at, updated_at
+        FROM social_post_product_links_v2
+        WHERE business_id = $1::bigint
+          AND platform = $2::text
+          AND post_link_key = $3::text
+        `,
+        [safeTenantId, normalizedPlatform, aliasPostLinkKey]
+      ).catch(() => ({ rows: [] }));
+      if (!Array.isArray(aliasRows.rows) || !aliasRows.rows.length) continue;
+      await client.query(
+        `
+        INSERT INTO social_post_product_links_v2 (
+          tenant_id,
+          business_id,
+          platform,
+          post_link_key,
+          canonical_post_id,
+          source_post_id,
+          permalink_post_id,
+          product_id,
+          is_primary,
+          created_at,
+          updated_at
+        )
+        SELECT
+          tenant_id,
+          business_id,
+          platform,
+          $4::text,
+          canonical_post_id,
+          source_post_id,
+          permalink_post_id,
+          product_id,
+          is_primary,
+          created_at,
+          updated_at
+        FROM social_post_product_links_v2
+        WHERE business_id = $1::bigint
+          AND platform = $2::text
+          AND post_link_key = $3::text
+        ON CONFLICT (business_id, platform, post_link_key, product_id) DO NOTHING
+        `,
+        [safeTenantId, normalizedPlatform, aliasPostLinkKey, safeAuthoritativePostLinkKey]
+      );
+      await client.query(
+        `
+        DELETE FROM social_post_product_links_v2
+        WHERE business_id = $1::bigint
+          AND platform = $2::text
+          AND post_link_key = $3::text
+        `,
+        [safeTenantId, normalizedPlatform, aliasPostLinkKey]
+      );
+      merged += aliasRows.rows.length;
+    }
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+
+  return {
+    merged,
+    alias_post_link_keys: safeAliasPostLinkKeys,
+    authoritative_post_link_key: safeAuthoritativePostLinkKey,
+  };
+};
+
 export const ensureSocialPostProductLinksV2Schema = ensureSchema;
 export const resolveSocialPostLinkKey = (input = {}) => resolveSharedSocialPostLinkKey(input);
 
-export const getPostProductLinksV2 = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "" } = {}) => {
+export const getPostProductLinksV2 = async ({ tenantId = null, platform = "", post = {}, postId = "", postLinkKey = "", selectedPostId = "", aliasPostLinkKeys = [] } = {}) => {
   await ensureSchema();
   const identity = resolveSocialPostLinkKey({
     tenant_id: tenantId,
@@ -104,12 +192,21 @@ export const getPostProductLinksV2 = async ({ tenantId = null, platform = "", po
     post_id: postId || post?.post_id || "",
     selected_post_id: selectedPostId,
   });
-  const rows = await readV2Rows({ tenantId, platform, postLinkKey: identity.post_link_key });
+  const authoritativePostLinkKey = text(postLinkKey || post?.post_link_key || identity.post_link_key);
+  if (authoritativePostLinkKey) {
+    await mergeAliasRowsToPostLinkKey({
+      tenantId,
+      platform,
+      authoritativePostLinkKey,
+      aliasPostLinkKeys: [identity.post_link_key, postId, selectedPostId, ...aliasPostLinkKeys],
+    }).catch(() => {});
+  }
+  const rows = await readV2Rows({ tenantId, platform, postLinkKey: authoritativePostLinkKey || identity.post_link_key });
   const productIds = rows.map((row) => Number(row.product_id || 0)).filter((value) => Number.isFinite(value) && value > 0);
   const linkedProducts = await hydrateProducts({ tenantId, productIds });
   const primaryProduct = linkedProducts.find((item) => rows.find((row) => Number(row.product_id || 0) === Number(item.id) && row.is_primary)) || linkedProducts[0] || null;
   console.info("SOCIAL_V2_PRODUCT_LINK_READ_TRACE", {
-    post_link_key: identity.post_link_key,
+    post_link_key: authoritativePostLinkKey || identity.post_link_key,
     returned_product_ids: productIds,
     source: "v2",
   });
@@ -118,7 +215,7 @@ export const getPostProductLinksV2 = async ({ tenantId = null, platform = "", po
     primary_product: primaryProduct,
     count: linkedProducts.length,
     product_ids: productIds,
-    post_link_key: identity.post_link_key,
+    post_link_key: authoritativePostLinkKey || identity.post_link_key,
     canonical_post_id: identity.canonical_post_id,
     platform: normalizePlatform(platform),
     tenant_id: toTenantId(tenantId) || null,
@@ -128,7 +225,7 @@ export const getPostProductLinksV2 = async ({ tenantId = null, platform = "", po
   };
 };
 
-export const savePostProductLinksV2 = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", productIds = [], primaryProductId = null } = {}) => {
+export const savePostProductLinksV2 = async ({ tenantId = null, platform = "", post = {}, postId = "", postLinkKey = "", selectedPostId = "", aliasPostLinkKeys = [], productIds = [], primaryProductId = null } = {}) => {
   await ensureSchema();
   const safeTenantId = toTenantId(tenantId);
   const normalizedPlatform = normalizePlatform(platform);
@@ -139,13 +236,21 @@ export const savePostProductLinksV2 = async ({ tenantId = null, platform = "", p
     post_id: postId || post?.post_id || "",
     selected_post_id: selectedPostId,
   });
-  const postLinkKey = identity.post_link_key;
+  const authoritativePostLinkKey = text(postLinkKey || post?.post_link_key || identity.post_link_key);
   const safeProductIds = Array.from(new Set((Array.isArray(productIds) ? productIds : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)));
   const primaryId = Number(primaryProductId ?? safeProductIds[0] ?? 0) || null;
   const client = await db.connect();
   let rowsAffected = 0;
   try {
     await client.query("BEGIN");
+    if (authoritativePostLinkKey) {
+      await mergeAliasRowsToPostLinkKey({
+        tenantId: safeTenantId,
+        platform: normalizedPlatform,
+        authoritativePostLinkKey,
+        aliasPostLinkKeys: [identity.post_link_key, postId, selectedPostId, ...aliasPostLinkKeys],
+      }).catch(() => {});
+    }
     await client.query(
       `
       DELETE FROM social_post_product_links_v2
@@ -154,7 +259,7 @@ export const savePostProductLinksV2 = async ({ tenantId = null, platform = "", p
         AND post_link_key = $3::text
         AND product_id <> ALL($4::bigint[])
       `,
-      [safeTenantId, normalizedPlatform, postLinkKey, safeProductIds.length ? safeProductIds : [0]]
+      [safeTenantId, normalizedPlatform, authoritativePostLinkKey || identity.post_link_key, safeProductIds.length ? safeProductIds : [0]]
     );
     if (!safeProductIds.length) {
       await client.query(
@@ -164,7 +269,7 @@ export const savePostProductLinksV2 = async ({ tenantId = null, platform = "", p
           AND platform = $2::text
           AND post_link_key = $3::text
         `,
-        [safeTenantId, normalizedPlatform, postLinkKey]
+        [safeTenantId, normalizedPlatform, authoritativePostLinkKey || identity.post_link_key]
       );
     } else {
       for (let index = 0; index < safeProductIds.length; index += 1) {
@@ -198,7 +303,7 @@ export const savePostProductLinksV2 = async ({ tenantId = null, platform = "", p
             safeTenantId,
             safeTenantId,
             normalizedPlatform,
-            postLinkKey,
+            authoritativePostLinkKey || identity.post_link_key,
             identity.canonical_post_id || null,
             identity.source_post_id || null,
             identity.permalink_post_id || null,
@@ -219,7 +324,7 @@ export const savePostProductLinksV2 = async ({ tenantId = null, platform = "", p
   const linkedProducts = await hydrateProducts({ tenantId: safeTenantId, productIds: safeProductIds });
   const primaryProduct = linkedProducts.find((item) => Number(item.id) === Number(primaryId)) || linkedProducts[0] || null;
   console.info("SOCIAL_V2_PRODUCT_LINK_SAVE_TRACE", {
-    post_link_key: postLinkKey,
+    post_link_key: authoritativePostLinkKey || identity.post_link_key,
     submitted_product_ids: safeProductIds,
     saved_product_ids: linkedProducts.map((item) => Number(item.id)).filter((value) => Number.isFinite(value) && value > 0),
   });
@@ -228,7 +333,7 @@ export const savePostProductLinksV2 = async ({ tenantId = null, platform = "", p
     primary_product: primaryProduct,
     count: linkedProducts.length,
     product_ids: linkedProducts.map((item) => Number(item.id)).filter((value) => Number.isFinite(value) && value > 0),
-    post_link_key: postLinkKey,
+    post_link_key: authoritativePostLinkKey || identity.post_link_key,
     canonical_post_id: identity.canonical_post_id,
     platform: normalizedPlatform,
     tenant_id: safeTenantId || null,

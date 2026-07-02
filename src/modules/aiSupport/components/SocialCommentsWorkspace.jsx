@@ -2061,7 +2061,7 @@ function SocialCommentsWorkspace({
   };
 
   const handleOpenProductLinksDrawer = (post = null, key = "") => {
-    const drawerPostKey = clean(key || postKey(post || activePostDetails || activePost || {}));
+    const drawerPostKey = clean(post?.post_link_key || post?.postLinkKey || key || postKey(post || activePostDetails || activePost || {}));
     if (!drawerPostKey) return;
     socialDebugLog("POST_PRODUCT_LINKS_UI_OPEN_DRAWER", {
       drawerPostKey,

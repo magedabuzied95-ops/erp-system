@@ -580,6 +580,7 @@ router.get("/posts/:postId/product-links", protect, permit("settings", "view"), 
     const tenantId = toTenantId(req);
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.query?.platform || req.body?.platform || "").trim();
+    const requestedPostLinkKey = clean(req.query?.post_link_key || req.body?.post_link_key || "");
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
     const { merged: resolvedPost } = buildManualLinkPostContext(req, post || {}, requestedPostId);
     const productLinkIdentity = resolveSocialPostLinkKey({
@@ -590,8 +591,36 @@ router.get("/posts/:postId/product-links", protect, permit("settings", "view"), 
       selected_post_id: requestedPostId,
     });
     const canonicalPostId = String(productLinkIdentity.canonical_post_id || requestedPostId || "").trim();
-    const postId = String(productLinkIdentity.post_link_key || requestedPostId || "").trim();
-    const mapping = await getPostProductLinksV2({ tenantId, platform, post: resolvedPost || {}, postId, selectedPostId: postId });
+    const feedPostLinkKey = clean(requestedPostLinkKey || post?.post_link_key || productLinkIdentity.post_link_key || requestedPostId || "");
+    const mapping = await getPostProductLinksV2({
+      tenantId,
+      platform,
+      post: resolvedPost || {},
+      postId: requestedPostId,
+      postLinkKey: feedPostLinkKey,
+      selectedPostId: requestedPostId,
+      aliasPostLinkKeys: [requestedPostId, productLinkIdentity.post_link_key],
+    });
+    if (requestedPostId && feedPostLinkKey && requestedPostId !== feedPostLinkKey) {
+      const aliasMapping = await getPostProductLinksV2({
+        tenantId,
+        platform,
+        post: resolvedPost || {},
+        postId: requestedPostId,
+        postLinkKey: requestedPostId,
+        selectedPostId: requestedPostId,
+      }).catch(() => null);
+      console.info("SOCIAL_V2_LINK_KEY_MISMATCH_TRACE", {
+        post_title: clean(post?.title || post?.caption || post?.message || resolvedPost?.title || resolvedPost?.caption || resolvedPost?.message || ""),
+        feed_post_id: clean(post?.id || post?.post_id || post?.platform_post_id || requestedPostId || ""),
+        feed_post_link_key: feedPostLinkKey,
+        drawer_post_link_key: requestedPostId,
+        selected_post_id: requestedPostId,
+        permalink_url: clean(post?.permalink_url || resolvedPost?.permalink_url || ""),
+        v2_rows_for_feed_key: Array.isArray(mapping?.product_ids) ? mapping.product_ids.length : 0,
+        v2_rows_for_alias_keys: Array.isArray(aliasMapping?.product_ids) ? aliasMapping.product_ids.length : 0,
+      });
+    }
     const responseProductIds = Array.isArray(mapping?.product_ids) ? mapping.product_ids : [];
     return res.json({
       success: true,
@@ -600,7 +629,7 @@ router.get("/posts/:postId/product-links", protect, permit("settings", "view"), 
       count: Number(mapping?.count || 0) || 0,
       product_ids: responseProductIds,
       rows_affected: Number(mapping?.rows_affected || 0),
-      post_id: postId,
+      post_id: feedPostLinkKey,
       product_link_identity: productLinkIdentity,
       selected_post_id: requestedPostId,
       canonical_post_id: canonicalPostId,
@@ -609,6 +638,7 @@ router.get("/posts/:postId/product-links", protect, permit("settings", "view"), 
       saved_platform_post_id: String(mapping?.post_link_key || post?.platform_post_id || post?.post_id || requestedPostId || "").trim(),
       primary_product_name: String(mapping?.primary_product?.name || mapping?.primary_product?.title || mapping?.primary_product?.product_name || "").trim(),
       platform: String(mapping?.platform || platform || "facebook").trim() || "facebook",
+      post_link_key: feedPostLinkKey,
       post_identity: {
         platform_post_id: clean(productLinkIdentity.platform_post_id || resolvedPost?.platform_post_id || ""),
         source_post_id: clean(productLinkIdentity.source_post_id || resolvedPost?.source_post_id || ""),
@@ -617,7 +647,6 @@ router.get("/posts/:postId/product-links", protect, permit("settings", "view"), 
         post_id: clean(productLinkIdentity.post_id || resolvedPost?.post_id || ""),
         object_id: clean(productLinkIdentity.object_id || resolvedPost?.object_id || ""),
       },
-      post_link_key: postId,
     });
   } catch (error) {
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load product links" });
@@ -645,6 +674,7 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       })
       .filter((value) => Number.isFinite(value) && value > 0);
     const primaryProductId = req.body?.primary_product_id ?? req.body?.primaryProductId ?? null;
+    const requestedPostLinkKey = clean(req.body?.post_link_key || req.query?.post_link_key || "");
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
     const { identity: manualIdentity, merged: resolvedPost } = buildManualLinkPostContext(req, post || {}, requestedPostId);
     const productLinkIdentity = resolveSocialPostLinkKey({
@@ -655,7 +685,7 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       selected_post_id: requestedPostId,
     });
     const canonicalPostId = clean(normalizeAutomationRoutePostId(productLinkIdentity.canonical_post_id || manualIdentity.canonical_post_id || requestedPostId || ""));
-    const postId = clean(productLinkIdentity.post_link_key || canonicalPostId || requestedPostId || "");
+    const feedPostLinkKey = clean(requestedPostLinkKey || post?.post_link_key || productLinkIdentity.post_link_key || canonicalPostId || requestedPostId || "");
     console.info("POST_PRODUCT_LINKS_SAVE_REQUEST", {
       tenant_id: tenantId,
       platform: String(platform || "").trim() || "facebook",
@@ -668,17 +698,39 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       post_id: clean(manualIdentity.post_id || resolvedPost?.post_id || ""),
       product_ids: productIds,
       primary_product_id: primaryProductId,
-      product_link_key: postId,
+      product_link_key: feedPostLinkKey,
     });
     const mapping = await savePostProductLinksV2({
       tenantId,
       platform,
-      postId,
+      postId: requestedPostId,
+      postLinkKey: feedPostLinkKey,
       selectedPostId: requestedPostId,
       post: resolvedPost || {},
+      aliasPostLinkKeys: [requestedPostId, productLinkIdentity.post_link_key],
       productIds,
       primaryProductId,
     });
+    if (requestedPostId && feedPostLinkKey && requestedPostId !== feedPostLinkKey) {
+      const aliasMapping = await getPostProductLinksV2({
+        tenantId,
+        platform,
+        post: resolvedPost || {},
+        postId: requestedPostId,
+        postLinkKey: requestedPostId,
+        selectedPostId: requestedPostId,
+      }).catch(() => null);
+      console.info("SOCIAL_V2_LINK_KEY_MISMATCH_TRACE", {
+        post_title: clean(post?.title || post?.caption || post?.message || resolvedPost?.title || resolvedPost?.caption || resolvedPost?.message || ""),
+        feed_post_id: clean(post?.id || post?.post_id || post?.platform_post_id || requestedPostId || ""),
+        feed_post_link_key: feedPostLinkKey,
+        drawer_post_link_key: requestedPostId,
+        selected_post_id: requestedPostId,
+        permalink_url: clean(post?.permalink_url || resolvedPost?.permalink_url || ""),
+        v2_rows_for_feed_key: Array.isArray(mapping?.product_ids) ? mapping.product_ids.length : 0,
+        v2_rows_for_alias_keys: Array.isArray(aliasMapping?.product_ids) ? aliasMapping.product_ids.length : 0,
+      });
+    }
     const rowsAffected = Number(mapping?.rows_affected || 0) || 0;
     const responseProductIds = Array.isArray(mapping?.product_ids) ? mapping.product_ids : productIds;
     console.info("POST_PRODUCT_LINK_IDENTITY_TRACE", {
@@ -706,7 +758,7 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       rows_affected: Number(rowsAffected || 0),
       readback_count: Number(mapping?.count || 0) || 0,
       hydrated_products_count: Number(mapping?.linked_products?.length || 0) || 0,
-      product_link_key: postId,
+      product_link_key: feedPostLinkKey,
     });
     console.info("POST_PRODUCT_LINKS_READBACK", {
       tenant_id: tenantId,
@@ -718,7 +770,7 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       rows_affected: Number(rowsAffected || 0),
       readback_count: Number(mapping?.count || 0) || 0,
       hydrated_products_count: Number(mapping?.linked_products?.length || 0) || 0,
-      product_link_key: postId,
+      product_link_key: feedPostLinkKey,
     });
     return res.json({
       success: true,
@@ -729,13 +781,14 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       rejected_sources: mapping?.rejected_sources || [],
       product_ids: responseProductIds,
       rows_affected: Number(rowsAffected || 0),
-      post_id: postId,
+      post_id: feedPostLinkKey,
       product_link_identity: productLinkIdentity,
       selected_post_id: requestedPostId,
       canonical_post_id: canonicalPostId,
       saved_platform_post_id: String(mapping?.post_id || post?.platform_post_id || post?.post_id || requestedPostId || "").trim(),
       primary_product_name: String(mapping?.primary_product?.name || mapping?.primary_product?.title || mapping?.primary_product?.product_name || "").trim(),
       platform: String(mapping?.platform || platform || "facebook").trim() || "facebook",
+      post_link_key: feedPostLinkKey,
       post_identity: {
         platform_post_id: clean(productLinkIdentity.platform_post_id || resolvedPost?.platform_post_id || ""),
         source_post_id: clean(productLinkIdentity.source_post_id || resolvedPost?.source_post_id || ""),
@@ -755,6 +808,7 @@ router.delete("/posts/:postId/product-links", protect, permit("settings", "edit"
     const tenantId = toTenantId(req);
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
+    const requestedPostLinkKey = clean(req.body?.post_link_key || req.query?.post_link_key || "");
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
     const { merged: resolvedPost } = buildManualLinkPostContext(req, post || {}, requestedPostId);
     const productLinkIdentity = resolveSocialPostLinkKey({
@@ -764,7 +818,7 @@ router.delete("/posts/:postId/product-links", protect, permit("settings", "edit"
       ...post,
       selected_post_id: requestedPostId,
     });
-    const postId = clean(productLinkIdentity.post_link_key || normalizeAutomationRoutePostId(post?.canonical_post_id || post?.post_id || requestedPostId || ""));
+    const postId = clean(requestedPostLinkKey || post?.post_link_key || productLinkIdentity.post_link_key || normalizeAutomationRoutePostId(post?.canonical_post_id || post?.post_id || requestedPostId || ""));
     const productId = req.body?.product_id ?? req.body?.productId ?? req.query?.product_id ?? req.query?.productId ?? null;
     const mapping = await removePostProductLinksV2({
       tenantId,
