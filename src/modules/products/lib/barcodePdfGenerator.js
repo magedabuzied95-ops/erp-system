@@ -13,12 +13,19 @@ const escapeString = (value = "") =>
     .replace(/\u0000/g, "")
     .trim();
 
-const isArabicText = (value = "") => /[\u0600-\u06FF]/.test(String(value || ""));
+function hasArabic(text) {
+  return /[\u0600-\u06FF]/.test(String(text || ""));
+}
+
+function getTextDirection(text) {
+  const value = String(text || "");
+  return hasArabic(value) && !/[A-Za-z0-9]/.test(value) ? "rtl" : "ltr";
+}
 
 const maybeProcessArabic = (doc, text) => {
   const raw = escapeString(text);
   if (!raw) return "";
-  if (typeof doc.processArabic === "function" && isArabicText(raw)) {
+  if (typeof doc.processArabic === "function" && getTextDirection(raw) === "rtl") {
     try {
       return doc.processArabic(raw);
     } catch {
@@ -26,6 +33,19 @@ const maybeProcessArabic = (doc, text) => {
     }
   }
   return raw;
+};
+
+const renderDirectionalText = (doc, text, x, y, options = {}) => {
+  const raw = escapeString(text);
+  const direction = getTextDirection(raw);
+  const processed = direction === "rtl" ? maybeProcessArabic(doc, raw) : raw;
+  if (typeof doc.setR2L === "function") {
+    doc.setR2L(direction === "rtl");
+  }
+  doc.text(processed, x, y, options);
+  if (typeof doc.setR2L === "function") {
+    doc.setR2L(false);
+  }
 };
 
 const toTextLines = (doc, value, maxWidthMm, maxLines = 2, fontSize = 9) => {
@@ -199,10 +219,6 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   const thermalLayout = getThermalLandscapeLabelLayout(showArticleBox);
   const { page, imageCell, titleCell, sizeCell, articleCell, colorCell, barcodeCell } = thermalLayout;
   const barcodeValue = getLabelBarcodeValue(item);
-  if (typeof doc.setR2L === "function") {
-    doc.setR2L(isArabicText(productName));
-  }
-
   doc.setFillColor(255, 255, 255);
   doc.rect(0, 0, page.width, page.height, "F");
   doc.setDrawColor(226, 232, 240);
@@ -239,7 +255,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   const titleStartY = titleCenterY - (((titleLinesToRender.length - 1) * titleLineStep) / 2);
   titleLinesToRender.forEach((line, lineIndex) => {
     doc.setFontSize(titleBaseFontSize);
-    doc.text(line, titleLeftX, titleStartY + (lineIndex * titleLineStep), { align: "left", maxWidth: titleMaxWidth, baseline: "middle" });
+    renderDirectionalText(doc, line, titleLeftX, titleStartY + (lineIndex * titleLineStep), { align: "left", maxWidth: titleMaxWidth, baseline: "middle" });
   });
 
   const sizeFrame = getBoxFrameLayout(sizeCell, { boxWidthFactor: thermalLayout.sizeBoxWidthFactor || 1 });
@@ -249,19 +265,19 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setFont("helvetica", "bold");
   doc.setFontSize(smallLabelFontSize);
   const sizeMidY = sizeFrame.y + sizeFrame.h / 2;
-  doc.text("SIZE", sizeFrame.x + thermalLayout.sizeLabelX, sizeMidY, { align: "left", baseline: "middle" });
+  renderDirectionalText(doc, "SIZE", sizeFrame.x + thermalLayout.sizeLabelX, sizeMidY, { align: "left", baseline: "middle" });
   doc.setDrawColor(255, 255, 255);
   doc.setLineWidth(0.12);
   doc.line(sizeFrame.x + thermalLayout.sizeDividerX, sizeFrame.y + 1, sizeFrame.x + thermalLayout.sizeDividerX, sizeFrame.y + sizeFrame.h - 1);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(fitThermalSizeValueFontSize(sizeValue, thermalLayout.sizeValueWidth, thermalLayout.sizeValueFontSize));
-  doc.text(sizeValue, sizeFrame.x + thermalLayout.sizeValueX + (thermalLayout.sizeValueWidth / 2), sizeMidY, { align: "center", baseline: "middle" });
+  renderDirectionalText(doc, sizeValue, sizeFrame.x + thermalLayout.sizeValueX + (thermalLayout.sizeValueWidth / 2), sizeMidY, { align: "center", baseline: "middle" });
 
   if (showArticleBox) {
     drawRoundedRect(doc, articleCell.x, articleCell.y, thermalLayout.articleBoxWidth, thermalLayout.articleBoxHeight, 1, [2, 6, 23], [2, 6, 23]);
     doc.setTextColor(255, 255, 255);
     doc.setFontSize(smallLabelFontSize);
-    doc.text("ART", articleCell.x + thermalLayout.articleLabelX, sizeMidY, { align: "left", baseline: "middle" });
+    renderDirectionalText(doc, "ART", articleCell.x + thermalLayout.articleLabelX, sizeMidY, { align: "left", baseline: "middle" });
     doc.setDrawColor(255, 255, 255);
     doc.setLineWidth(0.12);
     doc.line(articleCell.x + thermalLayout.articleDividerX, articleCell.y + 1, articleCell.x + thermalLayout.articleDividerX, articleCell.y + articleCell.h - 1);
@@ -280,7 +296,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
       },
     );
     doc.setFontSize(skuFontSize);
-    doc.text(skuValue, articleCell.x + thermalLayout.articleValueX + (thermalLayout.articleValueWidth / 2), sizeMidY, { align: "center", baseline: "middle", maxWidth: thermalLayout.articleValueWidth });
+    renderDirectionalText(doc, skuValue, articleCell.x + thermalLayout.articleValueX + (thermalLayout.articleValueWidth / 2), sizeMidY, { align: "center", baseline: "middle", maxWidth: thermalLayout.articleValueWidth });
   }
 
   const colorFrame = getBoxFrameLayout(colorCell, { boxHeightFactor: 1.0 });
@@ -288,21 +304,21 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(smallLabelFontSize);
   const colorMidY = colorFrame.y + colorFrame.h / 2;
-  doc.text("COLOR", colorFrame.x + thermalLayout.colorLabelX, colorMidY, { align: "left", baseline: "middle" });
+  renderDirectionalText(doc, "COLOR", colorFrame.x + thermalLayout.colorLabelX, colorMidY, { align: "left", baseline: "middle" });
   doc.setDrawColor(255, 255, 255);
   doc.setLineWidth(0.12);
   doc.line(colorFrame.x + thermalLayout.colorDividerX, colorFrame.y + 1, colorFrame.x + thermalLayout.colorDividerX, colorFrame.y + colorFrame.h - 1);
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(fitThermalColorValueFontSize(colorValue, colorFrame.w - thermalLayout.colorValueX, thermalLayout.colorValueFontSize));
   doc.setFont("helvetica", "bold");
-  doc.text(colorValue || "-", colorFrame.x + thermalLayout.colorValueX, colorMidY, { align: "left", baseline: "middle", maxWidth: colorFrame.w - thermalLayout.colorValueX - 0.4 });
+  renderDirectionalText(doc, colorValue || "-", colorFrame.x + thermalLayout.colorValueX, colorMidY, { align: "left", baseline: "middle", maxWidth: colorFrame.w - thermalLayout.colorValueX - 0.4 });
 
   if (!showArticleBox) {
     doc.setTextColor(15, 23, 42);
     doc.setFontSize(10.4);
     if (skuValue) {
       doc.setFont("helvetica", "bold");
-      doc.text(skuValue, page.width / 2, barcodeCell.y - 0.9, { align: "center", maxWidth: titleCell.w });
+      renderDirectionalText(doc, skuValue, page.width / 2, barcodeCell.y - 0.9, { align: "center", maxWidth: titleCell.w });
     }
   }
 
@@ -310,7 +326,7 @@ const renderLabelPage = async (doc, item = {}, index = 0) => {
   doc.setTextColor(15, 23, 42);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(barcodeCell.fontSize);
-  doc.text(barcodeText, page.width / 2, barcodeCell.textY, { align: "center" });
+  renderDirectionalText(doc, barcodeText, page.width / 2, barcodeCell.textY, { align: "center" });
 };
 
 export async function generateBarcodeLabelsPdf(labels = [], options = {}) {

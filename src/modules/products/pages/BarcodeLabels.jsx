@@ -1674,6 +1674,7 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
         className="flex w-full items-center justify-center overflow-hidden"
         style={{
           direction: "ltr",
+          unicodeBidi: "isolate",
           width: `${landscapeWidthMm * previewScale}mm`,
           height: `${landscapeHeightMm * previewScale}mm`,
           minWidth: `${landscapeWidthMm * previewScale}mm`,

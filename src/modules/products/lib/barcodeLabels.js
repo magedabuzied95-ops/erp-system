@@ -66,6 +66,17 @@ const normalizeBarcode = (value, fallbackSeed = "") => {
 const firstText = (...values) =>
   values.map((value) => String(value || "").trim()).find(Boolean) || "";
 
+function hasArabic(text) {
+  return /[\u0600-\u06FF]/.test(String(text || ""));
+}
+
+function getTextDirection(text) {
+  const value = String(text || "");
+  return hasArabic(value) && !/[A-Za-z0-9]/.test(value) ? "rtl" : "ltr";
+}
+
+const svgTextAttrs = (value = "") => `direction="${getTextDirection(value)}" unicode-bidi="isolate"`;
+
 const sanitizeThermalUrl = (value = "", ...blockedValues) => {
   const candidate = String(value || "").trim();
   if (!candidate) return "";
@@ -1416,9 +1427,9 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
     ? (() => {
         const centerY = titleCell.y + (titleCell.h / 2);
         const startY = centerY - (((titleLines.length - 1) * layout.titleLineStepMm) / 2);
-        return titleLines.map((line, index) => `<text x="${titleCell.x + 0.85}" y="${startY + (index * layout.titleLineStepMm)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * (index === 0 ? 0.48 : 0.45)}" font-weight="900">${escapeHtml(line)}</text>`).join("");
+        return titleLines.map((line, index) => `<text x="${titleCell.x + 0.85}" y="${startY + (index * layout.titleLineStepMm)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * (index === 0 ? 0.48 : 0.45)}" font-weight="900" ${svgTextAttrs(line)}>${escapeHtml(line)}</text>`).join("");
       })()
-    : `<text x="${titleCell.x + 0.85}" y="${titleCell.y + (titleCell.h / 2)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * 0.48}" font-weight="900">${escapeHtml("Unnamed product")}</text>`;
+    : `<text x="${titleCell.x + 0.85}" y="${titleCell.y + (titleCell.h / 2)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * 0.48}" font-weight="900" ${svgTextAttrs("Unnamed product")}>${escapeHtml("Unnamed product")}</text>`;
 
   return `
     <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
@@ -1430,24 +1441,24 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
       ${productText}
 
       <rect x="${sizeCell.x}" y="${sizeCell.y}" width="${layout.sizeBadgeWidth}" height="${layout.sizeBadgeHeight}" rx="1.8" fill="#020617" />
-      <text x="${sizeCell.x + layout.sizeLabelX}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16">${escapeHtml(printCopy.size || "SIZE")}</text>
+      <text x="${sizeCell.x + layout.sizeLabelX}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16" ${svgTextAttrs(printCopy.size || "SIZE")}>${escapeHtml(printCopy.size || "SIZE")}</text>
       <line x1="${sizeCell.x + layout.sizeDividerX}" y1="${sizeCell.y + 1}" x2="${sizeCell.x + layout.sizeDividerX}" y2="${sizeCell.y + layout.sizeBadgeHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
-      <text x="${sizeCell.x + layout.sizeValueX + (layout.sizeValueWidth / 2)}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalSizeValueFontSize(sizeValue, layout.sizeValueWidth, layout.sizeValueFontSize)}" font-weight="900">${escapeHtml(sizeValue)}</text>
+      <text x="${sizeCell.x + layout.sizeValueX + (layout.sizeValueWidth / 2)}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalSizeValueFontSize(sizeValue, layout.sizeValueWidth, layout.sizeValueFontSize)}" font-weight="900" ${svgTextAttrs(sizeValue)}>${escapeHtml(sizeValue)}</text>
       ${hasArticleBox ? `
       <rect x="${articleCell.x}" y="${articleCell.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#020617" stroke="#020617" stroke-width="0.18" />
-      <text x="${articleCell.x + layout.articleLabelX}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16">ART</text>
+      <text x="${articleCell.x + layout.articleLabelX}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16" ${svgTextAttrs("ART")}>ART</text>
       <line x1="${articleCell.x + layout.articleDividerX}" y1="${articleCell.y + 1}" x2="${articleCell.x + layout.articleDividerX}" y2="${articleCell.y + layout.articleBoxHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
-      <text x="${articleCell.x + layout.articleValueX + (layout.articleValueWidth / 2)}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900">${escapeHtml(skuValue)}</text>
+      <text x="${articleCell.x + layout.articleValueX + (layout.articleValueWidth / 2)}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900" ${svgTextAttrs(skuValue)}>${escapeHtml(skuValue)}</text>
       ` : ""}
 
       <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#020617" stroke="#020617" stroke-width="0.18" />
-      <text x="${colorCell.x + layout.colorLabelX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16">${escapeHtml(printCopy.color || "COLOR")}</text>
+      <text x="${colorCell.x + layout.colorLabelX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16" ${svgTextAttrs(printCopy.color || "COLOR")}>${escapeHtml(printCopy.color || "COLOR")}</text>
       <line x1="${colorCell.x + layout.colorDividerX}" y1="${colorCell.y + 1}" x2="${colorCell.x + layout.colorDividerX}" y2="${colorCell.y + layout.colorBoxHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
-      <text x="${colorCell.x + layout.colorValueX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalColorValueFontSize(colorValue, layout.colorValueWidth, layout.colorValueFontSize)}" font-weight="900">${escapeHtml(colorValue)}</text>
+      <text x="${colorCell.x + layout.colorValueX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalColorValueFontSize(colorValue, layout.colorValueWidth, layout.colorValueFontSize)}" font-weight="900" ${svgTextAttrs(colorValue)}>${escapeHtml(colorValue)}</text>
 
-      ${hasArticleBox ? "" : `<text x="${layout.page.width / 2}" y="${barcodeCell.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900">${escapeHtml(skuValue)}</text>`}
+      ${hasArticleBox ? "" : `<text x="${layout.page.width / 2}" y="${barcodeCell.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900" ${svgTextAttrs(skuValue)}>${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}
-      <text x="${layout.page.width / 2}" y="${barcodeCell.textY}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${barcodeCell.fontSize * 0.42}" font-weight="900">${escapeHtml(barcodeValue)}</text>
+      <text x="${layout.page.width / 2}" y="${barcodeCell.textY}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${barcodeCell.fontSize * 0.42}" font-weight="900" ${svgTextAttrs(barcodeValue)}>${escapeHtml(barcodeValue)}</text>
     </svg>
   `;
 };
@@ -1721,7 +1732,7 @@ export const buildBarcodePrintHtml = ({
     .join("");
 
   return `
-    <html>
+    <html dir="ltr" lang="en">
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -1736,6 +1747,8 @@ export const buildBarcodePrintHtml = ({
             background: #0f172a;
             color: #0f172a;
             font-family: Arial, Helvetica, sans-serif;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .preview-shell {
             min-height: 100vh;
@@ -1814,6 +1827,8 @@ export const buildBarcodePrintHtml = ({
             min-height: ${paper.paperHeightMm}mm;
             page-break-after: always;
             break-after: page;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .landscape-label {
             width: 100%;
@@ -1843,6 +1858,8 @@ export const buildBarcodePrintHtml = ({
             font-weight: 900;
             color: #ffffff;
             text-align: left;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .landscape-title-box {
             border: 1px solid #020617;
@@ -1918,6 +1935,8 @@ export const buildBarcodePrintHtml = ({
             letter-spacing: 0.16em;
             text-transform: uppercase;
             color: #ffffff;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .landscape-size-badge .landscape-pill-divider {
             display: block;
@@ -1938,6 +1957,8 @@ export const buildBarcodePrintHtml = ({
             font-weight: 900;
             color: #ffffff;
             text-align: center;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .landscape-article-box {
             border: 1px solid #020617;
@@ -1959,6 +1980,8 @@ export const buildBarcodePrintHtml = ({
             letter-spacing: 0.16em;
             text-transform: uppercase;
             color: #ffffff;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .landscape-article-box .landscape-pill-divider {
             display: block;
@@ -1979,6 +2002,8 @@ export const buildBarcodePrintHtml = ({
             font-weight: 900;
             color: #ffffff;
             text-align: left;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .landscape-color-box {
             border: 1px solid #020617;
@@ -2000,6 +2025,8 @@ export const buildBarcodePrintHtml = ({
             letter-spacing: 0.18em;
             text-transform: uppercase;
             color: #ffffff;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .landscape-pill-divider {
             display: block;
@@ -2021,6 +2048,8 @@ export const buildBarcodePrintHtml = ({
             font-weight: 900;
             color: #ffffff;
             text-align: left;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .landscape-article-spacer {
             height: 0;
@@ -2271,6 +2300,8 @@ export const buildBarcodePrintHtml = ({
             -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .premium-pill {
             border: 1px solid #e2e8f0;
@@ -2299,6 +2330,8 @@ export const buildBarcodePrintHtml = ({
             line-height: 1;
             font-weight: 900;
             color: #111827;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .premium-price {
             background: #111827;
@@ -2357,6 +2390,8 @@ export const buildBarcodePrintHtml = ({
             overflow: hidden;
             white-space: nowrap;
             text-overflow: ellipsis;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .premium-page {
             position: relative;
@@ -2422,6 +2457,8 @@ export const buildBarcodePrintHtml = ({
             font-weight: 900;
             color: #111827;
             letter-spacing: -0.02em;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .meta {
             display: grid;
@@ -2430,6 +2467,8 @@ export const buildBarcodePrintHtml = ({
             margin-top: 10px;
             font-size: 11px;
             color: #334155;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .meta span {
             display: block;
@@ -2451,6 +2490,8 @@ export const buildBarcodePrintHtml = ({
             padding: 8px 10px 4px;
             background: #ffffff;
             overflow: hidden;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .barcode svg {
             width: 100%;
@@ -2647,7 +2688,7 @@ export const buildBarcodePrintHtml = ({
           </script>
         ` : ""}
       </head>
-      <body>
+      <body dir="ltr">
         <div class="preview-shell">
           ${showPreviewChrome ? `
             <div class="preview-toolbar" role="banner" aria-label="${escapeHtml(previewTitle)}">

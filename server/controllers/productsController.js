@@ -134,6 +134,8 @@ const normalizeOptionalForeignKey = (value) => {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 };
 
+const normalizeCopiedText = (value = "") => String(value ?? "").replace(/\u0000/g, "").trim();
+
 const asciiSkuText = (value = "") =>
   String(value || "")
     .normalize("NFKD")
@@ -1584,11 +1586,11 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
 
   return {
     id: normalizeOptionalForeignKey(variant.id ?? variant.variant_id ?? variant.variantId),
-    color: String(variant.color ?? variant.color_name ?? variant.colorName ?? group.color ?? group.color_name ?? "").trim(),
-    size: String(variant.size ?? variant.size_name ?? variant.sizeName ?? "").trim(),
-    sku: String(variant.sku ?? variant.variant_sku ?? "").trim(),
-    barcode: String(variant.barcode ?? variant.variant_barcode ?? "").trim(),
-    article_code: String(
+    color: normalizeCopiedText(variant.color ?? variant.color_name ?? variant.colorName ?? group.color ?? group.color_name ?? ""),
+    size: normalizeCopiedText(variant.size ?? variant.size_name ?? variant.sizeName ?? ""),
+    sku: normalizeCopiedText(variant.sku ?? variant.variant_sku ?? ""),
+    barcode: normalizeCopiedText(variant.barcode ?? variant.variant_barcode ?? ""),
+    article_code: normalizeCopiedText(
       variant.article_code ??
         variant.articleCode ??
         variant.variant_article_code ??
@@ -1607,8 +1609,8 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         group.factory_code ??
         group.factoryCode ??
         ""
-    ).trim(),
-    thermal_image_url: String(
+    ),
+    thermal_image_url: normalizeCopiedText(
       variant.thermal_image_url ??
         variant.thermalImageUrl ??
         variant.variant_thermal_image_url ??
@@ -1622,8 +1624,8 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         group.product_thermal_image_url ??
         group.productThermalImageUrl ??
         ""
-    ).trim(),
-    thermalImageUrl: String(
+    ),
+    thermalImageUrl: normalizeCopiedText(
       variant.thermalImageUrl ??
         variant.thermal_image_url ??
         variant.variant_thermal_image_url ??
@@ -1637,10 +1639,10 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         group.product_thermal_image_url ??
         group.productThermalImageUrl ??
         ""
-    ).trim(),
-    product_thermal_image_url: String(group.product_thermal_image_url ?? group.productThermalImageUrl ?? "").trim(),
-    productThermalImageUrl: String(group.productThermalImageUrl ?? group.product_thermal_image_url ?? "").trim(),
-    color_thermal_image_url: String(
+    ),
+    product_thermal_image_url: normalizeCopiedText(group.product_thermal_image_url ?? group.productThermalImageUrl ?? ""),
+    productThermalImageUrl: normalizeCopiedText(group.productThermalImageUrl ?? group.product_thermal_image_url ?? ""),
+    color_thermal_image_url: normalizeCopiedText(
       variant.color_thermal_image_url ??
         variant.colorThermalImageUrl ??
         variant.variant_color_thermal_image_url ??
@@ -1652,8 +1654,8 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         group.thermal_image_url ??
         group.thermalImageUrl ??
         ""
-    ).trim(),
-    colorThermalImageUrl: String(
+    ),
+    colorThermalImageUrl: normalizeCopiedText(
       variant.colorThermalImageUrl ??
         variant.color_thermal_image_url ??
         variant.variant_color_thermal_image_url ??
@@ -1665,8 +1667,8 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         group.thermal_image_url ??
         group.thermalImageUrl ??
         ""
-    ).trim(),
-    variant_color_thermal_image_url: String(
+    ),
+    variant_color_thermal_image_url: normalizeCopiedText(
       variant.variant_color_thermal_image_url ??
         variant.variantColorThermalImageUrl ??
         variant.color_thermal_image_url ??
@@ -1680,8 +1682,8 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         group.thermal_image_url ??
         group.thermalImageUrl ??
         ""
-    ).trim(),
-    variantColorThermalImageUrl: String(
+    ),
+    variantColorThermalImageUrl: normalizeCopiedText(
       variant.variantColorThermalImageUrl ??
         variant.variant_color_thermal_image_url ??
         variant.color_thermal_image_url ??
@@ -1695,7 +1697,7 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         group.thermal_image_url ??
         group.thermalImageUrl ??
         ""
-    ).trim(),
+    ),
     default_purchase_qty: Number(
       variant.default_purchase_qty ??
         variant.defaultPurchaseQty ??
@@ -1717,7 +1719,7 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
     ),
     sale_price: salePriceEnabled && salePrice > 0 && salePrice < regularPrice ? salePrice : 0,
     price: regularPrice,
-    image_url: String(
+    image_url: normalizeCopiedText(
       variant.variant_image_url ??
         variant.color_image_url ??
         variant.image_url ??
@@ -1732,14 +1734,14 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         group.file_path ??
         group.imageUrl ??
         ""
-    ).trim(),
+    ),
     manufacturer_id: normalizeIncomingManufacturerId(
       variant.manufacturer_id ?? variant.manufacturerId ?? group.manufacturer_id ?? group.manufacturerId
     ),
     supplier_id: normalizeOptionalForeignKey(variant.supplier_id ?? variant.supplierId ?? group.supplier_id ?? group.supplierId),
     warehouse_id: normalizeOptionalForeignKey(variant.warehouse_id ?? variant.warehouseId ?? group.warehouse_id ?? group.warehouseId),
     branch_id: normalizeOptionalForeignKey(variant.branch_id ?? variant.branchId ?? group.branch_id ?? group.branchId),
-    edition_name: String(variant.edition_name ?? variant.editionName ?? group.edition_name ?? group.editionName ?? "").trim(),
+    edition_name: normalizeCopiedText(variant.edition_name ?? variant.editionName ?? group.edition_name ?? group.editionName ?? ""),
     edition_slug: slugifyEdition(variant.edition_name ?? variant.editionName ?? group.edition_name ?? group.editionName ?? variant.edition_slug ?? variant.editionSlug ?? ""),
     warehouse_stock: variant.warehouse_stock ?? variant.warehouseStock ?? variant.warehouses ?? null,
   };
@@ -2858,7 +2860,7 @@ export const createProduct = async (req, res) => {
     const normalizedLowStockTrackingMode = normalizeLowStockTrackingMode(low_stock_tracking_mode);
     const normalizedProductLowStockThreshold = normalizeNonNegativeInteger(product_low_stock_threshold, 0);
     const normalizedMinimumDistinctSizesRequired = normalizeNonNegativeInteger(minimum_distinct_sizes_required, 0);
-    const normalizedFixedSizeLabel = String(fixed_size_label || "").trim();
+    const normalizedFixedSizeLabel = normalizeCopiedText(fixed_size_label || "");
     const normalizedPurchaseAlertsEnabled = normalizePurchaseAlertsEnabled(purchase_alerts_enabled, true);
     const normalizedPurchaseAlertByColor = normalizePurchaseAlertByColor(purchase_alert_by_color, false);
     const normalizedCartonSize = normalizeNullablePositiveInteger(carton_size, { fieldName: "carton_size" });
@@ -3364,7 +3366,7 @@ export const updateProduct = async (req, res) => {
       minimum_distinct_sizes_required === undefined || minimum_distinct_sizes_required === null || minimum_distinct_sizes_required === ""
         ? null
         : normalizeNonNegativeInteger(minimum_distinct_sizes_required, 0);
-    const normalizedFixedSizeLabel = String(fixed_size_label || "").trim();
+    const normalizedFixedSizeLabel = normalizeCopiedText(fixed_size_label || "");
     const purchaseAlertsEnabledProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_alerts_enabled");
     const purchaseAlertByColorProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "purchase_alert_by_color");
     const cartonSizeProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "carton_size");
