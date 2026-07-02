@@ -23,6 +23,7 @@ import ProductsShell from "../components/ProductsShell";
 import { createProduct, getProductsWithVariants, normalizeVariantPayload } from "../services/productsApi";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { cleanupProductCache } from "../lib/catalog";
+import { generateBarcode } from "../lib/catalog";
 
 const isQuotaExceeded = (error) =>
   error?.name === "QuotaExceededError" ||
@@ -37,7 +38,7 @@ const duplicateVariantPayload = (variant = {}, group = {}) =>
     size: variant.size || "",
     sku: "",
     article_code: "",
-    barcode: "",
+    barcode: generateBarcode(),
     stock: variant.stock,
     sale_price: variant.sale_price ?? variant.price,
     price: variant.price ?? variant.sale_price,
@@ -701,6 +702,7 @@ function ProductDetails() {
         wholesale_price: Number(product.wholesale_price || 0),
         price: Number(product.sale_price || 0),
         stock: Number(product.stock || 0),
+        barcode: generateBarcode(),
         image_url: "",
         gallery: [],
         colorImages:

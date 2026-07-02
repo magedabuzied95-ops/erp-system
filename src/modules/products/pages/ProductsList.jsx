@@ -38,6 +38,7 @@ import ProductsShell from "../components/ProductsShell";
 import { useProductClassifications } from "../hooks/useProductClassifications";
 import {
   cleanupProductCache,
+  generateBarcode,
   generateSku,
   mergeProductRecord,
   removeProductMeta,
@@ -214,7 +215,7 @@ const duplicateVariantPayload = (variant = {}, index = 0) => ({
   color: variant.color || "",
   size: variant.size || "",
   sku: "",
-  barcode: "",
+  barcode: generateBarcode(),
   stock: Number(variant.stock || 0),
   sale_price: Number(variant.sale_price ?? variant.price ?? 0),
   price: Number(variant.price ?? variant.sale_price ?? 0),
@@ -250,6 +251,7 @@ const duplicateProductPayload = (row = {}) => ({
   wholesale_price: Number(row.wholesale_price || 0),
   price: Number(row.price || row.sale_price || 0),
   stock: Number(row.stock || 0),
+  barcode: generateBarcode(),
   image_url: "",
   gallery: [],
   colorImages: Array.isArray(row.color_images)

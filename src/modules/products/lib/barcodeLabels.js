@@ -75,7 +75,10 @@ function getTextDirection(text) {
   return hasArabic(value) && !/[A-Za-z0-9]/.test(value) ? "rtl" : "ltr";
 }
 
-const svgTextAttrs = (value = "") => `direction="${getTextDirection(value)}" unicode-bidi="isolate"`;
+const svgTextAttrs = (value = "") => {
+  const direction = getTextDirection(value);
+  return `direction="${direction}" style="direction:${direction}; unicode-bidi:plaintext; text-rendering:geometricPrecision"`;
+};
 
 const sanitizeThermalUrl = (value = "", ...blockedValues) => {
   const candidate = String(value || "").trim();
@@ -1432,7 +1435,7 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
     : `<text x="${titleCell.x + 0.85}" y="${titleCell.y + (titleCell.h / 2)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * 0.48}" font-weight="900" ${svgTextAttrs("Unnamed product")}>${escapeHtml("Unnamed product")}</text>`;
 
   return `
-    <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}">
+    <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}" style="direction:ltr; unicode-bidi:isolate;">
       <rect x="0" y="0" width="100" height="50" fill="#ffffff" />
       <rect x="0.4" y="0.4" width="99.2" height="49.2" fill="none" stroke="#e2e8f0" stroke-width="0.25" />
 
@@ -2122,6 +2125,8 @@ export const buildBarcodePrintHtml = ({
             display: block;
             width: 50mm;
             height: 100mm;
+            direction: ltr;
+            unicode-bidi: isolate;
           }
           .premium-sheet {
             width: 50mm;
@@ -2591,11 +2596,13 @@ export const buildBarcodePrintHtml = ({
               page-break-after: auto !important;
               break-after: auto !important;
             }
-            .barcode-print-svg {
-              display: block !important;
-              width: 100mm !important;
-              height: 50mm !important;
-            }
+          .barcode-print-svg {
+            display: block !important;
+            width: 100mm !important;
+            height: 50mm !important;
+            direction: ltr !important;
+            unicode-bidi: isolate !important;
+          }
             @page {
               size: 100mm 50mm;
               margin: 0;
