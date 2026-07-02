@@ -3102,16 +3102,6 @@ function SocialCommentsWorkspace({
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${automationToneClass(activeAutomationState.tone)}`}>
                       Automation: {activeAutomationState.configId ? `${activeAutomationState.configId} · ${activeAutomationState.enabled ? "Enabled" : "Disabled"}` : activeAutomationState.label}
                     </span>
-                    {activePostLink ? (
-                      <a
-                        href={activePostLink}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-800"
-                      >
-                        Permalink target
-                      </a>
-                    ) : null}
                     {activeProductCard.productCount > 0 ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-300/20 bg-emerald-400/10 px-2.5 py-1 text-[10px] font-black text-emerald-700">
                         ✓ Linked Products
@@ -3120,9 +3110,9 @@ function SocialCommentsWorkspace({
                         {activeProductCard.productCount > 1 ? ` +${activeProductCard.productCount - 1}` : ""}
                       </span>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
-                      ⚠ No Product Linked
-                    </span>
+                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
+                        ⚠ No Product Linked
+                      </span>
                   )}
                 </div>
                 {latestCommentMismatch ? (
@@ -3223,14 +3213,14 @@ function SocialCommentsWorkspace({
               </div>
             </div>
 
-            <div className="grid min-h-0 flex-1 gap-2.5 p-3 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(0,348px)]">
-              <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 overflow-hidden">
+            <div className="grid min-h-0 flex-1 gap-2.5 p-3 min-[1280px]:grid-cols-[minmax(0,1fr)_minmax(0,328px)]">
+              <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2.5 overflow-hidden min-[1280px]:max-h-[calc(100vh-220px)]">
                 <div className="overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.04] shadow-[0_10px_30px_rgba(0,0,0,0.18)]">
                   <button
                     type="button"
                     onClick={handleOpenPost}
                     disabled={!activePostLink || openingPost}
-                    className="group relative flex h-[200px] items-center justify-center overflow-hidden bg-slate-100 text-left outline-none min-[1600px]:h-[220px] disabled:cursor-default"
+                    className="group relative flex h-[170px] items-center justify-center overflow-hidden bg-slate-100 text-left outline-none min-[1600px]:h-[190px] disabled:cursor-default"
                   >
                     {activePostImage ? (
                       <img src={activePostImage} alt="" className="h-full w-full object-contain bg-slate-100 p-3" loading="lazy" />
@@ -3281,7 +3271,7 @@ function SocialCommentsWorkspace({
                       ) : null}
                     </div>
 
-                    <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
+                    <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-2 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
                           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
@@ -3340,7 +3330,7 @@ function SocialCommentsWorkspace({
                   </div>
                 </div>
 
-                <div className="flex min-h-[320px] flex-1 flex-col gap-3 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] p-3">
+                <div className="flex min-h-[420px] flex-1 flex-col gap-3 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Comments Timeline</div>
@@ -3435,11 +3425,11 @@ function SocialCommentsWorkspace({
                     ))}
                   </div>
 
-                  <div className="rounded-[24px] border border-white/10 bg-slate-950/70 p-3">
+                  <div className="rounded-[24px] border border-white/10 bg-slate-950/70 p-2.5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Reply Composer</div>
-                        <div className="mt-1 text-sm font-black text-white">Draft a reply for the selected comment</div>
+                        <div className="mt-1 text-sm font-black text-white">Draft a reply</div>
                       </div>
                       <div className="flex flex-wrap gap-2">
                         <button
@@ -3467,12 +3457,12 @@ function SocialCommentsWorkspace({
                       ref={composerRef}
                       value={replyDraft}
                       onChange={(event) => setReplyDraft(event.target.value)}
-                      rows={4}
-                      className="mt-3 w-full rounded-2xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-6 text-white outline-none"
+                      rows={2}
+                      className="mt-2 w-full rounded-2xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-5 text-white outline-none"
                       placeholder="Reply draft"
                     />
 
-                    <div className="mt-3 flex flex-wrap gap-2">
+                    <div className="mt-2 flex flex-wrap gap-2">
                       <button
                         type="button"
                         onClick={() => void submitReply(actionableComment, replyDraft || previewReply || suggestedReply)}
@@ -3515,8 +3505,8 @@ function SocialCommentsWorkspace({
                 </div>
               </section>
 
-              <aside className="flex min-h-0 min-w-0 flex-col gap-2.5 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.12)]">
-                <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
+              <aside className="flex min-h-0 min-w-0 flex-col gap-2.5 overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/55 p-3 shadow-[0_10px_30px_rgba(0,0,0,0.12)] min-[1280px]:max-h-[calc(100vh-220px)] min-[1280px]:overflow-y-auto">
+                <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Automation Status</div>
@@ -3526,7 +3516,7 @@ function SocialCommentsWorkspace({
                       {activeAutomationState.enabled ? "Enabled" : activeAutomationState.label}
                     </span>
                   </div>
-                  <div className="mt-3 grid gap-2 text-sm text-slate-200">
+                  <div className="mt-2 grid gap-2 text-sm text-slate-200">
                     <SidebarRow label="Config ID" value={activeAutomationState.configId || dash} icon={<Bot className="h-4 w-4 text-cyan-100" />} />
                     <SidebarRow label="Enabled" value={activeAutomationState.enabled ? "Yes" : "No"} icon={<Sparkles className="h-4 w-4 text-emerald-100" />} />
                     <SidebarRow label="Template Key" value={clean(activeAutomationConfig?.template_key || activeAutomationDraft?.templateId || "") || dash} icon={<MessageSquareText className="h-4 w-4 text-violet-100" />} />
@@ -3540,24 +3530,24 @@ function SocialCommentsWorkspace({
                     <SidebarRow label="Detected Intent" value={clean(activeAutomationRuntimeMonitor?.detected_intent || activeAutomationAiSales?.intent || "") || dash} icon={<Sparkles className="h-4 w-4 text-cyan-100" />} />
                     <SidebarRow label="Approval State" value={clean(activeAutomationRuntimeMonitor?.approval_status || activeAutomationAiSales?.approval_status || "") || dash} icon={<Bot className="h-4 w-4 text-fuchsia-100" />} />
                   </div>
-                  <div className="mt-3 grid gap-2">
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2.5">
+                  <div className="mt-2 grid gap-2">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2">
                       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Generated Public Reply</div>
-                      <div className="mt-2 whitespace-pre-wrap text-xs leading-6 text-slate-200">
+                      <div className="mt-1.5 whitespace-pre-wrap text-xs leading-5 text-slate-200">
                         {clean(activeAutomationRuntimeMonitor?.generated_public_reply || activeAutomationAiSales?.public_reply || "") || dash}
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2.5">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-2">
                       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Generated Private Reply</div>
-                      <div className="mt-2 whitespace-pre-wrap text-xs leading-6 text-slate-200">
+                      <div className="mt-1.5 whitespace-pre-wrap text-xs leading-5 text-slate-200">
                         {clean(activeAutomationRuntimeMonitor?.generated_private_reply || activeAutomationAiSales?.private_reply || "") || dash}
                       </div>
                     </div>
                   </div>
                   {Array.isArray(activeAutomationRuntime?.step_results) && activeAutomationRuntime.step_results.length ? (
-                    <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.035] p-2.5">
+                      <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
                       <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Last Steps</div>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {activeAutomationRuntime.step_results.slice(0, 6).map((step, index) => (
                           <span
                             key={`${step?.step || step?.name || "step"}:${index}`}
@@ -3573,7 +3563,7 @@ function SocialCommentsWorkspace({
                   ) : null}
                 </div>
 
-                <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-3">
+                <div className="rounded-[22px] border border-white/10 bg-slate-950/70 p-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">AI Assistant</div>
