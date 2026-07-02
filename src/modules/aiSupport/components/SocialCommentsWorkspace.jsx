@@ -35,10 +35,12 @@ import { CommentTimelineCard, getSocialCommentRealTimestamp } from "./socialComm
 import { useRef } from "react";
 
 const clean = (value = "") => String(value ?? "").trim();
-const isSocialDebugEnabled = () => import.meta.env.DEV && window.localStorage.getItem("social_debug") === "1";
-const socialDebugLog = (...args) => {
+function isSocialDebugEnabled() {
+  return import.meta.env.DEV && window.localStorage.getItem("social_debug") === "1";
+}
+function socialDebugLog(...args) {
   if (isSocialDebugEnabled()) console.log(...args);
-};
+}
 const isEventLikeObject = (value) =>
   Boolean(
     value &&
@@ -53,16 +55,16 @@ const isEventLikeObject = (value) =>
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
-const parseOptionalCount = (...values) => {
+function parseOptionalCount(...values) {
   for (const value of values) {
     if (value === null || value === undefined || value === "") continue;
     const numeric = Number(value);
     if (Number.isFinite(numeric)) return numeric;
   }
   return null;
-};
+}
 
-const formatDisplayPrice = (...values) => {
+function formatDisplayPrice(...values) {
   for (const value of values) {
     if (value === null || value === undefined || value === "") continue;
     const text = clean(value);
@@ -72,7 +74,7 @@ const formatDisplayPrice = (...values) => {
     return text;
   }
   return "";
-};
+}
 
 const normalizeExternalSocialUrl = (value = "") => {
   const candidate = clean(value);
@@ -179,7 +181,7 @@ const absoluteTime = (value) => {
   return date.toLocaleString("ar-EG", { dateStyle: "medium", timeStyle: "short" });
 };
 
-const normalizeComment = (raw) => {
+function normalizeComment(raw) {
   const comment = raw || {};
   const metadata = comment.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
   const automationState = comment.automation_state && typeof comment.automation_state === "object" && !Array.isArray(comment.automation_state) ? comment.automation_state : {};
@@ -252,7 +254,7 @@ const normalizeComment = (raw) => {
   };
 };
 
-const normalizePost = (raw) => {
+function normalizePost(raw) {
   const post = raw || {};
   const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
   const mappingSummary = post.mapping_summary && typeof post.mapping_summary === "object" && !Array.isArray(post.mapping_summary) ? post.mapping_summary : {};
@@ -521,7 +523,7 @@ const normalizePost = (raw) => {
   };
 };
 
-const normalizeSocialPostDisplay = (raw = {}) => {
+function normalizeSocialPostDisplay(raw = {}) {
   const normalized = normalizePost(raw);
   const post = normalized.raw && typeof normalized.raw === "object" ? normalized.raw : raw || {};
   const metadata = post.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
@@ -618,7 +620,7 @@ const normalizeSocialPostDisplay = (raw = {}) => {
       normalized.commentsCount
     ),
   };
-};
+}
 
 const postKey = (item = {}) => {
   const platform = clean(item?.platform || "facebook");
@@ -966,12 +968,16 @@ const templatePreviewText = (template = {}, context = {}) => {
   });
 };
 
-const selectFirst = (...values) => values.map((value) => clean(value)).find(Boolean) || "";
+function selectFirst(...values) {
+  return values.map((value) => clean(value)).find(Boolean) || "";
+}
 const dash = "—";
 
-const resolveFirstField = (...values) => clean(values.map((value) => clean(value)).find(Boolean) || "");
+function resolveFirstField(...values) {
+  return clean(values.map((value) => clean(value)).find(Boolean) || "");
+}
 
-const resolveProductCardFields = (post = {}) => {
+function resolveProductCardFields(post = {}) {
   const metadata = post?.metadata && typeof post.metadata === "object" && !Array.isArray(post.metadata) ? post.metadata : {};
   const mappingSummary = post?.mapping_summary && typeof post.mapping_summary === "object" && !Array.isArray(post.mapping_summary) ? post.mapping_summary : {};
   const linkedProducts = Array.isArray(post?.linked_products) ? post.linked_products : [];
@@ -1078,9 +1084,9 @@ const resolveProductCardFields = (post = {}) => {
     productCount,
     primary,
   };
-};
+}
 
-const getDisplayedSocialCommentCount = (post = {}, displayComments = []) => {
+function getDisplayedSocialCommentCount(post = {}, displayComments = []) {
   if (Array.isArray(displayComments) && displayComments.length > 0) {
     return displayComments.length;
   }
@@ -1093,7 +1099,7 @@ const getDisplayedSocialCommentCount = (post = {}, displayComments = []) => {
     post?.metadata?.comment_count,
     post?.metadata?.total_comments
   );
-};
+}
 
 const resolveAutomationStateLabel = ({ post = {}, config = null, productCount = 0 } = {}) => {
   const hasProduct = Number(productCount) > 0;
@@ -1134,7 +1140,7 @@ const resolveAutomationStateLabel = ({ post = {}, config = null, productCount = 
     enabled: Boolean(enabledValue),
     hint: "Product linked",
   };
-};
+}
 
 const automationToneClass = (tone = "slate") => {
   if (tone === "emerald" || tone === "success") return "border-emerald-300/20 bg-emerald-400/10 text-emerald-800";
