@@ -1,6 +1,6 @@
 {
-  "started_at": "2026-07-02T14:37:03.612Z",
-  "finished_at": "2026-07-02T14:48:46.230Z",
+  "started_at": "2026-07-02T16:38:17.137Z",
+  "finished_at": "2026-07-02T16:46:05.187Z",
   "fixture_path": "server\\scripts\\fixtures\\aiAgentRegressionScenarios.json",
   "summary": {
     "total_scenarios": 210,

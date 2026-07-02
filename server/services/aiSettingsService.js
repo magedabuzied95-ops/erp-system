@@ -5,6 +5,7 @@ const SETTINGS_KEY = "global";
 const defaultSettings = {
   autoReplyMode: "suggest_only",
   tone: "casual",
+  ai_shoe_cover_enabled: true,
   safety: {
     no_fake_stock: true,
     no_fake_price: true,

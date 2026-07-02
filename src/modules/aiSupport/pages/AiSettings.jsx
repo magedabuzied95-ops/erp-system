@@ -8,6 +8,7 @@ import { useTenant } from "../../saas/context/TenantContext";
 const defaultSettings = {
   autoReplyMode: "suggest_only",
   tone: "casual",
+  ai_shoe_cover_enabled: true,
   safety: {
     no_fake_stock: true,
     no_fake_price: true,
@@ -196,6 +197,19 @@ export default function AiSettings() {
             <OptionCard active={settings.tone === "casual"} title="Casual Egyptian" description="Friendly Egyptian Arabic, short and helpful." onClick={() => patch({ tone: "casual" })} />
             <OptionCard active={settings.tone === "professional"} title="Professional" description="Clear, respectful Arabic for service conversations." onClick={() => patch({ tone: "professional" })} />
             <OptionCard active={settings.tone === "luxury"} title="Luxury seller" description="Premium seller tone, confident and polished." onClick={() => patch({ tone: "luxury" })} />
+          </div>
+        </Section>
+
+        <Section icon={ShieldCheck} title="AI Shoe Cover Generation" subtitle="Runtime toggle for new AI shoe cover jobs. Existing processing jobs are allowed to finish.">
+          <div className="grid gap-3">
+            <Toggle
+              label="AI Shoe Cover Generation"
+              checked={settings.ai_shoe_cover_enabled !== false}
+              onChange={(value) => patch({ ai_shoe_cover_enabled: value })}
+            />
+            <p className="text-xs leading-5 text-slate-400">
+              When this is off, new AI shoe cover jobs are not created. Product saves, AI Product Data, and AI Thermal Artwork keep working normally.
+            </p>
           </div>
         </Section>
 

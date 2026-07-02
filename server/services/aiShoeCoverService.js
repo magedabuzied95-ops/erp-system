@@ -5,6 +5,7 @@ import path from "node:path";
 import { Buffer } from "node:buffer";
 
 import db from "../database/db.js";
+import { getAISettings } from "./aiSettingsService.js";
 
 const AI_SHOE_COVER_PROMPT = [
   "Edit this product image conservatively into a clean ecommerce cover.",
@@ -135,6 +136,18 @@ const getOpenAiClient = () => {
 
 export const isAiShoeCoverGenerationEnabled = () =>
   boolEnv(process.env.ENABLE_AI_SHOE_COVER_GENERATION) && Boolean(cleanText(process.env.OPENAI_API_KEY));
+
+const isAiShoeCoverGenerationAllowedAtRuntime = async () => {
+  try {
+    const settings = await getAISettings();
+    return settings.ai_shoe_cover_enabled !== false && Boolean(cleanText(process.env.OPENAI_API_KEY));
+  } catch (error) {
+    console.warn("[ai-shoe-cover] runtime setting read failed; skipping new job creation", {
+      message: error?.message || String(error),
+    });
+    return false;
+  }
+};
 
 export const isEligibleFootwearProductType = (productType = "") => {
   const normalized = cleanLower(productType);
@@ -517,7 +530,7 @@ export const scheduleAiShoeCoverJobs = async ({
   galleryImages = [],
   colorGroups = [],
 } = {}) => {
-  if (!isAiShoeCoverGenerationEnabled()) return [];
+  if (!(await isAiShoeCoverGenerationAllowedAtRuntime())) return [];
   if (!Number.isFinite(Number(tenantId)) || !Number.isFinite(Number(productId))) return [];
   if (!isEligibleFootwearProductType(productType)) return [];
 
@@ -705,7 +718,7 @@ export const regenerateAiShoeCoverTarget = async ({
   targetType = "product",
   color = "",
 } = {}) => {
-  if (!isAiShoeCoverGenerationEnabled()) {
+  if (!(await isAiShoeCoverGenerationAllowedAtRuntime())) {
     const error = new Error("AI shoe cover generation is disabled");
     error.status = 409;
     throw error;
@@ -1235,9 +1248,10 @@ const processJob = async (job = {}) => {
 };
 
 const workerCycle = async () => {
-  if (workerRunning || !isAiShoeCoverGenerationEnabled()) return;
+  if (workerRunning) return;
   workerRunning = true;
   try {
+    if (!(await isAiShoeCoverGenerationAllowedAtRuntime())) return;
     await ensureAiShoeCoverSchema();
     await recoverStaleProcessingJobs();
     const jobs = await claimJobs();
@@ -1254,7 +1268,6 @@ const workerCycle = async () => {
 };
 
 export const startAiShoeCoverWorker = () => {
-  if (!isAiShoeCoverGenerationEnabled()) return;
   if (workerStarted) return;
   workerStarted = true;
   workerTimer = setInterval(() => {
