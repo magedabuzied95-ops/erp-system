@@ -93,7 +93,7 @@ import {
 import {
   listRecentSocialCommentAutomationRuns,
 } from "../services/socialCommentAutomationService.js";
-import { probePrivateReplyComment, replyToComment, sendTrackedSocialCommentPrivateReply } from "../services/marketingCommentAutomationService.js";
+import { probePrivateReplyComment, replyToComment, sendUnifiedSocialCommentPrivateReply } from "../services/marketingCommentAutomationService.js";
 import {
   createCorrection,
   listConversationCorrections,
@@ -2821,14 +2821,15 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
         probe_error: probeError,
       });
     }
-    const reply = await sendTrackedSocialCommentPrivateReply({
+    const reply = await sendUnifiedSocialCommentPrivateReply({
+      tenantId,
       platform,
       commentId: metaTargetId,
       message: messageText,
-      businessId: tenantId,
       callsite: "aiAgentOrders.post./social-comments/:commentId/private-reply",
       postId,
       productContext: commentRun?.product_context || commentRun?.raw_payload?.product_context || null,
+      customerName: commentRun?.commenter_name || commentRun?.customer_name || "",
     });
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: envText(commentRun.session_id || commentRun.inbox_conversation_id || ""), at: nowIso });
     return res.status(201).json({
@@ -2932,11 +2933,11 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
         throw Object.assign(new Error("Comment thread is missing a comment id"), { status: 409, code: "NO_PROVIDER_COMMENT_ID_FOR_PRIVATE_REPLY" });
       }
       const platform = channel.includes("instagram") ? "instagram" : "facebook";
-      const reply = await sendTrackedSocialCommentPrivateReply({
+      const reply = await sendUnifiedSocialCommentPrivateReply({
+        tenantId,
         platform,
         commentId,
         message: messageText,
-        businessId: tenantId,
         callsite: "aiAgentOrders.post./inbox/:conversationId/private-message",
         postId: envText(
           conversation.post_id ||
@@ -2946,6 +2947,7 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
           ""
         ),
         productContext: channelMetadata.product_context || channelMetadata.lead?.product_context || null,
+        customerName: conversation.customer_name || conversation.customerName || channelMetadata.customer_name || "",
       });
       const message = await appendManualAiSupportReply({
         tenantId,

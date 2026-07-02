@@ -8,7 +8,7 @@ import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
 import { upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { createOrUpdateLeadOpportunity } from "./aiInboxLeadActionsService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
-import { likeComment, replyToComment, sendTrackedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
+import { likeComment, replyToComment, sendUnifiedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
 import { getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
 import { enqueueSocialCommentJob } from "./socialCommentJobQueue.js";
 import { resolveMappedProductsV2, resolvePrimaryProductV2 } from "./socialPostProductLinksV2Service.js";
@@ -21,6 +21,7 @@ import {
   getSocialAutomationSettings,
 } from "./socialAutomationSettingsService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
+import { buildSocialCommentPrivateReplyMessage } from "./socialCommentPrivateReplyService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -927,7 +928,7 @@ const isSupportedWebhookCommentTrigger = (event = {}) => {
   return source === "meta_webhook" && (isFacebookFeedComment || isInstagramComment);
 };
 
-const buildSocialCommentPrivateReplyMessage = ({ row = {}, settings = {} } = {}) => {
+const buildStoredSocialCommentPrivateReplyTemplate = ({ row = {}, settings = {} } = {}) => {
   const template = text(settings.private_message_template || "");
   if (template) {
     return template;
@@ -5339,14 +5340,15 @@ export const executeSocialCommentAutomation = async ({
 
   const likeFn = deps.likeCommentFn || likeComment;
   const publicReplyFn = deps.replyToCommentFn || replyToComment;
-  const privateReplyFn = deps.sendPrivateReplyFn || ((platform, commentId, message, businessId, trace = {}) => sendTrackedSocialCommentPrivateReply({
+  const privateReplyFn = deps.sendPrivateReplyFn || ((platform, commentId, message, businessId, trace = {}) => sendUnifiedSocialCommentPrivateReply({
+    tenantId: businessId,
     platform,
     commentId,
     message,
-    businessId,
     callsite: trace.callsite || "socialCommentAutomationService.executeSocialCommentAutomation.private_message",
     postId: trace.postId || "",
     productContext: trace.productContext || null,
+    customerName: trace.customerName || "",
   }));
   const resolvedProductContext = metadataObject(
     safeRow.product_context ||
@@ -5391,17 +5393,23 @@ export const executeSocialCommentAutomation = async ({
   });
   const publicReplyText = text(decision.automationSettings?.public_reply_template || COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT);
   const privateReplyTemplate = text(decision.automationSettings?.private_message_template || "");
-  const initialReplyText = text(privateReplyTemplate || conversation?.suggested_reply || conversation?.metadata?.lead?.suggested_reply || safeRow.suggested_reply || buildSocialCommentSuggestedReply({
+  const fallbackPrivateReplyTemplate = text(conversation?.suggested_reply || conversation?.metadata?.lead?.suggested_reply || safeRow.suggested_reply || buildSocialCommentSuggestedReply({
     classificationLabel: safeRow.classification_label,
     commenterName: safeRow.commenter_name,
     originalCommentText: safeRow.original_comment_text,
     postPermalink: safeRow.post_permalink,
   }));
-  const productAwarePrivateReply = buildPolishedProductAwarePrivateReply({
-    salesContext,
+  const unifiedPrivateReply = buildSocialCommentPrivateReplyMessage({
+    tenantId: safeTenantId,
+    platform: safeRow.platform,
+    commentId: safeRow.comment_id,
+    postId: safeRow.post_id,
     customerName: templateContext.customerName || safeRow.commenter_name || safeRow.customer_name || "",
+    productContext: hasProductContext ? resolvedProductContext : null,
+    automationTemplate: privateReplyTemplate,
+    fallbackTemplate: fallbackPrivateReplyTemplate,
   });
-  if (hasProductContext && isGenericSocialCommentPrivateReply(initialReplyText)) {
+  if (hasProductContext && isGenericSocialCommentPrivateReply(unifiedPrivateReply.message)) {
     console.warn("SOCIAL_COMMENT_PRIVATE_REPLY_PRODUCT_CONTEXT_DROPPED", {
       post_id: text(safeRow.post_id || ""),
       comment_id: text(safeRow.comment_id || ""),
@@ -5415,14 +5423,10 @@ export const executeSocialCommentAutomation = async ({
         0
       ) || null,
       product_name: text(resolvedProductContext.product_name || resolvedProductContext.primary_product?.name || ""),
-      reply_preview: initialReplyText,
+      reply_preview: unifiedPrivateReply.message,
     });
   }
-  const replyText = text(
-    hasProductContext && productAwarePrivateReply
-      ? productAwarePrivateReply
-      : initialReplyText
-  );
+  const replyText = text(unifiedPrivateReply.message);
   const automationState = {
     ...stageSummary,
     overall_status: "running",
@@ -5620,6 +5624,7 @@ export const executeSocialCommentAutomation = async ({
           callsite: "socialCommentAutomationService.executeSocialCommentAutomation.private_message",
           postId: safeRow.post_id || "",
           productContext: resolvedProductContext,
+          customerName: templateContext.customerName || safeRow.commenter_name || safeRow.customer_name || "",
         }
       ),
       message: replyText || publicReplyText,

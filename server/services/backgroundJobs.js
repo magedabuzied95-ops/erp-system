@@ -8,7 +8,8 @@ import {
   PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT,
   resolveSocialCommentPublishedProductContext,
 } from "./socialCommentAutomationService.js";
-import { renderTemplate, sendTrackedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
+import { renderTemplate, sendUnifiedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
+import { buildSocialCommentPrivateReplyMessage } from "./socialCommentPrivateReplyService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 
 let registered = false;
@@ -480,23 +481,28 @@ export const registerBackgroundJobHandlers = () => {
       originalCommentText: row.original_comment_text || "",
       postPermalink: row.post_permalink || row.post_permalink_url || "",
     });
-    const template = String(settings?.private_message_template || "").trim();
-    const renderedFallbackMessage = renderTemplate(template || fallbackMessage, {
+    const template = String(
+      queuedPrivateReplyPayload?.template ||
+      privateReplyPayload?.template ||
+      settings?.private_message_template ||
+      ""
+    ).trim();
+    const renderedFallbackMessage = renderTemplate(fallbackMessage, {
       commenter_name: row.commenter_name || "",
       original_comment_text: row.original_comment_text || "",
       post_permalink: row.post_permalink || row.post_permalink_url || "",
       post_id: row.post_id || postId || "",
       platform,
     }).trim() || fallbackMessage;
-    const productAwareMessage = (productContext?.found || productContext?.has_product_context)
-      ? buildPolishedProductAwarePrivateReply({ row, productContext })
-      : "";
-    const finalMessageSelection = selectFinalPrivateReplyMessage({
-      hasProductContext: Boolean(productContext?.found || productContext?.has_product_context),
-      queuedPrivateReplyPayload,
-      storedPrivateReplyPayload: privateReplyPayload,
-      runtimeProductAwareMessage: productAwareMessage,
-      renderedFallbackMessage,
+    const finalMessageSelection = buildSocialCommentPrivateReplyMessage({
+      tenantId,
+      platform,
+      commentId,
+      postId: postId || row.post_id || "",
+      customerName: row.commenter_name || row.customer_name || "",
+      productContext: productContext || null,
+      automationTemplate: template,
+      fallbackTemplate: renderedFallbackMessage,
     });
     if ((productContext?.found || productContext?.has_product_context) && isGenericSocialCommentPrivateReply(finalMessageSelection.message)) {
       console.warn("SOCIAL_COMMENT_PRIVATE_REPLY_PRODUCT_CONTEXT_DROPPED", buildPrivateReplyLogPayload({
@@ -590,20 +596,10 @@ export const registerBackgroundJobHandlers = () => {
         post_id: postId || row.post_id || "",
       });
       preSendStage = "product_context_guard_check";
-      if ((productContext?.found || productContext?.has_product_context) && isGenericSocialCommentPrivateReply(message) && productAwareMessage) {
-        console.warn("SOCIAL_COMMENT_PRIVATE_REPLY_PRODUCT_CONTEXT_DROPPED", buildPrivateReplyLogPayload({
-          postId: postId || row.post_id || "",
-          commentId,
-          productContext,
-          replyPreview: message,
-          messagePreview: productAwareMessage,
-        }));
-        message = String(productAwareMessage || "").trim() || message;
-      }
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_FINAL_MESSAGE_SELECTED", {
         comment_id: commentId,
         has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
-        selected_source: isGenericSocialCommentPrivateReply(message) && productAwareMessage ? "runtime_product_context_guard" : finalMessageSelection.selectedSource,
+        selected_source: finalMessageSelection.selectedSource,
         automation_state_rendered_reply_preview: String(privateReplyPayload?.rendered_reply || "").trim().slice(0, 280),
         automation_state_message_preview: String(privateReplyPayload?.message || "").trim().slice(0, 280),
         private_reply_payload_message_preview: String(queuedPrivateReplyPayload?.message || "").trim().slice(0, 280),
@@ -659,7 +655,7 @@ export const registerBackgroundJobHandlers = () => {
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_MESSAGE_TRACE", {
         comment_id: commentId,
         post_id: postId || row.post_id || "",
-        selected_source: isGenericSocialCommentPrivateReply(message) && productAwareMessage ? "runtime_product_context_guard" : finalMessageSelection.selectedSource,
+        selected_source: finalMessageSelection.selectedSource,
         message_preview: String(message || "").trim().slice(0, 280),
       });
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_REQUEST", {
@@ -667,14 +663,15 @@ export const registerBackgroundJobHandlers = () => {
         platform,
         post_id: postId || row.post_id || "",
       });
-      const result = await sendTrackedSocialCommentPrivateReply({
+      const result = await sendUnifiedSocialCommentPrivateReply({
+        tenantId,
         platform,
         commentId,
         message,
-        businessId: tenantId,
         callsite: "backgroundJobs.social.comment.private_reply",
         postId: postId || row.post_id || "",
         productContext,
+        customerName: row.commenter_name || row.customer_name || "",
       });
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_RESPONSE", {
         target_comment_id: commentId,

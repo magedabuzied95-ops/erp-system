@@ -1,6 +1,11 @@
 import db from "../database/db.js";
 import { getPublishingAccessToken, validateMetaToken } from "./metaTokenService.js";
 import ensureMarketingSchema from "../utils/marketingSchema.js";
+import {
+  GENERIC_SOCIAL_COMMENT_PRIVATE_REPLY,
+  buildSocialCommentPrivateReplyMessage,
+  sanitizeUnifiedSocialCommentPrivateReplyMessage,
+} from "./socialCommentPrivateReplyService.js";
 
 const GRAPH_API_VERSION = "v19.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -1543,13 +1548,67 @@ export const sendTrackedSocialCommentPrivateReply = async ({
     has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
     message_preview: trimString(message).slice(0, 280),
   });
-  return sendPrivateReply(platform, commentId, message, businessId, {
+  return sendUnifiedSocialCommentPrivateReply({
+    callsite,
+    tenantId: businessId,
+    platform,
+    commentId,
+    postId,
+    message,
+    productContext,
+  });
+};
+
+export const sendUnifiedSocialCommentPrivateReply = async ({
+  callsite = "",
+  tenantId = null,
+  businessId = null,
+  platform = "",
+  pageId = "",
+  commentId = "",
+  postId = "",
+  message = "",
+  productContext = null,
+  customerName = "",
+} = {}) => {
+  const safeTenantId = Number(tenantId || businessId || 0);
+  const sanitized = sanitizeUnifiedSocialCommentPrivateReplyMessage({
+    tenantId: safeTenantId,
+    platform,
+    commentId,
+    postId,
+    customerName,
+    message: trimString(message) || GENERIC_SOCIAL_COMMENT_PRIVATE_REPLY,
+    productContext,
+  });
+  console.log("SOCIAL_COMMENT_PRIVATE_REPLY_CALLSITE", {
+    callsite: trimString(callsite || "marketingCommentAutomationService.sendUnifiedSocialCommentPrivateReply"),
+    comment_id: trimString(commentId),
+    post_id: trimString(postId),
+    has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
+    message_preview: trimString(sanitized.message).slice(0, 280),
+  });
+  console.log("SOCIAL_COMMENT_PRIVATE_REPLY_FINAL_MESSAGE_SELECTED", {
+    comment_id: trimString(commentId),
+    has_product_context: sanitized.hasProductContext,
+    selected_source: "unified_sender",
+    message_preview: trimString(sanitized.message).slice(0, 280),
+  });
+  console.log("SOCIAL_COMMENT_PRIVATE_REPLY_UNIFIED_SEND", {
+    callsite: trimString(callsite || "marketingCommentAutomationService.sendUnifiedSocialCommentPrivateReply"),
+    tenant_id: safeTenantId || null,
+    platform: trimString(platform),
+    page_id: trimString(pageId),
+    comment_id: trimString(commentId),
+    post_id: trimString(postId),
+    has_product_context: sanitized.hasProductContext,
+    message_preview: trimString(sanitized.message).slice(0, 280),
+  });
+  return sendPrivateReply(platform, commentId, sanitized.message, safeTenantId, {
     callsite,
     postId,
     productContext,
-    selectedSource: Boolean(productContext?.found || productContext?.has_product_context)
-      ? "product_aware_rendered_reply"
-      : "tracked_callsite_message",
+    selectedSource: "unified_sender",
   });
 };
 
@@ -1742,7 +1801,35 @@ export const processCommentEvent = async (event = {}) => {
       }
 
       if (automationActions.private_reply?.status !== "error") {
-        const privateMessage = buildPrivateMessage({ rule, context, message: event.message });
+        const legacyProductContext = context
+          ? {
+              has_product_context: Boolean(productId),
+              product_name: context.product_name || "",
+              available_sizes: Array.isArray(context.available_variants)
+                ? context.available_variants.map((variant) => trimString(variant?.size || "")).filter(Boolean)
+                : [],
+              product_link: context.product_url || context.invoice_link || "",
+              price: context.price || "",
+            }
+          : null;
+        const privateMessageBuild = buildSocialCommentPrivateReplyMessage({
+          tenantId: event.businessId,
+          platform: event.platform,
+          commentId: event.commentId,
+          postId: event.postId || event.mediaId || "",
+          customerName: event.username || "",
+          productContext: legacyProductContext,
+          automationTemplate: rule.private_reply_template || "",
+          fallbackTemplate: DEFAULT_PRIVATE_REPLY,
+        });
+        console.log("SOCIAL_COMMENT_PRIVATE_REPLY_LEGACY_PATH_BLOCKED_OR_DELEGATED", {
+          callsite: "marketingCommentAutomationService.processCommentEvent.private_reply",
+          delegated_to: "sendUnifiedSocialCommentPrivateReply",
+          comment_id: trimString(event.commentId),
+          post_id: trimString(event.postId || event.mediaId || ""),
+          has_product_context: Boolean(legacyProductContext?.has_product_context),
+          message_preview: trimString(privateMessageBuild.message).slice(0, 280),
+        });
         const error = await executeAction({
           actions: automationActions,
           key: "private_reply",
@@ -1750,14 +1837,15 @@ export const processCommentEvent = async (event = {}) => {
           successLog: "[meta-action] private reply success",
           errorLog: "[meta-action] private reply error",
           logContext,
-          run: () => sendTrackedSocialCommentPrivateReply({
+          run: () => sendUnifiedSocialCommentPrivateReply({
+            tenantId: event.businessId,
             platform: event.platform,
             commentId: event.commentId,
-            message: privateMessage,
-            businessId: event.businessId,
+            message: privateMessageBuild.message,
             callsite: "marketingCommentAutomationService.executeAutomationRule.private_reply",
             postId: event.postId || event.mediaId || "",
-            productContext: context?.product ? { has_product_context: true } : null,
+            productContext: legacyProductContext,
+            customerName: event.username || "",
           }),
         });
         if (error) actionErrors.push(error);
