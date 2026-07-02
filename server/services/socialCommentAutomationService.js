@@ -4457,6 +4457,13 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       skipped: Boolean(automationRuntimeResult?.skipped),
       reason: text(automationRuntimeResult?.reason || ""),
     });
+    console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULTS", {
+      tenant_id: safeTenantId,
+      platform,
+      post_id: postId,
+      comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
+      step_results: summarizeAutomationStepResults(automationRuntimeResult?.step_results || []),
+    });
     if (automationRuntimeResult?.row) {
       savedRunRow = automationRuntimeResult.row;
     }
@@ -4470,7 +4477,32 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     ).toLowerCase();
     const privateReplyCommentId = text(event.comment_id || savedRunRow?.comment_id || "");
     const privateReplySource = text(event.raw_payload?.source || savedRunRow?.raw_payload?.source || "").toLowerCase();
-    const legacyPathEnabled = !automationConfig?.enabled && hasLinkedProductForAutomation({ row: savedRunRow || event || {}, productContext: runtimeProductContext });
+    const hasProductContext = hasLinkedProductForAutomation({ row: savedRunRow || event || {}, productContext: runtimeProductContext });
+    const legacyPathEnabled = !automationConfig?.enabled && hasProductContext;
+    const queueDisabled = String(process.env.JOBS_DISABLED || "").toLowerCase() === "true";
+    const dedupeResult = text(
+      automationRuntimeResult?.reason ||
+      (automationRuntimeResult?.duplicate_skipped ? "duplicate" : "")
+    );
+    const enqueueSkipReason = !hasProductContext
+      ? "no_product"
+      : automationRuntimeResult?.duplicate_skipped || dedupeResult === "duplicate_comment_automation"
+        ? "duplicate"
+        : Boolean(automationConfig?.enabled)
+          ? "disabled"
+          : automationRuntimeApplied
+            ? "no_private_reply"
+            : !insertedRun
+              ? "existing_run"
+              : ["queued", "sending"].includes(privateReplyStatus)
+                ? "existing_partial_success"
+                : privateReplyStatus === "sent"
+                  ? "already_sent"
+                  : !privateReplyCommentId
+                    ? "no_private_reply"
+                    : text(platform || "").toLowerCase() !== "facebook"
+                      ? "disabled"
+                      : "";
     console.log("SOCIAL_COMMENT_LEGACY_PATH_ENTERED", {
       tenant_id: safeTenantId,
       platform,
@@ -4498,6 +4530,18 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       private_reply_status: privateReplyStatus || "empty",
       source: privateReplySource,
     });
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_DECISION", {
+      comment_id: privateReplyCommentId,
+      post_id: postId,
+      private_reply_enabled: text(platform || "").toLowerCase() === "facebook" && Boolean(privateReplyCommentId),
+      automation_enabled: Boolean(automationConfig?.enabled),
+      has_product_context: hasProductContext,
+      dedupe_result: dedupeResult,
+      existing_run_id: savedRunRow?.id || automationRuntimeResult?.row?.id || null,
+      existing_status: privateReplyStatus || "empty",
+      should_enqueue: shouldEnqueuePrivateReply,
+      skip_reason: shouldEnqueuePrivateReply ? "" : enqueueSkipReason,
+    });
 
     if (!legacyPathEnabled) {
       console.log("SOCIAL_COMMENT_LEGACY_PATH_SKIPPED_AUTOMATION_ENABLED", {
@@ -4517,7 +4561,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         private_reply_status: privateReplyStatus || "empty",
         source: privateReplySource,
       });
-      await enqueueSocialCommentPrivateReplyJob({
+      const enqueueResult = await enqueueSocialCommentPrivateReplyJob({
         tenantId: safeTenantId,
         platform,
         commentId: privateReplyCommentId,
@@ -4536,7 +4580,13 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
             ? savedRunRow.raw_payload
             : (event.raw_payload || {}),
         },
-      }).catch(() => {});
+      }).catch(() => null);
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_RESULT", {
+        success: Boolean(enqueueResult?.accepted),
+        job_id: enqueueResult?.job?.id || null,
+        comment_id: privateReplyCommentId,
+        post_id: postId,
+      });
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_CALLED", {
         tenant_id: safeTenantId,
         platform,
@@ -4555,17 +4605,21 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         saved_run_row: Boolean(savedRunRow),
         private_reply_status: privateReplyStatus || "empty",
         source: privateReplySource,
-        reason: text(platform || "").toLowerCase() !== "facebook"
-          ? "not_facebook"
-          : !privateReplyCommentId
-            ? "missing_comment_id"
-            : !legacyPathEnabled
-              ? "automation_enabled"
-              : automationRuntimeApplied
-              ? "runtime_already_enqueued"
-            : !insertedRun
-              ? "missing_saved_run"
-              : `private_reply_status_${privateReplyStatus || "empty"}`,
+        reason: enqueueSkipReason || (
+          queueDisabled
+            ? "queue_disabled"
+            : text(platform || "").toLowerCase() !== "facebook"
+              ? "disabled"
+              : !privateReplyCommentId
+                ? "no_private_reply"
+                : !legacyPathEnabled
+                  ? "disabled"
+                  : automationRuntimeApplied
+                    ? "no_private_reply"
+                    : !insertedRun
+                      ? "existing_run"
+                      : `private_reply_status_${privateReplyStatus || "empty"}`
+        ),
       });
     }
 
@@ -6081,7 +6135,9 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
     const privateReplySource = text(storedRow.raw_payload?.source || "").toLowerCase();
     const isFacebookComment = text(storedRow.platform || "").toLowerCase() === "facebook";
     const privateReplyEligible = isFacebookComment && Boolean(text(storedRow.comment_id || ""));
-    const legacyPathEnabled = !automationConfig?.enabled && hasLinkedProductForAutomation({ row: storedRow || {}, productContext });
+    const hasProductContext = hasLinkedProductForAutomation({ row: storedRow || {}, productContext });
+    const legacyPathEnabled = !automationConfig?.enabled && hasProductContext;
+    const queueDisabled = String(process.env.JOBS_DISABLED || "").toLowerCase() === "true";
     console.log("SOCIAL_COMMENT_LEGACY_PATH_ENTERED", {
       tenant_id: storedRow.tenant_id,
       platform: storedRow.platform,
@@ -6092,6 +6148,19 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       inserted_run: Boolean(storedRow.id),
     });
     const shouldQueuePrivateReply = privateReplyEligible && legacyPathEnabled && !["queued", "sending", "sent"].includes(privateReplyStatus);
+    const enqueueSkipReason = !hasProductContext
+      ? "no_product"
+      : Boolean(automationConfig?.enabled)
+        ? "disabled"
+        : !privateReplyEligible
+          ? "no_private_reply"
+          : ["queued", "sending"].includes(privateReplyStatus)
+            ? "existing_partial_success"
+            : privateReplyStatus === "sent"
+              ? "already_sent"
+              : !storedRow.id
+                ? "existing_run"
+                : "";
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_TEMPLATE_STATE", {
       tenant_id: storedRow.tenant_id,
       platform: text(storedRow.platform || ""),
@@ -6113,6 +6182,18 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       source: privateReplySource,
       private_reply_status: privateReplyStatus || "empty",
       eligible: privateReplyEligible,
+    });
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_DECISION", {
+      comment_id: text(storedRow.comment_id || ""),
+      post_id: text(storedRow.post_id || ""),
+      private_reply_enabled: privateReplyEligible,
+      automation_enabled: Boolean(automationConfig?.enabled),
+      has_product_context: hasProductContext,
+      dedupe_result: "",
+      existing_run_id: storedRow.id || null,
+      existing_status: privateReplyStatus || "empty",
+      should_enqueue: shouldQueuePrivateReply,
+      skip_reason: shouldQueuePrivateReply ? "" : enqueueSkipReason,
     });
     if (!legacyPathEnabled) {
       console.log("SOCIAL_COMMENT_LEGACY_PATH_SKIPPED_AUTOMATION_ENABLED", {
@@ -6174,13 +6255,19 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           productContext: productContext || {},
         }),
       });
-      await enqueueSocialCommentPrivateReplyJob({
+      const enqueueResult = await enqueueSocialCommentPrivateReplyJob({
         tenantId: storedRow.tenant_id,
         platform: storedRow.platform,
         commentId: storedRow.comment_id,
-          postId: storedRow.post_id,
-          row: storedRow,
-        }).catch(() => {});
+        postId: storedRow.post_id,
+        row: storedRow,
+      }).catch(() => null);
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_RESULT", {
+        success: Boolean(enqueueResult?.accepted),
+        job_id: enqueueResult?.job?.id || null,
+        comment_id: text(storedRow.comment_id || ""),
+        post_id: text(storedRow.post_id || ""),
+      });
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_CALLED", {
         storedRow_id: storedRow.id || null,
         comment_id: text(storedRow.comment_id || ""),
@@ -6196,11 +6283,15 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         conversation_id: text(storedRow.inbox_conversation_id || ""),
         source: privateReplySource,
         private_reply_status: privateReplyStatus || "empty",
-        reason: !privateReplyEligible
-          ? "not_facebook_comment_or_missing_comment_id"
-          : !legacyPathEnabled
-            ? "automation_enabled"
-          : `private_reply_status_${privateReplyStatus || "empty"}`,
+        reason: enqueueSkipReason || (
+          queueDisabled
+            ? "queue_disabled"
+            : !privateReplyEligible
+              ? "no_private_reply"
+              : !legacyPathEnabled
+                ? "disabled"
+                : `private_reply_status_${privateReplyStatus || "empty"}`
+        ),
       });
     }
     console.log("[COMMENT_EVENT_SAVED]", {
@@ -6296,6 +6387,13 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         applied: Boolean(automationRuntimeResult?.applied),
         skipped: Boolean(automationRuntimeResult?.skipped),
         reason: text(automationRuntimeResult?.reason || ""),
+      });
+      console.log("SOCIAL_COMMENT_AUTOMATION_STEP_RESULTS", {
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        post_id: text(storedRow.post_id || ""),
+        comment_id: text(storedRow.comment_id || ""),
+        step_results: summarizeAutomationStepResults(automationRuntimeResult?.step_results || []),
       });
       if (automationRuntimeResult?.row) {
         storedRow = automationRuntimeResult.row;
