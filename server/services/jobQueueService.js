@@ -266,6 +266,17 @@ export const queueStatus = () => ({
 
 export const getJobStatus = (id) => jobStatuses.get(id) || null;
 
+export const getActiveJobStatusByDedupeKey = (dedupeKey = "") => {
+  const safeKey = String(dedupeKey || "").trim();
+  if (!safeKey) return null;
+  const activeJobId = activeDedupeKeys.get(safeKey);
+  if (!activeJobId) return null;
+  return {
+    jobId: activeJobId,
+    status: jobStatuses.get(activeJobId) || null,
+  };
+};
+
 export const listDeadLetterJobs = () => deadLetterQueue.map((job) => ({
   id: job.id,
   type: job.type,

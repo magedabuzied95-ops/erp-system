@@ -2,7 +2,7 @@ import crypto from "node:crypto";
 
 import db from "../database/db.js";
 import { emitToRooms } from "../utils/socket.js";
-import { enqueueJob } from "./jobQueueService.js";
+import { enqueueJob, getActiveJobStatusByDedupeKey } from "./jobQueueService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
 import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
 import { upsertAiCustomerProfile } from "./aiSalesAgentService.js";
@@ -35,6 +35,13 @@ const parseDateOrNull = (value = null) => {
   if (!value) return null;
   const parsed = value instanceof Date ? value : new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+const buildPrivateReplyJobDedupeKey = ({ tenantId = null, platform = "", commentId = "" } = {}) => {
+  const safeTenantId = Number(tenantId || 0);
+  const safePlatform = text(platform || "facebook") === "instagram" ? "instagram" : "facebook";
+  const safeCommentId = text(commentId || "");
+  if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return "";
+  return `social-comment-private-reply:${safeTenantId}:${safePlatform}:${safeCommentId}`;
 };
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const debugSocialCommentsLog = (...args) => {
@@ -1995,7 +2002,69 @@ const executeSocialCommentAutomationRuntime = async ({
     currentCreatedAt: safeCurrentCreatedAt,
   }).catch(() => null);
   const existingDuplicateStatus = text(existingDuplicateRun?.status || "").toLowerCase();
-  const isDuplicateCandidate = ["processing", "queued", "success", "partial_success", "failed"].includes(existingDuplicateStatus);
+  let staleQueuedReleased = false;
+  if (existingDuplicateRun && existingDuplicateStatus === "queued") {
+    const dedupeKey = buildPrivateReplyJobDedupeKey({
+      tenantId: safeTenantId,
+      platform: normalizedPlatform,
+      commentId: safeCommentId,
+    });
+    const activeJob = getActiveJobStatusByDedupeKey(dedupeKey);
+    const statusTimestamp = parseDateOrNull(
+      existingDuplicateRun.updated_at ||
+      existingDuplicateRun.created_at ||
+      existingDuplicateRun.automation_state?.private_reply?.updated_at ||
+      existingDuplicateRun.automation_state?.private_reply?.queued_at ||
+      null
+    );
+    const ageMs = statusTimestamp ? Date.now() - statusTimestamp.getTime() : Number.POSITIVE_INFINITY;
+    const isStaleQueued = ageMs > 60_000 || !activeJob;
+    if (isStaleQueued) {
+      const staleAutomationState = {
+        ...(existingDuplicateRun.automation_state && typeof existingDuplicateRun.automation_state === "object" ? existingDuplicateRun.automation_state : {}),
+        private_reply: {
+          ...(existingDuplicateRun.automation_state?.private_reply && typeof existingDuplicateRun.automation_state.private_reply === "object"
+            ? existingDuplicateRun.automation_state.private_reply
+            : {}),
+          status: "failed_stale",
+          reason: "stale_queued_private_reply",
+          updated_at: new Date().toISOString(),
+        },
+      };
+      await db.query(
+        `
+        UPDATE social_comment_automation_runs
+        SET status = 'expired',
+            dm_status = 'failed_stale',
+            automation_state = COALESCE($5::jsonb, automation_state),
+            error_code = COALESCE(NULLIF(error_code, ''), 'stale_private_reply_queue'),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = $1::bigint
+          AND platform = $2::text
+          AND id = $3::bigint
+          AND comment_id = $4::text
+        `,
+        [
+          safeTenantId,
+          normalizedPlatform,
+          Number(existingDuplicateRun.id || 0),
+          safeCommentId,
+          JSON.stringify(staleAutomationState),
+        ]
+      ).catch(() => null);
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_STALE_QUEUE", {
+        existing_run_id: existingDuplicateRun.id || null,
+        previous_status: existingDuplicateStatus || "queued",
+        age_ms: Number.isFinite(ageMs) ? ageMs : null,
+        action: "expired",
+      });
+      existingDuplicateRun.status = "expired";
+      existingDuplicateRun.dm_status = "failed_stale";
+      existingDuplicateRun.automation_state = staleAutomationState;
+      staleQueuedReleased = true;
+    }
+  }
+  const isDuplicateCandidate = !staleQueuedReleased && ["processing", "queued", "success", "partial_success", "failed"].includes(existingDuplicateStatus);
   const isDuplicateRun = Boolean(existingDuplicateRun && isDuplicateCandidate && (!safeCurrentRunId || Number(existingDuplicateRun.id || 0) !== safeCurrentRunId));
   console.info("SOCIAL_COMMENT_AUTOMATION_DEDUPE_CHECK", {
     tenant_id: safeTenantId,
@@ -3462,7 +3531,11 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
   const safeCommentId = text(commentId || row.comment_id || "");
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
   const safePlatform = text(platform || row.platform || "facebook") === "instagram" ? "instagram" : "facebook";
-  const dedupeKey = `social-comment-private-reply:${safeTenantId}:${safePlatform}:${safeCommentId}`;
+  const dedupeKey = buildPrivateReplyJobDedupeKey({
+    tenantId: safeTenantId,
+    platform: safePlatform,
+    commentId: safeCommentId,
+  });
   const enqueueAt = new Date();
   const latencyTrace = row?.latency_trace && typeof row.latency_trace === "object" ? row.latency_trace : {};
   debugSocialCommentsLog("[social-comments][private-reply] queued", {
