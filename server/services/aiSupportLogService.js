@@ -2267,12 +2267,22 @@ export const logAiSupportMessage = async ({
   detectedIntent = "",
   fallbackReason = "",
   source = "admin_console",
+  channel = "",
+  customerName = "",
+  externalCustomerId = "",
+  externalMessageId = "",
+  providerMessageId = "",
   sourcePath = "manual_admin",
   insertSource = "manual_message_insert",
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
   const safeMessage = repairText(customerMessage);
+  const safeChannel = toText(channel || source || "web_chat");
+  const safeCustomerName = repairText(customerName);
+  const safeExternalCustomerId = toText(externalCustomerId);
+  const safeExternalMessageId = toText(externalMessageId || providerMessageId);
+  const safeProviderMessageId = toText(providerMessageId || externalMessageId);
   if (!safeTenantId || !safeSessionId || !safeMessage) return null;
 
   await ensureAiSupportLogSchema();
@@ -2282,22 +2292,45 @@ export const logAiSupportMessage = async ({
 
   const sessionResult = await db.query(
     `
-    INSERT INTO ai_support_sessions (tenant_id, user_id, session_id, source, updated_at)
-    VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+    INSERT INTO ai_support_sessions (
+      tenant_id,
+      user_id,
+      session_id,
+      source,
+      channel,
+      customer_name,
+      external_customer_id,
+      last_message,
+      updated_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP)
     ON CONFLICT (tenant_id, session_id) DO UPDATE SET
       user_id = COALESCE(EXCLUDED.user_id, ai_support_sessions.user_id),
-      source = EXCLUDED.source,
+      source = COALESCE(NULLIF(EXCLUDED.source, ''), ai_support_sessions.source),
+      channel = COALESCE(NULLIF(EXCLUDED.channel, ''), ai_support_sessions.channel),
+      customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
+      external_customer_id = COALESCE(NULLIF(EXCLUDED.external_customer_id, ''), ai_support_sessions.external_customer_id),
+      last_message = COALESCE(NULLIF(EXCLUDED.last_message, ''), ai_support_sessions.last_message),
       updated_at = CURRENT_TIMESTAMP
     RETURNING id
     `,
-    [safeTenantId, numberOrNull(userId), safeSessionId, repairText(source, "admin_console")]
+    [
+      safeTenantId,
+      numberOrNull(userId),
+      safeSessionId,
+      repairText(source || safeChannel, "admin_console"),
+      safeChannel,
+      safeCustomerName,
+      safeExternalCustomerId,
+      safeMessage,
+    ]
   );
 
   const sessionRefId = sessionResult.rows[0]?.id || null;
   console.info("[ai-support-insert]", {
     source: "manual_message_insert",
     session_id: safeSessionId,
-    channel: toText(source, "admin_console"),
+    channel: safeChannel,
   });
   const result = await db.query(
     `
@@ -2320,10 +2353,15 @@ export const logAiSupportMessage = async ({
       requested_product_terms,
       requested_sizes,
       requested_colors,
+      channel,
+      customer_name,
+      last_message,
+      external_message_id,
+      provider_message_id,
       source_path,
       insert_source
     )
-    VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, $15::jsonb, $16::jsonb, $17::jsonb, $18, $19)
+    VALUES ($1, $2, $3, $4, $5, $5, $6, $7, $8, $9::jsonb, $10::jsonb, $11::jsonb, $12::jsonb, $13, $14, $15::jsonb, $16::jsonb, $17::jsonb, $18, $19, $20, $21, $22, $23, $24)
     RETURNING *
     `,
     [
@@ -2344,6 +2382,11 @@ export const logAiSupportMessage = async ({
       jsonValue(requestedProductTerms),
       jsonValue(requestedSizes),
       jsonValue(requestedColors),
+      safeChannel,
+      safeCustomerName,
+      safeMessage,
+      safeExternalMessageId,
+      safeProviderMessageId,
       repairText(source, "manual_admin"),
       repairText(sourcePath, "manual_admin"),
       repairText(insertSource),
@@ -2352,7 +2395,7 @@ export const logAiSupportMessage = async ({
   console.info("[ai-support-insert]", {
     source: "manual_message_insert",
     session_id: safeSessionId,
-    channel: toText(source, "admin_console"),
+    channel: safeChannel,
     message_id: result.rows[0]?.id || null,
   });
 

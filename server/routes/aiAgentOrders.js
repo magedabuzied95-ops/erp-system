@@ -354,6 +354,27 @@ const requestClientRequestId = (req) =>
       req.headers?.["x-idempotency-key"] ||
       ""
   );
+const regressionMockDeliveryRequested = (req) =>
+  req.body?.mock_delivery === true ||
+  req.body?.mockDelivery === true ||
+  ["1", "true", "yes", "on"].includes(String(process.env.AI_INBOX_REGRESSION_MOCK_SEND || "").trim().toLowerCase());
+const regressionEndpointEnabled = () =>
+  ["1", "true", "yes", "on"].includes(String(process.env.ENABLE_AI_REGRESSION_TEST_ENDPOINT || "").trim().toLowerCase());
+const regressionTestKey = () => String(process.env.AI_REGRESSION_TEST_KEY || "").trim();
+const regressionKeyFromRequest = (req) =>
+  String(
+    req.get("x-ai-regression-test-key") ||
+      req.get("x-api-key") ||
+      req.get("authorization") ||
+      req.body?.api_key ||
+      ""
+  )
+    .replace(/^bearer\s+/i, "")
+    .trim();
+const hasValidRegressionTestKey = (req) =>
+  regressionEndpointEnabled() &&
+  Boolean(regressionTestKey()) &&
+  regressionKeyFromRequest(req) === regressionTestKey();
 const correctionTypeOptions = new Set(["wrong_price", "wrong_stock", "wrong_policy", "bad_tone", "incomplete_answer", "other"]);
 const normalizeCorrectionType = (value = "") => {
   const normalized = normalizeCorrectionTypeValue(value);
@@ -1342,7 +1363,8 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
       console.warn("[ai-agent:whatsapp] webhook received while disabled");
       return res.status(200).json({ success: true, disabled: true });
     }
-    const signatureOk = verifyMetaWebhookSignature({
+    const regressionBypass = hasValidRegressionTestKey(req);
+    const signatureOk = regressionBypass || verifyMetaWebhookSignature({
       rawBody: req.rawBody,
       signature: req.headers?.["x-hub-signature-256"],
       appSecret: process.env.WHATSAPP_APP_SECRET || process.env.META_APP_SECRET,
@@ -1350,6 +1372,9 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
     if (!signatureOk) {
       console.warn("[ai-agent:whatsapp] invalid webhook signature");
       return res.status(403).json({ success: false, message: "Invalid signature" });
+    }
+    if (regressionBypass) {
+      console.info("[ai-agent:whatsapp] regression key accepted, signature bypass enabled");
     }
     const hasStatuses = req.body?.entry?.some?.((entry) =>
       entry?.changes?.some?.((change) => Array.isArray(change?.value?.statuses) && change.value.statuses.length > 0)
@@ -1570,7 +1595,8 @@ router.get("/channels/meta/webhook", (req, res) => {
 
 router.post("/channels/meta/webhook", async (req, res) => {
   try {
-    const signatureOk = verifyMetaWebhookSignature({
+    const regressionBypass = hasValidRegressionTestKey(req);
+    const signatureOk = regressionBypass || verifyMetaWebhookSignature({
       rawBody: req.rawBody,
       signature: req.headers?.["x-hub-signature-256"],
       appSecret: process.env.META_APP_SECRET,
@@ -1578,6 +1604,9 @@ router.post("/channels/meta/webhook", async (req, res) => {
     if (!signatureOk) {
       console.warn("[ai-agent:meta] invalid webhook signature");
       return res.status(403).json({ success: false, message: "Invalid signature" });
+    }
+    if (regressionBypass) {
+      console.info("[ai-agent:meta] regression key accepted, signature bypass enabled");
     }
     const hasOnlyEchoes = req.body?.entry?.some?.((entry) =>
       entry?.messaging?.some?.((event) => event.read || event.delivery || event.message?.is_echo)
@@ -2330,6 +2359,118 @@ router.get("/conversations/:conversationId/messages", protect, permit("settings"
     return res.json({ success: true, conversation_id: conversationId, ...payload });
   } catch (error) {
     return sendError(res, error, "Failed to load AI inbox messages");
+  }
+});
+
+router.get("/debug/regression-lookup", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const conversationId = envText(req.query?.conversation_id || req.query?.session_id || req.query?.conversationId || "");
+    const messageText = envText(req.query?.message_text || req.query?.message || req.query?.text || "");
+    if (!tenantId) {
+      throw Object.assign(new Error("tenant_id is required"), { status: 400, code: "TENANT_ID_REQUIRED" });
+    }
+    if (!conversationId && !messageText) {
+      throw Object.assign(new Error("conversation_id or message_text is required"), { status: 400, code: "LOOKUP_INPUT_REQUIRED" });
+    }
+    const likeValue = messageText ? `%${messageText}%` : "";
+    const sessionResult = await db.query(
+      `
+      SELECT id, tenant_id, session_id, source, channel, customer_name, external_customer_id, last_message, status, updated_at
+      FROM ai_support_sessions
+      WHERE tenant_id = $1::bigint
+        AND (
+          ($2::text <> '' AND session_id = $2::text)
+          OR (
+            $3::text <> ''
+            AND (
+              last_message ILIKE $3::text
+              OR customer_name ILIKE $3::text
+            )
+          )
+        )
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 20
+      `,
+      [tenantId, conversationId, likeValue]
+    );
+    const channelConversationResult = await db.query(
+      `
+      SELECT id, tenant_id, channel, external_conversation_id, external_customer_id, customer_name, last_message, metadata, updated_at
+      FROM ai_channel_conversations
+      WHERE tenant_id = $1::bigint
+        AND (
+          ($2::text <> '' AND external_conversation_id = $2::text)
+          OR (
+            $3::text <> ''
+            AND (
+              last_message ILIKE $3::text
+              OR customer_name ILIKE $3::text
+              OR external_customer_id ILIKE $3::text
+            )
+          )
+        )
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 20
+      `,
+      [tenantId, conversationId, likeValue]
+    );
+    const messagesResult = await db.query(
+      `
+      SELECT
+        id,
+        tenant_id,
+        session_id,
+        channel,
+        sender_type,
+        message_type,
+        message_text,
+        customer_message,
+        ai_answer,
+        staff_message,
+        customer_name,
+        last_message,
+        external_message_id,
+        provider_message_id,
+        delivery_status,
+        delivery_error,
+        created_at
+      FROM ai_support_messages
+      WHERE tenant_id = $1::bigint
+        AND (
+          ($2::text <> '' AND session_id = $2::text)
+          OR (
+            $3::text <> ''
+            AND (
+              message_text ILIKE $3::text
+              OR customer_message ILIKE $3::text
+              OR ai_answer ILIKE $3::text
+              OR staff_message ILIKE $3::text
+              OR last_message ILIKE $3::text
+            )
+          )
+        )
+      ORDER BY created_at DESC, id DESC
+      LIMIT 50
+      `,
+      [tenantId, conversationId, likeValue]
+    );
+    return res.json({
+      success: true,
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      message_text: messageText,
+      counts: {
+        ai_support_sessions: sessionResult.rowCount || 0,
+        ai_channel_conversations: channelConversationResult.rowCount || 0,
+        ai_support_messages: messagesResult.rowCount || 0,
+      },
+      ai_support_sessions: sessionResult.rows || [],
+      ai_channel_conversations: channelConversationResult.rows || [],
+      ai_support_messages: messagesResult.rows || [],
+    });
+  } catch (error) {
+    return sendError(res, error, "Failed to run AI inbox regression lookup");
   }
 });
 
@@ -4333,6 +4474,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
   const messageText = envText(req.body?.message || req.body?.reply || req.body?.text);
+  const mockDelivery = regressionMockDeliveryRequested(req);
   let conversation = null;
   try {
     perfLog("ai_inbox_send_start", {
@@ -4423,7 +4565,15 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     let sendResult = null;
     let deliveryStatus = "sent";
     let deliveryError = "";
-    if (isWhatsAppConversation) {
+    if (mockDelivery) {
+      sendResult = {
+        sent: true,
+        delivery_status: "mock_sent",
+        delivery_error: "",
+        message_id: `mock:${Date.now()}:${conversationId}`,
+        meta: { mocked: true, channel, reason: "regression_mock_delivery" },
+      };
+    } else if (isWhatsAppConversation) {
       sendResult = await sendWhatsAppCloudReply({
         to: recipientId,
         reply: { text: messageText },
@@ -4543,6 +4693,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         config_id: sendResult?.config_id || null,
         source: "ai_inbox_send",
         channel_type: isWhatsAppConversation ? "whatsapp" : "meta",
+        mock_delivery: mockDelivery,
       },
     }).catch(() => {});
     await upsertChannelConversationMapping({
@@ -4572,11 +4723,12 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     });
     return res.status(200).json({
       success: true,
-      sent: deliveryStatus === "sent",
+      sent: deliveryStatus === "sent" || deliveryStatus === "mock_sent",
       delivery_status: deliveryStatus,
       message,
       delivery_error: deliveryError,
       meta: sendResult.meta || null,
+      mock_delivery: mockDelivery,
     });
   } catch (error) {
     pushAIEvent({
@@ -4641,6 +4793,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
 router.post("/conversations/:conversationId/product-card/send", protect, permit("settings", "edit"), async (req, res) => {
   const tenantId = toTenantId(req);
   const conversationId = envText(req.params.conversationId);
+  const mockDelivery = regressionMockDeliveryRequested(req);
   const rawCards = Array.isArray(req.body?.product_cards)
     ? req.body.product_cards
     : Array.isArray(req.body?.productCards)
@@ -4733,7 +4886,16 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     let externalMessageId = "";
     let storedOnlyReason = "";
 
-    if (normalizedChannel === AI_AGENT_CHANNELS.WEB_CHAT || !normalizedChannel) {
+    if (mockDelivery) {
+      sendResult = {
+        sent: true,
+        delivery_status: "mock_sent",
+        message_id: `mock-product-card:${Date.now()}:${conversationId}`,
+        meta: { mocked: true, channel: safeChannel, reason: "regression_mock_delivery" },
+      };
+      deliveryStatus = "mock_sent";
+      externalMessageId = sendResult.message_id || "";
+    } else if (normalizedChannel === AI_AGENT_CHANNELS.WEB_CHAT || !normalizedChannel) {
       sendResult = { sent: true, delivery_status: "stored" };
     } else if (normalizedChannel === AI_AGENT_CHANNELS.WHATSAPP) {
       if (!externalCustomerId) {
@@ -4867,6 +5029,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
         source: "ai_inbox_product_card",
         product_card_count: productCards.length,
         message_type: "product_card",
+        mock_delivery: mockDelivery,
       },
     }).catch(() => {});
     await upsertChannelConversationMapping({
@@ -4889,8 +5052,8 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
     return res.status(201).json({
       success: deliveryStatus !== "failed",
       stored: true,
-      delivered: deliveryStatus === "sent",
-      sent: deliveryStatus === "sent",
+      delivered: deliveryStatus === "sent" || deliveryStatus === "mock_sent",
+      sent: deliveryStatus === "sent" || deliveryStatus === "mock_sent",
       delivery_status: deliveryStatus,
       delivery_error: deliveryStatus === "failed" ? (deliveryError || sendResult?.delivery_error || "") : "",
       fallback_used: sendResult?.fallback_used === true,
@@ -4898,6 +5061,7 @@ router.post("/conversations/:conversationId/product-card/send", protect, permit(
       message,
       product_cards: productCards,
       meta: sendResult.meta || null,
+      mock_delivery: mockDelivery,
     });
   } catch (error) {
     console.error("ai_inbox_product_card_send_failed", {

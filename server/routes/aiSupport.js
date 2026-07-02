@@ -1391,6 +1391,26 @@ const requireAiSupportAdmin = (req, res, next) => {
 
 const logSupportExchange = async ({ req, tenantId, metadata, message, context, response }) => {
   try {
+    const safeChannel = toText(req.aiChannelMessage?.channel || metadata?.channel || AI_AGENT_CHANNELS.WEB_CHAT, AI_AGENT_CHANNELS.WEB_CHAT);
+    const safeCustomerName = toText(
+      req.aiChannelMessage?.customer_name ||
+      metadata?.customer_name ||
+      metadata?.messenger_profile?.name ||
+      ""
+    );
+    const safeExternalCustomerId = toText(
+      req.aiChannelMessage?.external_customer_id ||
+      metadata?.external_customer_id ||
+      metadata?.customer_phone ||
+      metadata?.customer_id ||
+      ""
+    );
+    const safeExternalMessageId = toText(
+      metadata?.external_message_id ||
+      metadata?.provider_message_id ||
+      req.aiChannelMessage?.external_message_id ||
+      ""
+    );
     await logAiSupportMessage({
       tenantId,
       userId: req.user?.id || req.optionalUser?.id || req.optionalUser?.user_id || null,
@@ -1399,7 +1419,14 @@ const logSupportExchange = async ({ req, tenantId, metadata, message, context, r
       response: { ...response, unknown_product_terms: context.unknown_product_terms || response.unknown_product_terms || [] },
       detectedIntent: context.intent?.type || "",
       fallbackReason: context.fallbackReason || "",
-      source: req.user || req.optionalUser ? "admin_console" : "api",
+      source: safeChannel,
+      channel: safeChannel,
+      customerName: safeCustomerName,
+      externalCustomerId: safeExternalCustomerId,
+      externalMessageId: safeExternalMessageId,
+      providerMessageId: safeExternalMessageId,
+      sourcePath: "ai_support_route",
+      insertSource: "ai_support_route",
     });
   } catch (error) {
     console.warn("[ai-support] log skipped", {
