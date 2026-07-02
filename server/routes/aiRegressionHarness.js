@@ -1161,23 +1161,21 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
         dry_run: DRY_RUN_MODE,
         source: "ai_regression_test_endpoint",
       });
-      regressionIntentDebugTrace = source === "ai_regression_test_endpoint"
-        ? buildRegressionIntentDebugTrace({
-            requestProductQuery: toText(body?.product_query || body?.productQuery || ""),
-            inboundProductQuery: toText(inbound.product_query || inbound.productQuery || ""),
-            productCardsCountBeforeBrain: composerProductCards.length,
-            productCardsCountAfterSearch: seedProductCards.length,
-            classifyIntentInputMessage: message,
-            classifyIntentInputProductQuery: toText(inbound.product_query || inbound.productQuery || ""),
-            classifyIntentInputProductCardsCount: asArray(inbound.product_cards || inbound.productCards || []).length,
-            classifyIntentHasProductContext: Boolean(toText(inbound.product_query || inbound.productQuery || "") || asArray(inbound.product_cards || inbound.productCards || []).length),
-            classifyIntentRequestProductSignals: hasProductDiscoveryRequestPhrase(message),
-            classifyIntentProductContextOverrideMatched: Boolean((toText(inbound.product_query || inbound.productQuery || "") || asArray(inbound.product_cards || inbound.productCards || []).length) && hasProductDiscoveryRequestPhrase(message)),
-            classifyIntentOutput: toText(brainDecision.intent || brainDecision.detected_intent || ""),
-            brainDecisionIntent: toText(brainDecision.intent || ""),
-            brainDecisionDetectedIntent: toText(brainDecision.detected_intent || brainDecision.intent || ""),
-          })
-        : null;
+      regressionIntentDebugTrace = buildRegressionIntentDebugTrace({
+        requestProductQuery: toText(req.body?.product_query || req.body?.productQuery || ""),
+        inboundProductQuery: toText(inbound.product_query || inbound.productQuery || ""),
+        productCardsCountBeforeBrain: composerProductCards.length,
+        productCardsCountAfterSearch: seedProductCards.length,
+        classifyIntentInputMessage: message,
+        classifyIntentInputProductQuery: toText(inbound.product_query || inbound.productQuery || ""),
+        classifyIntentInputProductCardsCount: asArray(inbound.product_cards || inbound.productCards || []).length,
+        classifyIntentHasProductContext: Boolean(toText(inbound.product_query || inbound.productQuery || "") || asArray(inbound.product_cards || inbound.productCards || []).length),
+        classifyIntentRequestProductSignals: hasProductDiscoveryRequestPhrase(message),
+        classifyIntentProductContextOverrideMatched: Boolean((toText(inbound.product_query || inbound.productQuery || "") || asArray(inbound.product_cards || inbound.productCards || []).length) && hasProductDiscoveryRequestPhrase(message)),
+        classifyIntentOutput: toText(brainDecision.intent || brainDecision.detected_intent || ""),
+        brainDecisionIntent: toText(brainDecision.intent || ""),
+        brainDecisionDetectedIntent: toText(brainDecision.detected_intent || brainDecision.intent || ""),
+      });
 
       const responseForComposer = composerProductCards.length
         ? {

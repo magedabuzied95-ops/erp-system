@@ -11,6 +11,7 @@ import {
   ensureAiShoeCoverSchema,
   isAiShoeCoverGenerationEnabled,
   loadAiShoeCoverStateMap,
+  regenerateAiShoeCoverTarget,
   scheduleAiShoeCoverJobs,
 } from "../services/aiShoeCoverService.js";
 import {
@@ -1354,6 +1355,11 @@ const normalizeAiCoverState = (value = null) => {
   };
 };
 
+const normalizeRoleValue = (value = "") => String(value || "").trim().toLowerCase().replace(/_/g, " ");
+
+const isAdminLikeUser = (user = {}) =>
+  isSuperAdminUser(user) || ["admin", "super admin", "superadmin"].includes(normalizeRoleValue(user?.role || user?.role_name));
+
 const attachAiShoeCoverStateToProducts = async (clientOrPool, products = []) => {
   const rows = Array.isArray(products) ? products : [];
   const productIds = rows.map((product) => Number(product?.id || product?.product_id || 0)).filter((value) => Number.isFinite(value) && value > 0);
@@ -2529,6 +2535,59 @@ export const loadProductsWithVariantsPayload = async ({ query = {}, user = null,
   }
 
   return payload;
+};
+
+export const regenerateAiShoeCover = async (req, res) => {
+  const tenantId = getTenantId(req, req.user?.tenant_id);
+  if (!tenantId) {
+    return tenantContextMissingResponse(res);
+  }
+  if (!isAdminLikeUser(req.user)) {
+    return res.status(403).json({
+      success: false,
+      message: "Only admins can regenerate AI shoe covers",
+    });
+  }
+
+  const productId = Number(req.params.id || 0);
+  const targetType = String(req.body?.target_type || req.body?.targetType || "product").trim().toLowerCase();
+  const color = String(req.body?.color || req.body?.color_name || req.body?.target_key || req.body?.targetKey || "").trim();
+  if (!Number.isFinite(productId) || productId <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid product id",
+    });
+  }
+
+  try {
+    const job = await regenerateAiShoeCoverTarget({
+      tenantId,
+      productId,
+      targetType,
+      color,
+    });
+    return res.json({
+      success: true,
+      data: {
+        target_type: job?.target_type || targetType,
+        target_key: job?.target_key || (targetType === "color" ? color.toLowerCase() : "product"),
+        ai_cover: normalizeAiCoverState(job),
+      },
+    });
+  } catch (error) {
+    console.error("[ai-shoe-cover] manual regenerate failed", {
+      tenantId,
+      productId,
+      targetType,
+      color,
+      message: error?.message || String(error),
+      stack: error?.stack,
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to regenerate AI shoe cover",
+    });
+  }
 };
 
 export const getProductByQrToken = async (req, res) => {

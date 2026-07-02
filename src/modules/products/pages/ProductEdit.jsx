@@ -63,6 +63,7 @@ import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from
 import {
   generateProductDescription,
   generateAiProductData,
+  regenerateAiShoeCover,
   generateThermalArtwork,
   getManufacturers,
   getProductsWithVariants,
@@ -76,6 +77,7 @@ import { isMirrorProduct, slugifyEdition } from "../../../shared/lib/mirrorProdu
 import { isInvalidEditionName } from "../../../shared/lib/editionNameGenerator";
 import { safeGenerateProductDescriptions } from "../../../shared/lib/generateProductDescriptions";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { isAdminUser } from "../../../shared/auth/authStorage";
 
 const emptyProduct = {
   name: "",
@@ -736,6 +738,7 @@ function ProductEdit() {
   const [aiProductData, setAiProductData] = useState(null);
   const [aiProductLoading, setAiProductLoading] = useState(false);
   const [aiProductProgress, setAiProductProgress] = useState(AI_PROGRESS_STEPS[0]);
+  const [aiCoverRegeneratingKey, setAiCoverRegeneratingKey] = useState("");
   const [colorPickTarget, setColorPickTarget] = useState(null);
   const [searchParams] = useSearchParams();
   const productId = String(id || "").trim();
@@ -754,6 +757,7 @@ function ProductEdit() {
       product?.isDuplicate
   );
   const mirrorEditionEnabled = isMirrorProduct(product);
+  const canRegenerateAiCover = isAdminUser();
   const descriptionContext = useMemo(
     () => ({
       name: product.name,
@@ -829,6 +833,73 @@ function ProductEdit() {
   const regenerateSkuPrefix = () => {
     setProduct((current) => ({ ...current, sku: uniqueSmartSkuPrefix }));
     setSkuTouched(false);
+  };
+  const handleRegenerateAiCover = async ({ colorGroup = null } = {}) => {
+    if (!productId) return;
+    const targetType = colorGroup ? "color" : "product";
+    const targetKey = targetType === "color" ? normalizeColorKey(colorGroup?.color) : "product";
+    if (targetType === "color" && (!targetKey || targetKey === "default")) {
+      toast.error("Select a color target before regenerating the AI cover.");
+      return;
+    }
+
+    const busyKey = `${targetType}:${targetKey}`;
+    setAiCoverRegeneratingKey(busyKey);
+    try {
+      const result = await regenerateAiShoeCover({
+        productId,
+        targetType,
+        color: colorGroup?.color || "",
+      });
+      const aiCover = result?.ai_cover || null;
+      const nextSourceImageUrl = String(aiCover?.source_image_url || "").trim();
+
+      if (targetType === "product") {
+        setProduct((current) => ({
+          ...current,
+          ai_cover: aiCover,
+          ai_cover_status: aiCover?.status || "",
+        }));
+        if (nextSourceImageUrl) {
+          setCoverImage(nextSourceImageUrl);
+        }
+      } else {
+        setColorGroups((current) =>
+          current.map((group) => {
+            if (normalizeColorKey(group.color) !== targetKey) return group;
+            const filteredImages = normalizeColorImages(group.images).filter((image) => !image.generated_by_ai);
+            const nextImages =
+              filteredImages.length > 0
+                ? filteredImages.map((image, index) => ({ ...image, is_primary: index === 0 }))
+                : nextSourceImageUrl
+                  ? [{
+                      id: makeId(),
+                      preview: nextSourceImageUrl,
+                      image_url: nextSourceImageUrl,
+                      is_primary: true,
+                      generated_by_ai: false,
+                      name: nextSourceImageUrl.split("/").pop() || "Original image",
+                    }]
+                  : [];
+            const primary = nextImages.find((image) => image.is_primary) || nextImages[0] || null;
+            return {
+              ...group,
+              ai_cover: aiCover,
+              ai_cover_status: aiCover?.status || "",
+              images: nextImages,
+              image_url: primary?.image_url || group.image_url || "",
+              imagePreview: primary?.preview || primary?.image_url || group.imagePreview || "",
+            };
+          })
+        );
+      }
+
+      toast.success("AI cover regeneration queued.");
+    } catch (error) {
+      toast.error(error?.message || "Failed to regenerate AI cover");
+    } finally {
+      setAiCoverRegeneratingKey("");
+    }
   };
   const regenerateDescriptions = async (target = "all") => {
     setDescriptionGenerating({ ar: target === "all" || target === "ar", en: target === "all" || target === "en" });
@@ -3051,6 +3122,17 @@ function ProductEdit() {
                 </label>
                 <div className="mt-3 grid gap-2">
                   <AiCoverStatusBadge state={product.ai_cover} />
+                  {canRegenerateAiCover ? (
+                    <button
+                      type="button"
+                      onClick={() => handleRegenerateAiCover()}
+                      disabled={aiCoverRegeneratingKey === "product:product" || !productId || !coverImage}
+                      className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-emerald-300/25 bg-emerald-400/10 px-4 text-sm font-black text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {aiCoverRegeneratingKey === "product:product" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                      {aiCoverRegeneratingKey === "product:product" ? "Queueing AI Cover..." : "Regenerate AI Cover"}
+                    </button>
+                  ) : null}
                   <button
                     type="button"
                     onClick={handleGenerateAiProductData}
@@ -3485,6 +3567,17 @@ function ProductEdit() {
                         {group.thermal_image_url ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
                       </button>
                       <AiCoverStatusBadge state={group.ai_cover} />
+                      {canRegenerateAiCover ? (
+                        <button
+                          type="button"
+                          onClick={() => handleRegenerateAiCover({ colorGroup: group })}
+                          disabled={aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` || !getPrimaryColorImage(group)}
+                          className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[12px] border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          {aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+                          {aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` ? "Queueing AI Cover..." : "Regenerate AI Cover"}
+                        </button>
+                      ) : null}
                       <div className="grid w-full max-w-[520px] grid-cols-2 gap-2">
                         <div className="rounded-[12px] border border-white/10 bg-zinc-950/70 p-2">
                           <div className="flex h-20 items-center justify-center overflow-hidden rounded-[10px] bg-zinc-900">

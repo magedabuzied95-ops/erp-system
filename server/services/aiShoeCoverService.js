@@ -7,52 +7,51 @@ import { Buffer } from "node:buffer";
 import db from "../database/db.js";
 
 const AI_SHOE_COVER_PROMPT = [
-  "Create a premium ecommerce catalog cover image of this shoe.",
+  "Edit this product image conservatively.",
   "",
-  "The generated image must preserve the product exactly as photographed.",
+  "This is not a redesign task.",
   "",
-  "Do not modify:",
-  "- shape",
+  "Preserve the exact shoe from the source image.",
+  "",
+  "The final image must show the same shoe with the same:",
+  "- silhouette",
   "- proportions",
+  "- sole pattern",
+  "- tread shape",
+  "- upper panels",
   "- stitching",
-  "- materials",
-  "- textures",
-  "- sole design",
-  "- branding",
-  "- colors",
+  "- mesh texture",
+  "- material texture",
   "- logos",
-  "- laces",
-  "- details",
+  "- printed text",
+  "- lace shape",
+  "- lace position",
+  "- color distribution",
+  "- heel details",
+  "- toe shape",
+  "- midsole geometry",
+  "- outsole geometry",
   "",
-  "Do not invent or remove any product elements.",
+  "Do not invent, simplify, beautify, replace, or redesign any part of the shoe.",
   "",
-  "Convert the image into a professional premium sportswear ecommerce catalog style.",
+  "Only perform ecommerce cleanup:",
+  "- isolate the main visible shoe",
+  "- remove extra shoe behind it if present",
+  "- remove tags, props, stickers, hands, and distracting objects",
+  "- place the same shoe on a clean white or very light gray background",
+  "- center the shoe",
+  "- improve lighting slightly",
+  "- add a subtle natural shadow",
+  "- keep the original viewing angle as much as possible",
+  "- do not force a new angle if it changes the product",
   "",
-  "Requirements:",
-  "- perfect side profile",
-  "- centered composition",
-  "- clean white or very light gray seamless background",
-  "- soft studio lighting",
-  "- subtle realistic shadow under the shoe",
-  "- premium ecommerce appearance",
+  "Important:",
+  "If converting to a perfect side profile would require inventing unseen parts, do not do it.",
+  "Prefer preserving product accuracy over perfect Adidas-style angle.",
   "",
-  "Remove:",
-  "- extra shoes",
-  "- hands",
-  "- props",
-  "- stickers",
-  "- text",
-  "- watermarks",
-  "- distracting background",
+  "Do not add text, logos, labels, watermarks, or graphics.",
   "",
-  "Do not add:",
-  "- text",
-  "- logos",
-  "- graphics",
-  "- labels",
-  "- watermarks",
-  "",
-  "The result should look like a premium catalog image suitable for the main product cover.",
+  "The output must be a faithful catalog cleanup of the original shoe, not a new generated shoe.",
 ].join("\n");
 
 const AI_SHOE_COVER_PUBLIC_DIR = "/uploads/products/ai-shoe-covers";
@@ -441,6 +440,68 @@ const upsertJob = async (client, payload = {}) => {
   return result.rows[0] || null;
 };
 
+const resetJobForManualRegeneration = async (client, payload = {}) => {
+  const result = await client.query(
+    `
+    INSERT INTO ai_shoe_cover_jobs (
+      tenant_id,
+      product_id,
+      variant_id,
+      target_type,
+      target_key,
+      product_type,
+      source_image_url,
+      source_image_hash,
+      generated_image_url,
+      generated_image_hash,
+      ai_cover_image_id,
+      status,
+      attempt_count,
+      last_error,
+      queued_at,
+      started_at,
+      generated_at,
+      completed_at,
+      next_retry_at,
+      last_requested_at,
+      updated_at
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, '', '', NULL, 'pending', 0, '', NOW(), NULL, NULL, NULL, NULL, NOW(), NOW())
+    ON CONFLICT (tenant_id, product_id, target_type, target_key)
+    DO UPDATE SET
+      variant_id = EXCLUDED.variant_id,
+      product_type = EXCLUDED.product_type,
+      source_image_url = EXCLUDED.source_image_url,
+      source_image_hash = EXCLUDED.source_image_hash,
+      generated_image_url = '',
+      generated_image_hash = '',
+      ai_cover_image_id = NULL,
+      status = 'pending',
+      attempt_count = 0,
+      last_error = '',
+      queued_at = NOW(),
+      started_at = NULL,
+      generated_at = NULL,
+      completed_at = NULL,
+      next_retry_at = NULL,
+      last_requested_at = NOW(),
+      updated_at = NOW()
+    RETURNING *
+    `,
+    [
+      Number(payload.tenantId),
+      Number(payload.productId),
+      payload.variantId ? Number(payload.variantId) : null,
+      normalizeTargetType(payload.targetType),
+      cleanText(payload.targetKey) || "product",
+      cleanText(payload.productType),
+      cleanText(payload.sourceImageUrl),
+      cleanText(payload.sourceImageHash),
+    ]
+  );
+  return result.rows[0] || null;
+};
+
 export const scheduleAiShoeCoverJobs = async ({
   tenantId = null,
   productId = null,
@@ -513,6 +574,274 @@ export const scheduleAiShoeCoverJobs = async ({
 
     await client.query("COMMIT");
     return jobs;
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
+const restoreProductSourceAsPrimary = async (client, { tenantId, productId, sourceImageUrl = "", generatedImageUrl = "" } = {}) => {
+  const currentResult = await client.query(
+    `
+    SELECT image_url, gallery_images
+    FROM products
+    WHERE id = $1
+      AND tenant_id = $2
+    LIMIT 1
+    `,
+    [Number(productId), Number(tenantId)]
+  );
+  const current = currentResult.rows[0] || {};
+  const currentGallery = normalizeGalleryImages(current.gallery_images);
+  const galleryWithoutGenerated = currentGallery.filter((item) => imageItemSourceUrl(item) !== cleanText(generatedImageUrl));
+  const nextGallery = uniqueImageItems([
+    sourceImageUrl ? { image_url: sourceImageUrl, preview: sourceImageUrl } : null,
+    ...galleryWithoutGenerated,
+  ].filter(Boolean));
+
+  await client.query(
+    `
+    UPDATE products
+    SET image_url = $1,
+        gallery_images = $2::jsonb,
+        updated_at = NOW()
+    WHERE id = $3
+      AND tenant_id = $4
+    `,
+    [cleanText(sourceImageUrl), JSON.stringify(nextGallery), Number(productId), Number(tenantId)]
+  );
+};
+
+const removeExistingColorAiCover = async (client, { tenantId, productId, colorKey = "", sourceImageUrl = "", variantId = null } = {}) => {
+  const result = await client.query(
+    `
+    SELECT id, variant_id, image_url, sort_order, generated_by_ai
+    FROM product_variant_images
+    WHERE product_id = $1
+      AND tenant_id = $2
+      AND LOWER(TRIM(color_name)) = $3
+    ORDER BY generated_by_ai DESC, sort_order ASC, id ASC
+    `,
+    [Number(productId), Number(tenantId), normalizeColorKey(colorKey)]
+  );
+
+  const rows = result.rows || [];
+  const originalRows = rows.filter((row) => !row.generated_by_ai);
+  const aiRows = rows.filter((row) => row.generated_by_ai);
+  if (aiRows.length) {
+    await client.query(
+      `
+      DELETE FROM product_variant_images
+      WHERE id = ANY($1::bigint[])
+      `,
+      [aiRows.map((row) => Number(row.id)).filter((value) => Number.isFinite(value) && value > 0)]
+    );
+  }
+
+  let nextOriginalRows = originalRows;
+  if (!nextOriginalRows.length && cleanText(sourceImageUrl)) {
+    const inserted = await client.query(
+      `
+      INSERT INTO product_variant_images (
+        tenant_id,
+        product_id,
+        variant_id,
+        color_name,
+        color_value,
+        image_url,
+        sort_order,
+        is_primary,
+        generated_by_ai
+      )
+      VALUES ($1, $2, $3, $4, $5, $6, 0, TRUE, FALSE)
+      RETURNING id, variant_id, image_url, sort_order, generated_by_ai
+      `,
+      [Number(tenantId), Number(productId), variantId ? Number(variantId) : null, normalizeColorKey(colorKey), normalizeColorKey(colorKey), cleanText(sourceImageUrl)]
+    );
+    nextOriginalRows = inserted.rows || [];
+  }
+
+  for (let index = 0; index < nextOriginalRows.length; index += 1) {
+    await client.query(
+      `
+      UPDATE product_variant_images
+      SET sort_order = $1,
+          is_primary = $2
+      WHERE id = $3
+      `,
+      [index, index === 0, Number(nextOriginalRows[index].id)]
+    );
+  }
+
+  if (cleanText(sourceImageUrl)) {
+    await client.query(
+      `
+      UPDATE product_variants
+      SET image_url = $1,
+          updated_at = NOW()
+      WHERE product_id = $2
+        AND tenant_id = $3
+        AND LOWER(TRIM(color)) = $4
+        AND is_active IS DISTINCT FROM FALSE
+        AND deleted_at IS NULL
+      `,
+      [cleanText(sourceImageUrl), Number(productId), Number(tenantId), normalizeColorKey(colorKey)]
+    );
+  }
+};
+
+export const regenerateAiShoeCoverTarget = async ({
+  tenantId = null,
+  productId = null,
+  targetType = "product",
+  color = "",
+} = {}) => {
+  if (!isAiShoeCoverGenerationEnabled()) {
+    const error = new Error("AI shoe cover generation is disabled");
+    error.status = 409;
+    throw error;
+  }
+  if (!Number.isFinite(Number(tenantId)) || Number(tenantId) <= 0 || !Number.isFinite(Number(productId)) || Number(productId) <= 0) {
+    const error = new Error("Invalid product target");
+    error.status = 400;
+    throw error;
+  }
+
+  await ensureAiShoeCoverSchema();
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+
+    const productResult = await client.query(
+      `
+      SELECT id, tenant_id, product_type, image_url, gallery_images
+      FROM products
+      WHERE id = $1
+        AND tenant_id = $2
+      LIMIT 1
+      `,
+      [Number(productId), Number(tenantId)]
+    );
+    const product = productResult.rows[0] || null;
+    if (!product) {
+      const error = new Error("Product not found");
+      error.status = 404;
+      throw error;
+    }
+    if (!isEligibleFootwearProductType(product.product_type)) {
+      const error = new Error("AI shoe covers are only available for footwear products");
+      error.status = 400;
+      throw error;
+    }
+
+    const normalizedTargetType = normalizeTargetType(targetType);
+    const targetKey = normalizedTargetType === "product" ? "product" : normalizeColorKey(color);
+    if (normalizedTargetType === "color" && (!targetKey || targetKey === "default")) {
+      const error = new Error("A color target is required");
+      error.status = 400;
+      throw error;
+    }
+
+    const existingJobMap = await fetchJobMap(client, { tenantId: Number(tenantId), productId: Number(productId) });
+    const existingJob = existingJobMap.get(`${normalizedTargetType}:${targetKey}`) || null;
+    if (normalizeStatus(existingJob?.status || "") === "processing") {
+      const error = new Error("AI cover generation is already processing for this target");
+      error.status = 409;
+      throw error;
+    }
+
+    let sourceImageUrl = "";
+    let variantId = null;
+    if (normalizedTargetType === "product") {
+      sourceImageUrl = selectProductSourceImage({
+        productImageUrl: product.image_url,
+        galleryImages: normalizeGalleryImages(product.gallery_images),
+        existingJob,
+      });
+      if (!sourceImageUrl) {
+        const error = new Error("No original product image is available for regeneration");
+        error.status = 400;
+        throw error;
+      }
+      await restoreProductSourceAsPrimary(client, {
+        tenantId,
+        productId,
+        sourceImageUrl,
+        generatedImageUrl: cleanText(existingJob?.generated_image_url),
+      });
+    } else {
+      const colorImagesResult = await client.query(
+        `
+        SELECT id, variant_id, image_url, sort_order, generated_by_ai
+        FROM product_variant_images
+        WHERE product_id = $1
+          AND tenant_id = $2
+          AND LOWER(TRIM(color_name)) = $3
+        ORDER BY generated_by_ai DESC, sort_order ASC, id ASC
+        `,
+        [Number(productId), Number(tenantId), targetKey]
+      );
+      const colorImageRows = colorImagesResult.rows || [];
+      const originalRows = colorImageRows.filter((row) => !row.generated_by_ai);
+      sourceImageUrl = cleanText(originalRows[0]?.image_url || existingJob?.source_image_url);
+      variantId = Number(originalRows[0]?.variant_id || 0) || null;
+
+      if (!variantId) {
+        const variantResult = await client.query(
+          `
+          SELECT id
+          FROM product_variants
+          WHERE product_id = $1
+            AND tenant_id = $2
+            AND LOWER(TRIM(color)) = $3
+            AND is_active IS DISTINCT FROM FALSE
+            AND deleted_at IS NULL
+          ORDER BY id ASC
+          LIMIT 1
+          `,
+          [Number(productId), Number(tenantId), targetKey]
+        );
+        variantId = Number(variantResult.rows[0]?.id || 0) || null;
+      }
+
+      if (!sourceImageUrl) {
+        const error = new Error("No original color image is available for regeneration");
+        error.status = 400;
+        throw error;
+      }
+
+      await removeExistingColorAiCover(client, {
+        tenantId,
+        productId,
+        colorKey: targetKey,
+        sourceImageUrl,
+        variantId,
+      });
+    }
+
+    const sourceBuffer = await readSourceBuffer(sourceImageUrl);
+    if (!sourceBuffer?.length) {
+      const error = new Error("Source image could not be loaded");
+      error.status = 400;
+      throw error;
+    }
+    const sourceImageHash = sha256(sourceBuffer);
+
+    const job = await resetJobForManualRegeneration(client, {
+      tenantId,
+      productId,
+      variantId,
+      targetType: normalizedTargetType,
+      targetKey,
+      productType: cleanText(product.product_type),
+      sourceImageUrl,
+      sourceImageHash,
+    });
+
+    await client.query("COMMIT");
+    return normalizeJobRow(job);
   } catch (error) {
     await client.query("ROLLBACK").catch(() => {});
     throw error;
@@ -619,7 +948,7 @@ const failJob = async (job = {}, error = null) => {
         updated_at = NOW()
     WHERE id = $1
     `,
-    [job.id, cleanText(error?.message || error || "AI shoe cover generation failed"), nextRetryAt]
+    [job.id, cleanText(error?.message || error || "AI shoe catalog cleanup failed"), nextRetryAt]
   );
 };
 
@@ -773,7 +1102,7 @@ const generateCoverBuffer = async ({ sourceImageUrl = "", productName = "" } = {
     throw new Error("Source image could not be loaded");
   }
   if (sourceBuffer.length > AI_SHOE_COVER_MAX_SOURCE_BYTES) {
-    throw new Error("Source image is too large for AI shoe cover generation");
+    throw new Error("Source image is too large for AI shoe catalog cleanup");
   }
 
   const imageFile = await toFile(sourceBuffer, `${cleanText(productName) || "shoe"}-source.png`, {
@@ -795,7 +1124,7 @@ const generateCoverBuffer = async ({ sourceImageUrl = "", productName = "" } = {
     response?.output?.[0]?.base64 ||
     "";
   if (!imageBase64) {
-    throw new Error("OpenAI did not return an AI shoe cover image");
+    throw new Error("OpenAI did not return an AI shoe catalog cleanup image");
   }
   return {
     sourceBuffer,

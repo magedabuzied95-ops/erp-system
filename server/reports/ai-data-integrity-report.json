@@ -1,0 +1,6270 @@
+{
+  "generated_at": "2026-07-02T15:15:26.021Z",
+  "fixture_path": "server\\scripts\\fixtures\\aiAgentRegressionScenarios.json",
+  "summary": {
+    "products_checked": 9,
+    "variants_checked": 119,
+    "images_checked": 40,
+    "total_issues": 437,
+    "critical_issues": 52,
+    "medium_issues": 385,
+    "low_issues": 0,
+    "ai_readiness_score": 0,
+    "excluded_products": 34,
+    "replay_products_checked": 1,
+    "replay_variants_checked": 0,
+    "replay_urls_checked": 0,
+    "replay_missing_references": 0
+  },
+  "issues": [
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'adidas-terrex-x-goretex-2' is assigned to multiple products.",
+      "product_id": "4",
+      "variant_id": "",
+      "affected_ids": [
+        "4",
+        "64"
+      ],
+      "details": {
+        "slug": "adidas-terrex-x-goretex-2",
+        "products": [
+          {
+            "id": "4",
+            "source": "adidas-terrex-x-goretex-2",
+            "name": "Adidas Terrex X Goretex-2 Sneakers"
+          },
+          {
+            "id": "64",
+            "source": "adidas-terrex-x-goretex-2",
+            "name": "Adidas Terrex X Goretex-2 نسخة"
+          },
+          {
+            "id": "64",
+            "source": "adidas-terrex-x-goretex-2",
+            "name": "Adidas Terrex X Goretex-2 نسخة"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'adidas-black-white-running-sneakers' is assigned to multiple products.",
+      "product_id": "2",
+      "variant_id": "",
+      "affected_ids": [
+        "2"
+      ],
+      "details": {
+        "slug": "adidas-black-white-running-sneakers",
+        "products": [
+          {
+            "id": "2",
+            "source": "adidas-black-white-running-sneakers",
+            "name": "Adidas Black White Running Sneakers for Men"
+          },
+          {
+            "id": "2",
+            "source": "adidas-black-white-running-sneakers",
+            "name": "Adidas Black White Running Sneakers for Men"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'adidas-terrex-x-goretex-2-white-black' is assigned to multiple products.",
+      "product_id": "25",
+      "variant_id": "",
+      "affected_ids": [
+        "25"
+      ],
+      "details": {
+        "slug": "adidas-terrex-x-goretex-2-white-black",
+        "products": [
+          {
+            "id": "25",
+            "source": "adidas-terrex-x-goretex-2-white-black",
+            "name": "Adidas Terrex X Goretex-2"
+          },
+          {
+            "id": "25",
+            "source": "adidas-terrex-x-goretex-2-white-black",
+            "name": "Adidas Terrex X Goretex-2"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'asics-blue-white-sneakers' is assigned to multiple products.",
+      "product_id": "9",
+      "variant_id": "",
+      "affected_ids": [
+        "9"
+      ],
+      "details": {
+        "slug": "asics-blue-white-sneakers",
+        "products": [
+          {
+            "id": "9",
+            "source": "asics-blue-white-sneakers",
+            "name": "ASICS Sneakers"
+          },
+          {
+            "id": "9",
+            "source": "asics-blue-white-sneakers",
+            "name": "ASICS Sneakers"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'edit-due-test-1780090465911-99171' is assigned to multiple products.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [
+        "35"
+      ],
+      "details": {
+        "slug": "edit-due-test-1780090465911-99171",
+        "products": [
+          {
+            "id": "35",
+            "source": "edit-due-test-1780090465911-99171",
+            "name": "Edit Due Test 1780090465911-99171"
+          },
+          {
+            "id": "35",
+            "source": "edit-due-test-1780090465911-99171",
+            "name": "Edit Due Test 1780090465911-99171"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'edit-due-test-1780090682992-14020' is assigned to multiple products.",
+      "product_id": "37",
+      "variant_id": "",
+      "affected_ids": [
+        "37"
+      ],
+      "details": {
+        "slug": "edit-due-test-1780090682992-14020",
+        "products": [
+          {
+            "id": "37",
+            "source": "edit-due-test-1780090682992-14020",
+            "name": "Edit Due Test 1780090682992-14020"
+          },
+          {
+            "id": "37",
+            "source": "edit-due-test-1780090682992-14020",
+            "name": "Edit Due Test 1780090682992-14020"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'edit-due-test-1780090683254-91403' is assigned to multiple products.",
+      "product_id": "38",
+      "variant_id": "",
+      "affected_ids": [
+        "38"
+      ],
+      "details": {
+        "slug": "edit-due-test-1780090683254-91403",
+        "products": [
+          {
+            "id": "38",
+            "source": "edit-due-test-1780090683254-91403",
+            "name": "Edit Due Test 1780090683254-91403"
+          },
+          {
+            "id": "38",
+            "source": "edit-due-test-1780090683254-91403",
+            "name": "Edit Due Test 1780090683254-91403"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'edit-due-test-1780090683323-8217' is assigned to multiple products.",
+      "product_id": "39",
+      "variant_id": "",
+      "affected_ids": [
+        "39"
+      ],
+      "details": {
+        "slug": "edit-due-test-1780090683323-8217",
+        "products": [
+          {
+            "id": "39",
+            "source": "edit-due-test-1780090683323-8217",
+            "name": "Edit Due Test 1780090683323-8217"
+          },
+          {
+            "id": "39",
+            "source": "edit-due-test-1780090683323-8217",
+            "name": "Edit Due Test 1780090683323-8217"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'jordan-4' is assigned to multiple products.",
+      "product_id": "60",
+      "variant_id": "",
+      "affected_ids": [
+        "60"
+      ],
+      "details": {
+        "slug": "jordan-4",
+        "products": [
+          {
+            "id": "60",
+            "source": "jordan-4",
+            "name": "Jordan 4"
+          },
+          {
+            "id": "60",
+            "source": "jordan-4",
+            "name": "Jordan 4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'nike-air-jordan-4' is assigned to multiple products.",
+      "product_id": "1",
+      "variant_id": "",
+      "affected_ids": [
+        "1"
+      ],
+      "details": {
+        "slug": "nike-air-jordan-4",
+        "products": [
+          {
+            "id": "1",
+            "source": "nike-air-jordan-4",
+            "name": "Nike Air Jordan 4"
+          },
+          {
+            "id": "1",
+            "source": "nike-air-jordan-4",
+            "name": "Nike Air Jordan 4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'nike-dunk-low-white-black-sneakers' is assigned to multiple products.",
+      "product_id": "8",
+      "variant_id": "",
+      "affected_ids": [
+        "8"
+      ],
+      "details": {
+        "slug": "nike-dunk-low-white-black-sneakers",
+        "products": [
+          {
+            "id": "8",
+            "source": "nike-dunk-low-white-black-sneakers",
+            "name": "Nike Dunk Low White Black Sneakers"
+          },
+          {
+            "id": "8",
+            "source": "nike-dunk-low-white-black-sneakers",
+            "name": "Nike Dunk Low White Black Sneakers"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'nike-shox-black-sneakers' is assigned to multiple products.",
+      "product_id": "7",
+      "variant_id": "",
+      "affected_ids": [
+        "7"
+      ],
+      "details": {
+        "slug": "nike-shox-black-sneakers",
+        "products": [
+          {
+            "id": "7",
+            "source": "nike-shox-black-sneakers",
+            "name": "Nike Shox Black Sneakers"
+          },
+          {
+            "id": "7",
+            "source": "nike-shox-black-sneakers",
+            "name": "Nike Shox Black Sneakers"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'nike-white-and-black-casual-sneakers-copy-copy' is assigned to multiple products.",
+      "product_id": "29",
+      "variant_id": "",
+      "affected_ids": [
+        "29"
+      ],
+      "details": {
+        "slug": "nike-white-and-black-casual-sneakers-copy-copy",
+        "products": [
+          {
+            "id": "29",
+            "source": "nike-white-and-black-casual-sneakers-copy-copy",
+            "name": "Nike White and Black Casual Sneakers Copy Copy"
+          },
+          {
+            "id": "29",
+            "source": "nike-white-and-black-casual-sneakers-copy-copy",
+            "name": "Nike White and Black Casual Sneakers Copy Copy"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'nike-white-and-black-casual-sneakers-copy' is assigned to multiple products.",
+      "product_id": "28",
+      "variant_id": "",
+      "affected_ids": [
+        "28"
+      ],
+      "details": {
+        "slug": "nike-white-and-black-casual-sneakers-copy",
+        "products": [
+          {
+            "id": "28",
+            "source": "nike-white-and-black-casual-sneakers-copy",
+            "name": "Nike White and Black Casual Sneakers Copy"
+          },
+          {
+            "id": "28",
+            "source": "nike-white-and-black-casual-sneakers-copy",
+            "name": "Nike White and Black Casual Sneakers Copy"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'nike-white-black-sneakers-men' is assigned to multiple products.",
+      "product_id": "27",
+      "variant_id": "",
+      "affected_ids": [
+        "27"
+      ],
+      "details": {
+        "slug": "nike-white-black-sneakers-men",
+        "products": [
+          {
+            "id": "27",
+            "source": "nike-white-black-sneakers-men",
+            "name": "Nike White and Black Casual Sneakers"
+          },
+          {
+            "id": "27",
+            "source": "nike-white-black-sneakers-men",
+            "name": "Nike White and Black Casual Sneakers"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107202476-8676-1' is assigned to multiple products.",
+      "product_id": "40",
+      "variant_id": "",
+      "affected_ids": [
+        "40"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107202476-8676-1",
+        "products": [
+          {
+            "id": "40",
+            "source": "purchase-save-perf-1780107202476-8676-1",
+            "name": "Purchase Save Perf 1780107202476-8676-1"
+          },
+          {
+            "id": "40",
+            "source": "purchase-save-perf-1780107202476-8676-1",
+            "name": "Purchase Save Perf 1780107202476-8676-1"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107202476-8676-2' is assigned to multiple products.",
+      "product_id": "41",
+      "variant_id": "",
+      "affected_ids": [
+        "41"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107202476-8676-2",
+        "products": [
+          {
+            "id": "41",
+            "source": "purchase-save-perf-1780107202476-8676-2",
+            "name": "Purchase Save Perf 1780107202476-8676-2"
+          },
+          {
+            "id": "41",
+            "source": "purchase-save-perf-1780107202476-8676-2",
+            "name": "Purchase Save Perf 1780107202476-8676-2"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107202476-8676-3' is assigned to multiple products.",
+      "product_id": "42",
+      "variant_id": "",
+      "affected_ids": [
+        "42"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107202476-8676-3",
+        "products": [
+          {
+            "id": "42",
+            "source": "purchase-save-perf-1780107202476-8676-3",
+            "name": "Purchase Save Perf 1780107202476-8676-3"
+          },
+          {
+            "id": "42",
+            "source": "purchase-save-perf-1780107202476-8676-3",
+            "name": "Purchase Save Perf 1780107202476-8676-3"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107202476-8676-4' is assigned to multiple products.",
+      "product_id": "43",
+      "variant_id": "",
+      "affected_ids": [
+        "43"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107202476-8676-4",
+        "products": [
+          {
+            "id": "43",
+            "source": "purchase-save-perf-1780107202476-8676-4",
+            "name": "Purchase Save Perf 1780107202476-8676-4"
+          },
+          {
+            "id": "43",
+            "source": "purchase-save-perf-1780107202476-8676-4",
+            "name": "Purchase Save Perf 1780107202476-8676-4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107202476-8676-5' is assigned to multiple products.",
+      "product_id": "44",
+      "variant_id": "",
+      "affected_ids": [
+        "44"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107202476-8676-5",
+        "products": [
+          {
+            "id": "44",
+            "source": "purchase-save-perf-1780107202476-8676-5",
+            "name": "Purchase Save Perf 1780107202476-8676-5"
+          },
+          {
+            "id": "44",
+            "source": "purchase-save-perf-1780107202476-8676-5",
+            "name": "Purchase Save Perf 1780107202476-8676-5"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107245420-69402-1' is assigned to multiple products.",
+      "product_id": "45",
+      "variant_id": "",
+      "affected_ids": [
+        "45"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107245420-69402-1",
+        "products": [
+          {
+            "id": "45",
+            "source": "purchase-save-perf-1780107245420-69402-1",
+            "name": "Purchase Save Perf 1780107245420-69402-1"
+          },
+          {
+            "id": "45",
+            "source": "purchase-save-perf-1780107245420-69402-1",
+            "name": "Purchase Save Perf 1780107245420-69402-1"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107245420-69402-2' is assigned to multiple products.",
+      "product_id": "46",
+      "variant_id": "",
+      "affected_ids": [
+        "46"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107245420-69402-2",
+        "products": [
+          {
+            "id": "46",
+            "source": "purchase-save-perf-1780107245420-69402-2",
+            "name": "Purchase Save Perf 1780107245420-69402-2"
+          },
+          {
+            "id": "46",
+            "source": "purchase-save-perf-1780107245420-69402-2",
+            "name": "Purchase Save Perf 1780107245420-69402-2"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107245420-69402-3' is assigned to multiple products.",
+      "product_id": "47",
+      "variant_id": "",
+      "affected_ids": [
+        "47"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107245420-69402-3",
+        "products": [
+          {
+            "id": "47",
+            "source": "purchase-save-perf-1780107245420-69402-3",
+            "name": "Purchase Save Perf 1780107245420-69402-3"
+          },
+          {
+            "id": "47",
+            "source": "purchase-save-perf-1780107245420-69402-3",
+            "name": "Purchase Save Perf 1780107245420-69402-3"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107245420-69402-4' is assigned to multiple products.",
+      "product_id": "48",
+      "variant_id": "",
+      "affected_ids": [
+        "48"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107245420-69402-4",
+        "products": [
+          {
+            "id": "48",
+            "source": "purchase-save-perf-1780107245420-69402-4",
+            "name": "Purchase Save Perf 1780107245420-69402-4"
+          },
+          {
+            "id": "48",
+            "source": "purchase-save-perf-1780107245420-69402-4",
+            "name": "Purchase Save Perf 1780107245420-69402-4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107245420-69402-5' is assigned to multiple products.",
+      "product_id": "49",
+      "variant_id": "",
+      "affected_ids": [
+        "49"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107245420-69402-5",
+        "products": [
+          {
+            "id": "49",
+            "source": "purchase-save-perf-1780107245420-69402-5",
+            "name": "Purchase Save Perf 1780107245420-69402-5"
+          },
+          {
+            "id": "49",
+            "source": "purchase-save-perf-1780107245420-69402-5",
+            "name": "Purchase Save Perf 1780107245420-69402-5"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107399735-19711-1' is assigned to multiple products.",
+      "product_id": "50",
+      "variant_id": "",
+      "affected_ids": [
+        "50"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107399735-19711-1",
+        "products": [
+          {
+            "id": "50",
+            "source": "purchase-save-perf-1780107399735-19711-1",
+            "name": "Purchase Save Perf 1780107399735-19711-1"
+          },
+          {
+            "id": "50",
+            "source": "purchase-save-perf-1780107399735-19711-1",
+            "name": "Purchase Save Perf 1780107399735-19711-1"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107399735-19711-2' is assigned to multiple products.",
+      "product_id": "51",
+      "variant_id": "",
+      "affected_ids": [
+        "51"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107399735-19711-2",
+        "products": [
+          {
+            "id": "51",
+            "source": "purchase-save-perf-1780107399735-19711-2",
+            "name": "Purchase Save Perf 1780107399735-19711-2"
+          },
+          {
+            "id": "51",
+            "source": "purchase-save-perf-1780107399735-19711-2",
+            "name": "Purchase Save Perf 1780107399735-19711-2"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107399735-19711-3' is assigned to multiple products.",
+      "product_id": "52",
+      "variant_id": "",
+      "affected_ids": [
+        "52"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107399735-19711-3",
+        "products": [
+          {
+            "id": "52",
+            "source": "purchase-save-perf-1780107399735-19711-3",
+            "name": "Purchase Save Perf 1780107399735-19711-3"
+          },
+          {
+            "id": "52",
+            "source": "purchase-save-perf-1780107399735-19711-3",
+            "name": "Purchase Save Perf 1780107399735-19711-3"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107399735-19711-4' is assigned to multiple products.",
+      "product_id": "53",
+      "variant_id": "",
+      "affected_ids": [
+        "53"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107399735-19711-4",
+        "products": [
+          {
+            "id": "53",
+            "source": "purchase-save-perf-1780107399735-19711-4",
+            "name": "Purchase Save Perf 1780107399735-19711-4"
+          },
+          {
+            "id": "53",
+            "source": "purchase-save-perf-1780107399735-19711-4",
+            "name": "Purchase Save Perf 1780107399735-19711-4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107399735-19711-5' is assigned to multiple products.",
+      "product_id": "54",
+      "variant_id": "",
+      "affected_ids": [
+        "54"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107399735-19711-5",
+        "products": [
+          {
+            "id": "54",
+            "source": "purchase-save-perf-1780107399735-19711-5",
+            "name": "Purchase Save Perf 1780107399735-19711-5"
+          },
+          {
+            "id": "54",
+            "source": "purchase-save-perf-1780107399735-19711-5",
+            "name": "Purchase Save Perf 1780107399735-19711-5"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107627699-17428-1' is assigned to multiple products.",
+      "product_id": "55",
+      "variant_id": "",
+      "affected_ids": [
+        "55"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107627699-17428-1",
+        "products": [
+          {
+            "id": "55",
+            "source": "purchase-save-perf-1780107627699-17428-1",
+            "name": "Purchase Save Perf 1780107627699-17428-1"
+          },
+          {
+            "id": "55",
+            "source": "purchase-save-perf-1780107627699-17428-1",
+            "name": "Purchase Save Perf 1780107627699-17428-1"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107627699-17428-2' is assigned to multiple products.",
+      "product_id": "56",
+      "variant_id": "",
+      "affected_ids": [
+        "56"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107627699-17428-2",
+        "products": [
+          {
+            "id": "56",
+            "source": "purchase-save-perf-1780107627699-17428-2",
+            "name": "Purchase Save Perf 1780107627699-17428-2"
+          },
+          {
+            "id": "56",
+            "source": "purchase-save-perf-1780107627699-17428-2",
+            "name": "Purchase Save Perf 1780107627699-17428-2"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107627699-17428-3' is assigned to multiple products.",
+      "product_id": "57",
+      "variant_id": "",
+      "affected_ids": [
+        "57"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107627699-17428-3",
+        "products": [
+          {
+            "id": "57",
+            "source": "purchase-save-perf-1780107627699-17428-3",
+            "name": "Purchase Save Perf 1780107627699-17428-3"
+          },
+          {
+            "id": "57",
+            "source": "purchase-save-perf-1780107627699-17428-3",
+            "name": "Purchase Save Perf 1780107627699-17428-3"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107627699-17428-4' is assigned to multiple products.",
+      "product_id": "58",
+      "variant_id": "",
+      "affected_ids": [
+        "58"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107627699-17428-4",
+        "products": [
+          {
+            "id": "58",
+            "source": "purchase-save-perf-1780107627699-17428-4",
+            "name": "Purchase Save Perf 1780107627699-17428-4"
+          },
+          {
+            "id": "58",
+            "source": "purchase-save-perf-1780107627699-17428-4",
+            "name": "Purchase Save Perf 1780107627699-17428-4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'purchase-save-perf-1780107627699-17428-5' is assigned to multiple products.",
+      "product_id": "59",
+      "variant_id": "",
+      "affected_ids": [
+        "59"
+      ],
+      "details": {
+        "slug": "purchase-save-perf-1780107627699-17428-5",
+        "products": [
+          {
+            "id": "59",
+            "source": "purchase-save-perf-1780107627699-17428-5",
+            "name": "Purchase Save Perf 1780107627699-17428-5"
+          },
+          {
+            "id": "59",
+            "source": "purchase-save-perf-1780107627699-17428-5",
+            "name": "Purchase Save Perf 1780107627699-17428-5"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'qa-ai-order-items-live-1780084816245' is assigned to multiple products.",
+      "product_id": "34",
+      "variant_id": "",
+      "affected_ids": [
+        "34"
+      ],
+      "details": {
+        "slug": "qa-ai-order-items-live-1780084816245",
+        "products": [
+          {
+            "id": "34",
+            "source": "qa-ai-order-items-live-1780084816245",
+            "name": "QA AI Order Items Live 1780084816245"
+          },
+          {
+            "id": "34",
+            "source": "qa-ai-order-items-live-1780084816245",
+            "name": "QA AI Order Items Live 1780084816245"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'qa-order-items-live-1780084726569' is assigned to multiple products.",
+      "product_id": "32",
+      "variant_id": "",
+      "affected_ids": [
+        "32"
+      ],
+      "details": {
+        "slug": "qa-order-items-live-1780084726569",
+        "products": [
+          {
+            "id": "32",
+            "source": "qa-order-items-live-1780084726569",
+            "name": "QA Order Items Live 1780084726569"
+          },
+          {
+            "id": "32",
+            "source": "qa-order-items-live-1780084726569",
+            "name": "QA Order Items Live 1780084726569"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'qa-order-items-live-1780084816245' is assigned to multiple products.",
+      "product_id": "33",
+      "variant_id": "",
+      "affected_ids": [
+        "33"
+      ],
+      "details": {
+        "slug": "qa-order-items-live-1780084816245",
+        "products": [
+          {
+            "id": "33",
+            "source": "qa-order-items-live-1780084816245",
+            "name": "QA Order Items Live 1780084816245"
+          },
+          {
+            "id": "33",
+            "source": "qa-order-items-live-1780084816245",
+            "name": "QA Order Items Live 1780084816245"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'qa-test-product' is assigned to multiple products.",
+      "product_id": "10",
+      "variant_id": "",
+      "affected_ids": [
+        "10"
+      ],
+      "details": {
+        "slug": "qa-test-product",
+        "products": [
+          {
+            "id": "10",
+            "source": "qa-test-product",
+            "name": "QA Test Product"
+          },
+          {
+            "id": "10",
+            "source": "qa-test-product",
+            "name": "QA Test Product"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'qa-treasury-incoming-1779568419544' is assigned to multiple products.",
+      "product_id": "31",
+      "variant_id": "",
+      "affected_ids": [
+        "31"
+      ],
+      "details": {
+        "slug": "qa-treasury-incoming-1779568419544",
+        "products": [
+          {
+            "id": "31",
+            "source": "qa-treasury-incoming-1779568419544",
+            "name": "QA Treasury Incoming 1779568419544"
+          },
+          {
+            "id": "31",
+            "source": "qa-treasury-incoming-1779568419544",
+            "name": "QA Treasury Incoming 1779568419544"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_slug",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Duplicate slug 'شراب' is assigned to multiple products.",
+      "product_id": "26",
+      "variant_id": "",
+      "affected_ids": [
+        "26"
+      ],
+      "details": {
+        "slug": "شراب",
+        "products": [
+          {
+            "id": "26",
+            "source": "شراب",
+            "name": "شراب"
+          },
+          {
+            "id": "26",
+            "source": "شراب",
+            "name": "شراب"
+          }
+        ]
+      }
+    },
+    {
+      "code": "available_with_zero_stock",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Active product is marked available but has zero stock.",
+      "product_id": "7",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "available_with_zero_stock",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Active product is marked available but has zero stock.",
+      "product_id": "25",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "available_with_zero_stock",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Active product is marked available but has zero stock.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "missing_price_source",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Product does not expose a usable price source.",
+      "product_id": "5",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "sellingPrice": 0,
+        "salePrice": 0,
+        "regularPrice": 0,
+        "basePrice": 0,
+        "displayPrice": 0,
+        "priceSource": ""
+      }
+    },
+    {
+      "code": "missing_price_source",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Product does not expose a usable price source.",
+      "product_id": "7",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "sellingPrice": 0,
+        "salePrice": 0,
+        "regularPrice": 0,
+        "basePrice": 0,
+        "displayPrice": 0,
+        "priceSource": ""
+      }
+    },
+    {
+      "code": "missing_price_source",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Product does not expose a usable price source.",
+      "product_id": "8",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "sellingPrice": 0,
+        "salePrice": 0,
+        "regularPrice": 0,
+        "basePrice": 0,
+        "displayPrice": 0,
+        "priceSource": ""
+      }
+    },
+    {
+      "code": "missing_price_source",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Product does not expose a usable price source.",
+      "product_id": "9",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "sellingPrice": 0,
+        "salePrice": 0,
+        "regularPrice": 0,
+        "basePrice": 0,
+        "displayPrice": 0,
+        "priceSource": ""
+      }
+    },
+    {
+      "code": "missing_price_source",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Product does not expose a usable price source.",
+      "product_id": "25",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "sellingPrice": 0,
+        "salePrice": 0,
+        "regularPrice": 0,
+        "basePrice": 0,
+        "displayPrice": 0,
+        "priceSource": ""
+      }
+    },
+    {
+      "code": "missing_price_source",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Product does not expose a usable price source.",
+      "product_id": "27",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "sellingPrice": 0,
+        "salePrice": 0,
+        "regularPrice": 0,
+        "basePrice": 0,
+        "displayPrice": 0,
+        "priceSource": ""
+      }
+    },
+    {
+      "code": "missing_price_source",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Product does not expose a usable price source.",
+      "product_id": "28",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "sellingPrice": 0,
+        "salePrice": 0,
+        "regularPrice": 0,
+        "basePrice": 0,
+        "displayPrice": 0,
+        "priceSource": ""
+      }
+    },
+    {
+      "code": "missing_price_source",
+      "severity": "critical",
+      "scope": "product",
+      "message": "Product does not expose a usable price source.",
+      "product_id": "60",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "sellingPrice": 0,
+        "salePrice": 0,
+        "regularPrice": 0,
+        "basePrice": 0,
+        "displayPrice": 0,
+        "priceSource": ""
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'w1' is used by multiple variants.",
+      "product_id": "27",
+      "variant_id": "143",
+      "affected_ids": [
+        "143",
+        "144",
+        "145",
+        "146",
+        "147",
+        "148",
+        "149",
+        "150",
+        "151",
+        "152",
+        "153",
+        "154",
+        "155",
+        "156"
+      ],
+      "details": {
+        "article_code": "w1",
+        "variants": [
+          {
+            "value": "w1",
+            "variant_id": "143",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "144",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "145",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "146",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "147",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "148",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "149",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "150",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "151",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "152",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "153",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "154",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "155",
+            "product_id": "27"
+          },
+          {
+            "value": "w1",
+            "variant_id": "156",
+            "product_id": "27"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code '2530' is used by multiple variants.",
+      "product_id": "25",
+      "variant_id": "138",
+      "affected_ids": [
+        "138",
+        "139",
+        "140",
+        "141",
+        "142"
+      ],
+      "details": {
+        "article_code": "2530",
+        "variants": [
+          {
+            "value": "2530",
+            "variant_id": "138",
+            "product_id": "25"
+          },
+          {
+            "value": "2530",
+            "variant_id": "139",
+            "product_id": "25"
+          },
+          {
+            "value": "2530",
+            "variant_id": "140",
+            "product_id": "25"
+          },
+          {
+            "value": "2530",
+            "variant_id": "141",
+            "product_id": "25"
+          },
+          {
+            "value": "2530",
+            "variant_id": "142",
+            "product_id": "25"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-blk-41-2' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "31",
+      "affected_ids": [
+        "31",
+        "76"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-blk-41-2",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-blk-41-2",
+            "variant_id": "31",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-blk-41-2",
+            "variant_id": "76",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-blk-41-3' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "36",
+      "affected_ids": [
+        "36",
+        "81"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-blk-41-3",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-blk-41-3",
+            "variant_id": "36",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-blk-41-3",
+            "variant_id": "81",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-blk-42-2' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "32",
+      "affected_ids": [
+        "32",
+        "77"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-blk-42-2",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-blk-42-2",
+            "variant_id": "32",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-blk-42-2",
+            "variant_id": "77",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-blk-42-3' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "37",
+      "affected_ids": [
+        "37",
+        "82"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-blk-42-3",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-blk-42-3",
+            "variant_id": "37",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-blk-42-3",
+            "variant_id": "82",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-blk-43-2' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "33",
+      "affected_ids": [
+        "33",
+        "78"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-blk-43-2",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-blk-43-2",
+            "variant_id": "33",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-blk-43-2",
+            "variant_id": "78",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-blk-43-3' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "38",
+      "affected_ids": [
+        "38",
+        "83"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-blk-43-3",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-blk-43-3",
+            "variant_id": "38",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-blk-43-3",
+            "variant_id": "83",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-blk-44-2' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "34",
+      "affected_ids": [
+        "34",
+        "79"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-blk-44-2",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-blk-44-2",
+            "variant_id": "34",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-blk-44-2",
+            "variant_id": "79",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-blk-44-3' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "39",
+      "affected_ids": [
+        "39",
+        "84"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-blk-44-3",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-blk-44-3",
+            "variant_id": "39",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-blk-44-3",
+            "variant_id": "84",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-blk-45-2' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "35",
+      "affected_ids": [
+        "35",
+        "80"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-blk-45-2",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-blk-45-2",
+            "variant_id": "35",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-blk-45-2",
+            "variant_id": "80",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-blk-45-3' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "40",
+      "affected_ids": [
+        "40",
+        "85"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-blk-45-3",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-blk-45-3",
+            "variant_id": "40",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-blk-45-3",
+            "variant_id": "85",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-gry-41' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "41",
+      "affected_ids": [
+        "41",
+        "91"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-gry-41",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-gry-41",
+            "variant_id": "41",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-gry-41",
+            "variant_id": "91",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-gry-42' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "42",
+      "affected_ids": [
+        "42",
+        "92"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-gry-42",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-gry-42",
+            "variant_id": "42",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-gry-42",
+            "variant_id": "92",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-gry-43' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "43",
+      "affected_ids": [
+        "43",
+        "93"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-gry-43",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-gry-43",
+            "variant_id": "43",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-gry-43",
+            "variant_id": "93",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-gry-44' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "44",
+      "affected_ids": [
+        "44",
+        "94"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-gry-44",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-gry-44",
+            "variant_id": "44",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-gry-44",
+            "variant_id": "94",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-gry-45' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "45",
+      "affected_ids": [
+        "45",
+        "95"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-gry-45",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-gry-45",
+            "variant_id": "45",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-gry-45",
+            "variant_id": "95",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-wht-41' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "46",
+      "affected_ids": [
+        "46",
+        "96"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-wht-41",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-wht-41",
+            "variant_id": "46",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-wht-41",
+            "variant_id": "96",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-wht-42' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "47",
+      "affected_ids": [
+        "47",
+        "97"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-wht-42",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-wht-42",
+            "variant_id": "47",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-wht-42",
+            "variant_id": "97",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-wht-43' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "48",
+      "affected_ids": [
+        "48",
+        "98"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-wht-43",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-wht-43",
+            "variant_id": "48",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-wht-43",
+            "variant_id": "98",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-wht-44' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "49",
+      "affected_ids": [
+        "49",
+        "99"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-wht-44",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-wht-44",
+            "variant_id": "49",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-wht-44",
+            "variant_id": "99",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "duplicate_article_code",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Duplicate article code 'nk-j4-m-mir-2-wht-45' is used by multiple variants.",
+      "product_id": "2",
+      "variant_id": "50",
+      "affected_ids": [
+        "50",
+        "100"
+      ],
+      "details": {
+        "article_code": "nk-j4-m-mir-2-wht-45",
+        "variants": [
+          {
+            "value": "nk-j4-m-mir-2-wht-45",
+            "variant_id": "50",
+            "product_id": "2"
+          },
+          {
+            "value": "nk-j4-m-mir-2-wht-45",
+            "variant_id": "100",
+            "product_id": "4"
+          }
+        ]
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "2",
+      "variant_id": "27",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "2",
+      "variant_id": "28",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "2",
+      "variant_id": "29",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "2",
+      "variant_id": "30",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "4",
+      "variant_id": "76",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "4",
+      "variant_id": "77",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "4",
+      "variant_id": "79",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "4",
+      "variant_id": "80",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "8",
+      "variant_id": "113",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "8",
+      "variant_id": "114",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "8",
+      "variant_id": "115",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "8",
+      "variant_id": "117",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "9",
+      "variant_id": "118",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "9",
+      "variant_id": "119",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "9",
+      "variant_id": "120",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "9",
+      "variant_id": "121",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "9",
+      "variant_id": "122",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "9",
+      "variant_id": "123",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "9",
+      "variant_id": "126",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "9",
+      "variant_id": "127",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "variant_without_stock",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Active variant has no stock while the product is sellable.",
+      "product_id": "60",
+      "variant_id": "210",
+      "affected_ids": [],
+      "details": {
+        "stock": 0
+      }
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "1",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "seo_keywords": "grey black sneakers, men's casual shoes, Nike Air Jordan 4"
+      }
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "2",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "seo_keywords": "white black running sneakers, Adidas casual shoes, men's athletic footwear"
+      }
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "4",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "seo_keywords": "Adidas Terrex sneakers, men's outdoor shoes, black white hiking sneakers, Adidas Goretex footwear"
+      }
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "5",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "seo_keywords": "DC black sneakers, men's casual shoes, comfortable sneakers, black running shoes"
+      }
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "7",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "seo_keywords": "black sneakers, men's athletic shoes, Nike Shox"
+      }
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "9",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "seo_keywords": "ASICS blue white sneakers,  athletic shoes, comfortable training footwear"
+      }
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "10",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "25",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "seo_keywords": "Adidas Terrex shoes, white black sneakers, men's outdoor shoes, waterproof sneakers"
+      }
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "27",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "seo_keywords": "white black sneakers, men's casual shoes, Nike sneakers"
+      }
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "28",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "29",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "31",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "32",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "33",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "34",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "37",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "38",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "39",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "40",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "41",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "42",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "43",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "44",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "45",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "46",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "47",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "48",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "49",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "50",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "51",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "52",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "53",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "54",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "55",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "56",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "57",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "58",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "59",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_arabic_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Arabic search keywords are missing.",
+      "product_id": "60",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "seo_keywords": "Jordan 4, product, modern casual, Greyggg, Navy, Blackng, Blacknnn, Greynnn"
+      }
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "8",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "10",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "26",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "31",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "32",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "33",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "34",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "37",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "38",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "39",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "40",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "41",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "42",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "43",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "44",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "45",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "46",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "47",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "48",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "49",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "50",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "51",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "52",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "53",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "54",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "55",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "56",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "57",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "58",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "59",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_brand",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Brand is missing.",
+      "product_id": "60",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "10",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "31",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "32",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "33",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "34",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "37",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "38",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "39",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "40",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "41",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "42",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "43",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "44",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "45",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "46",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "47",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "48",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "49",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "50",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "51",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "52",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "53",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "54",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "55",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "56",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "57",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "58",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_category",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Category is missing.",
+      "product_id": "59",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "8",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "seo_keywords": "نايك دُنكي, حذاء أبيض أسود, حذاء رياضي للرجال, حذاء كاجوال, احذية نايك"
+      }
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "10",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "28",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "29",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "31",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "32",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "33",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "34",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "37",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "38",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "39",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "40",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "41",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "42",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "43",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "44",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "45",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "46",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "47",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "48",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "49",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "50",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "51",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "52",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "53",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "54",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "55",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "56",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "57",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "58",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_english_search_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "English search keywords are missing.",
+      "product_id": "59",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "1",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 10,
+        "queries": [
+          "Nike Air Jordan 4",
+          "Nike Nike Air Jordan 4",
+          "nike-air-jordan-4",
+          "NK-J4-M-MIR",
+          "Nike sneakers"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "4",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 60,
+        "queries": [
+          "Adidas Terrex X Goretex-2 Sneakers",
+          "Nike Adidas Terrex X Goretex-2 Sneakers",
+          "nike-nike-air-jordan-4-copy",
+          "adidas-terrex-x-goretex-2",
+          "NK-M-MIR"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "7",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 20,
+        "queries": [
+          "Nike Shox Black Sneakers",
+          "Nike Nike Shox Black Sneakers",
+          "nike-shox-black-sneakers",
+          "NK-M-MIR-2",
+          "Nike sneakers"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "8",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 50,
+        "queries": [
+          "Nike Dunk Low White Black Sneakers",
+          "nike-dunk-low-white-black-sneakers",
+          "NDL-DNK-M-MIR",
+          "sneakers"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "9",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 60,
+        "queries": [
+          "ASICS Sneakers",
+          "Unbranded ASICS Sneakers",
+          "asics-blue-white-sneakers",
+          "ABW-W-LOC",
+          "Unbranded sneakers"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "10",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "QA Test Product",
+          "qa-test-product",
+          "QA-TEST-001"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "25",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 20,
+        "queries": [
+          "Adidas Terrex X Goretex-2",
+          "Adidas Adidas Terrex X Goretex-2",
+          "adidas-terrex-x-goretex-2-white-black",
+          "ADS-M-MIR",
+          "Adidas sneakers"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "26",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "شراب",
+          "PRD"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "28",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 10,
+        "queries": [
+          "Nike White and Black Casual Sneakers Copy",
+          "Unbranded Nike White and Black Casual Sneakers Copy",
+          "nike-white-and-black-casual-sneakers-copy",
+          "UNB-M-LOC",
+          "Unbranded sneakers"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "29",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 10,
+        "queries": [
+          "Nike White and Black Casual Sneakers Copy Copy",
+          "Unbranded Nike White and Black Casual Sneakers Copy Copy",
+          "nike-white-and-black-casual-sneakers-copy-copy",
+          "UNB-M-LOC-2",
+          "Unbranded sneakers"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "31",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "QA Treasury Incoming 1779568419544",
+          "qa-treasury-incoming-1779568419544",
+          "QA-TREAS-1779568419544"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "32",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "QA Order Items Live 1780084726569",
+          "qa-order-items-live-1780084726569",
+          "QA-OI-1780084726569"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "33",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "QA Order Items Live 1780084816245",
+          "qa-order-items-live-1780084816245",
+          "QA-OI-1780084816245"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "34",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "QA AI Order Items Live 1780084816245",
+          "qa-ai-order-items-live-1780084816245",
+          "QA-AI-OI-1780084816245"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Edit Due Test 1780090465911-99171",
+          "edit-due-test-1780090465911-99171",
+          "EDIT-1780090465911-99171"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "37",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Edit Due Test 1780090682992-14020",
+          "edit-due-test-1780090682992-14020",
+          "EDIT-1780090682992-14020"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "38",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Edit Due Test 1780090683254-91403",
+          "edit-due-test-1780090683254-91403",
+          "EDIT-1780090683254-91403"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "39",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Edit Due Test 1780090683323-8217",
+          "edit-due-test-1780090683323-8217",
+          "EDIT-1780090683323-8217"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "40",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107202476-8676-1",
+          "purchase-save-perf-1780107202476-8676-1",
+          "PSP-1780107202476-8676-1"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "41",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107202476-8676-2",
+          "purchase-save-perf-1780107202476-8676-2",
+          "PSP-1780107202476-8676-2"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "42",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107202476-8676-3",
+          "purchase-save-perf-1780107202476-8676-3",
+          "PSP-1780107202476-8676-3"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "43",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107202476-8676-4",
+          "purchase-save-perf-1780107202476-8676-4",
+          "PSP-1780107202476-8676-4"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "44",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107202476-8676-5",
+          "purchase-save-perf-1780107202476-8676-5",
+          "PSP-1780107202476-8676-5"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "45",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107245420-69402-1",
+          "purchase-save-perf-1780107245420-69402-1",
+          "PSP-1780107245420-69402-1"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "46",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107245420-69402-2",
+          "purchase-save-perf-1780107245420-69402-2",
+          "PSP-1780107245420-69402-2"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "47",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107245420-69402-3",
+          "purchase-save-perf-1780107245420-69402-3",
+          "PSP-1780107245420-69402-3"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "48",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107245420-69402-4",
+          "purchase-save-perf-1780107245420-69402-4",
+          "PSP-1780107245420-69402-4"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "49",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107245420-69402-5",
+          "purchase-save-perf-1780107245420-69402-5",
+          "PSP-1780107245420-69402-5"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "50",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107399735-19711-1",
+          "purchase-save-perf-1780107399735-19711-1",
+          "PSP-1780107399735-19711-1"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "51",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107399735-19711-2",
+          "purchase-save-perf-1780107399735-19711-2",
+          "PSP-1780107399735-19711-2"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "52",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107399735-19711-3",
+          "purchase-save-perf-1780107399735-19711-3",
+          "PSP-1780107399735-19711-3"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "53",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107399735-19711-4",
+          "purchase-save-perf-1780107399735-19711-4",
+          "PSP-1780107399735-19711-4"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "54",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107399735-19711-5",
+          "purchase-save-perf-1780107399735-19711-5",
+          "PSP-1780107399735-19711-5"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "55",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107627699-17428-1",
+          "purchase-save-perf-1780107627699-17428-1",
+          "PSP-1780107627699-17428-1"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "56",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107627699-17428-2",
+          "purchase-save-perf-1780107627699-17428-2",
+          "PSP-1780107627699-17428-2"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "57",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107627699-17428-3",
+          "purchase-save-perf-1780107627699-17428-3",
+          "PSP-1780107627699-17428-3"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "58",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107627699-17428-4",
+          "purchase-save-perf-1780107627699-17428-4",
+          "PSP-1780107627699-17428-4"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "59",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107627699-17428-5",
+          "purchase-save-perf-1780107627699-17428-5",
+          "PSP-1780107627699-17428-5"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "60",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 40,
+        "queries": [
+          "Jordan 4",
+          "jordan-4",
+          "J4-J4"
+        ]
+      }
+    },
+    {
+      "code": "product_cannot_be_found_by_expected_keywords",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Expected keywords do not reliably find this product.",
+      "product_id": "64",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 10,
+        "queries": [
+          "Adidas Terrex X Goretex-2 نسخة",
+          "Adidas Adidas Terrex X Goretex-2 نسخة",
+          "adidas-terrex-x-goretex-2",
+          "ADS-M-MIR-2",
+          "Adidas crocs"
+        ]
+      }
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "10",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "26",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "28",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "29",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "31",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "32",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "33",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "34",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "37",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "38",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "39",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "40",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "41",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "42",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "43",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "44",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "45",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "46",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "47",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "48",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "49",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "50",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "51",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "52",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "53",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "54",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "55",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "56",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "57",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "58",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_main_image",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Main image is missing.",
+      "product_id": "59",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "10",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "28",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "29",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "31",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "32",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "33",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "34",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "37",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "38",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "39",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "40",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "41",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "42",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "43",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "44",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "45",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "46",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "47",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "48",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "49",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "50",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "51",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "52",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "53",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "54",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "55",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "56",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "57",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "58",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_alias",
+      "severity": "medium",
+      "scope": "product",
+      "message": "No AI-friendly alias keywords are configured.",
+      "product_id": "59",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "1",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 10,
+        "queries": [
+          "Nike Air Jordan 4",
+          "Nike Nike Air Jordan 4",
+          "nike-air-jordan-4",
+          "NK-J4-M-MIR",
+          "Nike sneakers"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "4",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 60,
+        "queries": [
+          "Adidas Terrex X Goretex-2 Sneakers",
+          "Nike Adidas Terrex X Goretex-2 Sneakers",
+          "nike-nike-air-jordan-4-copy",
+          "adidas-terrex-x-goretex-2",
+          "NK-M-MIR"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "7",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 20,
+        "queries": [
+          "Nike Shox Black Sneakers",
+          "Nike Nike Shox Black Sneakers",
+          "nike-shox-black-sneakers",
+          "NK-M-MIR-2",
+          "Nike sneakers"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "8",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 50,
+        "queries": [
+          "Nike Dunk Low White Black Sneakers",
+          "nike-dunk-low-white-black-sneakers",
+          "NDL-DNK-M-MIR",
+          "sneakers"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "9",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 60,
+        "queries": [
+          "ASICS Sneakers",
+          "Unbranded ASICS Sneakers",
+          "asics-blue-white-sneakers",
+          "ABW-W-LOC",
+          "Unbranded sneakers"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "10",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "QA Test Product",
+          "qa-test-product",
+          "QA-TEST-001"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "25",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 20,
+        "queries": [
+          "Adidas Terrex X Goretex-2",
+          "Adidas Adidas Terrex X Goretex-2",
+          "adidas-terrex-x-goretex-2-white-black",
+          "ADS-M-MIR",
+          "Adidas sneakers"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "26",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "شراب",
+          "PRD"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "28",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 10,
+        "queries": [
+          "Nike White and Black Casual Sneakers Copy",
+          "Unbranded Nike White and Black Casual Sneakers Copy",
+          "nike-white-and-black-casual-sneakers-copy",
+          "UNB-M-LOC",
+          "Unbranded sneakers"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "29",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 10,
+        "queries": [
+          "Nike White and Black Casual Sneakers Copy Copy",
+          "Unbranded Nike White and Black Casual Sneakers Copy Copy",
+          "nike-white-and-black-casual-sneakers-copy-copy",
+          "UNB-M-LOC-2",
+          "Unbranded sneakers"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "31",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "QA Treasury Incoming 1779568419544",
+          "qa-treasury-incoming-1779568419544",
+          "QA-TREAS-1779568419544"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "32",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "QA Order Items Live 1780084726569",
+          "qa-order-items-live-1780084726569",
+          "QA-OI-1780084726569"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "33",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "QA Order Items Live 1780084816245",
+          "qa-order-items-live-1780084816245",
+          "QA-OI-1780084816245"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "34",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "QA AI Order Items Live 1780084816245",
+          "qa-ai-order-items-live-1780084816245",
+          "QA-AI-OI-1780084816245"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Edit Due Test 1780090465911-99171",
+          "edit-due-test-1780090465911-99171",
+          "EDIT-1780090465911-99171"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "37",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Edit Due Test 1780090682992-14020",
+          "edit-due-test-1780090682992-14020",
+          "EDIT-1780090682992-14020"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "38",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Edit Due Test 1780090683254-91403",
+          "edit-due-test-1780090683254-91403",
+          "EDIT-1780090683254-91403"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "39",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Edit Due Test 1780090683323-8217",
+          "edit-due-test-1780090683323-8217",
+          "EDIT-1780090683323-8217"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "40",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107202476-8676-1",
+          "purchase-save-perf-1780107202476-8676-1",
+          "PSP-1780107202476-8676-1"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "41",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107202476-8676-2",
+          "purchase-save-perf-1780107202476-8676-2",
+          "PSP-1780107202476-8676-2"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "42",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107202476-8676-3",
+          "purchase-save-perf-1780107202476-8676-3",
+          "PSP-1780107202476-8676-3"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "43",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107202476-8676-4",
+          "purchase-save-perf-1780107202476-8676-4",
+          "PSP-1780107202476-8676-4"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "44",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107202476-8676-5",
+          "purchase-save-perf-1780107202476-8676-5",
+          "PSP-1780107202476-8676-5"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "45",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107245420-69402-1",
+          "purchase-save-perf-1780107245420-69402-1",
+          "PSP-1780107245420-69402-1"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "46",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107245420-69402-2",
+          "purchase-save-perf-1780107245420-69402-2",
+          "PSP-1780107245420-69402-2"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "47",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107245420-69402-3",
+          "purchase-save-perf-1780107245420-69402-3",
+          "PSP-1780107245420-69402-3"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "48",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107245420-69402-4",
+          "purchase-save-perf-1780107245420-69402-4",
+          "PSP-1780107245420-69402-4"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "49",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107245420-69402-5",
+          "purchase-save-perf-1780107245420-69402-5",
+          "PSP-1780107245420-69402-5"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "50",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107399735-19711-1",
+          "purchase-save-perf-1780107399735-19711-1",
+          "PSP-1780107399735-19711-1"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "51",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107399735-19711-2",
+          "purchase-save-perf-1780107399735-19711-2",
+          "PSP-1780107399735-19711-2"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "52",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107399735-19711-3",
+          "purchase-save-perf-1780107399735-19711-3",
+          "PSP-1780107399735-19711-3"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "53",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107399735-19711-4",
+          "purchase-save-perf-1780107399735-19711-4",
+          "PSP-1780107399735-19711-4"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "54",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107399735-19711-5",
+          "purchase-save-perf-1780107399735-19711-5",
+          "PSP-1780107399735-19711-5"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "55",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107627699-17428-1",
+          "purchase-save-perf-1780107627699-17428-1",
+          "PSP-1780107627699-17428-1"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "56",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107627699-17428-2",
+          "purchase-save-perf-1780107627699-17428-2",
+          "PSP-1780107627699-17428-2"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "57",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107627699-17428-3",
+          "purchase-save-perf-1780107627699-17428-3",
+          "PSP-1780107627699-17428-3"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "58",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107627699-17428-4",
+          "purchase-save-perf-1780107627699-17428-4",
+          "PSP-1780107627699-17428-4"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "59",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 0,
+        "queries": [
+          "Purchase Save Perf 1780107627699-17428-5",
+          "purchase-save-perf-1780107627699-17428-5",
+          "PSP-1780107627699-17428-5"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "60",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 40,
+        "queries": [
+          "Jordan 4",
+          "jordan-4",
+          "J4-J4"
+        ]
+      }
+    },
+    {
+      "code": "ai_recommendation_confidence_issue",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product is weakly discoverable by its expected keywords.",
+      "product_id": "64",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "best_self_score": 10,
+        "queries": [
+          "Adidas Terrex X Goretex-2 نسخة",
+          "Adidas Adidas Terrex X Goretex-2 نسخة",
+          "adidas-terrex-x-goretex-2",
+          "ADS-M-MIR-2",
+          "Adidas crocs"
+        ]
+      }
+    },
+    {
+      "code": "inconsistent_total_stock",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product stock 0 does not match summed variant stock 1.",
+      "product_id": "4",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "product_stock": 0,
+        "variant_stock_sum": 1
+      }
+    },
+    {
+      "code": "inconsistent_total_stock",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product stock 0 does not match summed variant stock 1.",
+      "product_id": "8",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "product_stock": 0,
+        "variant_stock_sum": 1
+      }
+    },
+    {
+      "code": "inconsistent_total_stock",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product stock 0 does not match summed variant stock 2.",
+      "product_id": "9",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "product_stock": 0,
+        "variant_stock_sum": 2
+      }
+    },
+    {
+      "code": "inconsistent_total_stock",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product stock 0 does not match summed variant stock 24.",
+      "product_id": "60",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "product_stock": 0,
+        "variant_stock_sum": 24
+      }
+    },
+    {
+      "code": "inconsistent_total_stock",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product stock 0 does not match summed variant stock 28.",
+      "product_id": "27",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "product_stock": 0,
+        "variant_stock_sum": 28
+      }
+    },
+    {
+      "code": "inconsistent_total_stock",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product stock 0 does not match summed variant stock 29.",
+      "product_id": "2",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "product_stock": 0,
+        "variant_stock_sum": 29
+      }
+    },
+    {
+      "code": "inconsistent_total_stock",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product stock 0 does not match summed variant stock 8.",
+      "product_id": "5",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "product_stock": 0,
+        "variant_stock_sum": 8
+      }
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "10",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "26",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "31",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "32",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "33",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "34",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "35",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "37",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "38",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "39",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "40",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "41",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "42",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "43",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "44",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "45",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "46",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "47",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "48",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "49",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "50",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "51",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "52",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "53",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "54",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "55",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "56",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "57",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "58",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "59",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_product_type",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Product type is missing.",
+      "product_id": "60",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "zero_selling_price",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Selling price is zero.",
+      "product_id": "5",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "selling_price": 0
+      }
+    },
+    {
+      "code": "zero_selling_price",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Selling price is zero.",
+      "product_id": "7",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "selling_price": 0
+      }
+    },
+    {
+      "code": "zero_selling_price",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Selling price is zero.",
+      "product_id": "8",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "selling_price": 0
+      }
+    },
+    {
+      "code": "zero_selling_price",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Selling price is zero.",
+      "product_id": "9",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "selling_price": 0
+      }
+    },
+    {
+      "code": "zero_selling_price",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Selling price is zero.",
+      "product_id": "25",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "selling_price": 0
+      }
+    },
+    {
+      "code": "zero_selling_price",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Selling price is zero.",
+      "product_id": "27",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "selling_price": 0
+      }
+    },
+    {
+      "code": "zero_selling_price",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Selling price is zero.",
+      "product_id": "28",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "selling_price": 0
+      }
+    },
+    {
+      "code": "zero_selling_price",
+      "severity": "medium",
+      "scope": "product",
+      "message": "Selling price is zero.",
+      "product_id": "60",
+      "variant_id": "",
+      "affected_ids": [],
+      "details": {
+        "selling_price": 0
+      }
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "31",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "32",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "33",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "34",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "35",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "36",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "37",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "38",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "39",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "40",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "41",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "42",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "43",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "44",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "45",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "46",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "47",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "48",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "49",
+      "affected_ids": [],
+      "details": null
+    },
+    {
+      "code": "missing_variant_image",
+      "severity": "medium",
+      "scope": "variant",
+      "message": "Variant image is missing.",
+      "product_id": "2",
+      "variant_id": "50",
+      "affected_ids": [],
+      "details": null
+    }
+  ]
+}

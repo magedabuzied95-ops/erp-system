@@ -9,6 +9,7 @@ import {
   getProductByQrToken,
   getProducts,
   getProductsWithVariants,
+  regenerateAiShoeCover,
   updateProduct,
   updateProductPrices,
   updateProductStatus,
@@ -370,6 +371,7 @@ router.post("/barcode-print-queue/bulk-add", protect, bulkAddBarcodePrintQueueCo
 router.post("/barcode-print-queue/:id/mark-printed", protect, markBarcodePrintQueuePrintedController);
 router.post("/barcode-print-queue/:id/requeue", protect, requeueBarcodePrintQueueController);
 router.delete("/barcode-print-queue/:id", protect, deleteBarcodePrintQueueController);
+router.post("/:id/regenerate-ai-shoe-cover", protect, regenerateAiShoeCover);
 router.post("/", protect, createProduct);
 router.post("/:id/variants", protect, createVariant);
 router.put("/variants/:id", protect, updateVariant);

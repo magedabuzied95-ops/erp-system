@@ -356,6 +356,18 @@ export const generateThermalArtwork = async ({ productId = null, ...body } = {})
   return response?.data || response || null;
 };
 
+export const regenerateAiShoeCover = async ({ productId, targetType = "product", color = "" } = {}) => {
+  const response = await api.post(
+    `/products/${encodeURIComponent(productId)}/regenerate-ai-shoe-cover`,
+    {
+      target_type: targetType,
+      color,
+    },
+    { timeoutMs: 30000 }
+  );
+  return response?.data || response || null;
+};
+
 export const deleteProduct = async (id) => api.delete(`/products/${id}`);
 
 export const getBrands = async () => unwrapArray(await api.get("/brands"));
