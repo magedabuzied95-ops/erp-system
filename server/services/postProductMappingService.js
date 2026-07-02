@@ -578,7 +578,7 @@ const extractPermalinkPostId = (value = "") => {
   return "";
 };
 
-const collectDirectLinkIdentity = ({ postId = "", selectedPostId = "", canonicalPostId = "", row = {}, post = {} } = {}) => {
+export const collectDirectLinkIdentity = ({ postId = "", selectedPostId = "", canonicalPostId = "", row = {}, post = {} } = {}) => {
   const safeRow = objectValue(row);
   const safePost = objectValue(post);
   const rowMetadata = objectValue(safeRow.metadata);

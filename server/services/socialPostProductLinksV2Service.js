@@ -1,5 +1,7 @@
 import db from "../database/db.js";
 import { resolveSocialPostLinkKey as resolveSharedSocialPostLinkKey } from "../../shared/socialPostProductLinkIdentity.js";
+import { resolveSocialPostCanonicalIdentity } from "./socialPostIdentityService.js";
+import { collectDirectLinkIdentity } from "./postProductMappingService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const toTenantId = (value) => Number(value) || 0;
@@ -111,26 +113,64 @@ const hydrateProducts = async ({ tenantId = null, productIds = [] } = {}) => {
     .filter(Boolean);
 };
 
-const readV2Rows = async ({ tenantId = null, platform = "", postLinkKey = "" } = {}) => {
+const readV2Rows = async ({ tenantId = null, platform = "", postLinkKeys = [] } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const normalizedPlatform = normalizePlatform(platform);
-  const safePostLinkKey = text(postLinkKey);
-  if (!safeTenantId || !safePostLinkKey) return [];
+  const safePostLinkKeys = uniqueTextValues(postLinkKeys);
+  if (!safeTenantId || !safePostLinkKeys.length) return [];
   const result = await db.query(
     `
     SELECT *
     FROM social_post_product_links_v2
     WHERE business_id = $1::bigint
       AND platform = $2::text
-      AND post_link_key = $3::text
-    ORDER BY is_primary DESC, updated_at DESC, id DESC
+      AND post_link_key = ANY($3::text[])
+    ORDER BY array_position($3::text[], post_link_key) ASC NULLS LAST, is_primary DESC, updated_at DESC, id DESC
     `,
-    [safeTenantId, normalizedPlatform, safePostLinkKey]
+    [safeTenantId, normalizedPlatform, safePostLinkKeys]
   ).catch(() => ({ rows: [] }));
   return Array.isArray(result.rows) ? result.rows : [];
 };
 
 const uniqueTextValues = (values = []) => Array.from(new Set((Array.isArray(values) ? values : []).map((value) => text(value)).filter(Boolean)));
+
+const buildV2LookupIdentity = async ({ tenantId = null, platform = "", post = {}, postId = "", selectedPostId = "", postLinkKey = "" } = {}) => {
+  const safeTenantId = toTenantId(tenantId);
+  const normalizedPlatform = normalizePlatform(platform);
+  const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: postId || post?.post_id || "",
+    row: post,
+    post,
+    source: "socialPostProductLinksV2:getPostProductLinksV2",
+  }).catch(() => null);
+  const directIdentity = collectDirectLinkIdentity({
+    postId: postId || post?.post_id || "",
+    selectedPostId: selectedPostId || postId || post?.selected_post_id || "",
+    canonicalPostId: canonicalIdentity?.canonical_post_id || "",
+    row: post,
+    post,
+  });
+  const requestedKey = text(postLinkKey || post?.post_link_key || directIdentity.primaryExactId || canonicalIdentity?.canonical_post_id || postId || selectedPostId || "");
+  const candidateKeys = Array.from(new Set((directIdentity.lookupIds || []).map((value) => text(value)).filter(Boolean)));
+  const allCandidateKeys = Array.from(new Set([
+    requestedKey,
+    canonicalIdentity?.canonical_post_id || "",
+    ...(directIdentity.exactCandidates || []),
+    ...(directIdentity.fallbackCandidates || []),
+  ].map((value) => text(value)).filter(Boolean)));
+  return {
+    canonicalIdentity,
+    directIdentity,
+    requestedKey,
+    candidateKeys: candidateKeys.length ? candidateKeys : allCandidateKeys,
+    allCandidateKeys,
+    platformPostId: text(directIdentity?.exactPlatformPostIds?.[0] || ""),
+    sourcePostId: text(directIdentity?.exactSourcePostIds?.[0] || ""),
+    permalinkPostId: text(directIdentity?.exactPermalinkPostIds?.[0] || ""),
+  };
+};
 
 const mergeAliasRowsToPostLinkKey = async ({ tenantId = null, platform = "", authoritativePostLinkKey = "", aliasPostLinkKeys = [] } = {}) => {
   const safeTenantId = toTenantId(tenantId);
@@ -230,21 +270,58 @@ export const getPostProductLinksV2 = async ({ tenantId = null, platform = "", po
     post_id: postId || post?.post_id || "",
     selected_post_id: selectedPostId,
   });
-  const authoritativePostLinkKey = text(postLinkKey || post?.post_link_key || identity.post_link_key);
+  const lookupIdentity = await buildV2LookupIdentity({
+    tenantId,
+    platform,
+    post,
+    postId,
+    selectedPostId,
+    postLinkKey,
+  });
+  const authoritativePostLinkKey = text(postLinkKey || post?.post_link_key || lookupIdentity.requestedKey || identity.post_link_key);
   if (authoritativePostLinkKey) {
     await mergeAliasRowsToPostLinkKey({
       tenantId,
       platform,
       authoritativePostLinkKey,
-      aliasPostLinkKeys: [identity.post_link_key, postId, selectedPostId, ...aliasPostLinkKeys],
+      aliasPostLinkKeys: [identity.post_link_key, ...lookupIdentity.allCandidateKeys, postId, selectedPostId, ...aliasPostLinkKeys],
     }).catch(() => {});
   }
-  const rows = await readV2Rows({ tenantId, platform, postLinkKey: authoritativePostLinkKey || identity.post_link_key });
+  const lookupKeys = uniqueTextValues([
+    authoritativePostLinkKey,
+    ...lookupIdentity.candidateKeys,
+    identity.post_link_key,
+  ]);
+  const rows = await readV2Rows({ tenantId, platform, postLinkKeys: lookupKeys });
   const productIds = rows.map((row) => Number(row.product_id || 0)).filter((value) => Number.isFinite(value) && value > 0);
+  console.info("SOCIAL_V2_PRODUCT_LINK_SQL_TRACE", {
+    post_link_key: authoritativePostLinkKey || identity.post_link_key,
+    canonical_post_id: text(lookupIdentity.canonicalIdentity?.canonical_post_id || identity.canonical_post_id || ""),
+    platform_post_id: lookupIdentity.platformPostId,
+    source_post_id: lookupIdentity.sourcePostId || text(identity.source_post_id || ""),
+    permalink_post_id: lookupIdentity.permalinkPostId || text(identity.permalink_post_id || ""),
+    queried_table: "social_post_product_links_v2",
+    sql_matched_row_count: rows.length,
+    matched_keys: uniqueTextValues(rows.map((row) => row.post_link_key)),
+    product_ids: productIds,
+  });
+  if (text(lookupIdentity.canonicalIdentity?.canonical_post_id || "") && !rows.length) {
+    console.info("SOCIAL_V2_PRODUCT_LINK_LOOKUP_MISS", {
+      requested_key: authoritativePostLinkKey || identity.post_link_key,
+      canonical_post_id: text(lookupIdentity.canonicalIdentity?.canonical_post_id || ""),
+      all_candidate_keys: lookupKeys,
+      queried_table: "social_post_product_links_v2",
+      matched_rows: 0,
+    });
+  }
   const linkedProducts = await hydrateProducts({ tenantId, productIds });
   const primaryProduct = linkedProducts.find((item) => rows.find((row) => Number(row.product_id || 0) === Number(item.id) && row.is_primary)) || linkedProducts[0] || null;
   console.info("SOCIAL_V2_PRODUCT_LINK_READ_TRACE", {
     post_link_key: authoritativePostLinkKey || identity.post_link_key,
+    canonical_post_id: text(lookupIdentity.canonicalIdentity?.canonical_post_id || identity.canonical_post_id || ""),
+    platform_post_id: lookupIdentity.platformPostId,
+    source_post_id: lookupIdentity.sourcePostId || text(identity.source_post_id || ""),
+    permalink_post_id: lookupIdentity.permalinkPostId || text(identity.permalink_post_id || ""),
     returned_product_ids: productIds,
     source: "v2",
   });
@@ -254,7 +331,7 @@ export const getPostProductLinksV2 = async ({ tenantId = null, platform = "", po
     count: linkedProducts.length,
     product_ids: productIds,
     post_link_key: authoritativePostLinkKey || identity.post_link_key,
-    canonical_post_id: identity.canonical_post_id,
+    canonical_post_id: text(lookupIdentity.canonicalIdentity?.canonical_post_id || identity.canonical_post_id || ""),
     platform: normalizePlatform(platform),
     tenant_id: toTenantId(tenantId) || null,
     post_identity: identity,
