@@ -39,6 +39,25 @@ const hasProductSearchSignal = ({ message = "", productQuery = "", intent = "" }
   const normalizedMessage = toText(message);
   return Boolean(productQuery) || normalizedIntent === "product_search" || normalizedIntent.includes("product_search") || normalizedIntent.includes("product search") || resolveIntent(normalizedMessage) === "product_search";
 };
+const hasProductDiscoveryRequestPhrase = (message = "") => {
+  const normalized = normalizeArabic(toText(message));
+  return [
+    "عايز",
+    "عاوز",
+    "بدور على",
+    "بدور",
+    "شوفلي",
+    "وريني",
+    "عندك",
+    "ابعتلي",
+    "ابعت",
+    "looking for",
+    "want",
+    "need",
+    "show me",
+    "find me",
+  ].some((term) => normalized.includes(term));
+};
 const isPauseOrTakeoverState = (metadata = {}) =>
   ["ai_paused", "human_takeover"].includes(toText(metadata?.conversation_status).toLowerCase()) ||
   truthy(metadata?.ai_paused);
@@ -497,6 +516,36 @@ const buildRegressionAnalysis = ({
     decision: toText(autoReplyShadow?.decision || ""),
   };
 };
+
+const buildRegressionIntentDebugTrace = ({
+  requestProductQuery = "",
+  inboundProductQuery = "",
+  productCardsCountBeforeBrain = 0,
+  productCardsCountAfterSearch = 0,
+  classifyIntentInputMessage = "",
+  classifyIntentInputProductQuery = "",
+  classifyIntentInputProductCardsCount = 0,
+  classifyIntentHasProductContext = false,
+  classifyIntentRequestProductSignals = false,
+  classifyIntentProductContextOverrideMatched = false,
+  classifyIntentOutput = "",
+  brainDecisionIntent = "",
+  brainDecisionDetectedIntent = "",
+} = {}) => ({
+  request_product_query: toText(requestProductQuery),
+  inbound_product_query: toText(inboundProductQuery),
+  product_cards_count_before_brain: Number(productCardsCountBeforeBrain || 0) || 0,
+  product_cards_count_after_search: Number(productCardsCountAfterSearch || 0) || 0,
+  classifyIntent_input_message: toText(classifyIntentInputMessage),
+  classifyIntent_input_product_query: toText(classifyIntentInputProductQuery),
+  classifyIntent_input_product_cards_count: Number(classifyIntentInputProductCardsCount || 0) || 0,
+  classifyIntent_hasProductContext: Boolean(classifyIntentHasProductContext),
+  classifyIntent_requestProductSignals: Boolean(classifyIntentRequestProductSignals),
+  classifyIntent_productContextOverrideMatched: Boolean(classifyIntentProductContextOverrideMatched),
+  classifyIntent_output: toText(classifyIntentOutput),
+  brainDecision_intent: toText(brainDecisionIntent),
+  brainDecision_detected_intent: toText(brainDecisionDetectedIntent),
+});
 
 const selectRegressionDiagnosticCard = (cards = [], failures = []) => {
   const cardList = asArray(cards);
@@ -1031,6 +1080,7 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
   perfContext.regression_ip = ip;
   perfContext.regression_test_count = testCount;
 
+  let regressionIntentDebugTrace = null;
   try {
     const payload = await withReadOnlyDbSession(async () => {
       const message = toText(req.body?.message);
@@ -1111,6 +1161,23 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
         dry_run: DRY_RUN_MODE,
         source: "ai_regression_test_endpoint",
       });
+      regressionIntentDebugTrace = source === "ai_regression_test_endpoint"
+        ? buildRegressionIntentDebugTrace({
+            requestProductQuery: toText(body?.product_query || body?.productQuery || ""),
+            inboundProductQuery: toText(inbound.product_query || inbound.productQuery || ""),
+            productCardsCountBeforeBrain: composerProductCards.length,
+            productCardsCountAfterSearch: seedProductCards.length,
+            classifyIntentInputMessage: message,
+            classifyIntentInputProductQuery: toText(inbound.product_query || inbound.productQuery || ""),
+            classifyIntentInputProductCardsCount: asArray(inbound.product_cards || inbound.productCards || []).length,
+            classifyIntentHasProductContext: Boolean(toText(inbound.product_query || inbound.productQuery || "") || asArray(inbound.product_cards || inbound.productCards || []).length),
+            classifyIntentRequestProductSignals: hasProductDiscoveryRequestPhrase(message),
+            classifyIntentProductContextOverrideMatched: Boolean((toText(inbound.product_query || inbound.productQuery || "") || asArray(inbound.product_cards || inbound.productCards || []).length) && hasProductDiscoveryRequestPhrase(message)),
+            classifyIntentOutput: toText(brainDecision.intent || brainDecision.detected_intent || ""),
+            brainDecisionIntent: toText(brainDecision.intent || ""),
+            brainDecisionDetectedIntent: toText(brainDecision.detected_intent || brainDecision.intent || ""),
+          })
+        : null;
 
       const responseForComposer = composerProductCards.length
         ? {
@@ -1205,6 +1272,7 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
       ].map((value) => toText(value)).filter(Boolean);
       let analysis;
       let failedTypes;
+      let regressionIntentDebugTrace = null;
       try {
         analysis = buildRegressionAnalysis({
           message,
@@ -1217,6 +1285,9 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
           composedResponse: composed,
           autoReplyShadow: brainDecision.auto_reply_shadow || null,
         });
+        if (regressionIntentDebugTrace) {
+          analysis.debug_intent_trace = regressionIntentDebugTrace;
+        }
         analysis.current_sizes = [...new Set(asArray(composerProductCards).flatMap((card) => productSizes(card)).filter(Boolean))];
         analysis.current_colors = [...new Set(asArray(composerProductCards).flatMap((card) => productColors(card)).filter(Boolean))];
         const regressionStockValues = asArray(composerProductCards).map((card) => primaryStock(card)).filter((value) => Number.isFinite(value));
@@ -1254,6 +1325,7 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
           current_image_urls: asArray(composerProductCards).map((card) => primaryImage(card)).filter(Boolean),
           memory_before: summarizeMemory(effectiveMemory),
           memory_patch: composed?.memory_updates || composed?.ai_memory_patch?.preferences || null,
+          debug_intent_trace: regressionIntentDebugTrace,
           customer_name_candidate: extractCustomerNameCandidate(message),
           reply_mentions_bare_currency: hasBareCurrencyWord(reply),
           reply_mentions_current_price: false,
