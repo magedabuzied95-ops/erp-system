@@ -27,6 +27,7 @@ import {
   resolveSocialPostLinkKey,
   savePostProductLinksV2,
 } from "../services/socialPostProductLinksV2Service.js";
+import { saveMappings } from "../services/postProductMappingService.js";
 import { getSocialRealtimeMetrics } from "../services/socialRealtimeService.js";
 import {
   listRecentSocialCommentAutomationRuns as listSocialCommentAutomationRuns,
@@ -711,6 +712,27 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
       productIds,
       primaryProductId,
     });
+    const legacyMapping = await saveMappings({
+      tenantId,
+      platform,
+      postId: requestedPostId,
+      selectedPostId: requestedPostId,
+      row: resolvedPost || {},
+      post: resolvedPost || {},
+      productIds,
+      primaryProductId,
+      userId: req.user?.id || null,
+    }).catch((error) => {
+      console.error("SOCIAL_PRODUCT_LINK_LEGACY_SAVE_ERROR", {
+        tenant_id: tenantId,
+        platform: String(platform || "").trim() || "facebook",
+        requested_post_id: requestedPostId,
+        canonical_post_id: canonicalPostId,
+        post_link_key: feedPostLinkKey,
+        message: error?.message || String(error),
+      });
+      return null;
+    });
     if (requestedPostId && feedPostLinkKey && requestedPostId !== feedPostLinkKey) {
       const aliasMapping = await getPostProductLinksV2({
         tenantId,
@@ -733,6 +755,17 @@ router.put("/posts/:postId/product-links", protect, permit("settings", "edit"), 
     }
     const rowsAffected = Number(mapping?.rows_affected || 0) || 0;
     const responseProductIds = Array.isArray(mapping?.product_ids) ? mapping.product_ids : productIds;
+    console.info("SOCIAL_PRODUCT_LINK_SAVE_READBACK", {
+      tenant_id: tenantId,
+      platform: String(platform || "").trim() || "facebook",
+      requested_post_id: requestedPostId,
+      canonical_post_id: canonicalPostId,
+      post_link_key: feedPostLinkKey,
+      product_ids: responseProductIds,
+      v2_rows_count: Number(mapping?.count || mapping?.linked_products?.length || 0) || 0,
+      legacy_rows_count: Number(legacyMapping?.count || legacyMapping?.linked_products?.length || 0) || 0,
+      saved_table: legacyMapping ? "social_post_product_links_v2+marketing_post_product_links" : "social_post_product_links_v2",
+    });
     console.info("POST_PRODUCT_LINK_IDENTITY_TRACE", {
       ...buildPostIdentityTrace({
         tenantId,
