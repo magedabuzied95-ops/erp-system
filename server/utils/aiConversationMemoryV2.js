@@ -66,6 +66,26 @@ const ALTERNATIVE_TERMS = [
   "alternative",
   "closest alternative",
 ];
+const REGRESSION_ALTERNATIVE_TERMS = [
+  ...ALTERNATIVE_TERMS,
+  "بدائل",
+  "مش عاجبني",
+  "مش عاجبني ده",
+  "مش ده",
+  "ده مش",
+  "وريني غيره",
+  "وريني بديل",
+  "وريني حاجة تانية",
+  "شوفلي حاجة تانية",
+  "حاجة تانية",
+  "حاجة ثانية",
+  "غيره",
+  "غيرها",
+  "تاني",
+  "تانية",
+  "موديل تاني",
+  "موديل ثاني",
+];
 const SIZE_TERMS = ["مقاس", "مقاسات", "size", "sizes"];
 const ORDER_TRACKING_TERMS = ["فين الاوردر", "رقم الطلب", "order tracking", "track order", "track my order", "where is my order", "order status"];
 
@@ -126,7 +146,13 @@ const compactShownCards = (shownProducts = [], selectedProduct = null) => {
 const hasUsefulProductContext = (memory = {}) => Boolean(
   toText(memory?.lastMentionedProductId) ||
   toText(memory?.lastMentionedCanonicalProduct) ||
-  asArray(memory?.lastShownProductCards).length
+  asArray(memory?.lastShownProductCards).length ||
+  asArray(memory?.last_product_cards).length ||
+  asArray(memory?.lastProductCards).length ||
+  asArray(memory?.preferences?.last_product_cards).length ||
+  asArray(memory?.preferences?.lastProductCards).length ||
+  asArray(memory?.preferences?.aiConversationMemoryV2?.lastShownProductCards).length ||
+  asArray(memory?.aiConversationMemoryV2?.lastShownProductCards).length
 );
 
 const textHasAny = (text = "", terms = []) => {
@@ -260,7 +286,12 @@ export const resolveFollowupContext = ({ memory = null, messageText = "", normal
     };
   }
 
-  if (textHasAny(messageText, ALTERNATIVE_TERMS) || textHasAny(normalizedText, ALTERNATIVE_TERMS) || textHasAny(normalizedForIntent, ALTERNATIVE_TERMS)) {
+  if (
+    textHasAny(messageText, REGRESSION_ALTERNATIVE_TERMS) ||
+    textHasAny(normalizedText, REGRESSION_ALTERNATIVE_TERMS) ||
+    textHasAny(normalizedForIntent, REGRESSION_ALTERNATIVE_TERMS) ||
+    (payload.canonicalSignals?.includes("reject") && /(?:بديل|بدائل|غيره|غيرها|حاجة تانية|حاجة ثانية|تاني|تانية|مش عاجبني|مش ده)/i.test(messageText))
+  ) {
     return {
       type: "alternative_followup",
       productId,

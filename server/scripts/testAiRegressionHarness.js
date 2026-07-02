@@ -54,6 +54,10 @@ const main = async () => {
   assert.equal(secondTurn.status, 200, "second regression turn should succeed");
   assert.ok(secondTurn.body?.analysis?.memory_before?.last_product_cards_count > 0, "second turn should restore last_product_cards from session state");
   assert.ok(secondTurn.body?.analysis?.product_card_count > 0, "second turn should keep product cards");
+  assert.notEqual(String(secondTurn.body?.intent || "").toLowerCase(), "general", "second turn intent should not be general");
+  assert.notEqual(String(secondTurn.body?.analysis?.brain_intent || "").toLowerCase(), "general", "second turn brain intent should not be general");
+  assert.notEqual(secondTurn.body?.reply, "أيوه متاح حاليًا.", "second turn should not fall back to the generic availability reply");
+  assert.ok(/بديل|أقرب|المتاحة|شبهه/i.test(secondTurn.body?.reply || ""), "second turn should read as a follow-up alternative reply");
   assert.ok(!secondTurn.body?.failed_types?.includes("stock-unavailable"), "second turn must not report stock-unavailable");
   assert.ok(secondTurn.body?.product_cards?.length > 0, "second turn should keep product cards");
 

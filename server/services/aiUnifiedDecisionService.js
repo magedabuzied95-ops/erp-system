@@ -53,6 +53,7 @@ const classifySharedShortcutIntent = (message = "") => {
   if (hasSignal("order_tracking")) return "product_search";
   if (hasSignal("thanks")) return "thanks";
   if (hasSignal("greeting")) return "greeting";
+  if (hasSignal("alternatives")) return "product_search";
   if (hasSignal("no", "reject", "cancel")) return "bare_confirmation";
   if (/(\u0635\u0648\u0631|\u0635\u0648\u0631\u0647|\u0635\u0648\u0631\u0629|\u0627\u0628\u0639\u062a.*\u0635\u0648\u0631|\u0648\u0631\u064a\u0646\u064a|more\s+(photos|images)|photos?|images?)/i.test(raw)) return normalized.includes("\u0627\u0643\u062a\u0631") || /more\s+(photos|images)/i.test(raw) ? "more_images" : "image_request";
   if (/(\u0644\u0648\u0646|\u0627\u0644\u0648\u0627\u0646|\u0623\u0644\u0648\u0627\u0646|color|colors|colour|colours)/i.test(raw)) return "color_followup";
@@ -737,7 +738,7 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
   const memoryV2 = rawMemory?.preferences?.aiConversationMemoryV2 || rawMemory?.aiConversationMemoryV2 || null;
   const intentPayload = normalizeArabicIntentPayload(inbound.text);
   const followupContextV2 = resolveFollowupContext({
-    memory: memoryV2,
+    memory: memoryV2 || effectiveMemory,
     messageText: inbound.text,
     normalizedPayload: intentPayload,
     intentPayload,

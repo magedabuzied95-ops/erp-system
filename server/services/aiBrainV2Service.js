@@ -819,16 +819,19 @@ const classifyIntent = ({ message = "", attachments = [], explicitModel = null, 
   const signalSet = new Set(asArray(canonicalSignals));
   const hasSignal = (...names) => names.some((name) => signalSet.has(name));
   if (asArray(attachments).length) return "visual_search";
+  if (/(human\s*takeover|كلم\s*بني\s*آدم|حولني\s*لموظف|عايز\s*موظف|human support|agent)/i.test(normalized)) return "human_takeover";
+  if (/(order\s*status|tracking|track order|status الطلب|حالة\s*الطلب|فين\s*الطلب|أين\s*الطلب|تابع\s*الطلب|تتبع\s*الطلب)/i.test(normalized)) return "order_tracking";
+  if (/(اعمل\s*اوردر|اعمل\s*طلب|عايز\s*اطلب|عايز\s*أطلب|أعمل\s*أوردر|order follow|follow up order|order\s*follow)/i.test(normalized)) return "order_follow_up";
   if (hasSignal("more_images")) return explicitModel ? "product_search" : "more_images";
   if (hasSignal("price")) return "price_objection";
   if (hasSignal("color")) return "color_followup";
   if (hasSignal("size")) return "size_followup";
+  if (hasSignal("alternatives")) return "product_search";
   if (hasSignal("yes", "confirm")) return "bare_confirmation";
   if (hasSignal("no", "reject", "cancel")) return "bare_confirmation";
   if (hasSignal("buy")) return "buying_intent";
-  if (hasSignal("alternatives")) return "product_search";
   if (hasSignal("greeting", "thanks")) return "greeting";
-  if (hasSignal("order_tracking")) return "general";
+  if (hasSignal("order_tracking")) return "order_tracking";
   if (/(\u0635\u0648\u0631|\u0635\u0648\u0631\u0647|\u0635\u0648\u0631\u0629|photo|image)/i.test(normalized)) return explicitModel ? "product_search" : "more_images";
   if (/(\u063a\u0627\u0644\u064a|\u063a\u0627\u0644\u064a\u0647|expensive|price high)/i.test(normalized)) return "price_objection";
   if (/(\u0644\u0648\u0646|\u0627\u0644\u0648\u0627\u0646|color)/i.test(normalized)) return "color_followup";
@@ -1288,7 +1291,7 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const memoryV2 = memory?.preferences?.aiConversationMemoryV2 || memory?.aiConversationMemoryV2 || null;
   const explicitModel = detectExplicitModel(message);
   const followupContextV2 = resolveFollowupContext({
-    memory: memoryV2,
+    memory: memoryV2 || memory,
     messageText: originalMessage,
     normalizedPayload: intentPayload,
     intentPayload,
