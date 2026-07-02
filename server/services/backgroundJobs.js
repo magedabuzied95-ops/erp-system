@@ -13,6 +13,11 @@ import { renderTemplate, sendPrivateReply } from "./marketingCommentAutomationSe
 let registered = false;
 
 const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== "";
+const parseDateOrNull = (value = null) => {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const debugSocialCommentsLog = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.log(...args);
@@ -207,6 +212,19 @@ export const registerBackgroundJobHandlers = () => {
     if (!row) {
       throw Object.assign(new Error("Social comment row not found"), { status: 404 });
     }
+    const latencyTrace = payload?.latency_trace && typeof payload.latency_trace === "object"
+      ? payload.latency_trace
+      : (row?.latency_trace && typeof row.latency_trace === "object" ? row.latency_trace : {});
+    const dequeueAt = new Date();
+    const enqueueAt = parseDateOrNull(job?.createdAt || latencyTrace.enqueue_at || payload?.created_at || null);
+    const detectedAt = parseDateOrNull(latencyTrace.detected_at || null);
+    console.log("SOCIAL_COMMENT_LATENCY_DEQUEUED", {
+      comment_id: commentId,
+      post_id: postId || row.post_id || "",
+      dequeue_at: dequeueAt.toISOString(),
+      since_enqueue_ms: enqueueAt ? dequeueAt.getTime() - enqueueAt.getTime() : null,
+      attempt: job?.attemptsMade || 1,
+    });
     const dequeuedProductContext = row.product_context || row.raw_payload?.product_context || null;
     const dequeuedReplyPreview = String(
       row.automation_state?.private_reply?.rendered_reply ||
@@ -464,6 +482,14 @@ export const registerBackgroundJobHandlers = () => {
         messagePreview: message,
         replyPreview: message,
       }));
+      const sendStartAt = new Date();
+      console.log("SOCIAL_COMMENT_LATENCY_SEND_START", {
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        send_start_at: sendStartAt.toISOString(),
+        since_dequeue_ms: sendStartAt.getTime() - dequeueAt.getTime(),
+        since_detected_ms: detectedAt ? sendStartAt.getTime() - detectedAt.getTime() : null,
+      });
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_REQUEST", {
         target_comment_id: commentId,
         platform,
@@ -528,6 +554,14 @@ export const registerBackgroundJobHandlers = () => {
         privateReplyPayload: row.automation_state?.private_reply || null,
         status: "sent",
       }));
+      console.log("SOCIAL_COMMENT_LATENCY_SEND_DONE", {
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        status: "success",
+        total_ms: detectedAt ? Date.now() - detectedAt.getTime() : null,
+        meta_status: "ok",
+        meta_message: "",
+      });
       return result;
     } catch (error) {
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_RESPONSE", {
@@ -592,6 +626,14 @@ export const registerBackgroundJobHandlers = () => {
           privateReplyPayload: row.automation_state?.private_reply || null,
           status: "duplicate",
         }));
+        console.log("SOCIAL_COMMENT_LATENCY_SEND_DONE", {
+          comment_id: commentId,
+          post_id: postId || row.post_id || "",
+          status: "duplicate",
+          total_ms: detectedAt ? Date.now() - detectedAt.getTime() : null,
+          meta_status: status || 400,
+          meta_message: messageText,
+        });
         return {
           ok: true,
           duplicate: true,
@@ -654,6 +696,14 @@ export const registerBackgroundJobHandlers = () => {
         privateReplyPayload: row.automation_state?.private_reply || null,
         status: job?.attemptsMade >= (job?.maxAttempts || 1) ? "failed" : "retrying",
       }));
+      console.log("SOCIAL_COMMENT_LATENCY_SEND_DONE", {
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        status: "failure",
+        total_ms: detectedAt ? Date.now() - detectedAt.getTime() : null,
+        meta_status: status || null,
+        meta_message: messageText,
+      });
       throw error;
     }
   });

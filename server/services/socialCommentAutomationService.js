@@ -26,6 +26,16 @@ const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+const toIsoStringOrEmpty = (value = null) => {
+  if (!value) return "";
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? "" : parsed.toISOString();
+};
+const parseDateOrNull = (value = null) => {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const debugSocialCommentsLog = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.log(...args);
@@ -3453,6 +3463,8 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId) return null;
   const safePlatform = text(platform || row.platform || "facebook") === "instagram" ? "instagram" : "facebook";
   const dedupeKey = `social-comment-private-reply:${safeTenantId}:${safePlatform}:${safeCommentId}`;
+  const enqueueAt = new Date();
+  const latencyTrace = row?.latency_trace && typeof row.latency_trace === "object" ? row.latency_trace : {};
   debugSocialCommentsLog("[social-comments][private-reply] queued", {
     tenant_id: safeTenantId,
     platform: safePlatform,
@@ -3460,7 +3472,7 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
     comment_id: safeCommentId,
     dedupe_key: dedupeKey,
   });
-  return enqueueJob(
+  const enqueueResult = await enqueueJob(
     "social.comment.private_reply",
     {
       tenantId: safeTenantId,
@@ -3468,6 +3480,12 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
       postId: text(postId || row.post_id || ""),
       commentId: safeCommentId,
       row,
+      latency_trace: {
+        detected_at: text(latencyTrace.detected_at || ""),
+        facebook_created_time: text(latencyTrace.facebook_created_time || ""),
+        source: text(latencyTrace.source || ""),
+        enqueue_at: enqueueAt.toISOString(),
+      },
     },
     {
       dedupeKey,
@@ -3482,6 +3500,18 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
       },
     }
   );
+  console.log("SOCIAL_COMMENT_LATENCY_ENQUEUED", {
+    comment_id: safeCommentId,
+    post_id: text(postId || row.post_id || ""),
+    enqueue_at: enqueueAt.toISOString(),
+    since_detected_ms: (() => {
+      const detectedAt = parseDateOrNull(latencyTrace.detected_at);
+      return detectedAt ? enqueueAt.getTime() - detectedAt.getTime() : null;
+    })(),
+    queue_name: "social.comment.private_reply",
+    job_id: enqueueResult?.job?.id || null,
+  });
+  return enqueueResult;
 };
 
 const parseCommentTimestamp = (row = {}) => {
@@ -4299,6 +4329,21 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
 
     const insertedRun = Boolean(sessionResult.rows[0]);
     let savedRunRow = sessionResult.rows[0] || null;
+    const detectedAt = new Date();
+    const facebookCreatedAt = parseDateOrNull(commentCreatedTime);
+    const latencyTrace = {
+      detected_at: detectedAt.toISOString(),
+      facebook_created_time: toIsoStringOrEmpty(facebookCreatedAt),
+      source: text(event.raw_payload?.source || "") === "meta_comment_poll" ? "poller" : "webhook",
+    };
+    console.log("SOCIAL_COMMENT_LATENCY_DETECTED", {
+      comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
+      post_id: postId,
+      detected_at: latencyTrace.detected_at,
+      facebook_created_time: latencyTrace.facebook_created_time,
+      detection_lag_ms: facebookCreatedAt ? detectedAt.getTime() - facebookCreatedAt.getTime() : null,
+      source: latencyTrace.source,
+    });
     const selectedPostId = text(postId || "");
     const selectedCommentId = text(event.comment_id || savedRunRow?.comment_id || "");
     const runtimePostId = text(savedRunRow?.post_id || event.post_id || "");
@@ -4321,6 +4366,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       final_post_id: runtimeProductContextInput.finalPostId,
       final_comment_id: runtimeProductContextInput.finalCommentId,
     });
+    const productContextStartedAt = Date.now();
     const runtimeProductContext = await resolveSocialCommentPublishedProductContext({
       tenantId: safeTenantId,
       row: {
@@ -4337,6 +4383,13 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         tenant_id: safeTenantId,
       },
     }));
+    console.log("SOCIAL_COMMENT_LATENCY_PRODUCT_CONTEXT", {
+      comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
+      post_id: postId,
+      has_product_context: Boolean(runtimeProductContext?.found || runtimeProductContext?.has_product_context),
+      product_ids: Array.isArray(runtimeProductContext?.product_ids) ? runtimeProductContext.product_ids : [],
+      duration_ms: Date.now() - productContextStartedAt,
+    });
     console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_RESOLVED", buildSocialCommentProductContextResolvedLog({
       productContext: runtimeProductContext,
       row: {
@@ -4469,12 +4522,19 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         platform,
         commentId: privateReplyCommentId,
         postId,
-        row: savedRunRow || {
+        row: {
+          ...(savedRunRow || {}),
           tenant_id: safeTenantId,
           platform,
           comment_id: privateReplyCommentId,
           post_id: postId,
-          raw_payload: event.raw_payload || {},
+          latency_trace: {
+            ...(savedRunRow?.latency_trace && typeof savedRunRow.latency_trace === "object" ? savedRunRow.latency_trace : {}),
+            ...latencyTrace,
+          },
+          raw_payload: (savedRunRow?.raw_payload && typeof savedRunRow.raw_payload === "object")
+            ? savedRunRow.raw_payload
+            : (event.raw_payload || {}),
         },
       }).catch(() => {});
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_CALLED", {
