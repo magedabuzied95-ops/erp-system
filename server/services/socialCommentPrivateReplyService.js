@@ -46,6 +46,8 @@ const absolutizeRelativeShopLinks = (value = "") =>
     return `${prefix}${ensureAbsoluteSocialProductLink(relativePath)}`;
   });
 
+const DEFAULT_EMPTY_SIZES_TEXT = "المقاسات المتاحة: يرجى إرسال المقاس المطلوب وسنراجع التوفر فورًا.";
+
 const normalizePriceText = (value = "") => {
   const normalized = text(value);
   if (!normalized) return "";
@@ -210,6 +212,58 @@ export const buildPolishedSocialCommentProductReply = ({
   return buildProductReplySections({ customerName, normalizedContext }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 };
 
+const sanitizeRenderedPrivateReplyMessage = ({
+  message = "",
+  normalizedContext = {},
+} = {}) => {
+  const rawLines = String(message || "").replace(/\r\n/g, "\n").split("\n");
+  const cleanedLines = [];
+  const hasPrice = Boolean(text(normalizedContext.priceUsed));
+  const hasSizes = Array.isArray(normalizedContext.availableSizes) && normalizedContext.availableSizes.length > 0;
+  const sizesInlineValue = hasSizes
+    ? normalizedContext.availableSizes.join(" - ")
+    : "يرجى إرسال المقاس المطلوب وسنراجع التوفر فورًا.";
+
+  for (const rawLine of rawLines) {
+    const line = text(rawLine);
+    if (!line) {
+      cleanedLines.push("");
+      continue;
+    }
+    if (!hasPrice && (line.includes("{{price}}") || line.includes("متاح بسعر") || line === "السعر:" || line.startsWith("السعر:"))) {
+      continue;
+    }
+
+    let nextLine = absolutizeRelativeShopLinks(line).replace(/\bIN STOCK\b/gi, "");
+
+    if (line.includes("{{available_sizes}}") || line.startsWith("المقاسات المتاحة:")) {
+      nextLine = `المقاسات المتاحة: ${sizesInlineValue}`;
+    } else if (!hasSizes && (line === "المقاسات المتاحة:" || line.includes("{{available_sizes}}"))) {
+      nextLine = DEFAULT_EMPTY_SIZES_TEXT;
+    }
+
+    nextLine = nextLine
+      .replace(/\{\{\s*available_sizes\s*\}\}/gi, sizesInlineValue)
+      .replace(/\{\{\s*product_link\s*\}\}/gi, normalizedContext.productLink || "")
+      .replace(/\{\{\s*price\s*\}\}/gi, normalizedContext.priceUsed || "")
+      .replace(/\{\{\s*formatted_price\s*\}\}/gi, normalizedContext.priceUsed || "")
+      .replace(/متاح\s+بسعر\s*\.\s*/gi, "")
+      .trimEnd();
+
+    if (!nextLine) continue;
+    cleanedLines.push(nextLine);
+  }
+
+  const compacted = [];
+  for (const line of cleanedLines) {
+    if (!line && !compacted.length) continue;
+    if (!line && !compacted[compacted.length - 1]) continue;
+    compacted.push(line);
+  }
+
+  return compacted.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+};
+
 export const buildSocialCommentPrivateReplyMessage = async ({
   tenantId = null,
   platform = "",
@@ -265,11 +319,11 @@ export const buildSocialCommentPrivateReplyMessage = async ({
     selectedSource = "generic_fallback";
   }
 
-  const finalMessage = absolutizeRelativeShopLinks(message)
-    .replace(/\bIN STOCK\b/gi, "")
-    .replace(/متاح\s+بسعر\s*\.\s*/gi, "")
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
+  const beforeSanitizePreview = String(message || "").trim().slice(0, 280);
+  const finalMessage = sanitizeRenderedPrivateReplyMessage({
+    message,
+    normalizedContext,
+  });
 
   if (normalizedContext.hasProductContext) {
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_RENDER_DATA", {
@@ -288,7 +342,10 @@ export const buildSocialCommentPrivateReplyMessage = async ({
     post_id: text(postId),
     has_product_context: normalizedContext.hasProductContext,
     selected_source: selectedSource,
-    message_preview: finalMessage.slice(0, 280),
+    before_sanitize_preview: beforeSanitizePreview,
+    after_sanitize_preview: finalMessage.slice(0, 280),
+    price_used: normalizedContext.priceUsed,
+    available_sizes: normalizedContext.availableSizes,
   });
   return {
     message: finalMessage,
@@ -327,8 +384,6 @@ export const sanitizeUnifiedSocialCommentPrivateReplyMessage = ({
     ),
   };
   let finalMessage = absolutizeRelativeShopLinks(String(message || ""))
-    .replace(/\bIN STOCK\b/gi, "")
-    .replace(/متاح\s+بسعر\s*\.\s*/gi, "")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
   const badShape = normalizedContext.hasProductContext && (
@@ -356,6 +411,14 @@ export const sanitizeUnifiedSocialCommentPrivateReplyMessage = ({
       message_preview_after: rebuilt.slice(0, 280),
     });
     finalMessage = rebuilt;
+  } else {
+    finalMessage = sanitizeRenderedPrivateReplyMessage({
+      message: finalMessage,
+      normalizedContext: {
+        ...normalizedContext,
+        availableSizes: sortSocialCommentAvailableSizes(productContext?.available_sizes || productContext?.sizes || []),
+      },
+    });
   }
   return {
     message: finalMessage || GENERIC_SOCIAL_COMMENT_PRIVATE_REPLY,
