@@ -46,6 +46,7 @@ export const savePostProductLinks = async ({ postId = "", platform = "", tenantI
   const safePostId = clean(postId);
   const safePlatform = clean(platform);
   const safeTenantId = clean(tenantId);
+  const safeIdentity = postIdentity && typeof postIdentity === "object" ? postIdentity : {};
   const normalizedProductIds = Array.isArray(productIds)
     ? Array.from(new Set(productIds.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0)))
     : [];
