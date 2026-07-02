@@ -21,12 +21,13 @@ const imageRecordKeys = (record = {}) => {
   const variantId = toText(record.variant_id);
   const name = toText(record.name || record.file_name);
   const size = toText(record.size || record.file_size);
+  const generatedByAi = toBool(record.generated_by_ai ?? record.generatedByAi);
 
   if (id) keys.push(`id:${id}`);
   if (imageUrl) {
     keys.push(`url:${imageUrl.toLowerCase()}`);
-    keys.push(`product-color-url:${productId}:${color}:${imageUrl.toLowerCase()}`);
-    if (variantId) keys.push(`variant-url:${variantId}:${imageUrl.toLowerCase()}`);
+    keys.push(`product-color-url:${productId}:${color}:${imageUrl.toLowerCase()}:${generatedByAi ? "ai" : "orig"}`);
+    if (variantId) keys.push(`variant-url:${variantId}:${imageUrl.toLowerCase()}:${generatedByAi ? "ai" : "orig"}`);
   }
   if (name && size) keys.push(`file:${name.toLowerCase()}:${size}`);
 
@@ -112,6 +113,7 @@ const normalizeImageInput = (image = {}, fallback = {}) => {
     image_url: imageUrl,
     sort_order: toNumber(image.sort_order ?? image.sortOrder ?? fallback.sort_order ?? 0, 0),
     is_primary: toBool(image.is_primary ?? image.isPrimary ?? fallback.is_primary ?? false),
+    generated_by_ai: toBool(image.generated_by_ai ?? image.generatedByAi ?? fallback.generated_by_ai ?? false),
   };
 };
 
@@ -132,10 +134,12 @@ export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
         image_url TEXT NOT NULL DEFAULT '',
         sort_order INTEGER NOT NULL DEFAULT 0,
         is_primary BOOLEAN NOT NULL DEFAULT FALSE,
+        generated_by_ai BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
       )
     `);
     await client.query(`ALTER TABLE product_variant_images ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE CASCADE`);
+    await client.query(`ALTER TABLE product_variant_images ADD COLUMN IF NOT EXISTS generated_by_ai BOOLEAN NOT NULL DEFAULT FALSE`);
     tableColumnsCache.delete("product_variant_images");
     await client.query(`
       UPDATE product_variant_images pvi
@@ -316,9 +320,10 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
           color_value,
           image_url,
           sort_order,
-          is_primary
+          is_primary,
+          generated_by_ai
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING *
         `,
         [
@@ -330,6 +335,7 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
           record.image_url || "",
           Number(record.sort_order ?? order ?? 0),
           Boolean(record.is_primary),
+          Boolean(record.generated_by_ai),
         ]
       );
       rows.push(result.rows[0]);
@@ -377,6 +383,7 @@ export const loadProductVariantImages = async (clientOrPool, productIds = []) =>
         image_url: row.image_url || "",
         sort_order: Number(row.sort_order || 0),
         is_primary: Boolean(row.is_primary),
+        generated_by_ai: Boolean(row.generated_by_ai),
         created_at: row.created_at || null,
       };
       bundle.rows.push(normalized);

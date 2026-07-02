@@ -173,6 +173,8 @@ const createEmptyColorGroup = (defaults = {}) => ({
   imagePreview: formatFieldValue(defaults.imagePreview),
   image_url: formatFieldValue(defaults.image_url),
   thermal_image_url: formatFieldValue(defaults.thermal_image_url),
+  ai_cover: defaults.ai_cover || null,
+  ai_cover_status: formatFieldValue(defaults.ai_cover_status),
   images: Array.isArray(defaults.images) ? defaults.images : [],
   sizes: Array.isArray(defaults.sizes) ? defaults.sizes : [createEmptySizeRow()],
 });
@@ -194,6 +196,7 @@ const createColorImageItem = (value = {}, index = 0) => {
     preview: finalPreview,
     image_url: finalUrl,
     is_primary: Boolean(value?.is_primary ?? value?.isPrimary ?? index === 0),
+    generated_by_ai: Boolean(value?.generated_by_ai ?? value?.generatedByAi),
     name: value?.name || finalPreview.split("/").pop() || `Color image ${index + 1}`,
   };
 };
@@ -381,6 +384,8 @@ const normalizeProductForm = (row = {}) => ({
   style: row.style || "",
   grade: row.grade || "",
   is_offer_story: row.is_offer_story === true || String(row.is_offer_story || "").toLowerCase() === "true",
+  ai_cover: row.ai_cover || null,
+  ai_cover_status: row.ai_cover_status || row.ai_cover?.status || "",
   variation_mode: row.variation_mode || "full_variations",
   fixed_size_label: row.fixed_size_label || "One Size",
   purchase_alerts_enabled: row.purchase_alerts_enabled === true || String(row.purchase_alerts_enabled || "").toLowerCase() === "true",
@@ -600,6 +605,8 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
           "",
         imagePreview: resolveAssetUrl(groupImage),
         image_url: groupImage,
+        ai_cover: row.ai_cover || null,
+        ai_cover_status: row.ai_cover_status || "",
         images: groupImages.length > 0 ? groupImages : groupImage ? [{ preview: resolveAssetUrl(groupImage), image_url: groupImage, is_primary: true }] : [],
         edition_name: row.edition_name || "",
         edition_slug: row.edition_slug || slugifyEdition(row.edition_name || ""),
@@ -619,6 +626,10 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     if (!String(group.edition_name || "").trim() && String(row.edition_name || "").trim()) {
       group.edition_name = row.edition_name || "";
       group.edition_slug = row.edition_slug || slugifyEdition(row.edition_name || "");
+    }
+    if (!group.ai_cover && row.ai_cover) {
+      group.ai_cover = row.ai_cover;
+      group.ai_cover_status = row.ai_cover_status || row.ai_cover?.status || "";
     }
     const rowImages = normalizeColorImages(row.images || row.color_images || []);
     if (rowImages.length > 0) {
@@ -2278,6 +2289,7 @@ function ProductEdit() {
             preview: image.image_url || "",
             image_url: image.image_url || "",
             is_primary: image.is_primary ?? index === 0,
+            generated_by_ai: Boolean(image.generated_by_ai),
             name: image.name || `${groupColor} image ${index + 1}`,
           })),
         };
@@ -2569,6 +2581,8 @@ function ProductEdit() {
             const primary = images.find((item) => item.is_primary) || images[0] || null;
             return {
               ...group,
+              ai_cover: savedGroup.ai_cover || group.ai_cover || null,
+              ai_cover_status: savedGroup.ai_cover_status || savedGroup.ai_cover?.status || group.ai_cover_status || "",
               images,
               image_url: primary?.image_url || group.image_url || "",
               imagePreview: primary?.preview || primary?.image_url || group.imagePreview || "",
@@ -3036,6 +3050,7 @@ function ProductEdit() {
                   <input type="file" hidden accept="image/*" onChange={handleCover} />
                 </label>
                 <div className="mt-3 grid gap-2">
+                  <AiCoverStatusBadge state={product.ai_cover} />
                   <button
                     type="button"
                     onClick={handleGenerateAiProductData}
@@ -3469,6 +3484,7 @@ function ProductEdit() {
                         {thermalImageGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                         {group.thermal_image_url ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
                       </button>
+                      <AiCoverStatusBadge state={group.ai_cover} />
                       <div className="grid w-full max-w-[520px] grid-cols-2 gap-2">
                         <div className="rounded-[12px] border border-white/10 bg-zinc-950/70 p-2">
                           <div className="flex h-20 items-center justify-center overflow-hidden rounded-[10px] bg-zinc-900">
@@ -3975,6 +3991,40 @@ function Metric({ label, value }) {
     <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <div className="mt-1 text-lg font-black text-white">{value}</div>
+    </div>
+  );
+}
+
+function AiCoverStatusBadge({ state = null }) {
+  const status = String(state?.status || "").trim().toUpperCase();
+  if (!status) return null;
+
+  const tone =
+    status === "COMPLETED"
+      ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100"
+      : status === "FAILED"
+        ? "border-red-300/30 bg-red-400/10 text-red-100"
+        : status === "PROCESSING"
+          ? "border-amber-300/30 bg-amber-400/10 text-amber-100"
+          : "border-blue-300/30 bg-blue-400/10 text-blue-100";
+
+  const label =
+    status === "COMPLETED"
+      ? "Completed"
+      : status === "FAILED"
+        ? "Failed"
+        : status === "PROCESSING"
+          ? "Generating..."
+          : "Pending";
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.16em] ${tone}`}>
+        AI Cover {label}
+      </span>
+      {status === "FAILED" && state?.last_error ? (
+        <span className="text-[11px] text-red-200/80">{String(state.last_error)}</span>
+      ) : null}
     </div>
   );
 }

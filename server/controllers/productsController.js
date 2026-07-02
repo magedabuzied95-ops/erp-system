@@ -8,6 +8,12 @@ import {
   replaceProductVariantImages,
 } from "../services/productVariantImagesService.js";
 import {
+  ensureAiShoeCoverSchema,
+  isAiShoeCoverGenerationEnabled,
+  loadAiShoeCoverStateMap,
+  scheduleAiShoeCoverJobs,
+} from "../services/aiShoeCoverService.js";
+import {
   buildThermalColorJobGroups,
   buildThermalImageUrlMap,
   scheduleThermalColorArtworkJobs,
@@ -1334,6 +1340,59 @@ const resolveProductRequestScope = (req) => {
   };
 };
 
+const normalizeAiCoverState = (value = null) => {
+  if (!value || typeof value !== "object") return null;
+  return {
+    id: Number(value.id || 0) || null,
+    status: String(value.status || "pending").trim().toUpperCase(),
+    generated_at: value.generated_at || null,
+    last_error: String(value.last_error || "").trim(),
+    retry_count: Number(value.retry_count || 0),
+    ai_cover_image_id: Number(value.ai_cover_image_id || 0) || null,
+    source_image_url: String(value.source_image_url || "").trim(),
+    generated_image_url: String(value.generated_image_url || "").trim(),
+  };
+};
+
+const attachAiShoeCoverStateToProducts = async (clientOrPool, products = []) => {
+  const rows = Array.isArray(products) ? products : [];
+  const productIds = rows.map((product) => Number(product?.id || product?.product_id || 0)).filter((value) => Number.isFinite(value) && value > 0);
+  if (!productIds.length) return rows;
+
+  const { productMap, colorMap } = await loadAiShoeCoverStateMap(clientOrPool, productIds);
+  return rows.map((product) => {
+    const productId = String(product?.id || product?.product_id || "");
+    const productAiCover = normalizeAiCoverState(productMap.get(productId) || null);
+    const colorImages = Array.isArray(product?.color_images)
+      ? product.color_images.map((group) => {
+          const colorKey = String(group?.color || group?.color_name || group?.color_value || "").trim().toLowerCase();
+          const aiCover = colorKey ? normalizeAiCoverState(colorMap.get(`${productId}:${colorKey}`) || null) : null;
+          return aiCover ? { ...group, ai_cover: aiCover, ai_cover_status: aiCover.status } : group;
+        })
+      : product?.color_images;
+    const variants = Array.isArray(product?.variants)
+      ? product.variants.map((variant) => {
+          const colorKey = String(variant?.color || variant?.color_name || "").trim().toLowerCase();
+          const aiCover = colorKey ? normalizeAiCoverState(colorMap.get(`${productId}:${colorKey}`) || null) : null;
+          return aiCover ? { ...variant, ai_cover: aiCover, ai_cover_status: aiCover.status } : variant;
+        })
+      : product?.variants;
+    return productAiCover
+      ? {
+          ...product,
+          ai_cover: productAiCover,
+          ai_cover_status: productAiCover.status,
+          color_images: colorImages,
+          variants,
+        }
+      : {
+          ...product,
+          color_images: colorImages,
+          variants,
+        };
+  });
+};
+
 const buildProductScopeClause = ({ columns, scope }) => {
   const activeParts = [];
   if (columns.deletedAtColumn) activeParts.push("p.deleted_at IS NULL");
@@ -2183,6 +2242,9 @@ export const getProducts = async (req, res) => {
 
   try {
     await ensureProductSchema();
+    if (isAiShoeCoverGenerationEnabled()) {
+      await ensureAiShoeCoverSchema().catch(() => {});
+    }
     const columns = await getProductColumns();
     const scopeClause = buildProductScopeClause({ columns, scope });
 
@@ -2221,8 +2283,11 @@ export const getProducts = async (req, res) => {
     });
 
     const normalizedRows = await withProductAudiences(db, result.rows.map(normalizeProductRow));
-    logProductsPriceRead(normalizedRows);
-    const payload = normalizeResponse(normalizedRows);
+    const aiEnrichedRows = isAiShoeCoverGenerationEnabled()
+      ? await attachAiShoeCoverStateToProducts(db, normalizedRows)
+      : normalizedRows;
+    logProductsPriceRead(aiEnrichedRows);
+    const payload = normalizeResponse(aiEnrichedRows);
     res.json(payload);
 
     console.log("[products] response sent", {
@@ -2267,6 +2332,9 @@ export const getProductsWithVariants = async (req, res) => {
       await ensureProductVariantSchema();
       await ensureProductVariantManufacturerColumn();
       await ensureProductVariantImagesSchema();
+      if (isAiShoeCoverGenerationEnabled()) {
+        await ensureAiShoeCoverSchema().catch(() => {});
+      }
     } catch (schemaError) {
       console.error("[products/with-variants] variant schema ensure failed:", schemaError);
     }
@@ -2402,11 +2470,14 @@ export const getProductsWithVariants = async (req, res) => {
           product.variants?.[0]?.variant_image_url ||
           "",
       })));
-    logProductsPriceRead(normalizedProducts);
+    const aiEnrichedProducts = isAiShoeCoverGenerationEnabled()
+      ? await attachAiShoeCoverStateToProducts(db, normalizedProducts)
+      : normalizedProducts;
+    logProductsPriceRead(aiEnrichedProducts);
     if (Number.isFinite(requestedProductId) && requestedProductId > 0) {
-      normalizedProducts.forEach(logProductDetailsPriceDebug);
+      aiEnrichedProducts.forEach(logProductDetailsPriceDebug);
     }
-    const payload = normalizeResponse(normalizedProducts);
+    const payload = normalizeResponse(aiEnrichedProducts);
 
     res.json(payload);
     console.log("[products] response sent", {
@@ -3071,6 +3142,20 @@ export const createProduct = async (req, res) => {
       groups: thermalColorJobs,
       previousThermalUrlMap: new Map(),
     });
+    void scheduleAiShoeCoverJobs({
+      tenantId,
+      productId,
+      productType: createdProduct.product_type || normalizedProductType || "",
+      productImageUrl: createdProduct.image_url || createdProduct.product_image_url || "",
+      galleryImages: createdProduct.gallery_images || [],
+      colorGroups: colorImagesPayload,
+    }).catch((error) => {
+      console.error("[ai-shoe-cover] schedule failed after product create", {
+        productId,
+        tenantId,
+        message: error?.message || String(error),
+      });
+    });
 
     return res.status(201).json({
       success: true,
@@ -3711,6 +3796,20 @@ export const updateProduct = async (req, res) => {
       productName: updatedProduct.name || "",
       groups: thermalColorJobs,
       previousThermalUrlMap,
+    });
+    void scheduleAiShoeCoverJobs({
+      tenantId,
+      productId,
+      productType: updatedProduct.product_type || normalizedProductType || "",
+      productImageUrl: updatedProduct.image_url || updatedProduct.product_image_url || "",
+      galleryImages: updatedProduct.gallery_images || [],
+      colorGroups: colorImagesPayload,
+    }).catch((error) => {
+      console.error("[ai-shoe-cover] schedule failed after product update", {
+        productId,
+        tenantId,
+        message: error?.message || String(error),
+      });
     });
 
     return res.json({
@@ -4393,6 +4492,19 @@ export const createVariant = async (req, res) => {
       groups: thermalColorJobs,
       previousThermalUrlMap,
     });
+    void scheduleAiShoeCoverJobs({
+      tenantId,
+      productId: req.params.id,
+      productType: productForSku.product_type || "",
+      productImageUrl: productForSku.image_url || productForSku.product_image_url || "",
+      colorGroups: colorImagesPayload,
+    }).catch((error) => {
+      console.error("[ai-shoe-cover] schedule failed after variant create", {
+        productId: req.params.id,
+        tenantId,
+        message: error?.message || String(error),
+      });
+    });
 
     return res.status(201).json({
       success: true,
@@ -4569,6 +4681,19 @@ export const updateVariant = async (req, res) => {
       productName: productForSku.name || "",
       groups: thermalColorJobs,
       previousThermalUrlMap,
+    });
+    void scheduleAiShoeCoverJobs({
+      tenantId,
+      productId: currentVariant.product_id,
+      productType: productForSku.product_type || "",
+      productImageUrl: productForSku.image_url || productForSku.product_image_url || "",
+      colorGroups: colorImagesPayload,
+    }).catch((error) => {
+      console.error("[ai-shoe-cover] schedule failed after variant update", {
+        productId: currentVariant.product_id,
+        tenantId,
+        message: error?.message || String(error),
+      });
     });
 
     return res.json({

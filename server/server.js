@@ -523,6 +523,7 @@ const { ensureNotificationsSchema } = await import("./services/notificationsServ
 const { ensureWebsiteSettingsSchema } = await import("./services/liveActivityService.js");
 const { runDueStoryPublishes, registerMarketingJobHandlers, startAiMarketingAutomationRunner } = await import("./controllers/marketingController.js");
 const { registerBackgroundJobHandlers } = await import("./services/backgroundJobs.js");
+const { startAiShoeCoverWorker, stopAiShoeCoverWorker } = await import("./services/aiShoeCoverService.js");
 const { ensureMarketingSchema } = await import("./utils/marketingSchema.js");
 const { ensureCouponsSchema } = await import("./services/couponsService.js");
 const { ensureLoyaltySchema } = await import("./services/loyaltyService.js");
@@ -1951,6 +1952,11 @@ const gracefulShutdown = (signal) => {
         process.exit(1);
       }
       try {
+        stopAiShoeCoverWorker();
+      } catch (workerError) {
+        console.error("[server] ai shoe cover worker shutdown error", workerError);
+      }
+      try {
         await db.end?.();
       } catch (dbError) {
         console.error("[server] db shutdown error", dbError);
@@ -2011,6 +2017,7 @@ const runDeferredStartupSyncs = async ({ skipStartupSyncs = false } = {}) => {
 
     try {
       registerBackgroundJobHandlers();
+      startAiShoeCoverWorker();
       registerMarketingJobHandlers();
       startMetaTokenRefreshScheduler();
       startMetaCommentsPollingScheduler();
