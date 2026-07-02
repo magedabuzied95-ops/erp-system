@@ -625,6 +625,22 @@ const postKey = (item = {}) => {
   return clean(item?.display_permalink || item?.permalinkUrl || item?.postId || item?.id || "");
 };
 
+const postSelectionKey = (item = {}) =>
+  clean(
+    item?.post_link_key ||
+      item?.postLinkKey ||
+      item?.platform_post_id ||
+      item?.platformPostId ||
+      item?.source_post_id ||
+      item?.sourcePostId ||
+      item?.post_id ||
+      item?.postId ||
+      item?.id ||
+      item?.permalink_url ||
+      item?.permalinkUrl ||
+      ""
+  );
+
 const postIdentityFingerprint = (item = {}) =>
   [
     clean(item?.platform || ""),
@@ -716,6 +732,14 @@ const buildPostIdentitySnapshot = (post = {}) => {
 const comparePostIdentitySnapshots = (left = null, right = null) => {
   const leftSnapshot = left?.ids ? left : buildPostIdentitySnapshot(left || {});
   const rightSnapshot = right?.ids ? right : buildPostIdentitySnapshot(right || {});
+  const leftSelectionKey = postSelectionKey(left?.normalized || left || {});
+  const rightSelectionKey = postSelectionKey(right?.normalized || right || {});
+  if (leftSelectionKey && rightSelectionKey && leftSelectionKey !== rightSelectionKey) {
+    return { matches: false, reason: "post_link_key_mismatch", shared: [] };
+  }
+  if (leftSelectionKey && rightSelectionKey && leftSelectionKey === rightSelectionKey) {
+    return { matches: true, reason: "", shared: [leftSelectionKey] };
+  }
   const shared = Array.from(leftSnapshot.ids || []).filter((value) => rightSnapshot.ids?.has(value));
   if (!leftSnapshot.ids?.size || !rightSnapshot.ids?.size) {
     return { matches: false, reason: "missing_identity" };
@@ -731,9 +755,15 @@ const comparePostIdentitySnapshots = (left = null, right = null) => {
 
 const findMatchingNormalizedPost = (items = [], target = null) => {
   const normalizedTarget = normalizePost(target || {});
+  const targetSelectionKey = postSelectionKey(normalizedTarget);
   const targetKey = postKey(normalizedTarget);
   const targetSnapshot = buildPostIdentitySnapshot(normalizedTarget);
   const list = Array.isArray(items) ? items : [];
+  if (targetSelectionKey) {
+    const exactSelection = list.find((item) => postSelectionKey(item) === targetSelectionKey);
+    if (exactSelection) return exactSelection;
+    return normalizedTarget;
+  }
   if (targetSnapshot.ids.size) {
     const exact = list.find((item) => comparePostIdentitySnapshots(item, targetSnapshot).matches);
     if (exact) return exact;
@@ -1883,6 +1913,26 @@ function SocialCommentsWorkspace({
     });
   }, [productLinksDrawerPost, productLinksDrawerPostKey, productLinksDrawerPostSnapshot]);
 
+  const handleSelectCardPost = useCallback(
+    (post = {}, fallbackKey = "") => {
+      if (!onSelectPost) return;
+      const selectedSelectionKey = postSelectionKey(post) || clean(fallbackKey);
+      const selectedKey = selectedSelectionKey || clean(postKey(post) || fallbackKey);
+      const usedFallback = !postSelectionKey(post) && Boolean(clean(fallbackKey));
+      socialDebugLog("SOCIAL_POST_CARD_CLICK_SELECT_TRACE", {
+        clicked_card_key: clean(fallbackKey || postKey(post) || ""),
+        clicked_title: clean(post?.caption || post?.displayText || post?.title || ""),
+        clicked_post_link_key: clean(post?.post_link_key || post?.postLinkKey || ""),
+        selected_key_after_click: selectedKey,
+        selected_title_after_click: clean(post?.caption || post?.displayText || post?.title || ""),
+        used_fallback: usedFallback,
+        reason: usedFallback ? "selection_key_missing" : "direct_exact_selection",
+      });
+      onSelectPost(post, selectedKey);
+    },
+    [onSelectPost]
+  );
+
   const updateAutomationDraft = (patch = {}) => {
     const drawerKey = clean(automationDrawerPostKey || activePostKey);
     if (!drawerKey) return;
@@ -2786,7 +2836,7 @@ function SocialCommentsWorkspace({
                         key={key}
                         role={onSelectPost ? "button" : undefined}
                         tabIndex={onSelectPost ? 0 : undefined}
-                        onClick={onSelectPost ? () => onSelectPost(post, key) : undefined}
+                        onClick={onSelectPost ? () => handleSelectCardPost(post, key) : undefined}
                         onMouseEnter={onPrefetchPost ? schedulePrefetch : undefined}
                         onMouseLeave={onPrefetchPost ? clearPrefetch : undefined}
                         onFocus={onPrefetchPost ? schedulePrefetch : undefined}
@@ -2945,7 +2995,7 @@ function SocialCommentsWorkspace({
                       key={key}
                       role={onSelectPost ? "button" : undefined}
                       tabIndex={onSelectPost ? 0 : undefined}
-                      onClick={onSelectPost ? () => onSelectPost(post, key) : undefined}
+                      onClick={onSelectPost ? () => handleSelectCardPost(post, key) : undefined}
                       onMouseEnter={onPrefetchPost ? schedulePrefetch : undefined}
                       onMouseLeave={onPrefetchPost ? clearPrefetch : undefined}
                       onFocus={onPrefetchPost ? schedulePrefetch : undefined}
@@ -2953,7 +3003,7 @@ function SocialCommentsWorkspace({
                       onKeyDown={
                         onSelectPost
                           ? (event) => {
-                              if (event.key === "Enter" || event.key === " ") onSelectPost(post, key);
+                              if (event.key === "Enter" || event.key === " ") handleSelectCardPost(post, key);
                             }
                           : undefined
                       }
