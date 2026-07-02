@@ -4,6 +4,8 @@ import ensureMarketingSchema from "../utils/marketingSchema.js";
 import {
   GENERIC_SOCIAL_COMMENT_PRIVATE_REPLY,
   buildSocialCommentPrivateReplyMessage,
+  buildSocialCommentSizeQuickReplies,
+  normalizeSocialCommentProductContext,
   sanitizeUnifiedSocialCommentPrivateReplyMessage,
 } from "./socialCommentPrivateReplyService.js";
 
@@ -718,6 +720,14 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
     },
   });
   const normalizedPlatform = trimString(platform || "").toLowerCase().includes("instagram") ? "instagram" : "facebook";
+  const normalizedProductContext = await normalizeSocialCommentProductContext({
+    tenantId: businessId,
+    productContext: options?.productContext || {},
+  }).catch(() => ({
+    productId: null,
+    productImageUrl: "",
+    availableSizes: [],
+  }));
   const pageId = trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || "");
   const activeImplementationFinalUrl = normalizedPlatform === "facebook"
     ? `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(pageId)}/messages`
@@ -760,12 +770,22 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
   if (normalizedPlatform === "facebook") {
     const endpoint = `/${encodeURIComponent(pageId)}/messages`;
     const finalUrlWithoutToken = `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}${endpoint}`;
+    const productImageUrl = trimString(normalizedProductContext.productImageUrl || "");
+    const quickReplies = buildSocialCommentSizeQuickReplies({
+      productContext: {
+        product_id: normalizedProductContext.productId,
+        available_sizes: normalizedProductContext.availableSizes,
+      },
+      postId: trimString(options?.postId || ""),
+      commentId: graphCommentId,
+    });
     const requestBody = {
       recipient: {
         comment_id: graphCommentId,
       },
       message: {
         text: selectedMessage,
+        ...(quickReplies.length ? { quick_replies: quickReplies } : {}),
       },
     };
     debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_REQUEST", {
@@ -793,6 +813,38 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
       const accessToken = tokenStatus?.accessToken || getPublishingAccessToken(settings);
       const target = new URL(finalUrlWithoutToken);
       target.searchParams.set("access_token", accessToken);
+      if (productImageUrl && !selectedMessage.includes(productImageUrl)) {
+        const imageResponse = await fetch(target.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipient: { comment_id: graphCommentId },
+            message: {
+              attachment: {
+                type: "image",
+                payload: { url: productImageUrl, is_reusable: true },
+              },
+            },
+          }),
+        });
+        const imagePayload = await parseMetaResponse(imageResponse);
+        if (imageResponse.ok) {
+          console.log("SOCIAL_COMMENT_PRODUCT_IMAGE_SENT", {
+            comment_id: graphCommentId,
+            post_id: trimString(options?.postId || ""),
+            product_id: normalizedProductContext.productId,
+            image_url: productImageUrl,
+          });
+        } else {
+          console.warn("SOCIAL_COMMENT_PRODUCT_IMAGE_SEND_FAILED", {
+            comment_id: graphCommentId,
+            post_id: trimString(options?.postId || ""),
+            product_id: normalizedProductContext.productId,
+            image_url: productImageUrl,
+            message: getMetaErrorMessage(imagePayload),
+          });
+        }
+      }
       const response = await fetch(target.toString(), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -847,6 +899,14 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
         page_id: pageId,
         token_delivery: "query",
       });
+      if (quickReplies.length) {
+        console.log("SOCIAL_COMMENT_QUICK_REPLY_SENT", {
+          comment_id: graphCommentId,
+          post_id: trimString(options?.postId || ""),
+          product_id: normalizedProductContext.productId,
+          sizes: quickReplies.map((item) => trimString(item.title)),
+        });
+      }
       return payload;
     } catch (error) {
       const details = extractMetaErrorDetails(error);

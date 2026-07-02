@@ -55,6 +55,7 @@ import {
   recordMetaWebhookRequest,
   recordMetaWebhookRawEvent,
 } from "./marketingCommentAutomationService.js";
+import { parseSocialCommentSizeQuickReplyPayload } from "./socialCommentPrivateReplyService.js";
 import {
   normalizeProductCards,
   productCardReplyText,
@@ -13666,6 +13667,106 @@ const detectModelNameSearch = (message = "") => {
   );
 };
 
+const handleSocialCommentMessengerQuickReplySelection = async ({
+  config,
+  message,
+  inboundKey = "",
+  inboundMetaMid = "",
+} = {}) => {
+  if (text(message?.channel || "") !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) return null;
+  const payload = parseSocialCommentSizeQuickReplyPayload(
+    message?.raw?.event?.message?.quick_reply?.payload ||
+    message?.raw?.event?.postback?.payload ||
+    ""
+  );
+  if (!payload) return null;
+
+  const variantResult = await db.query(
+    `
+    SELECT id, size, color, COALESCE(stock, 0) AS stock
+    FROM product_variants
+    WHERE product_id = $1
+      AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
+      AND COALESCE(stock, 0) > 0
+      AND size = $3
+    ORDER BY id ASC
+    LIMIT 1
+    `,
+    [Number(payload.product_id || 0), Number(config.tenant_id || 0), text(payload.size)]
+  ).catch(() => ({ rows: [] }));
+  const variant = variantResult.rows?.[0] || null;
+  const available = Boolean(variant);
+  const selectedSize = text(payload.size);
+
+  updateConversationMemory(message.external_conversation_id, {
+    selectedProductId: Number(payload.product_id || 0) || null,
+    activeProductId: Number(payload.product_id || 0) || null,
+    selectedVariantId: Number(variant?.id || 0) || null,
+    activeVariantId: Number(variant?.id || 0) || null,
+    selectedSize,
+    activeSize: selectedSize,
+    last_selected_size: selectedSize,
+    checkoutStage: available ? "buying_intent" : (getConversationMemory(message.external_conversation_id)?.checkoutStage || "product_selected"),
+  });
+  persistAiConversationMemory({
+    tenantId: config.tenant_id,
+    channel: message.channel,
+    conversationId: message.external_conversation_id,
+    reason: "social_comment_quick_reply_size_selected",
+  });
+  updatePersistentCustomerConversationMemory({
+    tenantId: config.tenant_id,
+    sessionId: message.external_conversation_id,
+    customerPhone: "",
+    message: message.message_text || selectedSize,
+    metadata: {
+      channel: message.channel,
+      session_id: message.external_conversation_id,
+      selected_size: selectedSize,
+      selected_product_id: Number(payload.product_id || 0) || null,
+    },
+    suggestedProducts: [],
+    preferencesPatch: {
+      selected_size: selectedSize,
+      last_selected_size: selectedSize,
+      last_product_id: Number(payload.product_id || 0) || null,
+    },
+  }).catch(() => {});
+
+  console.log("SOCIAL_COMMENT_SIZE_SELECTED", {
+    tenant_id: config.tenant_id,
+    conversation_id: message.external_conversation_id,
+    comment_id: payload.comment_id || "",
+    post_id: payload.post_id || "",
+    product_id: Number(payload.product_id || 0) || null,
+    selected_size: selectedSize,
+    available,
+  });
+
+  const replyText = available
+    ? `✅ ممتاز\n\nالمقاس ${selectedSize} متوفر.\n\nهل تحب نكمل الطلب؟`
+    : `المقاس ${selectedSize} غير متوفر حالياً. لو تحب ابعتلنا مقاس بديل ونراجع التوفر فوراً.`;
+  await sendAndLogMetaText({
+    config,
+    message,
+    text: replyText,
+    detectedIntent: available ? "social_comment_size_selected" : "social_comment_size_unavailable",
+    metadata: {
+      force_reply_text_passthrough: true,
+      selected_size: selectedSize,
+      selected_product_id: Number(payload.product_id || 0) || null,
+      selected_variant_id: Number(variant?.id || 0) || null,
+      social_comment_quick_reply: true,
+    },
+    inboundKey,
+    inboundMetaMid,
+  });
+  return {
+    handled: true,
+    reason: available ? "social_comment_size_selected" : "social_comment_size_unavailable",
+  };
+};
+
 const canonicalModelFamilyLabel = (value = "") => {
   const raw = text(value).toLowerCase().replace(/\s+/g, " ").trim();
   const normalized = normalizedSearchText(value);
@@ -20422,6 +20523,30 @@ export const processMetaWebhook = async ({ req } = {}) => {
       channel: message.channel,
       conversationId: message.external_conversation_id,
     });
+    const socialCommentQuickReplySelection = await handleSocialCommentMessengerQuickReplySelection({
+      config,
+      message,
+      inboundKey,
+      inboundMetaMid: message.external_message_id || messageId,
+    });
+    if (socialCommentQuickReplySelection?.handled) {
+      markMessageProcessingStatus(messageId, "sent");
+      await storeProcessedInboundKey({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        inboundKey,
+        status: "sent",
+      });
+      results.push({
+        channel: alias,
+        external_user_id: message.external_customer_id,
+        stored: true,
+        sent: true,
+        reason: socialCommentQuickReplySelection.reason,
+      });
+      continue;
+    }
     await loadCustomerBrainContext({ config, message }).catch((error) => {
       console.warn("[customer-brain] profile load failed", {
         tenant_id: config.tenant_id,
