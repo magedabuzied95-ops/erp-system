@@ -1,7 +1,6 @@
 import db from "../database/db.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
-import { fetchMetaPageFeedPostsForTenant, fetchMetaPostPreviewDetails } from "./metaIntegrationService.js";
 import { likeComment, replyToComment, renderTemplate } from "./marketingCommentAutomationService.js";
 import { getPostProductLinksV2 } from "./socialPostProductLinksV2Service.js";
 import {
@@ -18,6 +17,21 @@ const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMME
 const isSocialSqlPerfEnabled = () => ["1", "true", "yes", "on"].includes(lower(process.env.DEBUG_SOCIAL_SQL_PERF || ""));
 const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
+};
+let socialCommentsMetaIntegrationDepsPromise = null;
+const getSocialCommentsMetaIntegrationDeps = async () => {
+  if (!socialCommentsMetaIntegrationDepsPromise) {
+    socialCommentsMetaIntegrationDepsPromise = import("./metaIntegrationService.js")
+      .then((module) => ({
+        fetchMetaPageFeedPostsForTenant: module.fetchMetaPageFeedPostsForTenant,
+        fetchMetaPostPreviewDetails: module.fetchMetaPostPreviewDetails,
+      }))
+      .catch((error) => {
+        socialCommentsMetaIntegrationDepsPromise = null;
+        throw error;
+      });
+  }
+  return socialCommentsMetaIntegrationDepsPromise;
 };
 let socialRealtimeEmittersPromise = null;
 const getSocialRealtimeEmitters = async () => {
@@ -1505,6 +1519,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
     let hydratedPostCreatedTimeSource = "";
     if (!fallbackRealPostTime && isFacebook(platform) && tenantId && graphLookupFallbackPostIds.length) {
       for (const candidatePostId of graphLookupFallbackPostIds) {
+        const { fetchMetaPostPreviewDetails } = await getSocialCommentsMetaIntegrationDeps();
         const candidateGraphPost = await fetchMetaPostPreviewDetails({
           tenantId,
           postId: candidatePostId,
@@ -1791,6 +1806,7 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
           graphLookupPostId: candidatePostId,
         });
       }
+      const { fetchMetaPostPreviewDetails } = await getSocialCommentsMetaIntegrationDeps();
       const candidateGraphPost = await fetchMetaPostPreviewDetails({
         tenantId,
         postId: candidatePostId,
@@ -3470,14 +3486,59 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     return coverImageUrl;
   };
 
-  const feedResult = await fetchMetaPageFeedPostsForTenant({ tenantId: safeTenantId, limit: safeLimit }).catch((error) => ({
+  const listStoredSocialCommentPostsFallback = async () => {
+    const fallbackRowsResult = await db.query(
+      `
+      SELECT
+        COALESCE(NULLIF(c.metadata->>'post_id', ''), NULLIF(c.metadata->>'platform_post_id', ''), NULLIF(c.metadata->>'external_post_id', ''), NULLIF(c.metadata->>'canonical_post_id', ''), NULLIF(c.external_conversation_id, '')) AS post_id,
+        MAX(COALESCE(NULLIF(c.metadata->>'post_created_time', ''), NULLIF(c.metadata->>'created_time', ''), NULLIF(c.metadata->>'published_at', ''), c.last_message_at::text, c.created_at::text)) AS post_created_time,
+        MAX(COALESCE(NULLIF(c.metadata->>'post_permalink_url', ''), NULLIF(c.metadata->>'post_permalink', ''), NULLIF(c.metadata->>'permalink_url', ''), NULLIF(c.metadata->>'post_url', ''))) AS permalink_url,
+        MAX(COALESCE(NULLIF(c.metadata->>'post_full_picture', ''), NULLIF(c.metadata->>'full_picture', ''), NULLIF(c.metadata->>'attachment_image', ''), NULLIF(c.metadata->>'thumbnail_url', ''), NULLIF(c.metadata->>'image_url', ''), NULLIF(c.metadata->>'picture', ''))) AS cover_image_url,
+        (ARRAY_AGG(COALESCE(NULLIF(c.metadata->>'post_message', ''), NULLIF(c.metadata->>'post_caption', ''), NULLIF(c.metadata->>'message', ''), NULLIF(c.metadata->>'caption', ''), NULLIF(c.last_message, '')) ORDER BY c.updated_at DESC, c.created_at DESC, c.id DESC))[1] AS message,
+        COUNT(*)::int AS comments_count
+      FROM ai_channel_conversations c
+      WHERE c.tenant_id = $1::bigint
+        AND c.thread_kind = 'comment'
+        AND c.channel = $2::text
+        AND COALESCE(NULLIF(c.metadata->>'post_id', ''), NULLIF(c.metadata->>'platform_post_id', ''), NULLIF(c.metadata->>'external_post_id', ''), NULLIF(c.metadata->>'canonical_post_id', ''), NULLIF(c.external_conversation_id, '')) <> ''
+      GROUP BY 1
+      ORDER BY MAX(c.updated_at) DESC, MAX(c.created_at) DESC
+      LIMIT $3
+      `,
+      [safeTenantId, normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment", safeLimit]
+    ).catch(() => ({ rows: [] }));
+    return Array.isArray(fallbackRowsResult.rows) ? fallbackRowsResult.rows : [];
+  };
+
+  const feedResult = await getSocialCommentsMetaIntegrationDeps()
+    .then(({ fetchMetaPageFeedPostsForTenant }) => fetchMetaPageFeedPostsForTenant({ tenantId: safeTenantId, limit: safeLimit }))
+    .catch((error) => ({
     success: false,
     posts: [],
     page_id: "",
     graph_error: error?.message || "Unable to load Facebook page posts",
   }));
   const feedPosts = Array.isArray(feedResult?.posts) ? feedResult.posts.filter((post) => post && typeof post === "object") : [];
-  const feedPostIds = feedPosts.map((post) => text(post.id || "")).filter(Boolean);
+  const fallbackRows = !feedPosts.length ? await listStoredSocialCommentPostsFallback() : [];
+  const fallbackPosts = fallbackRows.map((row) => ({
+    id: text(row.post_id || ""),
+    created_time: text(row.post_created_time || ""),
+    permalink_url: text(row.permalink_url || ""),
+    full_picture: text(row.cover_image_url || ""),
+    picture: text(row.cover_image_url || ""),
+    message: text(row.message || ""),
+    comments_count: Number(row.comments_count || 0) || 0,
+  }));
+  const effectiveFeedPosts = feedPosts.length ? feedPosts : fallbackPosts;
+  if (!feedPosts.length && fallbackPosts.length) {
+    console.log("SOCIAL_COMMENTS_POST_FEED_ERROR", {
+      route: "/api/social-comments/posts",
+      message: feedResult?.graph_error || "Meta feed unavailable; using stored posts fallback",
+      stack: "",
+      post_id: fallbackPosts[0]?.id || "",
+    });
+  }
+  const feedPostIds = effectiveFeedPosts.map((post) => text(post.id || "")).filter(Boolean);
 
   const commentsByPostId = new Map();
   if (feedPostIds.length) {
@@ -3505,7 +3566,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     }
   }
 
-  const normalizedRows = await Promise.all(feedPosts.map(async (post, index) => {
+  const normalizedRows = await Promise.all(effectiveFeedPosts.map(async (post, index) => {
     const postId = text(post.id || "");
     const postTime = text(post.created_time || post.post_created_time || "");
     const coverImageUrl = resolveFacebookPostCoverImage(post);
@@ -3603,7 +3664,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
   }));
 
   console.info("SOCIAL_PAGE_FEED_SYNC_TRACE", {
-    fetched_count: feedPosts.length,
+    fetched_count: effectiveFeedPosts.length,
     returned_count: normalizedRows.length,
     first_post_ids: normalizedRows.slice(0, 5).map((post) => text(post.post_id || post.id || "")),
     missing_image_count: normalizedRows.filter((post) => !text(post.cover_image_url || post.thumbnail_url || "")).length,

@@ -29,10 +29,6 @@ import {
 } from "../services/socialPostProductLinksV2Service.js";
 import { saveMappings } from "../services/postProductMappingService.js";
 import { getSocialRealtimeMetrics } from "../services/socialRealtimeService.js";
-import {
-  listRecentSocialCommentAutomationRuns as listSocialCommentAutomationRuns,
-  testSocialCommentAutomationRuntime,
-} from "../services/socialCommentAutomationService.js";
 
 const router = express.Router();
 const debugRouter = express.Router();
@@ -42,6 +38,7 @@ const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
 };
 let socialCommentsSchemaReadyPromise = null;
+let socialCommentAutomationRouteDepsPromise = null;
 const ensureSocialCommentsSchemaReady = () => {
   if (!socialCommentsSchemaReadyPromise) {
     socialCommentsSchemaReadyPromise = ensureSocialCommentsCenterSchema().catch((error) => {
@@ -50,6 +47,20 @@ const ensureSocialCommentsSchemaReady = () => {
     });
   }
   return socialCommentsSchemaReadyPromise;
+};
+const getSocialCommentAutomationRouteDeps = async () => {
+  if (!socialCommentAutomationRouteDepsPromise) {
+    socialCommentAutomationRouteDepsPromise = import("../services/socialCommentAutomationService.js")
+      .then((module) => ({
+        listSocialCommentAutomationRuns: module.listRecentSocialCommentAutomationRuns,
+        testSocialCommentAutomationRuntime: module.testSocialCommentAutomationRuntime,
+      }))
+      .catch((error) => {
+        socialCommentAutomationRouteDepsPromise = null;
+        throw error;
+      });
+  }
+  return socialCommentAutomationRouteDepsPromise;
 };
 
 const toTenantId = (req) => Number(req.query?.tenant_id || req.body?.tenant_id || req.headers["x-tenant-id"] || 1) || 1;
@@ -231,6 +242,12 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
     }
     return res.json({ success: true, posts: responsePosts, total: responsePosts.length });
   } catch (error) {
+    console.log("SOCIAL_COMMENTS_POST_FEED_ERROR", {
+      route: "/api/social-comments/posts",
+      message: error?.message || "Failed to load social comment posts",
+      stack: error?.stack || "",
+      post_id: "",
+    });
     return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment posts" });
   }
 });
@@ -512,6 +529,7 @@ router.get("/automation/:postId/runs", protect, permit("settings", "view"), asyn
     const limit = Math.min(50, Math.max(1, Number(req.query?.limit || 20) || 20));
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
     const postId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const { listSocialCommentAutomationRuns } = await getSocialCommentAutomationRouteDeps();
     const runs = await listSocialCommentAutomationRuns({ tenantId, platform, postId, limit });
     return res.json({
       success: true,
@@ -569,6 +587,7 @@ router.post("/automation/:postId/test", protect, permit("settings", "view"), asy
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
     const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
     const postId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const { testSocialCommentAutomationRuntime } = await getSocialCommentAutomationRouteDeps();
     const result = await testSocialCommentAutomationRuntime({ tenantId, platform, postId });
     return res.json({ success: true, result });
   } catch (error) {
