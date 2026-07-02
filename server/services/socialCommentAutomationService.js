@@ -37,6 +37,7 @@ const parseDateOrNull = (value = null) => {
   const parsed = value instanceof Date ? value : new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
+const SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS = 10 * 60 * 1000;
 const buildPrivateReplyJobDedupeKey = ({ tenantId = null, platform = "", commentId = "" } = {}) => {
   const safeTenantId = Number(tenantId || 0);
   const safePlatform = text(platform || "facebook") === "instagram" ? "instagram" : "facebook";
@@ -100,6 +101,74 @@ const normalizeAutomationRunDiagnostics = (value = {}) => {
 
 const logAutomationSkipReason = (payload = {}) => {
   debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_SKIP_REASON", payload);
+};
+
+const maybeSkipOldSocialCommentAutomation = async ({
+  tenantId = null,
+  platform = "",
+  postId = "",
+  commentId = "",
+  channel = "",
+  sessionId = "",
+  commentCreatedTime = null,
+  detectedAt = new Date(),
+  source = "",
+  row = {},
+} = {}) => {
+  const facebookCreatedAt = parseDateOrNull(commentCreatedTime);
+  if (!facebookCreatedAt) return { skipped: false, facebookCreatedAt: null, ageMs: null };
+  const detectedDate = detectedAt instanceof Date ? detectedAt : parseDateOrNull(detectedAt) || new Date();
+  const ageMs = Math.max(0, detectedDate.getTime() - facebookCreatedAt.getTime());
+  if (ageMs <= SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS) {
+    return { skipped: false, facebookCreatedAt, ageMs };
+  }
+
+  console.log("SOCIAL_COMMENT_AUTOMATION_SKIPPED_OLD_COMMENT", {
+    tenant_id: Number(tenantId || 0) || null,
+    platform: text(platform || row?.platform || ""),
+    post_id: text(postId || row?.post_id || ""),
+    comment_id: text(commentId || row?.comment_id || ""),
+    facebook_created_time: facebookCreatedAt.toISOString(),
+    detected_at: detectedDate.toISOString(),
+    age_ms: ageMs,
+    threshold_ms: SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS,
+    source: text(source || row?.raw_payload?.source || ""),
+  });
+
+  const safeRow = row && typeof row === "object" ? row : {};
+  const skippedState = buildSocialCommentAutomationState({
+    row: safeRow,
+    featureFlags: getSocialCommentAutomationEnvFlags(),
+    automationSettings: DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
+    overallStatus: "skipped",
+    reason: "old_comment_recency_guard",
+    likeStatus: "skipped",
+    publicReplyStatus: "skipped",
+    dmStatus: "skipped",
+    commentId: text(commentId || safeRow.comment_id || ""),
+    sessionId: text(sessionId || safeRow.inbox_conversation_id || ""),
+  });
+  const skippedRow = await persistSocialCommentAutomationState({
+    tenantId: Number(tenantId || safeRow.tenant_id || 0) || null,
+    platform: text(platform || safeRow.platform || ""),
+    commentId: text(commentId || safeRow.comment_id || ""),
+    sessionId: text(sessionId || safeRow.inbox_conversation_id || ""),
+    channel: text(channel || safeRow.channel || socialCommentAutomationChannelForPlatform(platform || safeRow.platform || "")),
+    actionTaken: "automation_skipped_old_comment",
+    likeStatus: "skipped",
+    publicReplyStatus: "skipped",
+    dmStatus: "skipped",
+    errorCode: "old_comment_recency_guard",
+    automationState: skippedState,
+  }).catch(() => null);
+
+  return {
+    skipped: true,
+    reason: "old_comment_recency_guard",
+    facebookCreatedAt,
+    ageMs,
+    row: skippedRow || safeRow,
+  };
 };
 
 const buildRuntimeContextSnapshot = ({
@@ -4482,6 +4551,30 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       detection_lag_ms: facebookCreatedAt ? detectedAt.getTime() - facebookCreatedAt.getTime() : null,
       source: latencyTrace.source,
     });
+    const oldCommentGuard = await maybeSkipOldSocialCommentAutomation({
+      tenantId: safeTenantId,
+      platform,
+      postId,
+      commentId: text(event.comment_id || savedRunRow?.comment_id || ""),
+      channel,
+      sessionId,
+      commentCreatedTime,
+      detectedAt,
+      source: latencyTrace.source,
+      row: savedRunRow || {},
+    });
+    if (oldCommentGuard.skipped) {
+      if (oldCommentGuard.row) {
+        savedRunRow = oldCommentGuard.row;
+      }
+      return {
+        applied: false,
+        skipped: true,
+        reason: oldCommentGuard.reason,
+        row: savedRunRow,
+        step_results: [],
+      };
+    }
     const selectedPostId = text(postId || "");
     const selectedCommentId = text(event.comment_id || savedRunRow?.comment_id || "");
     const runtimePostId = text(savedRunRow?.post_id || event.post_id || "");
@@ -6483,6 +6576,22 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
     storedRow = applyWebhookPostMediaToEvent(storedRow, webhookMedia);
     let automationRuntimeApplied = false;
     if (automationConfig?.enabled) {
+      const oldCommentGuard = await maybeSkipOldSocialCommentAutomation({
+        tenantId: storedRow.tenant_id,
+        platform: storedRow.platform,
+        postId: text(storedRow.post_id || ""),
+        commentId: text(storedRow.comment_id || ""),
+        channel: text(storedRow.channel || ""),
+        sessionId: text(storedRow.inbox_conversation_id || ""),
+        commentCreatedTime: storedRow.comment_created_time || storedRow.raw_payload?.comment?.created_time || storedRow.raw_payload?.value?.created_time || "",
+        detectedAt: new Date(),
+        source: text(storedRow.raw_payload?.source || ""),
+        row: storedRow,
+      });
+      if (oldCommentGuard.skipped) {
+        storedRow = oldCommentGuard.row || storedRow;
+        return storedRow;
+      }
       console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_BEFORE", {
         tenant_id: storedRow.tenant_id,
         platform: storedRow.platform,
