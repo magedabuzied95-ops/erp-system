@@ -4,6 +4,7 @@ import {
   ArrowUpRight,
   Bot,
   Clock3,
+  ChevronDown,
   ExternalLink,
   Image as ImageIcon,
   Loader2,
