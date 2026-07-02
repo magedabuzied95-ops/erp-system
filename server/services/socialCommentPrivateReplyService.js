@@ -296,10 +296,7 @@ export const buildSocialCommentPrivateReplyMessage = async ({
   let message = "";
   let selectedSource = "";
 
-  if (renderedAutomationTemplate) {
-    message = renderedAutomationTemplate;
-    selectedSource = "automation_template";
-  } else if (normalizedContext.hasProductContext) {
+  if (normalizedContext.hasProductContext) {
     message = buildPolishedSocialCommentProductReply({
       customerName,
       productContext: {
@@ -310,13 +307,16 @@ export const buildSocialCommentPrivateReplyMessage = async ({
         productLink: normalizedContext.productLink,
       },
     });
-    selectedSource = "polished_product_fallback";
+    selectedSource = "polished_product_renderer";
+  } else if (renderedAutomationTemplate) {
+    message = renderedAutomationTemplate;
+    selectedSource = "generic_automation_template";
   } else if (renderedFallbackTemplate) {
     message = renderedFallbackTemplate;
-    selectedSource = "fallback_template";
+    selectedSource = "generic_automation_template";
   } else {
     message = GENERIC_SOCIAL_COMMENT_PRIVATE_REPLY;
-    selectedSource = "generic_fallback";
+    selectedSource = "generic_automation_template";
   }
 
   const beforeSanitizePreview = String(message || "").trim().slice(0, 280);
