@@ -212,6 +212,22 @@ const confidenceFrom = (value, fallback = 0.9) => {
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(1, Math.max(0, parsed));
 };
+const isMetaPageRateLimitError = (error = null) => {
+  const code = Number(
+    error?.metaResponse?.error?.code ??
+    error?.response?.data?.error?.code ??
+    error?.code ??
+    null
+  );
+  if (code === 80001) return true;
+  const message = text(
+    error?.metaResponse?.error?.message ||
+    error?.response?.data?.error?.message ||
+    error?.message ||
+    ""
+  );
+  return /\(#?80001\)|too many calls to this page account/i.test(message);
+};
 
 const COMBINING_MARKS_RE = /[\u0610-\u061a\u064b-\u065f\u0670\u06d6-\u06ed]/g;
 const ZERO_WIDTH_RE = /[\u200c\u200d\ufeff]/g;
@@ -5523,6 +5539,10 @@ export const executeSocialCommentAutomation = async ({
       const failureCode = !error?.status || /fetch failed|network|timeout|ENOTFOUND|ECONNREFUSED/i.test(errorMessage)
         ? "transport_failed"
         : "meta_reply_failed";
+      const shouldContinuePrivateReply =
+        key === "public_reply" &&
+        isMetaPageRateLimitError(error) &&
+        privateMessageNeeded;
       if (key === "like") likeStatus = "failed";
       if (key === "public_reply") publicReplyStatus = "failed";
       if (key === "private_message") dmStatus = "failed";
@@ -5553,6 +5573,16 @@ export const executeSocialCommentAutomation = async ({
         externalReplyId: "",
       });
       stepErrors.push({ key, message: errorMessage, code: failureCode });
+      if (shouldContinuePrivateReply) {
+        console.log("SOCIAL_COMMENT_PUBLIC_REPLY_RATE_LIMIT_CONTINUE_PRIVATE", {
+          tenant_id: safeTenantId,
+          comment_id: safeRow.comment_id,
+          post_id: safeRow.post_id || "",
+          message: errorMessage,
+          code: 80001,
+          private_message_needed: true,
+        });
+      }
       console.warn(`[social-comments][automation] ${failureLabel}`, {
         tenant_id: safeTenantId,
         comment_id: safeRow.comment_id,
