@@ -436,6 +436,11 @@ export const registerBackgroundJobHandlers = () => {
       max_attempts: job?.maxAttempts || 1,
     });
 
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_STAGE", {
+      stage: "persist_sending_start",
+      comment_id: commentId,
+      post_id: postId || row.post_id || "",
+    });
     try {
       await persistSocialCommentAutomationState({
         tenantId,
@@ -454,9 +459,28 @@ export const registerBackgroundJobHandlers = () => {
           },
         },
       });
-    } catch {}
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_STAGE", {
+        stage: "persist_sending_done",
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+      });
+    } catch (error) {
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_EXIT", {
+        branch: "persist_sending_failed_continues",
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        message: error?.message || String(error || ""),
+      });
+    }
 
+    let preSendStage = "send_try_enter";
     try {
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_STAGE", {
+        stage: preSendStage,
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+      });
+      preSendStage = "product_context_guard_check";
       if ((productContext?.found || productContext?.has_product_context) && isGenericSocialCommentPrivateReply(message) && productAwareMessage) {
         console.warn("SOCIAL_COMMENT_PRIVATE_REPLY_PRODUCT_CONTEXT_DROPPED", buildPrivateReplyLogPayload({
           postId: postId || row.post_id || "",
@@ -467,6 +491,13 @@ export const registerBackgroundJobHandlers = () => {
         }));
         message = String(productAwareMessage || "").trim() || message;
       }
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_STAGE", {
+        stage: "post_guard_message_ready",
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        has_message: Boolean(String(message || "").trim()),
+      });
+      preSendStage = "context_used_log";
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_CONTEXT_USED", buildPrivateReplyLogPayload({
         postId: postId || row.post_id || "",
         commentId,
@@ -474,6 +505,12 @@ export const registerBackgroundJobHandlers = () => {
         replyPreview: message,
         messagePreview: message,
       }));
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_STAGE", {
+        stage: "context_used_logged",
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+      });
+      preSendStage = "send_start_log";
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_START", buildPrivateReplyProductDebugPayload({
         tenantId,
         platform,
@@ -483,6 +520,11 @@ export const registerBackgroundJobHandlers = () => {
         messagePreview: message,
         replyPreview: message,
       }));
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_STAGE", {
+        stage: "send_start_logged",
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+      });
       const sendStartAt = new Date();
       console.log("SOCIAL_COMMENT_LATENCY_SEND_START", {
         comment_id: commentId,
@@ -490,6 +532,11 @@ export const registerBackgroundJobHandlers = () => {
         send_start_at: sendStartAt.toISOString(),
         since_dequeue_ms: sendStartAt.getTime() - dequeueAt.getTime(),
         since_detected_ms: detectedAt ? sendStartAt.getTime() - detectedAt.getTime() : null,
+      });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_STAGE", {
+        stage: "before_send_private_reply_call",
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
       });
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_REQUEST", {
         target_comment_id: commentId,
@@ -565,6 +612,13 @@ export const registerBackgroundJobHandlers = () => {
       });
       return result;
     } catch (error) {
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_EXIT", {
+        branch: "send_try_catch",
+        stage: preSendStage,
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        message: error?.message || String(error || ""),
+      });
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_RESPONSE", {
         target_comment_id: commentId,
         platform,
