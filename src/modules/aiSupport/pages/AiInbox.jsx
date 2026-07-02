@@ -3874,6 +3874,7 @@ export default function AiInbox() {
   const messengerProfileSyncAttemptedRef = useRef(new Set());
   const selectedSessionIdRef = useRef("");
   const selectedSocialCommentIdRef = useRef("");
+  const selectedSocialCommentFetchKeyRef = useRef("");
   const inboxSectionRef = useRef(inboxSection);
   const selectedConversationCacheRef = useRef(null);
   const lastEnabledAutoReplyModeRef = useRef({});
@@ -3886,6 +3887,9 @@ export default function AiInbox() {
   useEffect(() => {
     selectedSocialCommentIdRef.current = selectedSocialCommentId;
   }, [selectedSocialCommentId]);
+  useEffect(() => {
+    selectedSocialCommentFetchKeyRef.current = "";
+  }, []);
   useEffect(() => {
     inboxSectionRef.current = inboxSection;
   }, [inboxSection]);
@@ -4385,8 +4389,35 @@ export default function AiInbox() {
     () => asArray(selectedSocialThread?.comments).filter(Boolean).map((comment) => normalizeSocialCommentThreadComment(comment)),
     [selectedSocialThread?.comments]
   );
-  const selectedSocialCommentPostId = clean(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || selectedSocialCommentPost.id || "");
+  const selectedSocialCommentPostId = clean(
+    selectedSocialCommentPost.postLinkKey ||
+      selectedSocialCommentPost.post_link_key ||
+      selectedSocialCommentPost.platformPostId ||
+      selectedSocialCommentPost.platform_post_id ||
+      selectedSocialCommentPost.sourcePostId ||
+      selectedSocialCommentPost.source_post_id ||
+      selectedSocialCommentPost.postId ||
+      selectedSocialCommentPost.conversationId ||
+      selectedSocialCommentPost.id ||
+      ""
+  );
   const selectedSocialCommentPlatform = clean(selectedSocialCommentPost.platform || "facebook");
+  const selectedSocialCommentFetchKey = useMemo(
+    () =>
+      clean(
+        selectedSocialCommentPost.postLinkKey ||
+          selectedSocialCommentPost.post_link_key ||
+          selectedSocialCommentPost.platformPostId ||
+          selectedSocialCommentPost.platform_post_id ||
+          selectedSocialCommentPost.sourcePostId ||
+          selectedSocialCommentPost.source_post_id ||
+          selectedSocialCommentPost.postId ||
+          selectedSocialCommentPost.id ||
+          selectedSocialCommentPost.conversationId ||
+          ""
+      ),
+    [selectedSocialCommentPost]
+  );
   useEffect(() => {
     if (!isSocialMode) {
       if (selectedSocialThread.post || selectedSocialThread.comments.length) {
@@ -4394,12 +4425,13 @@ export default function AiInbox() {
       }
       return;
     }
-    const postId = selectedSocialCommentPostId;
+    const postId = selectedSocialCommentFetchKey || selectedSocialCommentPostId;
     if (!postId) {
       setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
       return;
     }
     let cancelled = false;
+    const previousFetchKey = clean(selectedSocialCommentFetchKeyRef.current || "");
     const workspaceSeq = ++socialWorkspaceLoadSeqRef.current;
     const perfStart = typeof window !== "undefined" && window.performance?.now ? window.performance.now() : Date.now();
     socialWorkspaceLoadStartRef.current = perfStart;
@@ -4409,8 +4441,11 @@ export default function AiInbox() {
       platform: selectedSocialCommentPlatform,
     });
     socialWorkspaceLoadKeyRef.current = workspaceCacheKey;
+    selectedSocialCommentFetchKeyRef.current = postId;
     setSelectedSocialThread((current) => ({
       ...current,
+      post: normalizeSocialCommentPost(selectedSocialComment || null),
+      comments: [],
       loading: true,
       error: "",
     }));
@@ -4455,6 +4490,18 @@ export default function AiInbox() {
     void (async () => {
       try {
         const platformValue = selectedSocialCommentPlatform;
+        if (DEBUG_SOCIAL_COMMENTS) {
+          console.info("SOCIAL_COMMENTS_FETCH_KEY_TRACE", {
+            selected_title: clean(selectedSocialCommentPost.caption || ""),
+            selected_post_link_key: clean(selectedSocialCommentPost.postLinkKey || selectedSocialCommentPost.post_link_key || ""),
+            fetch_post_id: postId,
+            previous_fetch_key: previousFetchKey,
+            request_started: true,
+            response_applied: false,
+            ignored_stale_response: false,
+            comments_count: 0,
+          });
+        }
         const threadData = cachedWorkspace?.thread
           ? cachedWorkspace.thread
           : await api.get(`/social-comments/posts/${encodeURIComponent(postId)}/comments`, {
@@ -4478,6 +4525,20 @@ export default function AiInbox() {
               return nextThread;
             });
         if (cancelled || workspaceSeq !== socialWorkspaceLoadSeqRef.current) return;
+        const applied = clean(selectedSocialCommentFetchKeyRef.current || "") === postId;
+        if (DEBUG_SOCIAL_COMMENTS) {
+          console.info("SOCIAL_COMMENTS_FETCH_KEY_TRACE", {
+            selected_title: clean(selectedSocialCommentPost.caption || ""),
+            selected_post_link_key: clean(selectedSocialCommentPost.postLinkKey || selectedSocialCommentPost.post_link_key || ""),
+            fetch_post_id: postId,
+            previous_fetch_key: previousFetchKey,
+            request_started: false,
+            response_applied: applied,
+            ignored_stale_response: !applied,
+            comments_count: asArray(threadData.comments).length,
+          });
+        }
+        if (!applied) return;
         setSelectedSocialThread({
           post: normalizeSocialCommentPost(threadData.post || selectedSocialCommentPost || null),
           comments: asArray(threadData.comments).filter(Boolean).map((comment) => normalizeSocialCommentThreadComment(comment)),
@@ -4534,7 +4595,7 @@ export default function AiInbox() {
     return () => {
       cancelled = true;
     };
-  }, [headers, isSocialMode, selectedSocialCommentPlatform, selectedSocialCommentPost, selectedSocialCommentPostId, tenantId]);
+  }, [headers, isSocialMode, selectedSocialCommentFetchKey, selectedSocialCommentPlatform, selectedSocialCommentPost, selectedSocialCommentPostId, tenantId]);
 
   useEffect(() => {
     if (!DEBUG_SOCIAL_COMMENTS || !isSocialMode || !selectedSocialCommentPostId) return;
@@ -4710,10 +4771,29 @@ export default function AiInbox() {
     setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
   }, []);
   const openSocialCommentThread = useCallback((item = {}) => {
-    setSelectedSocialCommentId(socialCommentIdentity(item));
+    const nextSelectionKey = clean(
+      item?.post_link_key ||
+        item?.postLinkKey ||
+        item?.platform_post_id ||
+        item?.platformPostId ||
+        item?.source_post_id ||
+        item?.sourcePostId ||
+        item?.post_id ||
+        item?.postId ||
+        item?.id ||
+        socialCommentIdentity(item) ||
+        ""
+    );
+    setSelectedSocialCommentId(nextSelectionKey || socialCommentIdentity(item));
     setSelectedSessionId("");
+    setSelectedSocialThread({
+      post: normalizeSocialCommentPost(item),
+      comments: [],
+      loading: true,
+      error: "",
+    });
     console.info("AI_INBOX_OPEN_SOCIAL_COMMENT", {
-      post_id: clean(item?.post_id || item?.conversation_post_id || item?.thread_post_id || socialCommentIdentity(item) || ""),
+      post_id: clean(item?.post_link_key || item?.platform_post_id || item?.source_post_id || item?.post_id || item?.conversation_post_id || item?.thread_post_id || socialCommentIdentity(item) || ""),
       comment_id: clean(item?.comment_id || item?.external_comment_id || item?.provider_comment_id || item?.metadata?.comment_id || item?.channel_metadata?.comment_id || ""),
       platform: clean(item?.platform || item?.source_platform || item?.channel || item?.source || ""),
       tenant: clean(tenantId),
