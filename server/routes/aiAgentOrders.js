@@ -93,7 +93,7 @@ import {
 import {
   listRecentSocialCommentAutomationRuns,
 } from "../services/socialCommentAutomationService.js";
-import { probePrivateReplyComment, replyToComment, sendPrivateReply } from "../services/marketingCommentAutomationService.js";
+import { probePrivateReplyComment, replyToComment, sendTrackedSocialCommentPrivateReply } from "../services/marketingCommentAutomationService.js";
 import {
   createCorrection,
   listConversationCorrections,
@@ -2821,7 +2821,15 @@ router.post("/comments/:commentId/private-message", protect, permit("settings", 
         probe_error: probeError,
       });
     }
-    const reply = await sendPrivateReply(platform, metaTargetId, messageText, tenantId);
+    const reply = await sendTrackedSocialCommentPrivateReply({
+      platform,
+      commentId: metaTargetId,
+      message: messageText,
+      businessId: tenantId,
+      callsite: "aiAgentOrders.post./social-comments/:commentId/private-reply",
+      postId,
+      productContext: commentRun?.product_context || commentRun?.raw_payload?.product_context || null,
+    });
     emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: envText(commentRun.session_id || commentRun.inbox_conversation_id || ""), at: nowIso });
     return res.status(201).json({
       success: true,
@@ -2924,7 +2932,21 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
         throw Object.assign(new Error("Comment thread is missing a comment id"), { status: 409, code: "NO_PROVIDER_COMMENT_ID_FOR_PRIVATE_REPLY" });
       }
       const platform = channel.includes("instagram") ? "instagram" : "facebook";
-      const reply = await sendPrivateReply(platform, commentId, messageText, tenantId);
+      const reply = await sendTrackedSocialCommentPrivateReply({
+        platform,
+        commentId,
+        message: messageText,
+        businessId: tenantId,
+        callsite: "aiAgentOrders.post./inbox/:conversationId/private-message",
+        postId: envText(
+          conversation.post_id ||
+          conversation.external_post_id ||
+          channelMetadata.post_id ||
+          channelMetadata.lead?.post_id ||
+          ""
+        ),
+        productContext: channelMetadata.product_context || channelMetadata.lead?.product_context || null,
+      });
       const message = await appendManualAiSupportReply({
         tenantId,
         sessionId: conversationId,

@@ -8,7 +8,7 @@ import {
   PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT,
   resolveSocialCommentPublishedProductContext,
 } from "./socialCommentAutomationService.js";
-import { renderTemplate, sendPrivateReply } from "./marketingCommentAutomationService.js";
+import { renderTemplate, sendTrackedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
 
 let registered = false;
 
@@ -614,7 +614,15 @@ export const registerBackgroundJobHandlers = () => {
         platform,
         post_id: postId || row.post_id || "",
       });
-      const result = await sendPrivateReply(platform, commentId, message, tenantId);
+      const result = await sendTrackedSocialCommentPrivateReply({
+        platform,
+        commentId,
+        message,
+        businessId: tenantId,
+        callsite: "backgroundJobs.social.comment.private_reply",
+        postId: postId || row.post_id || "",
+        productContext,
+      });
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_RESPONSE", {
         target_comment_id: commentId,
         platform,

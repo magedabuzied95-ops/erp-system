@@ -8,7 +8,7 @@ import { ensureAiChannelAdapterSchema } from "./aiChannelAdapterService.js";
 import { upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { createOrUpdateLeadOpportunity } from "./aiInboxLeadActionsService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
-import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommentAutomationService.js";
+import { likeComment, replyToComment, sendTrackedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
 import { getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
 import { enqueueSocialCommentJob } from "./socialCommentJobQueue.js";
 import { resolveMappedProductsV2, resolvePrimaryProductV2 } from "./socialPostProductLinksV2Service.js";
@@ -5291,7 +5291,15 @@ export const executeSocialCommentAutomation = async ({
 
   const likeFn = deps.likeCommentFn || likeComment;
   const publicReplyFn = deps.replyToCommentFn || replyToComment;
-  const privateReplyFn = deps.sendPrivateReplyFn || sendPrivateReply;
+  const privateReplyFn = deps.sendPrivateReplyFn || ((platform, commentId, message, businessId, trace = {}) => sendTrackedSocialCommentPrivateReply({
+    platform,
+    commentId,
+    message,
+    businessId,
+    callsite: trace.callsite || "socialCommentAutomationService.executeSocialCommentAutomation.private_message",
+    postId: trace.postId || "",
+    productContext: trace.productContext || null,
+  }));
   const resolvedProductContext = metadataObject(
     safeRow.product_context ||
     safeRow.raw_payload?.product_context ||
@@ -5555,7 +5563,17 @@ export const executeSocialCommentAutomation = async ({
       key: "private_message",
       messageType: "comment_private_reply",
       deliveryStatusValue: "sent",
-      send: () => privateReplyFn(safeRow.platform, safeRow.comment_id, replyText || publicReplyText, safeTenantId),
+      send: () => privateReplyFn(
+        safeRow.platform,
+        safeRow.comment_id,
+        replyText || publicReplyText,
+        safeTenantId,
+        {
+          callsite: "socialCommentAutomationService.executeSocialCommentAutomation.private_message",
+          postId: safeRow.post_id || "",
+          productContext: resolvedProductContext,
+        }
+      ),
       message: replyText || publicReplyText,
       successLabel: "private message success",
       failureLabel: "private message failed",

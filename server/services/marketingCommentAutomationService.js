@@ -1513,6 +1513,25 @@ const executeAction = async ({ actions, key, requestedLog, successLog, errorLog,
   }
 };
 
+export const sendTrackedSocialCommentPrivateReply = async ({
+  platform,
+  commentId,
+  message,
+  businessId,
+  callsite = "",
+  postId = "",
+  productContext = null,
+} = {}) => {
+  console.log("SOCIAL_COMMENT_PRIVATE_REPLY_CALLSITE", {
+    callsite: trimString(callsite),
+    comment_id: trimString(commentId),
+    post_id: trimString(postId),
+    has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
+    message_preview: trimString(message).slice(0, 280),
+  });
+  return sendPrivateReply(platform, commentId, message, businessId);
+};
+
 const buildPersistedActionResults = (actions = {}, errorMessage = null) => ({
   liked: actions.liked?.status || "skipped",
   public_reply: actions.public_reply?.status || "skipped",
@@ -1710,7 +1729,15 @@ export const processCommentEvent = async (event = {}) => {
           successLog: "[meta-action] private reply success",
           errorLog: "[meta-action] private reply error",
           logContext,
-          run: () => sendPrivateReply(event.platform, event.commentId, privateMessage, event.businessId),
+          run: () => sendTrackedSocialCommentPrivateReply({
+            platform: event.platform,
+            commentId: event.commentId,
+            message: privateMessage,
+            businessId: event.businessId,
+            callsite: "marketingCommentAutomationService.executeAutomationRule.private_reply",
+            postId: event.postId || event.mediaId || "",
+            productContext: context?.product ? { has_product_context: true } : null,
+          }),
         });
         if (error) actionErrors.push(error);
       }
