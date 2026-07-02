@@ -103,6 +103,40 @@ const logAutomationSkipReason = (payload = {}) => {
   debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_SKIP_REASON", payload);
 };
 
+const logSocialCommentAutomationFinalDecision = ({
+  tenantId = null,
+  platform = "",
+  postId = "",
+  commentId = "",
+  likeStatus = "",
+  publicReplyStatus = "",
+  privateReplyStatus = "",
+  likeReason = "",
+  publicReplyReason = "",
+  privateReplyReason = "",
+  source = "",
+} = {}) => {
+  console.log("SOCIAL_COMMENT_AUTOMATION_FINAL_DECISION", {
+    tenant_id: Number(tenantId || 0) || null,
+    platform: text(platform),
+    post_id: text(postId),
+    comment_id: text(commentId),
+    source: text(source),
+    like: {
+      status: text(likeStatus || "skipped") || "skipped",
+      reason: text(likeReason || ""),
+    },
+    public_reply: {
+      status: text(publicReplyStatus || "skipped") || "skipped",
+      reason: text(publicReplyReason || ""),
+    },
+    private_reply: {
+      status: text(privateReplyStatus || "skipped") || "skipped",
+      reason: text(privateReplyReason || ""),
+    },
+  });
+};
+
 const maybeSkipOldSocialCommentAutomation = async ({
   tenantId = null,
   platform = "",
@@ -116,11 +150,23 @@ const maybeSkipOldSocialCommentAutomation = async ({
   row = {},
 } = {}) => {
   const facebookCreatedAt = parseDateOrNull(commentCreatedTime);
-  if (!facebookCreatedAt) return { skipped: false, facebookCreatedAt: null, ageMs: null };
   const detectedDate = detectedAt instanceof Date ? detectedAt : parseDateOrNull(detectedAt) || new Date();
-  const ageMs = Math.max(0, detectedDate.getTime() - facebookCreatedAt.getTime());
-  if (ageMs <= SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS) {
-    return { skipped: false, facebookCreatedAt, ageMs };
+  const ageMs = facebookCreatedAt ? Math.max(0, detectedDate.getTime() - facebookCreatedAt.getTime()) : null;
+  const isOld = Boolean(facebookCreatedAt && ageMs > SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS);
+  console.log("SOCIAL_COMMENT_FRESHNESS_DECISION", {
+    comment_id: text(commentId || row?.comment_id || ""),
+    facebook_created_time: facebookCreatedAt ? facebookCreatedAt.toISOString() : "",
+    detected_at: detectedDate.toISOString(),
+    age_ms: ageMs,
+    is_old: isOld,
+    should_run_automation: Boolean(facebookCreatedAt && !isOld),
+    source: text(source || row?.raw_payload?.source || ""),
+  });
+  if (!facebookCreatedAt) {
+    return { skipped: false, facebookCreatedAt: null, ageMs: null, isOld: false, shouldRunAutomation: true };
+  }
+  if (!isOld) {
+    return { skipped: false, facebookCreatedAt, ageMs, isOld: false, shouldRunAutomation: true };
   }
 
   console.log("SOCIAL_COMMENT_AUTOMATION_SKIPPED_OLD_COMMENT", {
@@ -167,6 +213,8 @@ const maybeSkipOldSocialCommentAutomation = async ({
     reason: "old_comment_recency_guard",
     facebookCreatedAt,
     ageMs,
+    isOld: true,
+    shouldRunAutomation: false,
     row: skippedRow || safeRow,
   };
 };
@@ -3104,6 +3152,22 @@ const executeSocialCommentAutomationRuntime = async ({
     public_reply_status: workingRow.public_reply_status || "",
     private_reply_status: workingRow.dm_status || "",
   });
+  const likeStepResult = stepResults.find((item) => text(item?.step || "") === "likeComment");
+  const publicReplyStepResult = stepResults.find((item) => text(item?.step || "") === "publicReply");
+  const privateReplyStepResult = stepResults.find((item) => text(item?.step || "") === "privateReply");
+  logSocialCommentAutomationFinalDecision({
+    tenantId: safeTenantId,
+    platform: normalizedPlatform,
+    postId: safePostId,
+    commentId: safeCommentId,
+    likeStatus: text(likeStepResult?.status || workingRow.like_status || ""),
+    publicReplyStatus: text(publicReplyStepResult?.status || workingRow.public_reply_status || ""),
+    privateReplyStatus: text(privateReplyStepResult?.status || workingRow.dm_status || ""),
+    likeReason: text(likeStepResult?.reason || ""),
+    publicReplyReason: text(publicReplyStepResult?.reason || ""),
+    privateReplyReason: text(privateReplyStepResult?.reason || ""),
+    source: runtimeSource,
+  });
 
   return {
     applied: true,
@@ -4567,6 +4631,19 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       if (oldCommentGuard.row) {
         savedRunRow = oldCommentGuard.row;
       }
+      logSocialCommentAutomationFinalDecision({
+        tenantId: safeTenantId,
+        platform,
+        postId,
+        commentId: text(event.comment_id || savedRunRow?.comment_id || ""),
+        likeStatus: "skipped",
+        publicReplyStatus: "skipped",
+        privateReplyStatus: "skipped",
+        likeReason: oldCommentGuard.reason,
+        publicReplyReason: oldCommentGuard.reason,
+        privateReplyReason: oldCommentGuard.reason,
+        source: latencyTrace.source,
+      });
       return {
         applied: false,
         skipped: true,
@@ -4695,6 +4772,21 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
       step_results: summarizeAutomationStepResults(automationRuntimeResult?.step_results || []),
     });
+    if (!automationRuntimeResult?.applied) {
+      logSocialCommentAutomationFinalDecision({
+        tenantId: safeTenantId,
+        platform,
+        postId,
+        commentId: text(event.comment_id || savedRunRow?.comment_id || ""),
+        likeStatus: "skipped",
+        publicReplyStatus: "skipped",
+        privateReplyStatus: "skipped",
+        likeReason: text(automationRuntimeResult?.reason || ""),
+        publicReplyReason: text(automationRuntimeResult?.reason || ""),
+        privateReplyReason: text(automationRuntimeResult?.reason || ""),
+        source: latencyTrace.source,
+      });
+    }
     if (automationRuntimeResult?.row) {
       savedRunRow = automationRuntimeResult.row;
     }
@@ -5429,6 +5521,19 @@ export const executeSocialCommentAutomation = async ({
 
   if (!decision.enabled) {
     if (hasPriorFinalState) {
+      logSocialCommentAutomationFinalDecision({
+        tenantId: safeTenantId,
+        platform: safeRow.platform,
+        postId: safeRow.post_id,
+        commentId: safeRow.comment_id,
+        likeStatus: text(safeRow.like_status || "skipped"),
+        publicReplyStatus: text(safeRow.public_reply_status || "skipped"),
+        privateReplyStatus: text(safeRow.dm_status || "skipped"),
+        likeReason: decision.reason || "automation_disabled",
+        publicReplyReason: decision.reason || "automation_disabled",
+        privateReplyReason: decision.reason || "automation_disabled",
+        source: text(safeRow.raw_payload?.source || safeRow.source || ""),
+      });
       return { skipped: true, reason: decision.reason || "automation_disabled", decision, row: safeRow, preserved: true };
     }
     const skippedRow = await persistState({
@@ -5443,6 +5548,19 @@ export const executeSocialCommentAutomation = async ({
       dmStatus: "skipped",
       errorCode: decision.reason || "",
       automationState: stageSummary,
+    });
+    logSocialCommentAutomationFinalDecision({
+      tenantId: safeTenantId,
+      platform: safeRow.platform,
+      postId: safeRow.post_id,
+      commentId: safeRow.comment_id,
+      likeStatus: "skipped",
+      publicReplyStatus: "skipped",
+      privateReplyStatus: "skipped",
+      likeReason: decision.reason || "automation_disabled",
+      publicReplyReason: decision.reason || "automation_disabled",
+      privateReplyReason: decision.reason || "automation_disabled",
+      source: text(safeRow.raw_payload?.source || safeRow.source || ""),
     });
     return { skipped: true, reason: decision.reason || "automation_disabled", decision, row: skippedRow || safeRow };
   }
@@ -5577,11 +5695,37 @@ export const executeSocialCommentAutomation = async ({
 
   if (!requestedAny) {
     if (hasPriorFinalState) {
+      logSocialCommentAutomationFinalDecision({
+        tenantId: safeTenantId,
+        platform: safeRow.platform,
+        postId: safeRow.post_id,
+        commentId: safeRow.comment_id,
+        likeStatus: text(safeRow.like_status || "skipped"),
+        publicReplyStatus: text(safeRow.public_reply_status || "skipped"),
+        privateReplyStatus: text(safeRow.dm_status || "skipped"),
+        likeReason: "feature_flags_disabled",
+        publicReplyReason: "feature_flags_disabled",
+        privateReplyReason: "feature_flags_disabled",
+        source: text(safeRow.raw_payload?.source || safeRow.source || ""),
+      });
       return { skipped: true, reason: "feature_flags_disabled", decision, row: safeRow, preserved: true };
     }
     automationState.overall_status = "skipped";
     automationState.reason = "feature_flags_disabled";
     const skippedRow = await reportState({ actionTaken: "automation_skipped_feature_flags", reason: "feature_flags_disabled" });
+    logSocialCommentAutomationFinalDecision({
+      tenantId: safeTenantId,
+      platform: safeRow.platform,
+      postId: safeRow.post_id,
+      commentId: safeRow.comment_id,
+      likeStatus: "skipped",
+      publicReplyStatus: "skipped",
+      privateReplyStatus: "skipped",
+      likeReason: "feature_flags_disabled",
+      publicReplyReason: "feature_flags_disabled",
+      privateReplyReason: "feature_flags_disabled",
+      source: text(safeRow.raw_payload?.source || safeRow.source || ""),
+    });
     return { skipped: true, reason: "feature_flags_disabled", decision, row: skippedRow || safeRow };
   }
 
@@ -5782,6 +5926,19 @@ export const executeSocialCommentAutomation = async ({
     tenant_id: safeTenantId,
     session_id: sessionId,
     at: new Date().toISOString(),
+  });
+  logSocialCommentAutomationFinalDecision({
+    tenantId: safeTenantId,
+    platform: safeRow.platform,
+    postId: safeRow.post_id,
+    commentId: safeRow.comment_id,
+    likeStatus: likeStatus || "skipped",
+    publicReplyStatus: publicReplyStatus || "skipped",
+    privateReplyStatus: dmStatus || "skipped",
+    likeReason: stepErrors.find((item) => item.key === "like")?.code || "",
+    publicReplyReason: stepErrors.find((item) => item.key === "public_reply")?.code || "",
+    privateReplyReason: stepErrors.find((item) => item.key === "private_message")?.code || "",
+    source: text(safeRow.raw_payload?.source || safeRow.source || ""),
   });
 
   return {
@@ -6590,6 +6747,19 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       });
       if (oldCommentGuard.skipped) {
         storedRow = oldCommentGuard.row || storedRow;
+        logSocialCommentAutomationFinalDecision({
+          tenantId: storedRow.tenant_id,
+          platform: storedRow.platform,
+          postId: text(storedRow.post_id || ""),
+          commentId: text(storedRow.comment_id || ""),
+          likeStatus: "skipped",
+          publicReplyStatus: "skipped",
+          privateReplyStatus: "skipped",
+          likeReason: oldCommentGuard.reason,
+          publicReplyReason: oldCommentGuard.reason,
+          privateReplyReason: oldCommentGuard.reason,
+          source: text(storedRow.raw_payload?.source || ""),
+        });
         return storedRow;
       }
       console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_BEFORE", {
@@ -6678,6 +6848,21 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         comment_id: text(storedRow.comment_id || ""),
         step_results: summarizeAutomationStepResults(automationRuntimeResult?.step_results || []),
       });
+      if (!automationRuntimeResult?.applied) {
+        logSocialCommentAutomationFinalDecision({
+          tenantId: storedRow.tenant_id,
+          platform: storedRow.platform,
+          postId: text(storedRow.post_id || ""),
+          commentId: text(storedRow.comment_id || ""),
+          likeStatus: "skipped",
+          publicReplyStatus: "skipped",
+          privateReplyStatus: "skipped",
+          likeReason: text(automationRuntimeResult?.reason || ""),
+          publicReplyReason: text(automationRuntimeResult?.reason || ""),
+          privateReplyReason: text(automationRuntimeResult?.reason || ""),
+          source: text(storedRow.raw_payload?.source || ""),
+        });
+      }
       if (automationRuntimeResult?.row) {
         storedRow = automationRuntimeResult.row;
       }
