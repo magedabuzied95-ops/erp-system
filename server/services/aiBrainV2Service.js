@@ -827,10 +827,31 @@ const detectExplicitModel = (message = "") => {
   return null;
 };
 
-const classifyIntent = ({ message = "", attachments = [], explicitModel = null, canonicalSignals = [] } = {}) => {
+const hasProductDiscoveryRequestPhrase = (message = "") => {
+  const normalized = normalizeArabic(message);
+  return [
+    "عايز",
+    "عاوز",
+    "بدور على",
+    "بدور",
+    "شوفلي",
+    "وريني",
+    "عندك",
+    "ابعتلي",
+    "ابعت",
+    "looking for",
+    "want",
+    "need",
+    "show me",
+    "find me",
+  ].some((term) => normalized.includes(term));
+};
+
+const classifyIntent = ({ message = "", attachments = [], explicitModel = null, canonicalSignals = [], productQuery = "", productCards = [] } = {}) => {
   const normalized = normalizeArabic(message);
   const signalSet = new Set(asArray(canonicalSignals));
   const hasSignal = (...names) => names.some((name) => signalSet.has(name));
+  const hasProductContext = Boolean(text(productQuery) || asArray(productCards).length);
   if (asArray(attachments).length) return "visual_search";
   if (/(human\s*takeover|كلم\s*بني\s*آدم|حولني\s*لموظف|عايز\s*موظف|human support|agent)/i.test(normalized)) return "human_takeover";
   if (/(order\s*status|tracking|track order|status الطلب|حالة\s*الطلب|فين\s*الطلب|أين\s*الطلب|تابع\s*الطلب|تتبع\s*الطلب)/i.test(normalized)) return "order_tracking";
@@ -840,6 +861,7 @@ const classifyIntent = ({ message = "", attachments = [], explicitModel = null, 
   if (hasSignal("color")) return "color_followup";
   if (hasSignal("size")) return "size_followup";
   if (hasSignal("alternatives")) return "product_search";
+  if (hasProductContext && hasProductDiscoveryRequestPhrase(normalized)) return "product_search";
   if (hasSignal("yes", "confirm")) return "bare_confirmation";
   if (hasSignal("no", "reject", "cancel")) return "bare_confirmation";
   if (hasSignal("buy")) return "buying_intent";
@@ -1364,10 +1386,19 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     normalizedText: intentPayload.normalizedText,
     normalizedForIntent: intentPayload.normalizedForIntent,
     canonicalSignals: intentPayload.canonicalSignals,
+    product_query: text(normalizedInbound.product_query || normalizedInbound.productQuery || normalizedInbound.metadata?.product_query || normalizedInbound.metadata?.productQuery || options.productQuery || ""),
+    product_cards_count: asArray(normalizedInbound.product_cards || normalizedInbound.productCards || options.productCards || []).length,
     attachments_count: asArray(normalizedInbound.attachments).length,
     explicit_model: explicitModel?.model || "",
   });
-  const intent = classifyIntent({ message, attachments: normalizedInbound.attachments, explicitModel, canonicalSignals: intentPayload.canonicalSignals });
+  const intent = classifyIntent({
+    message,
+    attachments: normalizedInbound.attachments,
+    explicitModel,
+    canonicalSignals: intentPayload.canonicalSignals,
+    productQuery: normalizedInbound.product_query || normalizedInbound.productQuery || normalizedInbound.metadata?.product_query || normalizedInbound.metadata?.productQuery || options.productQuery || "",
+    productCards: normalizedInbound.product_cards || normalizedInbound.productCards || options.productCards || [],
+  });
   traceAltFollowup("classifyIntent:output", {
     message: originalMessage,
     intent,
