@@ -12,7 +12,8 @@ import { likeComment, replyToComment, sendPrivateReply } from "./marketingCommen
 import { getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
 import { enqueueSocialCommentJob } from "./socialCommentJobQueue.js";
 import { resolveMappedProductsV2, resolvePrimaryProductV2 } from "./socialPostProductLinksV2Service.js";
-import { getMappings } from "./postProductMappingService.js";
+import { collectDirectLinkIdentity, getMappings } from "./postProductMappingService.js";
+import { migrateCanonicalSocialPostRecords, resolveSocialPostCanonicalIdentity } from "./socialPostIdentityService.js";
 import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 import {
@@ -2980,15 +2981,9 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     };
   }
 
-  const mappedProducts = await resolveMappedProductsV2({
-    tenantId: safeTenantId,
-    platform,
-    postId: candidatePostIds[0] || "",
-    row,
-    post: row,
-  }).catch(() => []);
-  directProductIdsCount = mappedProducts.length;
-  if (mappedProducts.length) {
+  const buildDirectMappedProductsContext = async (mappedProducts = []) => {
+    directProductIdsCount = mappedProducts.length;
+    if (!mappedProducts.length) return null;
     const primaryMappedProduct = await resolvePrimaryProductV2({
       tenantId: safeTenantId,
       platform,
@@ -3090,18 +3085,11 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       tried_sibling_lookup: triedSiblingLookup,
     });
     return directProductContext;
-  }
+  };
 
-  const legacyDirectMappings = await getMappings({
-    tenantId: safeTenantId,
-    platform,
-    postId: candidatePostIds[0] || "",
-    row,
-    post: row,
-    selectedPostId: candidatePostIds[0] || "",
-    directOnly: true,
-  }).catch(() => null);
-  if (legacyDirectMappings?.linked_products?.length) {
+  const buildLegacyDirectMappingsContext = async (legacyDirectMappings = null) => {
+    if (!legacyDirectMappings?.linked_products?.length) return null;
+    directProductIdsCount = legacyDirectMappings.linked_products.length;
     const primaryMappedProduct = legacyDirectMappings.primary_product || legacyDirectMappings.linked_products[0] || null;
     const directProductIds = [...new Set(legacyDirectMappings.linked_products
       .map((item) => Number(item?.product_id || item?.id || 0))
@@ -3188,6 +3176,72 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       final_product_ids_count: normalizedMappedProducts.length,
       path: "direct_legacy_mapped_products",
     };
+  };
+
+  const resolveDirectManualProductContext = async () => {
+    const mappedProducts = await resolveMappedProductsV2({
+      tenantId: safeTenantId,
+      platform,
+      postId: candidatePostIds[0] || "",
+      row,
+      post: row,
+    }).catch(() => []);
+    const v2Context = await buildDirectMappedProductsContext(mappedProducts);
+    if (v2Context) return v2Context;
+
+    const legacyDirectMappings = await getMappings({
+      tenantId: safeTenantId,
+      platform,
+      postId: candidatePostIds[0] || "",
+      row,
+      post: row,
+      selectedPostId: candidatePostIds[0] || "",
+      directOnly: true,
+    }).catch(() => null);
+    return buildLegacyDirectMappingsContext(legacyDirectMappings);
+  };
+
+  const canonicalIdentity = await resolveSocialPostCanonicalIdentity({
+    tenantId: safeTenantId,
+    platform,
+    postId: candidatePostIds[0] || "",
+    row,
+    post: row,
+    source: "resolveSocialCommentPublishedProductContext",
+  }).catch(() => null);
+  const directIdentity = collectDirectLinkIdentity({
+    postId: candidatePostIds[0] || "",
+    selectedPostId: candidatePostIds[0] || "",
+    canonicalPostId: canonicalIdentity?.canonical_post_id || "",
+    row,
+    post: row,
+  });
+  const canonicalMigration = await migrateCanonicalSocialPostRecords({
+    tenantId: safeTenantId,
+    platform,
+    canonicalPostId: text(canonicalIdentity?.canonical_post_id || directIdentity.primaryExactId || candidatePostIds[0] || ""),
+    aliasRows: canonicalIdentity?.aliases?.map((alias) => alias.alias_value) || [],
+  }).catch(() => ({ migrated: false, migrated_mappings: 0 }));
+
+  const directProductContext = await resolveDirectManualProductContext();
+  const beforeRetryProductIds = Array.isArray(directProductContext?.product_ids) ? directProductContext.product_ids : [];
+  if (Number(canonicalMigration?.migrated_mappings || 0) > 0) {
+    const retriedDirectProductContext = await resolveDirectManualProductContext();
+    const afterRetryProductIds = Array.isArray(retriedDirectProductContext?.product_ids) ? retriedDirectProductContext.product_ids : [];
+    console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_RETRY_AFTER_MIGRATION", {
+      post_id: text(candidatePostIds[0] || initialPostId),
+      canonical_post_id: text(canonicalIdentity?.canonical_post_id || directIdentity.primaryExactId || candidatePostIds[0] || ""),
+      migrated_mappings: Number(canonicalMigration?.migrated_mappings || 0) || 0,
+      before_product_ids: beforeRetryProductIds,
+      after_product_ids: afterRetryProductIds,
+      has_product_context: Boolean(retriedDirectProductContext?.has_product_context),
+    });
+    if (retriedDirectProductContext?.has_product_context) {
+      return retriedDirectProductContext;
+    }
+  }
+  if (directProductContext?.has_product_context) {
+    return directProductContext;
   }
 
   triedSiblingLookup = true;
