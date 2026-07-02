@@ -620,9 +620,12 @@ export const replyToComment = async (platform, commentId, message, businessId) =
   });
 };
 
-export const sendPrivateReply = async (platform, commentId, message, businessId) => {
+export const sendPrivateReply = async (platform, commentId, message, businessId, options = {}) => {
   const settings = await getSettingsRow(businessId);
   const tokenStatus = validateMetaToken(settings || {});
+  const selectedMessage = trimString(message) || "تم الرد على حضرتك في الخاص ✅";
+  const hasProductContext = Boolean(options?.productContext?.found || options?.productContext?.has_product_context);
+  const selectedSource = trimString(options?.selectedSource || (hasProductContext ? "product_aware_rendered_reply" : "sendPrivateReply_argument"));
   const capabilityDebug = await loadPrivateReplyCapabilityDebug({ businessId, commentId }).catch((error) => ({
     settings,
     accessToken: tokenStatus?.accessToken || "",
@@ -736,8 +739,20 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
     resolved_comment_id: graphCommentId,
     recipient_shape: normalizedPlatform === "facebook" ? "comment_id" : "",
   });
+  console.log("SOCIAL_COMMENT_PRIVATE_REPLY_CALLSITE", {
+    callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+    comment_id: graphCommentId,
+    post_id: trimString(options?.postId || ""),
+    has_product_context: hasProductContext,
+    message_preview: selectedMessage.slice(0, 280),
+  });
+  console.log("SOCIAL_COMMENT_PRIVATE_REPLY_FINAL_MESSAGE_SELECTED", {
+    comment_id: graphCommentId,
+    has_product_context: hasProductContext,
+    selected_source: selectedSource,
+    message_preview: selectedMessage.slice(0, 280),
+  });
   if (normalizedPlatform === "facebook") {
-    const fixedMessage = "تم الرد على حضرتك في الخاص ✅";
     const endpoint = `/${encodeURIComponent(pageId)}/messages`;
     const finalUrlWithoutToken = `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}${endpoint}`;
     const requestBody = {
@@ -745,7 +760,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
         comment_id: graphCommentId,
       },
       message: {
-        text: fixedMessage,
+        text: selectedMessage,
       },
     };
     debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_REQUEST", {
@@ -898,7 +913,6 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       throw error;
     }
   }
-  const fixedMessage = "تم الرد على حضرتك في الخاص ✅";
   const endpoint = `/${encodeURIComponent(graphCommentId)}/private_replies`;
   const finalUrlWithoutToken = `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}${endpoint}`;
   debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_REQUEST", {
@@ -929,7 +943,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId)
       endpoint,
       label: "private reply",
       contentType: "application/x-www-form-urlencoded",
-      body: new URLSearchParams({ message: fixedMessage }),
+      body: new URLSearchParams({ message: selectedMessage }),
       bodyShape: "minimal_text_only",
       graphVersion: GRAPH_API_VERSION,
       tokenDelivery: "query",
@@ -1529,7 +1543,14 @@ export const sendTrackedSocialCommentPrivateReply = async ({
     has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
     message_preview: trimString(message).slice(0, 280),
   });
-  return sendPrivateReply(platform, commentId, message, businessId);
+  return sendPrivateReply(platform, commentId, message, businessId, {
+    callsite,
+    postId,
+    productContext,
+    selectedSource: Boolean(productContext?.found || productContext?.has_product_context)
+      ? "product_aware_rendered_reply"
+      : "tracked_callsite_message",
+  });
 };
 
 const buildPersistedActionResults = (actions = {}, errorMessage = null) => ({
