@@ -472,6 +472,28 @@ const isGenericSocialCommentPrivateReply = (value = "") => {
   const normalized = text(value).replace(/\s+/g, " ").trim();
   return SOCIAL_COMMENT_GENERIC_PRIVATE_REPLIES.has(normalized);
 };
+const isAbsoluteHttpUrl = (value = "") => /^https?:\/\//i.test(text(value));
+const sortSizesAscending = (values = []) =>
+  asArray(values)
+    .map((value) => text(value))
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index)
+    .sort((left, right) => {
+      const leftNumber = Number.parseFloat(left);
+      const rightNumber = Number.parseFloat(right);
+      const leftIsNumber = Number.isFinite(leftNumber);
+      const rightIsNumber = Number.isFinite(rightNumber);
+      if (leftIsNumber && rightIsNumber) return leftNumber - rightNumber;
+      if (leftIsNumber) return -1;
+      if (rightIsNumber) return 1;
+      return left.localeCompare(right, "ar", { numeric: true, sensitivity: "base" });
+    });
+const ensureAbsoluteProductLink = (value = "") => {
+  const normalized = text(value);
+  if (!normalized) return buildAutomationPublicUrl("/shop/products");
+  if (isAbsoluteHttpUrl(normalized)) return normalized;
+  return buildAutomationPublicUrl(normalized.startsWith("/") ? normalized : `/${normalized}`);
+};
 
 const buildProductAwarePublicReply = ({ salesContext = {}, intent = "generic_interest" } = {}) => {
   const productName = text(salesContext.product_name || "");
@@ -506,6 +528,32 @@ const buildProductAwarePrivateReply = ({ salesContext = {}, customerName = "" } 
   if (colorsLabel) lines.push(`الألوان المتاحة: ${colorsLabel}`);
   if (productLink) lines.push(`لينك المنتج: ${productLink}`);
   lines.push("لو تحب أساعدك في المقاس أو إتمام الطلب ابعتلي.");
+  return text(lines.join("\n").trim());
+};
+const buildPolishedProductAwarePrivateReply = ({ salesContext = {}, customerName = "" } = {}) => {
+  const productName = text(salesContext.product_name || "");
+  const sizesList = sortSizesAscending(salesContext.available_sizes_list || salesContext.sizes || []);
+  const sizesLabel = sizesList.length
+    ? sizesList.join(", ")
+    : "برجاء تأكيد المقاس المطلوب وهنراجع التوفر لحضرتك";
+  const productLink = ensureAbsoluteProductLink(firstNonEmptyText(
+    salesContext.product_link,
+    salesContext.product_url,
+    salesContext.storefront_url
+  ));
+  const lines = [
+    customerName ? `أهلًا بحضرتك يا ${customerName}` : "أهلًا بحضرتك",
+    "",
+    "✅ المنتج اللي سألت عنه:",
+    productName || "المنتج",
+    "",
+    `المقاسات المتاحة: ${sizesLabel}`,
+    "",
+    "لينك المنتج:",
+    productLink,
+    "",
+    "لو مقاس حضرتك موجود، ابعتلنا المقاس ونكمل الطلب فورًا ️",
+  ];
   return text(lines.join("\n").trim());
 };
 
@@ -5349,7 +5397,7 @@ export const executeSocialCommentAutomation = async ({
     originalCommentText: safeRow.original_comment_text,
     postPermalink: safeRow.post_permalink,
   }));
-  const productAwarePrivateReply = buildProductAwarePrivateReply({
+  const productAwarePrivateReply = buildPolishedProductAwarePrivateReply({
     salesContext,
     customerName: templateContext.customerName || safeRow.commenter_name || safeRow.customer_name || "",
   });
@@ -6191,7 +6239,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       websiteLinks: legacyWebsiteLinks,
       templateContext: legacyTemplateContext,
     });
-    const legacyProductAwarePrivateReply = buildProductAwarePrivateReply({
+    const legacyProductAwarePrivateReply = buildPolishedProductAwarePrivateReply({
       salesContext: legacySalesContext,
       customerName: legacyTemplateContext.customerName || storedRow.commenter_name || storedRow.customer_name || "",
     });

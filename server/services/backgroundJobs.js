@@ -9,6 +9,7 @@ import {
   resolveSocialCommentPublishedProductContext,
 } from "./socialCommentAutomationService.js";
 import { renderTemplate, sendTrackedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
+import { getPublicAppUrl } from "../utils/publicUrl.js";
 
 let registered = false;
 
@@ -31,6 +32,30 @@ const renderSocialCommentTemplateText = (template = "", context = {}) =>
     const key = leftKey || rightKey || "";
     return String(context[key] ?? context[key.toLowerCase()] ?? "").trim();
   });
+const isAbsoluteHttpUrl = (value = "") => /^https?:\/\//i.test(String(value || "").trim());
+const ensureAbsoluteProductLink = (value = "") => {
+  const normalized = String(value || "").trim();
+  const publicUrl = String(getPublicAppUrl() || "").trim().replace(/\/+$/g, "");
+  if (!normalized) return publicUrl ? `${publicUrl}/shop/products` : "";
+  if (isAbsoluteHttpUrl(normalized)) return normalized;
+  if (!publicUrl) return normalized;
+  return `${publicUrl}${normalized.startsWith("/") ? normalized : `/${normalized}`}`;
+};
+const sortSizesAscending = (values = []) =>
+  asArray(values)
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .filter((value, index, array) => array.indexOf(value) === index)
+    .sort((left, right) => {
+      const leftNumber = Number.parseFloat(left);
+      const rightNumber = Number.parseFloat(right);
+      const leftIsNumber = Number.isFinite(leftNumber);
+      const rightIsNumber = Number.isFinite(rightNumber);
+      if (leftIsNumber && rightIsNumber) return leftNumber - rightNumber;
+      if (leftIsNumber) return -1;
+      if (rightIsNumber) return 1;
+      return left.localeCompare(right, "ar", { numeric: true, sensitivity: "base" });
+    });
 const SOCIAL_COMMENT_GENERIC_PRIVATE_REPLIES = new Set([
   "تم الرد على حضرتك خاص",
   "تم الرد على حضرتك في الخاص",
@@ -209,6 +234,34 @@ const buildProductAwarePrivateReply = ({ row = {}, productContext = {}, settings
     product_color: productContext.color || "",
     product_size: productContext.size || "",
   }).trim();
+};
+const buildPolishedProductAwarePrivateReply = ({ row = {}, productContext = {} } = {}) => {
+  const customerName = String(row.commenter_name || row.customer_name || "").trim();
+  const productName = String(productContext.product_name || row.product_name || "").trim();
+  const sizesList = sortSizesAscending(productContext.available_sizes || productContext.sizes || []);
+  const sizesLabel = sizesList.length
+    ? sizesList.join(", ")
+    : "برجاء تأكيد المقاس المطلوب وهنراجع التوفر لحضرتك";
+  const productLink = ensureAbsoluteProductLink(
+    productContext.product_link ||
+    productContext.product_url ||
+    productContext.storefront_url ||
+    row.product_url ||
+    ""
+  );
+  return [
+    customerName ? `أهلًا بحضرتك يا ${customerName}` : "أهلًا بحضرتك",
+    "",
+    "✅ المنتج اللي سألت عنه:",
+    productName || "المنتج",
+    "",
+    `المقاسات المتاحة: ${sizesLabel}`,
+    "",
+    "لينك المنتج:",
+    productLink,
+    "",
+    "لو مقاس حضرتك موجود، ابعتلنا المقاس ونكمل الطلب فورًا ️",
+  ].join("\n").trim();
 };
 
 export const registerBackgroundJobHandlers = () => {
@@ -436,7 +489,7 @@ export const registerBackgroundJobHandlers = () => {
       platform,
     }).trim() || fallbackMessage;
     const productAwareMessage = (productContext?.found || productContext?.has_product_context)
-      ? buildProductAwarePrivateReply({ row, productContext, settings })
+      ? buildPolishedProductAwarePrivateReply({ row, productContext })
       : "";
     const finalMessageSelection = selectFinalPrivateReplyMessage({
       hasProductContext: Boolean(productContext?.found || productContext?.has_product_context),
