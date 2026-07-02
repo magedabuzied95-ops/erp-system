@@ -1,0 +1,350 @@
+{
+  "scenarios": [
+    {
+      "id": "search-sellable-adidas",
+      "title": "Sellable product search for Adidas",
+      "tenantId": 1,
+      "channels": ["web_chat", "whatsapp", "facebook_messenger", "instagram"],
+      "messages": [
+        {
+          "input": {
+            "message": "عايز Adidas",
+            "product_query": "Adidas",
+            "intent": "product_search"
+          },
+          "assertions": [
+            { "path": "analysis.product_card_count", "op": "gt", "value": 0 },
+            { "path": "analysis.current_stock", "op": "gt", "value": 0 },
+            { "path": "reply", "op": "notIncludes", "value": "مش متاح" },
+            { "path": "failed_types", "op": "notIncludes", "value": "stock-unavailable" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "search-terrex-priority",
+      "title": "Terrex sellable result outranks zero-stock duplicate",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "عايز Terrex",
+            "product_query": "Terrex",
+            "intent": "product_search"
+          },
+          "assertions": [
+            { "path": "analysis.product_card_count", "op": "gt", "value": 0 },
+            { "path": "analysis.current_stock", "op": "gt", "value": 0 },
+            { "path": "product_cards.0.id", "op": "eq", "value": 4 },
+            { "path": "product_cards.0.id", "op": "ne", "value": 25 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "search-shox-zero-stock",
+      "title": "Zero-stock product search should stay unavailable",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "عايز Shox",
+            "product_query": "Shox",
+            "intent": "product_search"
+          },
+          "assertions": [
+            { "path": "analysis.product_card_count", "op": "gt", "value": 0 },
+            { "path": "analysis.current_stock", "op": "eq", "value": 0 },
+            { "path": "failed_types", "op": "includes", "value": "stock-unavailable" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "ambiguous-greeting",
+      "title": "Ambiguous greeting should not invent product availability",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "هاي",
+            "intent": "greeting"
+          },
+          "assertions": [
+            { "path": "analysis.product_card_count", "op": "eq", "value": 0 },
+            { "path": "reply", "op": "notIncludes", "value": "متاح" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "alternative-reject-product",
+      "title": "Rejecting one product should still return alternatives",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "لا مش عايز ده، وريني بديل",
+            "product_query": "black white",
+            "intent": "product_search",
+            "memory": {
+              "rejectedProductIds": ["2"],
+              "rejectedModelNames": ["Adidas Black White Running Sneakers for Men"]
+            }
+          },
+          "assertions": [
+            { "path": "analysis.product_card_count", "op": "gt", "value": 0 },
+            { "path": "analysis.current_stock", "op": "gt", "value": 0 },
+            { "path": "product_cards.0.id", "op": "ne", "value": 2 },
+            { "path": "reply", "op": "notIncludes", "value": "Adidas Black White Running Sneakers for Men" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "alternative-reject-model",
+      "title": "Rejecting a model should not eliminate all alternatives",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "لا مش عايز الموديل ده، بديل",
+            "product_query": "black white",
+            "intent": "product_search",
+            "memory": {
+              "rejectedModelNames": ["Adidas Black White Running Sneakers"]
+            }
+          },
+          "assertions": [
+            { "path": "analysis.product_card_count", "op": "gt", "value": 0 },
+            { "path": "product_cards.0.name", "op": "notIncludes", "value": "Adidas Black White Running Sneakers" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "size-available",
+      "title": "Requested size should exist in product context",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "عايز مقاس 43",
+            "product_query": "Jordan 4",
+            "intent": "size_color_request"
+          },
+          "assertions": [
+            { "path": "analysis.current_sizes", "op": "includes", "value": "43" },
+            { "path": "analysis.product_card_count", "op": "gt", "value": 0 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "size-unavailable",
+      "title": "Unavailable size should not be confirmed as available",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "عايز مقاس 46",
+            "product_query": "Jordan 4",
+            "intent": "size_color_request"
+          },
+          "assertions": [
+            { "path": "reply", "op": "includes", "value": "مش متوفر" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "size-change-after-suggestion",
+      "title": "Size follow-up should respond to the updated request",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "عايز مقاس 43",
+            "product_query": "Jordan 4",
+            "intent": "size_color_request"
+          },
+          "assertions": [
+            { "path": "analysis.current_sizes", "op": "includes", "value": "43" }
+          ]
+        },
+        {
+          "input": {
+            "message": "لا غيره 44",
+            "product_query": "Jordan 4",
+            "intent": "size_color_request",
+            "memory": {
+              "preferences": {
+                "active_size": "43"
+              }
+            }
+          },
+          "assertions": [
+            { "path": "analysis.current_sizes", "op": "includes", "value": "44" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "price-question",
+      "title": "Price questions should use current product price",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "بكام Adidas Terrex؟",
+            "product_query": "Adidas Terrex",
+            "intent": "pricing_question"
+          },
+          "assertions": [
+            { "path": "analysis.current_price", "op": "gt", "value": 0 },
+            { "path": "analysis.reply_mentions_current_price", "op": "truthy" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "images-request",
+      "title": "Image requests should preserve image cards",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "عايز صور Jordan 4",
+            "product_query": "Jordan 4",
+            "intent": "more_images"
+          },
+          "assertions": [
+            { "path": "analysis.image_card_count", "op": "gt", "value": 0 },
+            { "path": "analysis.current_image_urls", "op": "truthy" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "order-follow-up",
+      "title": "Order intent should be detected",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "عايز أعمل أوردر",
+            "intent": "order_follow_up"
+          },
+          "assertions": [
+            { "path": "intent", "op": "includes", "value": "order" },
+            { "path": "reply", "op": "truthy" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "order-status",
+      "title": "Order status request should stay in order flow",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "فين الطلب",
+            "intent": "order_follow_up"
+          },
+          "assertions": [
+            { "path": "intent", "op": "includes", "value": "order" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "memory-rejection-carries",
+      "title": "Rejected product should stay rejected in follow-up",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "عايز black white",
+            "product_query": "black white",
+            "intent": "product_search"
+          },
+          "assertions": [
+            { "path": "analysis.product_card_count", "op": "gt", "value": 0 }
+          ]
+        },
+        {
+          "input": {
+            "message": "لا مش عايز ده، وريني بديل",
+            "product_query": "black white",
+            "intent": "product_search",
+            "memory": {
+              "rejectedProductIds": ["2"],
+              "rejectedModelNames": ["Adidas Black White Running Sneakers for Men"]
+            }
+          },
+          "assertions": [
+            { "path": "analysis.product_card_count", "op": "gt", "value": 0 },
+            { "path": "product_cards.0.id", "op": "ne", "value": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "human-takeover",
+      "title": "Human takeover should suppress automation",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "كلم بني آدم",
+            "intent": "human_support",
+            "metadata": {
+              "conversation_status": "human_takeover",
+              "ai_paused": true
+            }
+          },
+          "assertions": [
+            { "path": "intent", "op": "includes", "value": "human" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "global-pause",
+      "title": "Global pause should avoid automated selling replies",
+      "tenantId": 1,
+      "channel": "web_chat",
+      "messages": [
+        {
+          "input": {
+            "message": "عايز Adidas",
+            "product_query": "Adidas",
+            "intent": "product_search",
+            "metadata": {
+              "conversation_status": "ai_paused",
+              "ai_paused": true
+            }
+          },
+          "assertions": [
+            { "path": "analysis.product_card_count", "op": "eq", "value": 0 }
+          ]
+        }
+      ]
+    }
+  ]
+}

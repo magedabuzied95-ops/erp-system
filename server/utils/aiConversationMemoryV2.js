@@ -88,6 +88,7 @@ const REGRESSION_ALTERNATIVE_TERMS = [
 ];
 const SIZE_TERMS = ["مقاس", "مقاسات", "size", "sizes"];
 const ORDER_TRACKING_TERMS = ["فين الاوردر", "رقم الطلب", "order tracking", "track order", "track my order", "where is my order", "order status"];
+const ALT_FOLLOWUP_TRACE_PATTERN = /(لا\s*مش\s*عايز\s*ده\s*وريني\s*بديل|لا\s*مش\s*عايز\s*ده|مش\s*عايز\s*ده|وريني\s*بديل|وريني\s*غيره|وريني\s*حاجة\s*تانية|شوفلي\s*حاجة\s*تانية|حاجة\s*تانية|حاجة\s*ثانية|بديل|بدائل|مش\s*عاجبني|مش\s*ده|ده\s*مش|غيره|غيرها|تاني|تانية|alternative|alternatives)/i;
 
 const normalizeCompact = (value = "") =>
   normalizeArabicIntentPayload(value).normalizedForIntent
@@ -161,6 +162,13 @@ const textHasAny = (text = "", terms = []) => {
     const needle = normalizeCompact(term);
     return needle && haystack.includes(needle);
   });
+};
+
+const shouldTraceAltFollowup = (messageText = "") => ALT_FOLLOWUP_TRACE_PATTERN.test(toText(messageText));
+
+const traceAltFollowup = (stage = "", payload = {}) => {
+  if (!shouldTraceAltFollowup(payload?.messageText || payload?.message || payload?.normalizedText || payload?.normalizedForIntent || "")) return;
+  console.info("[ALT_FOLLOWUP_TRACE]", { stage, ...payload });
 };
 
 const detectColor = (text = "") => {
@@ -270,6 +278,17 @@ export const resolveFollowupContext = ({ memory = null, messageText = "", normal
   const normalizedText = toText(payload.normalizedText || normalizeArabicMessage(messageText));
   const normalizedForIntent = toText(payload.normalizedForIntent || "");
   const hasContext = hasUsefulProductContext(v2);
+  traceAltFollowup("resolveFollowupContext:input", {
+    messageText,
+    normalizedText,
+    normalizedForIntent,
+    canonicalSignals: asArray(payload.canonicalSignals),
+    memory_keys: Object.keys(v2 || {}).sort(),
+    memory_v2_keys: Object.keys(v2?.preferences?.aiConversationMemoryV2 || v2?.aiConversationMemoryV2 || {}).sort(),
+    last_product_cards_present: asArray(v2?.last_product_cards).length > 0,
+    lastShownProductCards_present: asArray(v2?.lastShownProductCards).length > 0,
+    hasUsefulProductContext: hasContext,
+  });
   if (!hasContext) return { type: "none" };
 
   const productId = toText(v2.lastMentionedProductId || v2.lastShownProductCards?.[0]?.productId || "");
@@ -278,12 +297,14 @@ export const resolveFollowupContext = ({ memory = null, messageText = "", normal
   const detectedSize = detectSize(messageText) || detectSize(normalizedText) || detectSize(normalizedForIntent);
 
   if (textHasAny(messageText, MORE_IMAGES_TERMS) || textHasAny(normalizedText, MORE_IMAGES_TERMS) || textHasAny(normalizedForIntent, MORE_IMAGES_TERMS) || payload.canonicalSignals?.includes("more_images")) {
-    return {
+    const result = {
       type: "more_images_followup",
       cards: asArray(v2.lastShownProductCards).slice(0, MAX_CARDS),
       productId,
       canonicalProduct,
     };
+    traceAltFollowup("resolveFollowupContext:output", { messageText, ...result });
+    return result;
   }
 
   if (
@@ -292,11 +313,13 @@ export const resolveFollowupContext = ({ memory = null, messageText = "", normal
     textHasAny(normalizedForIntent, REGRESSION_ALTERNATIVE_TERMS) ||
     (payload.canonicalSignals?.includes("reject") && /(?:بديل|بدائل|غيره|غيرها|حاجة تانية|حاجة ثانية|تاني|تانية|مش عاجبني|مش ده)/i.test(messageText))
   ) {
-    return {
+    const result = {
       type: "alternative_followup",
       productId,
       canonicalProduct,
     };
+    traceAltFollowup("resolveFollowupContext:output", { messageText, ...result });
+    return result;
   }
 
   if (
@@ -306,33 +329,41 @@ export const resolveFollowupContext = ({ memory = null, messageText = "", normal
     textHasAny(normalizedText, BUYING_TERMS) ||
     textHasAny(normalizedForIntent, BUYING_TERMS)
   ) {
-    return {
+    const result = {
       type: "buying_followup",
       productId,
       size: detectedSize || toText(v2.selectedSize || ""),
       color: detectedColor || toText(v2.selectedColor || ""),
     };
+    traceAltFollowup("resolveFollowupContext:output", { messageText, ...result });
+    return result;
   }
 
   if (detectedSize && (textHasAny(messageText, SIZE_TERMS) || textHasAny(normalizedText, SIZE_TERMS) || textHasAny(normalizedForIntent, SIZE_TERMS) || payload.canonicalSignals?.includes("size"))) {
-    return {
+    const result = {
       type: "size_followup",
       productId,
       size: detectedSize,
       canonicalProduct,
     };
+    traceAltFollowup("resolveFollowupContext:output", { messageText, ...result });
+    return result;
   }
 
   if (detectedColor && !detectedSize && (textHasAny(messageText, COLOR_GROUPS.flatMap(([, aliases]) => aliases)) || textHasAny(normalizedText, COLOR_GROUPS.flatMap(([, aliases]) => aliases)) || textHasAny(normalizedForIntent, COLOR_GROUPS.flatMap(([, aliases]) => aliases)) || payload.canonicalSignals?.includes("color"))) {
-    return {
+    const result = {
       type: "color_followup",
       productId,
       canonicalProduct,
       color: detectedColor,
     };
+    traceAltFollowup("resolveFollowupContext:output", { messageText, ...result });
+    return result;
   }
 
-  return { type: "none" };
+  const result = { type: "none" };
+  traceAltFollowup("resolveFollowupContext:output", { messageText, ...result });
+  return result;
 };
 
 export const summarizeConversationMemoryV2 = (memory = null) => ({

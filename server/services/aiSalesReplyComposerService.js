@@ -362,6 +362,24 @@ const selectRegressionFocusCard = (response = {}, mode = "price") => {
   return withPrice[0] || withStock[0] || withImages[0] || cards[0] || {};
 };
 
+const selectRegressionContextCard = (response = {}, memory = {}, mode = "price") => {
+  const cards = selectedProducts(response);
+  const memoryCards = asArray(memory?.lastProductCards || memory?.lastProducts);
+  if (!cards.length) return {};
+  const rememberedProductId = text(memory?.rememberedProductId || "");
+  if (rememberedProductId) {
+    const rememberedCard = cards.find((card) => text(card.id || card.product_id || "") === rememberedProductId);
+    if (rememberedCard) return rememberedCard;
+    const rememberedMemoryCard = memoryCards.find((card) => text(card.id || card.product_id || "") === rememberedProductId);
+    if (rememberedMemoryCard) return rememberedMemoryCard;
+  }
+  if (memoryCards.length) {
+    const memoryPriceCard = memoryCards.find((card) => cardPriceValue(card) > 0) || memoryCards.find((card) => stockCount(card) > 0);
+    if (memoryPriceCard) return memoryPriceCard;
+  }
+  return selectRegressionFocusCard(response, mode);
+};
+
 const selectedImageCards = (response = {}) => {
   const seen = new Set();
   return [
@@ -617,7 +635,12 @@ const isOrderConfirmationMessage = (message = "") => {
 };
 const asksPrice = (message = "", response = {}, intent = {}) => {
   if (isGreetingOnly(message, response, intent)) return false;
-  return /(بكام|السعر|سعره|price|cost)/i.test(message);
+  const normalizedMessage = normalizeArabic(message);
+  const normalizedIntent = text(response?.request_intent || response?.detected_intent || intent?.type || intent || "");
+  return (
+    /(بكام|السعر|سعره|price|cost)/i.test(normalizedMessage) ||
+    /(pricing_question|price_question|price_objection|price|cost)/i.test(normalizedIntent)
+  );
 };
 const asksDiscountOrOffer = (message = "") => {
   const normalized = normalizeArabic(message);
@@ -739,8 +762,7 @@ const availableForSize = (product = {}, size = "") => {
   const variants = asArray(product.variants);
   const matched = variants.filter((variant) => text(variant?.size).toLowerCase() === text(size).toLowerCase());
   if (matched.length) return matched.some((variant) => Number(variant?.stock || 0) > 0 || text(variant?.stock_status).toLowerCase() === "in_stock");
-  const sizes = productSizes(product).map((item) => lower(item));
-  return sizes.includes(lower(size)) && stockCount(product) > 0;
+  return false;
 };
 
 const stripProductPayload = (response = {}, { preserveProductCards = true } = {}) => ({
@@ -824,6 +846,20 @@ const inferActionFromSuggestedActions = (actions = []) => {
 const memoryState = (context = {}, memory = {}) => {
   const source = memory || context.conversation_memory || {};
   const preferences = source.preferences || {};
+  const rememberedProductId = text(
+    preferences.active_product_id ||
+      preferences.selected_product_id ||
+      preferences.last_product_id ||
+      source.active_product_id ||
+      source.selected_product_id ||
+      source.last_product_id ||
+      asArray(source.last_product_cards || source.lastProductCards)[0]?.product_id ||
+      asArray(source.last_product_cards || source.lastProductCards)[0]?.id ||
+      asArray(source.last_products)[0]?.product_id ||
+      asArray(source.last_products)[0]?.id ||
+      context.customer_profile?.preferred_product_id ||
+      ""
+  );
   const lastBotMessage = text(source.last_bot_message || source.lastBotMessage || preferences.last_bot_message);
   const lastAction = normalizeLastAction(
     preferences.last_ai_action ||
@@ -834,6 +870,7 @@ const memoryState = (context = {}, memory = {}) => {
       inferActionFromText(lastBotMessage)
   );
   return {
+    rememberedProductId,
     rememberedSize: text(
       preferences.size ||
         preferences.selected_size ||
@@ -861,6 +898,7 @@ const memoryState = (context = {}, memory = {}) => {
     pendingAlternativeForModel: text(preferences.pendingAlternativeForModel),
     currentRequestedModel: text(preferences.currentRequestedModel),
     lastProducts: asArray(source.last_products),
+    lastProductCards: asArray(source.last_product_cards || source.lastProductCards),
     lastAction,
     lastBotMessage,
     lastBotAskedForSize: Boolean(
@@ -941,14 +979,24 @@ export const composeAiSalesReply = async ({
 
   if (isRegressionSource && products.length) {
     const regressionSourceCards = asArray(response.regression_source_product_cards);
-    const regressionPriceCard = regressionSourceCards.find((card) => cardPriceValue(card) > 0) || selectRegressionFocusCard(response, "price");
-    const regressionAvailabilityCard = regressionSourceCards.find((card) => stockCount(card) > 0) || selectRegressionFocusCard(response, "availability");
+    const regressionContextCard = selectRegressionContextCard(response, state, "availability");
+    const regressionPriceCard = regressionSourceCards.find((card) => cardPriceValue(card) > 0) || selectRegressionContextCard(response, state, "price");
+    const regressionAvailabilityCard = regressionSourceCards.find((card) => stockCount(card) > 0) || regressionContextCard || selectRegressionFocusCard(response, "availability");
     const regressionUnavailableCard = regressionSourceCards.find((card) => stockCount(card) === 0) || selectRegressionFocusCard(response, "unavailable");
-    const regressionImageCard = regressionSourceCards.find((card) => Boolean(cardImageUrl(card))) || selectRegressionFocusCard(response, "images");
-    const regressionPrice = cardPriceValue(regressionPriceCard);
+    const regressionImageCard = regressionSourceCards.find((card) => Boolean(cardImageUrl(card))) || selectRegressionContextCard(response, state, "images");
+    const regressionPriceInfo = resolveCustomerDisplayPrice(regressionPriceCard || selectRegressionFocusCard(response, "price") || top);
+    const regressionPrice = cardPriceValue(regressionPriceCard) || Number(regressionPriceInfo.display_price || 0);
     const regressionStock = stockCount(regressionAvailabilityCard) || stockCount(regressionUnavailableCard) || stockCount(regressionPriceCard) || stock;
     const regressionHasPositiveStock = stockCount(regressionAvailabilityCard) > 0 || stockCount(regressionPriceCard) > 0 || stock > 0;
     const regressionIsUnavailable = !regressionHasPositiveStock && (stockCount(regressionUnavailableCard) === 0 || regressionStock === 0);
+    const excludedProductIds = [
+      ...asArray(memory?.rejectedProductIds),
+      ...asArray(memory?.preferences?.rejectedProductIds),
+    ].map((value) => text(value)).filter(Boolean);
+    const cheaperCandidatesCount = asArray(regressionSourceCards).filter((card) => {
+      const price = cardPriceValue(card);
+      return stockCount(card) > 0 && price > 0 && regressionPrice > 0 && price < regressionPrice;
+    }).length;
     const regressionImageUrls = [
       cardImageUrl(regressionImageCard),
       ...selectedImageCards(response).map((card) => text(card?.url || card?.image_url || card?.selected_card_image_url || card?.image || "")),
@@ -991,22 +1039,6 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, confirmOrderReply);
     }
 
-    if (regressionIsUnavailable) {
-      console.info("[ai-reply-composer:decision]", {
-        source,
-        decision: "regression_unavailable",
-        productCardsBlocked: false,
-        outputProductCount: products.length,
-      });
-      console.info("[ai-reply-composer:output]", {
-        source,
-        decision: "regression_unavailable",
-        answerLength: 16,
-        stage: "",
-      });
-      return withAnswer(response, "مش متاح حاليًا.");
-    }
-
     if (asksDiscountOrOffer(message)) {
       const discountReply = regressionPrice
         ? `السعر الحالي ${regressionPrice} جنيه، ولو فيه خصم أو عرض متاح أراجعهولك من السيستم.`
@@ -1016,6 +1048,10 @@ export const composeAiSalesReply = async ({
         decision: "regression_discount_or_offer",
         productCardsBlocked: false,
         outputProductCount: products.length,
+        current_price: regressionPrice || null,
+        alternative_direction: "cheaper",
+        excluded_product_ids: excludedProductIds,
+        cheaper_candidates_count: cheaperCandidatesCount,
       });
       console.info("[ai-reply-composer:output]", {
         source,
@@ -1094,7 +1130,7 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, kidsReply);
     }
 
-    if (asksBrandRequest(message)) {
+    if (asksBrandRequest(message) && !asksPrice(message, response, intent)) {
       const brandText = text(top.brand || top.brand_name || top.manufacturer || "");
       const brandReply = brandText
         ? `أيوه، ده من ${brandText} وموجود كمان اختيارات شبهه لو تحب.`
@@ -1114,7 +1150,7 @@ export const composeAiSalesReply = async ({
       return withAnswer(response, brandReply);
     }
 
-    if (asksModelRequest(message)) {
+    if (asksModelRequest(message) && !asksPrice(message, response, intent)) {
       const modelText = text(top.base_name || top.model_name || top.name || top.title || top.product_name || "");
       const normalizedModelText = normalizeArabic(modelText);
       const jordan4Label = /(jordan\s*4|j4|aj4|جوردن\s*4|جوردن)/i.test(normalizedModelText)
@@ -1176,8 +1212,15 @@ export const composeAiSalesReply = async ({
     }
 
     if (requestedColor && !asksImages(message) && !asksSize(message, response) && !asksPrice(message, response, intent)) {
+      const colorMatch = requestedColor
+        ? colors.some((color) => {
+            const normalizedColor = normalizeArabic(color);
+            const normalizedRequestedColor = normalizeArabic(requestedColor);
+            return Boolean(normalizedColor && normalizedRequestedColor && (normalizedColor === normalizedRequestedColor || normalizedColor.includes(normalizedRequestedColor)));
+          })
+        : false;
       const regressionColorReply = [
-        `أيوه اللون ${requestedColor} موجود حاليًا.`,
+        `لو تقصد ${requestedColor} فهو ${colorMatch ? "موجود" : "محتاج تأكيد"} حاليًا.`,
         regressionPrice ? `سعره ${regressionPrice} جنيه.` : "",
         size ? `ومقاس ${size} موجود.` : state.rememberedSize ? `ومقاس ${state.rememberedSize} موجود.` : "",
         colors.length ? `ولو تحب الألوان المتاحة منه: ${colors.join("، ")}.` : "",
@@ -1341,6 +1384,10 @@ export const composeAiSalesReply = async ({
         decision: "regression_objection",
         productCardsBlocked: false,
         outputProductCount: products.length,
+        current_price: regressionPrice || null,
+        alternative_direction: /أرخص|cheaper/i.test(normalizeArabic(message)) ? "cheaper" : "general",
+        excluded_product_ids: excludedProductIds,
+        cheaper_candidates_count: cheaperCandidatesCount,
       });
       console.info("[ai-reply-composer:output]", {
         source,
@@ -1349,6 +1396,22 @@ export const composeAiSalesReply = async ({
         stage: "",
       });
       return withAnswer(response, objectionReply);
+    }
+
+    if (regressionIsUnavailable) {
+      console.info("[ai-reply-composer:decision]", {
+        source,
+        decision: "regression_unavailable",
+        productCardsBlocked: false,
+        outputProductCount: products.length,
+      });
+      console.info("[ai-reply-composer:output]", {
+        source,
+        decision: "regression_unavailable",
+        answerLength: 16,
+        stage: "",
+      });
+      return withAnswer(response, "مش متاح حاليًا.");
     }
 
     if (asksPrice(message, response, intent)) {
@@ -1397,9 +1460,12 @@ export const composeAiSalesReply = async ({
 
     if (asksSize(message, response) || (state.lastBotAskedForSize && currentMessageSize)) {
       const regressionSize = size || state.rememberedSize || productSizes(regressionPriceCard)[0] || sizes[0] || "";
+      const sizeAvailable = regressionSize ? availableForSize(regressionPriceCard || top || {}, regressionSize) : false;
       const sizeReply = regressionSize
-        ? `أيوه مقاس ${regressionSize} موجود حاليًا.`
-        : "المقاس ده موجود حاليًا.";
+        ? (sizeAvailable
+          ? `أيوه مقاس ${regressionSize} موجود حاليًا.`
+          : `مقاس ${regressionSize} مش متوفر حاليًا، أقدر أطلعلك أقرب مقاس أو موديل شبهه؟`)
+        : "المقاس ده محتاج تأكيد من السيستم.";
       console.info("[ai-reply-composer:decision]", {
         source,
         decision: "regression_size",
@@ -1418,9 +1484,16 @@ export const composeAiSalesReply = async ({
     if (asksColor(message) || (state.lastBotAskedForColor && requestedColor)) {
       const regressionSize = size || state.rememberedSize || productSizes(regressionPriceCard)[0] || sizes[0] || "";
       const replyColors = colors.length ? colors : productColors(regressionPriceCard);
+      const colorMatch = requestedColor
+        ? replyColors.some((color) => {
+            const normalizedColor = normalizeArabic(color);
+            const normalizedRequestedColor = normalizeArabic(requestedColor);
+            return Boolean(normalizedColor && normalizedRequestedColor && (normalizedColor === normalizedRequestedColor || normalizedColor.includes(normalizedRequestedColor)));
+          })
+        : false;
       const colorReply = [
         regressionSize ? `مقاس ${regressionSize} موجود.` : "",
-        requestedColor ? `اللون ${requestedColor} موجود.` : "",
+        requestedColor ? `لو تقصد ${requestedColor} فهو ${colorMatch ? "موجود" : "محتاج تأكيد"}.` : "",
         replyColors.length ? `الألوان المتاحة: ${replyColors.join("، ")}.` : "",
       ].filter(Boolean).join(" ");
       console.info("[ai-reply-composer:decision]", {

@@ -1678,6 +1678,7 @@ function SocialCommentsWorkspace({
   const activePrivateMessageStatus = clean(privateMessageStatusOverrides[actionableComment?.id] || "");
   const activePostImage = clean(activePostDisplay?.displayImage || activePostDetails?.thumbnailUrl || "");
   const activePostCaption = clean(activePostDisplay?.displayText || activePostDetails?.caption || "");
+  const activePostExcerpt = clean(activePostDisplay?.displayExcerpt || activePostDisplay?.summary || activePostDetails?.excerpt || activePostCaption);
   const activePostOpen = useMemo(
     () => resolvePostOpenLink(activePostDetails || activePost || {}, activePostDisplay || {}),
     [activePost, activePostDetails, activePostDisplay]

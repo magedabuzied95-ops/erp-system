@@ -438,7 +438,15 @@ const buildRegressionAnalysis = ({
 } = {}) => {
   const cardList = asArray(productCards);
   const topProduct = cardList[0] || {};
-  const currentPrice = cardList.map((card) => primaryPrice(card)).find((value) => Number.isFinite(value) && value > 0) || primaryPrice(topProduct);
+  const rememberedCards = normalizeProductCards(
+    asArray(memory?.preferences?.last_product_cards || memory?.preferences?.lastProductCards || memory?.last_product_cards || memory?.lastProductCards),
+    { limit: 24, preserveUnavailableCards: true }
+  );
+  const memoryPriceCard = rememberedCards.find((card) => primaryPrice(card) > 0) || rememberedCards[0] || {};
+  const currentPrice =
+    cardList.map((card) => primaryPrice(card)).find((value) => Number.isFinite(value) && value > 0) ||
+    primaryPrice(topProduct) ||
+    primaryPrice(memoryPriceCard);
   const currentStock = cardList.length
     ? Math.max(
         ...cardList
@@ -469,7 +477,9 @@ const buildRegressionAnalysis = ({
     memory_patch: composedResponse?.memory_updates || composedResponse?.ai_memory_patch?.preferences || null,
     customer_name_candidate: extractCustomerNameCandidate(message),
     reply_mentions_bare_currency: hasBareCurrencyWord(reply),
-    reply_mentions_current_price: currentPrice ? mentionedPrices.includes(currentPrice) : false,
+    reply_mentions_current_price: currentPrice
+      ? mentionedPrices.includes(currentPrice) || String(reply).includes(String(currentPrice)) || new RegExp(`\\b${String(currentPrice).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(String(reply))
+      : false,
     reply_mentioned_prices: mentionedPrices,
     reply_mentions_availability: hasAvailabilityClaim(reply),
     reply_mentions_unavailable: /(?:ط؛ظٹط±\s*ظ…طھط§ط­|ط؛ظٹط±\s*ظ…ظˆط¬ظˆط¯|ظ†ظپط¯|out of stock|unavailable)/i.test(reply),
@@ -667,7 +677,10 @@ export const executeAiRegressionMessageTest = async ({
         : rawSearchProductCards.length
           ? asArray(rawSearchProductCards)
           : seedProductCards
-    ).map(enrichRegressionProductCard).filter((card) => !rejectContextMatchesProduct(card, rejectionMemory))
+    )
+      .concat(asArray(baseMemory?.last_product_cards || baseMemory?.lastProductCards))
+      .map(enrichRegressionProductCard)
+      .filter((card) => !rejectContextMatchesProduct(card, rejectionMemory))
   );
   const composerProductCards = normalizeProductCards(regressionSourceProductCards, { limit: 24, preserveUnavailableCards: true });
   const effectiveMemory = {
@@ -720,17 +733,29 @@ export const executeAiRegressionMessageTest = async ({
     dry_run: DRY_RUN_MODE,
     source,
   });
+  const altTraceMessage = /(?:لا\s*مش\s*عايز\s*ده\s*وريني\s*بديل|لا\s*مش\s*عايز\s*ده|مش\s*عايز\s*ده|وريني\s*بديل|وريني\s*غيره|وريني\s*حاجة\s*تانية|شوفلي\s*حاجة\s*تانية|حاجة\s*تانية|حاجة\s*ثانية|بديل|بدائل|مش\s*عاجبني|مش\s*ده|ده\s*مش|غيره|غيرها|تاني|تانية|alternative|alternatives)/i.test(message);
+  if (altTraceMessage) {
+    console.info("[ALT_FOLLOWUP_TRACE]", {
+      stage: "harness:brainDecision",
+      brainDecisionIntent: brainDecision.intent || brainDecision.detected_intent || "",
+      detectedIntent: brainDecision.detected_intent || "",
+      product_cards_count: asArray(brainDecision.product_cards).length,
+      products_count: asArray(brainDecision.products).length,
+      debug_reason: brainDecision.replyDecisionReason || brainDecision.debug?.reason || "",
+    });
+  }
 
-  const responseForComposer = composerProductCards.length
-    ? {
-        ...brainDecision,
-        is_regression_test: true,
-        dry_run: DRY_RUN_MODE,
-        source,
-        regression_source_product_cards: regressionSourceProductCards,
-        products: composerProductCards,
-        suggested_products: composerProductCards,
-        product_cards: composerProductCards,
+      const responseForComposer = composerProductCards.length
+        ? {
+            ...brainDecision,
+            is_regression_test: true,
+            dry_run: DRY_RUN_MODE,
+            source,
+            request_intent: requestIntent,
+            regression_source_product_cards: regressionSourceProductCards,
+            products: composerProductCards,
+            suggested_products: composerProductCards,
+            product_cards: composerProductCards,
         visual_attachments: composerProductCards
           .filter((card) => primaryImage(card))
           .map((card) => ({
@@ -762,6 +787,14 @@ export const executeAiRegressionMessageTest = async ({
       source,
     },
   });
+  if (altTraceMessage) {
+    console.info("[ALT_FOLLOWUP_TRACE]", {
+      stage: "harness:composer",
+      composer_branch: composed.decision || composed.debug?.decision || composed.debug?.reason || composed.replyDecisionReason || "",
+      composed_intent: composed.detected_intent || composed.intent || "",
+      reply_preview: toText(composed.answer || composed.text || "").slice(0, 160),
+    });
+  }
 
   const productCards = normalizeProductCards(
     composed.product_cards ||
@@ -1085,6 +1118,7 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
             is_regression_test: true,
             dry_run: DRY_RUN_MODE,
             source: "ai_regression_test_endpoint",
+            request_intent: requestIntent,
             regression_source_product_cards: rawSeedProductCards,
             products: composerProductCards,
             suggested_products: composerProductCards,

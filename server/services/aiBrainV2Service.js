@@ -35,6 +35,19 @@ const normalizeArabic = (value = "") =>
     .replace(/\s+/g, " ")
     .trim();
 
+const ALT_FOLLOWUP_TRACE_PATTERN = /(لا\s*مش\s*عايز\s*ده\s*وريني\s*بديل|لا\s*مش\s*عايز\s*ده|مش\s*عايز\s*ده|وريني\s*بديل|وريني\s*غيره|وريني\s*حاجة\s*تانية|شوفلي\s*حاجة\s*تانية|حاجة\s*تانية|حاجة\s*ثانية|بديل|بدائل|مش\s*عاجبني|مش\s*ده|ده\s*مش|غيره|غيرها|تاني|تانية|alternative|alternatives)/i;
+const shouldTraceAltFollowup = (value = "") => ALT_FOLLOWUP_TRACE_PATTERN.test(normalizeArabic(String(value || "")));
+const traceAltFollowup = (stage = "", payload = {}) => {
+  if (!shouldTraceAltFollowup([
+    payload.message,
+    payload.messageText,
+    payload.originalMessage,
+    payload.normalizedText,
+    payload.normalizedForIntent,
+  ].filter(Boolean).join(" "))) return;
+  console.info("[ALT_FOLLOWUP_TRACE]", { stage, ...payload });
+};
+
 const normalizeSizeToken = (value = "") =>
   text(value)
     .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
@@ -1290,11 +1303,38 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
   const memoryActiveProductId = activeProductFromMemory(memory);
   const memoryV2 = memory?.preferences?.aiConversationMemoryV2 || memory?.aiConversationMemoryV2 || null;
   const explicitModel = detectExplicitModel(message);
+  traceAltFollowup("generateAiBrainV2Decision:memory", {
+    message: originalMessage,
+    normalizedText: intentPayload.normalizedText,
+    normalizedForIntent: intentPayload.normalizedForIntent,
+    canonicalSignals: intentPayload.canonicalSignals,
+    memory_keys: Object.keys(memory || {}).sort(),
+    memory_v2_keys: Object.keys(memoryV2 || {}).sort(),
+    last_product_cards_present: asArray(memory?.last_product_cards).length > 0,
+    lastShownProductCards_present: asArray(memory?.lastShownProductCards).length > 0,
+    hasUsefulProductContext:
+      Boolean(
+        text(memory?.lastMentionedProductId || "") ||
+        text(memory?.lastMentionedCanonicalProduct || "") ||
+        asArray(memory?.lastShownProductCards).length ||
+        asArray(memory?.last_product_cards).length ||
+        asArray(memory?.lastProductCards).length ||
+        asArray(memory?.preferences?.last_product_cards).length ||
+        asArray(memory?.preferences?.lastProductCards).length ||
+        asArray(memory?.preferences?.aiConversationMemoryV2?.lastShownProductCards).length ||
+        asArray(memory?.aiConversationMemoryV2?.lastShownProductCards).length
+      ),
+  });
   const followupContextV2 = resolveFollowupContext({
     memory: memoryV2 || memory,
     messageText: originalMessage,
     normalizedPayload: intentPayload,
     intentPayload,
+  });
+  traceAltFollowup("generateAiBrainV2Decision:followupContext", {
+    message: originalMessage,
+    followup_context: followupContextV2,
+    followup_type: followupContextV2?.type || "none",
   });
   const memoryForTurn = followupContextV2.type !== "none"
     ? {
@@ -1318,8 +1358,20 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
           ),
         },
       }
-    : memory;
+      : memory;
+  traceAltFollowup("classifyIntent:input", {
+    message: originalMessage,
+    normalizedText: intentPayload.normalizedText,
+    normalizedForIntent: intentPayload.normalizedForIntent,
+    canonicalSignals: intentPayload.canonicalSignals,
+    attachments_count: asArray(normalizedInbound.attachments).length,
+    explicit_model: explicitModel?.model || "",
+  });
   const intent = classifyIntent({ message, attachments: normalizedInbound.attachments, explicitModel, canonicalSignals: intentPayload.canonicalSignals });
+  traceAltFollowup("classifyIntent:output", {
+    message: originalMessage,
+    intent,
+  });
   const activeSize = text(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || "");
   const activeColor = text(memory?.activeColor || memory?.selectedColor || memory?.preferences?.activeColor || memory?.preferences?.selectedColor || "");
   console.log("[arabic-intent-signals]", {
