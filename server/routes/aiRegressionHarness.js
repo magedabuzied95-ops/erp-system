@@ -1270,7 +1270,6 @@ router.post("/message", requireRegressionTestKey, async (req, res) => {
       ].map((value) => toText(value)).filter(Boolean);
       let analysis;
       let failedTypes;
-      let regressionIntentDebugTrace = null;
       try {
         analysis = buildRegressionAnalysis({
           message,
