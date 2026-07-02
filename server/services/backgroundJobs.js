@@ -57,6 +57,42 @@ const buildPrivateReplyLogPayload = ({ postId = "", commentId = "", productConte
   reply_preview: String(replyPreview || "").trim(),
   message_preview: String(messagePreview || replyPreview || "").trim(),
 });
+
+const buildPrivateReplyProductDebugPayload = ({
+  tenantId = null,
+  platform = "",
+  postId = "",
+  commentId = "",
+  productContext = null,
+  replyPreview = "",
+  messagePreview = "",
+} = {}) => {
+  const mappedProducts = asArray(productContext?.mapped_products || []);
+  const productIds = Array.isArray(productContext?.product_ids)
+    ? productContext.product_ids
+    : mappedProducts.map((item) => Number(item?.product_id || item?.id || 0)).filter((value) => Number.isFinite(value) && value > 0);
+  const primaryProduct = productContext?.primary_product || mappedProducts[0] || null;
+  return {
+    tenant_id: Number(tenantId || 0) || null,
+    platform: String(platform || "").trim(),
+    post_id: String(postId || "").trim(),
+    comment_id: String(commentId || "").trim(),
+    has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
+    product_ids: productIds,
+    primary_product_id: Number(primaryProduct?.product_id || primaryProduct?.id || productContext?.product_id || 0) || null,
+    product_name: String(productContext?.product_name || primaryProduct?.name || primaryProduct?.product_name || primaryProduct?.title || "").trim(),
+    final_price: String(productContext?.final_price || productContext?.price || productContext?.sale_price || productContext?.selling_price || "").trim(),
+    available_sizes: asArray(productContext?.available_sizes || productContext?.sizes || primaryProduct?.available_sizes || primaryProduct?.sizes || []),
+    available_colors: asArray(productContext?.available_colors || productContext?.colors || primaryProduct?.available_colors || primaryProduct?.colors || []),
+    product_link: String(productContext?.product_link || productContext?.product_url || productContext?.storefront_url || primaryProduct?.product_link || primaryProduct?.product_url || primaryProduct?.storefront_url || "").trim(),
+    context_source: String(productContext?.source || productContext?.context_source || "").trim(),
+    has_message: Boolean(String(messagePreview || "").trim()),
+    has_rendered_reply: Boolean(String(replyPreview || "").trim()),
+    has_private_reply_payload: Boolean(productContext),
+    message_preview: String(messagePreview || replyPreview || "").trim(),
+    reply_preview: String(replyPreview || "").trim(),
+  };
+};
 const buildPrivateReplyExitPayload = ({
   reason = "",
   job = {},
@@ -171,6 +207,12 @@ export const registerBackgroundJobHandlers = () => {
     if (!row) {
       throw Object.assign(new Error("Social comment row not found"), { status: 404 });
     }
+    const dequeuedProductContext = row.product_context || row.raw_payload?.product_context || null;
+    const dequeuedReplyPreview = String(
+      row.automation_state?.private_reply?.rendered_reply ||
+      row.automation_state?.private_reply?.message ||
+      ""
+    ).trim();
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_QUEUE_DEQUEUED", {
       tenant_id: tenantId,
       platform,
@@ -185,17 +227,21 @@ export const registerBackgroundJobHandlers = () => {
         job,
         postId: postId || row.post_id || "",
         commentId,
-        productContext: row.product_context || row.raw_payload?.product_context || null,
+        productContext: dequeuedProductContext,
         message: row.automation_state?.private_reply?.message || "",
         renderedReply: row.automation_state?.private_reply?.rendered_reply || "",
         privateReplyPayload: row.automation_state?.private_reply || null,
         status: row.dm_status || row.automation_state?.private_reply?.status || "",
       }),
-      message_preview: String(
-        row.automation_state?.private_reply?.rendered_reply ||
-        row.automation_state?.private_reply?.message ||
-        ""
-      ).trim(),
+      ...buildPrivateReplyProductDebugPayload({
+        tenantId,
+        platform,
+        postId: postId || row.post_id || "",
+        commentId,
+        productContext: dequeuedProductContext,
+        messagePreview: dequeuedReplyPreview,
+        replyPreview: dequeuedReplyPreview,
+      }),
     });
 
     const privateReplyContext = PRIVATE_REPLY_REQUIRES_WEBHOOK_COMMENT_CONTEXT({ row });
@@ -344,13 +390,15 @@ export const registerBackgroundJobHandlers = () => {
         : initialMessage
     ).trim();
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_RENDER_END", {
-      tenant_id: tenantId,
-      platform,
-      post_id: postId || row.post_id || "",
-      comment_id: commentId,
-      has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
-      reply_preview: message,
-      message_preview: message,
+      ...buildPrivateReplyProductDebugPayload({
+        tenantId,
+        platform,
+        postId: postId || row.post_id || "",
+        commentId,
+        productContext,
+        messagePreview: message,
+        replyPreview: message,
+      }),
     });
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_CONTEXT_USED", buildPrivateReplyLogPayload({
       postId: postId || row.post_id || "",
@@ -407,29 +455,15 @@ export const registerBackgroundJobHandlers = () => {
         replyPreview: message,
         messagePreview: message,
       }));
-      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_START", {
-        tenant_id: tenantId,
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_START", buildPrivateReplyProductDebugPayload({
+        tenantId,
         platform,
-        post_id: postId || row.post_id || "",
-        comment_id: commentId,
-        has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
-        product_ids: Array.isArray(productContext?.product_ids)
-          ? productContext.product_ids
-          : Array.isArray(productContext?.mapped_products)
-            ? productContext.mapped_products
-              .map((item) => Number(item?.product_id || item?.id || 0))
-              .filter((value) => Number.isFinite(value) && value > 0)
-            : [],
-        primary_product_id: Number(
-          productContext?.primary_product?.product_id ||
-          productContext?.primary_product?.id ||
-          productContext?.product_id ||
-          0
-        ) || null,
-        product_name: String(productContext?.product_name || productContext?.primary_product?.name || "").trim(),
-        reply_preview: message,
-        message_preview: message,
-      });
+        postId: postId || row.post_id || "",
+        commentId,
+        productContext,
+        messagePreview: message,
+        replyPreview: message,
+      }));
       debugSocialCommentsLog("GRAPH_PRIVATE_REPLY_REQUEST", {
         target_comment_id: commentId,
         platform,

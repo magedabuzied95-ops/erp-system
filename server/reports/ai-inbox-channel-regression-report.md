@@ -1,50 +1,38 @@
 # AI Inbox Channel Regression
 
-- Started: 2026-07-02T15:21:13.408Z
-- Finished: 2026-07-02T15:22:04.655Z
+- Started: 2026-07-02T15:39:08.118Z
+- Finished: 2026-07-02T15:40:04.564Z
 - Base URL: https://erp-system-0qhp.onrender.com
 - Tenant: 1
 - Login success: true
 
 ## whatsapp
 
-- Conversation ID: whatsapp:20111102152114
-- Inbound stored: false
-- Inbox visible: false
-- Session matches: false
+- Conversation ID: whatsapp:20111102153909
+- Inbound stored: true
+- Inbox visible: true
+- Session matches: true
 - Outbound logged: true
-- Outbound delivery: failed
+- Outbound delivery: mock_sent
 - Product card logged: true
 
 ## facebook_messenger
 
-- Conversation ID: facebook_messenger:10000702152128
-- Inbound stored: false
+- Conversation ID: facebook_messenger:10000702153928
+- Inbound stored: true
 - Inbox visible: true
 - Session matches: true
-- Outbound logged: false
+- Outbound logged: true
 - Outbound delivery: mock_sent
-- Product card logged: false
+- Product card logged: true
 
 ## instagram
 
-- Conversation ID: instagram:17840702152146
-- Inbound stored: false
+- Conversation ID: instagram:17840702153946
+- Inbound stored: true
 - Inbox visible: true
 - Session matches: true
-- Outbound logged: false
+- Outbound logged: true
 - Outbound delivery: mock_sent
-- Product card logged: false
-
-## Failures
-
-- whatsapp: inbound message not found in transcript
-- whatsapp: conversation not visible in AI Inbox
-- whatsapp: conversation/session id mismatch
-- facebook_messenger: inbound message not found in transcript
-- facebook_messenger: outbound message not logged
-- facebook_messenger: product card message not logged
-- instagram: inbound message not found in transcript
-- instagram: outbound message not logged
-- instagram: product card message not logged
+- Product card logged: true
 

@@ -500,6 +500,29 @@ const buildSocialCommentProductContextResolvedLog = ({ productContext = null, ro
   };
 };
 
+const buildSocialCommentProductContextResolvedFullLog = ({ tenantId = null, platform = "", productContext = null, row = {} } = {}) => {
+  const mappedProducts = asArray(productContext?.mapped_products || []);
+  const productIds = mappedProducts
+    .map((item) => Number(item?.product_id || item?.id || 0))
+    .filter((value) => Number.isFinite(value) && value > 0);
+  const primaryProduct = productContext?.primary_product || mappedProducts[0] || null;
+  return {
+    tenant_id: Number(tenantId || row.tenant_id || 0) || null,
+    platform: text(platform || row.platform || "facebook"),
+    post_id: text(productContext?.post_id || row.post_id || ""),
+    comment_id: text(row.comment_id || ""),
+    has_product_context: Boolean(productContext?.found || productContext?.has_product_context),
+    product_id: text(productContext?.product_id || primaryProduct?.product_id || primaryProduct?.id || ""),
+    product_ids: productIds,
+    product_name: text(productContext?.product_name || primaryProduct?.name || primaryProduct?.product_name || primaryProduct?.title || ""),
+    final_price: text(productContext?.final_price || productContext?.price || productContext?.sale_price || productContext?.selling_price || ""),
+    available_sizes: asArray(productContext?.available_sizes || productContext?.sizes || primaryProduct?.available_sizes || primaryProduct?.sizes || []),
+    available_colors: asArray(productContext?.available_colors || productContext?.colors || primaryProduct?.available_colors || primaryProduct?.colors || []),
+    product_link: text(productContext?.product_link || productContext?.product_url || productContext?.storefront_url || primaryProduct?.product_link || primaryProduct?.product_url || primaryProduct?.storefront_url || ""),
+    context_source: text(productContext?.source || productContext?.context_source || ""),
+  };
+};
+
 const buildPrivateReplyEnqueuePayloadLog = ({ row = {}, productContext = null } = {}) => {
   const privateReplyPayload = row?.automation_state?.private_reply || null;
   const messagePreview = text(
@@ -515,6 +538,7 @@ const buildPrivateReplyEnqueuePayloadLog = ({ row = {}, productContext = null } 
     has_rendered_reply: Boolean(text(privateReplyPayload?.rendered_reply || "")),
     has_private_reply_payload: Boolean(privateReplyPayload),
     message_preview: messagePreview,
+    product_name: text(productContext?.product_name || productContext?.primary_product?.name || productContext?.primary_product?.product_name || ""),
     product_ids: Array.isArray(productContext?.product_ids)
       ? productContext.product_ids
       : asArray(productContext?.mapped_products || [])
@@ -526,6 +550,11 @@ const buildPrivateReplyEnqueuePayloadLog = ({ row = {}, productContext = null } 
       productContext?.product_id ||
       0
     ) || null,
+    final_price: text(productContext?.final_price || productContext?.price || productContext?.sale_price || productContext?.selling_price || ""),
+    available_sizes: asArray(productContext?.available_sizes || productContext?.sizes || productContext?.primary_product?.available_sizes || productContext?.primary_product?.sizes || []),
+    available_colors: asArray(productContext?.available_colors || productContext?.colors || productContext?.primary_product?.available_colors || productContext?.primary_product?.colors || []),
+    product_link: text(productContext?.product_link || productContext?.product_url || productContext?.storefront_url || productContext?.primary_product?.product_link || productContext?.primary_product?.product_url || productContext?.primary_product?.storefront_url || ""),
+    context_source: text(productContext?.source || productContext?.context_source || ""),
   };
 };
 
@@ -2503,10 +2532,16 @@ const executeSocialCommentAutomationRuntime = async ({
       dmStatus: "queued",
       automationState: persistedRuntimeState,
     }).catch(() => {});
-      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_PAYLOAD", buildPrivateReplyEnqueuePayloadLog({
-        row: workingRow,
-        productContext: effectiveProductContext || {},
-      }));
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_PAYLOAD", {
+        tenant_id: safeTenantId,
+        platform: normalizedPlatform,
+        post_id: safePostId,
+        comment_id: safeCommentId,
+        ...buildPrivateReplyEnqueuePayloadLog({
+          row: workingRow,
+          productContext: effectiveProductContext || {},
+        }),
+      });
       await enqueueSocialCommentPrivateReplyJob({
         tenantId: safeTenantId,
         platform: normalizedPlatform,
@@ -4116,6 +4151,15 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         tenant_id: safeTenantId,
       },
     }).catch(() => null);
+    console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_RESOLVED_FULL", buildSocialCommentProductContextResolvedFullLog({
+      tenantId: safeTenantId,
+      platform,
+      productContext: runtimeProductContext,
+      row: {
+        ...runtimeProductContextInput.row,
+        tenant_id: safeTenantId,
+      },
+    }));
     console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_RESOLVED", buildSocialCommentProductContextResolvedLog({
       productContext: runtimeProductContext,
       row: {
@@ -5883,10 +5927,16 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         source: privateReplySource,
         private_reply_status: privateReplyStatus || "empty",
       });
-      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_PAYLOAD", buildPrivateReplyEnqueuePayloadLog({
-        row: storedRow,
-        productContext: productContext || {},
-      }));
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_PAYLOAD", {
+        tenant_id: storedRow.tenant_id,
+        platform: storedRow.platform,
+        post_id: text(storedRow.post_id || ""),
+        comment_id: text(storedRow.comment_id || ""),
+        ...buildPrivateReplyEnqueuePayloadLog({
+          row: storedRow,
+          productContext: productContext || {},
+        }),
+      });
       await enqueueSocialCommentPrivateReplyJob({
         tenantId: storedRow.tenant_id,
         platform: storedRow.platform,
@@ -5972,6 +6022,12 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         tenantId: storedRow.tenant_id,
         row: runtimeProductContextInput.row,
       }).catch(() => null);
+      console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_RESOLVED_FULL", buildSocialCommentProductContextResolvedFullLog({
+        tenantId: storedRow.tenant_id,
+        platform: storedRow.platform,
+        productContext: runtimeProductContext,
+        row: runtimeProductContextInput.row,
+      }));
       console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_RESOLVED", buildSocialCommentProductContextResolvedLog({
         productContext: runtimeProductContext,
         row: runtimeProductContextInput.row,
