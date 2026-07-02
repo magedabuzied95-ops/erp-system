@@ -53,6 +53,27 @@ const isEventLikeObject = (value) =>
 
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
+const parseOptionalCount = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  return null;
+};
+
+const formatDisplayPrice = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const text = clean(value);
+    if (!text) continue;
+    const normalizedNumeric = Number(text.replace(/[^\d.-]/g, ""));
+    if (Number.isFinite(normalizedNumeric) && normalizedNumeric <= 0) continue;
+    return text;
+  }
+  return "";
+};
+
 const normalizeExternalSocialUrl = (value = "") => {
   const candidate = clean(value);
   if (!candidate) return "";
@@ -808,27 +829,6 @@ const postTypeMeta = (post = {}) => {
     Text: "border-amber-300/20 bg-amber-400/10 text-amber-100",
   };
   return { label, className: styles[label] || "border-white/10 bg-white/[0.04] text-slate-200" };
-};
-
-const parseOptionalCount = (...values) => {
-  for (const value of values) {
-    if (value === null || value === undefined || value === "") continue;
-    const numeric = Number(value);
-    if (Number.isFinite(numeric)) return numeric;
-  }
-  return null;
-};
-
-const formatDisplayPrice = (...values) => {
-  for (const value of values) {
-    if (value === null || value === undefined || value === "") continue;
-    const text = clean(value);
-    if (!text) continue;
-    const normalizedNumeric = Number(text.replace(/[^\d.-]/g, ""));
-    if (Number.isFinite(normalizedNumeric) && normalizedNumeric <= 0) continue;
-    return text;
-  }
-  return "";
 };
 
 const getAttachmentImage = (post = {}) => {
