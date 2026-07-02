@@ -220,6 +220,18 @@ const dedupeTextList = (value = []) =>
     .filter((item, index, array) => array.indexOf(item) === index);
 
 const firstNonEmptyText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+const resolveProductPriceFields = (row = {}) => {
+  const price = firstNonEmptyText(row.product_price, row.product_selling_price, row.product_sale_price);
+  const finalPrice = firstNonEmptyText(row.product_sale_price, row.product_selling_price, row.product_price);
+  const salePrice = firstNonEmptyText(row.product_sale_price, finalPrice);
+  const sellingPrice = firstNonEmptyText(row.product_selling_price, row.product_price, finalPrice);
+  return {
+    price,
+    final_price: finalPrice,
+    sale_price: salePrice,
+    selling_price: sellingPrice,
+  };
+};
 
 const SALES_INTENT_RULES = [
   {
@@ -3126,13 +3138,14 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
 
   const buildProductContext = async (productRow = {}, source = "") => {
     if (!productRow) return null;
+    const priceFields = resolveProductPriceFields(productRow);
     const product = {
       id: productRow.product_id || null,
       product_id: productRow.product_id || null,
       name: productRow.product_name || "",
-      price: productRow.product_price || "",
-      sale_price: productRow.product_sale_price || "",
-      selling_price: productRow.product_selling_price || "",
+      price: priceFields.price,
+      sale_price: priceFields.sale_price,
+      selling_price: priceFields.selling_price,
       slug: productRow.product_slug || "",
       canonical_slug: productRow.product_canonical_slug || "",
     };
@@ -3153,9 +3166,10 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
       post_id: text(productRow.mapped_post_id || candidatePostIds[0] || ""),
       product_id: text(productRow.product_id || ""),
       product_name: text(productRow.product_name || ""),
-      price: text(productRow.product_sale_price || productRow.product_price || ""),
-      sale_price: text(productRow.product_sale_price || ""),
-      selling_price: text(productRow.product_selling_price || productRow.product_price || ""),
+      price: priceFields.price,
+      final_price: priceFields.final_price,
+      sale_price: priceFields.sale_price,
+      selling_price: priceFields.selling_price,
       sizes,
       available_sizes: sizes,
       colors,
@@ -3178,8 +3192,18 @@ export const resolveSocialCommentPublishedProductContext = async ({ tenantId = n
     `
     SELECT
       ppl.product_id,
-      ppl.post_id AS mapped_post_id,
-      NULL::text AS mapped_media_id,
+      COALESCE(
+        NULLIF(ppl.canonical_post_id, ''),
+        NULLIF(ppl.source_post_id, ''),
+        NULLIF(ppl.permalink_post_id, ''),
+        NULLIF(ppl.post_link_key, '')
+      ) AS mapped_post_id,
+      COALESCE(
+        NULLIF(ppl.permalink_post_id, ''),
+        NULLIF(ppl.source_post_id, ''),
+        NULLIF(ppl.canonical_post_id, ''),
+        NULLIF(ppl.post_link_key, '')
+      ) AS mapped_media_id,
       p.name AS product_name,
       p.price AS product_price,
       p.sale_price AS product_sale_price,
