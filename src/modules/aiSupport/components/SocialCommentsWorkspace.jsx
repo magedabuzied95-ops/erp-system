@@ -641,6 +641,51 @@ const postSelectionKey = (item = {}) =>
       ""
   );
 
+const parseCompositePostIdentityKey = (value = "") => {
+  const raw = clean(value);
+  if (!raw || !raw.includes("|")) {
+    return {
+      platform: "",
+      platformPostId: raw,
+      sourcePostId: raw,
+      permalinkPostId: "",
+      canonicalPostId: raw,
+      resolvedPostId: raw,
+    };
+  }
+  const [platform = "", platformPostId = "", thirdPart = "", permalinkPostId = "", fifthPart = ""] = raw.split("|").map(clean);
+  const canonicalPostId = clean(thirdPart || fifthPart || platformPostId);
+  const sourcePostId = clean(fifthPart || thirdPart || platformPostId);
+  return {
+    platform,
+    platformPostId: clean(platformPostId),
+    sourcePostId,
+    permalinkPostId: clean(permalinkPostId),
+    canonicalPostId,
+    resolvedPostId: clean(canonicalPostId || sourcePostId || platformPostId || permalinkPostId),
+  };
+};
+
+const automationRoutePostId = (item = {}, fallbackKey = "") => {
+  const directCanonicalPostId = clean(
+    item?.canonicalPostId ||
+    item?.canonical_post_id ||
+    item?.finalCanonicalPostId ||
+    item?.final_canonical_post_id ||
+    ""
+  );
+  if (directCanonicalPostId) return directCanonicalPostId;
+  const parsedFallback = parseCompositePostIdentityKey(fallbackKey);
+  return clean(
+    parsedFallback.canonicalPostId ||
+    item?.postId ||
+    item?.post_id ||
+    parsedFallback.sourcePostId ||
+    parsedFallback.platformPostId ||
+    fallbackKey
+  );
+};
+
 const postIdentityFingerprint = (item = {}) =>
   [
     clean(item?.platform || ""),
@@ -1961,10 +2006,11 @@ function SocialCommentsWorkspace({
     if (!key) return;
     const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
     const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
+    const routePostId = automationRoutePostId(postForAutomation, key);
     setAutomationRunsLoading(true);
     setAutomationRunsError("");
     try {
-      const payload = await api.get(`/social-comments/automation/${encodeURIComponent(key)}/runs`, {
+      const payload = await api.get(`/social-comments/automation/${encodeURIComponent(routePostId)}/runs`, {
         params: { tenant_id: resolvedTenantId, platform: platformForAutomation, limit: 10 },
       });
       const items = Array.isArray(payload?.items)
@@ -1988,10 +2034,11 @@ function SocialCommentsWorkspace({
     if (!drawerKey) return;
     const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
     const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
+    const routePostId = automationRoutePostId(postForAutomation, drawerKey);
     setAutomationTesting(true);
     setAutomationTestResult(null);
     try {
-      const payload = await api.post(`/social-comments/automation/${encodeURIComponent(drawerKey)}/test`, {
+      const payload = await api.post(`/social-comments/automation/${encodeURIComponent(routePostId)}/test`, {
         tenant_id: resolvedTenantId,
         platform: platformForAutomation,
       });
@@ -2017,7 +2064,8 @@ function SocialCommentsWorkspace({
         return automationConfigInFlightRef.current.get(key);
       }
       const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
-      const request = api.get(`/social-comments/automation/${encodeURIComponent(key)}`, {
+      const routePostId = automationRoutePostId(postForAutomation, key);
+      const request = api.get(`/social-comments/automation/${encodeURIComponent(routePostId)}`, {
         params: { tenant_id: resolvedTenantId, platform: platformForAutomation },
       })
         .then((payload) => {
@@ -2192,6 +2240,7 @@ function SocialCommentsWorkspace({
     if (!drawerKey) return;
     const postForAutomation = automationDrawerPost || activePostDetails || activePost || {};
     const platformForAutomation = clean(postForAutomation?.platform || activePostPlatform || "facebook") || "facebook";
+    const canonicalRoutePostId = automationRoutePostId(postForAutomation, drawerKey);
     const draft = draftOverride || automationDrafts[drawerKey] || buildAutomationDraft(postForAutomation);
     const payload = serializeAutomationDraft(draft, postForAutomation);
     socialDebugLog("SOCIAL_COMMENT_UI_AUTOMATION_API_REQUEST", {
@@ -2204,11 +2253,11 @@ function SocialCommentsWorkspace({
     });
     setAutomationSavingKey(drawerKey);
     try {
-      const response = await api.put(`/social-comments/automation/${encodeURIComponent(drawerKey)}`, {
+      const response = await api.put(`/social-comments/automation/${encodeURIComponent(canonicalRoutePostId)}`, {
         tenant_id: resolvedTenantId,
         platform: platformForAutomation,
-        canonical_post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
-        post_id: clean(postForAutomation?.canonicalPostId || postForAutomation?.canonical_post_id || postForAutomation?.postId || drawerKey),
+        canonical_post_id: canonicalRoutePostId,
+        post_id: canonicalRoutePostId,
         ...payload,
       });
       automationConfigCacheRef.current.delete(drawerKey);

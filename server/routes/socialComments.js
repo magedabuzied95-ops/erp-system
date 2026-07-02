@@ -64,15 +64,120 @@ const getSocialCommentAutomationRouteDeps = async () => {
 };
 
 const toTenantId = (req) => Number(req.query?.tenant_id || req.body?.tenant_id || req.headers["x-tenant-id"] || 1) || 1;
-const normalizeAutomationRoutePostId = (value = "") => {
+const clean = (value = "") => String(value ?? "").trim();
+const parseAutomationRoutePostIdentity = (value = "", fallbackPlatform = "") => {
   const raw = String(value || "").trim();
-  if (!raw) return "";
-  return raw
+  const normalized = raw
     .replace(/^(social_comment|facebook_comment|instagram_comment|facebook_post|instagram_post):/i, "")
     .replace(/^(facebook|instagram):/i, "")
     .trim();
+  if (!normalized) {
+    return {
+      raw,
+      normalized,
+      route_platform: clean(fallbackPlatform),
+      platform_post_id: "",
+      source_post_id: "",
+      permalink_post_id: "",
+      canonical_post_id: "",
+      resolved_post_id: "",
+      candidate_post_ids: [],
+    };
+  }
+  if (!normalized.includes("|")) {
+    return {
+      raw,
+      normalized,
+      route_platform: clean(fallbackPlatform),
+      platform_post_id: normalized,
+      source_post_id: normalized,
+      permalink_post_id: "",
+      canonical_post_id: normalized,
+      resolved_post_id: normalized,
+      candidate_post_ids: [normalized],
+    };
+  }
+  const [routePlatform = "", platformPostId = "", thirdPart = "", permalinkPostId = "", fifthPart = ""] = normalized
+    .split("|")
+    .map((part) => String(part || "").trim());
+  const canonicalPostId = clean(thirdPart || fifthPart || platformPostId);
+  const sourcePostId = clean(fifthPart || thirdPart || platformPostId);
+  const resolvedPostId = clean(canonicalPostId || sourcePostId || platformPostId || permalinkPostId);
+  return {
+    raw,
+    normalized,
+    route_platform: clean(routePlatform || fallbackPlatform),
+    platform_post_id: clean(platformPostId),
+    source_post_id: sourcePostId,
+    permalink_post_id: clean(permalinkPostId),
+    canonical_post_id: canonicalPostId,
+    resolved_post_id: resolvedPostId,
+    candidate_post_ids: [...new Set([
+      canonicalPostId,
+      sourcePostId,
+      clean(platformPostId),
+      clean(permalinkPostId),
+      resolvedPostId,
+    ].filter(Boolean))],
+  };
 };
-const clean = (value = "") => String(value ?? "").trim();
+const normalizeAutomationRoutePostId = (value = "", fallbackPlatform = "") => {
+  const parsed = parseAutomationRoutePostIdentity(value, fallbackPlatform);
+  return parsed.resolved_post_id || parsed.normalized || "";
+};
+const buildAutomationRouteLookupPost = (post = {}, identity = {}) => {
+  const safePost = post && typeof post === "object" && !Array.isArray(post) ? post : {};
+  const postId = clean(safePost?.post_id || identity.source_post_id || identity.resolved_post_id || identity.canonical_post_id || "");
+  const canonicalPostId = clean(safePost?.canonical_post_id || identity.canonical_post_id || postId);
+  const platformPostId = clean(safePost?.platform_post_id || identity.platform_post_id || postId || canonicalPostId);
+  const sourcePostId = clean(safePost?.source_post_id || identity.source_post_id || postId || canonicalPostId);
+  const permalinkPostId = clean(safePost?.permalink_post_id || identity.permalink_post_id || "");
+  const metadata = safePost?.metadata && typeof safePost.metadata === "object" && !Array.isArray(safePost.metadata)
+    ? safePost.metadata
+    : {};
+  return {
+    ...safePost,
+    post_id: postId,
+    canonical_post_id: canonicalPostId,
+    platform_post_id: platformPostId,
+    source_post_id: sourcePostId,
+    permalink_post_id: permalinkPostId,
+    metadata: {
+      ...metadata,
+      post_id: clean(metadata.post_id || sourcePostId || postId || canonicalPostId),
+      platform_post_id: clean(metadata.platform_post_id || platformPostId || canonicalPostId),
+      canonical_post_id: clean(metadata.canonical_post_id || canonicalPostId),
+      source_post_id: clean(metadata.source_post_id || sourcePostId || postId || canonicalPostId),
+      permalink_post_id: clean(metadata.permalink_post_id || permalinkPostId),
+    },
+  };
+};
+const loadAutomationRoutePost = async ({ tenantId = null, platform = "", requestedPostId = "" } = {}) => {
+  const identity = parseAutomationRoutePostIdentity(requestedPostId, platform);
+  const candidateIds = [...new Set([
+    identity.canonical_post_id,
+    identity.resolved_post_id,
+    identity.source_post_id,
+    identity.platform_post_id,
+    identity.permalink_post_id,
+    clean(requestedPostId),
+  ].filter(Boolean))];
+  for (const candidatePostId of candidateIds) {
+    const post = await loadSocialCommentPost({ tenantId, platform, postId: candidatePostId }).catch(() => null);
+    if (post) {
+      return {
+        identity,
+        post: buildAutomationRouteLookupPost(post, identity),
+        matched_post_id: candidatePostId,
+      };
+    }
+  }
+  return {
+    identity,
+    post: buildAutomationRouteLookupPost({}, identity),
+    matched_post_id: "",
+  };
+};
 const buildManualLinkPostContext = (req, post = {}, requestedPostId = "") => {
   const identityObject = req.body?.post_identity && typeof req.body.post_identity === "object" && !Array.isArray(req.body.post_identity)
     ? req.body.post_identity
@@ -377,20 +482,15 @@ router.get("/automation/:postId", protect, permit("settings", "view"), async (re
     const tenantId = toTenantId(req);
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.query?.platform || req.body?.platform || "").trim();
-    const resolvedPostId = normalizeAutomationRoutePostId(requestedPostId);
+    const { identity: routeIdentity, post: lookupPost } = await loadAutomationRoutePost({ tenantId, platform, requestedPostId });
+    const resolvedPostId = clean(lookupPost?.canonical_post_id || routeIdentity.resolved_post_id || routeIdentity.canonical_post_id || requestedPostId);
     console.info("AUTOMATION_CONFIG_ROUTE_START", {
       tenant_id: tenantId,
       requested_post_id: requestedPostId,
       resolved_post_id: resolvedPostId,
       platform,
     });
-    const lookupRow = resolvedPostId
-      ? {
-          post_id: resolvedPostId,
-          canonical_post_id: resolvedPostId,
-          metadata: { post_id: resolvedPostId },
-        }
-      : {};
+    const lookupRow = buildAutomationRouteLookupPost(lookupPost, routeIdentity);
     console.info("AUTOMATION_CONFIG_ROUTE_RESOLVED_POST", {
       tenant_id: tenantId,
       requested_post_id: requestedPostId,
@@ -434,19 +534,36 @@ router.put("/automation/:postId", protect, permit("settings", "edit"), async (re
     const tenantId = toTenantId(req);
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
-    const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
-    const canonicalPostId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const { identity: routeIdentity, post: loadedPost } = await loadAutomationRoutePost({ tenantId, platform, requestedPostId });
+    const bodyCanonicalPostId = clean(req.body?.canonical_post_id || req.body?.canonicalPostId || req.body?.post_id || req.body?.postId || "");
+    const canonicalPostId = clean(
+      loadedPost?.canonical_post_id ||
+      bodyCanonicalPostId ||
+      routeIdentity.canonical_post_id ||
+      routeIdentity.resolved_post_id ||
+      requestedPostId
+    );
+    const resolvedPost = buildAutomationRouteLookupPost({
+      ...(loadedPost || {}),
+      canonical_post_id: canonicalPostId,
+      post_id: clean(loadedPost?.post_id || routeIdentity.source_post_id || routeIdentity.resolved_post_id || canonicalPostId),
+      source_post_id: clean(loadedPost?.source_post_id || routeIdentity.source_post_id || routeIdentity.resolved_post_id || canonicalPostId),
+      platform_post_id: clean(loadedPost?.platform_post_id || routeIdentity.platform_post_id || canonicalPostId),
+      permalink_post_id: clean(loadedPost?.permalink_post_id || routeIdentity.permalink_post_id || ""),
+    }, routeIdentity);
     const enabledBeforeLookup = await getSocialCommentAutomationConfig({
       tenantId,
       platform,
       postId: canonicalPostId,
-      row: post || {},
-      post: post || {},
+      row: resolvedPost,
+      post: resolvedPost,
       hydratePost: false,
     }).catch(() => null);
     console.info("AUTOMATION_ENABLE_API_REQUEST", {
       config_id: enabledBeforeLookup?.id || null,
       canonical_post_id: canonicalPostId,
+      requested_post_id: requestedPostId,
+      resolved_post_id: clean(resolvedPost?.post_id || routeIdentity.resolved_post_id || canonicalPostId),
       enabled_before: Boolean(enabledBeforeLookup?.enabled),
       enabled_after: Object.prototype.hasOwnProperty.call(req.body || {}, "enabled")
         ? Boolean(req.body?.enabled)
@@ -463,28 +580,50 @@ router.put("/automation/:postId", protect, permit("settings", "edit"), async (re
         post_id: canonicalPostId,
         canonical_post_id: canonicalPostId,
         selected_post_id: requestedPostId,
-        platform_post_id: post?.platform_post_id || req.body?.platform_post_id || req.body?.external_post_id || "",
-        wrapper_post_id: post?.wrapper_post_id || req.body?.wrapper_post_id || "",
-        internal_post_id: post?.internal_post_id || req.body?.internal_post_id || "",
-        conversation_id: post?.conversation_id || "",
+        platform_post_id: resolvedPost?.platform_post_id || req.body?.platform_post_id || req.body?.external_post_id || "",
+        source_post_id: resolvedPost?.source_post_id || req.body?.source_post_id || "",
+        permalink_post_id: resolvedPost?.permalink_post_id || req.body?.permalink_post_id || "",
+        wrapper_post_id: resolvedPost?.wrapper_post_id || req.body?.wrapper_post_id || "",
+        internal_post_id: resolvedPost?.internal_post_id || req.body?.internal_post_id || "",
+        conversation_id: resolvedPost?.conversation_id || "",
       },
     });
     const savedPostId = String(config?.post_id || canonicalPostId || requestedPostId || "").trim();
-    const savedPlatform = String(config?.platform || platform || post?.platform || "").trim() || "facebook";
-    const readbackConfig = await getSocialCommentAutomationConfig({
+    const savedPlatform = String(config?.platform || platform || resolvedPost?.platform || "").trim() || "facebook";
+    let readbackConfig = null;
+    let readbackError = null;
+    readbackConfig = await getSocialCommentAutomationConfig({
       tenantId,
       platform: savedPlatform,
       postId: savedPostId,
-      row: post || {},
+      row: resolvedPost,
       post: {
-        ...(post || {}),
+        ...resolvedPost,
         post_id: savedPostId,
         canonical_post_id: canonicalPostId,
       },
       hydratePost: false,
+    }).catch((error) => {
+      readbackError = error;
+      return null;
     });
     if (!readbackConfig) {
-      throw Object.assign(new Error("Failed to verify saved automation config"), { status: 500 });
+      const verifyMessage = readbackError?.message || "Failed to verify saved automation config";
+      console.warn("SOCIAL_COMMENT_AUTOMATION_SAVE_VERIFY_FAILED", {
+        requested_post_id: requestedPostId,
+        resolved_post_id: clean(resolvedPost?.post_id || routeIdentity.resolved_post_id || savedPostId),
+        canonical_post_id: canonicalPostId,
+        message: verifyMessage,
+      });
+      return res.json({
+        success: true,
+        config: {
+          ...(config || {}),
+          post_id: savedPostId,
+          canonical_post_id: canonicalPostId,
+        },
+        warning: verifyMessage,
+      });
     }
     console.info("AUTOMATION_ENABLE_DB_READBACK", {
       config_id: readbackConfig?.id || null,
@@ -503,7 +642,7 @@ router.put("/automation/:postId", protect, permit("settings", "edit"), async (re
       message_templates: readbackConfig?.message_templates || {},
       selected_post_id: requestedPostId,
       canonical_post_id: canonicalPostId,
-      conversation_id: String(post?.conversation_id || post?.external_conversation_id || ""),
+      conversation_id: String(resolvedPost?.conversation_id || resolvedPost?.external_conversation_id || ""),
     });
     console.log("AUTOMATION_CONFIG_READBACK", {
       config_id: readbackConfig?.id || null,
@@ -527,8 +666,8 @@ router.get("/automation/:postId/runs", protect, permit("settings", "view"), asyn
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.query?.platform || req.body?.platform || "").trim();
     const limit = Math.min(50, Math.max(1, Number(req.query?.limit || 20) || 20));
-    const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
-    const postId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const { identity: routeIdentity, post } = await loadAutomationRoutePost({ tenantId, platform, requestedPostId });
+    const postId = String(post?.canonical_post_id || routeIdentity.canonical_post_id || routeIdentity.resolved_post_id || requestedPostId || "").trim();
     const { listSocialCommentAutomationRuns } = await getSocialCommentAutomationRouteDeps();
     const runs = await listSocialCommentAutomationRuns({ tenantId, platform, postId, limit });
     return res.json({
@@ -585,8 +724,8 @@ router.post("/automation/:postId/test", protect, permit("settings", "view"), asy
     const tenantId = toTenantId(req);
     const requestedPostId = String(req.params.postId || "").trim();
     const platform = String(req.body?.platform || req.query?.platform || "").trim();
-    const post = await loadSocialCommentPost({ tenantId, platform, postId: requestedPostId }).catch(() => null);
-    const postId = String(post?.canonical_post_id || post?.post_id || post?.automation_run_post_id || post?.conversation_id || requestedPostId || "").trim();
+    const { identity: routeIdentity, post } = await loadAutomationRoutePost({ tenantId, platform, requestedPostId });
+    const postId = String(post?.canonical_post_id || routeIdentity.canonical_post_id || routeIdentity.resolved_post_id || requestedPostId || "").trim();
     const { testSocialCommentAutomationRuntime } = await getSocialCommentAutomationRouteDeps();
     const result = await testSocialCommentAutomationRuntime({ tenantId, platform, postId });
     return res.json({ success: true, result });
