@@ -16,7 +16,39 @@ const socialDebugLog = (...args) => {
 
 const normalizeProduct = (raw = {}) => {
   const image = clean(raw.image_url || raw.product_image_url || raw.cover_image_url || raw.primary_media_url || raw.thumbnail_url || raw.thumbnailUrl || raw.image || raw.main_image || raw.variant_image_url || "");
-  const stock = Number(raw.total_stock ?? raw.available_stock ?? raw.available_quantity ?? raw.stock_quantity ?? raw.quantity ?? raw.stock ?? 0);
+  const variantSources = [];
+  if (Array.isArray(raw.variants)) variantSources.push(...raw.variants);
+  if (Array.isArray(raw.product_variants)) variantSources.push(...raw.product_variants);
+  if (Array.isArray(raw.variant_stock)) variantSources.push(...raw.variant_stock);
+  if (Array.isArray(raw.colors)) variantSources.push(...raw.colors.flatMap((color) => Array.isArray(color?.sizes) ? color.sizes : []));
+  const variantStock = variantSources.reduce((sum, variant) => {
+    const value = Number(
+      variant?.current_stock ??
+        variant?.stock_quantity ??
+        variant?.stock ??
+        variant?.quantity ??
+        variant?.available_stock ??
+        variant?.available_quantity ??
+        variant?.qty ??
+        variant?.available_qty ??
+        0
+    );
+    return sum + (Number.isFinite(value) && value > 0 ? value : 0);
+  }, 0);
+  const currentStock = Number(
+    raw.current_stock ??
+      raw.total_stock ??
+      raw.variant_total_stock ??
+      raw.available_stock ??
+      raw.available_quantity ??
+      raw.stock_quantity ??
+      raw.quantity ??
+      raw.stock ??
+      variantStock ??
+      0
+  ) || 0;
+  const inStock = currentStock > 0;
+  const stockLabel = inStock ? "IN STOCK" : "OUT OF STOCK";
   return {
     id: Number(raw.id ?? raw.product_id ?? 0) || 0,
     name: clean(raw.name || raw.title || raw.product_name || "Product"),
@@ -28,11 +60,14 @@ const normalizeProduct = (raw = {}) => {
     final_price: Number(raw.final_price ?? raw.sale_price ?? raw.price ?? raw.selling_price ?? 0) || 0,
     selling_price: Number(raw.selling_price ?? raw.price ?? raw.final_price ?? raw.sale_price ?? 0) || 0,
     regular_price: Number(raw.regular_price ?? raw.price ?? raw.final_price ?? raw.sale_price ?? 0) || 0,
-    stock,
-    total_stock: Number(raw.total_stock ?? stock ?? 0) || 0,
-    available_stock: Number(raw.available_stock ?? stock ?? 0) || 0,
-    stock_status: stock > 0 ? "IN STOCK" : "OUT OF STOCK",
-    availability: stock > 0 ? "IN STOCK" : "OUT OF STOCK",
+    stock: currentStock,
+    current_stock: currentStock,
+    total_stock: currentStock,
+    available_stock: currentStock,
+    in_stock: inStock,
+    stock_label: stockLabel,
+    stock_status: stockLabel,
+    availability: stockLabel,
     slug: clean(raw.slug || raw.canonical_slug || ""),
     sku: clean(raw.sku || raw.article_code || raw.sku_code || ""),
     product_url: clean(raw.product_url || raw.storefront_url || raw.storefrontUrl || raw.url || ""),

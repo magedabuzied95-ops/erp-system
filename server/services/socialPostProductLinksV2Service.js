@@ -4,9 +4,26 @@ import { resolveSocialPostLinkKey as resolveSharedSocialPostLinkKey } from "../.
 const text = (value = "") => String(value ?? "").trim();
 const toTenantId = (value) => Number(value) || 0;
 const normalizePlatform = (value = "") => (text(value).toLowerCase().includes("instagram") ? "instagram" : "facebook");
+const stockValue = (...values) => {
+  for (const value of values) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return Math.max(0, numeric);
+  }
+  return 0;
+};
 
 const normalizeProductRow = (row = {}) => {
-  const stock = Number(row.stock ?? row.total_stock ?? row.available_stock ?? 0) || 0;
+  const currentStock = stockValue(
+    row.current_stock,
+    row.total_stock,
+    row.variant_total_stock,
+    row.available_stock,
+    row.stock,
+    row.inventory_stock,
+    row.stock_quantity,
+    row.variant_stock
+  );
+  const stockLabel = currentStock > 0 ? "IN STOCK" : "OUT OF STOCK";
   return {
     id: Number(row.id ?? row.product_id ?? 0) || 0,
     product_id: Number(row.id ?? row.product_id ?? 0) || 0,
@@ -17,8 +34,13 @@ const normalizeProductRow = (row = {}) => {
     sale_price: Number(row.sale_price ?? 0) || 0,
     regular_price: Number(row.regular_price ?? 0) || 0,
     selling_price: Number(row.selling_price ?? row.price ?? 0) || 0,
-    stock,
-    total_stock: stock,
+    stock: currentStock,
+    current_stock: currentStock,
+    total_stock: currentStock,
+    available_stock: currentStock,
+    in_stock: currentStock > 0,
+    stock_label: stockLabel,
+    stock_status: stockLabel,
     slug: text(row.slug || row.canonical_slug || ""),
     product_url: text(row.product_url || (row.slug ? `/shop/product/${encodeURIComponent(text(row.slug))}` : "")),
     storefront_url: text(row.storefront_url || row.product_url || ""),
@@ -53,9 +75,25 @@ const fetchProductsByIds = async ({ tenantId = null, productIds = [] } = {}) => 
   if (!safeTenantId || !safeProductIds.length) return [];
   const result = await db.query(
     `
-    SELECT p.*, b.name AS brand_name
+    SELECT
+      p.*,
+      b.name AS brand_name,
+      COALESCE(vs.current_stock, 0) AS current_stock,
+      COALESCE(vs.current_stock, 0) AS variant_total_stock,
+      COALESCE(vs.current_stock, 0) AS total_stock,
+      COALESCE(vs.current_stock, 0) AS available_stock,
+      CASE WHEN COALESCE(vs.current_stock, 0) > 0 THEN TRUE ELSE FALSE END AS in_stock,
+      CASE WHEN COALESCE(vs.current_stock, 0) > 0 THEN 'IN STOCK' ELSE 'OUT OF STOCK' END AS stock_label,
+      CASE WHEN COALESCE(vs.current_stock, 0) > 0 THEN 'IN STOCK' ELSE 'OUT OF STOCK' END AS stock_status
     FROM products p
     LEFT JOIN brands b ON b.id = p.brand_id
+    LEFT JOIN LATERAL (
+      SELECT COALESCE(SUM(COALESCE(NULLIF(pv.stock::text, '')::numeric, 0)), 0) AS current_stock
+      FROM product_variants pv
+      WHERE pv.product_id = p.id
+        AND pv.is_active IS DISTINCT FROM FALSE
+        AND pv.deleted_at IS NULL
+    ) vs ON TRUE
     WHERE p.tenant_id = $1::bigint
       AND p.id = ANY($2::bigint[])
     ORDER BY p.id ASC
