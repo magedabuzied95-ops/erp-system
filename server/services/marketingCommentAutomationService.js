@@ -1812,7 +1812,7 @@ export const processCommentEvent = async (event = {}) => {
               price: context.price || "",
             }
           : null;
-        const privateMessageBuild = buildSocialCommentPrivateReplyMessage({
+        const privateMessageBuild = await buildSocialCommentPrivateReplyMessage({
           tenantId: event.businessId,
           platform: event.platform,
           commentId: event.commentId,

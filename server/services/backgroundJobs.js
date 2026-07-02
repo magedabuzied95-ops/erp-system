@@ -494,7 +494,7 @@ export const registerBackgroundJobHandlers = () => {
       post_id: row.post_id || postId || "",
       platform,
     }).trim() || fallbackMessage;
-    const finalMessageSelection = buildSocialCommentPrivateReplyMessage({
+    const finalMessageSelection = await buildSocialCommentPrivateReplyMessage({
       tenantId,
       platform,
       commentId,

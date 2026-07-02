@@ -1,8 +1,13 @@
+import db from "../database/db.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : value == null ? [] : [value]);
 const isAbsoluteHttpUrl = (value = "") => /^https?:\/\//i.test(text(value));
+const toFiniteNumber = (value) => {
+  const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : null;
+};
 const renderTemplateText = (template = "", context = {}) =>
   String(template || "").replace(/\{\{\s*(\w+)\s*\}\}|\{\s*(\w+)\s*\}/g, (_match, leftKey, rightKey) => {
     const key = leftKey || rightKey || "";
@@ -41,14 +46,93 @@ const absolutizeRelativeShopLinks = (value = "") =>
     return `${prefix}${ensureAbsoluteSocialProductLink(relativePath)}`;
   });
 
-const normalizeSocialCommentProductContext = (productContext = {}) => {
+const normalizePriceText = (value = "") => {
+  const normalized = text(value);
+  if (!normalized) return "";
+  const parsed = toFiniteNumber(normalized);
+  if (!Number.isFinite(parsed)) return normalized;
+  return Number.isInteger(parsed) ? String(parsed) : String(parsed.toFixed(2)).replace(/\.?0+$/g, "");
+};
+
+const variantStockCount = (variant = {}) => {
+  const candidates = [
+    variant.stock,
+    variant.current_stock,
+    variant.available_stock,
+    variant.stock_quantity,
+    variant.quantity,
+    variant.total_stock,
+  ];
+  for (const candidate of candidates) {
+    const parsed = toFiniteNumber(candidate);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return 0;
+};
+
+const variantSizeLabel = (variant = {}) =>
+  text(variant.size || variant.size_label || variant.variant_size || variant.option1 || "");
+
+const filterInStockVariants = (values = []) =>
+  asArray(values).filter((variant) => variant && typeof variant === "object" && variantStockCount(variant) > 0);
+
+const loadAvailableVariantRows = async ({ tenantId = null, productId = null } = {}) => {
+  const safeProductId = Number(productId || 0);
+  if (!Number.isFinite(safeProductId) || safeProductId <= 0) return [];
+  const safeTenantId = Number(tenantId || 0);
+  const result = await db.query(
+    `
+    SELECT
+      id,
+      size,
+      color,
+      COALESCE(stock, 0) AS stock
+    FROM product_variants
+    WHERE product_id = $1
+      AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
+      AND COALESCE(stock, 0) > 0
+    ORDER BY
+      CASE
+        WHEN NULLIF(REGEXP_REPLACE(COALESCE(size, ''), '[^0-9.]', '', 'g'), '') IS NULL THEN 1
+        ELSE 0
+      END,
+      NULLIF(REGEXP_REPLACE(COALESCE(size, ''), '[^0-9.]', '', 'g'), '')::numeric NULLS LAST,
+      COALESCE(size, '') ASC,
+      id ASC
+    `,
+    [safeProductId, safeTenantId]
+  );
+  return Array.isArray(result.rows) ? result.rows : [];
+};
+
+const normalizeSocialCommentProductContext = async ({ tenantId = null, productContext = {} } = {}) => {
   const primaryProduct = productContext?.primary_product || {};
-  const availableSizes = sortSocialCommentAvailableSizes(
-    productContext?.available_sizes ||
-    productContext?.sizes ||
-    primaryProduct?.available_sizes ||
-    primaryProduct?.sizes ||
+  const productId = Number(productContext?.product_id || primaryProduct?.product_id || primaryProduct?.id || 0) || null;
+  const stockedContextVariants = filterInStockVariants(
+    productContext?.available_variants ||
+    productContext?.variants ||
+    primaryProduct?.available_variants ||
+    primaryProduct?.variants ||
     []
+  );
+  let availableVariantRows = stockedContextVariants.map((variant) => ({
+    size: variantSizeLabel(variant),
+    stock: variantStockCount(variant),
+    color: text(variant.color || ""),
+  }));
+  if (!availableVariantRows.length && productId) {
+    availableVariantRows = await loadAvailableVariantRows({ tenantId, productId }).catch(() => []);
+  }
+  const availableSizes = sortSocialCommentAvailableSizes(
+    availableVariantRows.length
+      ? availableVariantRows.map((variant) => variantSizeLabel(variant))
+      : (
+          productContext?.available_sizes ||
+          productContext?.sizes ||
+          primaryProduct?.available_sizes ||
+          primaryProduct?.sizes ||
+          []
+        )
   );
   const productLink = ensureAbsoluteSocialProductLink(
     productContext?.product_link ||
@@ -61,47 +145,72 @@ const normalizeSocialCommentProductContext = (productContext = {}) => {
   );
   return {
     hasProductContext: Boolean(productContext?.found || productContext?.has_product_context),
+    productId,
     productName: text(productContext?.product_name || primaryProduct?.name || primaryProduct?.product_name || ""),
     availableSizes,
     availableSizesLabel: availableSizes.length
-      ? availableSizes.join(", ")
-      : "برجاء تأكيد المقاس المطلوب وهنراجع التوفر لحضرتك",
+      ? availableSizes.join(" - ")
+      : "يرجى إرسال المقاس المطلوب وسنراجع التوفر فورًا.",
+    availableVariantsCount: availableVariantRows.length,
+    availableVariantRows,
     productLink,
-    price: text(
-      productContext?.final_price ||
-      productContext?.sale_price ||
+    priceUsed: normalizePriceText(
       productContext?.selling_price ||
+      productContext?.sale_price ||
       productContext?.price ||
-      primaryProduct?.final_price ||
-      primaryProduct?.sale_price ||
+      productContext?.final_price ||
       primaryProduct?.selling_price ||
+      primaryProduct?.sale_price ||
       primaryProduct?.price ||
+      primaryProduct?.final_price ||
       ""
     ),
   };
+};
+
+const buildProductReplySections = ({ customerName = "", normalizedContext = {} } = {}) => {
+  const sections = [
+    text(customerName) ? `أهلًا بحضرتك ${text(customerName)}` : "أهلًا بحضرتك",
+    "",
+    "✅ المنتج:",
+    normalizedContext.productName || "المنتج",
+  ];
+  if (normalizedContext.priceUsed) {
+    sections.push(
+      "",
+      "السعر:",
+      `${normalizedContext.priceUsed} جنيه`
+    );
+  }
+  sections.push(
+    "",
+    "المقاسات المتاحة:",
+    normalizedContext.availableSizesLabel || "يرجى إرسال المقاس المطلوب وسنراجع التوفر فورًا.",
+    "",
+    "مشاهدة المنتج وطلبه:",
+    normalizedContext.productLink,
+    "",
+    "إذا احتجت أي مساعدة في اختيار المقاس المناسب، ابعتلنا المقاس وسنساعدك بكل سرور"
+  );
+  return sections;
 };
 
 export const buildPolishedSocialCommentProductReply = ({
   customerName = "",
   productContext = {},
 } = {}) => {
-  const normalizedContext = normalizeSocialCommentProductContext(productContext);
-  return [
-    text(customerName) ? `أهلًا بحضرتك يا ${text(customerName)}` : "أهلًا بحضرتك",
-    "",
-    "✅ المنتج اللي سألت عنه:",
-    normalizedContext.productName || "المنتج",
-    "",
-    `المقاسات المتاحة: ${normalizedContext.availableSizesLabel}`,
-    "",
-    "لينك المنتج:",
-    normalizedContext.productLink,
-    "",
-    "لو مقاس حضرتك موجود، ابعتلنا المقاس ونكمل الطلب فورًا ️",
-  ].join("\n").trim();
+  const normalizedContext = productContext && typeof productContext === "object" && productContext.__normalized_private_reply_context
+    ? productContext
+    : {
+        productName: text(productContext?.product_name || ""),
+        priceUsed: normalizePriceText(productContext?.selling_price || productContext?.sale_price || productContext?.price || ""),
+        availableSizesLabel: sortSocialCommentAvailableSizes(productContext?.available_sizes || []).join(" - ") || "يرجى إرسال المقاس المطلوب وسنراجع التوفر فورًا.",
+        productLink: ensureAbsoluteSocialProductLink(productContext?.product_link || productContext?.product_url || productContext?.storefront_url || ""),
+      };
+  return buildProductReplySections({ customerName, normalizedContext }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
 };
 
-export const buildSocialCommentPrivateReplyMessage = ({
+export const buildSocialCommentPrivateReplyMessage = async ({
   tenantId = null,
   platform = "",
   commentId = "",
@@ -111,13 +220,17 @@ export const buildSocialCommentPrivateReplyMessage = ({
   automationTemplate = "",
   fallbackTemplate = "",
 } = {}) => {
-  const normalizedContext = normalizeSocialCommentProductContext(productContext || {});
+  const normalizedContext = await normalizeSocialCommentProductContext({
+    tenantId,
+    productContext: productContext || {},
+  });
   const templateContext = {
     customer_name: text(customerName),
     product_name: normalizedContext.productName,
     available_sizes: normalizedContext.availableSizesLabel,
     product_link: normalizedContext.productLink,
-    price: normalizedContext.price,
+    price: normalizedContext.priceUsed,
+    formatted_price: normalizedContext.priceUsed,
   };
   const renderedAutomationTemplate = text(automationTemplate)
     ? text(renderTemplateText(automationTemplate, templateContext))
@@ -136,12 +249,11 @@ export const buildSocialCommentPrivateReplyMessage = ({
     message = buildPolishedSocialCommentProductReply({
       customerName,
       productContext: {
-        ...productContext,
-        product_name: normalizedContext.productName,
-        available_sizes: normalizedContext.availableSizes,
-        product_link: normalizedContext.productLink,
-        price: normalizedContext.price,
-        has_product_context: normalizedContext.hasProductContext,
+        __normalized_private_reply_context: true,
+        productName: normalizedContext.productName,
+        priceUsed: normalizedContext.priceUsed,
+        availableSizesLabel: normalizedContext.availableSizesLabel,
+        productLink: normalizedContext.productLink,
       },
     });
     selectedSource = "polished_product_fallback";
@@ -153,7 +265,22 @@ export const buildSocialCommentPrivateReplyMessage = ({
     selectedSource = "generic_fallback";
   }
 
-  const finalMessage = absolutizeRelativeShopLinks(message).replace(/\bIN STOCK\b/gi, "").replace(/\n{3,}/g, "\n\n").trim();
+  const finalMessage = absolutizeRelativeShopLinks(message)
+    .replace(/\bIN STOCK\b/gi, "")
+    .replace(/متاح\s+بسعر\s*\.\s*/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+  if (normalizedContext.hasProductContext) {
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_RENDER_DATA", {
+      product_id: normalizedContext.productId,
+      product_name: normalizedContext.productName,
+      price_used: normalizedContext.priceUsed,
+      available_sizes: normalizedContext.availableSizes,
+      available_variants_count: normalizedContext.availableVariantsCount,
+      absolute_product_link: normalizedContext.productLink,
+    });
+  }
   console.log("SOCIAL_COMMENT_PRIVATE_REPLY_MESSAGE_BUILT", {
     tenant_id: Number(tenantId || 0) || null,
     platform: text(platform),
@@ -181,19 +308,43 @@ export const sanitizeUnifiedSocialCommentPrivateReplyMessage = ({
   message = "",
   productContext = null,
 } = {}) => {
-  const normalizedContext = normalizeSocialCommentProductContext(productContext || {});
-  let finalMessage = absolutizeRelativeShopLinks(String(message || "")).replace(/\bIN STOCK\b/gi, "").replace(/\n{3,}/g, "\n\n").trim();
-  const badShape = normalizedContext.hasProductContext && (/IN STOCK/i.test(String(message || "")) || /(^|\n)\s*\/shop\/product/i.test(String(message || "")));
+  const normalizedContext = {
+    hasProductContext: Boolean(productContext?.found || productContext?.has_product_context),
+    productName: text(productContext?.product_name || productContext?.primary_product?.name || ""),
+    priceUsed: normalizePriceText(
+      productContext?.selling_price ||
+      productContext?.sale_price ||
+      productContext?.price ||
+      productContext?.final_price ||
+      ""
+    ),
+    availableSizesLabel: sortSocialCommentAvailableSizes(productContext?.available_sizes || productContext?.sizes || []).join(" - ") || "يرجى إرسال المقاس المطلوب وسنراجع التوفر فورًا.",
+    productLink: ensureAbsoluteSocialProductLink(
+      productContext?.product_link ||
+      productContext?.product_url ||
+      productContext?.storefront_url ||
+      ""
+    ),
+  };
+  let finalMessage = absolutizeRelativeShopLinks(String(message || ""))
+    .replace(/\bIN STOCK\b/gi, "")
+    .replace(/متاح\s+بسعر\s*\.\s*/gi, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  const badShape = normalizedContext.hasProductContext && (
+    /IN STOCK/i.test(String(message || "")) ||
+    /(^|\n)\s*\/shop\/product/i.test(String(message || "")) ||
+    /متاح\s+بسعر\s*\./i.test(String(message || ""))
+  );
   if (badShape) {
     const rebuilt = buildPolishedSocialCommentProductReply({
       customerName,
       productContext: {
-        ...productContext,
-        product_name: normalizedContext.productName,
-        available_sizes: normalizedContext.availableSizes,
-        product_link: normalizedContext.productLink,
-        price: normalizedContext.price,
-        has_product_context: normalizedContext.hasProductContext,
+        __normalized_private_reply_context: true,
+        productName: normalizedContext.productName,
+        priceUsed: normalizedContext.priceUsed,
+        availableSizesLabel: normalizedContext.availableSizesLabel,
+        productLink: normalizedContext.productLink,
       },
     });
     console.log("SOCIAL_COMMENT_PRIVATE_REPLY_BAD_MESSAGE_SHAPE", {

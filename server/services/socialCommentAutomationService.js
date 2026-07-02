@@ -5399,7 +5399,7 @@ export const executeSocialCommentAutomation = async ({
     originalCommentText: safeRow.original_comment_text,
     postPermalink: safeRow.post_permalink,
   }));
-  const unifiedPrivateReply = buildSocialCommentPrivateReplyMessage({
+  const unifiedPrivateReply = await buildSocialCommentPrivateReplyMessage({
     tenantId: safeTenantId,
     platform: safeRow.platform,
     commentId: safeRow.comment_id,
