@@ -1465,7 +1465,8 @@ function SocialCommentsWorkspace({
   const [ignoreLoadingKey, setIgnoreLoadingKey] = useState("");
   const [leadLoadingKey, setLeadLoadingKey] = useState("");
   const [replyStatusOverrides, setReplyStatusOverrides] = useState({});
-  const [expandedCaption, setExpandedCaption] = useState(false);
+  const [showLatestCommentDetails, setShowLatestCommentDetails] = useState(false);
+  const [showProductCardDetails, setShowProductCardDetails] = useState(false);
   const [automationDrawerPostKey, setAutomationDrawerPostKey] = useState("");
   const [productLinksDrawerPostKey, setProductLinksDrawerPostKey] = useState("");
   const [productLinksDrawerPostSnapshot, setProductLinksDrawerPostSnapshot] = useState(null);
@@ -3121,75 +3122,86 @@ function SocialCommentsWorkspace({
                         {activeProductCard.productBrand ? ` · ${activeProductCard.productBrand}` : ""}
                         {activeProductCard.productCount > 1 ? ` +${activeProductCard.productCount - 1}` : ""}
                       </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
-                        ⚠ No Product Linked
-                      </span>
-                    )}
-                  </div>
-                  {latestCommentMismatch ? (
-                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-slate-800 shadow-sm">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300/20 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
+                      ⚠ No Product Linked
+                    </span>
+                  )}
+                </div>
+                {latestCommentMismatch ? (
+                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-slate-800 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="inline-flex items-center gap-2 text-[11px] font-black text-amber-900">
                             <AlertTriangle className="h-4 w-4" />
                             Latest comment arrived on a different Facebook post
                           </div>
-                          <div className="mt-2 text-xs leading-6 text-amber-900/90">
-                            Your selected Adidas post is linked. The new comment came from another Facebook post, so automation did not run there.
-                          </div>
-                          <div className="mt-2 grid gap-2 text-xs text-slate-700 sm:grid-cols-2">
-                            <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
-                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Post ID</div>
-                              <div className="mt-1 break-all font-semibold text-slate-900">{latestCommentMismatch.selectedPostId || dash}</div>
-                              <div className="mt-1 text-[11px] font-semibold text-emerald-700">Selected post: {latestCommentMismatch.selectedStatusLabel || dash}</div>
-                            </div>
-                            <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
-                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest Comment Post ID</div>
-                              <div className="mt-1 break-all font-semibold text-slate-900">{latestCommentMismatch.latestCommentPostId || dash}</div>
-                              <div className="mt-1 text-[11px] font-semibold text-amber-700">Latest comment post: {latestCommentMismatch.latestStatusLabel || dash}</div>
-                            </div>
-                            <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
-                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Permalink</div>
-                              <div className="mt-1 break-all font-medium text-slate-700">{latestCommentMismatch.selectedPermalink || dash}</div>
-                            </div>
-                            <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
-                              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest Comment Permalink</div>
-                              <div className="mt-1 break-all font-medium text-slate-700">{latestCommentMismatch.latestCommentPermalink || dash}</div>
-                            </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.14em]">
+                            <span className="rounded-full border border-amber-200 bg-white px-2 py-1 text-amber-900">Selected: {latestCommentMismatch.selectedStatusLabel || dash}</span>
+                            <span className="rounded-full border border-slate-200 bg-white px-2 py-1 text-slate-700">Latest: {latestCommentMismatch.latestStatusLabel || dash}</span>
                           </div>
                         </div>
-                        <div className="flex shrink-0 flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowLatestCommentDetails((current) => !current)}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-200 bg-white px-2.5 text-[11px] font-black text-amber-900 shadow-sm"
+                          >
+                            Details
+                            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${showLatestCommentDetails ? "rotate-180" : ""}`} />
+                          </button>
                           <button
                             type="button"
                             onClick={handleOpenLatestCommentPost}
                             disabled={!latestCommentMismatch.latestCommentPermalink || openingPost}
                             title={latestCommentMismatch.latestCommentPermalink ? "" : "No permalink for latest comment post"}
-                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-amber-200 bg-white px-3 text-xs font-black text-amber-900 shadow-sm disabled:opacity-50"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-amber-200 bg-white px-2.5 text-[11px] font-black text-amber-900 shadow-sm disabled:opacity-50"
                           >
-                            {openingPost ? <Loader2 className="h-4 w-4 animate-spin" /> : <ExternalLink className="h-4 w-4" />}
-                            Open latest comment post
+                            {openingPost ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ExternalLink className="h-3.5 w-3.5" />}
+                            Open
                           </button>
                           <button
                             type="button"
                             onClick={handleSwitchToLatestCommentPost}
                             disabled={!onSelectPost || !latestCommentMismatch.hasResolvedLatestPost}
                             title={latestCommentMismatch.hasResolvedLatestPost ? "" : "No latest post found in the current post list"}
-                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-900 shadow-sm disabled:opacity-50"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2.5 text-[11px] font-black text-slate-900 shadow-sm disabled:opacity-50"
                           >
-                            <ArrowUpRight className="h-4 w-4" />
-                            Switch to latest comment post
+                            <ArrowUpRight className="h-3.5 w-3.5" />
+                            Switch
                           </button>
                           <button
                             type="button"
                             onClick={handleLinkLatestCommentPost}
-                            className="inline-flex h-9 items-center gap-2 rounded-xl border border-cyan-200 bg-cyan-50 px-3 text-xs font-black text-cyan-800 shadow-sm"
+                            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-cyan-200 bg-cyan-50 px-2.5 text-[11px] font-black text-cyan-800 shadow-sm"
                           >
-                            <ShoppingBag className="h-4 w-4" />
-                            Link product to latest comment post
+                            <ShoppingBag className="h-3.5 w-3.5" />
+                            Link
                           </button>
                         </div>
                       </div>
+                      {showLatestCommentDetails ? (
+                        <div className="mt-2 grid gap-2 text-[11px] text-slate-700 sm:grid-cols-2">
+                          <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Post ID</div>
+                            <div className="mt-1 break-all font-semibold text-slate-900">{latestCommentMismatch.selectedPostId || dash}</div>
+                            <div className="mt-1 text-[11px] font-semibold text-emerald-700">Selected post: {latestCommentMismatch.selectedStatusLabel || dash}</div>
+                          </div>
+                          <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest Comment Post ID</div>
+                            <div className="mt-1 break-all font-semibold text-slate-900">{latestCommentMismatch.latestCommentPostId || dash}</div>
+                            <div className="mt-1 text-[11px] font-semibold text-amber-700">Latest comment post: {latestCommentMismatch.latestStatusLabel || dash}</div>
+                          </div>
+                          <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Selected Permalink</div>
+                            <div className="mt-1 break-all font-medium text-slate-700">{latestCommentMismatch.selectedPermalink || dash}</div>
+                          </div>
+                          <div className="rounded-xl border border-amber-200 bg-white px-3 py-2">
+                            <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Latest Comment Permalink</div>
+                            <div className="mt-1 break-all font-medium text-slate-700">{latestCommentMismatch.latestCommentPermalink || dash}</div>
+                          </div>
+                        </div>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>
@@ -3259,7 +3271,7 @@ function SocialCommentsWorkspace({
                     </div>
                   </button>
 
-                  <div className="space-y-3 p-4">
+                  <div className="space-y-2.5 p-3.5">
                     <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
                       <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePost.commentsCount || 0} comments</span>
                       {typeof activePostLikes === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostLikes} likes</span> : null}
@@ -3272,52 +3284,66 @@ function SocialCommentsWorkspace({
                       ) : null}
                     </div>
 
-                    <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
+                    <div className="rounded-[22px] border border-white/10 bg-white/[0.04] p-2.5 shadow-[0_10px_30px_rgba(0,0,0,0.14)]">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
+                        <div className="min-w-0 flex-1">
                           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">ERP Product Card</div>
                           <div className="mt-1 text-sm font-black text-white">{activeProductCard.productName || "Linked product"}</div>
                           <div className="mt-1 text-xs font-semibold text-slate-500">
                             {activeProductCard.productBrand || dash}
+                            {activeProductCard.productCount > 0 ? ` · ${activeProductCard.productCount} linked` : ""}
                           </div>
                         </div>
-                        {activeProductCard.productLink ? (
-                          <a
-                            href={activeProductCard.productLink}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex h-8 shrink-0 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-3 text-[11px] font-black text-slate-900 shadow-sm"
+                        <div className="flex shrink-0 items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setShowProductCardDetails((current) => !current)}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-white/10 bg-white px-2.5 text-[11px] font-black text-slate-900 shadow-sm"
                           >
-                            Product link
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        ) : (
-                          <span className="inline-flex h-8 shrink-0 items-center rounded-xl border border-dashed border-[#E2E8F0] bg-white px-3 text-[11px] font-black text-slate-400">
-                            No product link
-                          </span>
-                        )}
+                            {showProductCardDetails ? "Collapse" : "Expand"}
+                          </button>
+                          {activeProductCard.productLink ? (
+                            <a
+                              href={activeProductCard.productLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex h-8 items-center gap-2 rounded-xl border border-[#E2E8F0] bg-white px-2.5 text-[11px] font-black text-slate-900 shadow-sm"
+                            >
+                              Product Link
+                              <ExternalLink className="h-3.5 w-3.5" />
+                            </a>
+                          ) : (
+                            <span className="inline-flex h-8 items-center rounded-xl border border-dashed border-[#E2E8F0] bg-white px-2.5 text-[11px] font-black text-slate-400">
+                              No product link
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      {activeProductCard.productImage ? (
-                        <div className="mt-3 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
-                          <img src={activeProductCard.productImage} alt="" className="h-20 w-full object-cover" loading="lazy" />
+                      <div className="mt-2 flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
+                        <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">Price: {activeProductCard.priceValue || dash}</span>
+                        <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">Stock: {activeProductCard.stockValue || dash}</span>
+                      </div>
+                      {showProductCardDetails ? (
+                        <div className="mt-3 space-y-3">
+                          {activeProductCard.productImage ? (
+                            <div className="overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04]">
+                              <img src={activeProductCard.productImage} alt="" className="h-24 w-full object-cover" loading="lazy" />
+                            </div>
+                          ) : null}
+                          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                            <InfoChip label="Sale" value={activeProductCard.salePriceValue || dash} />
+                            <InfoChip label="Sizes" value={activeProductCard.sizesValue || dash} />
+                            <InfoChip label="Colors" value={activeProductCard.colorsValue || dash} />
+                            <InfoChip label="Product" value={activeProductCard.productCount > 0 ? `${activeProductCard.productCount} linked` : dash} />
+                          </div>
                         </div>
                       ) : null}
-                      <div className="mt-3 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-                        <InfoChip label="Price" value={activeProductCard.priceValue || dash} />
-                        <InfoChip label="Sale" value={activeProductCard.salePriceValue || dash} />
-                        <InfoChip label="Stock" value={activeProductCard.stockValue || dash} />
-                        <InfoChip label="Sizes" value={activeProductCard.sizesValue || dash} />
-                        <InfoChip label="Colors" value={activeProductCard.colorsValue || dash} />
-                        <InfoChip label="Product" value={activeProductCard.productCount > 0 ? `${activeProductCard.productCount} linked` : dash} />
-                      </div>
                     </div>
 
-                  <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                  </div>
                   </div>
                 </div>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] p-3">
+                <div className="flex min-h-[320px] flex-1 flex-col gap-3 overflow-hidden rounded-[24px] border border-white/10 bg-white/[0.03] p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-500">Comments Timeline</div>
