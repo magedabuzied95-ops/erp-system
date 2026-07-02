@@ -13,6 +13,7 @@ import { renderTemplate, sendPrivateReply } from "./marketingCommentAutomationSe
 let registered = false;
 
 const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== "";
+const asArray = (value) => Array.isArray(value) ? value : value == null ? [] : [value];
 const parseDateOrNull = (value = null) => {
   if (!value) return null;
   const parsed = value instanceof Date ? value : new Date(value);
