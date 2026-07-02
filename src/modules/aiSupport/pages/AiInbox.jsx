@@ -75,6 +75,31 @@ import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCache
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
 const clean = (value = "") => String(value || "").trim();
+const parseOptionalCount = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) return numeric;
+  }
+  return null;
+};
+const formatDisplayPrice = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const text = clean(value);
+    if (!text) continue;
+    const numeric = Number(text.replace(/[^\d.-]/g, ""));
+    if (Number.isFinite(numeric) && numeric <= 0) continue;
+    return text;
+  }
+  return "";
+};
+const isSocialDebugEnabled = () => import.meta.env.DEV && window.localStorage.getItem("social_debug") === "1";
+const socialDebugLog = (...args) => {
+  if (!isSocialDebugEnabled()) return;
+  // eslint-disable-next-line no-console
+  console.log(...args);
+};
 const ENABLE_SOCIAL_FAST_CENTER = true;
 const normalizeValidationSummary = (value = {}) => {
   const validation = value && typeof value === "object" ? value : {};
@@ -241,7 +266,7 @@ const normalizeSocialCommentPost = (raw) => {
     mappingSummary.primary_product ||
     linkedProducts[0] ||
     null;
-  const linkedProductsCount = Number(post.linked_products_count || mappingSummary.count || linkedProducts.length || 0) || 0;
+  const linkedProductsCount = parseOptionalCount(post.linked_products_count, mappingSummary.count, linkedProducts.length) ?? 0;
   const productLinkSourceRaw = String(post.product_link_source || metadata.product_link_source || mappingSummary.product_link_source || "none").trim() || "none";
   const hasDirectProductLink = Boolean(
     (post.has_direct_product_link ?? metadata.has_direct_product_link ?? false) ||
@@ -273,7 +298,7 @@ const normalizeSocialCommentPost = (raw) => {
     metadata.image ||
     null;
   const mappedProductName = String(primaryLinkedProduct?.name || primaryLinkedProduct?.title || primaryLinkedProduct?.product_name || post.product_name || metadata.product_name || "").trim();
-  const mappedProductPrice = String(primaryLinkedProduct?.final_price || primaryLinkedProduct?.sale_price || primaryLinkedProduct?.price || primaryLinkedProduct?.selling_price || post.product_price || metadata.product_price || "").trim();
+  const mappedProductPrice = formatDisplayPrice(primaryLinkedProduct?.final_price, primaryLinkedProduct?.sale_price, primaryLinkedProduct?.price, primaryLinkedProduct?.selling_price, post.product_price, metadata.product_price);
   const displayPostTime = String(
     post.display_post_time ||
     post.created_time ||
@@ -341,13 +366,13 @@ const normalizeSocialCommentPost = (raw) => {
     source_post_id: String(post.source_post_id || post.post_id || post.id || metadata.source_post_id || metadata.post_id || ""),
     permalinkUrl: resolveExternalSocialPostUrl(post),
     permalink_url: String(post.permalink_url || post.post_permalink_url || metadata.permalink_url || metadata.post_permalink_url || ""),
-    commentsCount: Number(post.comments_count || post.comment_count || post.total_comments || metadata.comments_count || 0),
-    newCount: Number(post.new_comments_count || post.unread_comments_count || metadata.new_comments_count || 0),
+    commentsCount: parseOptionalCount(post.comments_count, post.comment_count, post.total_comments, metadata.comments_count),
+    newCount: parseOptionalCount(post.new_comments_count, post.unread_comments_count, metadata.new_comments_count) ?? 0,
     lastActivity: String(post.last_activity_at || post.last_comment_at || post.last_message_at || post.updated_at || post.created_at || metadata.last_activity_at || "").trim(),
     autoReplyEnabled: Boolean(post.auto_reply_enabled || post.template_enabled || post.auto_reply_mode || metadata.auto_reply_enabled || metadata.template_enabled || metadata.auto_reply_mode),
     productName: mappedProductName,
     productPrice: mappedProductPrice,
-    productSalePrice: String(primaryLinkedProduct?.sale_price || post.product_sale_price || metadata.product_sale_price || "").trim(),
+    productSalePrice: formatDisplayPrice(primaryLinkedProduct?.sale_price, post.product_sale_price, metadata.product_sale_price),
     productSizes: String(
       post.product_sizes ||
       metadata.product_sizes ||
@@ -7389,11 +7414,11 @@ export default function AiInbox() {
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Price</div>
-                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productPrice || selectedSocialCommentPost.productPrice || "") || "-"}</div>
+                            <div className="mt-1 text-sm font-black text-white">{selectedSocialThreadPost.productPrice || selectedSocialCommentPost.productPrice || "—"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sale</div>
-                            <div className="mt-1 text-sm font-black text-white">{clean(selectedSocialThreadPost.productSalePrice || selectedSocialCommentPost.productSalePrice || "") || "-"}</div>
+                            <div className="mt-1 text-sm font-black text-white">{selectedSocialThreadPost.productSalePrice || selectedSocialCommentPost.productSalePrice || "—"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sizes</div>
@@ -7427,7 +7452,7 @@ export default function AiInbox() {
                       <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
                         <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Post status</div>
                         <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black">
-                          <Pill tone={selectedSocialCommentPost.newCount > 0 ? "amber" : "zinc"}>{Number(selectedSocialCommentPost.commentsCount || 0)} comments</Pill>
+                          <Pill tone={selectedSocialCommentPost.newCount > 0 ? "amber" : "zinc"}>{selectedSocialThreadComments.length > 0 ? selectedSocialThreadComments.length : (selectedSocialCommentPost.commentsCount ?? 0)} comments</Pill>
                           <Pill tone={selectedSocialCommentPost.newCount > 0 ? "amber" : "emerald"}>{Number(selectedSocialCommentPost.newCount || 0)} new</Pill>
                           <Pill tone={socialReplySettings.generic_enabled ? "emerald" : "zinc"}>{socialReplySettings.generic_enabled ? "Auto Reply ON" : "Auto Reply OFF"}</Pill>
                         </div>

@@ -420,8 +420,8 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
       onKeyDown={handleKeyDown}
       {...rest}
       className={[
-        "rounded-[22px] border border-slate-200 bg-white p-3.5 shadow-[0_10px_30px_rgba(15,23,42,0.06)] transition",
-        selected ? "ring-1 ring-slate-300" : "hover:border-slate-300 hover:shadow-[0_12px_36px_rgba(15,23,42,0.08)]",
+        "rounded-[22px] border border-white/10 bg-slate-950/70 p-3.5 shadow-[0_10px_30px_rgba(0,0,0,0.24)] transition",
+        selected ? "ring-1 ring-cyan-300/30" : "hover:border-white/20 hover:bg-slate-900/80",
         className,
       ]
         .filter(Boolean)
@@ -436,7 +436,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 event.stopPropagation();
                 onCustomerSelect?.(comment, data);
               }}
-              className="overflow-hidden rounded-full ring-1 ring-slate-200 transition hover:ring-slate-300"
+              className="overflow-hidden rounded-full ring-1 ring-white/10 transition hover:ring-cyan-300/30"
               aria-label={`Open customer details for ${data.customerName || "customer"}`}
             >
               <img
@@ -453,7 +453,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 event.stopPropagation();
                 onCustomerSelect?.(comment, data);
               }}
-              className="grid h-12 w-12 place-items-center rounded-full bg-slate-100 text-sm font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-200"
+              className="grid h-12 w-12 place-items-center rounded-full bg-white/[0.05] text-sm font-black text-slate-100 ring-1 ring-white/10 transition hover:bg-white/[0.08]"
               aria-label={`Open customer details for ${data.customerName || "customer"}`}
             >
               {data.initials || <UserRound className="h-5 w-5" />}
@@ -473,7 +473,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                   event.stopPropagation();
                   onCustomerSelect?.(comment, data);
                 }}
-                className="truncate text-left text-[15px] font-black leading-6 text-slate-900 hover:underline"
+                className="truncate text-left text-[15px] font-black leading-6 text-white hover:underline"
               >
                 {data.customerName || "عميل"}
               </button>
@@ -481,7 +481,7 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
                 <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 ${data.platformMeta.className}`}>
                   {data.platformMeta.label}
                 </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-slate-300">
                   <Clock3 className="h-3.5 w-3.5" />
                   {data.createdAt ? getRelativeTimeLabel(data.createdAt) : "—"}
                 </span>
@@ -511,19 +511,19 @@ export const CommentTimelineCard = memo(function CommentTimelineCard({
             </div>
           </div>
 
-          <div className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-3 text-[14px] leading-7 text-slate-900">
+          <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.04] p-3 text-[14px] leading-7 text-slate-100">
             <div className="whitespace-pre-wrap">{data.text || "No comment text available."}</div>
           </div>
 
           {data.generatedPublicReply || data.generatedPrivateReply ? (
             <div className="mt-3 grid gap-2 lg:grid-cols-2">
-              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">Generated Public Reply</div>
-                <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-slate-800">{data.generatedPublicReply || "—"}</div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Generated Public Reply</div>
+                <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-slate-100">{data.generatedPublicReply || "—"}</div>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-3">
-                <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">Generated Private Reply</div>
-                <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-slate-800">{data.generatedPrivateReply || "—"}</div>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <div className="text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">Generated Private Reply</div>
+                <div className="mt-2 whitespace-pre-wrap text-[13px] leading-6 text-slate-100">{data.generatedPrivateReply || "—"}</div>
               </div>
             </div>
           ) : null}

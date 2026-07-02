@@ -587,16 +587,15 @@ const normalizeSocialPostDisplay = (raw = {}) => {
     displayImage: displayImageCandidates[0] || "",
     displayPermalink: displayPermalinkCandidates[0] || "",
     displayCreatedAt: displayCreatedAtCandidates[0] || "",
-    displayCommentCount: Number(
-      post.comments_count ||
-        post.comment_count ||
-        post.total_comments ||
-        metadata.comments_count ||
-        metadata.comment_count ||
-        metadata.total_comments ||
-        normalized.commentsCount ||
-        0
-    ) || 0,
+    displayCommentCount: parseOptionalCount(
+      post.comments_count,
+      post.comment_count,
+      post.total_comments,
+      metadata.comments_count,
+      metadata.comment_count,
+      metadata.total_comments,
+      normalized.commentsCount
+    ),
   };
 };
 
@@ -820,6 +819,18 @@ const parseOptionalCount = (...values) => {
   return null;
 };
 
+const formatDisplayPrice = (...values) => {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const text = clean(value);
+    if (!text) continue;
+    const normalizedNumeric = Number(text.replace(/[^\d.-]/g, ""));
+    if (Number.isFinite(normalizedNumeric) && normalizedNumeric <= 0) continue;
+    return text;
+  }
+  return "";
+};
+
 const getAttachmentImage = (post = {}) => {
   const attachments = Array.isArray(post.attachments?.data)
     ? post.attachments.data
@@ -986,7 +997,7 @@ const resolveProductCardFields = (post = {}) => {
       metadata.brand ||
       ""
   );
-  const priceValue = resolveFirstField(
+  const priceValue = formatDisplayPrice(
     post?.productPrice,
     post?.product_price,
     primary?.final_price,
@@ -995,7 +1006,7 @@ const resolveProductCardFields = (post = {}) => {
     primary?.selling_price,
     metadata.product_price
   );
-  const salePriceValue = resolveFirstField(
+  const salePriceValue = formatDisplayPrice(
     post?.productSalePrice,
     post?.product_sale_price,
     primary?.sale_price,
@@ -1067,6 +1078,21 @@ const resolveProductCardFields = (post = {}) => {
     productCount,
     primary,
   };
+};
+
+const getDisplayedSocialCommentCount = (post = {}, displayComments = []) => {
+  if (Array.isArray(displayComments) && displayComments.length > 0) {
+    return displayComments.length;
+  }
+  return parseOptionalCount(
+    post?.displayCommentCount,
+    post?.commentsCount,
+    post?.commentCount,
+    post?.totalComments,
+    post?.metadata?.comments_count,
+    post?.metadata?.comment_count,
+    post?.metadata?.total_comments
+  );
 };
 
 const resolveAutomationStateLabel = ({ post = {}, config = null, productCount = 0 } = {}) => {
@@ -1564,6 +1590,39 @@ function SocialCommentsWorkspace({
     config: activeAutomationConfig,
     productCount: activeProductCard.productCount,
   });
+
+  useEffect(() => {
+    socialDebugLog("SOCIAL_COMMENT_COUNT_DISPLAY_TRACE", {
+      post_key: activePostKey || selectedPostKey || "",
+      raw_counts: {
+        commentsCount: activePost?.commentsCount ?? null,
+        displayCommentCount: activePostDisplay?.displayCommentCount ?? null,
+      },
+      timeline_count: Array.isArray(displayComments) ? displayComments.length : 0,
+      displayed_count: getDisplayedSocialCommentCount(activePostDisplay || activePost, displayComments),
+    });
+  }, [
+    activePost,
+    activePostDisplay,
+    activePostKey,
+    displayComments,
+    selectedPostKey,
+  ]);
+
+  useEffect(() => {
+    socialDebugLog("SOCIAL_PRODUCT_PRICE_DISPLAY_TRACE", {
+      product_id: clean(activeProductCard?.primary?.id || activeProductCard?.primary?.product_id || activeDisplayPost?.productId || activeDisplayPost?.product_id || ""),
+      raw_price_fields: {
+        productPrice: activeDisplayPost?.productPrice ?? null,
+        productSalePrice: activeDisplayPost?.productSalePrice ?? null,
+        primary_final_price: activeProductCard?.primary?.final_price ?? null,
+        primary_sale_price: activeProductCard?.primary?.sale_price ?? null,
+        primary_price: activeProductCard?.primary?.price ?? null,
+        primary_selling_price: activeProductCard?.primary?.selling_price ?? null,
+      },
+      displayed_price: activeProductCard?.priceValue || "",
+    });
+  }, [activeDisplayPost, activeProductCard]);
 
   useEffect(() => {
     setGlobalDraft({
@@ -2876,7 +2935,7 @@ function SocialCommentsWorkspace({
                               <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                             </div>
                             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
-                              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1">{post.commentsCount} comments</span>
+                              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1">{post.commentsCount ?? dash} comments</span>
                               <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>{post.newCount} new</span>
                               <span
                                 title={resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).hint}
@@ -3034,7 +3093,7 @@ function SocialCommentsWorkspace({
                             <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${meta.className}`}>{meta.label}</span>
                           </div>
                           <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-400">
-                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1">{post.commentsCount} comments</span>
+                            <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1">{post.commentsCount ?? dash} comments</span>
                             <span className={`rounded-full border px-2.5 py-1 ${post.newCount > 0 ? "border-amber-300/20 bg-amber-400/10 text-amber-100" : "border-white/10 bg-white/[0.05] text-slate-300"}`}>{post.newCount} new</span>
                             <span
                               title={resolveAutomationStateLabel({ post, config: automationSavedConfigs[key], productCount: post.directLinkedProductsCount }).hint}
@@ -3121,7 +3180,7 @@ function SocialCommentsWorkspace({
                     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePlatform.className}`}>{activePlatform.label}</span>
                     {activePostMediaBadge ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostMediaBadge.className}`}>{activePostMediaBadge.label}</span> : activePostType ? <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${activePostType.className}`}>{activePostType.label}</span> : null}
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
-                      {activePostDisplay?.displayCommentCount || activePost.commentsCount || 0} comments
+                      {getDisplayedSocialCommentCount(activePostDisplay || activePost, displayComments) ?? dash} comments
                     </span>
                     {activePostPublishedAt ? (
                       <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[10px] font-black text-slate-600">
@@ -3310,7 +3369,7 @@ function SocialCommentsWorkspace({
 
                   <div className="space-y-2.5 p-3.5">
                     <div className="flex flex-wrap items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-slate-500">
-                      <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePost.commentsCount || 0} comments</span>
+                      <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{getDisplayedSocialCommentCount(activePostDisplay || activePost, displayComments) ?? dash} comments</span>
                       {typeof activePostLikes === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostLikes} likes</span> : null}
                       {typeof activePostShares === "number" ? <span className="rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1">{activePostShares} shares</span> : null}
                       {activePostPublishedAt ? (
