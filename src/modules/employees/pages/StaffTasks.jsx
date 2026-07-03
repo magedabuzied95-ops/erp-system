@@ -3,6 +3,7 @@ import toast from "react-hot-toast";
 import { Activity, AlertTriangle, CheckCircle2, Clock, ClipboardList, Pause, Play, Plus, RefreshCw, Route, Save, Settings2, Trash2, UserCheck, Warehouse, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { staffTasksApi } from "../services/staffTasksApi";
+import usePermission from "../../permissions/hooks/usePermission";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 import { getAttendanceEmployees, getBranches } from "../../attendance/attendanceApi";
 
@@ -152,7 +153,7 @@ const STAFF_TASK_COPY = {
     taskQueue: "Task queue", loadingTasks: "Loading tasks", visibleTasks: "visible tasks", allStatuses: "All statuses", allEmployees: "All employees", allBranches: "All branches", allPriorities: "All priorities", today: "Today",
     loadingTaskQueue: "Loading task queue...", noTasksMatch: "No tasks match this view.", performance: "Performance", auditTrail: "Audit trail", noTaskHistory: "No task history yet.",
     online: "Online", checkedIn: "Checked in", absentNotCheckedIn: "Absent / Not checked in", checkedInAt: "Checked in at", onlineNow: "Active online",
-    noDeadline: "No deadline", noTaskNotes: "No task notes", unassigned: "Unassigned", staff: "Staff", edit: "Edit", start: "Start", done: "Done", pauseAvailable: "Pause available", escalated: "Escalated",
+    noDeadline: "No deadline", noTaskNotes: "No task notes", unassigned: "Unassigned", staff: "Staff", edit: "Edit", delete: "Delete", confirmDeleteTask: "Delete this task? This action cannot be undone.", start: "Start", done: "Done", pauseAvailable: "Pause available", escalated: "Escalated",
     taskUpdated: "Task updated", taskCreated: "Task created", taskDeleted: "Task deleted", actionFailed: "Action failed", failedToLoad: "Failed to load tasks",
     open: "Open", urgent: "Urgent", overdue: "Overdue", completed: "Completed", pending: "Pending", in_progress: "In progress", cancelled: "Cancelled", rejected: "Rejected",
     low: "Low", medium: "Medium", high: "High", critical: "Critical",
@@ -167,7 +168,7 @@ const STAFF_TASK_COPY = {
     employeePortalSettings: "إعدادات بوابة الموظفين", portalDescription: "التحكم في تحويل تسجيل الحضور وإلزام عرض المهام.", requireCheckIn: "يتطلب تسجيل حضور", autoRedirect: "تحويل تلقائي",
     taskQueue: "قائمة المهام", loadingTasks: "جاري تحميل المهام", visibleTasks: "مهام ظاهرة", allStatuses: "كل الحالات", allEmployees: "كل الموظفين", allBranches: "كل الفروع", allPriorities: "كل الأولويات", today: "اليوم",
     loadingTaskQueue: "جاري تحميل قائمة المهام...", noTasksMatch: "لا توجد مهام مطابقة لهذا العرض.", performance: "الأداء", auditTrail: "سجل التدقيق", noTaskHistory: "لا يوجد سجل مهام حتى الآن.",
-    noDeadline: "لا يوجد موعد نهائي", noTaskNotes: "لا توجد ملاحظات للمهمة", unassigned: "غير مسند", staff: "موظف", edit: "تعديل", start: "بدء", done: "تم", pauseAvailable: "الإيقاف المؤقت متاح", escalated: "تم التصعيد",
+    noDeadline: "لا يوجد موعد نهائي", noTaskNotes: "لا توجد ملاحظات للمهمة", unassigned: "غير مسند", staff: "موظف", edit: "تعديل", delete: "حذف", confirmDeleteTask: "هل تريد حذف هذه المهمة؟ لا يمكن التراجع عن هذا الإجراء.", start: "بدء", done: "تم", pauseAvailable: "الإيقاف المؤقت متاح", escalated: "تم التصعيد",
     taskUpdated: "تم تحديث المهمة", taskCreated: "تم إنشاء المهمة", taskDeleted: "تم حذف المهمة", actionFailed: "فشل الإجراء", failedToLoad: "فشل تحميل المهام",
     open: "مفتوحة", urgent: "عاجلة", overdue: "متأخرة", completed: "مكتملة", pending: "قيد الانتظار", in_progress: "قيد التنفيذ", cancelled: "ملغاة", rejected: "مرفوضة",
     low: "منخفضة", medium: "متوسطة", high: "مرتفعة", critical: "حرجة",
@@ -243,7 +244,7 @@ const localizedTaskText = (task = {}, field, language = "en") => {
   return "";
 };
 
-function TaskRow({ task, onStart, onComplete, onEdit, onDelete, language }) {
+function TaskRow({ task, onStart, onComplete, onEdit, onDelete, canDelete, language }) {
   const title = localizedTaskText(task, "title", language);
   const description = localizedTaskText(task, "description", language) || localizedTaskText(task, "notes", language);
   const assigneeLabel = task.current_assignee_id ? task.assignee_name || taskLabel(language, "staff") : taskLabel(language, "unassigned");
@@ -290,13 +291,16 @@ function TaskRow({ task, onStart, onComplete, onEdit, onDelete, language }) {
         >
           {taskLabel(language, "edit")}
         </button>
-        <button
-          type="button"
-          onClick={() => onDelete(task)}
-          className="inline-flex h-10 items-center gap-2 rounded-xl border border-red-300/40 bg-red-500/10 px-3 text-sm font-bold text-red-700"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        {canDelete ? (
+          <button
+            type="button"
+            onClick={() => onDelete(task)}
+            className="inline-flex h-10 items-center gap-2 rounded-xl border border-red-300/40 bg-red-500/10 px-3 text-sm font-bold text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+            {taskLabel(language, "delete")}
+          </button>
+        ) : null}
         {task.status === "pending" || task.status === "overdue" ? (
           <button
             type="button"
@@ -338,6 +342,7 @@ function StaffTasks() {
   const { i18n } = useTranslation();
   const language = i18n.language || "en";
   const isRtl = isArabicLocale(language);
+  const canManageTasks = usePermission("staff_tasks.manage");
   const tr = (key) => taskLabel(language, key);
   const [dashboard, setDashboard] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -567,11 +572,23 @@ function StaffTasks() {
     setPanelOpen(false);
   });
 
-  const removeTask = (task) => runAction(`delete-${task.id}`, async () => {
-    await staffTasksApi.delete(task.id);
-    setTasks((current) => current.filter((item) => String(item.id) !== String(task.id)));
-    toast.success(tr("taskDeleted"));
-  });
+  const removeTask = async (task) => {
+    if (!canManageTasks) return;
+    if (!window.confirm(tr("confirmDeleteTask"))) return;
+    try {
+      setBusy(`delete-${task.id}`);
+      setError("");
+      await staffTasksApi.delete(task.id);
+      setTasks((current) => current.filter((item) => String(item.id) !== String(task.id)));
+      toast.success(tr("taskDeleted"));
+    } catch (actionError) {
+      const message = actionError?.message || tr("actionFailed");
+      setError(message);
+      toast.error(message);
+    } finally {
+      setBusy("");
+    }
+  };
 
   const updatePortalSetting = (key, value) => runAction(`portal-${key}`, async () => {
     const next = { ...(portalSettings || {}), [key]: value };
@@ -859,6 +876,7 @@ function StaffTasks() {
                 onComplete={completeTask}
                 onEdit={editTask}
                 onDelete={removeTask}
+                canDelete={canManageTasks}
               />
             ))
           ) : (
