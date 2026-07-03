@@ -264,6 +264,8 @@ export const enqueueSocialCommentJob = async (job = {}) => {
     platform: normalizedJob.platform,
     post_id: normalizedJob.post_id,
     comment_id: normalizedJob.comment_id,
+    run_id: Number(normalizedJob.payload?.row?.id || normalizedJob.payload?.run_id || 0) || null,
+    correlation_id: String(normalizedJob.payload?.latency_trace?.correlation_id || normalizedJob.payload?.correlation_id || "").trim(),
     external_comment_id: normalizedJob.external_comment_id,
     queue_length: queue.length,
     context: getJobContext(normalizedJob),

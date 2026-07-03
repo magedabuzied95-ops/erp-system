@@ -85,7 +85,7 @@ const buildSocialCommentFlowLogPayload = ({
   ...metadataObject(extra || {}),
 });
 const logSocialCommentFlowStep = (stage = "", payload = {}) => {
-  console.log(`SOCIAL_COMMENT_FLOW_${stage}`, payload);
+  console.log(`SOCIAL_COMMENT_${stage}`, payload);
 };
 const toIsoStringOrEmpty = (value = null) => {
   if (!value) return "";
@@ -2190,6 +2190,22 @@ const executeSocialCommentAutomationRuntime = async ({
   const runtimeSource = text(safeRow.raw_payload?.source || safeRow.source || "");
   const stepResults = [];
   const currentPrivateReplyStatus = text(safeRow.dm_status || safeRow.automation_state?.private_reply?.status || "").toLowerCase();
+  const correlationId = buildSocialCommentCorrelationId({
+    tenantId: safeTenantId,
+    commentId: safeCommentId,
+    postId: safePostId,
+    runId: safeCurrentRunId,
+  });
+  logSocialCommentFlowStep("FLOW_ENTER", buildSocialCommentFlowLogPayload({
+    stage: "FLOW_ENTER",
+    tenantId: safeTenantId,
+    commentId: safeCommentId,
+    postId: safePostId,
+    runId: safeCurrentRunId,
+    correlationId,
+    row: safeRow,
+    extra: { source: runtimeSource },
+  }));
   const buildCurrentDiagnostics = ({ skippedReason = "", duplicateReason = "", rawRuntimeContext = null, configOverride = config, productContextOverride = productContext } = {}) =>
     buildAutomationRunDiagnostics({
       row: safeRow,
@@ -2407,6 +2423,22 @@ const executeSocialCommentAutomationRuntime = async ({
   }
   const isDuplicateCandidate = !staleQueuedReleased && ["processing", "queued", "success", "partial_success", "failed"].includes(existingDuplicateStatus);
   const isDuplicateRun = Boolean(existingDuplicateRun && isDuplicateCandidate && (!safeCurrentRunId || Number(existingDuplicateRun.id || 0) !== safeCurrentRunId));
+  logSocialCommentFlowStep("DEDUPE_CHECK", buildSocialCommentFlowLogPayload({
+    stage: "DEDUPE_CHECK",
+    tenantId: safeTenantId,
+    commentId: safeCommentId,
+    postId: safePostId,
+    runId: safeCurrentRunId,
+    correlationId,
+    existingRun: existingDuplicateRun || null,
+    row: safeRow,
+    extra: {
+      current_run_id: safeCurrentRunId,
+      existing_status: existingDuplicateStatus,
+      is_duplicate_run: isDuplicateRun,
+      source: runtimeSource || text(existingDuplicateRun?.raw_payload?.source || existingDuplicateRun?.source || ""),
+    },
+  }));
   console.info("SOCIAL_COMMENT_AUTOMATION_DEDUPE_CHECK", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
@@ -2482,6 +2514,20 @@ const executeSocialCommentAutomationRuntime = async ({
       comment_id: safeCommentId,
       reason: "duplicate_comment_automation",
     });
+  logSocialCommentFlowStep("FLOW_DUPLICATE_EXIT", buildSocialCommentFlowLogPayload({
+      stage: "DUPLICATE_EXIT",
+      tenantId: safeTenantId,
+      commentId: safeCommentId,
+      postId: safePostId,
+      runId: safeCurrentRunId,
+      correlationId,
+      existingRun: existingDuplicateRun || null,
+      row: safeRow,
+      extra: {
+        duplicate_reason: "duplicate_comment_automation",
+        existing_run_timestamps: buildSocialCommentRunTimestampSnapshot(existingDuplicateRun || {}),
+      },
+    }));
     return {
       applied: false,
       skipped: true,
@@ -2707,11 +2753,25 @@ const executeSocialCommentAutomationRuntime = async ({
   });
   const aiGenerationStartedAt = new Date();
   const aiLatencyTrace = metadataObject(safeRow.automation_state?.runtime_monitor?.latency_trace || {});
+  logSocialCommentFlowStep("AI_START", buildSocialCommentFlowLogPayload({
+    stage: "AI_START",
+    tenantId: safeTenantId,
+    commentId: safeCommentId,
+    postId: safePostId,
+    runId: safeCurrentRunId,
+    correlationId,
+    row: safeRow,
+    extra: {
+      ai_started_at: aiGenerationStartedAt.toISOString(),
+    },
+  }));
   console.log("SOCIAL_COMMENT_AI_GENERATION_START", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
     post_id: safePostId,
     comment_id: safeCommentId,
+    run_id: safeCurrentRunId,
+    correlation_id: correlationId,
     conversation_id: text(safeRow.inbox_conversation_id || ""),
     ai_started_at: aiGenerationStartedAt.toISOString(),
     enqueue_to_ai_start_ms: (() => {
@@ -2774,17 +2834,34 @@ const executeSocialCommentAutomationRuntime = async ({
     platform: normalizedPlatform,
     post_id: safePostId,
     comment_id: safeCommentId,
+    run_id: safeCurrentRunId,
+    correlation_id: correlationId,
     intent: aiSalesRuntime.intent,
     used_fallback: aiSalesRuntime.used_fallback,
     public_reply: effectiveRenderedPublicReply,
     private_reply: effectiveRenderedPrivateReply,
   });
   const aiGenerationCompletedAt = new Date();
+  logSocialCommentFlowStep("AI_DONE", buildSocialCommentFlowLogPayload({
+    stage: "AI_DONE",
+    tenantId: safeTenantId,
+    commentId: safeCommentId,
+    postId: safePostId,
+    runId: safeCurrentRunId,
+    correlationId,
+    row: safeRow,
+    extra: {
+      ai_started_at: aiGenerationStartedAt.toISOString(),
+      ai_completed_at: aiGenerationCompletedAt.toISOString(),
+    },
+  }));
   console.log("SOCIAL_COMMENT_AI_GENERATION_DONE", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
     post_id: safePostId,
     comment_id: safeCommentId,
+    run_id: safeCurrentRunId,
+    correlation_id: correlationId,
     conversation_id: text(safeRow.inbox_conversation_id || ""),
     ai_completed_at: aiGenerationCompletedAt.toISOString(),
     ai_generation_ms: Math.max(0, aiGenerationCompletedAt.getTime() - aiGenerationStartedAt.getTime()),
@@ -2864,6 +2941,7 @@ const executeSocialCommentAutomationRuntime = async ({
     latencyPatch: {
       ai_started_at: aiGenerationStartedAt.toISOString(),
       ai_completed_at: aiGenerationCompletedAt.toISOString(),
+      correlation_id: correlationId,
     },
     status: "ai_generated",
   });
@@ -3008,11 +3086,34 @@ const executeSocialCommentAutomationRuntime = async ({
       dmStatus: "queued",
       automationState: workingRow.automation_state,
     }).catch(() => {});
+      logSocialCommentFlowStep("PRIVATE_REPLY_ENQUEUE", buildSocialCommentFlowLogPayload({
+        stage: "PRIVATE_REPLY_ENQUEUE",
+        tenantId: safeTenantId,
+        commentId: safeCommentId,
+        postId: safePostId,
+        runId: safeCurrentRunId,
+        correlationId,
+        row: workingRow,
+        extra: {
+          has_product_context: Boolean(effectiveProductContext?.found || effectiveProductContext?.has_product_context),
+          has_message: Boolean(effectiveRenderedPrivateReply),
+          has_rendered_reply: Boolean(effectiveRenderedPrivateReply),
+          has_private_reply_payload: Boolean(workingRow.automation_state?.private_reply),
+          product_ids: asArray(effectiveProductContext?.mapped_products || [])
+            .map((item) => Number(item?.product_id || item?.id || 0))
+            .filter((value) => Number.isFinite(value) && value > 0),
+          primary_product_id: Number(effectiveProductContext?.primary_product?.product_id || effectiveProductContext?.primary_product?.id || effectiveProductContext?.product_id || 0) || null,
+          product_name: text(effectiveProductContext?.product_name || effectiveProductContext?.primary_product?.product_name || ""),
+          message_preview: text(effectiveRenderedPrivateReply || "").slice(0, 120),
+        },
+      }));
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_PAYLOAD", {
         tenant_id: safeTenantId,
         platform: normalizedPlatform,
         post_id: safePostId,
         comment_id: safeCommentId,
+        run_id: safeCurrentRunId,
+        correlation_id: correlationId,
         ...buildPrivateReplyEnqueuePayloadLog({
           row: workingRow,
           productContext: effectiveProductContext || {},
@@ -3369,6 +3470,19 @@ const executeSocialCommentAutomationRuntime = async ({
     privateReplyReason: text(privateReplyStepResult?.reason || ""),
     source: runtimeSource,
   });
+  logSocialCommentFlowStep("FLOW_COMPLETE", buildSocialCommentFlowLogPayload({
+    stage: "COMPLETE",
+    tenantId: safeTenantId,
+    commentId: safeCommentId,
+    postId: safePostId,
+    runId: safeCurrentRunId,
+    correlationId,
+    row: workingRow,
+    extra: {
+      status: text(workingRow.dm_status || workingRow.public_reply_status || workingRow.like_status || ""),
+      step_results: stepResults,
+    },
+  }));
 
   return {
     applied: true,
@@ -6559,6 +6673,13 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       platform: normalized.platform,
       post_id: normalized.post_id,
       comment_id: normalized.comment_id,
+      run_id: null,
+      correlation_id: buildSocialCommentCorrelationId({
+        tenantId: normalized.tenant_id,
+        commentId: normalized.comment_id,
+        postId: normalized.post_id,
+        runId: null,
+      }),
       conversation_id: text(event.inbox_conversation_id || ""),
       source: text(event.raw_payload?.source || event.source || "meta_webhook"),
       webhook_received_at: webhookReceivedAt,
@@ -6711,12 +6832,18 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         const updatedAutomationState = buildSocialCommentRuntimeMonitor({
           row: storedRow,
           automationState: storedRow.automation_state,
-          latencyPatch: {
-            enqueue_at: enqueueAt,
-            queue_name: "social_comment_automation",
-          },
-          status: text(storedRow.status || storedRow.action_taken || "queued"),
-        });
+        latencyPatch: {
+          enqueue_at: enqueueAt,
+          queue_name: "social_comment_automation",
+          correlation_id: buildSocialCommentCorrelationId({
+            tenantId: storedRow.tenant_id,
+            commentId: storedRow.comment_id,
+            postId: storedRow.post_id,
+            runId: storedRow.id,
+          }),
+        },
+        status: text(storedRow.status || storedRow.action_taken || "queued"),
+      });
         storedRow.automation_state = updatedAutomationState;
         await persistSocialCommentAutomationState({
           tenantId: storedRow.tenant_id,
@@ -6735,6 +6862,13 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           queue_name: "social_comment_automation",
           enqueue_at: enqueueAt,
           webhook_to_enqueue_ms: numericOrNull(enqueueSummary.webhook_to_enqueue_ms),
+          run_id: storedRow.id || null,
+          correlation_id: buildSocialCommentCorrelationId({
+            tenantId: storedRow.tenant_id,
+            commentId: storedRow.comment_id,
+            postId: storedRow.post_id,
+            runId: storedRow.id,
+          }),
         });
       } catch (error) {
         console.warn("SOCIAL_COMMENT_JOB_ENQUEUE_FALLBACK", {
@@ -6980,6 +7114,13 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         platform: storedRow.platform,
         post_id: text(storedRow.post_id || ""),
         comment_id: text(storedRow.comment_id || ""),
+        run_id: storedRow.id || null,
+        correlation_id: buildSocialCommentCorrelationId({
+          tenantId: storedRow.tenant_id,
+          commentId: storedRow.comment_id,
+          postId: storedRow.post_id,
+          runId: storedRow.id,
+        }),
         ...buildPrivateReplyEnqueuePayloadLog({
           row: storedRow,
           productContext: productContext || {},

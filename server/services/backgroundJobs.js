@@ -21,6 +21,13 @@ const parseDateOrNull = (value = null) => {
   const parsed = value instanceof Date ? value : new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
+const buildSocialCommentCorrelationId = ({ tenantId = null, commentId = "", postId = "", runId = null } = {}) => {
+  const safeTenantId = Number(tenantId || 0) || 0;
+  const safeCommentId = String(commentId || "").trim();
+  const safePostId = String(postId || "").trim();
+  const safeRunId = Number(runId || 0) || null;
+  return `social-comment:${safeTenantId}:${safePostId || "post"}:${safeCommentId || "comment"}:${safeRunId || "pending"}`;
+};
 const normalizeTimestampForDb = (value = null, label = "timestamp") => {
   if (value == null || value === "") return null;
   const parsed = value instanceof Date ? value : new Date(value);
@@ -70,6 +77,13 @@ const logSocialCommentLatencySendDone = ({
   metaMessage = "",
 } = {}) => {
   const trace = metadataObject(row?.automation_state?.runtime_monitor?.latency_trace || row?.latency_trace || {});
+  const runId = Number(row?.id || trace?.run_id || 0) || null;
+  const correlationId = String(trace?.correlation_id || buildSocialCommentCorrelationId({
+    tenantId: row?.tenant_id || null,
+    commentId,
+    postId,
+    runId,
+  }) || "").trim();
   const summary = computeSocialCommentLatencySummary(trace);
   const requiredFields = [
     "detected_at",
@@ -91,8 +105,11 @@ const logSocialCommentLatencySendDone = ({
     });
   }
   console.log("SOCIAL_COMMENT_LATENCY_SEND_DONE", {
+    tenant_id: Number(row?.tenant_id || 0) || null,
     comment_id: String(commentId || "").trim(),
     post_id: String(postId || row.post_id || "").trim(),
+    run_id: runId,
+    correlation_id: correlationId,
     status: String(status || "").trim(),
     detected_at: trace.detected_at || "",
     enqueue_at: trace.enqueue_at || "",
@@ -444,6 +461,17 @@ export const registerBackgroundJobHandlers = () => {
     if (!row) {
       throw Object.assign(new Error("Social comment row not found"), { status: 404 });
     }
+    const runId = Number(row.id || payload?.row?.id || job?.id || 0) || null;
+    const correlationId = String(
+      payload?.latency_trace?.correlation_id ||
+      row?.automation_state?.runtime_monitor?.latency_trace?.correlation_id ||
+      buildSocialCommentCorrelationId({
+        tenantId,
+        commentId,
+        postId: postId || row.post_id || "",
+        runId,
+      })
+    ).trim();
     const latencyTrace = payload?.latency_trace && typeof payload.latency_trace === "object"
       ? payload.latency_trace
       : (row?.latency_trace && typeof row.latency_trace === "object" ? row.latency_trace : {});
@@ -469,6 +497,8 @@ export const registerBackgroundJobHandlers = () => {
       platform,
       post_id: postId || row.post_id || "",
       comment_id: commentId,
+      run_id: runId,
+      correlation_id: correlationId,
       enqueue_at: currentLatencyTrace.enqueue_at || "",
       private_reply_enqueued_at: currentLatencyTrace.private_reply_enqueued_at || "",
       private_reply_started_at: currentLatencyTrace.private_reply_started_at || "",
@@ -477,6 +507,8 @@ export const registerBackgroundJobHandlers = () => {
     console.log("SOCIAL_COMMENT_LATENCY_DEQUEUED", {
       comment_id: commentId,
       post_id: postId || row.post_id || "",
+      run_id: runId,
+      correlation_id: correlationId,
       dequeue_at: dequeueAt.toISOString(),
       since_enqueue_ms: enqueueAt ? dequeueAt.getTime() - enqueueAt.getTime() : null,
       attempt: job?.attemptsMade || 1,
@@ -513,6 +545,8 @@ export const registerBackgroundJobHandlers = () => {
       platform,
       post_id: postId || row.post_id || "",
       comment_id: commentId,
+      run_id: runId,
+      correlation_id: correlationId,
       attempt: job?.attemptsMade || 1,
       max_attempts: job?.maxAttempts || 1,
     });
@@ -807,15 +841,27 @@ export const registerBackgroundJobHandlers = () => {
         post_id: postId || row.post_id || "",
       });
       preSendStage = "send_start_log";
-      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_START", buildPrivateReplyProductDebugPayload({
-        tenantId,
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_START", {
+        ...buildPrivateReplyProductDebugPayload({
+          tenantId,
+          platform,
+          postId: postId || row.post_id || "",
+          commentId,
+          productContext,
+          messagePreview: message,
+          replyPreview: message,
+        }),
+        run_id: runId,
+        correlation_id: correlationId,
+      });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_START", {
+        tenant_id: tenantId,
         platform,
-        postId: postId || row.post_id || "",
-        commentId,
-        productContext,
-        messagePreview: message,
-        replyPreview: message,
-      }));
+        post_id: postId || row.post_id || "",
+        comment_id: commentId,
+        run_id: runId,
+        correlation_id: correlationId,
+      });
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_STAGE", {
         stage: "send_start_logged",
         comment_id: commentId,
@@ -920,6 +966,8 @@ export const registerBackgroundJobHandlers = () => {
         platform,
         comment_id: commentId,
         post_id: postId || row.post_id || "",
+        run_id: runId,
+        correlation_id: correlationId,
         external_id: result?.id || result?.message_id || result?.reply_id || "",
       });
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_SUCCESS", {
@@ -927,6 +975,8 @@ export const registerBackgroundJobHandlers = () => {
         platform,
         comment_id: commentId,
         post_id: postId || row.post_id || "",
+        run_id: runId,
+        correlation_id: correlationId,
         external_id: result?.id || result?.message_id || result?.reply_id || "",
       });
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_EXIT", buildPrivateReplyExitPayload({
@@ -947,6 +997,14 @@ export const registerBackgroundJobHandlers = () => {
         status: "success",
         metaStatus: "ok",
         metaMessage: "",
+      });
+      console.log("SOCIAL_COMMENT_FLOW_COMPLETE", {
+        tenant_id: tenantId,
+        platform,
+        comment_id: commentId,
+        post_id: postId || row.post_id || "",
+        run_id: runId,
+        correlation_id: correlationId,
       });
       return result;
     } catch (error) {
@@ -1035,6 +1093,15 @@ export const registerBackgroundJobHandlers = () => {
           status: "duplicate",
           metaStatus: status || 400,
           metaMessage: messageText,
+        });
+        console.log("SOCIAL_COMMENT_FLOW_COMPLETE", {
+          tenant_id: tenantId,
+          platform,
+          comment_id: commentId,
+          post_id: postId || row.post_id || "",
+          run_id: runId,
+          correlation_id: correlationId,
+          status: "duplicate",
         });
         return {
           ok: true,
