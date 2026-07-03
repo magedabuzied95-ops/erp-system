@@ -2473,10 +2473,16 @@ export const deleteStaffTask = async (taskId, actor = {}) => {
     );
     await client.query(`DELETE FROM staff_task_assignments WHERE id = $1`, [task.id]);
     await client.query("COMMIT");
-    await emitTaskRealtime("task_deleted", task, {
-      title: "طھظ… ط­ط°ظپ ط§ظ„ظ…ظ‡ظ…ط©",
-      message: taskTitleAr(task),
-      metadata: { deleted: true },
+    const postCommitSideEffects = async () => {
+      await emitTaskRealtime("task_deleted", task, {
+        title: "طھظ… ط­ط°ظپ ط§ظ„ظ…ظ‡ظ…ط©",
+        message: taskTitleAr(task),
+        metadata: { deleted: true },
+      });
+    };
+    void postCommitSideEffects().catch((sideEffectError) => {
+      console.error("[staff-tasks-service] delete:post_commit:error", sideEffectError);
+      console.error(sideEffectError);
     });
     return normalizeTaskRow(task);
   } catch (error) {
