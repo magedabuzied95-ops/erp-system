@@ -89,6 +89,7 @@ import {
 } from "./aiConversationMemoryService.js";
 import { extractShoeSize } from "./aiMessageExtractors.js";
 import { ensureAiSalesAgentSchema, getAiAgentSettings, upsertAiCustomerProfile } from "./aiSalesAgentService.js";
+import { resolveOrCreateCustomerAccount } from "./loyaltyService.js";
 import { evaluateProductDecisionGate } from "./aiProductDecisionGate.js";
 import { orchestrateAiResponse } from "./aiResponseOrchestratorService.js";
 import { findSimilarProductsForAi } from "./aiSimilarProductsService.js";
@@ -13841,6 +13842,342 @@ const resolveSocialCommentSalesFlowProductData = async ({ tenantId = null, produ
   };
 };
 
+const resolveSocialCommentSalesFlowDraftOrderData = async ({
+  tenantId = null,
+  productId = null,
+  selectedSize = "",
+  selectedColor = "",
+} = {}) => {
+  const safeProductId = Number(productId || 0);
+  if (!Number.isFinite(safeProductId) || safeProductId <= 0) return null;
+  const safeTenantId = Number(tenantId || 0);
+  const productResult = await db.query(
+    `
+    SELECT
+      id,
+      name,
+      slug,
+      canonical_slug,
+      image_url,
+      selling_price,
+      sale_price,
+      price
+    FROM products
+    WHERE id = $1
+      AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
+    LIMIT 1
+    `,
+    [safeProductId, safeTenantId]
+  ).catch(() => ({ rows: [] }));
+  const productRow = productResult.rows?.[0] || null;
+  if (!productRow) return null;
+  const variantResult = await db.query(
+    `
+    SELECT
+      id,
+      product_id,
+      size,
+      color,
+      name,
+      sku,
+      barcode,
+      COALESCE(stock, 0) AS stock,
+      price,
+      sale_price,
+      selling_price
+    FROM product_variants
+    WHERE product_id = $1
+      AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
+      AND (
+        $3::text = '' OR LOWER(TRIM(COALESCE(size, ''))) = LOWER(TRIM($3::text))
+      )
+      AND (
+        $4::text = '' OR LOWER(TRIM(COALESCE(color, ''))) = LOWER(TRIM($4::text))
+      )
+    ORDER BY
+      CASE
+        WHEN $3::text <> '' AND LOWER(TRIM(COALESCE(size, ''))) = LOWER(TRIM($3::text))
+         AND ($4::text = '' OR LOWER(TRIM(COALESCE(color, ''))) = LOWER(TRIM($4::text))) THEN 0
+        WHEN $3::text = '' AND $4::text = '' THEN 1
+        ELSE 2
+      END,
+      COALESCE(stock, 0) DESC,
+      id ASC
+    LIMIT 1
+    `,
+    [safeProductId, safeTenantId, text(selectedSize), text(selectedColor)]
+  ).catch(() => ({ rows: [] }));
+  const variantRow = variantResult.rows?.[0] || null;
+  if (!variantRow) return null;
+  const product = {
+    id: Number(productRow.id || 0) || null,
+    product_id: Number(productRow.id || 0) || null,
+    name: text(productRow.name || ""),
+    product_name: text(productRow.name || ""),
+    slug: text(productRow.slug || ""),
+    canonical_slug: text(productRow.canonical_slug || ""),
+    image_url: text(productRow.image_url || ""),
+    price: numeric(productRow.price, 0),
+    sale_price: numeric(productRow.sale_price, 0),
+    selling_price: numeric(productRow.selling_price, 0),
+    confidence: 1,
+  };
+  const variant = {
+    id: Number(variantRow.id || 0) || null,
+    variant_id: Number(variantRow.id || 0) || null,
+    product_id: Number(variantRow.product_id || product.id || 0) || null,
+    size: text(variantRow.size || ""),
+    color: text(variantRow.color || ""),
+    name: text(variantRow.name || [variantRow.size, variantRow.color].filter(Boolean).join(" / ")),
+    sku: text(variantRow.sku || ""),
+    barcode: text(variantRow.barcode || ""),
+    stock: numeric(variantRow.stock, 0),
+    price: numeric(variantRow.price, 0),
+    sale_price: numeric(variantRow.sale_price, 0),
+    selling_price: numeric(variantRow.selling_price, 0),
+  };
+  const resolvedPrice = await resolveSocialProductDisplayPrice({
+    tenantId: safeTenantId,
+    product,
+    linkedProduct: product,
+    variants: [variant],
+    availableVariants: [variant],
+    context: {
+      product_id: product.id,
+      product_name: product.name,
+    },
+    callsite: "metaIntegrationService.resolveSocialCommentSalesFlowDraftOrderData",
+  }).catch(() => null);
+  const unitPrice = numeric(resolvedPrice?.selected_price, 0);
+  return {
+    product,
+    variant,
+    unitPrice,
+    productName: product.name || "المنتج",
+    productImageUrl: text(product.image_url || ""),
+    productLink: "",
+    selectedPriceText: text(resolvedPrice?.selected_display_price || ""),
+    selectedPriceField: text(resolvedPrice?.selected_field || ""),
+    priceTrace: resolvedPrice || null,
+  };
+};
+
+const createSocialCommentDraftOrder = async ({
+  config,
+  message,
+  salesFlow = {},
+  mergedInfo = {},
+  productId = null,
+  selectedSize = "",
+  selectedColor = "",
+  postId = "",
+  commentId = "",
+  shippingProductData = null,
+} = {}) => {
+  const tenantId = Number(config?.tenant_id || 0);
+  const conversationId = text(message?.external_conversation_id || "");
+  const platform = text(message?.channel || "");
+  const normalizedCustomerPhone = normalizeEgyptPhone(mergedInfo?.customerPhone || salesFlow?.customer_phone || "");
+  if (!tenantId || !conversationId || !productId) {
+    throw Object.assign(new Error("Missing social comment draft order context"), { status: 400 });
+  }
+  const idempotencyKey = [
+    conversationId,
+    text(commentId || ""),
+    text(postId || ""),
+    String(productId || ""),
+    text(selectedSize || ""),
+    text(selectedColor || ""),
+  ].join("|");
+  console.log("SOCIAL_COMMENT_DRAFT_ORDER_CREATE_START", {
+    tenant_id: tenantId,
+    platform,
+    conversation_id: conversationId,
+    post_id: text(postId || ""),
+    comment_id: text(commentId || ""),
+    product_id: Number(productId || 0) || null,
+    selected_size: text(selectedSize || ""),
+    selected_color: text(selectedColor || ""),
+    customer_phone: normalizedCustomerPhone,
+    idempotency_key: idempotencyKey,
+  });
+  const client = await db.connect();
+  try {
+    const customerName = text(mergedInfo?.customerName || salesFlow?.customer_name || "");
+    const customerAddress = text(mergedInfo?.customerAddress || salesFlow?.customer_address || "");
+    const governorate = text(mergedInfo?.governorate || salesFlow?.governorate || "");
+    const area = text(mergedInfo?.area || salesFlow?.city_area || governorate || "");
+    const customer = await resolveOrCreateCustomerAccount(client, {
+      tenantId,
+      customerId: numberOrNull(salesFlow?.customer_id || message?.customer_id || null),
+      name: customerName || "Customer",
+      phone: normalizedCustomerPhone,
+      address: customerAddress,
+    });
+    const draftData = await resolveSocialCommentSalesFlowDraftOrderData({
+      tenantId,
+      productId,
+      selectedSize,
+      selectedColor,
+    });
+    if (!draftData?.product || !draftData?.variant) {
+      throw Object.assign(new Error("Unable to resolve draft order product variant"), { status: 409, code: "DRAFT_VARIANT_NOT_FOUND" });
+    }
+    const payload = {
+      tenant_id: tenantId,
+      channel: platform,
+      source: "social_comment_messenger",
+      conversation_id: conversationId,
+      session_id: conversationId,
+      external_customer_id: text(message?.external_customer_id || ""),
+      customer_id: customer?.id || null,
+      customer_phone: normalizedCustomerPhone,
+      customer_name: customerName,
+      customer_address: customerAddress,
+      governorate,
+      city_area: area,
+      allow_missing_phone: true,
+      allow_out_of_stock_draft: true,
+      product: draftData.product,
+      variant: draftData.variant,
+      size: text(selectedSize || ""),
+      color: text(selectedColor || ""),
+      unit_price: draftData.unitPrice > 0 ? draftData.unitPrice : null,
+      quantity: 1,
+      original_customer_message: text(message?.message_text || ""),
+      idempotency_key: idempotencyKey,
+      metadata: {
+        source: "social_comment_messenger",
+        status: "pending_staff_review",
+        payment_method: "cash_on_delivery",
+        payment_status: "unpaid",
+        platform,
+        conversation_id: conversationId,
+        comment_id: text(commentId || ""),
+        post_id: text(postId || ""),
+        product_id: Number(productId || 0) || null,
+        selected_size: text(selectedSize || ""),
+        selected_color: text(selectedColor || ""),
+        messenger_psid: text(message?.external_customer_id || ""),
+        customer_id: customer?.id || null,
+        customer_name: customerName,
+        customer_phone: normalizedCustomerPhone,
+        governorate,
+        customer_address: customerAddress,
+        sales_flow: salesFlow || {},
+        shipping_product_name: text(shippingProductData?.productName || ""),
+      },
+    };
+    const draft = await createAiOrderDraft(payload);
+    const orderId = draft?.order?.id || null;
+    const orderStatus = "pending_staff_review";
+    if (orderId) {
+      const finalized = await db.query(
+        `
+        UPDATE orders
+        SET
+          customer_id = COALESCE($3::bigint, customer_id),
+          customer_name = COALESCE(NULLIF($4::text, ''), customer_name),
+          customer_phone = COALESCE(NULLIF($5::text, ''), customer_phone),
+          customer_address = COALESCE(NULLIF($6::text, ''), customer_address),
+          governorate = COALESCE(NULLIF($7::text, ''), governorate),
+          city_area = COALESCE(NULLIF($8::text, ''), city_area),
+          source = COALESCE(NULLIF($9::text, ''), source),
+          channel = COALESCE(NULLIF($10::text, ''), channel),
+          status = COALESCE(NULLIF($11::text, ''), status),
+          payment_status = COALESCE(NULLIF($12::text, ''), payment_status),
+          payment_method = COALESCE(NULLIF($13::text, ''), payment_method),
+          ai_agent_status = COALESCE(NULLIF($14::text, ''), ai_agent_status),
+          ai_agent_metadata = COALESCE(ai_agent_metadata, '{}'::jsonb) || $15::jsonb,
+          updated_at = NOW()
+        WHERE tenant_id = $1 AND id = $2
+        RETURNING *
+        `,
+        [
+          tenantId,
+          orderId,
+          customer?.id || null,
+          customerName,
+          normalizedCustomerPhone,
+          customerAddress,
+          governorate,
+          area,
+          "social_comment_messenger",
+          text(message?.channel || ""),
+          orderStatus,
+          "unpaid",
+          "cash_on_delivery",
+          orderStatus,
+          json({
+            social_comment_messenger: true,
+            social_comment_source: "social_comment_messenger",
+            draft_order_id: orderId,
+            customer_id: customer?.id || null,
+            customer_name: customerName,
+            customer_phone: normalizedCustomerPhone,
+            customer_address: customerAddress,
+            governorate,
+            city_area: area,
+            platform,
+            conversation_id: conversationId,
+            comment_id: text(commentId || ""),
+            post_id: text(postId || ""),
+            product_id: Number(productId || 0) || null,
+            selected_size: text(selectedSize || ""),
+            selected_color: text(selectedColor || ""),
+            messenger_psid: text(message?.external_customer_id || ""),
+            payment_method: "cash_on_delivery",
+            payment_status: "unpaid",
+            status: "pending_staff_review",
+            source: "social_comment_messenger",
+            unit_price: draftData.unitPrice > 0 ? draftData.unitPrice : null,
+            duplicate: Boolean(draft?.duplicate),
+          }),
+        ]
+      );
+      const orderRow = finalized.rows?.[0] || draft.order || null;
+      console.log(draft?.duplicate ? "SOCIAL_COMMENT_DRAFT_ORDER_DUPLICATE" : "SOCIAL_COMMENT_DRAFT_ORDER_CREATED", {
+        tenant_id: tenantId,
+        platform,
+        conversation_id: conversationId,
+        post_id: text(postId || ""),
+        comment_id: text(commentId || ""),
+        product_id: Number(productId || 0) || null,
+        order_id: orderRow?.id || orderId || null,
+        customer_id: customer?.id || null,
+        duplicate: Boolean(draft?.duplicate),
+        selected_size: text(selectedSize || ""),
+        selected_color: text(selectedColor || ""),
+        customer_phone: normalizedCustomerPhone,
+        unit_price: draftData.unitPrice || null,
+      });
+      return {
+        order: orderRow,
+        duplicate: Boolean(draft?.duplicate),
+        customer,
+        product: draftData.product,
+        variant: draftData.variant,
+        unitPrice: draftData.unitPrice,
+      };
+    }
+    throw Object.assign(new Error("Missing order id after draft creation"), { status: 500 });
+  } catch (error) {
+    console.log("SOCIAL_COMMENT_DRAFT_ORDER_CREATE_FAILED", {
+      tenant_id: tenantId,
+      platform,
+      conversation_id: conversationId,
+      post_id: text(postId || ""),
+      comment_id: text(commentId || ""),
+      product_id: Number(productId || 0) || null,
+      message: error?.message || String(error),
+      code: error?.code || "",
+    });
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 const loadSocialCommentSalesFlowVariantRows = async ({
   tenantId = null,
   productId = null,
@@ -22164,6 +22501,110 @@ export const processMetaWebhook = async ({ req } = {}) => {
           stored: true,
           sent: true,
           reason: "social_comment_sales_flow_customer_data_partial",
+        });
+        continue;
+      }
+      const draftOrderResult = await createSocialCommentDraftOrder({
+        config,
+        message,
+        salesFlow: socialCommentCurrentSalesFlow,
+        mergedInfo: shippingMergedInfo,
+        productId: shippingProductId,
+        selectedSize: shippingSelectedSize,
+        selectedColor: shippingSelectedColor,
+        postId: shippingPostId,
+        commentId: shippingCommentId,
+        shippingProductData,
+      }).catch(() => null);
+      if (draftOrderResult?.order) {
+        const reviewAddressLine = [text(shippingMergedInfo.governorate || ""), text(shippingMergedInfo.customerAddress || "")]
+          .filter(Boolean)
+          .join(" - ") || "—";
+        const successText = [
+          "✅ تم استلام بياناتك بنجاح",
+          "",
+          "العنوان:",
+          reviewAddressLine,
+          "",
+          "طلبك قيد المراجعة الآن، وهيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️",
+          "",
+          "شكراً لاختيارك M1 Store",
+        ].join("\n");
+        const ackResult = await sendAndLogMetaText({
+          config,
+          message,
+          text: successText,
+          detectedIntent: "social_comment_sales_flow_draft_order_created",
+          metadata: {
+            selected_size: shippingSelectedSize,
+            selected_color: normalizeSocialCommentColorDisplay(shippingSelectedColor),
+            selected_product_id: shippingProductId,
+            order_id: draftOrderResult.order?.id || null,
+            customer_id: draftOrderResult.customer?.id || null,
+            social_comment_quick_reply: true,
+            social_comment_draft_order_created: true,
+          },
+          inboundKey,
+          inboundMetaMid: message.external_message_id || messageId,
+        });
+        await persistSocialCommentSalesFlowState({
+          config,
+          message,
+          productId: shippingProductId,
+          selectedSize: shippingSelectedSize,
+          selectedColor: shippingSelectedColor,
+          step: "awaiting_staff_review",
+          extra: {
+            ...socialCommentCurrentSalesFlow,
+            post_id: shippingPostId,
+            comment_id: shippingCommentId,
+            customer_name: text(shippingMergedInfo.customerName || ""),
+            customer_phone: text(shippingMergedInfo.customerPhone || ""),
+            governorate: text(shippingMergedInfo.governorate || ""),
+            customer_address: text(shippingMergedInfo.customerAddress || ""),
+            draft_order_id: draftOrderResult.order?.id || null,
+            order_id: draftOrderResult.order?.id || null,
+            customer_id: draftOrderResult.customer?.id || null,
+            product_name: text(draftOrderResult.product?.name || socialCommentCurrentSalesFlow.product_name || ""),
+            product_link: text(shippingProductData?.productLink || socialCommentCurrentSalesFlow.product_link || ""),
+            price_used: text(draftOrderResult.unitPrice || shippingProductData?.priceUsed || socialCommentCurrentSalesFlow.price_used || ""),
+          },
+          reason: "social_comment_sales_flow_draft_order_created",
+          callsite: "SOCIAL_COMMENT_DRAFT_ORDER_CREATE_COMPLETE",
+        });
+        console.log("SOCIAL_COMMENT_DRAFT_ORDER_CREATE_DONE", {
+          tenant_id: config?.tenant_id || null,
+          platform: text(message?.channel || ""),
+          conversation_id: text(message?.external_conversation_id || ""),
+          post_id: shippingPostId,
+          comment_id: shippingCommentId,
+          product_id: shippingProductId,
+          order_id: draftOrderResult.order?.id || null,
+          duplicate: Boolean(draftOrderResult.duplicate),
+          message_id: ackResult?.message_id || ackResult?.id || "",
+        });
+        console.log("SOCIAL_COMMENT_SHIPPING_HANDLER_EXIT", {
+          tenant_id: config?.tenant_id || null,
+          platform: text(message?.channel || ""),
+          conversation_id: text(message?.external_conversation_id || ""),
+          outcome: "draft_order_created",
+          duplicate: Boolean(draftOrderResult.duplicate),
+          missing_fields: [],
+        });
+        markMessageProcessingStatus(messageId, "sent");
+        await storeProcessedInboundKey({
+          tenantId: config.tenant_id,
+          channel: message.channel,
+          conversationId: message.external_conversation_id,
+          inboundKey,
+          status: "sent",
+        });
+        results.push({
+          channel: alias,
+          external_user_id: message.external_customer_id,
+          stored: true,
+          sent: true,
+          reason: draftOrderResult.duplicate ? "social_comment_sales_flow_draft_order_duplicate" : "social_comment_sales_flow_draft_order_created",
         });
         continue;
       }

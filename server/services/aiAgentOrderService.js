@@ -96,6 +96,7 @@ export const ensureAiAgentOrderSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS public_order_number VARCHAR(40)`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS display_order_number VARCHAR(40)`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS source VARCHAR(50) NOT NULL DEFAULT 'pos'`);
+      await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_id BIGINT`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_phone VARCHAR(80)`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS customer_address TEXT`);
       await clientOrPool.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS governorate VARCHAR(120)`);
@@ -756,6 +757,7 @@ export const createAiOrderDraft = async (payload = {}) => {
   const tenantId = numeric(payload.tenant_id ?? payload.tenantId, 0);
   if (!tenantId) throw Object.assign(new Error("Tenant is required"), { status: 400 });
   const channel = normalizeOrderChannel(payload.channel || payload.source || payload.metadata?.channel);
+  const source = text(payload.source || payload.metadata?.source || channel || "");
   const conversationId = text(payload.conversation_id || payload.conversationId || payload.session_id || payload.metadata?.session_id);
   if (!conversationId) throw Object.assign(new Error("conversation_id is required"), { status: 400 });
   const product = payload.product || (await searchAiOrderProducts({ tenantId, message: payload.original_customer_message || payload.message, metadata: payload.metadata }))[0];
@@ -764,6 +766,7 @@ export const createAiOrderDraft = async (payload = {}) => {
   }
   const quantity = Math.max(1, integer(payload.quantity, 1));
   const selectedVariant = payload.variant || selectVariant(product, { size: payload.size, color: payload.color });
+  const allowOutOfStockDraft = payload.allow_out_of_stock_draft === true || payload.metadata?.allow_out_of_stock_draft === true;
   console.log("draft_stock_source", {
     tenantId,
     conversation_id: conversationId,
@@ -783,24 +786,38 @@ export const createAiOrderDraft = async (payload = {}) => {
     requested_size: text(payload.size || ""),
     source: "product_variants.stock",
     available: Boolean(selectedVariant && numeric(selectedVariant.stock, 0) >= quantity),
+    allow_out_of_stock_draft: allowOutOfStockDraft,
   });
-  if (!selectedVariant || numeric(selectedVariant.stock, 0) < quantity) {
+  if (!selectedVariant || (!allowOutOfStockDraft && numeric(selectedVariant.stock, 0) < quantity)) {
     throw Object.assign(new Error("Selected variant is unavailable"), { status: 409, code: "OUT_OF_STOCK", product });
   }
   const normalizedPhone = normalizePhone(payload.customer_phone || payload.phone || payload.metadata?.customer_phone);
   const allowMissingPhone = payload.allow_missing_phone === true || payload.metadata?.allow_missing_phone === true;
   const phone = normalizedPhone || (allowMissingPhone ? text(payload.customer_phone || payload.phone || payload.external_customer_id || payload.metadata?.external_customer_id || "meta_customer_pending_phone") : "");
   if (!phone) throw Object.assign(new Error("Valid Egyptian phone number is required"), { status: 400, code: "INVALID_PHONE" });
-  const unitPrice = numeric(selectedVariant.price || product.product_price, 0);
+  const providedUnitPrice = numeric(payload.unit_price ?? payload.unitPrice ?? 0, 0);
+  const unitPrice = providedUnitPrice > 0 ? providedUnitPrice : numeric(selectedVariant.price || product.product_price, 0);
   const subtotal = unitPrice * quantity;
-  const hash = intentHash({
-    conversationId,
-    productId: product.id,
-    variantId: selectedVariant.id,
-    quantity,
-    phone,
-    message: text(payload.original_customer_message || payload.message).slice(0, 500),
-  });
+  const idempotencyKey = text(
+    payload.idempotency_key ||
+      payload.idempotencyKey ||
+      payload.metadata?.idempotency_key ||
+      payload.metadata?.idempotencyKey ||
+      ""
+  );
+  const hash = idempotencyKey
+    ? intentHash({
+        conversationId,
+        idempotencyKey,
+      })
+    : intentHash({
+        conversationId,
+        productId: product.id,
+        variantId: selectedVariant.id,
+        quantity,
+        phone,
+        message: text(payload.original_customer_message || payload.message).slice(0, 500),
+      });
 
   const client = await db.connect();
   try {
@@ -823,10 +840,11 @@ export const createAiOrderDraft = async (payload = {}) => {
       order: {
         tenant_id: tenantId,
         invoice_number: invoiceNumber,
+        customer_id: numberOrNull(payload.customer_id ?? payload.customerId),
         customer_name: text(payload.customer_name || payload.name),
         customer_phone: phone,
         channel,
-        source: channel,
+        source,
         status: "ai_draft",
         payment_status: "unpaid",
         payment_method: "pending",
@@ -852,9 +870,11 @@ export const createAiOrderDraft = async (payload = {}) => {
           confidence_score: numeric(product.confidence, 0),
           transcript: payload.transcript || "",
           channel,
+          source,
           sales_intent: payload.metadata?.sales_intent || null,
           external_customer_id: text(payload.external_customer_id || payload.metadata?.external_customer_id),
-          source: text(payload.metadata?.source),
+          customer_id: numberOrNull(payload.customer_id ?? payload.customerId),
+          idempotency_key: idempotencyKey,
         }),
       },
       items: [{
