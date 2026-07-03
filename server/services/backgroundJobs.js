@@ -16,6 +16,8 @@ let registered = false;
 
 const hasValue = (value) => value !== undefined && value !== null && String(value).trim() !== "";
 const asArray = (value) => Array.isArray(value) ? value : value == null ? [] : [value];
+const isEmptyLatencyTraceValue = (value) =>
+  value == null || (typeof value === "string" && value.trim() === "");
 const parseDateOrNull = (value = null) => {
   if (!value) return null;
   const parsed = value instanceof Date ? value : new Date(value);
@@ -42,10 +44,16 @@ const normalizeTimestampForDb = (value = null, label = "timestamp") => {
 };
 const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 function mergeSocialCommentLatencyTrace(existingTrace = {}, patchTrace = {}, context = "") {
-  const latency_trace = {
-    ...metadataObject(existingTrace || {}),
-    ...metadataObject(patchTrace || {}),
-  };
+  const currentTrace = metadataObject(existingTrace || {});
+  const incomingTrace = metadataObject(patchTrace || {});
+  const latency_trace = { ...currentTrace };
+  for (const [key, rawValue] of Object.entries(incomingTrace)) {
+    if (isEmptyLatencyTraceValue(rawValue)) {
+      if (!(key in latency_trace)) latency_trace[key] = rawValue;
+      continue;
+    }
+    latency_trace[key] = typeof rawValue === "string" ? rawValue.trim() : rawValue;
+  }
   console.log("SOCIAL_COMMENT_TRACE_STATE", {
     context,
     keys: Object.keys(latency_trace),
