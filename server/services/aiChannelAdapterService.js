@@ -12,6 +12,16 @@ const toText = (value = "", fallback = "") => String(value ?? fallback).trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const dedupeHash = (value = "") => crypto.createHash("sha256").update(toText(value)).digest("hex");
+const APP_BOOT_COMMIT = toText(
+  process.env.APP_BOOT_COMMIT ||
+  process.env.GITHUB_SHA ||
+  process.env.VERCEL_GIT_COMMIT_SHA ||
+  process.env.SOURCE_COMMIT ||
+  ""
+);
+if (APP_BOOT_COMMIT) {
+  console.info("APP_BOOT_COMMIT", { commit: APP_BOOT_COMMIT });
+}
 
 const logArabicNormalizerDebug = ({ channel, original, normalized, normalizedForIntent } = {}) => {
   console.log("[arabic-normalizer]", {
@@ -638,10 +648,10 @@ const safeMessengerWebhookPreview = (event = {}) => {
   }
 };
 
-export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) => {
+export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } = {}) => {
   const messages = [];
-  asArray(body.entry).forEach((entry) => {
-    asArray(entry.messaging).forEach((event) => {
+  for (const entry of asArray(body.entry)) {
+    for (const event of asArray(entry.messaging)) {
       console.log("MESSENGER_WEBHOOK_EVENT", {
         object: toText(body?.object || ""),
         messaging: Boolean(event && typeof event === "object"),
@@ -654,6 +664,55 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
         referral: event?.referral || null,
         timestamp: event?.timestamp || null,
       });
+      const quickReplyPayload = toText(event?.message?.quick_reply?.payload || "");
+      const postbackPayload = toText(event?.postback?.payload || "");
+      const rawRoutingPayload = quickReplyPayload || postbackPayload;
+      const rawRoutingPrefix = rawRoutingPayload.split("::")[0] || rawRoutingPayload;
+      const shouldRouteSocialCommentQuickReply =
+        rawRoutingPayload.startsWith("SOCIAL_SIZE_SELECT::") ||
+        rawRoutingPayload.startsWith("SOCIAL_COLOR_SELECT::") ||
+        rawRoutingPayload.startsWith("ORDER_CONFIRM") ||
+        rawRoutingPayload.startsWith("CHANGE_SIZE") ||
+        rawRoutingPayload.startsWith("CHANGE_COLOR") ||
+        rawRoutingPayload.startsWith("ORDER_CANCEL");
+      if (shouldRouteSocialCommentQuickReply) {
+        console.log("SOCIAL_COMMENT_QUICK_REPLY_ROUTING", {
+          tenant_id: tenantId || null,
+          platform: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+          post_id: "",
+          comment_id: "",
+          payload_prefix: rawRoutingPrefix,
+          route_candidate: rawRoutingPrefix || "none",
+          quick_reply_payload: quickReplyPayload || postbackPayload || "",
+          message_text: toText(event?.message?.text || ""),
+          message_id: toText(event?.message?.mid || event?.message?.id || event?.postback?.mid || event?.postback?.payload || ""),
+          stage: "raw_webhook",
+        });
+        try {
+          const module = await import("./metaIntegrationService.js");
+          const dispatcher = module.dispatchSocialCommentMessengerQuickReplySelection;
+          if (typeof dispatcher === "function") {
+            await dispatcher({
+              tenantId,
+              body,
+              event,
+              quickReplyPayload,
+              postbackPayload,
+              messageText: toText(event?.message?.text || ""),
+            });
+          } else {
+            throw new Error("dispatchSocialCommentMessengerQuickReplySelection is not defined");
+          }
+        } catch (error) {
+          console.warn("SOCIAL_COMMENT_SALES_FLOW_DISPATCH_FAILED", {
+            tenant_id: tenantId || null,
+            platform: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+            payload_prefix: rawRoutingPrefix,
+            quick_reply_payload: quickReplyPayload || postbackPayload || "",
+            message: error?.message || "",
+          });
+        }
+      }
       console.log("MESSENGER_WEBHOOK_EVENT_RAW_SHAPE", {
         messaging_keys: event && typeof event === "object" ? Object.keys(event) : [],
         message_shape_keys: event?.message && typeof event.message === "object" ? Object.keys(event.message) : [],
@@ -736,8 +795,8 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
           postback_payload: event.postback?.payload || "",
         },
       }));
-    });
-  });
+    }
+  }
   return messages;
 };
 

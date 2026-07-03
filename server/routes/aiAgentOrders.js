@@ -1612,7 +1612,7 @@ router.post("/channels/meta/webhook", async (req, res) => {
     const accountId = req.body?.entry?.[0]?.id || req.body?.entry?.[0]?.messaging?.[0]?.recipient?.id || "";
     const tenantId = await resolveMetaTenantId(req, accountId);
     if (!tenantId) return res.status(400).json({ success: false, message: "A valid tenant id is required" });
-    const messages = extractMetaWebhookMessages({ body: req.body, tenantId })
+    const messages = (await extractMetaWebhookMessages({ body: req.body, tenantId }))
       .filter((message) => message.message_text || message.attachments?.length);
     if (!messages.length) {
       return res.status(200).json({ success: true, ignored: hasOnlyEchoes ? "read_delivery_or_echo" : "no_messages" });

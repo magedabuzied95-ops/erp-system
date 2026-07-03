@@ -14932,6 +14932,53 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   return null;
 };
 
+export const dispatchSocialCommentMessengerQuickReplySelection = async ({
+  tenantId = null,
+  body = {},
+  event = {},
+  quickReplyPayload = "",
+  postbackPayload = "",
+  messageText = "",
+} = {}) => {
+  const rawPayload = text(quickReplyPayload || postbackPayload || event?.message?.quick_reply?.payload || event?.postback?.payload || "");
+  if (!rawPayload) return { handled: false, reason: "missing_quick_reply_payload" };
+  const senderId = text(event?.sender?.id || "");
+  if (!senderId) return { handled: false, reason: "missing_sender_id" };
+  const config = await getMetaIntegrationConfig({ tenantId }).catch(() => null);
+  if (!config) return { handled: false, reason: "missing_meta_config" };
+  const message = {
+    channel: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+    external_conversation_id: `${AI_AGENT_CHANNELS.FACEBOOK_MESSENGER}:${senderId}`,
+    external_customer_id: senderId,
+    message_text: text(messageText || event?.message?.text || ""),
+    raw: {
+      event,
+      object: text(body?.object || ""),
+      sender_psid: senderId,
+      recipient_page_id: text(event?.recipient?.id || ""),
+      quick_reply_payload: quickReplyPayload || "",
+      postback_payload: postbackPayload || "",
+    },
+    external_message_id: text(event?.message?.mid || event?.message?.id || event?.postback?.mid || event?.postback?.payload || ""),
+    timestamp: event?.timestamp ? new Date(Number(event.timestamp)).toISOString() : new Date().toISOString(),
+    quick_reply_payload: quickReplyPayload || "",
+    postback_payload: postbackPayload || "",
+  };
+  const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message, {
+    inboundMetaMid: message.external_message_id,
+  });
+  const result = await handleSocialCommentMessengerQuickReplySelection({
+    config,
+    message,
+    inboundKey,
+    inboundMetaMid,
+  });
+  if (event && typeof event === "object") {
+    event.__social_comment_quick_reply_routed = true;
+  }
+  return result;
+};
+
 const canonicalModelFamilyLabel = (value = "") => {
   const raw = text(value).toLowerCase().replace(/\s+/g, " ").trim();
   const normalized = normalizedSearchText(value);
@@ -21340,7 +21387,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
   const storedCommentEvents = commentEvents.length
     ? await storeSocialCommentAutomationRuns({ tenantId: config.tenant_id, events: commentEvents })
     : [];
-  const messages = extractMetaWebhookMessages({ body: payload, tenantId: config.tenant_id }).filter((message) => message.message_text || message.attachments?.length);
+  const messages = (await extractMetaWebhookMessages({ body: payload, tenantId: config.tenant_id })).filter((message) => message.message_text || message.attachments?.length);
   const results = [];
   for (const incomingMessage of messages) {
     const resolvedPageId = await resolveMessengerProfileFetchPageId({
@@ -21715,12 +21762,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
         conversation_id: text(message?.external_conversation_id || ""),
       });
     }
-    const socialCommentQuickReplySelection = await handleSocialCommentMessengerQuickReplySelection({
-      config,
-      message,
-      inboundKey,
-      inboundMetaMid: message.external_message_id || messageId,
-    });
+    const socialCommentQuickReplySelection = message?.raw?.event?.__social_comment_quick_reply_routed === true
+      ? { handled: true, reason: "social_comment_quick_reply_pre_routed" }
+      : await handleSocialCommentMessengerQuickReplySelection({
+          config,
+          message,
+          inboundKey,
+          inboundMetaMid: message.external_message_id || messageId,
+        });
     if (socialCommentQuickReplySelection?.handled) {
       markMessageProcessingStatus(messageId, "sent");
       await storeProcessedInboundKey({
