@@ -39,6 +39,29 @@ function mergeSocialCommentLatencyTrace(existingTrace = {}, patchTrace = {}, con
   });
   return latency_trace;
 }
+function mergeSocialCommentRuntimeMonitor(existingRuntimeMonitor = {}, nextRuntimeMonitor = {}, context = "") {
+  const currentRuntimeMonitor = metadataObject(existingRuntimeMonitor || {});
+  const patchRuntimeMonitor = metadataObject(nextRuntimeMonitor || {});
+  const latency_trace = mergeSocialCommentLatencyTrace(
+    currentRuntimeMonitor.latency_trace || {},
+    patchRuntimeMonitor.latency_trace || {},
+    `${context}.latency_trace`
+  );
+  const runtime_monitor = {
+    ...currentRuntimeMonitor,
+    ...patchRuntimeMonitor,
+    latency_trace,
+    latency_summary: computeSocialCommentLatencySummary(latency_trace),
+  };
+  console.log("SOCIAL_COMMENT_RUNTIME_MONITOR_STATE", {
+    context,
+    has_latency_trace: Boolean(runtime_monitor.latency_trace && Object.keys(runtime_monitor.latency_trace).length),
+    latency_trace_keys: Object.keys(runtime_monitor.latency_trace || {}),
+    status: text(runtime_monitor.status || ""),
+    private_reply_status: text(runtime_monitor.private_reply_status || runtime_monitor.private_reply?.status || ""),
+  });
+  return runtime_monitor;
+}
 const numericOrNull = (value = null) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -473,15 +496,17 @@ const buildSocialCommentRuntimeMonitor = ({
   );
   return {
     ...safeAutomationState,
-    runtime_monitor: {
-      ...currentRuntimeMonitor,
-      status: text(status || currentRuntimeMonitor.status || safeAutomationState.overall_status || rowAutomationState.overall_status || ""),
-      skipped_reason: text(skippedReason || currentRuntimeMonitor.skipped_reason || ""),
-      error_message: text(errorMessage || currentRuntimeMonitor.error_message || ""),
-      latency_trace: nextTrace,
-      latency_summary: computeSocialCommentLatencySummary(nextTrace),
-      updated_at: new Date().toISOString(),
-    },
+    runtime_monitor: mergeSocialCommentRuntimeMonitor(
+      currentRuntimeMonitor,
+      {
+        status: text(status || currentRuntimeMonitor.status || safeAutomationState.overall_status || rowAutomationState.overall_status || ""),
+        skipped_reason: text(skippedReason || currentRuntimeMonitor.skipped_reason || ""),
+        error_message: text(errorMessage || currentRuntimeMonitor.error_message || ""),
+        latency_trace: nextTrace,
+        updated_at: new Date().toISOString(),
+      },
+      "buildSocialCommentRuntimeMonitor"
+    ),
   };
 };
 
@@ -1352,6 +1377,36 @@ export const upsertSocialCommentAutomationRunSummary = async ({
   const runtimeAiSales = rawRuntimeContext.ai_sales && typeof rawRuntimeContext.ai_sales === "object" && !Array.isArray(rawRuntimeContext.ai_sales)
     ? rawRuntimeContext.ai_sales
     : {};
+  const mergedRuntimeMonitor = mergeSocialCommentRuntimeMonitor(
+    row.automation_state?.runtime_monitor || {},
+    {
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      config_id: configId ?? null,
+      status: finalStatus,
+      step_results: summary.normalized,
+      error_message: finalErrorMessage,
+      skipped_reason: safeDiagnostics.skipped_reason,
+      matched_config_key: safeDiagnostics.matched_config_key,
+      resolved_post_id: safeDiagnostics.resolved_post_id,
+      resolved_platform_post_id: safeDiagnostics.resolved_platform_post_id,
+      resolved_product_id: safeDiagnostics.resolved_product_id,
+      duplicate_reason: safeDiagnostics.duplicate_reason,
+      config_found: safeDiagnostics.config_found,
+      config_enabled: safeDiagnostics.config_enabled,
+      product_link: text(row.product_link || row.metadata?.product_link || row.metadata?.website_product_link || ""),
+      checkout_link: text(row.checkout_link || row.metadata?.checkout_link || ""),
+      guidance_mode: text(row.guidance_mode || row.metadata?.guidance_mode || "website_checkout") || "website_checkout",
+      detected_intent: text(runtimeAiSales.intent || ""),
+      generated_public_reply: text(runtimeAiSales.public_reply || ""),
+      generated_private_reply: text(runtimeAiSales.private_reply || ""),
+      approval_status: text(runtimeAiSales.approval_status || ""),
+      ai_sales: runtimeAiSales,
+      raw_runtime_context: safeDiagnostics.raw_runtime_context,
+      updated_at: new Date().toISOString(),
+    },
+    "upsertSocialCommentAutomationRunAudit"
+  );
   const result = await db.query(
     `
     INSERT INTO social_comment_automation_runs (
@@ -1447,32 +1502,7 @@ export const upsertSocialCommentAutomationRunSummary = async ({
       text(row.like_status || row.automation_state?.like_status || ""),
       JSON.stringify({
         ...(row.automation_state || {}),
-        runtime_monitor: {
-          post_id: safePostId,
-          comment_id: safeCommentId,
-          config_id: configId ?? null,
-          status: finalStatus,
-          step_results: summary.normalized,
-          error_message: finalErrorMessage,
-          skipped_reason: safeDiagnostics.skipped_reason,
-          matched_config_key: safeDiagnostics.matched_config_key,
-          resolved_post_id: safeDiagnostics.resolved_post_id,
-          resolved_platform_post_id: safeDiagnostics.resolved_platform_post_id,
-          resolved_product_id: safeDiagnostics.resolved_product_id,
-          duplicate_reason: safeDiagnostics.duplicate_reason,
-          config_found: safeDiagnostics.config_found,
-          config_enabled: safeDiagnostics.config_enabled,
-          product_link: text(row.product_link || row.metadata?.product_link || row.metadata?.website_product_link || ""),
-          checkout_link: text(row.checkout_link || row.metadata?.checkout_link || ""),
-          guidance_mode: text(row.guidance_mode || row.metadata?.guidance_mode || "website_checkout") || "website_checkout",
-          detected_intent: text(runtimeAiSales.intent || ""),
-          generated_public_reply: text(runtimeAiSales.public_reply || ""),
-          generated_private_reply: text(runtimeAiSales.private_reply || ""),
-          approval_status: text(runtimeAiSales.approval_status || ""),
-          ai_sales: runtimeAiSales,
-          raw_runtime_context: safeDiagnostics.raw_runtime_context,
-          updated_at: new Date().toISOString(),
-        },
+        runtime_monitor: mergedRuntimeMonitor,
       }),
       finalStatus,
       JSON.stringify(summary.normalized),
@@ -1489,6 +1519,13 @@ export const upsertSocialCommentAutomationRunSummary = async ({
       normalizeTimestampForDb(row.created_at, "upsertSocialCommentAutomationRunAudit.created_at"),
     ]
   );
+  console.log("SOCIAL_COMMENT_RUNTIME_MONITOR_STATE", {
+    context: "upsertSocialCommentAutomationRunAudit.after_write",
+    has_latency_trace: Boolean(mergedRuntimeMonitor.latency_trace && Object.keys(mergedRuntimeMonitor.latency_trace).length),
+    latency_trace_keys: Object.keys(mergedRuntimeMonitor.latency_trace || {}),
+    status: text(mergedRuntimeMonitor.status || ""),
+    private_reply_status: text(mergedRuntimeMonitor.private_reply_status || mergedRuntimeMonitor.private_reply?.status || ""),
+  });
   return result.rows?.[0] || null;
 };
 
@@ -5853,6 +5890,13 @@ export const persistSocialCommentAutomationState = async ({
       emitSocialReplyStatus(row);
     }
   }
+  console.log("SOCIAL_COMMENT_RUNTIME_MONITOR_STATE", {
+    context: "persistSocialCommentAutomationState.after_write",
+    has_latency_trace: Boolean(mergedRuntimeMonitor.latency_trace && Object.keys(mergedRuntimeMonitor.latency_trace).length),
+    latency_trace_keys: Object.keys(mergedRuntimeMonitor.latency_trace || {}),
+    status: text(mergedRuntimeMonitor.status || ""),
+    private_reply_status: text(mergedRuntimeMonitor.private_reply_status || mergedRuntimeMonitor.private_reply?.status || ""),
+  });
   return row;
 };
 
@@ -7677,7 +7721,9 @@ const mapSocialCommentAutomationAuditRowToRecentRow = (row = {}) => {
     created_at: row.created_at || new Date().toISOString(),
     updated_at: row.updated_at || row.created_at || new Date().toISOString(),
     automation_state: {
-      runtime_monitor: {
+      runtime_monitor: mergeSocialCommentRuntimeMonitor(
+        row.automation_state?.runtime_monitor || row.runtime_monitor || {},
+        {
         status: text(row.status || "duplicate_skipped") || "duplicate_skipped",
         skipped_reason: skippedReason,
         matched_config_key: matchedConfigKey,
@@ -7701,7 +7747,9 @@ const mapSocialCommentAutomationAuditRowToRecentRow = (row = {}) => {
           config_enabled: Boolean(row.config_enabled),
           duplicate_reason: duplicateReason,
         },
-      },
+        },
+        "mapSocialCommentAutomationAuditRowToRecentRow"
+      ),
     },
   };
 };

@@ -53,6 +53,29 @@ function mergeSocialCommentLatencyTrace(existingTrace = {}, patchTrace = {}, con
   });
   return latency_trace;
 }
+function mergeSocialCommentRuntimeMonitor(existingRuntimeMonitor = {}, nextRuntimeMonitor = {}, context = "") {
+  const currentRuntimeMonitor = metadataObject(existingRuntimeMonitor || {});
+  const patchRuntimeMonitor = metadataObject(nextRuntimeMonitor || {});
+  const latency_trace = mergeSocialCommentLatencyTrace(
+    currentRuntimeMonitor.latency_trace || {},
+    patchRuntimeMonitor.latency_trace || {},
+    `${context}.latency_trace`
+  );
+  const runtime_monitor = {
+    ...currentRuntimeMonitor,
+    ...patchRuntimeMonitor,
+    latency_trace,
+    latency_summary: computeSocialCommentLatencySummary(latency_trace),
+  };
+  console.log("SOCIAL_COMMENT_RUNTIME_MONITOR_STATE", {
+    context,
+    has_latency_trace: Boolean(runtime_monitor.latency_trace && Object.keys(runtime_monitor.latency_trace).length),
+    latency_trace_keys: Object.keys(runtime_monitor.latency_trace || {}),
+    status: String(runtime_monitor.status || "").trim(),
+    private_reply_status: String(runtime_monitor.private_reply_status || runtime_monitor.private_reply?.status || "").trim(),
+  });
+  return runtime_monitor;
+}
 const SOCIAL_COMMENT_LATENCY_REQUIRED_FIELDS = [
   "detected_at",
   "enqueue_at",
@@ -172,14 +195,16 @@ const withSocialCommentLatencyState = ({ row = {}, automationState = {}, patch =
   );
   return {
     ...safeState,
-    runtime_monitor: {
-      ...currentMonitor,
-      status: String(status || currentMonitor.status || "").trim(),
-      error_message: String(errorMessage || currentMonitor.error_message || "").trim(),
-      latency_trace: nextTrace,
-      latency_summary: computeSocialCommentLatencySummary(nextTrace),
-      updated_at: new Date().toISOString(),
-    },
+    runtime_monitor: mergeSocialCommentRuntimeMonitor(
+      currentMonitor,
+      {
+        status: String(status || currentMonitor.status || "").trim(),
+        error_message: String(errorMessage || currentMonitor.error_message || "").trim(),
+        latency_trace: nextTrace,
+        updated_at: new Date().toISOString(),
+      },
+      "backgroundJobs.withSocialCommentLatencyState"
+    ),
   };
 };
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
