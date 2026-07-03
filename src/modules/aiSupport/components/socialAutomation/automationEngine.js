@@ -86,7 +86,7 @@ export const buildAutomationDraft = (post = {}) => {
     aiFollowUp: true,
     createLead: false,
     templateId: "product_comment_sales_flow",
-    publicReplyTemplate: "تم الرد على حضرتك في الخاص ✅",
+    publicReplyTemplate: "أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe",
     privateReplyTemplate: `أهلاً {{customer_name}}\n{{product_name}} متاح بسعر {{price}}.\nالمقاسات المتاحة: {{available_sizes}}\nاطلبه مباشرة من هنا: {{product_link}}`,
     aiOpeningPrompt: `أنت مساعد مبيعات داخل AI Social Media Center.\nوجّه العميل لإكمال الشراء من خلال الموقع فقط.\nاستخدم {{product_link}} و{{checkout_link}} عندما يكونان متاحين.\nلا تنشئ طلبات أو drafts داخلية.`,
   };
@@ -157,9 +157,9 @@ export const applyAutomationTemplate = (draft = {}, templateId = "", post = {}) 
     createLead: template.defaults.createLead,
     publicReplyTemplate:
       {
-        product_comment_sales_flow: "تم الرد على حضرتك في الخاص ✅",
-        price_inquiry_flow: "تم الرد على حضرتك في الخاص ✅",
-        size_availability_flow: "تم الرد على حضرتك في الخاص ✅",
+        product_comment_sales_flow: "أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe",
+        price_inquiry_flow: "أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe",
+        size_availability_flow: "أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe",
         human_takeover_flow: "تم تحويل طلبك لفريق الدعم وسيتم الرد عليك قريبًا ✅",
       }[template.id] || baseDraft.publicReplyTemplate,
     privateReplyTemplate:

@@ -12,7 +12,7 @@ export default function AutomationMessageTemplates({ values = {}, onChange }) {
             onChange={(event) => onChange?.({ publicReplyTemplate: event.target.value })}
             rows={3}
             className="w-full rounded-2xl border border-white/10 bg-slate-950/70 p-3 text-sm leading-6 text-white outline-none"
-            placeholder="تم الرد على حضرتك في الخاص ✅"
+            placeholder="أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe"
           />
         </label>
 
@@ -41,4 +41,3 @@ export default function AutomationMessageTemplates({ values = {}, onChange }) {
     </section>
   );
 }
-

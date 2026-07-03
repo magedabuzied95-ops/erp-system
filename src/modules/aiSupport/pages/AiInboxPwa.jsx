@@ -4396,7 +4396,7 @@ export default function AiInboxPwa() {
       selectedSocialThread?.post?.rendered_reply ||
       selectedSocialThread?.post?.reply_text ||
       socialReplySettings.generic_template ||
-      "تم الرد على حضرتك في الخاص ✅"
+      "أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe"
     );
     const privateReplyText = clean(
       selectedSocialThread?.post?.rendered_private_reply ||

@@ -81,7 +81,17 @@ const SOCIAL_AUTO_REPLY_DEFAULTS = {
   generic_enabled: false,
   generic_like_enabled: true,
   generic_reply_enabled: true,
-  generic_template: "تم الرد على حضرتك في الخاص ✅",
+  generic_template: [
+  "\u0623\u0647\u0644\u0627\u064b \u0648\u0633\u0647\u0644\u0627\u064b \u064a\u0627 {{customer_name}} \u2764\ufe0f",
+  "\u062a\u0645 \u0627\u0644\u0631\u062f \u0641\u064a \u0627\u0644\u062e\u0627\u0635 \u064a\u0627 \u0635\u062f\u064a\u0642\u064a ",
+  "\u0648\u0639\u0646\u062f\u0646\u0627 \u0634\u062d\u0646 \u0644\u062c\u0645\u064a\u0639 \u0645\u062d\u0627\u0641\u0638\u0627\u062a \u0645\u0635\u0631 ",
+  "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+  " \u0627\u0644\u0639\u0646\u0648\u0627\u0646:",
+  "\u062f\u0645\u064a\u0627\u0637 \u0627\u0644\u062c\u062f\u064a\u062f\u0629 - \u0634\u0627\u0631\u0639 \u0627\u0644\u0628\u0634\u0628\u064a\u0634\u064a - \u0628\u062c\u0648\u0627\u0631 \u0627\u0644\u0641\u0631\u0646\u0633\u064a\u0629 \u062c\u0631\u0648\u0628 \u2764\ufe0f",
+  "",
+  " \u0627\u0644\u0644\u0648\u0643\u064a\u0634\u0646:",
+  "https://share.google/1e0cM7JVmxyLTpWVe",
+].join("\n"),
   mode: "manual_approval",
 };
 
@@ -2516,7 +2526,17 @@ const buildSocialCommentAutomationDefaultTemplates = (post = {}, product = {}) =
   const sizes = text(post.product_sizes || post.sizes || product.sizes || "");
   const productLink = text(product.storefront_url || product.product_url || post.product_link || "");
   return {
-    publicReplyTemplate: "تم الرد على حضرتك في الخاص ✅",
+    publicReplyTemplate: [
+      "\u0623\u0647\u0644\u0627\u064b \u0648\u0633\u0647\u0644\u0627\u064b \u064a\u0627 {{customer_name}} \u2764\ufe0f",
+      "\u062a\u0645 \u0627\u0644\u0631\u062f \u0641\u064a \u0627\u0644\u062e\u0627\u0635 \u064a\u0627 \u0635\u062f\u064a\u0642\u064a ",
+      "\u0648\u0639\u0646\u062f\u0646\u0627 \u0634\u062d\u0646 \u0644\u062c\u0645\u064a\u0639 \u0645\u062d\u0627\u0641\u0638\u0627\u062a \u0645\u0635\u0631 ",
+      "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+      " \u0627\u0644\u0639\u0646\u0648\u0627\u0646:",
+      "\u062f\u0645\u064a\u0627\u0637 \u0627\u0644\u062c\u062f\u064a\u062f\u0629 - \u0634\u0627\u0631\u0639 \u0627\u0644\u0628\u0634\u0628\u064a\u0634\u064a - \u0628\u062c\u0648\u0627\u0631 \u0627\u0644\u0641\u0631\u0646\u0633\u064a\u0629 \u062c\u0631\u0648\u0628 \u2764\ufe0f",
+      "",
+      " \u0627\u0644\u0644\u0648\u0643\u064a\u0634\u0646:",
+      "https://share.google/1e0cM7JVmxyLTpWVe",
+    ].join("\n"),
     privateReplyTemplate: `أهلاً {{customer_name}}
 {{product_name}} متاح بسعر {{price}}.
 المقاسات المتاحة: {{available_sizes}}

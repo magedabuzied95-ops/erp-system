@@ -787,35 +787,7 @@ const buildSocialCommentSalesReplies = ({
     };
   }
 
-  const publicParts = [];
-  if (intent === "price_question" && priceLabel) {
-    publicParts.push(`السعر ${priceLabel} يا فندم ✅`);
-  } else if (intent === "size_question" && sizesLabel) {
-    publicParts.push(`متوفر مقاسات ${sizesLabel} ✅`);
-  } else if (intent === "availability_question" && stockLabel) {
-    publicParts.push(`${stockLabel} ✅`);
-  } else if (intent === "color_question" && colorsLabel) {
-    publicParts.push(`متوفر ألوان ${colorsLabel} ✅`);
-  } else if (intent === "product_link_request") {
-    publicParts.push("ابعت لحضرتك التفاصيل في الخاص ✅");
-  } else if (intent === "delivery_shipping_question" && deliveryLabel) {
-    publicParts.push(`${deliveryLabel} ✅`);
-  } else if (intent === "order_intent") {
-    publicParts.push("تمام يا فندم ✅");
-  } else {
-    if (stockLabel) publicParts.push(`${stockLabel} ✅`);
-    else if (productName) publicParts.push(`${productName} متوفر ✅`);
-  }
-  if (!publicParts.some((part) => part.includes("السعر")) && priceLabel && ["availability_question", "generic_interest", "order_intent"].includes(intent)) {
-    publicParts.push(`السعر ${priceLabel}`);
-  }
-  if (!publicParts.some((part) => part.includes("مقاسات")) && sizesLabel && ["price_question", "order_intent", "generic_interest"].includes(intent)) {
-    publicParts.push(`مقاسات ${sizesLabel}`);
-  }
-  if (productLink) {
-    publicParts.push("ابعت لحضرتك التفاصيل في الخاص.");
-  }
-  const publicReply = text(publicParts.join(" ").replace(/\s+/g, " ").trim() || fallbackPublicReply);
+  const publicReply = text(fallbackPublicReply || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE);
 
   const privateLines = [];
   privateLines.push(customerName ? `أهلاً بحضرتك يا ${customerName}` : "أهلاً بحضرتك");
@@ -837,21 +809,18 @@ const buildSocialCommentSalesReplies = ({
   };
 };
 
-const SOCIAL_COMMENT_GENERIC_PUBLIC_REPLIES = new Set([
-  "تم الرد على حضرتك في الخاص ✅",
-  "تم إرسال التفاصيل في رسالة خاصة",
-  "تم إرسال التفاصيل في رسالة خاصة ",
-]);
-const SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE = `أهلاً وسهلاً يا {{customer_name}} ❤️
-تم الرد في الخاص يا صديقي 
-وعندنا شحن لجميع محافظات مصر 
-━━━━━━━━━━━━━━━━━━
- العنوان:
-دمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️
-
- اللوكيشن:
-https://share.google/1e0cM7JVmxyLTpWVe`;
-
+const SOCIAL_COMMENT_GENERIC_PUBLIC_REPLIES = new Set([]);
+const SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE = [
+  "\u0623\u0647\u0644\u0627\u064b \u0648\u0633\u0647\u0644\u0627\u064b \u064a\u0627 {{customer_name}} \u2764\ufe0f",
+  "\u062a\u0645 \u0627\u0644\u0631\u062f \u0641\u064a \u0627\u0644\u062e\u0627\u0635 \u064a\u0627 \u0635\u062f\u064a\u0642\u064a ",
+  "\u0648\u0639\u0646\u062f\u0646\u0627 \u0634\u062d\u0646 \u0644\u062c\u0645\u064a\u0639 \u0645\u062d\u0627\u0641\u0638\u0627\u062a \u0645\u0635\u0631 ",
+  "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+  " \u0627\u0644\u0639\u0646\u0648\u0627\u0646:",
+  "\u062f\u0645\u064a\u0627\u0637 \u0627\u0644\u062c\u062f\u064a\u062f\u0629 - \u0634\u0627\u0631\u0639 \u0627\u0644\u0628\u0634\u0628\u064a\u0634\u064a - \u0628\u062c\u0648\u0627\u0631 \u0627\u0644\u0641\u0631\u0646\u0633\u064a\u0629 \u062c\u0631\u0648\u0628 \u2764\ufe0f",
+  "",
+  " \u0627\u0644\u0644\u0648\u0643\u064a\u0634\u0646:",
+  "https://share.google/1e0cM7JVmxyLTpWVe",
+].join("\n");
 const SOCIAL_COMMENT_GENERIC_PRIVATE_REPLIES = new Set([
   "تم الرد على حضرتك خاص",
   "تم الرد على حضرتك في الخاص",
@@ -1240,15 +1209,17 @@ const COMMENT_LEAD_TEMPERATURE = {
 const COMMENT_THREAD_LABELS = new Set(Object.keys(COMMENT_LEAD_SCORE));
 const COMMENT_AUTOMATION_ELIGIBLE_LABELS = new Set(Object.keys(COMMENT_LEAD_SCORE));
 const COMMENT_AUTOMATION_MIN_SCORE = 0.9;
-const COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT = `أهلاً وسهلاً يا {{customer_name}} ❤️
-تم الرد في الخاص يا صديقي 
-وعندنا شحن لجميع محافظات مصر 
-━━━━━━━━━━━━━━━━━━
- العنوان:
-دمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️
-
- اللوكيشن:
-https://share.google/1e0cM7JVmxyLTpWVe`;
+const COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT = [
+  "\u0623\u0647\u0644\u0627\u064b \u0648\u0633\u0647\u0644\u0627\u064b \u064a\u0627 {{customer_name}} \u2764\ufe0f",
+  "\u062a\u0645 \u0627\u0644\u0631\u062f \u0641\u064a \u0627\u0644\u062e\u0627\u0635 \u064a\u0627 \u0635\u062f\u064a\u0642\u064a ",
+  "\u0648\u0639\u0646\u062f\u0646\u0627 \u0634\u062d\u0646 \u0644\u062c\u0645\u064a\u0639 \u0645\u062d\u0627\u0641\u0638\u0627\u062a \u0645\u0635\u0631 ",
+  "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
+  " \u0627\u0644\u0639\u0646\u0648\u0627\u0646:",
+  "\u062f\u0645\u064a\u0627\u0637 \u0627\u0644\u062c\u062f\u064a\u062f\u0629 - \u0634\u0627\u0631\u0639 \u0627\u0644\u0628\u0634\u0628\u064a\u0634\u064a - \u0628\u062c\u0648\u0627\u0631 \u0627\u0644\u0641\u0631\u0646\u0633\u064a\u0629 \u062c\u0631\u0648\u0628 \u2764\ufe0f",
+  "",
+  " \u0627\u0644\u0644\u0648\u0643\u064a\u0634\u0646:",
+  "https://share.google/1e0cM7JVmxyLTpWVe",
+].join("\n");
 
 const featureFlagEnabled = (value = "") => ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
 const socialCommentsDebugEnabled = () =>

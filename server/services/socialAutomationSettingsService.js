@@ -5,9 +5,14 @@ export const DEFAULT_SOCIAL_AUTOMATION_SETTINGS = {
   auto_public_reply_enabled: false,
   auto_private_message_enabled: false,
   min_confidence: 0.9,
-  public_reply_template: "تم إرسال التفاصيل في رسالة خاصة ",
+  public_reply_template: "أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe",
   private_message_template: null,
 };
+
+const LEGACY_PUBLIC_REPLY_TEMPLATES = new Set([
+  "تم إرسال التفاصيل في رسالة خاصة",
+  "تم إرسال التفاصيل في رسالة خاصة ",
+]);
 
 let schemaReadyPromise = null;
 let fallbackSettings = { ...DEFAULT_SOCIAL_AUTOMATION_SETTINGS };
@@ -39,16 +44,20 @@ const normalizeTemplate = (value, fallback = "", allowNull = false) => {
   return normalized || fallback;
 };
 
+const normalizePublicReplyTemplate = (value, fallback = DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_template) => {
+  const normalized = normalizeTemplate(value, fallback, false);
+  return LEGACY_PUBLIC_REPLY_TEMPLATES.has(normalized) ? fallback : normalized;
+};
+
 const rowToSettings = (row = {}) => ({
   tenant_id: Number(row.tenant_id || 0) || null,
   auto_like_enabled: booleanFrom(row.auto_like_enabled, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.auto_like_enabled),
   auto_public_reply_enabled: booleanFrom(row.auto_public_reply_enabled, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.auto_public_reply_enabled),
   auto_private_message_enabled: booleanFrom(row.auto_private_message_enabled, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.auto_private_message_enabled),
   min_confidence: confidenceFrom(row.min_confidence, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.min_confidence),
-  public_reply_template: normalizeTemplate(
+  public_reply_template: normalizePublicReplyTemplate(
     row.public_reply_template,
     DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_template,
-    false
   ),
   private_message_template: normalizeTemplate(
     row.private_message_template,
@@ -65,7 +74,7 @@ const normalizePatch = (patch = {}) => ({
   ...(Object.prototype.hasOwnProperty.call(patch, "auto_public_reply_enabled") ? { auto_public_reply_enabled: booleanFrom(patch.auto_public_reply_enabled, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.auto_public_reply_enabled) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "auto_private_message_enabled") ? { auto_private_message_enabled: booleanFrom(patch.auto_private_message_enabled, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.auto_private_message_enabled) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "min_confidence") ? { min_confidence: confidenceFrom(patch.min_confidence, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.min_confidence) } : {}),
-  ...(Object.prototype.hasOwnProperty.call(patch, "public_reply_template") ? { public_reply_template: normalizeTemplate(patch.public_reply_template, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_template, false) } : {}),
+  ...(Object.prototype.hasOwnProperty.call(patch, "public_reply_template") ? { public_reply_template: normalizePublicReplyTemplate(patch.public_reply_template, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_template) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "private_message_template") ? { private_message_template: normalizeTemplate(patch.private_message_template, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.private_message_template, true) } : {}),
 });
 
@@ -84,7 +93,15 @@ export async function ensureSocialAutomationSettingsSchema(client = db) {
           auto_public_reply_enabled BOOLEAN NOT NULL DEFAULT FALSE,
           auto_private_message_enabled BOOLEAN NOT NULL DEFAULT FALSE,
           min_confidence NUMERIC(6,4) NOT NULL DEFAULT 0.9000,
-          public_reply_template TEXT NOT NULL DEFAULT 'تم إرسال التفاصيل في رسالة خاصة ',
+          public_reply_template TEXT NOT NULL DEFAULT 'أهلاً وسهلاً يا {{customer_name}} ❤️
+تم الرد في الخاص يا صديقي 
+وعندنا شحن لجميع محافظات مصر 
+━━━━━━━━━━━━━━━━━━
+ العنوان:
+دمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️
+
+ اللوكيشن:
+https://share.google/1e0cM7JVmxyLTpWVe',
           private_message_template TEXT NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -97,7 +114,15 @@ export async function ensureSocialAutomationSettingsSchema(client = db) {
           ADD COLUMN IF NOT EXISTS auto_public_reply_enabled BOOLEAN NOT NULL DEFAULT FALSE,
           ADD COLUMN IF NOT EXISTS auto_private_message_enabled BOOLEAN NOT NULL DEFAULT FALSE,
           ADD COLUMN IF NOT EXISTS min_confidence NUMERIC(6,4) NOT NULL DEFAULT 0.9000,
-          ADD COLUMN IF NOT EXISTS public_reply_template TEXT NOT NULL DEFAULT 'تم إرسال التفاصيل في رسالة خاصة ',
+          ADD COLUMN IF NOT EXISTS public_reply_template TEXT NOT NULL DEFAULT 'أهلاً وسهلاً يا {{customer_name}} ❤️
+تم الرد في الخاص يا صديقي 
+وعندنا شحن لجميع محافظات مصر 
+━━━━━━━━━━━━━━━━━━
+ العنوان:
+دمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️
+
+ اللوكيشن:
+https://share.google/1e0cM7JVmxyLTpWVe',
           ADD COLUMN IF NOT EXISTS private_message_template TEXT NULL,
           ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP

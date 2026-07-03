@@ -300,7 +300,7 @@ const defaultSocialAutomationSettings = {
   auto_public_reply_enabled: false,
   auto_private_message_enabled: false,
   min_confidence: 0.9,
-  public_reply_template: "تم إرسال التفاصيل في رسالة خاصة ",
+  public_reply_template: "أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe",
   private_message_template: "",
 };
 
