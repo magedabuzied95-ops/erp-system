@@ -22060,6 +22060,20 @@ export const processMetaWebhook = async ({ req } = {}) => {
     const alias = channelAlias(message.channel);
     const messageId = text(message.external_message_id || message.dedupe_key || "");
     const { inboundKey, inboundMetaMid } = outboundDedupeContextFromMessage(message);
+    await loadPersistentAiConversationMemory({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+    }).catch(() => {});
+    const preRouteMemory = getConversationMemory(message.external_conversation_id) || {};
+    const preRouteSalesFlow = preRouteMemory.sales_flow && typeof preRouteMemory.sales_flow === "object"
+      ? preRouteMemory.sales_flow
+      : (preRouteMemory.salesFlow && typeof preRouteMemory.salesFlow === "object" ? preRouteMemory.salesFlow : {});
+    const preRouteSalesFlowStep = socialCommentSalesFlowStepFromMemory(preRouteMemory);
+    const shouldForceShippingHandler = text(message?.channel || "") === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER &&
+      preRouteSalesFlowStep === "awaiting_customer_data" &&
+      Boolean(text(message?.message_text || message?.raw?.event?.message?.text || "")) &&
+      Number(preRouteSalesFlow?.product_id || 0) > 0;
     console.log("[ai-dedupe] inbound key created", {
       tenant_id: config.tenant_id,
       conversation_id: message.external_conversation_id,
@@ -22075,7 +22089,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         status: previousDedupeStatus || "new",
       });
     }
-    if (isDuplicateMessage(messageId)) {
+    if (!shouldForceShippingHandler && isDuplicateMessage(messageId)) {
       console.log("[ai-dedupe] duplicate inbound skipped", {
         tenant_id: config.tenant_id,
         conversation_id: message.external_conversation_id,
@@ -22209,7 +22223,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         source: "webhook_mapping_final",
       });
     }
-    if (await hasProcessedInboundKey({
+    if (!shouldForceShippingHandler && await hasProcessedInboundKey({
       tenantId: config.tenant_id,
       channel: message.channel,
       conversationId: message.external_conversation_id,
@@ -22243,7 +22257,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, duplicate: true, sent: false, reason: "persistent_duplicate_inbound" });
       continue;
     }
-    if (inboxResult?.duplicate && previousDedupeStatus !== "failed") {
+    if (!shouldForceShippingHandler && inboxResult?.duplicate && previousDedupeStatus !== "failed") {
       await storeMetaConversationHealth({
         tenantId: config.tenant_id,
         channel: message.channel,
@@ -22266,7 +22280,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, duplicate: true, sent: false, reason: "duplicate_message" });
       continue;
     }
-    if (inboxResult?.duplicate && previousDedupeStatus === "failed") {
+    if (!shouldForceShippingHandler && inboxResult?.duplicate && previousDedupeStatus === "failed") {
       console.log("dedupe_retry_allowed", {
         tenant_id: config.tenant_id,
         conversation_id: message.external_conversation_id,
@@ -22275,7 +22289,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
         source: "inbox_duplicate_after_failed_processing",
       });
     }
-    if (!enabled) {
+    if (!shouldForceShippingHandler && !enabled) {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "channel_disabled" });
       continue;
     }
@@ -22297,7 +22311,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       messenger_enabled: config.messenger_enabled === true,
       instagram_enabled: config.instagram_enabled === true,
     });
-    if (settings.ai_replies_enabled !== true || autoReplyMode === "off") {
+    if (!shouldForceShippingHandler && (settings.ai_replies_enabled !== true || autoReplyMode === "off")) {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "auto_reply_disabled" });
       continue;
     }
@@ -22326,11 +22340,11 @@ export const processMetaWebhook = async ({ req } = {}) => {
       ai_paused: ["human_takeover", "closed"].includes(status),
       closed: status === "closed",
     });
-    if (!conversationAiEnabled) {
+    if (!shouldForceShippingHandler && !conversationAiEnabled) {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "conversation_ai_disabled" });
       continue;
     }
-    if (["human_takeover", "closed"].includes(status)) {
+    if (!shouldForceShippingHandler && ["human_takeover", "closed"].includes(status)) {
       console.log("[AI_AUTO_REPLY_SKIPPED] reason=human_takeover", {
         tenant_id: config.tenant_id,
         session_id: message.external_conversation_id,
@@ -22341,7 +22355,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
       continue;
     }
     const globalAiSettings = await getAiAgentSettings({ tenantId: config.tenant_id }).catch(() => ({}));
-    if (isMetaAutoReplyChannel(message.channel) && globalAiSettings.ai_assistant_global_enabled === false) {
+    if (!shouldForceShippingHandler && isMetaAutoReplyChannel(message.channel) && globalAiSettings.ai_assistant_global_enabled === false) {
       const pauseChannel = metaAutoReplyPauseChannelLabel(message.channel);
       console.log(`[AI_AUTO_REPLY_SKIPPED] reason=global_pause channel=${pauseChannel}`, {
         tenant_id: config.tenant_id,
@@ -22354,49 +22368,46 @@ export const processMetaWebhook = async ({ req } = {}) => {
       results.push({ channel: alias, external_user_id: message.external_customer_id, stored: true, sent: false, reason: "global_pause" });
       continue;
     }
-    const providerMessageId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id || message.dedupe_key || "");
-    const aiReplyTriggerSource = "meta_webhook_auto_reply";
-    const aiReplyLock = await claimAiInboxReplyLock({
-      tenantId: config.tenant_id,
-      channel: alias,
-      conversationId: message.external_conversation_id,
-      providerMessageId,
-      triggerSource: aiReplyTriggerSource,
-    }).catch((error) => {
-      console.warn("[ai-inbox-ai-reply-lock] claim failed", {
-        tenant_id: config.tenant_id,
+    if (!shouldForceShippingHandler) {
+      const providerMessageId = text(message.external_message_id || message.raw?.event?.message?.mid || message.raw?.event?.message?.id || message.dedupe_key || "");
+      const aiReplyTriggerSource = "meta_webhook_auto_reply";
+      const aiReplyLock = await claimAiInboxReplyLock({
+        tenantId: config.tenant_id,
         channel: alias,
-        conversation_id: message.external_conversation_id,
+        conversationId: message.external_conversation_id,
+        providerMessageId,
+        triggerSource: aiReplyTriggerSource,
+      }).catch((error) => {
+        console.warn("[ai-inbox-ai-reply-lock] claim failed", {
+          tenant_id: config.tenant_id,
+          channel: alias,
+          conversation_id: message.external_conversation_id,
+          provider_message_id: providerMessageId,
+          trigger_source: aiReplyTriggerSource,
+          message: error?.message || "claim failed",
+        });
+        return { claimed: false, duplicate: false, error: error?.message || "" };
+      });
+      if (!aiReplyLock?.claimed) {
+        results.push({
+          channel: alias,
+          external_user_id: message.external_customer_id,
+          stored: true,
+          sent: false,
+          reason: aiReplyLock?.duplicate ? "duplicate_ai_reply_lock" : "ai_reply_lock_unavailable",
+        });
+        continue;
+      }
+      message.aiReplyLock = {
         provider_message_id: providerMessageId,
         trigger_source: aiReplyTriggerSource,
-        message: error?.message || "claim failed",
-      });
-      return { claimed: false, duplicate: false, error: error?.message || "" };
-    });
-    if (!aiReplyLock?.claimed) {
-      results.push({
-        channel: alias,
-        external_user_id: message.external_customer_id,
-        stored: true,
-        sent: false,
-        reason: aiReplyLock?.duplicate ? "duplicate_ai_reply_lock" : "ai_reply_lock_unavailable",
-      });
-      continue;
+      };
     }
-    message.aiReplyLock = {
-      provider_message_id: providerMessageId,
-      trigger_source: aiReplyTriggerSource,
-    };
     console.log("[meta-inbox] meta_inbox_auto_reply_triggered", {
       tenant_id: config.tenant_id,
       session_id: message.external_conversation_id,
       channel: alias,
       external_customer_id: message.external_customer_id,
-    });
-    await loadPersistentAiConversationMemory({
-      tenantId: config.tenant_id,
-      channel: message.channel,
-      conversationId: message.external_conversation_id,
     });
     if (text(message?.channel || "") === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
       console.log("SOCIAL_COMMENT_MESSENGER_INBOUND_RAW", {
@@ -22608,13 +22619,23 @@ export const processMetaWebhook = async ({ req } = {}) => {
           inboundKey,
           inboundMetaMid: message.external_message_id || messageId,
         });
+        console.log("SOCIAL_COMMENT_FINAL_CONFIRMATION_SENT", {
+          tenant_id: config?.tenant_id || null,
+          platform: text(message?.channel || ""),
+          conversation_id: text(message?.external_conversation_id || ""),
+          post_id: shippingPostId,
+          comment_id: shippingCommentId,
+          product_id: shippingProductId,
+          order_id: draftOrderResult.order?.id || null,
+          message_id: ackResult?.message_id || ackResult?.id || "",
+        });
         await persistSocialCommentSalesFlowState({
           config,
           message,
           productId: shippingProductId,
           selectedSize: shippingSelectedSize,
           selectedColor: shippingSelectedColor,
-          step: "awaiting_staff_review",
+          step: "completed_pending_staff_review",
           extra: {
             ...socialCommentCurrentSalesFlow,
             post_id: shippingPostId,
