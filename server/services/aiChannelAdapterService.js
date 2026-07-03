@@ -596,6 +596,40 @@ const extractMetaAttachments = (event = {}) =>
     }))
     .filter((attachment) => attachment.url || attachment.metadata.sticker_id);
 
+const messengerWebhookPreviewMask = (value, depth = 0) => {
+  if (value == null) return value;
+  if (depth > 5) return Array.isArray(value) ? [] : {};
+  if (Array.isArray(value)) return value.slice(0, 10).map((item) => messengerWebhookPreviewMask(item, depth + 1));
+  if (typeof value !== "object") {
+    const normalized = toText(value);
+    if (!normalized) return value;
+    if (/^[A-Za-z0-9:_-]{12,}$/.test(normalized) || /^\d{8,}$/.test(normalized)) return maskSecret(normalized);
+    if (/access[_-]?token|page[_-]?token|verify[_-]?token|app[_-]?secret|authorization/i.test(normalized)) return "***";
+    return value;
+  }
+  const next = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (/access[_-]?token|page[_-]?token|verify[_-]?token|app[_-]?secret|authorization|token/i.test(key)) {
+      next[key] = "***";
+      continue;
+    }
+    if (/^(id|mid|watermark|seq|app_id|sender_psid|recipient_page_id|page_id|recipient_id|sender_id)$/i.test(key)) {
+      next[key] = maskSecret(item);
+      continue;
+    }
+    next[key] = messengerWebhookPreviewMask(item, depth + 1);
+  }
+  return next;
+};
+
+const safeMessengerWebhookPreview = (event = {}) => {
+  try {
+    return JSON.stringify(messengerWebhookPreviewMask(event)).slice(0, 2000);
+  } catch {
+    return "";
+  }
+};
+
 export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) => {
   const messages = [];
   asArray(body.entry).forEach((entry) => {
@@ -611,6 +645,19 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
         postback: event?.postback || null,
         referral: event?.referral || null,
         timestamp: event?.timestamp || null,
+      });
+      console.log("MESSENGER_WEBHOOK_EVENT_RAW_SHAPE", {
+        messaging_keys: event && typeof event === "object" ? Object.keys(event) : [],
+        message_shape_keys: event?.message && typeof event.message === "object" ? Object.keys(event.message) : [],
+        message_quick_reply_raw: event?.message?.quick_reply ?? null,
+        postback_raw: event?.postback ?? null,
+        read: event?.read ?? null,
+        delivery: event?.delivery ?? null,
+        reaction: event?.reaction ?? null,
+        optin: event?.optin ?? null,
+        referral: event?.referral ?? null,
+        timestamp: event?.timestamp ?? null,
+        messaging_preview: safeMessengerWebhookPreview(event),
       });
       const channel = metaEventChannel({ body, event });
       const senderId = toText(event.sender?.id);
