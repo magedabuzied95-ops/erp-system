@@ -123,19 +123,20 @@ const priceCandidates = (...values) =>
 
 const pickFirstPrice = (...values) => priceCandidates(...values)[0] || "";
 
-const resolveSocialCommentDisplayPrice = ({
+const resolveSocialCommentDisplayPrice = async ({
+  tenantId = null,
   base = {},
   primaryProduct = {},
   variants = [],
   callsite = "",
 } = {}) => {
-  const socialPriceInfo = resolveSocialProductDisplayPrice({
-    product: {
-      ...primaryProduct,
-      ...base,
-      product: primaryProduct,
-    },
+  const socialPriceInfo = await resolveSocialProductDisplayPrice({
+    tenantId,
+    product: primaryProduct,
+    productContext: base,
+    linkedProduct: primaryProduct?.product || primaryProduct?.linkedProduct || primaryProduct?.linked_product || {},
     variants,
+    availableVariants: variants,
     context: {
       product_id: base.product_id || primaryProduct.product_id || primaryProduct.id || null,
       product_name: base.product_name || primaryProduct.name || primaryProduct.product_name || "",
@@ -257,7 +258,8 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
     ""
   );
   const productName = text(productContext?.product_name || primaryProduct?.name || primaryProduct?.product_name || "") || "المنتج";
-  const priceResolution = resolveSocialCommentDisplayPrice({
+  const priceResolution = await resolveSocialCommentDisplayPrice({
+    tenantId,
     base: {
       sale_active: productContext?.sale_active ?? productContext?.is_sale_active ?? productContext?.on_sale ?? productContext?.sale_enabled ?? productContext?.discount_enabled ?? productContext?.has_sale,
       sale_price: productContext?.sale_price,
