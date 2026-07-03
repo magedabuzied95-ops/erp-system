@@ -70,6 +70,22 @@ function mergeSocialCommentRuntimeMonitor(existingRuntimeMonitor = {}, nextRunti
   });
   return runtime_monitor;
 }
+const buildAiPhaseLatencyTracePatch = (phaseTimings = {}) => ({
+  ai_config_lookup_started_at: text(phaseTimings.config_lookup_started_at || ""),
+  ai_config_lookup_completed_at: text(phaseTimings.config_lookup_completed_at || ""),
+  ai_product_context_lookup_started_at: text(phaseTimings.product_context_lookup_started_at || ""),
+  ai_product_context_lookup_completed_at: text(phaseTimings.product_context_lookup_completed_at || ""),
+  ai_sales_context_build_started_at: text(phaseTimings.sales_context_build_started_at || ""),
+  ai_sales_context_build_completed_at: text(phaseTimings.sales_context_build_completed_at || ""),
+  ai_intent_detection_started_at: text(phaseTimings.intent_detection_started_at || ""),
+  ai_intent_detection_completed_at: text(phaseTimings.intent_detection_completed_at || ""),
+  ai_reply_render_started_at: text(phaseTimings.reply_render_started_at || ""),
+  ai_reply_render_completed_at: text(phaseTimings.reply_render_completed_at || ""),
+  public_reply_send_started_at: text(phaseTimings.public_reply_send_started_at || ""),
+  public_reply_send_completed_at: text(phaseTimings.public_reply_send_completed_at || ""),
+  private_reply_enqueue_started_at: text(phaseTimings.private_reply_enqueue_started_at || ""),
+  private_reply_enqueue_completed_at: text(phaseTimings.private_reply_enqueue_completed_at || ""),
+});
 const numericOrNull = (value = null) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -3127,7 +3143,7 @@ const executeSocialCommentAutomationRuntime = async ({
     latencyPatch: {
       ai_started_at: aiGenerationStartedAt.toISOString(),
       ai_completed_at: aiGenerationCompletedAt.toISOString(),
-      ...aiPhaseTimings,
+      ...buildAiPhaseLatencyTracePatch(aiPhaseTimings),
       correlation_id: correlationId,
     },
     status: "ai_generated",
@@ -3222,7 +3238,7 @@ const executeSocialCommentAutomationRuntime = async ({
             },
           },
           latencyPatch: {
-            ...aiPhaseTimings,
+            ...buildAiPhaseLatencyTracePatch(aiPhaseTimings),
           },
           status: "ai_generated",
         });
@@ -3283,7 +3299,7 @@ const executeSocialCommentAutomationRuntime = async ({
       latencyPatch: {
         enqueue_at: queuedAt,
         private_reply_enqueued_at: queuedAt,
-        ...aiPhaseTimings,
+        ...buildAiPhaseLatencyTracePatch(aiPhaseTimings),
       },
       status: "queued",
     });
@@ -3341,7 +3357,7 @@ const executeSocialCommentAutomationRuntime = async ({
         latencyPatch: {
           enqueue_at: queuedAt,
           private_reply_enqueued_at: queuedAt,
-          ...aiPhaseTimings,
+          ...buildAiPhaseLatencyTracePatch(aiPhaseTimings),
         },
         status: "queued",
       });
@@ -3372,7 +3388,7 @@ const executeSocialCommentAutomationRuntime = async ({
 
   const aiPhaseLatencySummary = computeSocialCommentLatencySummary({
     ...(metadataObject(workingRow.automation_state?.runtime_monitor?.latency_trace || safeRow.automation_state?.runtime_monitor?.latency_trace || {})),
-    ...aiPhaseTimings,
+    ...buildAiPhaseLatencyTracePatch(aiPhaseTimings),
     enqueue_at: aiPhaseTimings.private_reply_enqueue_started_at || "",
     private_reply_enqueued_at: aiPhaseTimings.private_reply_enqueue_started_at || "",
   });
