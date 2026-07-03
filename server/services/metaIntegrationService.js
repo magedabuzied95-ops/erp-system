@@ -22043,15 +22043,6 @@ export const processMetaWebhook = async ({ req } = {}) => {
         conversationId: message.external_conversation_id,
       }).catch(() => ({}));
       const shippingParsedInfo = parseCheckoutCustomerDetails(socialCommentRawText);
-      console.log("SOCIAL_COMMENT_SHIPPING_PARSE_RESULT", {
-        tenant_id: config?.tenant_id || null,
-        platform: text(message?.channel || ""),
-        conversation_id: text(message?.external_conversation_id || ""),
-        name: text(shippingParsedInfo.customer_name || ""),
-        phone: text(shippingParsedInfo.customer_phone || ""),
-        governorate: text(shippingParsedInfo.governorate || ""),
-        address: text(shippingParsedInfo.customer_address || ""),
-      });
       const shippingMergedInfo = mergeSalesCustomerInfo({
         known: {
           customerName: text(socialCommentCurrentSalesFlow.customer_name || shippingKnownInfo?.customerName || ""),
