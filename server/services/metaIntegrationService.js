@@ -1060,36 +1060,46 @@ const normalizeEgyptPhone = (value = "") => {
 
 const parseCheckoutCustomerDetails = (messageText = "") => {
   const raw = text(messageText);
-  const phone = normalizeEgyptPhone(raw);
-  const lines = raw
-    .split(/\r?\n|،|,/)
+  const normalizedMessage = String(messageText ?? "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\n{2,}/g, "\n")
+    .replace(/[ \t]+/g, " ");
+  const phone = normalizeEgyptPhone(normalizedMessage || raw);
+  const lines = normalizedMessage
+    .split("\n")
     .map((line) => text(line))
     .filter(Boolean);
-  const phoneLineIndex = lines.findIndex((line) => normalizeEgyptPhone(line));
-  const governorateLineIndex = lines.findIndex((line) => extractSalesGovernorate(line));
+  const fallbackSegments = raw
+    .split(/،|,/)
+    .map((line) => text(line))
+    .filter(Boolean);
+  const effectiveLines = lines.length ? lines : fallbackSegments;
+  const phoneLineIndex = effectiveLines.findIndex((line) => normalizeEgyptPhone(line));
+  const governorateLineIndex = effectiveLines.findIndex((line) => extractSalesGovernorate(line));
   const phonePattern = /(?:\+?20|0020)?\s*01[0125][\s-]?\d{3}[\s-]?\d{4}/g;
-  const withoutPhone = (value = "") => text(value.replace(phone, "").replace(phonePattern, ""));
-  const nameCandidate = withoutPhone(
-    phoneLineIndex > 0
-      ? lines.slice(0, phoneLineIndex).join(" ")
-      : lines.find((line) => !normalizeEgyptPhone(line) && line.length <= 80 && !/(شارع|بجوار|منطقة|محافظة|مدينة|عمارة|دور|شقة|address|street)/i.test(line)) || ""
-  );
+  const withoutPhone = (value = "") => text(String(value || "").replace(phone, "").replace(phonePattern, ""));
   const governorateCandidate = withoutPhone(
     governorateLineIndex >= 0
-      ? extractSalesGovernorate(lines[governorateLineIndex])
-      : extractSalesGovernorate(raw)
+      ? extractSalesGovernorate(effectiveLines[governorateLineIndex])
+      : extractSalesGovernorate(normalizedMessage || raw)
   );
-  const addressStartIndex = governorateLineIndex >= 0
-    ? governorateLineIndex + 1
+  const nonPhoneLines = effectiveLines.filter((line) => !normalizeEgyptPhone(line));
+  const nameCandidate = withoutPhone(
+    effectiveLines.find((line, index) =>
+      index !== governorateLineIndex &&
+      !normalizeEgyptPhone(line) &&
+      line.length <= 120 &&
+      !/(شارع|بجوار|منطقة|محافظة|مدينة|عمارة|دور|شقة|address|street)/i.test(line)
+    ) || ""
+  );
+  const addressLines = governorateLineIndex >= 0
+    ? effectiveLines.slice(governorateLineIndex + 1)
     : phoneLineIndex >= 0
-      ? phoneLineIndex + 1
-      : 1;
-  const addressCandidate = withoutPhone(
-    phoneLineIndex >= 0 || governorateLineIndex >= 0
-      ? lines.slice(addressStartIndex).join(" ")
-      : lines.filter((line) => line !== nameCandidate).join(" ")
-  );
-  const fallbackAddress = withoutPhone(raw)
+      ? effectiveLines.slice(phoneLineIndex + 1)
+      : nonPhoneLines.filter((line) => line !== nameCandidate);
+  const addressCandidate = withoutPhone(addressLines.join(" "));
+  const fallbackAddress = withoutPhone((normalizedMessage || raw))
     .replace(nameCandidate, "")
     .replace(governorateCandidate, "")
     .trim();
@@ -14563,12 +14573,32 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     const selectedColor = text(salesFlow?.selected_color || "");
     const postId = text(salesFlow?.post_id || "");
     const commentId = text(salesFlow?.comment_id || "");
+    const normalizedShippingMessage = String(messageText ?? "")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\n{2,}/g, "\n");
+    const shippingLines = normalizedShippingMessage
+      .split("\n")
+      .map((line) => text(line))
+      .filter(Boolean);
+    console.log("SOCIAL_COMMENT_SHIPPING_RAW_TEXT", {
+      raw_message: String(messageText ?? ""),
+      normalized_message: normalizedShippingMessage,
+      line_count: shippingLines.length,
+      split_lines: shippingLines,
+    });
     const knownInfo = await loadKnownSalesCustomerInfo({
       tenantId: config.tenant_id,
       channel: message.channel,
       conversationId: message.external_conversation_id,
     }).catch(() => ({}));
     const parsedInfo = parseCheckoutCustomerDetails(messageText);
+    console.log("SOCIAL_COMMENT_SHIPPING_PARSE_RESULT", {
+      name: text(parsedInfo.customer_name || ""),
+      phone: text(parsedInfo.customer_phone || ""),
+      governorate: text(parsedInfo.governorate || ""),
+      address: text(parsedInfo.customer_address || ""),
+    });
     const mergedInfo = mergeSalesCustomerInfo({
       known: {
         customerName: text(salesFlow?.customer_name || knownInfo?.customerName || ""),
@@ -14687,6 +14717,15 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       size: selectedSize,
       color: selectedColor,
       step: "awaiting_order_preview",
+    });
+    console.log("SOCIAL_COMMENT_REVIEW_STATE", {
+      customer_name: text(mergedInfo.customerName || ""),
+      customer_phone: text(mergedInfo.customerPhone || ""),
+      governorate: text(mergedInfo.governorate || ""),
+      customer_address: text(mergedInfo.customerAddress || ""),
+      product_id: productId,
+      selected_size: text(selectedSize),
+      selected_color: text(selectedColor),
     });
     await sendSocialCommentSalesFlowText({
       config,
