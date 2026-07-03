@@ -412,6 +412,10 @@ export const parseSocialCommentSizeQuickReplyPayload = (value = "") => {
       conversation_id: text(parsed?.conversation_id || ""),
     };
   } catch {
+    console.warn("SOCIAL_COMMENT_QUICK_REPLY_PARSE_FAILED", {
+      kind: "size",
+      payload: payload.slice(0, 500),
+    });
     return null;
   }
 };
@@ -434,6 +438,10 @@ export const parseSocialCommentColorQuickReplyPayload = (value = "") => {
       conversation_id: text(parsed?.conversation_id || ""),
     };
   } catch {
+    console.warn("SOCIAL_COMMENT_QUICK_REPLY_PARSE_FAILED", {
+      kind: "color",
+      payload: payload.slice(0, 500),
+    });
     return null;
   }
 };
@@ -456,6 +464,10 @@ export const parseSocialCommentOrderActionQuickReplyPayload = (value = "") => {
       conversation_id: text(parsed?.conversation_id || ""),
     };
   } catch {
+    console.warn("SOCIAL_COMMENT_QUICK_REPLY_PARSE_FAILED", {
+      kind: "action",
+      payload: payload.slice(0, 500),
+    });
     return null;
   }
 };

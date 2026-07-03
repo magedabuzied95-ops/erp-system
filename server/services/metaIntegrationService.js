@@ -14045,6 +14045,15 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   const sizePayload = parseSocialCommentSizeQuickReplyPayload(rawPayload);
   const colorPayload = parseSocialCommentColorQuickReplyPayload(rawPayload);
   const actionPayload = parseSocialCommentOrderActionQuickReplyPayload(rawPayload);
+  if (rawPayload && !sizePayload && !colorPayload && !actionPayload) {
+    console.warn("SOCIAL_COMMENT_QUICK_REPLY_PARSE_FAILED", {
+      conversation_id: text(message?.external_conversation_id || ""),
+      sender_id: text(message?.raw?.event?.sender?.id || message?.raw?.sender_psid || message?.external_customer_id || ""),
+      quick_reply_payload: text(message?.raw?.event?.message?.quick_reply?.payload || ""),
+      postback_payload: text(message?.raw?.event?.postback?.payload || ""),
+      message_text: messageText,
+    });
+  }
 
   const sendOrderSummary = async ({
     productId = null,
@@ -14213,6 +14222,15 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   };
 
   if (sizePayload || (socialCommentSalesFlowStepFromMemory(memory) === "awaiting_size" && messageText && Number(salesFlow?.product_id || 0) > 0)) {
+    console.log("SOCIAL_COMMENT_SIZE_QUICK_REPLY_RECEIVED", {
+      conversation_id: text(message?.external_conversation_id || ""),
+      sender_id: text(message?.raw?.event?.sender?.id || message?.raw?.sender_psid || message?.external_customer_id || ""),
+      quick_reply_payload: rawPayload,
+      message_text: messageText,
+      selected_size: text(sizePayload?.size || messageText),
+      product_id: Number(sizePayload?.product_id || salesFlow?.product_id || 0) || null,
+      source: sizePayload ? "quick_reply_payload" : "message_text_fallback",
+    });
     const productId = Number(sizePayload?.product_id || salesFlow?.product_id || 0) || null;
     const selectedSize = text(sizePayload?.size || messageText);
     const productData = await resolveSocialCommentSalesFlowProductData({
@@ -21600,6 +21618,16 @@ export const processMetaWebhook = async ({ req } = {}) => {
       channel: message.channel,
       conversationId: message.external_conversation_id,
     });
+    if (text(message?.channel || "") === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) {
+      console.log("SOCIAL_COMMENT_MESSENGER_INBOUND_RAW", {
+        sender_id: text(message?.raw?.event?.sender?.id || message?.raw?.sender_psid || message?.external_customer_id || ""),
+        recipient_id: text(message?.raw?.event?.recipient?.id || message?.raw?.recipient_page_id || ""),
+        message_text: text(message?.message_text || message?.raw?.event?.message?.text || ""),
+        quick_reply_payload: text(message?.raw?.event?.message?.quick_reply?.payload || ""),
+        postback_payload: text(message?.raw?.event?.postback?.payload || ""),
+        conversation_id: text(message?.external_conversation_id || ""),
+      });
+    }
     const socialCommentQuickReplySelection = await handleSocialCommentMessengerQuickReplySelection({
       config,
       message,
