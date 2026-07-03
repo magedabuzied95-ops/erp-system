@@ -600,6 +600,18 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
   const messages = [];
   asArray(body.entry).forEach((entry) => {
     asArray(entry.messaging).forEach((event) => {
+      console.log("MESSENGER_WEBHOOK_EVENT", {
+        object: toText(body?.object || ""),
+        messaging: Boolean(event && typeof event === "object"),
+        sender_id: toText(event?.sender?.id || ""),
+        recipient_id: toText(event?.recipient?.id || ""),
+        message_mid: toText(event?.message?.mid || event?.message?.id || ""),
+        message_text: toText(event?.message?.text || ""),
+        message_quick_reply: event?.message?.quick_reply || null,
+        postback: event?.postback || null,
+        referral: event?.referral || null,
+        timestamp: event?.timestamp || null,
+      });
       const channel = metaEventChannel({ body, event });
       const senderId = toText(event.sender?.id);
       if (!senderId) return;
