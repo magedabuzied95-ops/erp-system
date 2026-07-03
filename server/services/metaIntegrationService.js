@@ -13694,7 +13694,7 @@ const socialCommentSalesFlowActionFromText = (value = "") => {
   if (["✏️ تعديل البيانات", "تعديل البيانات", "edit_data"].includes(normalized) || normalized.includes("تعديل البيانات")) return "edit_data";
   if (["✏️ تغيير المقاس", "تغيير المقاس", "change_size"].includes(normalized) || normalized.includes("المقاس")) return "change_size";
   if (["تغيير اللون", "change_color"].includes(normalized) || normalized.includes("اللون")) return "change_color";
-  if (["❌ إلغاء", "إلغاء", "الغاء", "cancel"].includes(normalized) || normalized.includes("إلغاء") || normalized.includes("الغاء")) return "cancel";
+  if (["❌ إلغاء", "❌ إلغاء الطلب", "إلغاء", "إلغاء الطلب", "الغاء", "الغاء الطلب", "cancel"].includes(normalized) || normalized.includes("إلغاء") || normalized.includes("الغاء")) return "cancel";
   return "";
 };
 
@@ -13729,6 +13729,23 @@ const socialCommentSalesFlowStepFromMemory = (memory = {}) => {
   const step = text(memory.sales_flow?.step || memory.salesFlow?.step || "");
   if (step === "awaiting_customer_details") return "awaiting_customer_data";
   return step;
+};
+
+const normalizeSocialCommentSalesFlowPrice = (value = "") => {
+  const normalized = text(value);
+  if (!normalized) return "";
+  const numeric = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  if (!Number.isFinite(numeric)) return normalized;
+  return Number.isInteger(numeric) ? String(numeric) : String(numeric.toFixed(2)).replace(/\.?0+$/g, "");
+};
+
+const pickSocialCommentSalesFlowPrice = (...values) => {
+  for (const candidate of values) {
+    const normalized = normalizeSocialCommentSalesFlowPrice(candidate);
+    if (!normalized) continue;
+    return normalized;
+  }
+  return "";
 };
 
 const logSocialCommentSalesFlowStateSaved = ({
@@ -13790,7 +13807,7 @@ const resolveSocialCommentSalesFlowProductData = async ({ tenantId = null, produ
   return {
     productId: Number(product.id || 0) || null,
     productName: text(product.name || "") || "المنتج",
-    priceUsed: text(product.selling_price || product.sale_price || product.price || ""),
+    priceUsed: pickSocialCommentSalesFlowPrice(product.sale_price, product.selling_price, product.price),
     productLink: ensureAbsoluteSocialProductLink(resolvedLink?.url || resolvedLink?.product_url || ""),
     productImageUrl: text(product.image_url || ""),
   };
@@ -14649,7 +14666,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: "تم إلغاء الاختيار.\n\nيسعدنا خدمتك في أي وقت",
+        text: "تم إلغاء الطلب.\nيسعدنا خدمتك في أي وقت",
         detectedIntent: "social_comment_sales_flow_cancelled",
         metadata: {
           selected_product_id: productId,
@@ -14671,7 +14688,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: "ممتاز \n\nلإتمام الطلب أرسل:\n\nالاسم\n\nرقم الهاتف\n\nالمحافظة\n\nالعنوان بالتفصيل",
+        text: "تمام ✅\n\nلإتمام الطلب ابعت بيانات الشحن:\n\nالاسم\nرقم الهاتف\nالمحافظة\nالعنوان بالتفصيل",
         detectedIntent: "social_comment_sales_flow_confirm",
         metadata: {
           selected_size: selectedSize,

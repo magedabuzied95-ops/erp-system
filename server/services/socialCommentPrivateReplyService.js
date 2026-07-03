@@ -71,6 +71,14 @@ const normalizePriceText = (value = "") => {
   return Number.isInteger(parsed) ? String(parsed) : String(parsed.toFixed(2)).replace(/\.?0+$/g, "");
 };
 
+const hasUsablePriceValue = (value = "") => {
+  const normalized = normalizePriceText(value);
+  if (!normalized) return false;
+  const parsed = toFiniteNumber(normalized);
+  if (parsed === null) return true;
+  return parsed >= 0;
+};
+
 const priceCandidates = (...values) =>
   values
     .map((value) => normalizePriceText(value))
@@ -383,9 +391,7 @@ export const buildSocialCommentOrderActionQuickReplies = ({
   };
   return [
     { action: "confirm", title: "✅ تأكيد الطلب" },
-    { action: "change_size", title: "✏️ تغيير المقاس" },
-    { action: "change_color", title: "تغيير اللون" },
-    { action: "cancel", title: "❌ إلغاء" },
+    { action: "cancel", title: "❌ إلغاء الطلب" },
   ].map((item) => ({
     content_type: "text",
     title: item.title.slice(0, 20),
@@ -519,9 +525,7 @@ export const buildSocialCommentSalesFlowQuickReplies = ({
       ]
     : [
         { action: "confirm", title: "✅ تأكيد الطلب" },
-        { action: "change_size", title: "✏️ تغيير المقاس" },
-        { action: "change_color", title: "تغيير اللون" },
-        { action: "cancel", title: "❌ إلغاء" },
+        { action: "cancel", title: "❌ إلغاء الطلب" },
       ];
   return items.map((item) => ({
     content_type: "text",
@@ -550,10 +554,10 @@ export const buildSocialCommentOrderSummaryMessageV2 = ({
     "اللون:",
     text(selectedColor) || DEFAULT_COLOR_LABEL,
   ];
-  if (text(priceUsed)) {
-    sections.push("", "السعر:", `${text(priceUsed)} جنيه`);
+  if (hasUsablePriceValue(priceUsed)) {
+    sections.push("", "السعر:", `${normalizePriceText(priceUsed)} جنيه`);
   }
-  sections.push("", "━━━━━━━━━━━━", "", "هل ترغب في استكمال الطلب؟");
+  sections.push("", "━━━━━━━━━━━━", "", "هل ترغب في إتمام الطلب؟");
   return sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 };
 
