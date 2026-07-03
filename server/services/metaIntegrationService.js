@@ -13698,6 +13698,33 @@ const socialCommentSalesFlowActionFromText = (value = "") => {
   return "";
 };
 
+const socialCommentQuickReplyPrefixes = new Set([
+  "SOCIAL_SIZE_SELECT::",
+  "SOCIAL_COLOR_SELECT::",
+  "SOCIAL_ORDER_ACTION::",
+  "ORDER_CONFIRM",
+  "CHANGE_SIZE",
+  "CHANGE_COLOR",
+  "ORDER_CANCEL",
+]);
+
+const socialCommentQuickReplyPayloadFromMessage = (message = {}) =>
+  text(
+    message?.quick_reply_payload ||
+    message?.postback_payload ||
+    message?.raw?.quick_reply_payload ||
+    message?.raw?.postback_payload ||
+    message?.raw?.event?.message?.quick_reply?.payload ||
+    message?.raw?.event?.postback?.payload ||
+    ""
+  );
+
+const isSocialCommentQuickReplyPayload = (value = "") => {
+  const payload = text(value);
+  if (!payload) return false;
+  return [...socialCommentQuickReplyPrefixes].some((prefix) => payload.startsWith(prefix));
+};
+
 const socialCommentSalesFlowStepFromMemory = (memory = {}) => {
   const step = text(memory.sales_flow?.step || memory.salesFlow?.step || "");
   if (step === "awaiting_customer_details") return "awaiting_customer_data";
@@ -14036,12 +14063,37 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   inboundMetaMid = "",
 } = {}) => {
   if (text(message?.channel || "") !== AI_AGENT_CHANNELS.FACEBOOK_MESSENGER) return null;
-  const rawPayload = message?.raw?.event?.message?.quick_reply?.payload ||
-    message?.raw?.event?.postback?.payload ||
-    "";
+  const rawPayload = socialCommentQuickReplyPayloadFromMessage(message);
   const messageText = text(message?.message_text || message?.raw?.event?.message?.text || "");
   const memory = getConversationMemory(message.external_conversation_id) || {};
   const salesFlow = memory.sales_flow && typeof memory.sales_flow === "object" ? memory.sales_flow : {};
+  const payloadRoute = rawPayload.startsWith("SOCIAL_SIZE_SELECT::")
+    ? "size"
+    : rawPayload.startsWith("SOCIAL_COLOR_SELECT::")
+      ? "color"
+      : rawPayload.startsWith("SOCIAL_ORDER_ACTION::") || rawPayload.startsWith("ORDER_CONFIRM") || rawPayload.startsWith("CHANGE_SIZE") || rawPayload.startsWith("CHANGE_COLOR") || rawPayload.startsWith("ORDER_CANCEL")
+        ? "action"
+        : "";
+  console.log("SOCIAL_COMMENT_QUICK_REPLY_ROUTING", {
+    tenant_id: config?.tenant_id || null,
+    platform: text(message?.channel || ""),
+    post_id: "",
+    comment_id: "",
+    payload_prefix: rawPayload.split("::")[0] || rawPayload,
+    route_candidate: payloadRoute || "none",
+    quick_reply_payload: rawPayload,
+    message_text: messageText,
+    message_id: text(message?.external_message_id || ""),
+  });
+  if (isSocialCommentQuickReplyPayload(rawPayload) || payloadRoute) {
+    console.log("SOCIAL_COMMENT_SALES_FLOW_HANDLER_ENTER", {
+      tenant_id: config?.tenant_id || null,
+      platform: text(message?.channel || ""),
+      conversation_id: text(message?.external_conversation_id || ""),
+      quick_reply_payload: rawPayload,
+      route_candidate: payloadRoute || "quick_reply",
+    });
+  }
   const sizePayload = parseSocialCommentSizeQuickReplyPayload(rawPayload);
   const colorPayload = parseSocialCommentColorQuickReplyPayload(rawPayload);
   const actionPayload = parseSocialCommentOrderActionQuickReplyPayload(rawPayload);
@@ -14222,6 +14274,14 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   };
 
   if (sizePayload || (socialCommentSalesFlowStepFromMemory(memory) === "awaiting_size" && messageText && Number(salesFlow?.product_id || 0) > 0)) {
+    console.log("SOCIAL_COMMENT_SALES_FLOW_DISPATCH", {
+      tenant_id: config?.tenant_id || null,
+      platform: text(message?.channel || ""),
+      conversation_id: text(message?.external_conversation_id || ""),
+      handler: "size",
+      quick_reply_payload: rawPayload,
+      product_id: Number(sizePayload?.product_id || salesFlow?.product_id || 0) || null,
+    });
     console.log("SOCIAL_COMMENT_SIZE_QUICK_REPLY_RECEIVED", {
       conversation_id: text(message?.external_conversation_id || ""),
       sender_id: text(message?.raw?.event?.sender?.id || message?.raw?.sender_psid || message?.external_customer_id || ""),
@@ -14318,6 +14378,14 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   }
 
   if (colorPayload || (socialCommentSalesFlowStepFromMemory(memory) === "awaiting_color" && messageText && Number(salesFlow?.product_id || 0) > 0)) {
+    console.log("SOCIAL_COMMENT_SALES_FLOW_DISPATCH", {
+      tenant_id: config?.tenant_id || null,
+      platform: text(message?.channel || ""),
+      conversation_id: text(message?.external_conversation_id || ""),
+      handler: "color",
+      quick_reply_payload: rawPayload,
+      product_id: Number(colorPayload?.product_id || salesFlow?.product_id || 0) || null,
+    });
     const productId = Number(colorPayload?.product_id || salesFlow?.product_id || 0) || null;
     const selectedSize = text(colorPayload?.size || salesFlow?.selected_size || "");
     const selectedColor = text(colorPayload?.color || messageText);
@@ -14551,6 +14619,15 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
 
   const resolvedAction = text(actionPayload?.action || "") || socialCommentSalesFlowActionFromText(messageText);
   if (resolvedAction && Number(salesFlow?.product_id || actionPayload?.product_id || 0) > 0) {
+    console.log("SOCIAL_COMMENT_SALES_FLOW_DISPATCH", {
+      tenant_id: config?.tenant_id || null,
+      platform: text(message?.channel || ""),
+      conversation_id: text(message?.external_conversation_id || ""),
+      handler: "action",
+      action: resolvedAction,
+      quick_reply_payload: rawPayload,
+      product_id: Number(actionPayload?.product_id || salesFlow?.product_id || 0) || null,
+    });
     const productId = Number(actionPayload?.product_id || salesFlow?.product_id || 0) || null;
     const selectedSize = text(actionPayload?.size || salesFlow?.selected_size || "");
     const selectedColor = text(actionPayload?.color || salesFlow?.selected_color || "");

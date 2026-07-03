@@ -420,6 +420,8 @@ const normalizeBaseIncomingMessage = ({
   messageText,
   attachments,
   timestamp,
+  quickReplyPayload = "",
+  postbackPayload = "",
   raw = {},
   externalMessageId = "",
   replyToMessageId = "",
@@ -457,6 +459,8 @@ const normalizeBaseIncomingMessage = ({
     intent_tokens: intentPayload.intentTokens,
     attachments: normalizeAttachments(attachments),
     timestamp: timestamp || new Date().toISOString(),
+    quick_reply_payload: toText(quickReplyPayload),
+    postback_payload: toText(postbackPayload),
     external_message_id: toText(externalMessageId),
     reply_to_message_id: toText(replyToMessageId),
     dedupe_key: toText(dedupeKey || externalMessageId) || dedupeHash([channel, externalConversationId, externalCustomerId, originalMessage, timestamp].map(toText).join("|")),
@@ -475,6 +479,8 @@ export const normalizeWebChatIncomingMessage = ({ tenantId, body = {}, headers =
     messageText: body.message || body.message_text || body.text,
     attachments: body.attachments || metadata.attachments || [],
     timestamp: body.timestamp || metadata.timestamp,
+    quickReplyPayload: body.quick_reply?.payload || metadata.quick_reply_payload || "",
+    postbackPayload: body.postback?.payload || metadata.postback_payload || "",
     raw: body,
   });
 };
@@ -492,6 +498,8 @@ export const placeholderMetaIncomingMessage = ({ channel, tenantId, body = {} } 
     messageText: body.message || body.text || "",
     attachments: body.attachments || metadata.attachments || [],
     timestamp: body.timestamp || metadata.timestamp || new Date().toISOString(),
+    quickReplyPayload: body.quick_reply?.payload || metadata.quick_reply_payload || "",
+    postbackPayload: body.postback?.payload || metadata.postback_payload || "",
     raw: body,
   });
 };
@@ -710,6 +718,8 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
         messageText,
         attachments,
         timestamp,
+        quickReplyPayload: event.message?.quick_reply?.payload || "",
+        postbackPayload: event.postback?.payload || "",
         externalMessageId,
         replyToMessageId,
         dedupeKey: externalMessageId || dedupeHash([channel, senderId, event.recipient?.id, event.timestamp, messageText].map(toText).join("|")),
@@ -722,6 +732,8 @@ export const extractMetaWebhookMessages = ({ body = {}, tenantId = null } = {}) 
           recipient_page_id: recipientId,
           reply_to_message_id: replyToMessageId,
           reply_to: event.message?.reply_to || event.message?.reply_to_message || event.message?.replied_message || event.message?.context || null,
+          quick_reply_payload: event.message?.quick_reply?.payload || "",
+          postback_payload: event.postback?.payload || "",
         },
       }));
     });
@@ -767,6 +779,8 @@ export const buildAiFlowPayloadFromNormalizedMessage = ({ normalizedMessage = {}
     original_message: normalizedMessage.original_message || normalizedMessage.message_text,
     normalized_message: normalizedMessage.normalized_message || "",
     normalized_for_intent: normalizedMessage.normalized_for_intent || "",
+    quick_reply_payload: normalizedMessage.quick_reply_payload || "",
+    postback_payload: normalizedMessage.postback_payload || "",
     canonical_signals: normalizedMessage.canonical_signals || [],
     intent_tokens: normalizedMessage.intent_tokens || [],
     metadata: {
@@ -782,6 +796,8 @@ export const buildAiFlowPayloadFromNormalizedMessage = ({ normalizedMessage = {}
       original_message: normalizedMessage.original_message || normalizedMessage.message_text,
       normalized_message: normalizedMessage.normalized_message || "",
       normalized_for_intent: normalizedMessage.normalized_for_intent || "",
+      quick_reply_payload: normalizedMessage.quick_reply_payload || "",
+      postback_payload: normalizedMessage.postback_payload || "",
       canonical_signals: normalizedMessage.canonical_signals || [],
       intent_tokens: normalizedMessage.intent_tokens || [],
     },
