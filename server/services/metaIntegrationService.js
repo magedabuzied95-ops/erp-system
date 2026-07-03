@@ -57,8 +57,10 @@ import {
 } from "./marketingCommentAutomationService.js";
 import {
   buildSocialCommentColorQuickReplies,
-  buildSocialCommentOrderActionQuickReplies,
+  buildSocialCommentOrderPreviewMessage,
   buildSocialCommentOrderSummaryMessage,
+  buildSocialCommentOrderSummaryMessageV2,
+  buildSocialCommentSalesFlowQuickReplies,
   buildSocialCommentSizeQuickReplies,
   ensureAbsoluteSocialProductLink,
   parseSocialCommentColorQuickReplyPayload,
@@ -13688,14 +13690,19 @@ const socialCommentSalesFlowActionFromText = (value = "") => {
   const normalized = text(value).toLowerCase();
   if (!normalized) return "";
   if (["✅ تأكيد الطلب", "تأكيد الطلب", "confirm", "confirm_order"].includes(normalized) || normalized.includes("تأكيد")) return "confirm";
+  if (["✅ إرسال الطلب", "إرسال الطلب", "ارسال الطلب", "send_order"].includes(normalized) || normalized.includes("إرسال الطلب") || normalized.includes("ارسال الطلب")) return "send_order";
+  if (["✏️ تعديل البيانات", "تعديل البيانات", "edit_data"].includes(normalized) || normalized.includes("تعديل البيانات")) return "edit_data";
   if (["✏️ تغيير المقاس", "تغيير المقاس", "change_size"].includes(normalized) || normalized.includes("المقاس")) return "change_size";
   if (["تغيير اللون", "change_color"].includes(normalized) || normalized.includes("اللون")) return "change_color";
   if (["❌ إلغاء", "إلغاء", "الغاء", "cancel"].includes(normalized) || normalized.includes("إلغاء") || normalized.includes("الغاء")) return "cancel";
   return "";
 };
 
-const socialCommentSalesFlowStepFromMemory = (memory = {}) =>
-  text(memory.sales_flow?.step || memory.salesFlow?.step || "");
+const socialCommentSalesFlowStepFromMemory = (memory = {}) => {
+  const step = text(memory.sales_flow?.step || memory.salesFlow?.step || "");
+  if (step === "awaiting_customer_details") return "awaiting_customer_data";
+  return step;
+};
 
 const logSocialCommentSalesFlowStateSaved = ({
   config,
@@ -13705,7 +13712,7 @@ const logSocialCommentSalesFlowStateSaved = ({
   color = "",
   step = "",
 } = {}) => {
-  console.log("SOCIAL_COMMENT_SALES_FLOW_STATE_SAVED", {
+  const payload = {
     tenant_id: config?.tenant_id || null,
     platform: text(message?.channel || ""),
     conversation_id: text(message?.external_conversation_id || ""),
@@ -13714,7 +13721,9 @@ const logSocialCommentSalesFlowStateSaved = ({
     size: text(size),
     color: text(color),
     step: text(step),
-  });
+  };
+  console.log("SOCIAL_COMMENT_SALES_FLOW_STATE_SAVED", payload);
+  console.log("SOCIAL_COMMENT_SALES_STATE_UPDATED", payload);
 };
 
 const resolveSocialCommentSalesFlowProductData = async ({ tenantId = null, productId = null } = {}) => {
@@ -13905,6 +13914,52 @@ const clearSocialCommentSalesFlowState = async ({ config, message, productId = n
   return nextMemory;
 };
 
+const buildSocialCommentCustomerDataMissingPrompt = (missing = []) => {
+  const labels = [];
+  if (missing.includes("first_name")) labels.push("الاسم");
+  if (missing.includes("phone")) labels.push("رقم الهاتف");
+  if (missing.includes("governorate")) labels.push("المحافظة");
+  if (missing.includes("address")) labels.push("العنوان بالتفصيل");
+  return labels.length ? `ممتاز\n\nأرسل ${labels.join("\n")} لاستكمال الطلب.` : "";
+};
+
+const buildSocialCommentCustomerDataConfirmation = (info = {}, missing = []) => {
+  if (!missing.length) return "";
+  const lines = ["تم حفظ البيانات المتاحة ✅"];
+  if (text(info.customerName)) lines.push(`الاسم: ${text(info.customerName)}`);
+  if (text(info.customerPhone)) lines.push(`الهاتف: ${text(info.customerPhone)}`);
+  if (text(info.governorate)) lines.push(`المحافظة: ${text(info.governorate)}`);
+  if (text(info.customerAddress)) lines.push(`العنوان: ${text(info.customerAddress)}`);
+  lines.push("");
+  lines.push(buildSocialCommentCustomerDataMissingPrompt(missing));
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+};
+
+const logSocialCommentCustomerDataSaved = ({
+  config,
+  message,
+  productId = null,
+  selectedSize = "",
+  selectedColor = "",
+  info = {},
+  step = "",
+} = {}) => {
+  console.log("SOCIAL_COMMENT_CUSTOMER_DATA_SAVED", {
+    tenant_id: config?.tenant_id || null,
+    platform: text(message?.channel || ""),
+    conversation_id: text(message?.external_conversation_id || ""),
+    session_id: text(message?.external_conversation_id || ""),
+    product_id: Number(productId || 0) || null,
+    size: text(selectedSize),
+    color: text(selectedColor),
+    step: text(step),
+    customer_name: text(info.customerName || ""),
+    customer_phone: text(info.customerPhone || ""),
+    governorate: text(info.governorate || ""),
+    address: text(info.customerAddress || ""),
+  });
+};
+
 const sendSocialCommentSalesFlowText = async ({
   config,
   message,
@@ -13999,18 +14054,20 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     postId = "",
     commentId = "",
   } = {}) => {
-    const summaryMessage = buildSocialCommentOrderSummaryMessage({
+    const summaryMessage = buildSocialCommentOrderSummaryMessageV2({
       productName: productData?.productName || "",
       selectedSize,
       selectedColor,
       priceUsed: productData?.priceUsed || "",
     });
-    const quickReplies = buildSocialCommentOrderActionQuickReplies({
+    const quickReplies = buildSocialCommentSalesFlowQuickReplies({
       productId,
       selectedSize,
       selectedColor,
       postId,
       commentId,
+      conversationId: message.external_conversation_id,
+      stage: "summary",
     });
     await persistSocialCommentSalesFlowState({
       config,
@@ -14118,6 +14175,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           colors: availableColors,
           postId,
           commentId,
+          conversationId: message.external_conversation_id,
         }),
         inboundKey,
         inboundMetaMid,
@@ -14203,6 +14261,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           },
           postId: text(sizePayload?.post_id || salesFlow?.post_id || ""),
           commentId: text(sizePayload?.comment_id || salesFlow?.comment_id || ""),
+          conversationId: message.external_conversation_id,
         }),
         inboundKey,
         inboundMetaMid,
@@ -14273,6 +14332,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           })),
           postId: text(colorPayload?.post_id || salesFlow?.post_id || ""),
           commentId: text(colorPayload?.comment_id || salesFlow?.comment_id || ""),
+          conversationId: message.external_conversation_id,
         }),
         inboundKey,
         inboundMetaMid,
@@ -14326,6 +14386,151 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     return { handled: true, reason: "social_comment_color_selected" };
   }
 
+  if (socialCommentSalesFlowStepFromMemory(memory) === "awaiting_customer_data" && messageText && Number(salesFlow?.product_id || 0) > 0) {
+    const productId = Number(salesFlow?.product_id || 0) || null;
+    const selectedSize = text(salesFlow?.selected_size || "");
+    const selectedColor = text(salesFlow?.selected_color || "");
+    const postId = text(salesFlow?.post_id || "");
+    const commentId = text(salesFlow?.comment_id || "");
+    const knownInfo = await loadKnownSalesCustomerInfo({
+      tenantId: config.tenant_id,
+      channel: message.channel,
+      conversationId: message.external_conversation_id,
+    }).catch(() => ({}));
+    const parsedInfo = parseCheckoutCustomerDetails(messageText);
+    const mergedInfo = mergeSalesCustomerInfo({
+      known: {
+        customerName: text(salesFlow?.customer_name || knownInfo?.customerName || ""),
+        customerPhone: text(salesFlow?.customer_phone || knownInfo?.customerPhone || ""),
+        customerAddress: text(salesFlow?.customer_address || knownInfo?.customerAddress || ""),
+        governorate: text(salesFlow?.governorate || knownInfo?.governorate || ""),
+        area: text(salesFlow?.customer_address || knownInfo?.area || knownInfo?.customerAddress || ""),
+      },
+      parsed: parsedInfo,
+      messageText,
+      channel: message.channel,
+    });
+    const missing = missingSalesCheckoutFields(mergedInfo);
+    const nextStep = missing.length ? "awaiting_customer_data" : "awaiting_order_preview";
+    const productData = await resolveSocialCommentSalesFlowProductData({
+      tenantId: config.tenant_id,
+      productId,
+    });
+    await persistSocialCommentSalesFlowState({
+      config,
+      message,
+      productId,
+      selectedSize,
+      selectedColor,
+      step: nextStep,
+      extra: {
+        ...salesFlow,
+        post_id: postId,
+        comment_id: commentId,
+        product_name: text(productData?.productName || salesFlow?.product_name || ""),
+        product_link: text(productData?.productLink || salesFlow?.product_link || ""),
+        price_used: text(productData?.priceUsed || salesFlow?.price_used || ""),
+        customer_name: text(mergedInfo.customerName || ""),
+        customer_phone: text(mergedInfo.customerPhone || ""),
+        governorate: text(mergedInfo.governorate || ""),
+        customer_address: text(mergedInfo.customerAddress || ""),
+      },
+      reason: missing.length ? "social_comment_sales_flow_customer_data_partial" : "social_comment_sales_flow_customer_data_complete",
+    });
+    logSocialCommentCustomerDataSaved({
+      config,
+      message,
+      productId,
+      selectedSize,
+      selectedColor,
+      info: mergedInfo,
+      step: nextStep,
+    });
+    if (missing.length) {
+      await sendSocialCommentSalesFlowText({
+        config,
+        message,
+        text: buildSocialCommentCustomerDataConfirmation(mergedInfo, missing),
+        detectedIntent: "social_comment_sales_flow_customer_data_partial",
+        metadata: {
+          selected_size: selectedSize,
+          selected_color: selectedColor,
+          selected_product_id: productId,
+          social_comment_quick_reply: true,
+        },
+        inboundKey,
+        inboundMetaMid,
+        fallbackContext: {
+          productId,
+          size: selectedSize,
+          color: selectedColor,
+          step: nextStep,
+        },
+      });
+      return { handled: true, reason: "social_comment_sales_flow_customer_data_partial" };
+    }
+    const previewMessage = buildSocialCommentOrderPreviewMessage({
+      customerName: mergedInfo.customerName,
+      customerPhone: mergedInfo.customerPhone,
+      governorate: mergedInfo.governorate,
+      customerAddress: mergedInfo.customerAddress,
+      productName: text(productData?.productName || salesFlow?.product_name || ""),
+      selectedSize,
+      selectedColor,
+      priceUsed: text(productData?.priceUsed || salesFlow?.price_used || ""),
+    });
+    console.log("SOCIAL_COMMENT_ORDER_PREVIEW", {
+      tenant_id: config.tenant_id,
+      platform: text(message.channel || ""),
+      conversation_id: message.external_conversation_id,
+      session_id: message.external_conversation_id,
+      product_id: productId,
+      size: selectedSize,
+      color: selectedColor,
+      step: "awaiting_order_preview",
+    });
+    console.log("SOCIAL_COMMENT_READY_FOR_ORDER", {
+      tenant_id: config.tenant_id,
+      platform: text(message.channel || ""),
+      conversation_id: message.external_conversation_id,
+      session_id: message.external_conversation_id,
+      product_id: productId,
+      size: selectedSize,
+      color: selectedColor,
+      step: "awaiting_order_preview",
+    });
+    await sendSocialCommentSalesFlowText({
+      config,
+      message,
+      text: previewMessage,
+      detectedIntent: "social_comment_sales_flow_order_preview",
+      metadata: {
+        selected_size: selectedSize,
+        selected_color: selectedColor,
+        selected_product_id: productId,
+        social_comment_quick_reply: true,
+      },
+      quickReplies: buildSocialCommentSalesFlowQuickReplies({
+        productId,
+        selectedSize,
+        selectedColor,
+        postId,
+        commentId,
+        conversationId: message.external_conversation_id,
+        stage: "preview",
+      }),
+      inboundKey,
+      inboundMetaMid,
+      fallbackContext: {
+        productId,
+        size: selectedSize,
+        color: selectedColor,
+        step: "awaiting_order_preview",
+      },
+    });
+    return { handled: true, reason: "social_comment_sales_flow_order_preview" };
+  }
+
   const resolvedAction = text(actionPayload?.action || "") || socialCommentSalesFlowActionFromText(messageText);
   if (resolvedAction && Number(salesFlow?.product_id || actionPayload?.product_id || 0) > 0) {
     const productId = Number(actionPayload?.product_id || salesFlow?.product_id || 0) || null;
@@ -14349,7 +14554,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: "تم إلغاء الاختيار، تحت أمرك في أي وقت",
+        text: "تم إلغاء الاختيار.\n\nيسعدنا خدمتك في أي وقت",
         detectedIntent: "social_comment_sales_flow_cancelled",
         metadata: {
           selected_product_id: productId,
@@ -14371,7 +14576,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: "تمام ✅\nابعتلنا البيانات التالية لإتمام الطلب:\nالاسم\nرقم الهاتف\nالمحافظة\nالعنوان بالتفصيل",
+        text: "ممتاز \n\nلإتمام الطلب أرسل:\n\nالاسم\n\nرقم الهاتف\n\nالمحافظة\n\nالعنوان بالتفصيل",
         detectedIntent: "social_comment_sales_flow_confirm",
         metadata: {
           selected_size: selectedSize,
@@ -14386,7 +14591,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           productId,
           size: selectedSize,
           color: selectedColor,
-          step: "awaiting_customer_details",
+          step: "awaiting_customer_data",
         },
       });
       await persistSocialCommentSalesFlowState({
@@ -14395,7 +14600,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         productId,
         selectedSize,
         selectedColor,
-        step: "awaiting_customer_details",
+        step: "awaiting_customer_data",
         extra: {
           post_id: postId,
           comment_id: commentId,
@@ -14406,6 +14611,99 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         reason: "social_comment_sales_flow_confirmed",
       });
       return { handled: true, reason: "social_comment_sales_flow_confirmed" };
+    }
+
+    if (resolvedAction === "edit_data") {
+      await persistSocialCommentSalesFlowState({
+        config,
+        message,
+        productId,
+        selectedSize,
+        selectedColor,
+        step: "awaiting_customer_data",
+        extra: {
+          ...salesFlow,
+          post_id: postId,
+          comment_id: commentId,
+          product_name: text(productData?.productName || salesFlow?.product_name || ""),
+          product_link: text(productData?.productLink || salesFlow?.product_link || ""),
+          price_used: text(productData?.priceUsed || salesFlow?.price_used || ""),
+        },
+        reason: "social_comment_sales_flow_edit_data",
+      });
+      await sendSocialCommentSalesFlowText({
+        config,
+        message,
+        text: "أرسل البيانات المحدثة:\nالاسم\nرقم الهاتف\nالمحافظة\nالعنوان بالتفصيل",
+        detectedIntent: "social_comment_sales_flow_edit_data",
+        metadata: {
+          selected_size: selectedSize,
+          selected_color: selectedColor,
+          selected_product_id: productId,
+          social_comment_quick_reply: true,
+        },
+        inboundKey,
+        inboundMetaMid,
+        fallbackContext: {
+          productId,
+          size: selectedSize,
+          color: selectedColor,
+          step: "awaiting_customer_data",
+        },
+      });
+      return { handled: true, reason: "social_comment_sales_flow_edit_data" };
+    }
+
+    if (resolvedAction === "send_order") {
+      await persistSocialCommentSalesFlowState({
+        config,
+        message,
+        productId,
+        selectedSize,
+        selectedColor,
+        step: "ready_for_order",
+        extra: {
+          ...salesFlow,
+          post_id: postId,
+          comment_id: commentId,
+          product_name: text(productData?.productName || salesFlow?.product_name || ""),
+          product_link: text(productData?.productLink || salesFlow?.product_link || ""),
+          price_used: text(productData?.priceUsed || salesFlow?.price_used || ""),
+        },
+        reason: "social_comment_sales_flow_ready_for_order",
+      });
+      console.log("SOCIAL_COMMENT_READY_FOR_ORDER", {
+        tenant_id: config.tenant_id,
+        platform: text(message.channel || ""),
+        conversation_id: message.external_conversation_id,
+        session_id: message.external_conversation_id,
+        product_id: productId,
+        size: selectedSize,
+        color: selectedColor,
+        step: "ready_for_order",
+      });
+      await sendSocialCommentSalesFlowText({
+        config,
+        message,
+        text: "تم تجهيز طلبك مبدئيًا ✅\nسيتم متابعة التفاصيل معك في الخطوة التالية دون إنشاء طلب ERP الآن.",
+        detectedIntent: "social_comment_sales_flow_send_order",
+        metadata: {
+          selected_size: selectedSize,
+          selected_color: selectedColor,
+          selected_product_id: productId,
+          social_comment_quick_reply: true,
+          no_real_order_created: true,
+        },
+        inboundKey,
+        inboundMetaMid,
+        fallbackContext: {
+          productId,
+          size: selectedSize,
+          color: selectedColor,
+          step: "ready_for_order",
+        },
+      });
+      return { handled: true, reason: "social_comment_sales_flow_send_order" };
     }
 
     if (resolvedAction === "change_size") {
@@ -14446,6 +14744,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           },
           postId,
           commentId,
+          conversationId: message.external_conversation_id,
         }),
         inboundKey,
         inboundMetaMid,
@@ -14520,6 +14819,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           colors: availableColors,
           postId,
           commentId,
+          conversationId: message.external_conversation_id,
         }),
         inboundKey,
         inboundMetaMid,

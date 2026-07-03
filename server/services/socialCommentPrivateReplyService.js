@@ -317,6 +317,7 @@ export const buildSocialCommentSizeQuickReplies = ({
   productContext = null,
   postId = "",
   commentId = "",
+  conversationId = "",
 } = {}) => {
   const safeProductId = Number(productContext?.product_id || productContext?.primary_product?.product_id || productContext?.primary_product?.id || 0) || null;
   const sizes = sortSocialCommentAvailableSizes(productContext?.available_sizes || productContext?.sizes || []).slice(0, 11);
@@ -329,6 +330,7 @@ export const buildSocialCommentSizeQuickReplies = ({
       product_id: safeProductId,
       post_id: text(postId),
       comment_id: text(commentId),
+      conversation_id: text(conversationId),
     })}`,
   }));
 };
@@ -339,6 +341,7 @@ export const buildSocialCommentColorQuickReplies = ({
   colors = [],
   postId = "",
   commentId = "",
+  conversationId = "",
 } = {}) => {
   const safeProductId = Number(productId || 0) || null;
   const safeSelectedSize = text(selectedSize);
@@ -357,6 +360,7 @@ export const buildSocialCommentColorQuickReplies = ({
       product_id: safeProductId,
       post_id: text(postId),
       comment_id: text(commentId),
+      conversation_id: text(conversationId),
     })}`,
   }));
 };
@@ -405,6 +409,7 @@ export const parseSocialCommentSizeQuickReplyPayload = (value = "") => {
       product_id: productId,
       post_id: text(parsed?.post_id || ""),
       comment_id: text(parsed?.comment_id || ""),
+      conversation_id: text(parsed?.conversation_id || ""),
     };
   } catch {
     return null;
@@ -426,6 +431,7 @@ export const parseSocialCommentColorQuickReplyPayload = (value = "") => {
       product_id: productId,
       post_id: text(parsed?.post_id || ""),
       comment_id: text(parsed?.comment_id || ""),
+      conversation_id: text(parsed?.conversation_id || ""),
     };
   } catch {
     return null;
@@ -447,6 +453,7 @@ export const parseSocialCommentOrderActionQuickReplyPayload = (value = "") => {
       product_id: productId,
       post_id: text(parsed?.post_id || ""),
       comment_id: text(parsed?.comment_id || ""),
+      conversation_id: text(parsed?.conversation_id || ""),
     };
   } catch {
     return null;
@@ -470,6 +477,114 @@ export const buildSocialCommentOrderSummaryMessage = ({
     sections.push(`السعر: ${text(priceUsed)} جنيه`);
   }
   sections.push("", "هل تحب نكمل الطلب؟");
+  return sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+};
+
+export const buildSocialCommentSalesFlowQuickReplies = ({
+  productId = null,
+  selectedSize = "",
+  selectedColor = "",
+  postId = "",
+  commentId = "",
+  conversationId = "",
+  stage = "summary",
+} = {}) => {
+  const safeProductId = Number(productId || 0) || null;
+  if (!safeProductId) return [];
+  const payloadBase = {
+    product_id: safeProductId,
+    size: text(selectedSize),
+    color: text(selectedColor),
+    post_id: text(postId),
+    comment_id: text(commentId),
+    conversation_id: text(conversationId),
+  };
+  const items = stage === "preview"
+    ? [
+        { action: "send_order", title: "✅ إرسال الطلب" },
+        { action: "edit_data", title: "✏️ تعديل البيانات" },
+        { action: "cancel", title: "❌ إلغاء" },
+      ]
+    : [
+        { action: "confirm", title: "✅ تأكيد الطلب" },
+        { action: "change_size", title: "✏️ تغيير المقاس" },
+        { action: "change_color", title: "تغيير اللون" },
+        { action: "cancel", title: "❌ إلغاء" },
+      ];
+  return items.map((item) => ({
+    content_type: "text",
+    title: item.title.slice(0, 20),
+    payload: `${SOCIAL_COMMENT_ORDER_ACTION_QUICK_REPLY_PREFIX}${JSON.stringify({
+      ...payloadBase,
+      action: item.action,
+    })}`,
+  }));
+};
+
+export const buildSocialCommentOrderSummaryMessageV2 = ({
+  productName = "",
+  selectedSize = "",
+  selectedColor = "",
+  priceUsed = "",
+} = {}) => {
+  const sections = [
+    "️ ملخص طلبك",
+    "",
+    text(productName) || "المنتج",
+    "",
+    "المقاس:",
+    text(selectedSize) || "-",
+    "",
+    "اللون:",
+    text(selectedColor) || DEFAULT_COLOR_LABEL,
+  ];
+  if (text(priceUsed)) {
+    sections.push("", "السعر:", `${text(priceUsed)} جنيه`);
+  }
+  sections.push("", "━━━━━━━━━━━━", "", "هل ترغب في استكمال الطلب؟");
+  return sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+};
+
+export const buildSocialCommentOrderPreviewMessage = ({
+  customerName = "",
+  customerPhone = "",
+  governorate = "",
+  customerAddress = "",
+  productName = "",
+  selectedSize = "",
+  selectedColor = "",
+  priceUsed = "",
+} = {}) => {
+  const sections = [
+    "━━━━━━━━━━━━",
+    "",
+    "️ مراجعة الطلب",
+    "",
+    "الاسم",
+    text(customerName) || "-",
+    "",
+    "الهاتف",
+    text(customerPhone) || "-",
+    "",
+    "المحافظة",
+    text(governorate) || "-",
+    "",
+    "العنوان",
+    text(customerAddress) || "-",
+    "",
+    "المنتج",
+    text(productName) || "المنتج",
+    "",
+    "المقاس",
+    text(selectedSize) || "-",
+    "",
+    "اللون",
+    text(selectedColor) || DEFAULT_COLOR_LABEL,
+  ];
+  if (text(priceUsed)) {
+    sections.push("", "السعر", `${text(priceUsed)} جنيه`);
+  }
+  sections.push("", "━━━━━━━━━━━━");
   return sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 };
 
