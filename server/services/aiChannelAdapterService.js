@@ -675,6 +675,17 @@ export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } 
         rawRoutingPayload.startsWith("CHANGE_SIZE") ||
         rawRoutingPayload.startsWith("CHANGE_COLOR") ||
         rawRoutingPayload.startsWith("ORDER_CANCEL");
+      if (rawRoutingPayload.startsWith("ORDER_CONFIRM")) {
+        console.log("SOCIAL_COMMENT_ORDER_CONFIRM_RECEIVED", {
+          tenant_id: tenantId || null,
+          platform: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+          conversation_id: `facebook_messenger:${toText(event?.sender?.id || "")}`,
+          comment_id: "",
+          product_id: null,
+          quick_reply_payload: quickReplyPayload || postbackPayload || "",
+          message_text: toText(event?.message?.text || ""),
+        });
+      }
       if (shouldRouteSocialCommentQuickReply) {
         console.log("SOCIAL_COMMENT_QUICK_REPLY_ROUTING", {
           tenant_id: tenantId || null,

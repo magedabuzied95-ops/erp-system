@@ -13689,6 +13689,10 @@ const SOCIAL_COMMENT_SALES_FLOW_SOURCE = "comment_private_reply";
 const socialCommentSalesFlowActionFromText = (value = "") => {
   const normalized = text(value).toLowerCase();
   if (!normalized) return "";
+  if (normalized.startsWith("order_confirm")) return "confirm";
+  if (normalized.startsWith("change_size")) return "change_size";
+  if (normalized.startsWith("change_color")) return "change_color";
+  if (normalized.startsWith("order_cancel")) return "cancel";
   if (["✅ تأكيد الطلب", "تأكيد الطلب", "confirm", "confirm_order"].includes(normalized) || normalized.includes("تأكيد")) return "confirm";
   if (["✅ إرسال الطلب", "إرسال الطلب", "ارسال الطلب", "send_order"].includes(normalized) || normalized.includes("إرسال الطلب") || normalized.includes("ارسال الطلب")) return "send_order";
   if (["✏️ تعديل البيانات", "تعديل البيانات", "edit_data"].includes(normalized) || normalized.includes("تعديل البيانات")) return "edit_data";
@@ -14074,6 +14078,15 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   const messageText = text(message?.message_text || message?.raw?.event?.message?.text || "");
   const memory = getConversationMemory(message.external_conversation_id) || {};
   const salesFlow = memory.sales_flow && typeof memory.sales_flow === "object" ? memory.sales_flow : {};
+  const legacyActionFromPayload = rawPayload.startsWith("ORDER_CONFIRM")
+    ? "confirm"
+    : rawPayload.startsWith("CHANGE_SIZE")
+      ? "change_size"
+      : rawPayload.startsWith("CHANGE_COLOR")
+        ? "change_color"
+        : rawPayload.startsWith("ORDER_CANCEL")
+          ? "cancel"
+          : "";
   const payloadRoute = rawPayload.startsWith("SOCIAL_SIZE_SELECT::")
     ? "size"
     : rawPayload.startsWith("SOCIAL_COLOR_SELECT::")
@@ -14100,6 +14113,14 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       quick_reply_payload: rawPayload,
       route_candidate: payloadRoute || "quick_reply",
     });
+    if (rawPayload.startsWith("ORDER_CONFIRM")) {
+      console.log("SOCIAL_COMMENT_ORDER_CONFIRM_HANDLER_ENTER", {
+        tenant_id: config?.tenant_id || null,
+        platform: text(message?.channel || ""),
+        conversation_id: text(message?.external_conversation_id || ""),
+        quick_reply_payload: rawPayload,
+      });
+    }
   }
   const sizePayload = parseSocialCommentSizeQuickReplyPayload(rawPayload);
   const colorPayload = parseSocialCommentColorQuickReplyPayload(rawPayload);
@@ -14624,7 +14645,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     return { handled: true, reason: "social_comment_sales_flow_order_preview" };
   }
 
-  const resolvedAction = text(actionPayload?.action || "") || socialCommentSalesFlowActionFromText(messageText);
+  const resolvedAction = text(actionPayload?.action || "") || legacyActionFromPayload || socialCommentSalesFlowActionFromText(rawPayload) || socialCommentSalesFlowActionFromText(messageText);
   if (resolvedAction && Number(salesFlow?.product_id || actionPayload?.product_id || 0) > 0) {
     console.log("SOCIAL_COMMENT_SALES_FLOW_DISPATCH", {
       tenant_id: config?.tenant_id || null,
@@ -14678,7 +14699,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       await sendSocialCommentSalesFlowText({
         config,
         message,
-        text: "تمام ✅\n\nلإتمام الطلب ابعت بيانات الشحن:\n\nالاسم\nرقم الهاتف\nالمحافظة\nالعنوان بالتفصيل",
+        text: "ممتاز ✅\n\nلإتمام الطلب برجاء إرسال بيانات الشحن:\n\nالاسم\n\nرقم الهاتف\n\nالمحافظة\n\nالعنوان بالتفصيل",
         detectedIntent: "social_comment_sales_flow_confirm",
         metadata: {
           selected_size: selectedSize,
@@ -14949,6 +14970,16 @@ export const dispatchSocialCommentMessengerQuickReplySelection = async ({
 } = {}) => {
   const rawPayload = text(quickReplyPayload || postbackPayload || event?.message?.quick_reply?.payload || event?.postback?.payload || "");
   if (!rawPayload) return { handled: false, reason: "missing_quick_reply_payload" };
+  if (rawPayload.startsWith("ORDER_CONFIRM")) {
+    console.log("SOCIAL_COMMENT_ORDER_CONFIRM_DISPATCH", {
+      tenant_id: tenantId || null,
+      platform: AI_AGENT_CHANNELS.FACEBOOK_MESSENGER,
+      conversation_id: `${AI_AGENT_CHANNELS.FACEBOOK_MESSENGER}:${text(event?.sender?.id || "")}`,
+      comment_id: "",
+      product_id: null,
+      quick_reply_payload: rawPayload,
+    });
+  }
   const senderId = text(event?.sender?.id || "");
   if (!senderId) return { handled: false, reason: "missing_sender_id" };
   const config = await getMetaIntegrationConfig({ tenantId }).catch(() => null);
