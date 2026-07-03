@@ -393,6 +393,17 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
   const privateReplyStartedAt = parseDateOrNull(trace.private_reply_started_at || trace.dequeue_at || null);
   const sendStartedAt = parseDateOrNull(trace.send_started_at || null);
   const sendCompletedAt = parseDateOrNull(trace.send_completed_at || null);
+  const requiredFields = [
+    "detected_at",
+    "enqueue_at",
+    "ai_started_at",
+    "ai_completed_at",
+    "private_reply_enqueued_at",
+    "private_reply_started_at",
+    "send_started_at",
+    "send_completed_at",
+  ];
+  const missingFields = requiredFields.filter((field) => !parseDateOrNull(trace[field] || null));
   const diff = (end, start) => (end && start ? Math.max(0, end.getTime() - start.getTime()) : null);
   return {
     webhook_to_store_ms: diff(storedAt, webhookReceivedAt),
@@ -403,6 +414,7 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
     private_reply_queue_wait_ms: diff(privateReplyStartedAt, privateReplyEnqueuedAt),
     send_ms: diff(sendCompletedAt, sendStartedAt),
     total_comment_reply_ms: diff(sendCompletedAt || aiCompletedAt, detectedAt || webhookReceivedAt),
+    missing_fields: missingFields,
   };
 };
 
@@ -5720,6 +5732,42 @@ export const persistSocialCommentAutomationState = async ({
   const safeChannel = text(channel);
   const safeActionTaken = text(actionTaken);
   const safeAutomationState = automationState && typeof automationState === "object" ? automationState : null;
+  const currentRowResult = await db.query(
+    `
+    SELECT automation_state, dm_status
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1::bigint
+      AND platform = $2::text
+      AND comment_id = $3::text
+    ORDER BY updated_at DESC, id DESC
+    LIMIT 1
+    `,
+    [safeTenantId, text(platform || "facebook"), safeCommentId]
+  ).catch(() => ({ rows: [] }));
+  const currentRow = currentRowResult.rows?.[0] || {};
+  const currentAutomationState = metadataObject(currentRow.automation_state || {});
+  const currentRuntimeMonitor = metadataObject(currentAutomationState.runtime_monitor || {});
+  const nextAutomationState = safeAutomationState ? metadataObject(safeAutomationState) : currentAutomationState;
+  const nextRuntimeMonitor = metadataObject(nextAutomationState.runtime_monitor || {});
+  const mergedRuntimeMonitor = {
+    ...currentRuntimeMonitor,
+    ...nextRuntimeMonitor,
+    latency_trace: {
+      ...metadataObject(currentRuntimeMonitor.latency_trace || {}),
+      ...metadataObject(nextRuntimeMonitor.latency_trace || {}),
+    },
+  };
+  mergedRuntimeMonitor.latency_summary = mergedRuntimeMonitor.latency_summary || computeSocialCommentLatencySummary(mergedRuntimeMonitor.latency_trace || {});
+  const mergedAutomationState = {
+    ...currentAutomationState,
+    ...nextAutomationState,
+    runtime_monitor: mergedRuntimeMonitor,
+  };
+  const effectiveDmStatus = text(
+    dmStatus ||
+    currentRow.dm_status ||
+    (String(mergedRuntimeMonitor.status || "").toLowerCase() === "sent" ? "sent" : "")
+  );
   const result = await db.query(
     `
     UPDATE social_comment_automation_runs
@@ -5730,7 +5778,7 @@ export const persistSocialCommentAutomationState = async ({
         error_code = COALESCE(NULLIF($8::text, ''), error_code),
         automation_state = CASE
           WHEN $9::jsonb IS NULL THEN automation_state
-          ELSE COALESCE(automation_state, '{}'::jsonb) || $9::jsonb
+          ELSE $9::jsonb
         END,
         inbox_conversation_id = COALESCE(NULLIF($10::text, ''), inbox_conversation_id),
         updated_at = CURRENT_TIMESTAMP
@@ -5745,10 +5793,10 @@ export const persistSocialCommentAutomationState = async ({
       safeCommentId,
       safeActionTaken,
       text(publicReplyStatus || ""),
-      text(dmStatus || ""),
+      effectiveDmStatus,
       text(likeStatus || ""),
       text(errorCode || ""),
-      safeAutomationState ? JSON.stringify(safeAutomationState) : null,
+      JSON.stringify(mergedAutomationState),
       safeSessionId,
     ]
   );

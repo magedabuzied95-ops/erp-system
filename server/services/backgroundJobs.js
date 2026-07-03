@@ -41,6 +41,20 @@ const normalizeTimestampForDb = (value = null, label = "timestamp") => {
   return parsed.toISOString();
 };
 const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+const SOCIAL_COMMENT_LATENCY_REQUIRED_FIELDS = [
+  "detected_at",
+  "enqueue_at",
+  "ai_started_at",
+  "ai_completed_at",
+  "private_reply_enqueued_at",
+  "private_reply_started_at",
+  "send_started_at",
+  "send_completed_at",
+];
+const collectMissingSocialCommentLatencyFields = (trace = {}, requiredFields = SOCIAL_COMMENT_LATENCY_REQUIRED_FIELDS) => {
+  const normalized = metadataObject(trace || {});
+  return asArray(requiredFields).filter((field) => !parseDateOrNull(normalized[field] || null));
+};
 const computeSocialCommentLatencySummary = (trace = {}) => {
   const parse = (value) => parseDateOrNull(value || null);
   const diff = (end, start) => (end && start ? Math.max(0, end.getTime() - start.getTime()) : null);
@@ -54,6 +68,7 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
   const privateReplyStartedAt = parse(trace.private_reply_started_at || trace.dequeue_at);
   const sendStartedAt = parse(trace.send_started_at);
   const sendCompletedAt = parse(trace.send_completed_at);
+  const missingFields = collectMissingSocialCommentLatencyFields(trace);
   return {
     webhook_to_enqueue_ms: diff(enqueueAt, webhookReceivedAt),
     enqueue_to_ai_start_ms: diff(aiStartedAt, enqueueAt || dequeueAt),
@@ -62,11 +77,8 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
     private_reply_queue_wait_ms: diff(privateReplyStartedAt, privateReplyEnqueuedAt),
     send_ms: diff(sendCompletedAt, sendStartedAt),
     total_comment_reply_ms: diff(sendCompletedAt || aiCompletedAt, detectedAt || webhookReceivedAt),
+    missing_fields: missingFields,
   };
-};
-const collectMissingSocialCommentLatencyFields = (trace = {}, requiredFields = []) => {
-  const normalized = metadataObject(trace || {});
-  return asArray(requiredFields).filter((field) => !parseDateOrNull(normalized[field] || null));
 };
 const logSocialCommentLatencySendDone = ({
   row = {},
@@ -85,23 +97,13 @@ const logSocialCommentLatencySendDone = ({
     runId,
   }) || "").trim();
   const summary = computeSocialCommentLatencySummary(trace);
-  const requiredFields = [
-    "detected_at",
-    "enqueue_at",
-    "ai_started_at",
-    "ai_completed_at",
-    "private_reply_enqueued_at",
-    "private_reply_started_at",
-    "send_started_at",
-    "send_completed_at",
-  ];
-  const missingFields = collectMissingSocialCommentLatencyFields(trace, requiredFields);
+  const missingFields = summary.missing_fields || [];
   if (missingFields.length) {
     console.warn("SOCIAL_COMMENT_LATENCY_MISSING_FIELDS", {
       comment_id: String(commentId || "").trim(),
       post_id: String(postId || row.post_id || "").trim(),
       missing_fields: missingFields,
-      present_fields: requiredFields.filter((field) => !missingFields.includes(field)),
+      present_fields: SOCIAL_COMMENT_LATENCY_REQUIRED_FIELDS.filter((field) => !missingFields.includes(field)),
     });
   }
   console.log("SOCIAL_COMMENT_LATENCY_SEND_DONE", {
@@ -127,6 +129,7 @@ const logSocialCommentLatencySendDone = ({
     send_ms: summary.send_ms ?? null,
     total_comment_reply_ms: summary.total_comment_reply_ms ?? null,
     total_ms: summary.total_comment_reply_ms ?? null,
+    latency_summary: summary,
     meta_status: metaStatus,
     meta_message: metaMessage,
     missing_fields: missingFields,
