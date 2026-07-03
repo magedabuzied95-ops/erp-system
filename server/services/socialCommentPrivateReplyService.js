@@ -292,14 +292,15 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
 
 const buildProductReplySections = ({ customerName = "", normalizedContext = {} } = {}) => {
   const sections = [
-    text(customerName) ? `أهلاً بحضرتك يا ${text(customerName)}` : "أهلاً بحضرتك",
+    text(customerName) ? `أهلاً بحضرتك يا ${text(customerName)} ✨` : "أهلاً بحضرتك ✨",
     "",
     normalizedContext.productName || "المنتج",
   ];
   if (hasUsablePriceValue(normalizedContext.priceUsed)) {
     sections.push(
       "",
-      `السعر: ${normalizePriceText(normalizedContext.priceUsed)} جنيه`
+      "السعر:",
+      `${normalizePriceText(normalizedContext.priceUsed)} جنيه`
     );
   }
   sections.push(
@@ -307,13 +308,20 @@ const buildProductReplySections = ({ customerName = "", normalizedContext = {} }
     "المقاسات المتاحة:",
     normalizedContext.availableSizesLabel || DEFAULT_SIZE_FALLBACK,
     "",
-    "اختار المقاس المناسب من الأزرار بالأسفل.",
+    "━━━━━━━━━━━━",
     "",
-    "️ عرض كل الصور والتفاصيل وطلب المنتج:",
+    "اختر مقاسك من الأزرار بالأسفل.",
+    "",
+    "شحن لجميع المحافظات",
+    "الدفع عند الاستلام متاح",
+    "",
+    "️ عرض المنتج:",
     "",
     normalizedContext.productLink,
     "",
-    "لو محتاج مساعدة في اختيار المقاس المناسب، ابعتلنا مقاسك أو أي استفسار وإحنا هنساعدك بكل سرور"
+    "━━━━━━━━━━━━",
+    "",
+    "لو محتاج أي مساعدة في اختيار المقاس أو عندك أي استفسار، إحنا معاك في أي وقت ❤️"
   );
   return sections;
 };
