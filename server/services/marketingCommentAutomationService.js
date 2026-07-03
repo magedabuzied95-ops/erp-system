@@ -356,11 +356,21 @@ const buildSocialCommentMessengerProductCardPayload = ({
   productName = "",
   productImageUrl = "",
   productUrl = "",
+  productPrice = "",
   availableSizes = [],
 } = {}) => {
   const subtitleSizes = Array.isArray(availableSizes)
     ? availableSizes.map((value) => trimString(value)).filter(Boolean).slice(0, 8)
     : [];
+  const formattedPrice = trimString(productPrice);
+  const subtitle = formattedPrice
+    ? [
+        `السعر: ${formattedPrice} جنيه`,
+        `المقاسات: ${subtitleSizes.length ? subtitleSizes.join(" | ") : "غير متاحة"}`,
+      ].join("\n").slice(0, 80)
+    : subtitleSizes.length
+      ? `المقاسات: ${subtitleSizes.join(" | ")}`.slice(0, 80)
+      : undefined;
   return {
     recipient: { comment_id: trimString(commentId) },
     message: {
@@ -372,9 +382,7 @@ const buildSocialCommentMessengerProductCardPayload = ({
             {
               title: trimString(productName || "Product").slice(0, 80),
               image_url: trimString(productImageUrl),
-              subtitle: subtitleSizes.length
-                ? `المقاسات المتاحة: ${subtitleSizes.join(" | ")}`.slice(0, 80)
-                : undefined,
+              subtitle,
               buttons: trimString(productUrl)
                 ? [
                     {
@@ -866,6 +874,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
             productName,
             productImageUrl,
             productUrl: productLink,
+            productPrice: normalizedProductContext.priceUsed,
             availableSizes: normalizedProductContext.availableSizes,
           })),
         });
