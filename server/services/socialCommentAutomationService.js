@@ -43,6 +43,50 @@ const normalizeTimestampForDb = (value = null, label = "timestamp") => {
   }
   return parsed.toISOString();
 };
+const buildSocialCommentCorrelationId = ({ tenantId = null, commentId = "", postId = "", runId = null } = {}) => {
+  const safeTenantId = Number(tenantId || 0) || 0;
+  const safeCommentId = text(commentId || "");
+  const safePostId = text(postId || "");
+  const safeRunId = Number(runId || 0) || null;
+  return `social-comment:${safeTenantId}:${safePostId || "post"}:${safeCommentId || "comment"}:${safeRunId || "pending"}`;
+};
+const buildSocialCommentRunTimestampSnapshot = (row = {}) => ({
+  created_at: text(row.created_at || ""),
+  processed_at: text(row.processed_at || ""),
+  updated_at: text(row.updated_at || ""),
+  detected_at: text(row.automation_state?.runtime_monitor?.latency_trace?.detected_at || row.latency_trace?.detected_at || ""),
+  enqueue_at: text(row.automation_state?.runtime_monitor?.latency_trace?.enqueue_at || row.latency_trace?.enqueue_at || ""),
+  ai_started_at: text(row.automation_state?.runtime_monitor?.latency_trace?.ai_started_at || row.latency_trace?.ai_started_at || ""),
+  ai_completed_at: text(row.automation_state?.runtime_monitor?.latency_trace?.ai_completed_at || row.latency_trace?.ai_completed_at || ""),
+  private_reply_enqueued_at: text(row.automation_state?.runtime_monitor?.latency_trace?.private_reply_enqueued_at || row.latency_trace?.private_reply_enqueued_at || ""),
+  private_reply_started_at: text(row.automation_state?.runtime_monitor?.latency_trace?.private_reply_started_at || row.latency_trace?.private_reply_started_at || ""),
+  send_started_at: text(row.automation_state?.runtime_monitor?.latency_trace?.send_started_at || row.latency_trace?.send_started_at || ""),
+  send_completed_at: text(row.automation_state?.runtime_monitor?.latency_trace?.send_completed_at || row.latency_trace?.send_completed_at || ""),
+});
+const buildSocialCommentFlowLogPayload = ({
+  stage = "",
+  tenantId = null,
+  commentId = "",
+  postId = "",
+  runId = null,
+  correlationId = "",
+  existingRun = null,
+  row = {},
+  extra = {},
+} = {}) => ({
+  stage,
+  correlation_id: correlationId || buildSocialCommentCorrelationId({ tenantId, commentId, postId, runId }),
+  tenant_id: Number(tenantId || row.tenant_id || 0) || null,
+  comment_id: text(commentId || row.comment_id || ""),
+  post_id: text(postId || row.post_id || ""),
+  run_id: Number(runId || row.id || 0) || null,
+  existing_run_id: Number(existingRun?.id || 0) || null,
+  original_run_timestamps: existingRun ? buildSocialCommentRunTimestampSnapshot(existingRun) : null,
+  ...metadataObject(extra || {}),
+});
+const logSocialCommentFlowStep = (stage = "", payload = {}) => {
+  console.log(`SOCIAL_COMMENT_FLOW_${stage}`, payload);
+};
 const toIsoStringOrEmpty = (value = null) => {
   if (!value) return "";
   const parsed = value instanceof Date ? value : new Date(value);
@@ -5744,6 +5788,7 @@ export const executeSocialCommentAutomation = async ({
     message,
     callsite: trace.callsite || "socialCommentAutomationService.executeSocialCommentAutomation.private_message",
     postId: trace.postId || "",
+    conversationId: trace.conversationId || sessionId || "",
     productContext: trace.productContext || null,
     customerName: trace.customerName || "",
   }));

@@ -13731,21 +13731,11 @@ const socialCommentSalesFlowStepFromMemory = (memory = {}) => {
   return step;
 };
 
-const normalizeSocialCommentSalesFlowPrice = (value = "") => {
-  const normalized = text(value);
-  if (!normalized) return "";
-  const numeric = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
-  if (!Number.isFinite(numeric)) return normalized;
-  return Number.isInteger(numeric) ? String(numeric) : String(numeric.toFixed(2)).replace(/\.?0+$/g, "");
-};
-
-const pickSocialCommentSalesFlowPrice = (...values) => {
-  for (const candidate of values) {
-    const normalized = normalizeSocialCommentSalesFlowPrice(candidate);
-    if (!normalized) continue;
-    return normalized;
-  }
-  return "";
+const resolveSocialCommentSalesFlowPrice = (product = {}) => {
+  const resolved = resolveCustomerDisplayPrice(product || {});
+  const value = Number(resolved.display_price);
+  if (!Number.isFinite(value) || value <= 0) return "";
+  return String(Number.isInteger(value) ? value : Number(value.toFixed(2))).replace(/\.?0+$/g, "");
 };
 
 const logSocialCommentSalesFlowStateSaved = ({
@@ -13807,7 +13797,7 @@ const resolveSocialCommentSalesFlowProductData = async ({ tenantId = null, produ
   return {
     productId: Number(product.id || 0) || null,
     productName: text(product.name || "") || "المنتج",
-    priceUsed: pickSocialCommentSalesFlowPrice(product.sale_price, product.selling_price, product.price),
+    priceUsed: resolveSocialCommentSalesFlowPrice(product),
     productLink: ensureAbsoluteSocialProductLink(resolvedLink?.url || resolvedLink?.product_url || ""),
     productImageUrl: text(product.image_url || ""),
   };

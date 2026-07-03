@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -85,6 +86,24 @@ const priceCandidates = (...values) =>
     .filter(Boolean);
 
 const pickFirstPrice = (...values) => priceCandidates(...values)[0] || "";
+
+const resolveSocialCommentDisplayPrice = ({
+  base = {},
+  primaryProduct = {},
+} = {}) => {
+  const resolved = resolveCustomerDisplayPrice({
+    ...primaryProduct,
+    ...base,
+    product: primaryProduct,
+  });
+  const displayPrice = normalizePriceText(resolved.display_price);
+  const oldPrice = normalizePriceText(resolved.old_price);
+  return {
+    priceUsed: displayPrice,
+    salePriceUsed: resolved.sale_active ? displayPrice : "",
+    regularPriceUsed: oldPrice || (!resolved.sale_active ? displayPrice : ""),
+  };
+};
 
 const variantStockCount = (variant = {}) => {
   const candidates = [
@@ -196,28 +215,45 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
     availableVariantRows,
     productLink,
     productImageUrl,
-    priceUsed: pickFirstPrice(
-      productContext?.sale_price,
-      productContext?.selling_price,
-      productContext?.price,
-      productContext?.final_price,
-      primaryProduct?.sale_price,
-      primaryProduct?.selling_price,
-      primaryProduct?.price,
-      primaryProduct?.final_price,
-    ),
-    salePriceUsed: pickFirstPrice(
-      productContext?.sale_price,
-      primaryProduct?.sale_price,
-    ),
-    regularPriceUsed: pickFirstPrice(
-      productContext?.selling_price,
-      productContext?.price,
-      productContext?.final_price,
-      primaryProduct?.selling_price,
-      primaryProduct?.price,
-      primaryProduct?.final_price,
-    ),
+    priceUsed: resolveSocialCommentDisplayPrice({
+      base: {
+        sale_active: productContext?.sale_active ?? productContext?.is_sale_active ?? productContext?.on_sale ?? productContext?.sale_enabled ?? productContext?.discount_enabled ?? productContext?.has_sale,
+        sale_price: productContext?.sale_price,
+        selling_price: productContext?.selling_price,
+        price: productContext?.price,
+        regular_price: productContext?.final_price,
+      },
+      primaryProduct: {
+        ...primaryProduct,
+        sale_active: primaryProduct?.sale_active ?? primaryProduct?.is_sale_active ?? primaryProduct?.on_sale ?? primaryProduct?.sale_enabled ?? primaryProduct?.discount_enabled ?? primaryProduct?.has_sale,
+      },
+    }).priceUsed,
+    salePriceUsed: resolveSocialCommentDisplayPrice({
+      base: {
+        sale_active: productContext?.sale_active ?? productContext?.is_sale_active ?? productContext?.on_sale ?? productContext?.sale_enabled ?? productContext?.discount_enabled ?? productContext?.has_sale,
+        sale_price: productContext?.sale_price,
+        selling_price: productContext?.selling_price,
+        price: productContext?.price,
+        regular_price: productContext?.final_price,
+      },
+      primaryProduct: {
+        ...primaryProduct,
+        sale_active: primaryProduct?.sale_active ?? primaryProduct?.is_sale_active ?? primaryProduct?.on_sale ?? primaryProduct?.sale_enabled ?? primaryProduct?.discount_enabled ?? primaryProduct?.has_sale,
+      },
+    }).salePriceUsed,
+    regularPriceUsed: resolveSocialCommentDisplayPrice({
+      base: {
+        sale_active: productContext?.sale_active ?? productContext?.is_sale_active ?? productContext?.on_sale ?? productContext?.sale_enabled ?? productContext?.discount_enabled ?? productContext?.has_sale,
+        sale_price: productContext?.sale_price,
+        selling_price: productContext?.selling_price,
+        price: productContext?.price,
+        regular_price: productContext?.final_price,
+      },
+      primaryProduct: {
+        ...primaryProduct,
+        sale_active: primaryProduct?.sale_active ?? primaryProduct?.is_sale_active ?? primaryProduct?.on_sale ?? primaryProduct?.sale_enabled ?? primaryProduct?.discount_enabled ?? primaryProduct?.has_sale,
+      },
+    }).regularPriceUsed,
   };
 };
 

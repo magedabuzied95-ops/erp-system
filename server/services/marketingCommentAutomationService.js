@@ -52,6 +52,29 @@ const pickFirstText = (...values) => {
   return "";
 };
 
+const INITIAL_PRODUCT_SEND_DEDUPE_WINDOW_MS = 60 * 1000;
+const recentInitialProductSends = new Map();
+
+const cleanupInitialProductSendCache = (now = Date.now()) => {
+  for (const [key, entry] of recentInitialProductSends.entries()) {
+    if (!entry || (now - Number(entry.timestamp || 0)) > INITIAL_PRODUCT_SEND_DEDUPE_WINDOW_MS) {
+      recentInitialProductSends.delete(key);
+    }
+  }
+};
+
+const buildInitialProductSendKey = ({
+  conversationId = "",
+  commentId = "",
+  productId = null,
+} = {}) => {
+  const safeCommentId = trimString(commentId);
+  const safeConversationId = trimString(conversationId || safeCommentId);
+  const safeProductId = Number(productId || 0) || null;
+  if (!safeCommentId || !safeConversationId || !safeProductId) return "";
+  return `${safeConversationId}::${safeCommentId}::${safeProductId}`;
+};
+
 const META_WEBHOOK_SECRET_KEYS = new Set([
   "access_token",
   "app_secret",
@@ -796,6 +819,43 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
     productImageUrl: "",
     availableSizes: [],
   }));
+  const normalizedConversationId = trimString(
+    options?.conversationId ||
+    options?.sessionId ||
+    options?.externalConversationId ||
+    ""
+  );
+  const initialSendKey = buildInitialProductSendKey({
+    conversationId: normalizedConversationId,
+    commentId: graphCommentId,
+    productId: normalizedProductContext.productId,
+  });
+  const shouldGuardInitialSend = normalizedPlatform === "facebook" && hasProductContext && Boolean(initialSendKey);
+  if (shouldGuardInitialSend) {
+    const now = Date.now();
+    cleanupInitialProductSendCache(now);
+    const existing = recentInitialProductSends.get(initialSendKey);
+    if (existing && (now - Number(existing.timestamp || 0)) <= INITIAL_PRODUCT_SEND_DEDUPE_WINDOW_MS) {
+      console.log("SOCIAL_COMMENT_INITIAL_SEND_SKIPPED_DUPLICATE", {
+        callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+        conversation_id: normalizedConversationId,
+        comment_id: graphCommentId,
+        product_id: normalizedProductContext.productId,
+      });
+      return {
+        skipped: true,
+        duplicate: true,
+        id: `duplicate_initial_send:${initialSendKey}`,
+      };
+    }
+    recentInitialProductSends.set(initialSendKey, { timestamp: now });
+    console.log("SOCIAL_COMMENT_INITIAL_PRODUCT_SEND", {
+      callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+      conversation_id: normalizedConversationId,
+      comment_id: graphCommentId,
+      product_id: normalizedProductContext.productId,
+    });
+  }
   const pageId = trimString(capabilityDebug?.pageId || settings?.page_id || settings?.facebook_page_id || settings?.instagram_business_account_id || "");
   const activeImplementationFinalUrl = normalizedPlatform === "facebook"
     ? `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}/${encodeURIComponent(pageId)}/messages`
@@ -1731,6 +1791,7 @@ export const sendTrackedSocialCommentPrivateReply = async ({
   businessId,
   callsite = "",
   postId = "",
+  conversationId = "",
   productContext = null,
 } = {}) => {
   console.log("SOCIAL_COMMENT_PRIVATE_REPLY_CALLSITE", {
@@ -1746,6 +1807,7 @@ export const sendTrackedSocialCommentPrivateReply = async ({
     platform,
     commentId,
     postId,
+    conversationId,
     message,
     productContext,
   });
@@ -1759,6 +1821,7 @@ export const sendUnifiedSocialCommentPrivateReply = async ({
   pageId = "",
   commentId = "",
   postId = "",
+  conversationId = "",
   message = "",
   productContext = null,
   customerName = "",
@@ -1799,6 +1862,7 @@ export const sendUnifiedSocialCommentPrivateReply = async ({
   return sendPrivateReply(platform, commentId, sanitized.message, safeTenantId, {
     callsite,
     postId,
+    conversationId,
     productContext,
     selectedSource: "unified_sender",
   });

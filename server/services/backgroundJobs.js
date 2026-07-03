@@ -869,6 +869,7 @@ export const registerBackgroundJobHandlers = () => {
         message,
         callsite: "backgroundJobs.social.comment.private_reply",
         postId: postId || row.post_id || "",
+        conversationId: row.inbox_conversation_id || row.external_conversation_id || "",
         productContext,
         customerName: row.commenter_name || row.customer_name || "",
       });
