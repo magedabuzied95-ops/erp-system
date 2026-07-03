@@ -1,3 +1,5 @@
+import db from "../database/db.js";
+
 const toMoney = (value = null) => {
   const amount = Number(value);
   return Number.isFinite(amount) && amount > 0 ? amount : 0;
@@ -163,28 +165,185 @@ const normalizePriceText = (value = null) => {
   return Number.isInteger(amount) ? String(amount) : String(amount.toFixed(2)).replace(/\.?0+$/g, "");
 };
 
-export const resolveSocialProductDisplayPrice = ({
+const SOCIAL_PRICE_FIELDS = ["sale_price", "selling_price", "price"];
+const normalizedSocialPriceCandidate = ({
+  source = "",
+  field = "",
+  value = null,
+  index = null,
+  variantId = null,
+} = {}) => {
+  const normalizedValue = toPositiveMoney(value);
+  return {
+    source,
+    field,
+    value,
+    normalized_value: normalizedValue,
+    index: Number.isFinite(Number(index)) ? Number(index) : null,
+    variant_id: Number(variantId || 0) || null,
+  };
+};
+
+const collectObjectPriceCandidates = ({ source = "", entity = null } = {}) => {
+  const safeEntity = entity && typeof entity === "object" ? entity : null;
+  if (!safeEntity) return [];
+  return SOCIAL_PRICE_FIELDS
+    .filter((field) => safeEntity[field] !== undefined && safeEntity[field] !== null && String(safeEntity[field]).trim() !== "")
+    .map((field) => normalizedSocialPriceCandidate({
+      source,
+      field,
+      value: safeEntity[field],
+      variantId: safeEntity.id,
+    }));
+};
+
+const collectVariantPriceCandidates = ({ source = "", variants = [] } = {}) =>
+  (Array.isArray(variants) ? variants : []).flatMap((variant, index) => {
+    const safeVariant = variant && typeof variant === "object" ? variant : null;
+    if (!safeVariant) return [];
+    return SOCIAL_PRICE_FIELDS
+      .filter((field) => safeVariant[field] !== undefined && safeVariant[field] !== null && String(safeVariant[field]).trim() !== "")
+      .map((field) => normalizedSocialPriceCandidate({
+        source,
+        field,
+        value: safeVariant[field],
+        index,
+        variantId: safeVariant.id,
+      }));
+  });
+
+const traceCandidateList = (candidates = []) =>
+  candidates.map((candidate) => ({
+    field: candidate.field,
+    value: candidate.value,
+    normalized_value: candidate.normalized_value,
+    index: candidate.index,
+    variant_id: candidate.variant_id,
+  }));
+
+const selectPositiveSocialPriceCandidate = (candidates = []) =>
+  candidates.find((candidate) => candidate.normalized_value !== null) || null;
+
+const formatSelectedSocialPriceField = (candidate = null) => {
+  if (!candidate?.source || !candidate?.field) return "";
+  if (candidate.index !== null) return `${candidate.source}[${candidate.index}].${candidate.field}`;
+  return `${candidate.source}.${candidate.field}`;
+};
+
+const loadSocialProductPriceDbFallback = async ({ tenantId = null, productId = null } = {}) => {
+  const safeProductId = Number(productId || 0);
+  if (!Number.isFinite(safeProductId) || safeProductId <= 0) return { product: null, variants: [] };
+  const safeTenantId = Number(tenantId || 0);
+  const [productResult, variantResult] = await Promise.all([
+    db.query(
+      `
+      SELECT id, sale_price, selling_price, price
+      FROM products
+      WHERE id = $1
+        AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
+      LIMIT 1
+      `,
+      [safeProductId, safeTenantId]
+    ).catch(() => ({ rows: [] })),
+    db.query(
+      `
+      SELECT id, product_id, sale_price, selling_price, price
+      FROM product_variants
+      WHERE product_id = $1
+        AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
+      ORDER BY id ASC
+      `,
+      [safeProductId, safeTenantId]
+    ).catch(() => ({ rows: [] })),
+  ]);
+  return {
+    product: productResult.rows?.[0] || null,
+    variants: Array.isArray(variantResult.rows) ? variantResult.rows : [],
+  };
+};
+
+export const resolveSocialProductDisplayPrice = async ({
+  tenantId = null,
   product = {},
+  productContext = {},
+  linkedProduct = {},
   variants = [],
+  availableVariants = [],
   context = {},
   callsite = "",
 } = {}) => {
-  const productName = String(context.product_name || product.name || product.product_name || "").trim();
-  const productId = Number(context.product_id || product.id || product.product_id || 0) || null;
-  const candidates = collectPriceCandidates({ product, variants });
-  const selectedCandidate = candidates.find((candidate) => toPositiveMoney(candidate.value) !== null) || null;
-  const selectedPrice = selectedCandidate ? toPositiveMoney(selectedCandidate.value) : null;
+  const productName = String(
+    context.product_name ||
+    productContext.product_name ||
+    product.name ||
+    product.product_name ||
+    linkedProduct.name ||
+    linkedProduct.product_name ||
+    ""
+  ).trim();
+  const productId = Number(
+    context.product_id ||
+    productContext.product_id ||
+    product.id ||
+    product.product_id ||
+    linkedProduct.id ||
+    linkedProduct.product_id ||
+    0
+  ) || null;
+
+  const primarySourceCandidates = [
+    ...collectObjectPriceCandidates({ source: "product", entity: product }),
+    ...collectObjectPriceCandidates({ source: "productContext", entity: productContext }),
+    ...collectObjectPriceCandidates({ source: "linkedProduct", entity: linkedProduct }),
+  ];
+  const variantSourceCandidates = [
+    ...collectVariantPriceCandidates({ source: "variants", variants }),
+    ...collectVariantPriceCandidates({ source: "available_variants", variants: availableVariants }),
+  ];
+  let selectedCandidate = selectPositiveSocialPriceCandidate([
+    ...primarySourceCandidates,
+    ...variantSourceCandidates,
+  ]);
+
+  let dbFallback = { product: null, variants: [] };
+  let dbProductCandidates = [];
+  let dbVariantCandidates = [];
+
+  if (!selectedCandidate && productId) {
+    dbFallback = await loadSocialProductPriceDbFallback({ tenantId, productId });
+    dbProductCandidates = collectObjectPriceCandidates({ source: "products", entity: dbFallback.product });
+    dbVariantCandidates = collectVariantPriceCandidates({ source: "product_variants_db", variants: dbFallback.variants });
+    selectedCandidate = selectPositiveSocialPriceCandidate([
+      ...dbProductCandidates,
+      ...dbVariantCandidates,
+    ]);
+    if (selectedCandidate) {
+      console.log("SOCIAL_COMMENT_PRICE_DB_FALLBACK_USED", {
+        product_id: productId,
+        selected_field: formatSelectedSocialPriceField(selectedCandidate),
+        selected_price: selectedCandidate.normalized_value,
+      });
+    }
+  }
+
+  const selectedPrice = selectedCandidate?.normalized_value ?? null;
   const selectedDisplayPrice = normalizePriceText(selectedPrice);
+  const candidateFieldsFound = [
+    ...primarySourceCandidates,
+    ...variantSourceCandidates,
+    ...dbProductCandidates,
+    ...dbVariantCandidates,
+  ]
+    .filter((candidate) => candidate.normalized_value !== null)
+    .map((candidate) => ({
+      field: formatSelectedSocialPriceField(candidate),
+      value: normalizePriceText(candidate.normalized_value),
+    }));
   const result = {
     product_id: productId,
     product_name: productName,
-    candidate_fields_found: candidates
-      .filter((candidate) => toPositiveMoney(candidate.value) !== null)
-      .map((candidate) => ({
-        field: `${candidate.source}.${candidate.field}`,
-        value: normalizePriceText(candidate.value),
-      })),
-    selected_field: selectedCandidate ? `${selectedCandidate.source}.${selectedCandidate.field}` : "",
+    candidate_fields_found: candidateFieldsFound,
+    selected_field: formatSelectedSocialPriceField(selectedCandidate),
     selected_price: selectedPrice,
     selected_display_price: selectedDisplayPrice,
     has_valid_price: Boolean(selectedDisplayPrice),
@@ -198,6 +357,17 @@ export const resolveSocialProductDisplayPrice = ({
       selected_field: result.selected_field,
       selected_price: result.selected_price,
       has_valid_price: result.has_valid_price,
+      source_candidates: {
+        product: traceCandidateList(collectObjectPriceCandidates({ source: "product", entity: product })),
+        productContext: traceCandidateList(collectObjectPriceCandidates({ source: "productContext", entity: productContext })),
+        linkedProduct: traceCandidateList(collectObjectPriceCandidates({ source: "linkedProduct", entity: linkedProduct })),
+        variants: traceCandidateList(collectVariantPriceCandidates({ source: "variants", variants })),
+        available_variants: traceCandidateList(collectVariantPriceCandidates({ source: "available_variants", variants: availableVariants })),
+        product_variants_db: {
+          product: traceCandidateList(dbProductCandidates),
+          variants: traceCandidateList(dbVariantCandidates),
+        },
+      },
     });
   }
   return result;

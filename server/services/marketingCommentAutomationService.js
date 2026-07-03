@@ -1716,9 +1716,12 @@ const loadProductContext = async ({ businessId, productId }) => {
     [productId, businessId]
   );
   const variants = variantsResult.rows || [];
-  const priceInfo = resolveSocialProductDisplayPrice({
+  const available_variants = variants.filter((variant) => Number(variant.stock || 0) > 0);
+  const priceInfo = await resolveSocialProductDisplayPrice({
+    tenantId: businessId,
     product,
     variants,
+    availableVariants: available_variants,
     context: {
       product_id: product.id || null,
       product_name: product.name || "",
@@ -1728,7 +1731,6 @@ const loadProductContext = async ({ businessId, productId }) => {
   const totalStock = variants.length
     ? variants.reduce((sum, variant) => sum + Number(variant.stock || 0), 0)
     : Number(product.stock || 0);
-  const available_variants = variants.filter((variant) => Number(variant.stock || 0) > 0);
   const variantLines = variants.length
     ? variants.map((variant) => {
         const parts = [variant.color, variant.size].map(trimString).filter(Boolean);
