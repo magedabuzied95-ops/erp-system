@@ -16,6 +16,7 @@ import { collectDirectLinkIdentity, getMappings } from "./postProductMappingServ
 import { migrateCanonicalSocialPostRecords, resolveSocialPostCanonicalIdentity } from "./socialPostIdentityService.js";
 import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
+import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
 import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
   getSocialAutomationSettings,
@@ -1230,6 +1231,49 @@ const socialCommentsLog = (...args) => {
 };
 const socialCommentsError = (...args) => {
   if (socialCommentsDebugEnabled()) console.error(...args);
+};
+
+const buildSocialCommentRuntimeCacheKey = (...parts) =>
+  parts.map((part) => text(part || "") || "none").join("|");
+
+const loadCachedPostAutomationConfig = async ({ tenantId = null, platform = "", postId = "", row = {} } = {}) => {
+  const safeTenantId = Number(tenantId || row.tenant_id || 0) || null;
+  const normalizedPlatform = text(platform || row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  const safePostId = text(postId || row.post_id || row.metadata?.post_id || row.raw_payload?.post_id || "");
+  return withSocialCommentRuntimeCache({
+    cacheName: "social_comment_automation_config",
+    cacheKey: buildSocialCommentRuntimeCacheKey(safeTenantId, normalizedPlatform, safePostId),
+    metadata: {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+    },
+    loader: () => loadPostAutomationConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId, row }),
+  });
+};
+
+const loadCachedPublishedProductContext = async ({ tenantId = null, row = {} } = {}) => {
+  const safeTenantId = Number(tenantId || row.tenant_id || 0) || null;
+  const normalizedPlatform = text(row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  const safePostId = text(row.post_id || row.metadata?.post_id || row.raw_payload?.post_id || row.raw_payload?.value?.post_id || "");
+  const safeProductId = text(
+    row.product_id ||
+    row.metadata?.product_id ||
+    row.primary_product?.product_id ||
+    row.primary_product?.id ||
+    ""
+  );
+  return withSocialCommentRuntimeCache({
+    cacheName: "social_comment_product_context",
+    cacheKey: buildSocialCommentRuntimeCacheKey(safeTenantId, normalizedPlatform, safePostId, safeProductId),
+    metadata: {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      product_id: safeProductId,
+    },
+    loader: () => resolveSocialCommentPublishedProductContext({ tenantId: safeTenantId, row }),
+  });
 };
 
 const getSocialCommentAutomationFlags = () => ({
@@ -2892,6 +2936,15 @@ const executeSocialCommentAutomationRuntime = async ({
   const aiOpeningPrompt = text(config.message_templates?.aiOpeningPrompt || "");
   const renderedAiOpeningPrompt = renderAutomationTemplate(aiOpeningPrompt, templateContext).trim();
   const renderedPublicReply = renderAutomationTemplate(publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE, templateContext).trim() || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE;
+  console.log("SOCIAL_COMMENT_PUBLIC_REPLY_TRANSFORM_TRACE", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    stage: "rendered_public_reply",
+    source_template: publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE,
+    rendered_public_reply: renderedPublicReply,
+  });
   const renderedPrivateReply = renderSocialCommentTemplateText(privateReplyTemplate || buildSocialCommentSuggestedReply({
     classificationLabel: safeRow.classification_label || "",
     commenterName: templateContext.customerName || "",
@@ -2970,6 +3023,15 @@ const executeSocialCommentAutomationRuntime = async ({
     fallbackPrivateReply: renderedPrivateReply,
     customerName: templateContext.customerName || "",
   });
+  console.log("SOCIAL_COMMENT_PUBLIC_REPLY_TRANSFORM_TRACE", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    stage: "sales_reply_public_reply",
+    sales_reply_public_reply: salesReplies.public_reply || "",
+    sales_reply_used_fallback: Boolean(salesReplies.used_fallback),
+  });
   const productAwarePublicReply = buildProductAwarePublicReply({
     salesContext,
     intent: detectedIntent.intent,
@@ -2990,6 +3052,16 @@ const executeSocialCommentAutomationRuntime = async ({
       ? productAwarePublicReply
       : initialRenderedPublicReply
   );
+  console.log("SOCIAL_COMMENT_PUBLIC_REPLY_TRANSFORM_TRACE", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    stage: "effective_public_reply",
+    initial_rendered_public_reply: initialRenderedPublicReply,
+    product_aware_public_reply: productAwarePublicReply,
+    effective_rendered_public_reply: effectiveRenderedPublicReply,
+  });
   const effectiveRenderedPrivateReply = text(salesReplies.private_reply || renderedPrivateReply);
   aiPhaseTimings.reply_render_completed_at = new Date().toISOString();
   const aiSalesRuntime = {
@@ -5271,22 +5343,28 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       final_post_id: runtimeProductContextInput.finalPostId,
       final_comment_id: runtimeProductContextInput.finalCommentId,
     });
+    const runtimeContextRow = {
+      ...runtimeProductContextInput.row,
+      tenant_id: safeTenantId,
+    };
     const productContextStartedAt = Date.now();
-    const runtimeProductContext = await resolveSocialCommentPublishedProductContext({
-      tenantId: safeTenantId,
-      row: {
-        ...runtimeProductContextInput.row,
-        tenant_id: safeTenantId,
-      },
-    }).catch(() => null);
+    const [runtimeProductContext, automationConfig] = await Promise.all([
+      loadCachedPublishedProductContext({
+        tenantId: safeTenantId,
+        row: runtimeContextRow,
+      }).catch(() => null),
+      loadCachedPostAutomationConfig({
+        tenantId: safeTenantId,
+        platform,
+        postId,
+        row: savedRunRow || {},
+      }).catch(() => null),
+    ]);
     console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_RESOLVED_FULL", buildSocialCommentProductContextResolvedFullLog({
       tenantId: safeTenantId,
       platform,
       productContext: runtimeProductContext,
-      row: {
-        ...runtimeProductContextInput.row,
-        tenant_id: safeTenantId,
-      },
+      row: runtimeContextRow,
     }));
     console.log("SOCIAL_COMMENT_LATENCY_PRODUCT_CONTEXT", {
       comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
@@ -5297,17 +5375,8 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     });
     console.log("SOCIAL_COMMENT_PRODUCT_CONTEXT_RESOLVED", buildSocialCommentProductContextResolvedLog({
       productContext: runtimeProductContext,
-      row: {
-        ...runtimeProductContextInput.row,
-        tenant_id: safeTenantId,
-      },
+      row: runtimeContextRow,
     }));
-    const automationConfig = await loadPostAutomationConfig({
-      tenantId: safeTenantId,
-      platform,
-      postId,
-      row: savedRunRow || {},
-    }).catch(() => null);
     console.log("SOCIAL_COMMENT_AUTOMATION_RUNTIME_BEFORE", {
       tenant_id: safeTenantId,
       platform,
@@ -6262,7 +6331,23 @@ export const executeSocialCommentAutomation = async ({
     websiteLinks,
     templateContext,
   });
-  const publicReplyText = text(decision.automationSettings?.public_reply_template || COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT);
+  const publicReplyText = text(
+    effectiveRenderedPublicReply ||
+    renderedPublicReply ||
+    decision.automationSettings?.public_reply_template ||
+    COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT
+  );
+  console.log("SOCIAL_COMMENT_PUBLIC_REPLY_TRANSFORM_TRACE", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safeRow.post_id || "",
+    comment_id: safeRow.comment_id || "",
+    stage: "final_public_reply_text",
+    decision_public_reply_template: decision.automationSettings?.public_reply_template || "",
+    rendered_public_reply: renderedPublicReply,
+    effective_rendered_public_reply: effectiveRenderedPublicReply,
+    public_reply_text: publicReplyText,
+  });
   const privateReplyTemplate = text(decision.automationSettings?.private_message_template || "");
   const fallbackPrivateReplyTemplate = text(conversation?.suggested_reply || conversation?.metadata?.lead?.suggested_reply || safeRow.suggested_reply || buildSocialCommentSuggestedReply({
     classificationLabel: safeRow.classification_label,
@@ -7207,7 +7292,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       }
       continue;
     }
-    const productContext = await resolveSocialCommentPublishedProductContext({
+    const productContext = await loadCachedPublishedProductContext({
       tenantId: storedRow.tenant_id,
       row: storedRow,
     }).catch(() => null);
@@ -7237,7 +7322,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         reason: text(productContext?.reason || "product_not_found"),
       });
     }
-    const automationConfig = await loadPostAutomationConfig({
+    const automationConfig = await loadCachedPostAutomationConfig({
       tenantId: storedRow.tenant_id,
       platform: storedRow.platform,
       postId: storedRow.post_id,
@@ -7561,7 +7646,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         final_post_id: runtimeProductContextInput.finalPostId,
         final_comment_id: runtimeProductContextInput.finalCommentId,
       });
-      const runtimeProductContext = await resolveSocialCommentPublishedProductContext({
+      const runtimeProductContext = await loadCachedPublishedProductContext({
         tenantId: storedRow.tenant_id,
         row: runtimeProductContextInput.row,
       }).catch(() => null);

@@ -5,6 +5,7 @@ import iconv from "iconv-lite";
 import db from "../database/db.js";
 import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl, getMetaWebhookUrl } from "../utils/publicUrl.js";
+import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
 import { emitToRooms } from "../utils/socket.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
@@ -146,6 +147,8 @@ if (typeof protectedV2ProductIntent !== "function") {
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const buildSocialCommentRuntimeCacheKey = (...parts) =>
+  parts.map((part) => text(part || "") || "none").join("|");
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const debugSocialCommentsLog = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.log(...args);
@@ -1052,11 +1055,29 @@ const isOnlyShoeSizeMessage = (message = "", size = "") => {
 };
 
 const normalizeEgyptPhone = (value = "") => {
-  const normalized = text(value)
+  const rawPhone = text(value);
+  const normalized = rawPhone
     .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
     .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
-  const match = normalized.match(/(?:\+?20|0020)?\s*(01[0125][\s-]?\d{3}[\s-]?\d{4})/);
-  return match ? match[1].replace(/[^\d]/g, "") : "";
+  const digitsOnly = normalized.replace(/[^\d]/g, "");
+  let parsedPhone = "";
+  if (/^01[0125]\d{8}$/.test(digitsOnly)) {
+    parsedPhone = digitsOnly;
+  } else if (/^201[0125]\d{8}$/.test(digitsOnly)) {
+    parsedPhone = `0${digitsOnly.slice(2)}`;
+  } else if (/^00201[0125]\d{8}$/.test(digitsOnly)) {
+    parsedPhone = `0${digitsOnly.slice(4)}`;
+  } else {
+    const match = normalized.match(/(?:\+?20|0020)?\s*(01[0125][\s-]?\d{4}[\s-]?\d{4})/);
+    parsedPhone = match ? match[1].replace(/[^\d]/g, "") : "";
+  }
+  if (rawPhone) {
+    console.log("SOCIAL_COMMENT_PHONE_PARSE_TRACE", {
+      raw_phone: rawPhone,
+      parsed_phone: parsedPhone,
+    });
+  }
+  return parsedPhone;
 };
 
 const parseCheckoutCustomerDetails = (messageText = "") => {
@@ -1078,7 +1099,7 @@ const parseCheckoutCustomerDetails = (messageText = "") => {
   const effectiveLines = lines.length ? lines : fallbackSegments;
   const phoneLineIndex = effectiveLines.findIndex((line) => normalizeEgyptPhone(line));
   const governorateLineIndex = effectiveLines.findIndex((line) => extractSalesGovernorate(line));
-  const phonePattern = /(?:\+?20|0020)?\s*01[0125][\s-]?\d{3}[\s-]?\d{4}/g;
+  const phonePattern = /(?:\+?20|0020)?\s*01[0125][\s-]?\d{4}[\s-]?\d{4}/g;
   const withoutPhone = (value = "") => text(String(value || "").replace(phone, "").replace(phonePattern, ""));
   const governorateCandidate = withoutPhone(
     governorateLineIndex >= 0
@@ -13803,43 +13824,56 @@ const resolveSocialCommentSalesFlowProductData = async ({ tenantId = null, produ
   const safeProductId = Number(productId || 0);
   if (!Number.isFinite(safeProductId) || safeProductId <= 0) return null;
   const safeTenantId = Number(tenantId || 0);
-  const productResult = await db.query(
-    `
-    SELECT
-      id,
-      name,
-      slug,
-      canonical_slug,
-      image_url,
-      selling_price,
-      sale_price,
-      price
-    FROM products
-    WHERE id = $1
-      AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
-    LIMIT 1
-    `,
-    [safeProductId, safeTenantId]
-  ).catch(() => ({ rows: [] }));
-  const product = productResult.rows?.[0] || null;
-  if (!product) return null;
-  const resolvedLink = await resolveStorefrontProductLink({
-    tenantId: safeTenantId,
-    product: {
-      id: product.id,
-      product_id: product.id,
-      name: product.name || "",
-      slug: product.slug || "",
-      canonical_slug: product.canonical_slug || "",
+  return withSocialCommentRuntimeCache({
+    cacheName: "social_comment_sales_context",
+    cacheKey: buildSocialCommentRuntimeCacheKey(safeTenantId, safeProductId),
+    metadata: {
+      tenant_id: safeTenantId,
+      product_id: safeProductId,
     },
-  }).catch(() => null);
-  return {
-    productId: Number(product.id || 0) || null,
-    productName: text(product.name || "") || "المنتج",
-    priceUsed: await resolveSocialCommentSalesFlowPrice({ tenantId: safeTenantId, product }),
-    productLink: ensureAbsoluteSocialProductLink(resolvedLink?.url || resolvedLink?.product_url || ""),
-    productImageUrl: text(product.image_url || ""),
-  };
+    loader: async () => {
+      const productResult = await db.query(
+        `
+        SELECT
+          id,
+          name,
+          slug,
+          canonical_slug,
+          image_url,
+          selling_price,
+          sale_price,
+          price
+        FROM products
+        WHERE id = $1
+          AND ($2::bigint <= 0 OR tenant_id = $2::bigint OR tenant_id IS NULL)
+        LIMIT 1
+        `,
+        [safeProductId, safeTenantId]
+      ).catch(() => ({ rows: [] }));
+      const product = productResult.rows?.[0] || null;
+      if (!product) return null;
+      const [resolvedLink, priceUsed] = await Promise.all([
+        resolveStorefrontProductLink({
+          tenantId: safeTenantId,
+          product: {
+            id: product.id,
+            product_id: product.id,
+            name: product.name || "",
+            slug: product.slug || "",
+            canonical_slug: product.canonical_slug || "",
+          },
+        }).catch(() => null),
+        resolveSocialCommentSalesFlowPrice({ tenantId: safeTenantId, product }),
+      ]);
+      return {
+        productId: Number(product.id || 0) || null,
+        productName: text(product.name || "") || "المنتج",
+        priceUsed,
+        productLink: ensureAbsoluteSocialProductLink(resolvedLink?.url || resolvedLink?.product_url || ""),
+        productImageUrl: text(product.image_url || ""),
+      };
+    },
+  });
 };
 
 const resolveSocialCommentSalesFlowDraftOrderData = async ({
@@ -13878,7 +13912,6 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
       product_id,
       size,
       color,
-      name,
       sku,
       barcode,
       COALESCE(stock, 0) AS stock,
@@ -13928,7 +13961,7 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
     product_id: Number(variantRow.product_id || product.id || 0) || null,
     size: text(variantRow.size || ""),
     color: text(variantRow.color || ""),
-    name: text(variantRow.name || [variantRow.size, variantRow.color].filter(Boolean).join(" / ")),
+    name: text([product.name || "المنتج", variantRow.size, variantRow.color].filter(Boolean).join(" / ")),
     sku: text(variantRow.sku || ""),
     barcode: text(variantRow.barcode || ""),
     stock: numeric(variantRow.stock, 0),
@@ -14793,15 +14826,17 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     });
     const productId = Number(sizePayload?.product_id || salesFlow?.product_id || 0) || null;
     const selectedSize = text(sizePayload?.size || messageText);
-    const productData = await resolveSocialCommentSalesFlowProductData({
-      tenantId: config.tenant_id,
-      productId,
-    });
-    const variantRows = await loadSocialCommentSalesFlowVariantRows({
-      tenantId: config.tenant_id,
-      productId,
-      selectedSize,
-    });
+    const [productData, variantRows] = await Promise.all([
+      resolveSocialCommentSalesFlowProductData({
+        tenantId: config.tenant_id,
+        productId,
+      }),
+      loadSocialCommentSalesFlowVariantRows({
+        tenantId: config.tenant_id,
+        productId,
+        selectedSize,
+      }),
+    ]);
     const variant = variantRows[0] || null;
     const available = Boolean(variant);
     console.log("SOCIAL_COMMENT_SIZE_SELECTED", {
@@ -15042,11 +15077,17 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       line_count: shippingLines.length,
       split_lines: shippingLines,
     });
-    const knownInfo = await loadKnownSalesCustomerInfo({
-      tenantId: config.tenant_id,
-      channel: message.channel,
-      conversationId: message.external_conversation_id,
-    }).catch(() => ({}));
+    const [knownInfo, productData] = await Promise.all([
+      loadKnownSalesCustomerInfo({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+      }).catch(() => ({})),
+      resolveSocialCommentSalesFlowProductData({
+        tenantId: config.tenant_id,
+        productId,
+      }),
+    ]);
     const parsedInfo = parseCheckoutCustomerDetails(messageText);
     console.log("SOCIAL_COMMENT_SHIPPING_PARSE_RESULT", {
       name: text(parsedInfo.customer_name || ""),
@@ -15085,10 +15126,6 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       merged_governorate: text(mergedInfo.governorate || ""),
       merged_address: text(mergedInfo.customerAddress || ""),
       missing_fields: missing,
-    });
-    const productData = await resolveSocialCommentSalesFlowProductData({
-      tenantId: config.tenant_id,
-      productId,
     });
     await persistSocialCommentSalesFlowState({
       config,

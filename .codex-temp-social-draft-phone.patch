@@ -1,0 +1,83 @@
+diff --git a/server/services/metaIntegrationService.js b/server/services/metaIntegrationService.js
+--- a/server/services/metaIntegrationService.js
++++ b/server/services/metaIntegrationService.js
+@@ -1049,17 +1052,35 @@ const isOnlyShoeSizeMessage = (message = "", size = "") => {
+   const selectedDigits = sizeDigits(size);
+   if (!messageDigits || !selectedDigits || messageDigits !== selectedDigits) return false;
+   return !text(message).replace(/[\d\u0660-\u0669\u06f0-\u06f9\s.,°:;!ø?()-]/g, "");
+ };
+ 
+ const normalizeEgyptPhone = (value = "") => {
+-  const normalized = text(value)
++  const rawPhone = text(value);
++  const normalized = rawPhone
+     .replace(/[\u0660-\u0669]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+     .replace(/[\u06f0-\u06f9]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
+-  const match = normalized.match(/(?:\+?20|0020)?\s*(01[0125][\s-]?\d{3}[\s-]?\d{4})/);
+-  return match ? match[1].replace(/[^\d]/g, "") : "";
++  const digitsOnly = normalized.replace(/[^\d]/g, "");
++  let parsedPhone = "";
++  if (/^01[0125]\d{8}$/.test(digitsOnly)) {
++    parsedPhone = digitsOnly;
++  } else if (/^201[0125]\d{8}$/.test(digitsOnly)) {
++    parsedPhone = `0${digitsOnly.slice(2)}`;
++  } else if (/^00201[0125]\d{8}$/.test(digitsOnly)) {
++    parsedPhone = `0${digitsOnly.slice(4)}`;
++  } else {
++    const match = normalized.match(/(?:\+?20|0020)?\s*(01[0125][\s-]?\d{4}[\s-]?\d{4})/);
++    parsedPhone = match ? match[1].replace(/[^\d]/g, "") : "";
++  }
++  if (rawPhone) {
++    console.log("SOCIAL_COMMENT_PHONE_PARSE_TRACE", {
++      raw_phone: rawPhone,
++      parsed_phone: parsedPhone,
++    });
++  }
++  return parsedPhone;
+ };
+ 
+ const parseCheckoutCustomerDetails = (messageText = "") => {
+@@ -1075,13 +1096,13 @@ const parseCheckoutCustomerDetails = (messageText = "") => {
+     .split(/°|,/)
+     .map((line) => text(line))
+     .filter(Boolean);
+   const effectiveLines = lines.length ? lines : fallbackSegments;
+   const phoneLineIndex = effectiveLines.findIndex((line) => normalizeEgyptPhone(line));
+   const governorateLineIndex = effectiveLines.findIndex((line) => extractSalesGovernorate(line));
+-  const phonePattern = /(?:\+?20|0020)?\s*01[0125][\s-]?\d{3}[\s-]?\d{4}/g;
++  const phonePattern = /(?:\+?20|0020)?\s*01[0125][\s-]?\d{4}[\s-]?\d{4}/g;
+   const withoutPhone = (value = "") => text(String(value || "").replace(phone, "").replace(phonePattern, ""));
+   const governorateCandidate = withoutPhone(
+     governorateLineIndex >= 0
+       ? extractSalesGovernorate(effectiveLines[governorateLineIndex])
+       : extractSalesGovernorate(normalizedMessage || raw)
+   );
+@@ -13875,13 +13909,12 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
+     `
+     SELECT
+       id,
+       product_id,
+       size,
+       color,
+-      name,
+       sku,
+       barcode,
+       COALESCE(stock, 0) AS stock,
+       price,
+       sale_price,
+       selling_price
+@@ -13925,13 +13958,13 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
+   const variant = {
+     id: Number(variantRow.id || 0) || null,
+     variant_id: Number(variantRow.id || 0) || null,
+     product_id: Number(variantRow.product_id || product.id || 0) || null,
+     size: text(variantRow.size || ""),
+     color: text(variantRow.color || ""),
+-    name: text(variantRow.name || [variantRow.size, variantRow.color].filter(Boolean).join(" / ")),
++    name: text([product.name || "«·„‰ Ã", variantRow.size, variantRow.color].filter(Boolean).join(" / ")),
+     sku: text(variantRow.sku || ""),
+     barcode: text(variantRow.barcode || ""),
+     stock: numeric(variantRow.stock, 0),
+     price: numeric(variantRow.price, 0),
+     sale_price: numeric(variantRow.sale_price, 0),
+     selling_price: numeric(variantRow.selling_price, 0),

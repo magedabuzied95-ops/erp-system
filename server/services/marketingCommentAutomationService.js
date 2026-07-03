@@ -733,6 +733,13 @@ export const replyToComment = async (platform, commentId, message, businessId) =
   const endpoint = platform === "instagram"
     ? `/${encodeURIComponent(commentId)}/replies`
     : `/${encodeURIComponent(commentId)}/comments`;
+  console.log("SOCIAL_COMMENT_PUBLIC_REPLY_TO_META_REQUEST", {
+    platform,
+    comment_id: String(commentId || ""),
+    business_id: Number(businessId || 0) || null,
+    message_preview: trimString(message).slice(0, 400),
+    message_length: trimString(message).length,
+  });
   return callMetaPost({
     businessId,
     endpoint,
