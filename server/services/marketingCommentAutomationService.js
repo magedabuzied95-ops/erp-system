@@ -63,6 +63,18 @@ const cleanupInitialProductSendCache = (now = Date.now()) => {
   }
 };
 
+const upsertInitialProductSendState = (key = "", patch = {}) => {
+  if (!key) return null;
+  const current = recentInitialProductSends.get(key) || {};
+  const next = {
+    ...current,
+    ...patch,
+    timestamp: Number.isFinite(Number(patch.timestamp)) ? Number(patch.timestamp) : Number(current.timestamp || Date.now()),
+  };
+  recentInitialProductSends.set(key, next);
+  return next;
+};
+
 const buildInitialProductSendKey = ({
   conversationId = "",
   commentId = "",
@@ -835,12 +847,14 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
     const now = Date.now();
     cleanupInitialProductSendCache(now);
     const existing = recentInitialProductSends.get(initialSendKey);
-    if (existing && (now - Number(existing.timestamp || 0)) <= INITIAL_PRODUCT_SEND_DEDUPE_WINDOW_MS) {
+    const isCompleted = Boolean(existing?.completed === true || existing?.status === "complete");
+    if (existing && isCompleted && (now - Number(existing.timestamp || 0)) <= INITIAL_PRODUCT_SEND_DEDUPE_WINDOW_MS) {
       console.log("SOCIAL_COMMENT_INITIAL_SEND_SKIPPED_DUPLICATE", {
         callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
         conversation_id: normalizedConversationId,
         comment_id: graphCommentId,
         product_id: normalizedProductContext.productId,
+        status: existing?.status || "complete",
       });
       return {
         skipped: true,
@@ -848,7 +862,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
         id: `duplicate_initial_send:${initialSendKey}`,
       };
     }
-    recentInitialProductSends.set(initialSendKey, { timestamp: now });
+    upsertInitialProductSendState(initialSendKey, { timestamp: now, status: existing?.status || "pending", completed: false });
     console.log("SOCIAL_COMMENT_INITIAL_PRODUCT_SEND", {
       callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
       conversation_id: normalizedConversationId,
@@ -961,6 +975,12 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
         const productCardPayload = await parseMetaResponse(productCardResponse);
         if (productCardResponse.ok) {
           productVisualDelivered = true;
+          upsertInitialProductSendState(initialSendKey, {
+            card_sent: true,
+            card_sent_at: Date.now(),
+            status: "card_sent",
+            completed: false,
+          });
           console.log("SOCIAL_COMMENT_PRODUCT_CARD_SENT", {
             comment_id: graphCommentId,
             post_id: trimString(options?.postId || ""),
@@ -968,6 +988,13 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
             product_name: productName,
             image_url: productImageUrl,
             product_url: productLink,
+          });
+          console.log("SOCIAL_COMMENT_INITIAL_PRODUCT_CARD_SENT", {
+            callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+            conversation_id: normalizedConversationId,
+            comment_id: graphCommentId,
+            product_id: normalizedProductContext.productId,
+            product_name: productName,
           });
         } else {
           console.warn("SOCIAL_COMMENT_PRODUCT_CARD_FALLBACK", {
@@ -997,11 +1024,25 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
         });
         const imagePayload = await parseMetaResponse(imageResponse);
         if (imageResponse.ok) {
+          upsertInitialProductSendState(initialSendKey, {
+            card_sent: true,
+            card_sent_at: Date.now(),
+            status: "card_sent",
+            completed: false,
+          });
           console.log("SOCIAL_COMMENT_PRODUCT_IMAGE_SENT", {
             comment_id: graphCommentId,
             post_id: trimString(options?.postId || ""),
             product_id: normalizedProductContext.productId,
             image_url: productImageUrl,
+          });
+          console.log("SOCIAL_COMMENT_INITIAL_PRODUCT_CARD_SENT", {
+            callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+            conversation_id: normalizedConversationId,
+            comment_id: graphCommentId,
+            product_id: normalizedProductContext.productId,
+            product_name: productName,
+            delivery_mode: "image_attachment",
           });
         } else {
           console.warn("SOCIAL_COMMENT_PRODUCT_IMAGE_SEND_FAILED", {
@@ -1019,6 +1060,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
         body: JSON.stringify(requestBody),
       });
       let payload = await parseMetaResponse(response);
+      let textSendSucceeded = response.ok;
       if (!response.ok && quickReplies.length) {
         console.warn("SOCIAL_COMMENT_QUICK_REPLY_FALLBACK", {
           tenant_id: businessId,
@@ -1042,12 +1084,36 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
           }),
         });
         payload = await parseMetaResponse(response);
+        textSendSucceeded = response.ok;
       }
       if (!response.ok) {
+        if (productVisualDelivered) {
+          console.log("SOCIAL_COMMENT_INITIAL_PRODUCT_DELIVERY_PARTIAL", {
+            callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+            conversation_id: normalizedConversationId,
+            comment_id: graphCommentId,
+            product_id: normalizedProductContext.productId,
+            reason: "text_send_failed_after_card",
+            message: getMetaErrorMessage(payload),
+          });
+        }
         const error = new Error(getMetaErrorMessage(payload));
         error.status = response.status;
         error.metaResponse = payload;
         throw error;
+      }
+      if (textSendSucceeded) {
+        upsertInitialProductSendState(initialSendKey, {
+          text_sent: true,
+          text_sent_at: Date.now(),
+        });
+        console.log("SOCIAL_COMMENT_INITIAL_PRODUCT_TEXT_SENT", {
+          callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+          conversation_id: normalizedConversationId,
+          comment_id: graphCommentId,
+          product_id: normalizedProductContext.productId,
+          quick_replies_count: quickReplies.length,
+        });
       }
       debugSocialCommentsWarn("GRAPH_PRIVATE_REPLY_RESPONSE", {
         target_comment_id: graphCommentId,
@@ -1097,6 +1163,29 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
           post_id: trimString(options?.postId || ""),
           product_id: normalizedProductContext.productId,
           sizes: quickReplies.map((item) => trimString(item.title)),
+        });
+      }
+      if (productVisualDelivered && textSendSucceeded) {
+        upsertInitialProductSendState(initialSendKey, {
+          completed: true,
+          completed_at: Date.now(),
+          status: "complete",
+        });
+        console.log("SOCIAL_COMMENT_INITIAL_PRODUCT_DELIVERY_COMPLETE", {
+          callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+          conversation_id: normalizedConversationId,
+          comment_id: graphCommentId,
+          product_id: normalizedProductContext.productId,
+          quick_replies_count: quickReplies.length,
+        });
+      } else if (productVisualDelivered || textSendSucceeded) {
+        console.log("SOCIAL_COMMENT_INITIAL_PRODUCT_DELIVERY_PARTIAL", {
+          callsite: trimString(options?.callsite || "marketingCommentAutomationService.sendPrivateReply"),
+          conversation_id: normalizedConversationId,
+          comment_id: graphCommentId,
+          product_id: normalizedProductContext.productId,
+          product_sent: productVisualDelivered,
+          text_sent: textSendSucceeded,
         });
       }
       return payload;
