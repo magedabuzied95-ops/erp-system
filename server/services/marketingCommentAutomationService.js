@@ -351,6 +351,47 @@ const callMetaPost = async ({ businessId, endpoint, params, label }) => {
 
 const getGraphBaseUrlForVersion = (version = GRAPH_API_VERSION) => `https://graph.facebook.com/${trimString(version || GRAPH_API_VERSION)}`;
 
+const buildSocialCommentMessengerProductCardPayload = ({
+  commentId = "",
+  productName = "",
+  productImageUrl = "",
+  productUrl = "",
+  availableSizes = [],
+} = {}) => {
+  const subtitleSizes = Array.isArray(availableSizes)
+    ? availableSizes.map((value) => trimString(value)).filter(Boolean).slice(0, 8)
+    : [];
+  return {
+    recipient: { comment_id: trimString(commentId) },
+    message: {
+      attachment: {
+        type: "template",
+        payload: {
+          template_type: "generic",
+          elements: [
+            {
+              title: trimString(productName || "Product").slice(0, 80),
+              image_url: trimString(productImageUrl),
+              subtitle: subtitleSizes.length
+                ? `المقاسات المتاحة: ${subtitleSizes.join(" | ")}`.slice(0, 80)
+                : undefined,
+              buttons: trimString(productUrl)
+                ? [
+                    {
+                      type: "web_url",
+                      url: trimString(productUrl),
+                      title: "عرض المنتج",
+                    },
+                  ]
+                : [],
+            },
+          ],
+        },
+      },
+    },
+  };
+};
+
 const callMetaPostWithShape = async ({ businessId, endpoint, label, contentType, body, bodyShape, graphVersion = GRAPH_API_VERSION, tokenDelivery = "form_body" }) => {
   const settings = await getSettingsRow(businessId);
   validateMetaToken(settings || {});
@@ -771,6 +812,8 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
     const endpoint = `/${encodeURIComponent(pageId)}/messages`;
     const finalUrlWithoutToken = `${getGraphBaseUrlForVersion(GRAPH_API_VERSION)}${endpoint}`;
     const productImageUrl = trimString(normalizedProductContext.productImageUrl || "");
+    const productName = trimString(normalizedProductContext.productName || "");
+    const productLink = trimString(normalizedProductContext.productLink || "");
     const quickReplies = buildSocialCommentSizeQuickReplies({
       productContext: {
         product_id: normalizedProductContext.productId,
@@ -813,7 +856,43 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
       const accessToken = tokenStatus?.accessToken || getPublishingAccessToken(settings);
       const target = new URL(finalUrlWithoutToken);
       target.searchParams.set("access_token", accessToken);
-      if (productImageUrl && !selectedMessage.includes(productImageUrl)) {
+      let productVisualDelivered = false;
+      if (productImageUrl && productName && !selectedMessage.includes(productImageUrl)) {
+        const productCardResponse = await fetch(target.toString(), {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(buildSocialCommentMessengerProductCardPayload({
+            commentId: graphCommentId,
+            productName,
+            productImageUrl,
+            productUrl: productLink,
+            availableSizes: normalizedProductContext.availableSizes,
+          })),
+        });
+        const productCardPayload = await parseMetaResponse(productCardResponse);
+        if (productCardResponse.ok) {
+          productVisualDelivered = true;
+          console.log("SOCIAL_COMMENT_PRODUCT_CARD_SENT", {
+            comment_id: graphCommentId,
+            post_id: trimString(options?.postId || ""),
+            product_id: normalizedProductContext.productId,
+            product_name: productName,
+            image_url: productImageUrl,
+            product_url: productLink,
+          });
+        } else {
+          console.warn("SOCIAL_COMMENT_PRODUCT_CARD_FALLBACK", {
+            comment_id: graphCommentId,
+            post_id: trimString(options?.postId || ""),
+            product_id: normalizedProductContext.productId,
+            product_name: productName,
+            image_url: productImageUrl,
+            product_url: productLink,
+            message: getMetaErrorMessage(productCardPayload),
+          });
+        }
+      }
+      if (!productVisualDelivered && productImageUrl && !selectedMessage.includes(productImageUrl)) {
         const imageResponse = await fetch(target.toString(), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
