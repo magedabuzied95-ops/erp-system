@@ -13885,9 +13885,12 @@ const persistSocialCommentSalesFlowState = async ({
   step = "",
   extra = {},
   reason = "social_comment_sales_flow",
+  callsite = "persistSocialCommentSalesFlowState",
 } = {}) => {
   const conversationId = text(message?.external_conversation_id || "");
   if (!conversationId) return null;
+  const previousMemory = getConversationMemory(conversationId) || {};
+  const oldStep = socialCommentSalesFlowStepFromMemory(previousMemory);
   const nextMemory = updateConversationMemory(conversationId, {
     selectedProductId: Number(productId || 0) || null,
     activeProductId: Number(productId || 0) || null,
@@ -13912,6 +13915,16 @@ const persistSocialCommentSalesFlowState = async ({
     conversationId,
     reason,
   });
+  const newStep = socialCommentSalesFlowStepFromMemory(nextMemory);
+  if (oldStep !== newStep) {
+    console.log("SOCIAL_COMMENT_STATE_TRANSITION", {
+      old_step: oldStep,
+      new_step: newStep,
+      reason,
+      callsite,
+      conversation_id: conversationId,
+    });
+  }
   updatePersistentCustomerConversationMemory({
     tenantId: config.tenant_id,
     sessionId: conversationId,
@@ -13944,6 +13957,8 @@ const persistSocialCommentSalesFlowState = async ({
 const clearSocialCommentSalesFlowState = async ({ config, message, productId = null, selectedSize = "", selectedColor = "" } = {}) => {
   const conversationId = text(message?.external_conversation_id || "");
   if (!conversationId) return null;
+  const previousMemory = getConversationMemory(conversationId) || {};
+  const oldStep = socialCommentSalesFlowStepFromMemory(previousMemory);
   const nextMemory = updateConversationMemory(conversationId, {
     sales_flow: null,
     selectedSize: "",
@@ -13973,6 +13988,16 @@ const clearSocialCommentSalesFlowState = async ({ config, message, productId = n
       sales_flow_step: "",
     },
   }).catch(() => {});
+  const newStep = socialCommentSalesFlowStepFromMemory(nextMemory);
+  if (oldStep !== newStep) {
+    console.log("SOCIAL_COMMENT_STATE_TRANSITION", {
+      old_step: oldStep,
+      new_step: newStep,
+      reason: "social_comment_sales_flow_cancelled",
+      callsite: "clearSocialCommentSalesFlowState",
+      conversation_id: conversationId,
+    });
+  }
   console.log("SOCIAL_COMMENT_SALES_FLOW_CANCELLED", {
     tenant_id: config.tenant_id,
     platform: text(message?.channel || ""),
@@ -14180,11 +14205,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     customerInfo = {},
   } = {}) => {
     const normalizedColor = text(selectedColor || "");
-    const summaryMessage = buildSocialCommentOrderReviewMessage({
-      customerName: text(customerInfo.customerName || ""),
-      customerPhone: text(customerInfo.customerPhone || ""),
-      governorate: text(customerInfo.governorate || ""),
-      customerAddress: text(customerInfo.customerAddress || ""),
+    const summaryMessage = buildSocialCommentOrderSummaryMessageV2({
       productName: productData?.productName || "",
       selectedSize,
       selectedColor: normalizedColor,
@@ -14217,8 +14238,9 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         price_used: text(productData?.priceUsed || ""),
       },
       reason: "social_comment_sales_flow_summary",
+      callsite: "sendOrderSummary",
     });
-    console.log("SOCIAL_COMMENT_ORDER_REVIEW_READY", {
+    console.log("SOCIAL_COMMENT_ORDER_SUMMARY_READY", {
       tenant_id: config.tenant_id,
       platform: text(message.channel || ""),
       conversation_id: message.external_conversation_id,
@@ -14311,6 +14333,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           price_used: text(productData?.priceUsed || ""),
         },
         reason: "social_comment_sales_flow_color_options",
+        callsite: "SIZE_SELECTED_COLOR_OPTIONS",
       });
       console.log("SOCIAL_COMMENT_COLOR_OPTIONS_SENT", {
         tenant_id: config.tenant_id,
@@ -14467,9 +14490,10 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         product_name: text(productData?.productName || ""),
         product_link: text(productData?.productLink || ""),
         price_used: text(productData?.priceUsed || ""),
-      },
-      reason: "social_comment_quick_reply_size_selected",
-    });
+        },
+        reason: "social_comment_quick_reply_size_selected",
+        callsite: "SIZE_SELECTED",
+      });
     return presentColorOptions({
       productId,
       selectedSize,
@@ -14552,6 +14576,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         price_used: text(productData?.priceUsed || ""),
       },
       reason: "social_comment_quick_reply_color_selected",
+      callsite: "COLOR_SELECTED",
     });
     console.log("SOCIAL_COMMENT_COLOR_SELECTED", {
       tenant_id: config.tenant_id,
@@ -14929,6 +14954,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           price_used: text(productData?.priceUsed || ""),
         },
         reason: "social_comment_sales_flow_confirmed",
+        callsite: "ORDER_CONFIRM",
       });
       console.log("SOCIAL_COMMENT_ORDER_CONFIRM_STATE_SET", {
         tenant_id: config?.tenant_id || null,
@@ -14958,6 +14984,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           price_used: text(productData?.priceUsed || salesFlow?.price_used || ""),
         },
         reason: "social_comment_sales_flow_edit_data",
+        callsite: "CHANGE_SIZE",
       });
       await sendSocialCommentSalesFlowText({
         config,
@@ -14999,6 +15026,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
           price_used: text(productData?.priceUsed || salesFlow?.price_used || ""),
         },
         reason: "social_comment_sales_flow_ready_for_order",
+        callsite: "SEND_ORDER",
       });
       console.log("SOCIAL_COMMENT_READY_FOR_ORDER", {
         tenant_id: config.tenant_id,
@@ -22100,6 +22128,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           customer_address: text(shippingMergedInfo.customerAddress || ""),
         },
         reason: shippingMissingFields.length ? "social_comment_sales_flow_customer_data_partial" : "social_comment_sales_flow_customer_data_complete",
+        callsite: "AWAITING_CUSTOMER_DATA_SHIPPING_PARSER",
       });
       if (shippingMissingFields.length) {
         await sendAndLogMetaText({
@@ -22137,6 +22166,16 @@ export const processMetaWebhook = async ({ req } = {}) => {
           reason: "social_comment_sales_flow_customer_data_partial",
         });
         continue;
+      }
+      if (socialCommentCurrentSalesFlowStep !== "awaiting_customer_data") {
+        console.log("SOCIAL_COMMENT_REVIEW_INVALID_CALL", {
+          tenant_id: config?.tenant_id || null,
+          platform: text(message?.channel || ""),
+          conversation_id: text(message?.external_conversation_id || ""),
+          current_step: socialCommentCurrentSalesFlowStep,
+          requested_step: "order_review",
+          callsite: "shipping_parser_review",
+        });
       }
       const reviewMessage = buildSocialCommentOrderReviewMessage({
         customerName: shippingMergedInfo.customerName,
