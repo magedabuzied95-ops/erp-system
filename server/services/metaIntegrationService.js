@@ -14184,6 +14184,15 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       color: text(selectedColor),
       step: "awaiting_confirmation",
     });
+    console.log("SOCIAL_COMMENT_ORDER_SUMMARY_OUTBOUND_PAYLOAD", {
+      text_preview: text(summaryMessage).slice(0, 500),
+      quick_replies: Array.isArray(quickReplies) ? quickReplies : [],
+      quick_reply_titles: Array.isArray(quickReplies) ? quickReplies.map((item) => text(item?.title || "")) : [],
+      quick_reply_payloads: Array.isArray(quickReplies) ? quickReplies.map((item) => text(item?.payload || "")) : [],
+      conversation_id: text(message.external_conversation_id || ""),
+      product_id: Number(productId || 0) || null,
+      selected_size: text(selectedSize),
+    });
     await sendSocialCommentSalesFlowText({
       config,
       message,
@@ -14646,6 +14655,17 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
   }
 
   const resolvedAction = text(actionPayload?.action || "") || legacyActionFromPayload || socialCommentSalesFlowActionFromText(rawPayload) || socialCommentSalesFlowActionFromText(messageText);
+  if (resolvedAction === "confirm") {
+    console.log("SOCIAL_COMMENT_ORDER_CONFIRM_RECEIVED", {
+      tenant_id: config?.tenant_id || null,
+      platform: text(message?.channel || ""),
+      conversation_id: text(message?.external_conversation_id || ""),
+      comment_id: text(actionPayload?.comment_id || salesFlow?.comment_id || ""),
+      product_id: Number(actionPayload?.product_id || salesFlow?.product_id || 0) || null,
+      quick_reply_payload: rawPayload,
+      message_text: messageText,
+    });
+  }
   if (resolvedAction && Number(salesFlow?.product_id || actionPayload?.product_id || 0) > 0) {
     console.log("SOCIAL_COMMENT_SALES_FLOW_DISPATCH", {
       tenant_id: config?.tenant_id || null,
@@ -14656,6 +14676,24 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       quick_reply_payload: rawPayload,
       product_id: Number(actionPayload?.product_id || salesFlow?.product_id || 0) || null,
     });
+    if (resolvedAction === "confirm") {
+      console.log("SOCIAL_COMMENT_ORDER_CONFIRM_DISPATCH", {
+        tenant_id: config?.tenant_id || null,
+        platform: text(message?.channel || ""),
+        conversation_id: text(message?.external_conversation_id || ""),
+        comment_id: text(actionPayload?.comment_id || salesFlow?.comment_id || ""),
+        product_id: Number(actionPayload?.product_id || salesFlow?.product_id || 0) || null,
+        quick_reply_payload: rawPayload,
+      });
+      console.log("SOCIAL_COMMENT_ORDER_CONFIRM_HANDLER_ENTER", {
+        tenant_id: config?.tenant_id || null,
+        platform: text(message?.channel || ""),
+        conversation_id: text(message?.external_conversation_id || ""),
+        comment_id: text(actionPayload?.comment_id || salesFlow?.comment_id || ""),
+        product_id: Number(actionPayload?.product_id || salesFlow?.product_id || 0) || null,
+        quick_reply_payload: rawPayload,
+      });
+    }
     const productId = Number(actionPayload?.product_id || salesFlow?.product_id || 0) || null;
     const selectedSize = text(actionPayload?.size || salesFlow?.selected_size || "");
     const selectedColor = text(actionPayload?.color || salesFlow?.selected_color || "");

@@ -563,6 +563,16 @@ export const buildSocialCommentSalesFlowQuickReplies = ({
         { action: "confirm", title: "✅ تأكيد الطلب" },
         { action: "cancel", title: "❌ إلغاء الطلب" },
       ];
+  if (stage === "summary") {
+    return [
+      { title: "✅ تأكيد الطلب", payload: "ORDER_CONFIRM" },
+      { title: "❌ إلغاء الطلب", payload: "ORDER_CANCEL" },
+    ].map((item) => ({
+      content_type: "text",
+      title: item.title.slice(0, 20),
+      payload: item.payload,
+    }));
+  }
   return items.map((item) => ({
     content_type: "text",
     title: item.title.slice(0, 20),
