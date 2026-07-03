@@ -27,6 +27,18 @@ const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+function mergeSocialCommentLatencyTrace(existingTrace = {}, patchTrace = {}, context = "") {
+  const latency_trace = {
+    ...metadataObject(existingTrace || {}),
+    ...metadataObject(patchTrace || {}),
+  };
+  console.log("SOCIAL_COMMENT_TRACE_STATE", {
+    context,
+    keys: Object.keys(latency_trace),
+    latency_trace,
+  });
+  return latency_trace;
+}
 const numericOrNull = (value = null) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -454,10 +466,11 @@ const buildSocialCommentRuntimeMonitor = ({
     send_started_at: normalizeTimestampForDb(trace.send_started_at || null, "buildSocialCommentRuntimeMonitor.send_started_at"),
     send_completed_at: normalizeTimestampForDb(trace.send_completed_at || null, "buildSocialCommentRuntimeMonitor.send_completed_at"),
   });
-  const nextTrace = {
-    ...normalizeLatencyTrace(existingTrace),
-    ...normalizeLatencyTrace(metadataObject(latencyPatch || {})),
-  };
+  const nextTrace = mergeSocialCommentLatencyTrace(
+    normalizeLatencyTrace(existingTrace),
+    normalizeLatencyTrace(metadataObject(latencyPatch || {})),
+    "buildSocialCommentRuntimeMonitor"
+  );
   return {
     ...safeAutomationState,
     runtime_monitor: {
@@ -4118,18 +4131,21 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
   const latencyTrace = row?.automation_state?.runtime_monitor?.latency_trace && typeof row.automation_state.runtime_monitor.latency_trace === "object"
     ? row.automation_state.runtime_monitor.latency_trace
     : (row?.latency_trace && typeof row.latency_trace === "object" ? row.latency_trace : {});
-  const normalizedLatencyTrace = {
-    ...latencyTrace,
-    detected_at: normalizeTimestampForDb(latencyTrace.detected_at || null, "enqueueSocialCommentPrivateReplyJob.detected_at"),
-    webhook_received_at: normalizeTimestampForDb(latencyTrace.webhook_received_at || null, "enqueueSocialCommentPrivateReplyJob.webhook_received_at"),
-    enqueue_at: normalizeTimestampForDb(latencyTrace.enqueue_at || enqueueAt, "enqueueSocialCommentPrivateReplyJob.enqueue_at"),
-    private_reply_enqueued_at: normalizeTimestampForDb(latencyTrace.private_reply_enqueued_at || enqueueAt, "enqueueSocialCommentPrivateReplyJob.private_reply_enqueued_at"),
-    private_reply_started_at: normalizeTimestampForDb(latencyTrace.private_reply_started_at || null, "enqueueSocialCommentPrivateReplyJob.private_reply_started_at"),
-    ai_started_at: normalizeTimestampForDb(latencyTrace.ai_started_at || null, "enqueueSocialCommentPrivateReplyJob.ai_started_at"),
-    ai_completed_at: normalizeTimestampForDb(latencyTrace.ai_completed_at || null, "enqueueSocialCommentPrivateReplyJob.ai_completed_at"),
-    send_started_at: normalizeTimestampForDb(latencyTrace.send_started_at || null, "enqueueSocialCommentPrivateReplyJob.send_started_at"),
-    send_completed_at: normalizeTimestampForDb(latencyTrace.send_completed_at || null, "enqueueSocialCommentPrivateReplyJob.send_completed_at"),
-  };
+  const normalizedLatencyTrace = mergeSocialCommentLatencyTrace(
+    latencyTrace,
+    {
+      detected_at: normalizeTimestampForDb(latencyTrace.detected_at || null, "enqueueSocialCommentPrivateReplyJob.detected_at"),
+      webhook_received_at: normalizeTimestampForDb(latencyTrace.webhook_received_at || null, "enqueueSocialCommentPrivateReplyJob.webhook_received_at"),
+      enqueue_at: normalizeTimestampForDb(latencyTrace.enqueue_at || enqueueAt, "enqueueSocialCommentPrivateReplyJob.enqueue_at"),
+      private_reply_enqueued_at: normalizeTimestampForDb(latencyTrace.private_reply_enqueued_at || enqueueAt, "enqueueSocialCommentPrivateReplyJob.private_reply_enqueued_at"),
+      private_reply_started_at: normalizeTimestampForDb(latencyTrace.private_reply_started_at || null, "enqueueSocialCommentPrivateReplyJob.private_reply_started_at"),
+      ai_started_at: normalizeTimestampForDb(latencyTrace.ai_started_at || null, "enqueueSocialCommentPrivateReplyJob.ai_started_at"),
+      ai_completed_at: normalizeTimestampForDb(latencyTrace.ai_completed_at || null, "enqueueSocialCommentPrivateReplyJob.ai_completed_at"),
+      send_started_at: normalizeTimestampForDb(latencyTrace.send_started_at || null, "enqueueSocialCommentPrivateReplyJob.send_started_at"),
+      send_completed_at: normalizeTimestampForDb(latencyTrace.send_completed_at || null, "enqueueSocialCommentPrivateReplyJob.send_completed_at"),
+    },
+    "enqueueSocialCommentPrivateReplyJob.normalized"
+  );
   debugSocialCommentsLog("[social-comments][private-reply] queued", {
     tenant_id: safeTenantId,
     platform: safePlatform,
@@ -4145,11 +4161,14 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
       postId: text(postId || row.post_id || ""),
       commentId: safeCommentId,
       row,
-      latency_trace: {
-        ...normalizedLatencyTrace,
-        facebook_created_time: text(latencyTrace.facebook_created_time || ""),
-        source: text(latencyTrace.source || ""),
-      },
+      latency_trace: mergeSocialCommentLatencyTrace(
+        normalizedLatencyTrace,
+        {
+          facebook_created_time: text(latencyTrace.facebook_created_time || ""),
+          source: text(latencyTrace.source || ""),
+        },
+        "enqueueSocialCommentPrivateReplyJob.payload"
+      ),
     },
     {
       dedupeKey,
@@ -4995,11 +5014,15 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     let savedRunRow = sessionResult.rows[0] || null;
     const detectedAt = new Date();
     const facebookCreatedAt = parseDateOrNull(commentCreatedTime);
-    const latencyTrace = {
-      detected_at: detectedAt.toISOString(),
-      facebook_created_time: toIsoStringOrEmpty(facebookCreatedAt),
-      source: text(event.raw_payload?.source || "") === "meta_comment_poll" ? "poller" : "webhook",
-    };
+    const latencyTrace = mergeSocialCommentLatencyTrace(
+      {},
+      {
+        detected_at: detectedAt.toISOString(),
+        facebook_created_time: toIsoStringOrEmpty(facebookCreatedAt),
+        source: text(event.raw_payload?.source || "") === "meta_comment_poll" ? "poller" : "webhook",
+      },
+      "processMetaWebhook.latencyTrace"
+    );
     console.log("SOCIAL_COMMENT_LATENCY_DETECTED", {
       comment_id: text(event.comment_id || savedRunRow?.comment_id || ""),
       post_id: postId,
@@ -5288,10 +5311,11 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
           platform,
           comment_id: privateReplyCommentId,
           post_id: postId,
-          latency_trace: {
-            ...(savedRunRow?.latency_trace && typeof savedRunRow.latency_trace === "object" ? savedRunRow.latency_trace : {}),
-            ...latencyTrace,
-          },
+          latency_trace: mergeSocialCommentLatencyTrace(
+            savedRunRow?.latency_trace && typeof savedRunRow.latency_trace === "object" ? savedRunRow.latency_trace : {},
+            latencyTrace,
+            "processMetaWebhook.privateReplyEnqueuePayload"
+          ),
           raw_payload: (savedRunRow?.raw_payload && typeof savedRunRow.raw_payload === "object")
             ? savedRunRow.raw_payload
             : (event.raw_payload || {}),
@@ -5749,13 +5773,15 @@ export const persistSocialCommentAutomationState = async ({
   const currentRuntimeMonitor = metadataObject(currentAutomationState.runtime_monitor || {});
   const nextAutomationState = safeAutomationState ? metadataObject(safeAutomationState) : currentAutomationState;
   const nextRuntimeMonitor = metadataObject(nextAutomationState.runtime_monitor || {});
+  const mergedLatencyTrace = mergeSocialCommentLatencyTrace(
+    currentRuntimeMonitor.latency_trace || row.automation_state?.runtime_monitor?.latency_trace || {},
+    nextRuntimeMonitor.latency_trace || {},
+    "persistSocialCommentAutomationState"
+  );
   const mergedRuntimeMonitor = {
     ...currentRuntimeMonitor,
     ...nextRuntimeMonitor,
-    latency_trace: {
-      ...metadataObject(currentRuntimeMonitor.latency_trace || {}),
-      ...metadataObject(nextRuntimeMonitor.latency_trace || {}),
-    },
+    latency_trace: mergedLatencyTrace,
   };
   mergedRuntimeMonitor.latency_summary = mergedRuntimeMonitor.latency_summary || computeSocialCommentLatencySummary(mergedRuntimeMonitor.latency_trace || {});
   const mergedAutomationState = {
