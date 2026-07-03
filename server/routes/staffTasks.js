@@ -36,7 +36,19 @@ router.get("/bootstrap", protect, permit("staff_tasks", "view"), getTaskBootstra
 router.get("/", protect, permit("staff_tasks", "view"), getTasks);
 router.get("/templates", protect, permit("staff_tasks", "view"), getTaskTemplates);
 router.put("/templates/:id", protect, permit("staff_tasks", "manage"), updateTaskTemplate);
-router.delete("/templates/:id", protect, permit("staff_tasks", "manage"), deleteTaskTemplate);
+router.delete(
+  "/templates/:id",
+  protect,
+  permit("staff_tasks", "manage"),
+  (req, _res, next) => {
+    console.log("[staff-tasks-route] matched DELETE /api/staff-tasks/templates/:id", {
+      templateId: req.params.id || null,
+      userId: req.user?.id || null,
+    });
+    next();
+  },
+  deleteTaskTemplate
+);
 router.get("/my", protect, permit("staff_tasks", "view"), getMyTasks);
 router.get("/dashboard", protect, permit("staff_tasks", "view"), getDashboard);
 router.post(
