@@ -14178,6 +14178,44 @@ const createSocialCommentDraftOrder = async ({
   }
 };
 
+const buildSocialCommentDraftOrderEligibility = ({
+  message = {},
+  salesFlow = {},
+  mergedInfo = {},
+  productId = null,
+  selectedSize = "",
+  selectedColor = "",
+} = {}) => {
+  const conversationId = text(message?.external_conversation_id || "");
+  const salesFlowStep = text(salesFlow?.step || "");
+  const normalizedCustomerPhone = normalizeEgyptPhone(mergedInfo?.customerPhone || salesFlow?.customer_phone || "");
+  const customerName = text(mergedInfo?.customerName || salesFlow?.customer_name || "");
+  const governorate = text(mergedInfo?.governorate || salesFlow?.governorate || "");
+  const customerAddress = text(mergedInfo?.customerAddress || salesFlow?.customer_address || "");
+  const hasShippingData = Boolean(customerName && governorate && customerAddress);
+  const hasProductId = Boolean(Number(productId || 0) > 0);
+  const reasonIfNotEligible = !conversationId
+    ? "missing_conversation_id"
+    : !hasProductId
+      ? "missing_product_id"
+      : !text(selectedSize || salesFlow?.selected_size || "")
+        ? "missing_selected_size"
+        : !hasShippingData
+          ? "missing_shipping_data"
+          : "";
+  return {
+    conversation_id: conversationId,
+    sales_flow_step: salesFlowStep,
+    has_shipping_data: hasShippingData,
+    has_product_id: hasProductId,
+    selected_size: text(selectedSize || salesFlow?.selected_size || ""),
+    selected_color: text(selectedColor || salesFlow?.selected_color || ""),
+    customer_phone: normalizedCustomerPhone,
+    reason_if_not_eligible: reasonIfNotEligible,
+    eligible: !reasonIfNotEligible,
+  };
+};
+
 const loadSocialCommentSalesFlowVariantRows = async ({
   tenantId = null,
   productId = null,
@@ -22504,6 +22542,20 @@ export const processMetaWebhook = async ({ req } = {}) => {
         });
         continue;
       }
+      const draftOrderEligibility = buildSocialCommentDraftOrderEligibility({
+        message,
+        salesFlow: socialCommentCurrentSalesFlow,
+        mergedInfo: shippingMergedInfo,
+        productId: shippingProductId,
+        selectedSize: shippingSelectedSize,
+        selectedColor: shippingSelectedColor,
+      });
+      console.log("SOCIAL_COMMENT_DRAFT_ORDER_ELIGIBILITY_CHECK", {
+        tenant_id: config?.tenant_id || null,
+        platform: text(message?.channel || ""),
+        source: "messenger_sales_flow_after_shipping_parser",
+        ...draftOrderEligibility,
+      });
       const draftOrderResult = await createSocialCommentDraftOrder({
         config,
         message,
@@ -22515,7 +22567,16 @@ export const processMetaWebhook = async ({ req } = {}) => {
         postId: shippingPostId,
         commentId: shippingCommentId,
         shippingProductData,
-      }).catch(() => null);
+      }).catch((error) => {
+        console.log("SOCIAL_COMMENT_DRAFT_ORDER_ELIGIBILITY_CHECK", {
+          tenant_id: config?.tenant_id || null,
+          platform: text(message?.channel || ""),
+          source: "messenger_sales_flow_after_shipping_parser",
+          ...draftOrderEligibility,
+          reason_if_not_eligible: text(error?.code || error?.message || "draft_order_create_failed"),
+        });
+        return null;
+      });
       if (draftOrderResult?.order) {
         const reviewAddressLine = [text(shippingMergedInfo.governorate || ""), text(shippingMergedInfo.customerAddress || "")]
           .filter(Boolean)
@@ -22608,6 +22669,13 @@ export const processMetaWebhook = async ({ req } = {}) => {
         });
         continue;
       }
+      console.log("SOCIAL_COMMENT_DRAFT_ORDER_ELIGIBILITY_CHECK", {
+        tenant_id: config?.tenant_id || null,
+        platform: text(message?.channel || ""),
+        source: "messenger_sales_flow_after_shipping_parser",
+        ...draftOrderEligibility,
+        reason_if_not_eligible: draftOrderEligibility.reason_if_not_eligible || "draft_order_not_created_fallback_to_review",
+      });
       if (socialCommentCurrentSalesFlowStep !== "awaiting_customer_data") {
         console.log("SOCIAL_COMMENT_REVIEW_INVALID_CALL", {
           tenant_id: config?.tenant_id || null,
