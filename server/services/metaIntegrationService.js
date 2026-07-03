@@ -58,6 +58,7 @@ import {
 import {
   buildSocialCommentColorQuickReplies,
   buildSocialCommentOrderPreviewMessage,
+  buildSocialCommentOrderReviewMessage,
   buildSocialCommentOrderSummaryMessage,
   buildSocialCommentOrderSummaryMessageV2,
   buildSocialCommentSalesFlowQuickReplies,
@@ -66,6 +67,7 @@ import {
   parseSocialCommentColorQuickReplyPayload,
   parseSocialCommentOrderActionQuickReplyPayload,
   parseSocialCommentSizeQuickReplyPayload,
+  normalizeSocialCommentColorDisplay,
   sortSocialCommentAvailableSizes,
 } from "./socialCommentPrivateReplyService.js";
 import {
@@ -1064,6 +1066,7 @@ const parseCheckoutCustomerDetails = (messageText = "") => {
     .map((line) => text(line))
     .filter(Boolean);
   const phoneLineIndex = lines.findIndex((line) => normalizeEgyptPhone(line));
+  const governorateLineIndex = lines.findIndex((line) => extractSalesGovernorate(line));
   const phonePattern = /(?:\+?20|0020)?\s*01[0125][\s-]?\d{3}[\s-]?\d{4}/g;
   const withoutPhone = (value = "") => text(value.replace(phone, "").replace(phonePattern, ""));
   const nameCandidate = withoutPhone(
@@ -1071,16 +1074,30 @@ const parseCheckoutCustomerDetails = (messageText = "") => {
       ? lines.slice(0, phoneLineIndex).join(" ")
       : lines.find((line) => !normalizeEgyptPhone(line) && line.length <= 80 && !/(شارع|بجوار|منطقة|محافظة|مدينة|عمارة|دور|شقة|address|street)/i.test(line)) || ""
   );
+  const governorateCandidate = withoutPhone(
+    governorateLineIndex >= 0
+      ? extractSalesGovernorate(lines[governorateLineIndex])
+      : extractSalesGovernorate(raw)
+  );
+  const addressStartIndex = governorateLineIndex >= 0
+    ? governorateLineIndex + 1
+    : phoneLineIndex >= 0
+      ? phoneLineIndex + 1
+      : 1;
   const addressCandidate = withoutPhone(
-    phoneLineIndex >= 0
-      ? lines.slice(phoneLineIndex + 1).join(" ")
+    phoneLineIndex >= 0 || governorateLineIndex >= 0
+      ? lines.slice(addressStartIndex).join(" ")
       : lines.filter((line) => line !== nameCandidate).join(" ")
   );
-  const fallbackAddress = withoutPhone(raw).replace(nameCandidate, "").trim();
+  const fallbackAddress = withoutPhone(raw)
+    .replace(nameCandidate, "")
+    .replace(governorateCandidate, "")
+    .trim();
   const nameGuard = guardAiNameCapture({ messageText: nameCandidate || raw, route: "meta_checkout_parser" });
   return {
     customer_name: nameGuard.blockedAsName ? "" : nameCandidate.slice(0, 120),
     customer_phone: phone,
+    governorate: governorateCandidate.slice(0, 80),
     customer_address: (addressCandidate || fallbackAddress).slice(0, 500),
   };
 };
@@ -14142,22 +14159,31 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     selectedColor = "",
     postId = "",
     commentId = "",
+    customerInfo = {},
   } = {}) => {
-    const summaryMessage = buildSocialCommentOrderSummaryMessageV2({
+    const normalizedColor = text(selectedColor || "");
+    const summaryMessage = buildSocialCommentOrderReviewMessage({
+      customerName: text(customerInfo.customerName || ""),
+      customerPhone: text(customerInfo.customerPhone || ""),
+      governorate: text(customerInfo.governorate || ""),
+      customerAddress: text(customerInfo.customerAddress || ""),
       productName: productData?.productName || "",
       selectedSize,
-      selectedColor,
+      selectedColor: normalizedColor,
       priceUsed: productData?.priceUsed || "",
     });
-    const quickReplies = buildSocialCommentSalesFlowQuickReplies({
-      productId,
-      selectedSize,
-      selectedColor,
-      postId,
-      commentId,
-      conversationId: message.external_conversation_id,
-      stage: "summary",
-    });
+    const quickReplies = [
+      {
+        content_type: "text",
+        title: "✅ إرسال الطلب",
+        payload: "ORDER_CONFIRM",
+      },
+      {
+        content_type: "text",
+        title: "❌ إلغاء",
+        payload: "ORDER_CANCEL",
+      },
+    ];
     await persistSocialCommentSalesFlowState({
       config,
       message,
@@ -14173,6 +14199,17 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
         price_used: text(productData?.priceUsed || ""),
       },
       reason: "social_comment_sales_flow_summary",
+    });
+    console.log("SOCIAL_COMMENT_ORDER_REVIEW_READY", {
+      tenant_id: config.tenant_id,
+      platform: text(message.channel || ""),
+      conversation_id: message.external_conversation_id,
+      session_id: message.external_conversation_id,
+      product_id: Number(productId || 0) || null,
+      size: text(selectedSize),
+      color: normalizeSocialCommentColorDisplay(selectedColor),
+      price_used: text(productData?.priceUsed || ""),
+      text_preview: text(summaryMessage).slice(0, 500),
     });
     console.log("SOCIAL_COMMENT_ORDER_SUMMARY_SENT", {
       tenant_id: config.tenant_id,
@@ -14193,14 +14230,14 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       product_id: Number(productId || 0) || null,
       selected_size: text(selectedSize),
     });
-    await sendSocialCommentSalesFlowText({
+    const reviewResult = await sendSocialCommentSalesFlowText({
       config,
       message,
       text: summaryMessage,
       detectedIntent: "social_comment_order_summary",
       metadata: {
         selected_size: text(selectedSize),
-        selected_color: text(selectedColor),
+        selected_color: normalizeSocialCommentColorDisplay(selectedColor),
         selected_product_id: Number(productId || 0) || null,
         social_comment_quick_reply: true,
       },
@@ -14210,9 +14247,19 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       fallbackContext: {
         productId,
         size: selectedSize,
-        color: selectedColor,
+        color: normalizeSocialCommentColorDisplay(selectedColor),
         step: "awaiting_confirmation",
       },
+    });
+    console.log("SOCIAL_COMMENT_REVIEW_SENT", {
+      tenant_id: config.tenant_id,
+      platform: text(message.channel || ""),
+      conversation_id: message.external_conversation_id,
+      session_id: message.external_conversation_id,
+      product_id: Number(productId || 0) || null,
+      size: text(selectedSize),
+      color: normalizeSocialCommentColorDisplay(selectedColor),
+      message_id: reviewResult?.message_id || reviewResult?.id || "",
     });
   };
 
@@ -14505,6 +14552,7 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
       selectedColor,
       postId: text(colorPayload?.post_id || salesFlow?.post_id || ""),
       commentId: text(colorPayload?.comment_id || salesFlow?.comment_id || ""),
+      customerInfo: mergedInfo,
     });
     return { handled: true, reason: "social_comment_color_selected" };
   }
@@ -14535,6 +14583,24 @@ const handleSocialCommentMessengerQuickReplySelection = async ({
     });
     const missing = missingSalesCheckoutFields(mergedInfo);
     const nextStep = missing.length ? "awaiting_customer_data" : "awaiting_order_preview";
+    console.log("SOCIAL_COMMENT_SHIPPING_PARSED", {
+      tenant_id: config.tenant_id,
+      platform: text(message.channel || ""),
+      conversation_id: message.external_conversation_id,
+      session_id: message.external_conversation_id,
+      post_id: postId,
+      comment_id: commentId,
+      raw_message_preview: text(messageText).slice(0, 240),
+      parsed_name: text(parsedInfo.customer_name || ""),
+      parsed_phone: text(parsedInfo.customer_phone || ""),
+      parsed_governorate: text(parsedInfo.governorate || ""),
+      parsed_address: text(parsedInfo.customer_address || ""),
+      merged_name: text(mergedInfo.customerName || ""),
+      merged_phone: text(mergedInfo.customerPhone || ""),
+      merged_governorate: text(mergedInfo.governorate || ""),
+      merged_address: text(mergedInfo.customerAddress || ""),
+      missing_fields: missing,
+    });
     const productData = await resolveSocialCommentSalesFlowProductData({
       tenantId: config.tenant_id,
       productId,
@@ -18003,7 +18069,7 @@ const isSalesControlWordName = (value = "") =>
 
 const mergeSalesCustomerInfo = ({ known = {}, parsed = {}, messageText = "", channel = "" } = {}) => {
   const address = parsed.customer_address || known.customerAddress || known.customer_address || "";
-  const governorate = known.governorate || extractSalesGovernorate(messageText) || extractSalesGovernorate(address);
+  const governorate = parsed.governorate || known.governorate || extractSalesGovernorate(messageText) || extractSalesGovernorate(address);
   const isMessengerChannel = ["facebook_messenger", "facebook", "messenger"].includes(text(channel).toLowerCase());
   const parsedName = isSalesControlWordName(parsed.customer_name) || (isMessengerChannel && isLikelyMessageLikeName(parsed.customer_name)) ? "" : parsed.customer_name;
   return {

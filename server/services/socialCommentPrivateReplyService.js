@@ -64,6 +64,41 @@ const absolutizeRelativeShopLinks = (value = "") =>
 const DEFAULT_SIZE_FALLBACK = "ابعتلنا المقاس المطلوب وهنراجع التوفر لحضرتك فورًا.";
 const DEFAULT_COLOR_LABEL = "غير محدد";
 
+const normalizeSocialCommentColorPart = (value = "") => {
+  const raw = text(value);
+  if (!raw) return "";
+  const lower = raw.toLowerCase();
+  const colorMap = {
+    black: "أسود",
+    white: "أبيض",
+    grey: "رمادي",
+    gray: "رمادي",
+    red: "أحمر",
+    blue: "أزرق",
+    green: "أخضر",
+    yellow: "أصفر",
+    beige: "بيج",
+    brown: "بني",
+    pink: "وردي",
+    purple: "بنفسجي",
+    orange: "برتقالي",
+    navy: "كحلي",
+    camel: "جملي",
+  };
+  return colorMap[lower] || raw;
+};
+
+export const normalizeSocialCommentColorDisplay = (value = "") => {
+  const raw = text(value);
+  if (!raw) return "";
+  const parts = raw
+    .split(/\s*(?:&|\/|\+|and|و)\s*/i)
+    .map((part) => normalizeSocialCommentColorPart(part))
+    .filter(Boolean);
+  if (parts.length > 1) return parts.join(" / ");
+  return normalizeSocialCommentColorPart(raw) || raw;
+};
+
 const normalizePriceText = (value = "") => {
   const normalized = text(value);
   if (!normalized) return "";
@@ -525,7 +560,7 @@ export const buildSocialCommentOrderSummaryMessage = ({
     "",
     text(productName) || "المنتج",
     `المقاس: ${text(selectedSize) || "-"}`,
-    `اللون: ${text(selectedColor) || DEFAULT_COLOR_LABEL}`,
+    `اللون: ${normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL}`,
   ];
   if (text(priceUsed)) {
     sections.push(`السعر: ${text(priceUsed)} جنيه`);
@@ -598,7 +633,7 @@ export const buildSocialCommentOrderSummaryMessageV2 = ({
     text(selectedSize) || "-",
     "",
     "اللون:",
-    text(selectedColor) || DEFAULT_COLOR_LABEL,
+    normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL,
   ];
   if (hasUsablePriceValue(priceUsed)) {
     sections.push("", "السعر:", `${normalizePriceText(priceUsed)} جنيه`);
@@ -641,12 +676,56 @@ export const buildSocialCommentOrderPreviewMessage = ({
     text(selectedSize) || "-",
     "",
     "اللون",
-    text(selectedColor) || DEFAULT_COLOR_LABEL,
+    normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL,
   ];
   if (text(priceUsed)) {
     sections.push("", "السعر", `${text(priceUsed)} جنيه`);
   }
   sections.push("", "━━━━━━━━━━━━");
+  return sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+};
+
+export const buildSocialCommentOrderReviewMessage = ({
+  customerName = "",
+  customerPhone = "",
+  governorate = "",
+  customerAddress = "",
+  productName = "",
+  selectedSize = "",
+  selectedColor = "",
+  priceUsed = "",
+} = {}) => {
+  const sections = [
+    "━━━━━━━━━━━━",
+    "",
+    "️ مراجعة الطلب",
+    "",
+    "الاسم",
+    text(customerName) || "-",
+    "",
+    "الهاتف",
+    text(customerPhone) || "-",
+    "",
+    "المحافظة",
+    text(governorate) || "-",
+    "",
+    "العنوان",
+    text(customerAddress) || "-",
+    "",
+    "المنتج",
+    text(productName) || "المنتج",
+    "",
+    "المقاس",
+    text(selectedSize) || "-",
+    "",
+    "اللون",
+    normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL,
+    "",
+    "السعر",
+    text(priceUsed) ? `${text(priceUsed)} جنيه` : "-",
+    "",
+    "━━━━━━━━━━━━",
+  ];
   return sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
 };
 
