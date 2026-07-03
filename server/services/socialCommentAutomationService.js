@@ -345,6 +345,8 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
   const dequeueAt = parseDateOrNull(trace.dequeue_at || null);
   const aiStartedAt = parseDateOrNull(trace.ai_started_at || null);
   const aiCompletedAt = parseDateOrNull(trace.ai_completed_at || null);
+  const privateReplyEnqueuedAt = parseDateOrNull(trace.private_reply_enqueued_at || trace.enqueue_at || null);
+  const privateReplyStartedAt = parseDateOrNull(trace.private_reply_started_at || trace.dequeue_at || null);
   const sendStartedAt = parseDateOrNull(trace.send_started_at || null);
   const sendCompletedAt = parseDateOrNull(trace.send_completed_at || null);
   const diff = (end, start) => (end && start ? Math.max(0, end.getTime() - start.getTime()) : null);
@@ -353,6 +355,8 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
     webhook_to_enqueue_ms: diff(enqueueAt, webhookReceivedAt),
     enqueue_to_ai_start_ms: diff(aiStartedAt, enqueueAt || dequeueAt),
     ai_generation_ms: diff(aiCompletedAt, aiStartedAt),
+    ai_to_private_reply_enqueue_ms: diff(privateReplyEnqueuedAt, aiCompletedAt),
+    private_reply_queue_wait_ms: diff(privateReplyStartedAt, privateReplyEnqueuedAt),
     send_ms: diff(sendCompletedAt, sendStartedAt),
     total_comment_reply_ms: diff(sendCompletedAt || aiCompletedAt, detectedAt || webhookReceivedAt),
   };
@@ -379,9 +383,24 @@ const buildSocialCommentRuntimeMonitor = ({
     row.latency_trace ||
     {}
   );
+  const normalizeLatencyTrace = (trace = {}) => ({
+    ...metadataObject(trace || {}),
+    webhook_received_at: normalizeTimestampForDb(trace.webhook_received_at || null, "buildSocialCommentRuntimeMonitor.webhook_received_at"),
+    detected_at: normalizeTimestampForDb(trace.detected_at || null, "buildSocialCommentRuntimeMonitor.detected_at"),
+    stored_at: normalizeTimestampForDb(trace.stored_at || null, "buildSocialCommentRuntimeMonitor.stored_at"),
+    comment_stored_at: normalizeTimestampForDb(trace.comment_stored_at || null, "buildSocialCommentRuntimeMonitor.comment_stored_at"),
+    enqueue_at: normalizeTimestampForDb(trace.enqueue_at || null, "buildSocialCommentRuntimeMonitor.enqueue_at"),
+    private_reply_enqueued_at: normalizeTimestampForDb(trace.private_reply_enqueued_at || null, "buildSocialCommentRuntimeMonitor.private_reply_enqueued_at"),
+    dequeue_at: normalizeTimestampForDb(trace.dequeue_at || null, "buildSocialCommentRuntimeMonitor.dequeue_at"),
+    private_reply_started_at: normalizeTimestampForDb(trace.private_reply_started_at || null, "buildSocialCommentRuntimeMonitor.private_reply_started_at"),
+    ai_started_at: normalizeTimestampForDb(trace.ai_started_at || null, "buildSocialCommentRuntimeMonitor.ai_started_at"),
+    ai_completed_at: normalizeTimestampForDb(trace.ai_completed_at || null, "buildSocialCommentRuntimeMonitor.ai_completed_at"),
+    send_started_at: normalizeTimestampForDb(trace.send_started_at || null, "buildSocialCommentRuntimeMonitor.send_started_at"),
+    send_completed_at: normalizeTimestampForDb(trace.send_completed_at || null, "buildSocialCommentRuntimeMonitor.send_completed_at"),
+  });
   const nextTrace = {
-    ...existingTrace,
-    ...metadataObject(latencyPatch || {}),
+    ...normalizeLatencyTrace(existingTrace),
+    ...normalizeLatencyTrace(metadataObject(latencyPatch || {})),
   };
   return {
     ...safeAutomationState,
@@ -817,6 +836,7 @@ const buildSocialCommentProductContextResolvedFullLog = ({ tenantId = null, plat
 
 const buildPrivateReplyEnqueuePayloadLog = ({ row = {}, productContext = null } = {}) => {
   const privateReplyPayload = row?.automation_state?.private_reply || null;
+  const latencyTrace = row?.automation_state?.runtime_monitor?.latency_trace || row?.latency_trace || {};
   const messagePreview = text(
     privateReplyPayload?.rendered_reply ||
     privateReplyPayload?.message ||
@@ -830,6 +850,14 @@ const buildPrivateReplyEnqueuePayloadLog = ({ row = {}, productContext = null } 
     has_rendered_reply: Boolean(text(privateReplyPayload?.rendered_reply || "")),
     has_private_reply_payload: Boolean(privateReplyPayload),
     message_preview: messagePreview,
+    detected_at: text(latencyTrace.detected_at || ""),
+    enqueue_at: text(latencyTrace.enqueue_at || ""),
+    private_reply_enqueued_at: text(latencyTrace.private_reply_enqueued_at || ""),
+    private_reply_started_at: text(latencyTrace.private_reply_started_at || ""),
+    ai_started_at: text(latencyTrace.ai_started_at || ""),
+    ai_completed_at: text(latencyTrace.ai_completed_at || ""),
+    send_started_at: text(latencyTrace.send_started_at || ""),
+    send_completed_at: text(latencyTrace.send_completed_at || ""),
     product_name: text(productContext?.product_name || productContext?.primary_product?.name || productContext?.primary_product?.product_name || ""),
     product_ids: Array.isArray(productContext?.product_ids)
       ? productContext.product_ids
@@ -2925,6 +2953,7 @@ const executeSocialCommentAutomationRuntime = async ({
       automationState: persistedRuntimeStateWithLatency,
       latencyPatch: {
         enqueue_at: queuedAt,
+        private_reply_enqueued_at: queuedAt,
       },
       status: "queued",
     });
@@ -3863,7 +3892,21 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
     commentId: safeCommentId,
   });
   const enqueueAt = new Date();
-  const latencyTrace = row?.latency_trace && typeof row.latency_trace === "object" ? row.latency_trace : {};
+  const latencyTrace = row?.automation_state?.runtime_monitor?.latency_trace && typeof row.automation_state.runtime_monitor.latency_trace === "object"
+    ? row.automation_state.runtime_monitor.latency_trace
+    : (row?.latency_trace && typeof row.latency_trace === "object" ? row.latency_trace : {});
+  const normalizedLatencyTrace = {
+    ...latencyTrace,
+    detected_at: normalizeTimestampForDb(latencyTrace.detected_at || null, "enqueueSocialCommentPrivateReplyJob.detected_at"),
+    webhook_received_at: normalizeTimestampForDb(latencyTrace.webhook_received_at || null, "enqueueSocialCommentPrivateReplyJob.webhook_received_at"),
+    enqueue_at: normalizeTimestampForDb(latencyTrace.enqueue_at || enqueueAt, "enqueueSocialCommentPrivateReplyJob.enqueue_at"),
+    private_reply_enqueued_at: normalizeTimestampForDb(latencyTrace.private_reply_enqueued_at || enqueueAt, "enqueueSocialCommentPrivateReplyJob.private_reply_enqueued_at"),
+    private_reply_started_at: normalizeTimestampForDb(latencyTrace.private_reply_started_at || null, "enqueueSocialCommentPrivateReplyJob.private_reply_started_at"),
+    ai_started_at: normalizeTimestampForDb(latencyTrace.ai_started_at || null, "enqueueSocialCommentPrivateReplyJob.ai_started_at"),
+    ai_completed_at: normalizeTimestampForDb(latencyTrace.ai_completed_at || null, "enqueueSocialCommentPrivateReplyJob.ai_completed_at"),
+    send_started_at: normalizeTimestampForDb(latencyTrace.send_started_at || null, "enqueueSocialCommentPrivateReplyJob.send_started_at"),
+    send_completed_at: normalizeTimestampForDb(latencyTrace.send_completed_at || null, "enqueueSocialCommentPrivateReplyJob.send_completed_at"),
+  };
   debugSocialCommentsLog("[social-comments][private-reply] queued", {
     tenant_id: safeTenantId,
     platform: safePlatform,
@@ -3880,10 +3923,9 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
       commentId: safeCommentId,
       row,
       latency_trace: {
-        detected_at: text(latencyTrace.detected_at || ""),
+        ...normalizedLatencyTrace,
         facebook_created_time: text(latencyTrace.facebook_created_time || ""),
         source: text(latencyTrace.source || ""),
-        enqueue_at: enqueueAt.toISOString(),
       },
     },
     {
@@ -3904,7 +3946,7 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
     post_id: text(postId || row.post_id || ""),
     enqueue_at: enqueueAt.toISOString(),
     since_detected_ms: (() => {
-      const detectedAt = parseDateOrNull(latencyTrace.detected_at);
+      const detectedAt = parseDateOrNull(normalizedLatencyTrace.detected_at);
       return detectedAt ? enqueueAt.getTime() - detectedAt.getTime() : null;
     })(),
     queue_name: "social.comment.private_reply",

@@ -21,6 +21,18 @@ const parseDateOrNull = (value = null) => {
   const parsed = value instanceof Date ? value : new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
+const normalizeTimestampForDb = (value = null, label = "timestamp") => {
+  if (value == null || value === "") return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    console.warn("SOCIAL_COMMENT_TIMESTAMP_NORMALIZATION_FAILED", {
+      label,
+      value: String(value || "").trim(),
+    });
+    return null;
+  }
+  return parsed.toISOString();
+};
 const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
 const computeSocialCommentLatencySummary = (trace = {}) => {
   const parse = (value) => parseDateOrNull(value || null);
@@ -31,22 +43,99 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
   const dequeueAt = parse(trace.dequeue_at);
   const aiStartedAt = parse(trace.ai_started_at);
   const aiCompletedAt = parse(trace.ai_completed_at);
+  const privateReplyEnqueuedAt = parse(trace.private_reply_enqueued_at || trace.enqueue_at);
+  const privateReplyStartedAt = parse(trace.private_reply_started_at || trace.dequeue_at);
   const sendStartedAt = parse(trace.send_started_at);
   const sendCompletedAt = parse(trace.send_completed_at);
   return {
     webhook_to_enqueue_ms: diff(enqueueAt, webhookReceivedAt),
     enqueue_to_ai_start_ms: diff(aiStartedAt, enqueueAt || dequeueAt),
     ai_generation_ms: diff(aiCompletedAt, aiStartedAt),
+    ai_to_private_reply_enqueue_ms: diff(privateReplyEnqueuedAt, aiCompletedAt),
+    private_reply_queue_wait_ms: diff(privateReplyStartedAt, privateReplyEnqueuedAt),
     send_ms: diff(sendCompletedAt, sendStartedAt),
     total_comment_reply_ms: diff(sendCompletedAt || aiCompletedAt, detectedAt || webhookReceivedAt),
   };
 };
+const collectMissingSocialCommentLatencyFields = (trace = {}, requiredFields = []) => {
+  const normalized = metadataObject(trace || {});
+  return asArray(requiredFields).filter((field) => !parseDateOrNull(normalized[field] || null));
+};
+const logSocialCommentLatencySendDone = ({
+  row = {},
+  commentId = "",
+  postId = "",
+  status = "",
+  metaStatus = null,
+  metaMessage = "",
+} = {}) => {
+  const trace = metadataObject(row?.automation_state?.runtime_monitor?.latency_trace || row?.latency_trace || {});
+  const summary = computeSocialCommentLatencySummary(trace);
+  const requiredFields = [
+    "detected_at",
+    "enqueue_at",
+    "ai_started_at",
+    "ai_completed_at",
+    "private_reply_enqueued_at",
+    "private_reply_started_at",
+    "send_started_at",
+    "send_completed_at",
+  ];
+  const missingFields = collectMissingSocialCommentLatencyFields(trace, requiredFields);
+  if (missingFields.length) {
+    console.warn("SOCIAL_COMMENT_LATENCY_MISSING_FIELDS", {
+      comment_id: String(commentId || "").trim(),
+      post_id: String(postId || row.post_id || "").trim(),
+      missing_fields: missingFields,
+      present_fields: requiredFields.filter((field) => !missingFields.includes(field)),
+    });
+  }
+  console.log("SOCIAL_COMMENT_LATENCY_SEND_DONE", {
+    comment_id: String(commentId || "").trim(),
+    post_id: String(postId || row.post_id || "").trim(),
+    status: String(status || "").trim(),
+    detected_at: trace.detected_at || "",
+    enqueue_at: trace.enqueue_at || "",
+    ai_started_at: trace.ai_started_at || "",
+    ai_completed_at: trace.ai_completed_at || "",
+    private_reply_enqueued_at: trace.private_reply_enqueued_at || "",
+    private_reply_started_at: trace.private_reply_started_at || "",
+    send_started_at: trace.send_started_at || "",
+    send_completed_at: trace.send_completed_at || "",
+    webhook_to_enqueue_ms: summary.webhook_to_enqueue_ms ?? null,
+    enqueue_to_ai_start_ms: summary.enqueue_to_ai_start_ms ?? null,
+    ai_generation_ms: summary.ai_generation_ms ?? null,
+    ai_to_private_reply_enqueue_ms: summary.ai_to_private_reply_enqueue_ms ?? null,
+    private_reply_queue_wait_ms: summary.private_reply_queue_wait_ms ?? null,
+    send_ms: summary.send_ms ?? null,
+    total_comment_reply_ms: summary.total_comment_reply_ms ?? null,
+    total_ms: summary.total_comment_reply_ms ?? null,
+    meta_status: metaStatus,
+    meta_message: metaMessage,
+    missing_fields: missingFields,
+  });
+};
 const withSocialCommentLatencyState = ({ row = {}, automationState = {}, patch = {}, status = "", errorMessage = "" } = {}) => {
   const safeState = metadataObject(automationState || {});
   const currentMonitor = metadataObject(safeState.runtime_monitor || row.automation_state?.runtime_monitor || {});
+  const normalizeTrace = (trace = {}) => ({
+    ...metadataObject(trace || {}),
+    webhook_received_at: normalizeTimestampForDb(trace.webhook_received_at || null, "backgroundJobs.withSocialCommentLatencyState.webhook_received_at"),
+    detected_at: normalizeTimestampForDb(trace.detected_at || null, "backgroundJobs.withSocialCommentLatencyState.detected_at"),
+    stored_at: normalizeTimestampForDb(trace.stored_at || null, "backgroundJobs.withSocialCommentLatencyState.stored_at"),
+    comment_stored_at: normalizeTimestampForDb(trace.comment_stored_at || null, "backgroundJobs.withSocialCommentLatencyState.comment_stored_at"),
+    enqueue_at: normalizeTimestampForDb(trace.enqueue_at || null, "backgroundJobs.withSocialCommentLatencyState.enqueue_at"),
+    private_reply_enqueued_at: normalizeTimestampForDb(trace.private_reply_enqueued_at || null, "backgroundJobs.withSocialCommentLatencyState.private_reply_enqueued_at"),
+    dequeue_at: normalizeTimestampForDb(trace.dequeue_at || null, "backgroundJobs.withSocialCommentLatencyState.dequeue_at"),
+    private_reply_started_at: normalizeTimestampForDb(trace.private_reply_started_at || null, "backgroundJobs.withSocialCommentLatencyState.private_reply_started_at"),
+    ai_started_at: normalizeTimestampForDb(trace.ai_started_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_started_at"),
+    ai_completed_at: normalizeTimestampForDb(trace.ai_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_completed_at"),
+    send_started_at: normalizeTimestampForDb(trace.send_started_at || null, "backgroundJobs.withSocialCommentLatencyState.send_started_at"),
+    send_completed_at: normalizeTimestampForDb(trace.send_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.send_completed_at"),
+  });
   const nextTrace = {
-    ...metadataObject(currentMonitor.latency_trace || row.automation_state?.runtime_monitor?.latency_trace || {}),
-    ...metadataObject(patch || {}),
+    ...normalizeTrace(currentMonitor.latency_trace || row.automation_state?.runtime_monitor?.latency_trace || {}),
+    ...normalizeTrace(metadataObject(patch || {})),
   };
   return {
     ...safeState,
@@ -359,8 +448,32 @@ export const registerBackgroundJobHandlers = () => {
       ? payload.latency_trace
       : (row?.latency_trace && typeof row.latency_trace === "object" ? row.latency_trace : {});
     const dequeueAt = new Date();
-    const enqueueAt = parseDateOrNull(job?.createdAt || latencyTrace.enqueue_at || payload?.created_at || null);
-    const detectedAt = parseDateOrNull(latencyTrace.detected_at || null);
+    const enqueueAt = parseDateOrNull(job?.createdAt || latencyTrace.enqueue_at || latencyTrace.private_reply_enqueued_at || payload?.created_at || null);
+    const detectedAt = parseDateOrNull(latencyTrace.detected_at || row?.automation_state?.runtime_monitor?.latency_trace?.detected_at || null);
+    const privateReplyStartedAt = dequeueAt;
+    const currentLatencyTrace = {
+      ...metadataObject(row?.automation_state?.runtime_monitor?.latency_trace || row?.latency_trace || {}),
+      ...metadataObject(latencyTrace || {}),
+      enqueue_at: normalizeTimestampForDb(enqueueAt || latencyTrace.enqueue_at || null, "backgroundJobs.private_reply.enqueue_at"),
+      private_reply_enqueued_at: normalizeTimestampForDb(latencyTrace.private_reply_enqueued_at || enqueueAt || dequeueAt, "backgroundJobs.private_reply.private_reply_enqueued_at"),
+      private_reply_started_at: normalizeTimestampForDb(privateReplyStartedAt, "backgroundJobs.private_reply.private_reply_started_at"),
+      detected_at: normalizeTimestampForDb(detectedAt || null, "backgroundJobs.private_reply.detected_at"),
+      ai_started_at: normalizeTimestampForDb(latencyTrace.ai_started_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_started_at || null, "backgroundJobs.private_reply.ai_started_at"),
+      ai_completed_at: normalizeTimestampForDb(latencyTrace.ai_completed_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_completed_at || null, "backgroundJobs.private_reply.ai_completed_at"),
+      send_started_at: normalizeTimestampForDb(latencyTrace.send_started_at || null, "backgroundJobs.private_reply.send_started_at"),
+      send_completed_at: normalizeTimestampForDb(latencyTrace.send_completed_at || null, "backgroundJobs.private_reply.send_completed_at"),
+      webhook_received_at: normalizeTimestampForDb(latencyTrace.webhook_received_at || row?.automation_state?.runtime_monitor?.latency_trace?.webhook_received_at || null, "backgroundJobs.private_reply.webhook_received_at"),
+    };
+    console.log("[jobs] start social.comment.private_reply", {
+      tenant_id: tenantId,
+      platform,
+      post_id: postId || row.post_id || "",
+      comment_id: commentId,
+      enqueue_at: currentLatencyTrace.enqueue_at || "",
+      private_reply_enqueued_at: currentLatencyTrace.private_reply_enqueued_at || "",
+      private_reply_started_at: currentLatencyTrace.private_reply_started_at || "",
+      detected_at: currentLatencyTrace.detected_at || "",
+    });
     console.log("SOCIAL_COMMENT_LATENCY_DEQUEUED", {
       comment_id: commentId,
       post_id: postId || row.post_id || "",
@@ -373,7 +486,11 @@ export const registerBackgroundJobHandlers = () => {
       automationState: row.automation_state,
       patch: {
         dequeue_at: dequeueAt.toISOString(),
-        ai_started_at: dequeueAt.toISOString(),
+        private_reply_started_at: privateReplyStartedAt.toISOString(),
+        enqueue_at: currentLatencyTrace.enqueue_at || (enqueueAt ? enqueueAt.toISOString() : ""),
+        private_reply_enqueued_at: currentLatencyTrace.private_reply_enqueued_at || (enqueueAt ? enqueueAt.toISOString() : ""),
+        detected_at: currentLatencyTrace.detected_at || "",
+        webhook_received_at: currentLatencyTrace.webhook_received_at || "",
       },
       status: "processing",
     });
@@ -822,13 +939,13 @@ export const registerBackgroundJobHandlers = () => {
         privateReplyPayload: row.automation_state?.private_reply || null,
         status: "sent",
       }));
-      console.log("SOCIAL_COMMENT_LATENCY_SEND_DONE", {
-        comment_id: commentId,
-        post_id: postId || row.post_id || "",
+      logSocialCommentLatencySendDone({
+        row,
+        commentId,
+        postId: postId || row.post_id || "",
         status: "success",
-        total_ms: detectedAt ? Date.now() - detectedAt.getTime() : null,
-        meta_status: "ok",
-        meta_message: "",
+        metaStatus: "ok",
+        metaMessage: "",
       });
       return result;
     } catch (error) {
@@ -910,13 +1027,13 @@ export const registerBackgroundJobHandlers = () => {
           privateReplyPayload: row.automation_state?.private_reply || null,
           status: "duplicate",
         }));
-        console.log("SOCIAL_COMMENT_LATENCY_SEND_DONE", {
-          comment_id: commentId,
-          post_id: postId || row.post_id || "",
+        logSocialCommentLatencySendDone({
+          row,
+          commentId,
+          postId: postId || row.post_id || "",
           status: "duplicate",
-          total_ms: detectedAt ? Date.now() - detectedAt.getTime() : null,
-          meta_status: status || 400,
-          meta_message: messageText,
+          metaStatus: status || 400,
+          metaMessage: messageText,
         });
         return {
           ok: true,
@@ -989,13 +1106,13 @@ export const registerBackgroundJobHandlers = () => {
         privateReplyPayload: row.automation_state?.private_reply || null,
         status: job?.attemptsMade >= (job?.maxAttempts || 1) ? "failed" : "retrying",
       }));
-      console.log("SOCIAL_COMMENT_LATENCY_SEND_DONE", {
-        comment_id: commentId,
-        post_id: postId || row.post_id || "",
+      logSocialCommentLatencySendDone({
+        row,
+        commentId,
+        postId: postId || row.post_id || "",
         status: "failure",
-        total_ms: detectedAt ? Date.now() - detectedAt.getTime() : null,
-        meta_status: status || null,
-        meta_message: messageText,
+        metaStatus: status || null,
+        metaMessage: messageText,
       });
       throw error;
     }

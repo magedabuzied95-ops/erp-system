@@ -267,6 +267,7 @@ export const enqueueSocialCommentJob = async (job = {}) => {
     external_comment_id: normalizedJob.external_comment_id,
     queue_length: queue.length,
     context: getJobContext(normalizedJob),
+    latency_trace: normalizedJob.payload?.latency_trace || {},
   });
   schedulePump(0);
   return { accepted: true, queue_length: queue.length };
