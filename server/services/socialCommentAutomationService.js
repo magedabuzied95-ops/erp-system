@@ -31,6 +31,18 @@ const numericOrNull = (value = null) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 };
+const normalizeTimestampForDb = (value = null, label = "timestamp") => {
+  if (value == null || value === "") return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    console.warn("SOCIAL_COMMENT_TIMESTAMP_NORMALIZATION_FAILED", {
+      label,
+      value: text(value || ""),
+    });
+    return null;
+  }
+  return parsed.toISOString();
+};
 const toIsoStringOrEmpty = (value = null) => {
   if (!value) return "";
   const parsed = value instanceof Date ? value : new Date(value);
@@ -1377,7 +1389,7 @@ export const upsertSocialCommentAutomationRunSummary = async ({
       safeDiagnostics.config_found,
       safeDiagnostics.config_enabled,
       finalErrorMessage,
-      row.created_at || null,
+      normalizeTimestampForDb(row.created_at, "upsertSocialCommentAutomationRunAudit.created_at"),
     ]
   );
   return result.rows?.[0] || null;
@@ -1502,7 +1514,7 @@ const findSocialCommentAutomationRunByKey = async ({
   if (!Number.isFinite(safeTenantId) || safeTenantId <= 0 || !safeCommentId || !safePostId) return null;
   await ensureSocialCommentAutomationSchema();
   const safeCurrentRunId = Number(currentRunId || 0) || null;
-  const safeCurrentCreatedAt = text(currentCreatedAt || "");
+  const safeCurrentCreatedAt = normalizeTimestampForDb(currentCreatedAt, "findSocialCommentAutomationRunByKey.currentCreatedAt");
   const duplicateStatuses = ["processing", "queued", "success", "partial_success", "failed"];
   const conditions = [
     `tenant_id = $1::bigint`,
@@ -6256,6 +6268,8 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   );
   const originalCommentText = firstText(value.message, value.text, value.comment_text, value.caption, value.message_text);
   const timestamp = firstText(value.created_time, value.timestamp, change.created_time, change.timestamp, entry.time, entry.created_time);
+  const normalizedPostCreatedTime = normalizeTimestampForDb(postCreatedTime, "normalizeCommentWebhookChange.post_created_time");
+  const normalizedCommentCreatedTime = normalizeTimestampForDb(timestamp, "normalizeCommentWebhookChange.comment_created_time");
   console.info("SOCIAL_COMMENT_WEBHOOK_RAW", {
     raw_post_id: firstText(value.post_id, value.media_id, value.id, entry.id),
     raw_object_id: firstText(body.object, change.object, entry.object, value.object_id, value.object),
@@ -6312,9 +6326,9 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
     post_permalink_url: postPermalink,
     post_message: postMessage,
     post_caption: firstText(value.post_caption, value.post?.caption),
-    post_created_time: postCreatedTime || "",
+    post_created_time: normalizedPostCreatedTime,
     comment_id: commentId,
-    comment_created_time: timestamp,
+    comment_created_time: normalizedCommentCreatedTime,
     comment_url: commentUrl,
     parent_comment_id: parentCommentId,
     root_comment_id: rootCommentId,
@@ -6346,11 +6360,11 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
       comment_id: commentId,
       post_message: postMessage,
       post_caption: firstText(value.post_caption, value.post?.caption),
-      post_created_time: postCreatedTime || "",
-      comment_created_time: timestamp,
+      post_created_time: normalizedPostCreatedTime,
+      comment_created_time: normalizedCommentCreatedTime,
       comment_url: commentUrl,
     },
-    processed_at: new Date().toISOString(),
+    processed_at: normalizeTimestampForDb(new Date(), "normalizeCommentWebhookChange.processed_at"),
   };
 };
 
@@ -6390,13 +6404,17 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
   await ensureSocialCommentAutomationSchema();
   const stored = [];
   for (const event of asArray(events)) {
-    const webhookReceivedAt = text(
+    const webhookReceivedAt = normalizeTimestampForDb(
       event.webhook_received_at ||
       event.raw_payload?.webhook_received_at ||
       event.received_at ||
-      ""
-    ) || new Date().toISOString();
-    const detectedAt = text(event.detected_at || webhookReceivedAt);
+      "",
+      "storeSocialCommentAutomationRuns.webhook_received_at"
+    );
+    const detectedAt = normalizeTimestampForDb(
+      event.detected_at || webhookReceivedAt,
+      "storeSocialCommentAutomationRuns.detected_at"
+    ) || webhookReceivedAt || normalizeTimestampForDb(new Date(), "storeSocialCommentAutomationRuns.detected_at_fallback");
     let normalized = {
       tenant_id: tenantId ?? event.tenant_id,
       platform: text(event.platform || "facebook") || "facebook",
@@ -6444,7 +6462,10 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       comment_created_time: text(event.comment_created_time || ""),
       comment_url: text(event.comment_url || ""),
       post_permalink_url: text(event.post_permalink_url || event.post_permalink || ""),
-      processed_at: event.processed_at ? new Date(event.processed_at).toISOString() : new Date().toISOString(),
+      processed_at: normalizeTimestampForDb(
+        event.processed_at || new Date(),
+        "storeSocialCommentAutomationRuns.processed_at"
+      ) || normalizeTimestampForDb(new Date(), "storeSocialCommentAutomationRuns.processed_at_fallback"),
     };
     console.log("SOCIAL_COMMENT_WEBHOOK_RECEIVED", {
       tenant_id: Number(normalized.tenant_id || 0) || null,

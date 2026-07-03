@@ -13,6 +13,18 @@ import { resolveSocialPostProductLinkIdentity } from "../../shared/socialPostPro
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const normalizeTimestampForDb = (value = null, label = "timestamp") => {
+  if (value == null || value === "") return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    console.warn("SOCIAL_COMMENT_TIMESTAMP_NORMALIZATION_FAILED", {
+      label,
+      value: text(value || ""),
+    });
+    return null;
+  }
+  return parsed.toISOString();
+};
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const isSocialSqlPerfEnabled = () => ["1", "true", "yes", "on"].includes(lower(process.env.DEBUG_SOCIAL_SQL_PERF || ""));
 const debugSocialCommentsWarn = (...args) => {
@@ -4058,8 +4070,12 @@ const decodeFastListCursor = (cursor = "") => {
   if (!raw) return { activityAt: "", id: "" };
   try {
     const parsed = JSON.parse(Buffer.from(raw, "base64url").toString("utf8"));
+    const normalizedActivityAt = normalizeTimestampForDb(
+      parsed.activity_at || parsed.activityAt || "",
+      "decodeFastListCursor.activityAt"
+    );
     return {
-      activityAt: text(parsed.activity_at || parsed.activityAt || ""),
+      activityAt: normalizedActivityAt || "",
       id: text(parsed.id || ""),
     };
   } catch {
@@ -4144,8 +4160,11 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
   }
   if (safeCursor.activityAt && safeCursor.id) {
     const cursorParamIndex = params.length + 1;
-    whereClauses.push(`(COALESCE(updated_at, processed_at, created_at), id) < ($${cursorParamIndex}::timestamp, $${cursorParamIndex + 1}::bigint)`);
-    params.push(safeCursor.activityAt, Number(safeCursor.id) || 0);
+    const normalizedCursorActivityAt = normalizeTimestampForDb(safeCursor.activityAt, "listSocialCommentCenterFastList.cursor.activityAt");
+    if (normalizedCursorActivityAt) {
+      whereClauses.push(`(COALESCE(updated_at, processed_at, created_at), id) < ($${cursorParamIndex}::timestamp, $${cursorParamIndex + 1}::bigint)`);
+      params.push(normalizedCursorActivityAt, Number(safeCursor.id) || 0);
+    }
   }
   const fastListSql = `
     WITH source_rows AS (
