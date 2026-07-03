@@ -71,6 +71,13 @@ const normalizePriceText = (value = "") => {
   return Number.isInteger(parsed) ? String(parsed) : String(parsed.toFixed(2)).replace(/\.?0+$/g, "");
 };
 
+const priceCandidates = (...values) =>
+  values
+    .map((value) => normalizePriceText(value))
+    .filter(Boolean);
+
+const pickFirstPrice = (...values) => priceCandidates(...values)[0] || "";
+
 const variantStockCount = (variant = {}) => {
   const candidates = [
     variant.stock,
@@ -181,16 +188,27 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
     availableVariantRows,
     productLink,
     productImageUrl,
-    priceUsed: normalizePriceText(
-      productContext?.selling_price ||
-      productContext?.sale_price ||
-      productContext?.price ||
-      productContext?.final_price ||
-      primaryProduct?.selling_price ||
-      primaryProduct?.sale_price ||
-      primaryProduct?.price ||
-      primaryProduct?.final_price ||
-      ""
+    priceUsed: pickFirstPrice(
+      productContext?.sale_price,
+      productContext?.selling_price,
+      productContext?.price,
+      productContext?.final_price,
+      primaryProduct?.sale_price,
+      primaryProduct?.selling_price,
+      primaryProduct?.price,
+      primaryProduct?.final_price,
+    ),
+    salePriceUsed: pickFirstPrice(
+      productContext?.sale_price,
+      primaryProduct?.sale_price,
+    ),
+    regularPriceUsed: pickFirstPrice(
+      productContext?.selling_price,
+      productContext?.price,
+      productContext?.final_price,
+      primaryProduct?.selling_price,
+      primaryProduct?.price,
+      primaryProduct?.final_price,
     ),
   };
 };

@@ -357,19 +357,38 @@ const buildSocialCommentMessengerProductCardPayload = ({
   productImageUrl = "",
   productUrl = "",
   productPrice = "",
+  productOriginalPrice = "",
   availableSizes = [],
 } = {}) => {
   const subtitleSizes = Array.isArray(availableSizes)
-    ? availableSizes.map((value) => trimString(value)).filter(Boolean).slice(0, 8)
+    ? availableSizes
+      .map((value) => trimString(value))
+      .filter(Boolean)
+      .filter((value, index, array) => array.indexOf(value) === index)
+      .sort((left, right) => {
+        const leftNumber = Number.parseFloat(left);
+        const rightNumber = Number.parseFloat(right);
+        const leftIsNumber = Number.isFinite(leftNumber);
+        const rightIsNumber = Number.isFinite(rightNumber);
+        if (leftIsNumber && rightIsNumber) return leftNumber - rightNumber;
+        if (leftIsNumber) return -1;
+        if (rightIsNumber) return 1;
+        return left.localeCompare(right, "ar", { numeric: true, sensitivity: "base" });
+      })
+      .slice(0, 8)
     : [];
   const formattedPrice = trimString(productPrice);
+  const formattedOriginalPrice = trimString(productOriginalPrice);
   const subtitle = formattedPrice
     ? [
         `السعر: ${formattedPrice} جنيه`,
-        `المقاسات: ${subtitleSizes.length ? subtitleSizes.join(" | ") : "غير متاحة"}`,
-      ].join("\n").slice(0, 80)
+        formattedOriginalPrice && formattedOriginalPrice !== formattedPrice ? `بدلاً من ${formattedOriginalPrice} جنيه` : "",
+        "",
+        `المقاسات:`,
+        subtitleSizes.length ? subtitleSizes.join(" | ") : "غير متاحة",
+      ].filter((line, index, array) => line !== "" || index === 0 || array[index - 1] !== "").join("\n").slice(0, 80)
     : subtitleSizes.length
-      ? `المقاسات: ${subtitleSizes.join(" | ")}`.slice(0, 80)
+      ? `المقاسات:\n${subtitleSizes.join(" | ")}`.slice(0, 80)
       : undefined;
   return {
     recipient: { comment_id: trimString(commentId) },
@@ -875,6 +894,7 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
             productImageUrl,
             productUrl: productLink,
             productPrice: normalizedProductContext.priceUsed,
+            productOriginalPrice: normalizedProductContext.salePriceUsed ? normalizedProductContext.regularPriceUsed : "",
             availableSizes: normalizedProductContext.availableSizes,
           })),
         });
