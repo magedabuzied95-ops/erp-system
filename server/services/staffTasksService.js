@@ -1433,6 +1433,40 @@ export const saveStaffTaskTemplate = async (payload = {}, actor = {}) => {
   return template;
 };
 
+export const deleteStaffTaskTemplate = async (templateId, actor = {}) => {
+  await ensureStaffTasksSchema();
+  const tenantId = resolveTaskTenantId(actor);
+  const result = await db.query(
+    `
+    DELETE FROM staff_task_templates
+    WHERE id = $1::bigint
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+    RETURNING *
+    `,
+    [templateId, tenantId]
+  );
+  const template = result.rows[0] || null;
+  if (!template) return null;
+  await db.query(
+    `
+    INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, details)
+    VALUES ($1::bigint,$2::bigint,'staff_task_template.deleted','staff_task_template',$3::bigint,$4::jsonb)
+    `,
+    [
+      template.tenant_id || null,
+      actor?.id || null,
+      template.id,
+      JSON.stringify({
+        title: template.title || "",
+        title_ar: template.title_ar || "",
+        template_kind: template.template_kind || "",
+        task_type: template.task_type || "",
+      }),
+    ]
+  );
+  return template;
+};
+
 const isTemplateDueOnDate = (template = {}, dueDate = dateKey()) => {
   const templateKind = normalizeTemplateKind(template.template_kind || template.metadata?.template_kind);
   const frequency = normalizeFrequency(template.frequency || template.recurrence);

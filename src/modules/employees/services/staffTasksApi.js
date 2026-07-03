@@ -5,6 +5,7 @@ export const staffTasksApi = {
   list: (params = {}, options = {}) => api.get("/staff-tasks", { params, ...options }),
   templates: (params = {}, options = {}) => api.get("/staff-tasks/templates", { params, ...options }),
   updateTemplate: (id, payload) => api.put(`/staff-tasks/templates/${id}`, payload),
+  deleteTemplate: (id) => api.delete(`/staff-tasks/templates/${id}`),
   my: (params = {}) => api.get("/staff-tasks/my", { params }),
   dashboard: (params = {}, options = {}) => api.get("/staff-tasks/dashboard", { params, ...options }),
   create: (payload) => api.post("/staff-tasks", payload),

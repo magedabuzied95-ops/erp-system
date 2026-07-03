@@ -5,6 +5,7 @@ import {
   completeTask,
   createTask,
   deleteTask,
+  deleteTaskTemplate,
   getDashboard,
   getEmployeePortalTasks,
   getMyTasks,
@@ -35,6 +36,7 @@ router.get("/bootstrap", protect, permit("staff_tasks", "view"), getTaskBootstra
 router.get("/", protect, permit("staff_tasks", "view"), getTasks);
 router.get("/templates", protect, permit("staff_tasks", "view"), getTaskTemplates);
 router.put("/templates/:id", protect, permit("staff_tasks", "manage"), updateTaskTemplate);
+router.delete("/templates/:id", protect, permit("staff_tasks", "manage"), deleteTaskTemplate);
 router.get("/my", protect, permit("staff_tasks", "view"), getMyTasks);
 router.get("/dashboard", protect, permit("staff_tasks", "view"), getDashboard);
 router.post(

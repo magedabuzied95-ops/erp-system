@@ -2,6 +2,7 @@ import {
   addStaffTaskComment,
   assignDailyInventoryCountTasks,
   createStaffTask,
+  deleteStaffTaskTemplate,
   deleteStaffTask,
   ensureStaffTasksSchema,
   getEmployeePortal,
@@ -63,6 +64,16 @@ export const updateTaskTemplate = async (req, res) => {
     return res.json({ success: true, template });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message || "Failed to update task template" });
+  }
+};
+
+export const deleteTaskTemplate = async (req, res) => {
+  try {
+    const template = await deleteStaffTaskTemplate(req.params.id, req.user || {});
+    if (!template) return res.status(404).json({ success: false, message: "Task template not found" });
+    return res.json({ success: true, template });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || "Failed to delete task template" });
   }
 };
 

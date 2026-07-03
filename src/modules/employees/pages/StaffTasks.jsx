@@ -154,7 +154,7 @@ const STAFF_TASK_COPY = {
     taskQueue: "Task queue", loadingTasks: "Loading tasks", visibleTasks: "visible tasks", allStatuses: "All statuses", allEmployees: "All employees", allBranches: "All branches", allPriorities: "All priorities", today: "Today",
     loadingTaskQueue: "Loading task queue...", noTasksMatch: "No tasks match this view.", performance: "Performance", auditTrail: "Audit trail", noTaskHistory: "No task history yet.",
     online: "Online", checkedIn: "Checked in", absentNotCheckedIn: "Absent / Not checked in", checkedInAt: "Checked in at", onlineNow: "Active online",
-    noDeadline: "No deadline", noTaskNotes: "No task notes", unassigned: "Unassigned", staff: "Staff", edit: "Edit", delete: "Delete", confirmDeleteTask: "Delete this task? This action cannot be undone.", start: "Start", done: "Done", pauseAvailable: "Pause available", escalated: "Escalated",
+    noDeadline: "No deadline", noTaskNotes: "No task notes", unassigned: "Unassigned", staff: "Staff", edit: "Edit", delete: "Delete", confirmDeleteTask: "Delete this task? This action cannot be undone.", confirmDeleteTemplate: "Delete this task template? This action cannot be undone.", templateDeleted: "Task template deleted", start: "Start", done: "Done", pauseAvailable: "Pause available", escalated: "Escalated",
     taskUpdated: "Task updated", taskCreated: "Task created", taskDeleted: "Task deleted", actionFailed: "Action failed", failedToLoad: "Failed to load tasks",
     open: "Open", urgent: "Urgent", overdue: "Overdue", completed: "Completed", pending: "Pending", in_progress: "In progress", cancelled: "Cancelled", rejected: "Rejected",
     low: "Low", medium: "Medium", high: "High", critical: "Critical",
@@ -169,7 +169,7 @@ const STAFF_TASK_COPY = {
     employeePortalSettings: "إعدادات بوابة الموظفين", portalDescription: "التحكم في تحويل تسجيل الحضور وإلزام عرض المهام.", requireCheckIn: "يتطلب تسجيل حضور", autoRedirect: "تحويل تلقائي",
     taskQueue: "قائمة المهام", loadingTasks: "جاري تحميل المهام", visibleTasks: "مهام ظاهرة", allStatuses: "كل الحالات", allEmployees: "كل الموظفين", allBranches: "كل الفروع", allPriorities: "كل الأولويات", today: "اليوم",
     loadingTaskQueue: "جاري تحميل قائمة المهام...", noTasksMatch: "لا توجد مهام مطابقة لهذا العرض.", performance: "الأداء", auditTrail: "سجل التدقيق", noTaskHistory: "لا يوجد سجل مهام حتى الآن.",
-    noDeadline: "لا يوجد موعد نهائي", noTaskNotes: "لا توجد ملاحظات للمهمة", unassigned: "غير مسند", staff: "موظف", edit: "تعديل", delete: "حذف", confirmDeleteTask: "هل تريد حذف هذه المهمة؟ لا يمكن التراجع عن هذا الإجراء.", start: "بدء", done: "تم", pauseAvailable: "الإيقاف المؤقت متاح", escalated: "تم التصعيد",
+    noDeadline: "لا يوجد موعد نهائي", noTaskNotes: "لا توجد ملاحظات للمهمة", unassigned: "غير مسند", staff: "موظف", edit: "تعديل", delete: "حذف", confirmDeleteTask: "هل تريد حذف هذه المهمة؟ لا يمكن التراجع عن هذا الإجراء.", confirmDeleteTemplate: "هل تريد حذف قالب المهمة؟ لا يمكن التراجع عن هذا الإجراء.", templateDeleted: "تم حذف قالب المهمة", start: "بدء", done: "تم", pauseAvailable: "الإيقاف المؤقت متاح", escalated: "تم التصعيد",
     taskUpdated: "تم تحديث المهمة", taskCreated: "تم إنشاء المهمة", taskDeleted: "تم حذف المهمة", actionFailed: "فشل الإجراء", failedToLoad: "فشل تحميل المهام",
     open: "مفتوحة", urgent: "عاجلة", overdue: "متأخرة", completed: "مكتملة", pending: "قيد الانتظار", in_progress: "قيد التنفيذ", cancelled: "ملغاة", rejected: "مرفوضة",
     low: "منخفضة", medium: "متوسطة", high: "مرتفعة", critical: "حرجة",
@@ -604,6 +604,24 @@ function StaffTasks() {
     }
   };
 
+  const removeTemplate = async (template) => {
+    if (!canDeleteTasks) return;
+    if (!window.confirm(tr("confirmDeleteTemplate"))) return;
+    try {
+      setBusy(`delete-template-${template.id}`);
+      setError("");
+      await staffTasksApi.deleteTemplate(template.id);
+      setTemplates((current) => current.filter((item) => String(item.id) !== String(template.id)));
+      toast.success(tr("templateDeleted"));
+    } catch (actionError) {
+      const message = actionError?.message || tr("actionFailed");
+      setError(message);
+      toast.error(message);
+    } finally {
+      setBusy("");
+    }
+  };
+
   const updatePortalSetting = (key, value) => runAction(`portal-${key}`, async () => {
     const next = { ...(portalSettings || {}), [key]: value };
     setPortalSettings(next);
@@ -786,21 +804,40 @@ function StaffTasks() {
             </div>
             <div className="grid gap-2">
               {dailyTemplates.length ? dailyTemplates.map((template) => (
-                <button
+                <div
                   key={template.id}
-                  type="button"
-                  onClick={() => editTask({ ...template, task_type: template.is_opening_day_task ? "opening_day" : "daily", metadata: { ...template.metadata, template_kind: "daily", is_opening_day_task: template.is_opening_day_task } })}
                   className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start"
                 >
-                  <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => editTask({ ...template, task_type: template.is_opening_day_task ? "opening_day" : "daily", metadata: { ...template.metadata, template_kind: "daily", is_opening_day_task: template.is_opening_day_task } })}
+                    className="min-w-0 flex-1 text-start"
+                  >
                     <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{localizedTaskText(template, "title", language) || template.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[var(--muted)]">
                       <Pill className={priorityClass[template.priority] || priorityClass.medium}>{priorityLabel(template.priority, language)}</Pill>
                       {template.is_opening_day_task ? <Pill className="border-emerald-300/40 bg-emerald-500/10 text-emerald-700">{taskLabel(language, "openingDayTask")}</Pill> : null}
                     </div>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => editTask({ ...template, task_type: template.is_opening_day_task ? "opening_day" : "daily", metadata: { ...template.metadata, template_kind: "daily", is_opening_day_task: template.is_opening_day_task } })}
+                      className="text-xs font-black text-[var(--primary)]"
+                    >
+                      {tr("edit")}
+                    </button>
+                    {canDeleteTasks ? (
+                      <button
+                        type="button"
+                        onClick={() => removeTemplate(template)}
+                        className="text-xs font-black text-red-700"
+                      >
+                        {tr("delete")}
+                      </button>
+                    ) : null}
                   </div>
-                  <span className="text-xs font-black text-[var(--primary)]">{tr("edit")}</span>
-                </button>
+                </div>
               )) : <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-semibold text-[var(--muted)]">{tr("noTasksMatch")}</div>}
             </div>
           </div>
@@ -812,21 +849,40 @@ function StaffTasks() {
             </div>
             <div className="grid gap-2">
               {weeklyTemplates.length ? weeklyTemplates.map((template) => (
-                <button
+                <div
                   key={template.id}
-                  type="button"
-                  onClick={() => editTask({ ...template, task_type: "weekly", metadata: { ...template.metadata, template_kind: "weekly" } })}
                   className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-start"
                 >
-                  <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => editTask({ ...template, task_type: "weekly", metadata: { ...template.metadata, template_kind: "weekly" } })}
+                    className="min-w-0 flex-1 text-start"
+                  >
                     <div className="truncate text-sm font-black text-[var(--text)]" dir="auto">{localizedTaskText(template, "title", language) || template.title}</div>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-bold text-[var(--muted)]">
                       <Pill className={priorityClass[template.priority] || priorityClass.medium}>{priorityLabel(template.priority, language)}</Pill>
                       <Pill className="border-sky-300/40 bg-sky-500/10 text-sky-700">{taskLabel(language, "weeklyTask")}</Pill>
                     </div>
+                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => editTask({ ...template, task_type: "weekly", metadata: { ...template.metadata, template_kind: "weekly" } })}
+                      className="text-xs font-black text-[var(--primary)]"
+                    >
+                      {tr("edit")}
+                    </button>
+                    {canDeleteTasks ? (
+                      <button
+                        type="button"
+                        onClick={() => removeTemplate(template)}
+                        className="text-xs font-black text-red-700"
+                      >
+                        {tr("delete")}
+                      </button>
+                    ) : null}
                   </div>
-                  <span className="text-xs font-black text-[var(--primary)]">{tr("edit")}</span>
-                </button>
+                </div>
               )) : <div className="rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-semibold text-[var(--muted)]">{tr("noTasksMatch")}</div>}
             </div>
           </div>
