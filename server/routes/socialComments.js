@@ -1,4 +1,5 @@
 import express from "express";
+import db from "../database/db.js";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
 import {
@@ -33,6 +34,20 @@ import { getSocialRealtimeMetrics } from "../services/socialRealtimeService.js";
 const router = express.Router();
 const debugRouter = express.Router();
 const buildPostIdentityTrace = (payload = {}) => payload;
+const normalizeRole = (value = "") => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ");
+const isSocialCommentsAdminUser = (user = {}) => {
+  const role = normalizeRole(user.role_name || user.role);
+  return ["admin", "super admin", "superadmin"].includes(role) || user.is_super_admin === true || user.permissions?.includes?.("*");
+};
+const requireSocialCommentsAdmin = (req, res, next) => {
+  if (!req.user) {
+    return res.status(401).json({ success: false, message: "Authentication required" });
+  }
+  if (!isSocialCommentsAdminUser(req.user)) {
+    return res.status(403).json({ success: false, message: "Admin access required" });
+  }
+  return next();
+};
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const debugSocialCommentsWarn = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.warn(...args);
@@ -505,6 +520,112 @@ router.get("/performance/summary", protect, permit("settings", "view"), async (_
       success: false,
       message: error?.message || "Failed to load social comments performance summary",
     });
+  }
+});
+
+router.get("/debug/run/:id", protect, requireSocialCommentsAdmin, async (req, res) => {
+  try {
+    const runId = Number(req.params.id || 0) || null;
+    if (!runId) {
+      return res.status(400).json({ success: false, message: "Invalid run id" });
+    }
+    const result = await db.query(
+      `
+      SELECT
+        id,
+        platform,
+        post_id,
+        comment_id AS external_comment_id,
+        status,
+        COALESCE(NULLIF(status, ''), NULLIF(action_taken, ''), NULLIF(public_reply_status, ''), NULLIF(dm_status, ''), '') AS automation_status,
+        automation_state,
+        public_reply_status,
+        dm_status AS private_reply_status,
+        created_at,
+        processed_at,
+        updated_at
+      FROM social_comment_automation_runs
+      WHERE id = $1::bigint
+      LIMIT 1
+      `,
+      [runId]
+    );
+    const row = result.rows?.[0] || null;
+    if (!row) {
+      return res.status(404).json({ success: false, message: "Run not found" });
+    }
+    return res.json({
+      success: true,
+      run: {
+        id: row.id,
+        platform: row.platform,
+        post_id: row.post_id,
+        external_comment_id: row.external_comment_id,
+        status: row.status || "",
+        automation_status: row.automation_status || "",
+        automation_state: {
+          runtime_monitor: row.automation_state?.runtime_monitor || {},
+        },
+        public_reply_status: row.public_reply_status || "",
+        private_reply_status: row.private_reply_status || "",
+        created_at: row.created_at || null,
+        processed_at: row.processed_at || null,
+        updated_at: row.updated_at || null,
+      },
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment run debug data" });
+  }
+});
+
+router.get("/debug/by-comment", protect, requireSocialCommentsAdmin, async (req, res) => {
+  try {
+    const commentId = String(req.query?.comment_id || "").trim();
+    if (!commentId) {
+      return res.status(400).json({ success: false, message: "comment_id is required" });
+    }
+    const result = await db.query(
+      `
+      SELECT
+        id,
+        platform,
+        post_id,
+        comment_id AS external_comment_id,
+        status,
+        COALESCE(NULLIF(status, ''), NULLIF(action_taken, ''), NULLIF(public_reply_status, ''), NULLIF(dm_status, ''), '') AS automation_status,
+        automation_state,
+        public_reply_status,
+        dm_status AS private_reply_status,
+        created_at,
+        processed_at,
+        updated_at
+      FROM social_comment_automation_runs
+      WHERE comment_id = $1::text
+      ORDER BY id DESC
+      `,
+      [commentId]
+    );
+    return res.json({
+      success: true,
+      runs: (result.rows || []).map((row) => ({
+        id: row.id,
+        platform: row.platform,
+        post_id: row.post_id,
+        external_comment_id: row.external_comment_id,
+        status: row.status || "",
+        automation_status: row.automation_status || "",
+        automation_state: {
+          runtime_monitor: row.automation_state?.runtime_monitor || {},
+        },
+        public_reply_status: row.public_reply_status || "",
+        private_reply_status: row.private_reply_status || "",
+        created_at: row.created_at || null,
+        processed_at: row.processed_at || null,
+        updated_at: row.updated_at || null,
+      })),
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({ success: false, message: error?.message || "Failed to load social comment debug runs" });
   }
 });
 
