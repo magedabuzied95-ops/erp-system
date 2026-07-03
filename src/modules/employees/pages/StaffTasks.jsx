@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, CheckCircle2, Clock, ClipboardList, Pause, Pla
 import { useTranslation } from "react-i18next";
 import { staffTasksApi } from "../services/staffTasksApi";
 import usePermission from "../../permissions/hooks/usePermission";
+import { getCurrentUser, isAdminUser } from "../../../shared/auth/authStorage";
 import { subscribeRealtime, useRealtimeConnection } from "../../../shared/realtime/socketStore";
 import { getAttendanceEmployees, getBranches } from "../../attendance/attendanceApi";
 
@@ -343,6 +344,9 @@ function StaffTasks() {
   const language = i18n.language || "en";
   const isRtl = isArabicLocale(language);
   const canManageTasks = usePermission("staff_tasks.manage");
+  const currentUser = useMemo(() => getCurrentUser(), []);
+  const isAdminFallback = isAdminUser(currentUser);
+  const canDeleteTasks = canManageTasks || isAdminFallback;
   const tr = (key) => taskLabel(language, key);
   const [dashboard, setDashboard] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -392,6 +396,16 @@ function StaffTasks() {
       console.log("StaffTasks Error:", error);
     }
   }, [error]);
+
+  useEffect(() => {
+    if (!canManageTasks && isAdminFallback) {
+      console.warn("[staff-tasks] delete button enabled via admin fallback", {
+        userId: currentUser?.id || null,
+        role: currentUser?.role || currentUser?.role_name || null,
+        permission: "staff_tasks.manage",
+      });
+    }
+  }, [canManageTasks, currentUser?.id, currentUser?.role, currentUser?.role_name, isAdminFallback]);
 
   const refresh = useCallback(async () => {
     try {
@@ -573,7 +587,7 @@ function StaffTasks() {
   });
 
   const removeTask = async (task) => {
-    if (!canManageTasks) return;
+    if (!canDeleteTasks) return;
     if (!window.confirm(tr("confirmDeleteTask"))) return;
     try {
       setBusy(`delete-${task.id}`);
@@ -876,7 +890,7 @@ function StaffTasks() {
                 onComplete={completeTask}
                 onEdit={editTask}
                 onDelete={removeTask}
-                canDelete={canManageTasks}
+                canDelete={canDeleteTasks}
               />
             ))
           ) : (
