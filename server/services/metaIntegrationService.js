@@ -3,7 +3,7 @@
 import iconv from "iconv-lite";
 
 import db from "../database/db.js";
-import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { resolveCustomerDisplayPrice, formatCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl, getMetaWebhookUrl } from "../utils/publicUrl.js";
 import { emitToRooms } from "../utils/socket.js";
 import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabicMessage } from "../utils/arabicTextNormalizer.js";
@@ -13763,10 +13763,15 @@ const socialCommentSalesFlowStepFromMemory = (memory = {}) => {
 };
 
 const resolveSocialCommentSalesFlowPrice = (product = {}) => {
-  const resolved = resolveCustomerDisplayPrice(product || {});
-  const value = Number(resolved.display_price);
-  if (!Number.isFinite(value) || value <= 0) return "";
-  return String(Number.isInteger(value) ? value : Number(value.toFixed(2))).replace(/\.?0+$/g, "");
+  const resolved = resolveSocialProductDisplayPrice({
+    product: product || {},
+    context: {
+      product_id: product?.id || product?.product_id || null,
+      product_name: product?.name || product?.product_name || "",
+    },
+    callsite: "metaIntegrationService.resolveSocialCommentSalesFlowPrice",
+  });
+  return String(resolved.selected_display_price || "");
 };
 
 const logSocialCommentSalesFlowStateSaved = ({

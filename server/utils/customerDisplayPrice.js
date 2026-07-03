@@ -131,3 +131,74 @@ export const formatCustomerDisplayPrice = (value) => {
   const amount = Number(value);
   return Number.isFinite(amount) && amount > 0 ? `${Math.round(amount)} جنيه` : "";
 };
+
+const collectPriceCandidates = ({ product = {}, variants = [] } = {}) => {
+  const safeVariants = Array.isArray(variants) ? variants : [];
+  const candidates = [
+    { field: "sale_price", source: "product", value: product.sale_price },
+    { field: "selling_price", source: "product", value: product.selling_price },
+    { field: "price", source: "product", value: product.price },
+  ];
+  for (let index = 0; index < safeVariants.length; index += 1) {
+    const variant = safeVariants[index] && typeof safeVariants[index] === "object" ? safeVariants[index] : {};
+    candidates.push(
+      { field: "sale_price", source: `variant[${index}]`, value: variant.sale_price },
+      { field: "selling_price", source: `variant[${index}]`, value: variant.selling_price },
+      { field: "price", source: `variant[${index}]`, value: variant.price }
+    );
+  }
+  return candidates;
+};
+
+const toPositiveMoney = (value = null) => {
+  const normalized = String(value ?? "").replace(/[^\d.-]/g, "").trim();
+  if (!normalized) return null;
+  const amount = Number(normalized);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+};
+
+const normalizePriceText = (value = null) => {
+  const amount = toPositiveMoney(value);
+  if (amount == null) return "";
+  return Number.isInteger(amount) ? String(amount) : String(amount.toFixed(2)).replace(/\.?0+$/g, "");
+};
+
+export const resolveSocialProductDisplayPrice = ({
+  product = {},
+  variants = [],
+  context = {},
+  callsite = "",
+} = {}) => {
+  const productName = String(context.product_name || product.name || product.product_name || "").trim();
+  const productId = Number(context.product_id || product.id || product.product_id || 0) || null;
+  const candidates = collectPriceCandidates({ product, variants });
+  const selectedCandidate = candidates.find((candidate) => toPositiveMoney(candidate.value) !== null) || null;
+  const selectedPrice = selectedCandidate ? toPositiveMoney(selectedCandidate.value) : null;
+  const selectedDisplayPrice = normalizePriceText(selectedPrice);
+  const result = {
+    product_id: productId,
+    product_name: productName,
+    candidate_fields_found: candidates
+      .filter((candidate) => toPositiveMoney(candidate.value) !== null)
+      .map((candidate) => ({
+        field: `${candidate.source}.${candidate.field}`,
+        value: normalizePriceText(candidate.value),
+      })),
+    selected_field: selectedCandidate ? `${selectedCandidate.source}.${selectedCandidate.field}` : "",
+    selected_price: selectedPrice,
+    selected_display_price: selectedDisplayPrice,
+    has_valid_price: Boolean(selectedDisplayPrice),
+  };
+  if (callsite) {
+    console.log("SOCIAL_COMMENT_PRICE_RESOLVE_TRACE", {
+      callsite,
+      product_id: result.product_id,
+      product_name: result.product_name,
+      candidate_fields_found: result.candidate_fields_found,
+      selected_field: result.selected_field,
+      selected_price: result.selected_price,
+      has_valid_price: result.has_valid_price,
+    });
+  }
+  return result;
+};

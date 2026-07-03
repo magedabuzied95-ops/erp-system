@@ -7,6 +7,7 @@ import {
   buildSocialCommentSizeQuickReplies,
   normalizeSocialCommentProductContext,
   sanitizeUnifiedSocialCommentPrivateReplyMessage,
+  resolveSocialProductDisplayPrice,
 } from "./socialCommentPrivateReplyService.js";
 
 const GRAPH_API_VERSION = "v19.0";
@@ -1715,10 +1716,15 @@ const loadProductContext = async ({ businessId, productId }) => {
     [productId, businessId]
   );
   const variants = variantsResult.rows || [];
-  const priceCandidates = [product.sale_price, product.price, ...variants.map((variant) => variant.sale_price || variant.price)]
-    .map(Number)
-    .filter((value) => Number.isFinite(value) && value > 0);
-  const price = priceCandidates.length ? Math.min(...priceCandidates) : Number(product.price || 0);
+  const priceInfo = resolveSocialProductDisplayPrice({
+    product,
+    variants,
+    context: {
+      product_id: product.id || null,
+      product_name: product.name || "",
+    },
+    callsite: "marketingCommentAutomationService.loadProductContext",
+  });
   const totalStock = variants.length
     ? variants.reduce((sum, variant) => sum + Number(variant.stock || 0), 0)
     : Number(product.stock || 0);
@@ -1733,7 +1739,7 @@ const loadProductContext = async ({ businessId, productId }) => {
     : Number(product.stock || 0) > 0 ? `متاح (${product.stock})` : "يرجى تأكيد التوفر مع الفريق";
   return {
     product_name: product.name || "",
-    price: String(price || ""),
+    price: String(priceInfo.selected_display_price || ""),
     variants: variantLines,
     brand: product.brand_name || "",
     invoice_link: "",

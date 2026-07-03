@@ -1,5 +1,5 @@
 import db from "../database/db.js";
-import { resolveCustomerDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { resolveCustomerDisplayPrice, resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
 
 const text = (value = "") => String(value ?? "").trim();
@@ -104,6 +104,7 @@ const normalizePriceText = (value = "") => {
   if (!normalized) return "";
   const parsed = toFiniteNumber(normalized);
   if (!Number.isFinite(parsed)) return normalized;
+  if (parsed <= 0) return "";
   return Number.isInteger(parsed) ? String(parsed) : String(parsed.toFixed(2)).replace(/\.?0+$/g, "");
 };
 
@@ -125,18 +126,34 @@ const pickFirstPrice = (...values) => priceCandidates(...values)[0] || "";
 const resolveSocialCommentDisplayPrice = ({
   base = {},
   primaryProduct = {},
+  variants = [],
+  callsite = "",
 } = {}) => {
+  const socialPriceInfo = resolveSocialProductDisplayPrice({
+    product: {
+      ...primaryProduct,
+      ...base,
+      product: primaryProduct,
+    },
+    variants,
+    context: {
+      product_id: base.product_id || primaryProduct.product_id || primaryProduct.id || null,
+      product_name: base.product_name || primaryProduct.name || primaryProduct.product_name || "",
+    },
+    callsite,
+  });
   const resolved = resolveCustomerDisplayPrice({
     ...primaryProduct,
     ...base,
     product: primaryProduct,
   });
-  const displayPrice = normalizePriceText(resolved.display_price);
+  const displayPrice = normalizePriceText(socialPriceInfo.selected_display_price || resolved.display_price);
   const oldPrice = normalizePriceText(resolved.old_price);
   return {
     priceUsed: displayPrice,
     salePriceUsed: resolved.sale_active ? displayPrice : "",
     regularPriceUsed: oldPrice || (!resolved.sale_active ? displayPrice : ""),
+    hasValidPrice: socialPriceInfo.has_valid_price,
   };
 };
 
@@ -240,6 +257,21 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
     ""
   );
   const productName = text(productContext?.product_name || primaryProduct?.name || primaryProduct?.product_name || "") || "المنتج";
+  const priceResolution = resolveSocialCommentDisplayPrice({
+    base: {
+      sale_active: productContext?.sale_active ?? productContext?.is_sale_active ?? productContext?.on_sale ?? productContext?.sale_enabled ?? productContext?.discount_enabled ?? productContext?.has_sale,
+      sale_price: productContext?.sale_price,
+      selling_price: productContext?.selling_price,
+      price: productContext?.price,
+      regular_price: productContext?.final_price,
+    },
+    primaryProduct: {
+      ...primaryProduct,
+      sale_active: primaryProduct?.sale_active ?? primaryProduct?.is_sale_active ?? primaryProduct?.on_sale ?? primaryProduct?.sale_enabled ?? primaryProduct?.discount_enabled ?? primaryProduct?.has_sale,
+    },
+    variants: availableVariantRows,
+    callsite: "socialCommentPrivateReplyService.normalizeSocialCommentProductContext",
+  });
   return {
     hasProductContext: Boolean(productContext?.found || productContext?.has_product_context),
     productId,
@@ -250,45 +282,9 @@ export const normalizeSocialCommentProductContext = async ({ tenantId = null, pr
     availableVariantRows,
     productLink,
     productImageUrl,
-    priceUsed: resolveSocialCommentDisplayPrice({
-      base: {
-        sale_active: productContext?.sale_active ?? productContext?.is_sale_active ?? productContext?.on_sale ?? productContext?.sale_enabled ?? productContext?.discount_enabled ?? productContext?.has_sale,
-        sale_price: productContext?.sale_price,
-        selling_price: productContext?.selling_price,
-        price: productContext?.price,
-        regular_price: productContext?.final_price,
-      },
-      primaryProduct: {
-        ...primaryProduct,
-        sale_active: primaryProduct?.sale_active ?? primaryProduct?.is_sale_active ?? primaryProduct?.on_sale ?? primaryProduct?.sale_enabled ?? primaryProduct?.discount_enabled ?? primaryProduct?.has_sale,
-      },
-    }).priceUsed,
-    salePriceUsed: resolveSocialCommentDisplayPrice({
-      base: {
-        sale_active: productContext?.sale_active ?? productContext?.is_sale_active ?? productContext?.on_sale ?? productContext?.sale_enabled ?? productContext?.discount_enabled ?? productContext?.has_sale,
-        sale_price: productContext?.sale_price,
-        selling_price: productContext?.selling_price,
-        price: productContext?.price,
-        regular_price: productContext?.final_price,
-      },
-      primaryProduct: {
-        ...primaryProduct,
-        sale_active: primaryProduct?.sale_active ?? primaryProduct?.is_sale_active ?? primaryProduct?.on_sale ?? primaryProduct?.sale_enabled ?? primaryProduct?.discount_enabled ?? primaryProduct?.has_sale,
-      },
-    }).salePriceUsed,
-    regularPriceUsed: resolveSocialCommentDisplayPrice({
-      base: {
-        sale_active: productContext?.sale_active ?? productContext?.is_sale_active ?? productContext?.on_sale ?? productContext?.sale_enabled ?? productContext?.discount_enabled ?? productContext?.has_sale,
-        sale_price: productContext?.sale_price,
-        selling_price: productContext?.selling_price,
-        price: productContext?.price,
-        regular_price: productContext?.final_price,
-      },
-      primaryProduct: {
-        ...primaryProduct,
-        sale_active: primaryProduct?.sale_active ?? primaryProduct?.is_sale_active ?? primaryProduct?.on_sale ?? primaryProduct?.sale_enabled ?? primaryProduct?.discount_enabled ?? primaryProduct?.has_sale,
-      },
-    }).regularPriceUsed,
+    priceUsed: priceResolution.priceUsed,
+    salePriceUsed: priceResolution.salePriceUsed,
+    regularPriceUsed: priceResolution.regularPriceUsed,
   };
 };
 
@@ -298,10 +294,10 @@ const buildProductReplySections = ({ customerName = "", normalizedContext = {} }
     "",
     normalizedContext.productName || "المنتج",
   ];
-  if (normalizedContext.priceUsed) {
+  if (hasUsablePriceValue(normalizedContext.priceUsed)) {
     sections.push(
       "",
-      `السعر: ${normalizedContext.priceUsed} جنيه`
+      `السعر: ${normalizePriceText(normalizedContext.priceUsed)} جنيه`
     );
   }
   sections.push(
@@ -341,7 +337,7 @@ const sanitizeRenderedPrivateReplyMessage = ({
 } = {}) => {
   const rawLines = String(message || "").replace(/\r\n/g, "\n").split("\n");
   const cleanedLines = [];
-  const hasPrice = Boolean(text(normalizedContext.priceUsed));
+  const hasPrice = hasUsablePriceValue(normalizedContext.priceUsed);
   const hasSizes = Array.isArray(normalizedContext.availableSizes) && normalizedContext.availableSizes.length > 0;
   const sizesInlineValue = hasSizes ? normalizedContext.availableSizes.join(" | ") : DEFAULT_SIZE_FALLBACK;
 
@@ -562,8 +558,8 @@ export const buildSocialCommentOrderSummaryMessage = ({
     `المقاس: ${text(selectedSize) || "-"}`,
     `اللون: ${normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL}`,
   ];
-  if (text(priceUsed)) {
-    sections.push(`السعر: ${text(priceUsed)} جنيه`);
+  if (hasUsablePriceValue(priceUsed)) {
+    sections.push(`السعر: ${normalizePriceText(priceUsed)} جنيه`);
   }
   sections.push("", "هل تحب نكمل الطلب؟");
   return sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -678,8 +674,8 @@ export const buildSocialCommentOrderPreviewMessage = ({
     "اللون",
     normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL,
   ];
-  if (text(priceUsed)) {
-    sections.push("", "السعر", `${text(priceUsed)} جنيه`);
+  if (hasUsablePriceValue(priceUsed)) {
+    sections.push("", "السعر", `${normalizePriceText(priceUsed)} جنيه`);
   }
   sections.push("", "━━━━━━━━━━━━");
   return sections.join("\n").replace(/\n{3,}/g, "\n\n").trim();
@@ -722,7 +718,7 @@ export const buildSocialCommentOrderReviewMessage = ({
     normalizeSocialCommentColorDisplay(selectedColor) || DEFAULT_COLOR_LABEL,
     "",
     "السعر",
-    text(priceUsed) ? `${text(priceUsed)} جنيه` : "-",
+    hasUsablePriceValue(priceUsed) ? `${normalizePriceText(priceUsed)} جنيه` : "-",
     "",
     "━━━━━━━━━━━━",
   ];
