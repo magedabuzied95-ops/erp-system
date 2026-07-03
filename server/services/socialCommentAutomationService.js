@@ -2196,16 +2196,56 @@ const executeSocialCommentAutomationRuntime = async ({
     postId: safePostId,
     runId: safeCurrentRunId,
   });
+  let terminalFlowEventEmitted = false;
+  const emitFlowExit = ({
+    exitReason = "",
+    exitType = "return",
+    terminalStage = "FLOW_EXIT",
+    rowOverride = safeRow,
+    extra = {},
+  } = {}) => {
+    if (terminalFlowEventEmitted) return;
+    terminalFlowEventEmitted = true;
+    logSocialCommentFlowStep(terminalStage, buildSocialCommentFlowLogPayload({
+      stage: terminalStage,
+      tenantId: safeTenantId,
+      commentId: safeCommentId,
+      postId: safePostId,
+      runId: safeCurrentRunId,
+      correlationId,
+      row: rowOverride || safeRow,
+      extra: {
+        exit_reason: text(exitReason),
+        exit_type: text(exitType),
+        ...extra,
+      },
+    }));
+  };
+  const returnWithFlowExit = (result, {
+    exitReason = "",
+    exitType = "return",
+    rowOverride = safeRow,
+    extra = {},
+  } = {}) => {
+    emitFlowExit({
+      exitReason,
+      exitType,
+      rowOverride,
+      extra,
+    });
+    return result;
+  };
   logSocialCommentFlowStep("FLOW_ENTER", buildSocialCommentFlowLogPayload({
     stage: "FLOW_ENTER",
     tenantId: safeTenantId,
     commentId: safeCommentId,
     postId: safePostId,
     runId: safeCurrentRunId,
-    correlationId,
-    row: safeRow,
-    extra: { source: runtimeSource },
-  }));
+      correlationId,
+      row: safeRow,
+      extra: { source: runtimeSource },
+    }));
+  try {
   const buildCurrentDiagnostics = ({ skippedReason = "", duplicateReason = "", rawRuntimeContext = null, configOverride = config, productContextOverride = productContext } = {}) =>
     buildAutomationRunDiagnostics({
       row: safeRow,
@@ -2251,7 +2291,7 @@ const executeSocialCommentAutomationRuntime = async ({
       comment_id: safeCommentId,
       reason: "invalid_tenant",
     });
-    return { applied: false, skipped: true, reason: "invalid_tenant", row: safeRow, step_results: stepResults };
+    return returnWithFlowExit({ applied: false, skipped: true, reason: "invalid_tenant", row: safeRow, step_results: stepResults }, { exitReason: "invalid_tenant", exitType: "guard" });
   }
   if (!safePostId) {
     const diagnostics = buildCurrentDiagnostics({ skippedReason: "post_mismatch" });
@@ -2283,7 +2323,7 @@ const executeSocialCommentAutomationRuntime = async ({
       comment_id: safeCommentId,
       reason: "missing_post_id",
     });
-    return { applied: false, skipped: true, reason: "missing_post_id", row: safeRow, step_results: stepResults };
+    return returnWithFlowExit({ applied: false, skipped: true, reason: "missing_post_id", row: safeRow, step_results: stepResults }, { exitReason: "missing_post_id", exitType: "guard" });
   }
   if (!safeCommentId) {
     const diagnostics = buildCurrentDiagnostics({ skippedReason: "missing_comment_id" });
@@ -2315,7 +2355,7 @@ const executeSocialCommentAutomationRuntime = async ({
       comment_id: null,
       reason: "missing_comment_id",
     });
-    return { applied: false, skipped: true, reason: "missing_comment_id", row: safeRow, step_results: stepResults };
+    return returnWithFlowExit({ applied: false, skipped: true, reason: "missing_comment_id", row: safeRow, step_results: stepResults }, { exitReason: "missing_comment_id", exitType: "guard" });
   }
   if (normalizedPlatform !== "facebook") {
     const diagnostics = buildCurrentDiagnostics({ skippedReason: "unsupported_platform" });
@@ -2347,7 +2387,7 @@ const executeSocialCommentAutomationRuntime = async ({
       comment_id: safeCommentId,
       reason: "unsupported_platform",
     });
-    return { applied: false, skipped: true, reason: "unsupported_platform", row: safeRow, step_results: stepResults };
+    return returnWithFlowExit({ applied: false, skipped: true, reason: "unsupported_platform", row: safeRow, step_results: stepResults }, { exitReason: "unsupported_platform", exitType: "guard" });
   }
 
   const existingDuplicateRun = await findSocialCommentAutomationRunByKey({
@@ -2514,20 +2554,16 @@ const executeSocialCommentAutomationRuntime = async ({
       comment_id: safeCommentId,
       reason: "duplicate_comment_automation",
     });
-  logSocialCommentFlowStep("FLOW_DUPLICATE_EXIT", buildSocialCommentFlowLogPayload({
-      stage: "DUPLICATE_EXIT",
-      tenantId: safeTenantId,
-      commentId: safeCommentId,
-      postId: safePostId,
-      runId: safeCurrentRunId,
-      correlationId,
-      existingRun: existingDuplicateRun || null,
-      row: safeRow,
+  emitFlowExit({
+      exitReason: "duplicate_comment_automation",
+      exitType: "duplicate",
+      terminalStage: "FLOW_DUPLICATE_EXIT",
+      rowOverride: safeRow,
       extra: {
         duplicate_reason: "duplicate_comment_automation",
         existing_run_timestamps: buildSocialCommentRunTimestampSnapshot(existingDuplicateRun || {}),
       },
-    }));
+    });
     return {
       applied: false,
       skipped: true,
@@ -2568,7 +2604,7 @@ const executeSocialCommentAutomationRuntime = async ({
       comment_id: safeCommentId,
       reason: "no_config",
     });
-    return { applied: false, skipped: true, reason: "no_config", row: safeRow, step_results: stepResults };
+    return returnWithFlowExit({ applied: false, skipped: true, reason: "no_config", row: safeRow, step_results: stepResults }, { exitReason: "no_config", exitType: "no_config" });
   }
 
   if (!config.enabled) {
@@ -2603,7 +2639,7 @@ const executeSocialCommentAutomationRuntime = async ({
       comment_id: safeCommentId,
       reason: "config_disabled",
     });
-    return { applied: false, skipped: true, reason: "config_disabled", row: safeRow, step_results: stepResults };
+    return returnWithFlowExit({ applied: false, skipped: true, reason: "config_disabled", row: safeRow, step_results: stepResults }, { exitReason: "config_disabled", exitType: "disabled" });
   }
 
   if (config.lookup_matched_key && config.lookup_matched_key !== "post_id") {
@@ -2704,7 +2740,7 @@ const executeSocialCommentAutomationRuntime = async ({
       comment_id: safeCommentId,
       reason: "no_linked_product",
     });
-    return { applied: false, skipped: true, reason: "no_linked_product", row: safeRow, step_results: stepResults };
+    return returnWithFlowExit({ applied: false, skipped: true, reason: "no_linked_product", row: safeRow, step_results: stepResults }, { exitReason: "no_linked_product", exitType: "no_product" });
   }
 
   const websiteLinks = await resolveAutomationWebsiteLinks({
@@ -3470,19 +3506,16 @@ const executeSocialCommentAutomationRuntime = async ({
     privateReplyReason: text(privateReplyStepResult?.reason || ""),
     source: runtimeSource,
   });
-  logSocialCommentFlowStep("FLOW_COMPLETE", buildSocialCommentFlowLogPayload({
-    stage: "COMPLETE",
-    tenantId: safeTenantId,
-    commentId: safeCommentId,
-    postId: safePostId,
-    runId: safeCurrentRunId,
-    correlationId,
-    row: workingRow,
+  emitFlowExit({
+    exitReason: "success",
+    exitType: "success",
+    terminalStage: "FLOW_COMPLETE",
+    rowOverride: workingRow,
     extra: {
       status: text(workingRow.dm_status || workingRow.public_reply_status || workingRow.like_status || ""),
       step_results: stepResults,
     },
-  }));
+  });
 
   return {
     applied: true,
@@ -3491,6 +3524,26 @@ const executeSocialCommentAutomationRuntime = async ({
     step_results: stepResults,
     config,
   };
+  } catch (error) {
+    console.error("SOCIAL_COMMENT_FLOW_EXCEPTION", {
+      correlation_id: correlationId,
+      comment_id: safeCommentId,
+      tenant_id: safeTenantId || null,
+      run_id: safeCurrentRunId,
+      message: error?.message || "",
+      stack: error?.stack || "",
+    });
+    emitFlowExit({
+      exitReason: error?.message || "runtime_exception",
+      exitType: "catch",
+      terminalStage: "FLOW_EXCEPTION",
+      rowOverride: safeRow,
+      extra: {
+        exception_name: text(error?.name || ""),
+      },
+    });
+    throw error;
+  }
 };
 
 export const resolveSocialCommentPublishedProductContext = async ({ tenantId = null, row = {} } = {}) => {
