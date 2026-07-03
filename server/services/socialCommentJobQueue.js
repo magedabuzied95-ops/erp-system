@@ -1,5 +1,5 @@
-const MAX_CONCURRENCY = 2;
-const MAX_RETRIES = 3;
+const LEGACY_MAX_CONCURRENCY = 2;
+const LEGACY_MAX_RETRIES = 3;
 const JOB_METRICS_WINDOW = 120;
 
 const queue = [];
@@ -13,6 +13,19 @@ let pumpScheduled = false;
 let nextWakeTimer = null;
 
 const text = (value = "") => String(value ?? "").trim();
+const featureFlagEnabled = (value = "") => ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
+const getQueueConcurrency = () => {
+  if (!featureFlagEnabled(process.env.SOCIAL_COMMENTS_FAST_REPLY_ENABLED || "false")) {
+    return LEGACY_MAX_CONCURRENCY;
+  }
+  return Math.max(1, Number(process.env.SOCIAL_COMMENTS_PARALLEL_WORKERS || 1) || 1);
+};
+const getQueueMaxRetries = () => {
+  if (!featureFlagEnabled(process.env.SOCIAL_COMMENTS_FAST_REPLY_ENABLED || "false")) {
+    return LEGACY_MAX_RETRIES;
+  }
+  return Math.max(1, Math.min(5, Number(process.env.SOCIAL_COMMENTS_JOB_MAX_RETRIES || LEGACY_MAX_RETRIES) || LEGACY_MAX_RETRIES));
+};
 
 const normalizeJob = (job = {}) => ({
   type: text(job.type || ""),
@@ -153,8 +166,9 @@ export const processSocialCommentJob = async (job = {}) => {
 };
 
 const pumpQueue = async () => {
-  if (activeJobs >= MAX_CONCURRENCY) return;
-  while (activeJobs < MAX_CONCURRENCY) {
+  const maxConcurrency = getQueueConcurrency();
+  if (activeJobs >= maxConcurrency) return;
+  while (activeJobs < maxConcurrency) {
     const { job, delayMs } = dequeueReadyJob();
     if (!job) {
       if (delayMs !== null) schedulePump(delayMs);
@@ -201,7 +215,7 @@ const pumpQueue = async () => {
           message: errorMessage,
         });
 
-        if (job.attempts <= MAX_RETRIES) {
+        if (job.attempts <= getQueueMaxRetries()) {
           retryCount += 1;
           job.available_at = Date.now() + Math.min(1000 * job.attempts, 10_000);
           queue.push(job);
@@ -264,12 +278,13 @@ export const startSocialCommentJobWorker = () => {
   }
   globalThis.__SOCIAL_COMMENT_JOB_WORKER_STARTED__ = true;
   console.log("SOCIAL_COMMENT_JOB_WORKER_STARTED", {
-    concurrency: MAX_CONCURRENCY,
-    retries: MAX_RETRIES,
+    concurrency: getQueueConcurrency(),
+    retries: getQueueMaxRetries(),
+    fast_reply_enabled: featureFlagEnabled(process.env.SOCIAL_COMMENTS_FAST_REPLY_ENABLED || "false"),
     at: new Date().toISOString(),
   });
   schedulePump(0);
-  return { started: true, concurrency: MAX_CONCURRENCY };
+  return { started: true, concurrency: getQueueConcurrency() };
 };
 
 export const getSocialCommentJobQueueStatus = () => ({
@@ -281,4 +296,7 @@ export const getSocialCommentJobQueueStatus = () => ({
   dropped_count: droppedCount,
   job_avg_ms: summarizeRollingMetric(jobDurationsMs).avg,
   job_p95_ms: summarizeRollingMetric(jobDurationsMs).p95,
+  configured_concurrency: getQueueConcurrency(),
+  configured_retries: getQueueMaxRetries(),
+  fast_reply_enabled: featureFlagEnabled(process.env.SOCIAL_COMMENTS_FAST_REPLY_ENABLED || "false"),
 });

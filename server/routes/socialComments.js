@@ -435,6 +435,57 @@ router.get("/jobs/status", protect, permit("settings", "view"), async (_req, res
   }
 });
 
+router.get("/jobs/recent", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const limit = Math.min(50, Math.max(1, Number(req.query?.limit || 50) || 50));
+    const { listSocialCommentAutomationRuns } = await getSocialCommentAutomationRouteDeps();
+    const runs = await listSocialCommentAutomationRuns({ tenantId, limit });
+    return res.json({
+      success: true,
+      items: runs.map((run) => {
+        const runtimeMonitor = run.automation_state?.runtime_monitor || {};
+        const latencySummary = runtimeMonitor.latency_summary || {};
+        return {
+          id: run.id || null,
+          tenant_id: run.tenant_id || tenantId,
+          platform: clean(run.platform || ""),
+          post_id: clean(run.post_id || ""),
+          comment_id: clean(run.comment_id || ""),
+          conversation_id: clean(run.inbox_conversation_id || ""),
+          customer_name: clean(run.commenter_name || run.customer_name || ""),
+          status: clean(run.status || runtimeMonitor.status || run.public_reply_status || run.dm_status || run.like_status || "queued"),
+          public_reply_status: clean(run.public_reply_status || ""),
+          private_reply_status: clean(run.dm_status || ""),
+          like_status: clean(run.like_status || ""),
+          skipped_reason: clean(run.skipped_reason || runtimeMonitor.skipped_reason || ""),
+          error_message: clean(run.error_message || run.error_code || runtimeMonitor.error_message || ""),
+          webhook_to_enqueue_ms: latencySummary.webhook_to_enqueue_ms ?? null,
+          enqueue_to_ai_start_ms: latencySummary.enqueue_to_ai_start_ms ?? null,
+          ai_generation_ms: latencySummary.ai_generation_ms ?? null,
+          send_ms: latencySummary.send_ms ?? null,
+          total_comment_reply_ms: latencySummary.total_comment_reply_ms ?? null,
+          latency_trace: runtimeMonitor.latency_trace || {},
+          created_at: run.created_at || null,
+          updated_at: run.updated_at || null,
+        };
+      }),
+      total: runs.length,
+    });
+  } catch (error) {
+    console.error("SOCIAL_COMMENTS_POST_FEED_ERROR", {
+      route: "/api/social-comments/jobs/recent",
+      message: error?.message || "Failed to load recent social comment jobs",
+      stack: error?.stack || "",
+      post_id: "",
+    });
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to load recent social comment jobs",
+    });
+  }
+});
+
 router.get("/performance/summary", protect, permit("settings", "view"), async (_req, res) => {
   try {
     const fastListMetrics = getSocialCommentsPerformanceMetrics();

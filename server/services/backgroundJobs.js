@@ -21,6 +21,45 @@ const parseDateOrNull = (value = null) => {
   const parsed = value instanceof Date ? value : new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
+const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+const computeSocialCommentLatencySummary = (trace = {}) => {
+  const parse = (value) => parseDateOrNull(value || null);
+  const diff = (end, start) => (end && start ? Math.max(0, end.getTime() - start.getTime()) : null);
+  const webhookReceivedAt = parse(trace.webhook_received_at);
+  const detectedAt = parse(trace.detected_at || trace.webhook_received_at);
+  const enqueueAt = parse(trace.enqueue_at);
+  const dequeueAt = parse(trace.dequeue_at);
+  const aiStartedAt = parse(trace.ai_started_at);
+  const aiCompletedAt = parse(trace.ai_completed_at);
+  const sendStartedAt = parse(trace.send_started_at);
+  const sendCompletedAt = parse(trace.send_completed_at);
+  return {
+    webhook_to_enqueue_ms: diff(enqueueAt, webhookReceivedAt),
+    enqueue_to_ai_start_ms: diff(aiStartedAt, enqueueAt || dequeueAt),
+    ai_generation_ms: diff(aiCompletedAt, aiStartedAt),
+    send_ms: diff(sendCompletedAt, sendStartedAt),
+    total_comment_reply_ms: diff(sendCompletedAt || aiCompletedAt, detectedAt || webhookReceivedAt),
+  };
+};
+const withSocialCommentLatencyState = ({ row = {}, automationState = {}, patch = {}, status = "", errorMessage = "" } = {}) => {
+  const safeState = metadataObject(automationState || {});
+  const currentMonitor = metadataObject(safeState.runtime_monitor || row.automation_state?.runtime_monitor || {});
+  const nextTrace = {
+    ...metadataObject(currentMonitor.latency_trace || row.automation_state?.runtime_monitor?.latency_trace || {}),
+    ...metadataObject(patch || {}),
+  };
+  return {
+    ...safeState,
+    runtime_monitor: {
+      ...currentMonitor,
+      status: String(status || currentMonitor.status || "").trim(),
+      error_message: String(errorMessage || currentMonitor.error_message || "").trim(),
+      latency_trace: nextTrace,
+      latency_summary: computeSocialCommentLatencySummary(nextTrace),
+      updated_at: new Date().toISOString(),
+    },
+  };
+};
 const isSocialCommentsDebugEnabled = () => String(process.env.DEBUG_SOCIAL_COMMENTS || "").toLowerCase() === "true";
 const debugSocialCommentsLog = (...args) => {
   if (isSocialCommentsDebugEnabled()) console.log(...args);
@@ -329,6 +368,23 @@ export const registerBackgroundJobHandlers = () => {
       since_enqueue_ms: enqueueAt ? dequeueAt.getTime() - enqueueAt.getTime() : null,
       attempt: job?.attemptsMade || 1,
     });
+    row.automation_state = withSocialCommentLatencyState({
+      row,
+      automationState: row.automation_state,
+      patch: {
+        dequeue_at: dequeueAt.toISOString(),
+        ai_started_at: dequeueAt.toISOString(),
+      },
+      status: "processing",
+    });
+    await persistSocialCommentAutomationState({
+      tenantId,
+      platform,
+      commentId,
+      sessionId: row.inbox_conversation_id || "",
+      channel: row.channel || "",
+      automationState: row.automation_state,
+    }).catch(() => null);
     const dequeuedProductContext = row.product_context || row.raw_payload?.product_context || null;
     const dequeuedReplyPreview = String(
       row.automation_state?.private_reply?.rendered_reply ||
@@ -557,13 +613,8 @@ export const registerBackgroundJobHandlers = () => {
       post_id: postId || row.post_id || "",
     });
     try {
-      await persistSocialCommentAutomationState({
-        tenantId,
-        platform,
-        commentId,
-        sessionId: row.inbox_conversation_id || "",
-        channel: row.channel || "",
-        dmStatus: "sending",
+      const sendingState = withSocialCommentLatencyState({
+        row,
         automationState: {
           ...(row.automation_state || {}),
           private_reply: {
@@ -573,7 +624,21 @@ export const registerBackgroundJobHandlers = () => {
             updated_at: new Date().toISOString(),
           },
         },
+        patch: {
+          ai_completed_at: new Date().toISOString(),
+        },
+        status: "sending",
       });
+      await persistSocialCommentAutomationState({
+        tenantId,
+        platform,
+        commentId,
+        sessionId: row.inbox_conversation_id || "",
+        channel: row.channel || "",
+        dmStatus: "sending",
+        automationState: sendingState,
+      });
+      row.automation_state = sendingState;
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_PRE_SEND_STAGE", {
         stage: "persist_sending_done",
         comment_id: commentId,
@@ -640,6 +705,23 @@ export const registerBackgroundJobHandlers = () => {
         post_id: postId || row.post_id || "",
       });
       const sendStartAt = new Date();
+      row.automation_state = withSocialCommentLatencyState({
+        row,
+        automationState: row.automation_state,
+        patch: {
+          send_started_at: sendStartAt.toISOString(),
+        },
+        status: "sending",
+      });
+      await persistSocialCommentAutomationState({
+        tenantId,
+        platform,
+        commentId,
+        sessionId: row.inbox_conversation_id || "",
+        channel: row.channel || "",
+        dmStatus: "sending",
+        automationState: row.automation_state,
+      }).catch(() => null);
       console.log("SOCIAL_COMMENT_LATENCY_SEND_START", {
         comment_id: commentId,
         post_id: postId || row.post_id || "",
@@ -680,6 +762,23 @@ export const registerBackgroundJobHandlers = () => {
         ok: true,
         external_id: result?.id || result?.message_id || result?.reply_id || "",
       });
+      const sentAt = new Date().toISOString();
+      row.automation_state = withSocialCommentLatencyState({
+        row,
+        automationState: {
+          ...(row.automation_state || {}),
+          private_reply: {
+            ...(row.automation_state?.private_reply || {}),
+            status: "sent",
+            sent_at: sentAt,
+            updated_at: sentAt,
+          },
+        },
+        patch: {
+          send_completed_at: sentAt,
+        },
+        status: "sent",
+      });
       await persistSocialCommentAutomationState({
         tenantId,
         platform,
@@ -688,15 +787,7 @@ export const registerBackgroundJobHandlers = () => {
         channel: row.channel || "",
         dmStatus: "sent",
         errorCode: "",
-        automationState: {
-          ...(row.automation_state || {}),
-          private_reply: {
-            ...(row.automation_state?.private_reply || {}),
-            status: "sent",
-            sent_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          },
-        },
+        automationState: row.automation_state,
       }).catch(() => {});
       console.log("[social-comments][private-reply] sent", {
         tenant_id: tenantId,
@@ -772,6 +863,7 @@ export const registerBackgroundJobHandlers = () => {
         )
       );
       if (alreadyReplied) {
+        const duplicateSentAt = new Date().toISOString();
         console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ALREADY_REPLIED", {
           tenant_id: tenantId,
           platform,
@@ -788,16 +880,24 @@ export const registerBackgroundJobHandlers = () => {
           channel: row.channel || "",
           dmStatus: "sent",
           errorCode: "",
-          automationState: {
-            ...(row.automation_state || {}),
-            private_reply: {
-              ...(row.automation_state?.private_reply || {}),
-              status: "duplicate",
-              reason: "already_replied",
-              sent_at: row.automation_state?.private_reply?.sent_at || new Date().toISOString(),
-              updated_at: new Date().toISOString(),
+          automationState: withSocialCommentLatencyState({
+            row,
+            automationState: {
+              ...(row.automation_state || {}),
+              private_reply: {
+                ...(row.automation_state?.private_reply || {}),
+                status: "duplicate",
+                reason: "already_replied",
+                sent_at: row.automation_state?.private_reply?.sent_at || duplicateSentAt,
+                updated_at: duplicateSentAt,
+              },
             },
-          },
+            patch: {
+              send_completed_at: duplicateSentAt,
+            },
+            status: "duplicate",
+            errorMessage: messageText,
+          }),
         }).catch(() => {});
         console.log("SOCIAL_COMMENT_PRIVATE_REPLY_EXIT", buildPrivateReplyExitPayload({
           reason: "already_replied",
@@ -828,6 +928,7 @@ export const registerBackgroundJobHandlers = () => {
       }
       const retryable = status === 429 || status >= 500 || /timeout|timed out|fetch failed|network|ECONNREFUSED|ENOTFOUND/i.test(messageText);
       if (job?.attemptsMade >= (job?.maxAttempts || 1)) {
+        const failedAt = new Date().toISOString();
         await persistSocialCommentAutomationState({
           tenantId,
           platform,
@@ -836,15 +937,23 @@ export const registerBackgroundJobHandlers = () => {
           channel: row.channel || "",
           dmStatus: "failed",
           errorCode: "private_reply_failed",
-          automationState: {
-            ...(row.automation_state || {}),
-            private_reply: {
-              ...(row.automation_state?.private_reply || {}),
-              status: "failed",
-              error: messageText,
-              updated_at: new Date().toISOString(),
+          automationState: withSocialCommentLatencyState({
+            row,
+            automationState: {
+              ...(row.automation_state || {}),
+              private_reply: {
+                ...(row.automation_state?.private_reply || {}),
+                status: "failed",
+                error: messageText,
+                updated_at: failedAt,
+              },
             },
-          },
+            patch: {
+              send_completed_at: failedAt,
+            },
+            status: "failed",
+            errorMessage: messageText,
+          }),
         }).catch(() => {});
       }
       debugSocialCommentsWarn("[social-comments][private-reply] failed", {

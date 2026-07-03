@@ -21178,6 +21178,7 @@ export const sendMetaInboxOutboundMessage = async ({
 
 export const processMetaWebhook = async ({ req } = {}) => {
   const payload = req.body || {};
+  const webhookReceivedAt = new Date().toISOString();
   console.log("[META_WEBHOOK_ENTRY]", {
     object: payload?.object || "",
     entry_count: Array.isArray(payload.entry) ? payload.entry.length : 0,
@@ -21249,7 +21250,16 @@ export const processMetaWebhook = async ({ req } = {}) => {
   const appSecret = decryptSecret(config.app_secret_encrypted);
   const signatureOk = verifyMetaWebhookSignature({ rawBody: req.rawBody, signature: req.headers?.["x-hub-signature-256"], appSecret });
   if (!signatureOk) throw Object.assign(new Error("Invalid Meta webhook signature"), { status: 403 });
-  const commentEvents = extractSocialCommentWebhookEvents({ body: payload, tenantId: config.tenant_id });
+  const commentEvents = extractSocialCommentWebhookEvents({ body: payload, tenantId: config.tenant_id }).map((event) => ({
+    ...event,
+    webhook_received_at: webhookReceivedAt,
+    detected_at: webhookReceivedAt,
+    raw_payload: {
+      ...(event.raw_payload && typeof event.raw_payload === "object" ? event.raw_payload : {}),
+      webhook_received_at: webhookReceivedAt,
+      detected_at: webhookReceivedAt,
+    },
+  }));
   const storedCommentEvents = commentEvents.length
     ? await storeSocialCommentAutomationRuns({ tenantId: config.tenant_id, events: commentEvents })
     : [];

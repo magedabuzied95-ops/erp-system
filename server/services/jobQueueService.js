@@ -3,7 +3,7 @@ const memoryQueue = [];
 const deadLetterQueue = [];
 const jobStatuses = new Map();
 const activeDedupeKeys = new Map();
-let running = false;
+let activeJobs = 0;
 let jobId = 0;
 let scheduledRunTimer = null;
 let scheduledRunAt = null;
@@ -46,6 +46,11 @@ const clampNumber = (value, fallback, min = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.max(min, parsed) : fallback;
 };
+const featureFlagEnabled = (value = "") => ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
+const getJobQueueConcurrency = () =>
+  featureFlagEnabled(process.env.SOCIAL_COMMENTS_FAST_REPLY_ENABLED || "false")
+    ? Math.max(1, Number(process.env.SOCIAL_COMMENTS_PARALLEL_WORKERS || 1) || 1)
+    : 1;
 
 const trimTrackedMap = (map, limit) => {
   while (map.size > limit) {
@@ -133,14 +138,7 @@ export const registerJobQueueAdapter = (adapter = null) => {
   return { registered: Boolean(persistentAdapter), name: persistentAdapter?.name || null };
 };
 
-const runNext = async () => {
-  if (running || QUEUE_DISABLED) return;
-  const { job, delayMs } = getNextReadyJob();
-  if (!job) {
-    if (delayMs !== null) scheduleRun(delayMs);
-    return;
-  }
-  running = true;
+const executeJob = async (job) => {
   const startedAt = Date.now();
   const context = getJobContext(job);
   job.attemptsMade += 1;
@@ -191,8 +189,22 @@ const runNext = async () => {
       clearDedupeKey(job);
     }
   } finally {
-    running = false;
+    activeJobs = Math.max(0, activeJobs - 1);
     if (memoryQueue.length) scheduleRun(0);
+  }
+};
+
+const runNext = async () => {
+  if (QUEUE_DISABLED) return;
+  const maxConcurrency = getJobQueueConcurrency();
+  while (activeJobs < maxConcurrency) {
+  const { job, delayMs } = getNextReadyJob();
+  if (!job) {
+    if (delayMs !== null) scheduleRun(delayMs);
+    return;
+  }
+    activeJobs += 1;
+    void executeJob(job);
   }
 };
 
@@ -261,7 +273,9 @@ export const queueStatus = () => ({
   trackedStatuses: jobStatuses.size,
   activeDedupeKeys: activeDedupeKeys.size,
   handlers: Array.from(handlers.keys()),
-  running,
+  running: activeJobs > 0,
+  activeJobs,
+  configuredConcurrency: getJobQueueConcurrency(),
 });
 
 export const getJobStatus = (id) => jobStatuses.get(id) || null;

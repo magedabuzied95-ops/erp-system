@@ -27,6 +27,10 @@ const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const metadataObject = (value = {}) => (value && typeof value === "object" && !Array.isArray(value) ? value : {});
+const numericOrNull = (value = null) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 const toIsoStringOrEmpty = (value = null) => {
   if (!value) return "";
   const parsed = value instanceof Date ? value : new Date(value);
@@ -38,6 +42,9 @@ const parseDateOrNull = (value = null) => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 const SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS = 10 * 60 * 1000;
+const DEFAULT_SOCIAL_COMMENT_QUEUE_CONCURRENCY = 2;
+const DEFAULT_SOCIAL_COMMENT_AI_TIMEOUT_MS = 15000;
+const DEFAULT_SOCIAL_COMMENT_REPLY_DEDUPE_WINDOW_MS = 60000;
 const buildPrivateReplyJobDedupeKey = ({ tenantId = null, platform = "", commentId = "" } = {}) => {
   const safeTenantId = Number(tenantId || 0);
   const safePlatform = text(platform || "facebook") === "instagram" ? "instagram" : "facebook";
@@ -316,6 +323,66 @@ const buildAutomationRunDiagnostics = ({
     config_enabled: Boolean(config?.enabled ?? row.config_enabled ?? rowRuntimeMonitor.config_enabled ?? false),
     raw_runtime_context: rawRuntimeContext || rowRuntimeMonitor.raw_runtime_context || {},
   });
+};
+
+const computeSocialCommentLatencySummary = (trace = {}) => {
+  const webhookReceivedAt = parseDateOrNull(trace.webhook_received_at || null);
+  const detectedAt = parseDateOrNull(trace.detected_at || webhookReceivedAt || null);
+  const storedAt = parseDateOrNull(trace.comment_stored_at || trace.stored_at || null);
+  const enqueueAt = parseDateOrNull(trace.enqueue_at || null);
+  const dequeueAt = parseDateOrNull(trace.dequeue_at || null);
+  const aiStartedAt = parseDateOrNull(trace.ai_started_at || null);
+  const aiCompletedAt = parseDateOrNull(trace.ai_completed_at || null);
+  const sendStartedAt = parseDateOrNull(trace.send_started_at || null);
+  const sendCompletedAt = parseDateOrNull(trace.send_completed_at || null);
+  const diff = (end, start) => (end && start ? Math.max(0, end.getTime() - start.getTime()) : null);
+  return {
+    webhook_to_store_ms: diff(storedAt, webhookReceivedAt),
+    webhook_to_enqueue_ms: diff(enqueueAt, webhookReceivedAt),
+    enqueue_to_ai_start_ms: diff(aiStartedAt, enqueueAt || dequeueAt),
+    ai_generation_ms: diff(aiCompletedAt, aiStartedAt),
+    send_ms: diff(sendCompletedAt, sendStartedAt),
+    total_comment_reply_ms: diff(sendCompletedAt || aiCompletedAt, detectedAt || webhookReceivedAt),
+  };
+};
+
+const buildSocialCommentRuntimeMonitor = ({
+  row = {},
+  automationState = {},
+  latencyPatch = {},
+  status = "",
+  skippedReason = "",
+  errorMessage = "",
+} = {}) => {
+  const rowAutomationState = metadataObject(row.automation_state || {});
+  const safeAutomationState = metadataObject(automationState || {});
+  const currentRuntimeMonitor = metadataObject(
+    safeAutomationState.runtime_monitor ||
+    rowAutomationState.runtime_monitor ||
+    {}
+  );
+  const existingTrace = metadataObject(
+    currentRuntimeMonitor.latency_trace ||
+    rowAutomationState.latency_trace ||
+    row.latency_trace ||
+    {}
+  );
+  const nextTrace = {
+    ...existingTrace,
+    ...metadataObject(latencyPatch || {}),
+  };
+  return {
+    ...safeAutomationState,
+    runtime_monitor: {
+      ...currentRuntimeMonitor,
+      status: text(status || currentRuntimeMonitor.status || safeAutomationState.overall_status || rowAutomationState.overall_status || ""),
+      skipped_reason: text(skippedReason || currentRuntimeMonitor.skipped_reason || ""),
+      error_message: text(errorMessage || currentRuntimeMonitor.error_message || ""),
+      latency_trace: nextTrace,
+      latency_summary: computeSocialCommentLatencySummary(nextTrace),
+      updated_at: new Date().toISOString(),
+    },
+  };
 };
 
 const loadFetchMetaPostPreviewDetails = async () => {
@@ -1005,6 +1072,14 @@ const getSocialCommentAutomationEnvFlags = () => ({
   like: parseSocialAutomationEnvSwitch(process.env.SOCIAL_COMMENTS_AUTO_LIKE || ""),
   publicReply: parseSocialAutomationEnvSwitch(process.env.SOCIAL_COMMENTS_AUTO_PUBLIC_REPLY || ""),
   privateMessage: parseSocialAutomationEnvSwitch(process.env.SOCIAL_COMMENTS_AUTO_PRIVATE_MESSAGE || ""),
+});
+
+const getSocialCommentFastReplyConfig = () => ({
+  enabled: featureFlagEnabled(process.env.SOCIAL_COMMENTS_FAST_REPLY_ENABLED || "false"),
+  parallel_workers: Math.max(1, Number(process.env.SOCIAL_COMMENTS_PARALLEL_WORKERS || 1) || 1),
+  ai_timeout_ms: Math.max(1000, Number(process.env.SOCIAL_COMMENTS_AI_TIMEOUT_MS || DEFAULT_SOCIAL_COMMENT_AI_TIMEOUT_MS) || DEFAULT_SOCIAL_COMMENT_AI_TIMEOUT_MS),
+  reply_dedupe_window_ms: Math.max(1000, Number(process.env.SOCIAL_COMMENTS_REPLY_DEDUPE_WINDOW_MS || DEFAULT_SOCIAL_COMMENT_REPLY_DEDUPE_WINDOW_MS) || DEFAULT_SOCIAL_COMMENT_REPLY_DEDUPE_WINDOW_MS),
+  legacy_queue_concurrency: DEFAULT_SOCIAL_COMMENT_QUEUE_CONCURRENCY,
 });
 
 const normalizeSocialAutomationSettings = (settings = {}) => ({
@@ -2546,6 +2621,20 @@ const executeSocialCommentAutomationRuntime = async ({
     colors_count: asArray(salesContext.colors || []).length,
     product_url: salesContext.product_url || "",
   });
+  const aiGenerationStartedAt = new Date();
+  const aiLatencyTrace = metadataObject(safeRow.automation_state?.runtime_monitor?.latency_trace || {});
+  console.log("SOCIAL_COMMENT_AI_GENERATION_START", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    conversation_id: text(safeRow.inbox_conversation_id || ""),
+    ai_started_at: aiGenerationStartedAt.toISOString(),
+    enqueue_to_ai_start_ms: (() => {
+      const reference = parseDateOrNull(aiLatencyTrace.enqueue_at || aiLatencyTrace.dequeue_at || null);
+      return reference ? Math.max(0, aiGenerationStartedAt.getTime() - reference.getTime()) : null;
+    })(),
+  });
   const detectedIntent = detectSocialCommentSalesIntent({
     commentText: safeRow.original_comment_text || safeRow.comment_text || "",
   });
@@ -2605,6 +2694,16 @@ const executeSocialCommentAutomationRuntime = async ({
     used_fallback: aiSalesRuntime.used_fallback,
     public_reply: effectiveRenderedPublicReply,
     private_reply: effectiveRenderedPrivateReply,
+  });
+  const aiGenerationCompletedAt = new Date();
+  console.log("SOCIAL_COMMENT_AI_GENERATION_DONE", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    conversation_id: text(safeRow.inbox_conversation_id || ""),
+    ai_completed_at: aiGenerationCompletedAt.toISOString(),
+    ai_generation_ms: Math.max(0, aiGenerationCompletedAt.getTime() - aiGenerationStartedAt.getTime()),
   });
   console.log("SOCIAL_COMMENT_AUTO_REPLY_CONTEXT_USED", {
     post_id: safePostId,
@@ -2675,6 +2774,15 @@ const executeSocialCommentAutomationRuntime = async ({
       intent: aiSalesRuntime.intent,
     },
   };
+  const persistedRuntimeStateWithLatency = buildSocialCommentRuntimeMonitor({
+    row: safeRow,
+    automationState: persistedRuntimeState,
+    latencyPatch: {
+      ai_started_at: aiGenerationStartedAt.toISOString(),
+      ai_completed_at: aiGenerationCompletedAt.toISOString(),
+    },
+    status: "ai_generated",
+  });
 
   const persistRuntimeState = async (statePatch = {}) => persistSocialCommentAutomationState({
     tenantId: safeTenantId,
@@ -2691,7 +2799,7 @@ const executeSocialCommentAutomationRuntime = async ({
 
   let workingRow = {
     ...safeRow,
-    automation_state: persistedRuntimeState,
+    automation_state: persistedRuntimeStateWithLatency,
   };
 
   const likeEnabled = Boolean(config.settings?.likeComment);
@@ -2710,17 +2818,18 @@ const executeSocialCommentAutomationRuntime = async ({
         likeStatus: "sent",
         automationState: {
           ...persistedRuntimeState,
+          ...persistedRuntimeStateWithLatency,
           like_status: "sent",
         },
       }),
       run: async () => {
         await likeComment(normalizedPlatform, safeCommentId, safeTenantId);
         workingRow.like_status = "sent";
-        persistedRuntimeState.like_status = "sent";
+        persistedRuntimeStateWithLatency.like_status = "sent";
         await persistRuntimeState({
           likeStatus: "sent",
           automationState: {
-            ...persistedRuntimeState,
+            ...persistedRuntimeStateWithLatency,
             like_status: "sent",
           },
         }).catch(() => {});
@@ -2741,18 +2850,18 @@ const executeSocialCommentAutomationRuntime = async ({
       run: async () => {
         await replyToComment(normalizedPlatform, safeCommentId, effectiveRenderedPublicReply, safeTenantId);
         workingRow.public_reply_status = "sent";
-        persistedRuntimeState.public_reply = {
-          ...(persistedRuntimeState.public_reply || {}),
+        persistedRuntimeStateWithLatency.public_reply = {
+          ...(persistedRuntimeStateWithLatency.public_reply || {}),
           status: "sent",
           rendered_reply: effectiveRenderedPublicReply,
           sent_at: new Date().toISOString(),
         };
         aiSalesRuntime.approval_status = "sent";
         aiSalesRuntime.delivery_status = "sent_public_reply";
-        persistedRuntimeState.social_comment_runtime.ai_sales = aiSalesRuntime;
+        persistedRuntimeStateWithLatency.social_comment_runtime.ai_sales = aiSalesRuntime;
         await persistRuntimeState({
           publicReplyStatus: "sent",
-          automationState: persistedRuntimeState,
+          automationState: persistedRuntimeStateWithLatency,
         }).catch(() => {});
         return { ok: true };
       },
@@ -2786,8 +2895,8 @@ const executeSocialCommentAutomationRuntime = async ({
       });
       const queuedAt = new Date().toISOString();
       workingRow.dm_status = "queued";
-      persistedRuntimeState.private_reply = {
-        ...(persistedRuntimeState.private_reply || {}),
+      persistedRuntimeStateWithLatency.private_reply = {
+        ...(persistedRuntimeStateWithLatency.private_reply || {}),
         status: "queued",
         queued_at: queuedAt,
         template: privateReplyTemplate,
@@ -2799,13 +2908,20 @@ const executeSocialCommentAutomationRuntime = async ({
       ...(workingRow.raw_payload || {}),
       product_context: effectiveProductContext || {},
     };
-    workingRow.automation_state = persistedRuntimeState;
+    workingRow.automation_state = buildSocialCommentRuntimeMonitor({
+      row: workingRow,
+      automationState: persistedRuntimeStateWithLatency,
+      latencyPatch: {
+        enqueue_at: queuedAt,
+      },
+      status: "queued",
+    });
     aiSalesRuntime.approval_status = "queued";
     aiSalesRuntime.delivery_status = "pending_private_reply";
-    persistedRuntimeState.social_comment_runtime.ai_sales = aiSalesRuntime;
+    workingRow.automation_state.social_comment_runtime.ai_sales = aiSalesRuntime;
     await persistRuntimeState({
       dmStatus: "queued",
-      automationState: persistedRuntimeState,
+      automationState: workingRow.automation_state,
     }).catch(() => {});
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_PAYLOAD", {
         tenant_id: safeTenantId,
@@ -3124,7 +3240,7 @@ const executeSocialCommentAutomationRuntime = async ({
     },
     row: {
       ...safeRow,
-      automation_state: persistedRuntimeState,
+      automation_state: workingRow.automation_state,
       status: finalStatus,
       error_message: summary.errorMessage,
       product_link: automationWebsiteProductLink || templateContext.productUrl || "",
@@ -6274,6 +6390,13 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
   await ensureSocialCommentAutomationSchema();
   const stored = [];
   for (const event of asArray(events)) {
+    const webhookReceivedAt = text(
+      event.webhook_received_at ||
+      event.raw_payload?.webhook_received_at ||
+      event.received_at ||
+      ""
+    ) || new Date().toISOString();
+    const detectedAt = text(event.detected_at || webhookReceivedAt);
     let normalized = {
       tenant_id: tenantId ?? event.tenant_id,
       platform: text(event.platform || "facebook") || "facebook",
@@ -6305,6 +6428,8 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       automation_state: event.automation_state && typeof event.automation_state === "object" ? event.automation_state : {},
       raw_payload: {
         ...(event.raw_payload && typeof event.raw_payload === "object" ? event.raw_payload : { raw_payload: event.raw_payload ?? null }),
+        webhook_received_at: webhookReceivedAt,
+        detected_at: detectedAt,
         post_message: text(event.post_message || ""),
         post_caption: text(event.post_caption || ""),
         post_full_picture: text(event.post_full_picture || event.full_picture || ""),
@@ -6321,10 +6446,31 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       post_permalink_url: text(event.post_permalink_url || event.post_permalink || ""),
       processed_at: event.processed_at ? new Date(event.processed_at).toISOString() : new Date().toISOString(),
     };
+    console.log("SOCIAL_COMMENT_WEBHOOK_RECEIVED", {
+      tenant_id: Number(normalized.tenant_id || 0) || null,
+      platform: normalized.platform,
+      post_id: normalized.post_id,
+      comment_id: normalized.comment_id,
+      conversation_id: text(event.inbox_conversation_id || ""),
+      source: text(event.raw_payload?.source || event.source || "meta_webhook"),
+      webhook_received_at: webhookReceivedAt,
+      detected_at: detectedAt,
+    });
 
     const isJobOnly = Boolean(event.__job_only && event.row);
     let storedRow = isJobOnly ? event.row : null;
     if (!isJobOnly) {
+      const preInsertState = buildSocialCommentRuntimeMonitor({
+        row: normalized,
+        automationState: normalized.automation_state,
+        latencyPatch: {
+          webhook_received_at: webhookReceivedAt,
+          detected_at: detectedAt,
+          comment_stored_at: normalized.processed_at,
+        },
+        status: text(normalized.action_taken || "ingested"),
+      });
+      normalized.automation_state = preInsertState;
       const insertResult = await db.query(
         `
         INSERT INTO social_comment_automation_runs (
@@ -6413,6 +6559,28 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
           raw_payload: normalized.raw_payload || {},
         };
       }
+      storedRow.automation_state = buildSocialCommentRuntimeMonitor({
+        row: storedRow,
+        automationState: storedRow.automation_state,
+        latencyPatch: {
+          webhook_received_at: webhookReceivedAt,
+          detected_at: detectedAt,
+          comment_stored_at: text(storedRow.processed_at || normalized.processed_at || new Date().toISOString()),
+        },
+        status: text(storedRow.status || storedRow.action_taken || "stored"),
+      });
+      const storedAt = parseDateOrNull(storedRow.processed_at || normalized.processed_at || null);
+      const webhookAt = parseDateOrNull(webhookReceivedAt);
+      console.log("SOCIAL_COMMENT_STORED", {
+        tenant_id: Number(storedRow.tenant_id || 0) || null,
+        platform: text(storedRow.platform || ""),
+        post_id: text(storedRow.post_id || ""),
+        comment_id: text(storedRow.comment_id || ""),
+        conversation_id: text(storedRow.inbox_conversation_id || ""),
+        stored_at: storedAt ? storedAt.toISOString() : text(normalized.processed_at || ""),
+        webhook_to_store_ms: storedAt && webhookAt ? Math.max(0, storedAt.getTime() - webhookAt.getTime()) : null,
+        source: text(storedRow.raw_payload?.source || event.raw_payload?.source || "meta_webhook"),
+      });
       emitSocialCommentNew(storedRow);
     }
     if (deferAutomation) {
@@ -6423,13 +6591,43 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         post_id: storedRow.post_id,
         comment_id: storedRow.comment_id,
         external_comment_id: storedRow.comment_id,
+        created_at: new Date().toISOString(),
         payload: {
           row: storedRow,
+          latency_trace: metadataObject(storedRow.automation_state?.runtime_monitor?.latency_trace || {}),
         },
-        created_at: new Date().toISOString(),
       };
       try {
         await enqueueSocialCommentJob(automationJob);
+        const enqueueAt = new Date().toISOString();
+        const updatedAutomationState = buildSocialCommentRuntimeMonitor({
+          row: storedRow,
+          automationState: storedRow.automation_state,
+          latencyPatch: {
+            enqueue_at: enqueueAt,
+            queue_name: "social_comment_automation",
+          },
+          status: text(storedRow.status || storedRow.action_taken || "queued"),
+        });
+        storedRow.automation_state = updatedAutomationState;
+        await persistSocialCommentAutomationState({
+          tenantId: storedRow.tenant_id,
+          platform: storedRow.platform,
+          commentId: storedRow.comment_id,
+          sessionId: storedRow.inbox_conversation_id || "",
+          channel: storedRow.channel || "",
+          automationState: updatedAutomationState,
+        }).catch(() => null);
+        const enqueueSummary = updatedAutomationState.runtime_monitor?.latency_summary || {};
+        console.log("SOCIAL_COMMENT_LATENCY_ENQUEUED", {
+          comment_id: text(storedRow.comment_id || ""),
+          post_id: text(storedRow.post_id || ""),
+          tenant_id: Number(storedRow.tenant_id || 0) || null,
+          platform: text(storedRow.platform || ""),
+          queue_name: "social_comment_automation",
+          enqueue_at: enqueueAt,
+          webhook_to_enqueue_ms: numericOrNull(enqueueSummary.webhook_to_enqueue_ms),
+        });
       } catch (error) {
         console.warn("SOCIAL_COMMENT_JOB_ENQUEUE_FALLBACK", {
           tenant_id: storedRow.tenant_id,
@@ -6964,6 +7162,16 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       }
       if (!automationRuntimeApplied) {
         try {
+          const legacyAiStartedAt = new Date();
+          console.log("SOCIAL_COMMENT_AI_GENERATION_START", {
+            tenant_id: storedRow.tenant_id,
+            platform: storedRow.platform,
+            post_id: text(storedRow.post_id || ""),
+            comment_id: text(storedRow.comment_id || ""),
+            conversation_id: text(storedRow.inbox_conversation_id || ""),
+            ai_started_at: legacyAiStartedAt.toISOString(),
+            source: "legacy_processSocialCommentAutoReply",
+          });
           await processSocialCommentAutoReply({
             tenantId: storedRow.tenant_id,
             platform: storedRow.platform,
@@ -6972,6 +7180,17 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
             comment: storedRow,
             post: storedRow,
             force: false,
+          });
+          const legacyAiCompletedAt = new Date();
+          console.log("SOCIAL_COMMENT_AI_GENERATION_DONE", {
+            tenant_id: storedRow.tenant_id,
+            platform: storedRow.platform,
+            post_id: text(storedRow.post_id || ""),
+            comment_id: text(storedRow.comment_id || ""),
+            conversation_id: text(storedRow.inbox_conversation_id || ""),
+            ai_completed_at: legacyAiCompletedAt.toISOString(),
+            ai_generation_ms: Math.max(0, legacyAiCompletedAt.getTime() - legacyAiStartedAt.getTime()),
+            source: "legacy_processSocialCommentAutoReply",
           });
         } catch (error) {
           socialCommentsError("[social-comments] auto reply processing failed", {
