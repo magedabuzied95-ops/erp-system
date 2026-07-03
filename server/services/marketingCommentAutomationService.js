@@ -7,8 +7,8 @@ import {
   buildSocialCommentSizeQuickReplies,
   normalizeSocialCommentProductContext,
   sanitizeUnifiedSocialCommentPrivateReplyMessage,
-  resolveSocialProductDisplayPrice,
 } from "./socialCommentPrivateReplyService.js";
+import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 
 const GRAPH_API_VERSION = "v19.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
