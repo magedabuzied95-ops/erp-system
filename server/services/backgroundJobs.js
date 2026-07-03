@@ -111,6 +111,20 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
   const privateReplyStartedAt = parse(trace.private_reply_started_at || trace.dequeue_at);
   const sendStartedAt = parse(trace.send_started_at);
   const sendCompletedAt = parse(trace.send_completed_at);
+  const aiConfigLookupStartedAt = parse(trace.ai_config_lookup_started_at);
+  const aiConfigLookupCompletedAt = parse(trace.ai_config_lookup_completed_at);
+  const aiProductContextLookupStartedAt = parse(trace.ai_product_context_lookup_started_at);
+  const aiProductContextLookupCompletedAt = parse(trace.ai_product_context_lookup_completed_at);
+  const aiSalesContextBuildStartedAt = parse(trace.ai_sales_context_build_started_at);
+  const aiSalesContextBuildCompletedAt = parse(trace.ai_sales_context_build_completed_at);
+  const aiIntentDetectionStartedAt = parse(trace.ai_intent_detection_started_at);
+  const aiIntentDetectionCompletedAt = parse(trace.ai_intent_detection_completed_at);
+  const aiReplyRenderStartedAt = parse(trace.ai_reply_render_started_at);
+  const aiReplyRenderCompletedAt = parse(trace.ai_reply_render_completed_at);
+  const publicReplySendStartedAt = parse(trace.public_reply_send_started_at);
+  const publicReplySendCompletedAt = parse(trace.public_reply_send_completed_at);
+  const privateReplyEnqueueStartedAt = parse(trace.private_reply_enqueue_started_at);
+  const privateReplyEnqueueCompletedAt = parse(trace.private_reply_enqueue_completed_at);
   const missingFields = collectMissingSocialCommentLatencyFields(trace);
   return {
     webhook_to_enqueue_ms: diff(enqueueAt, webhookReceivedAt),
@@ -121,6 +135,15 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
     send_ms: diff(sendCompletedAt, sendStartedAt),
     total_comment_reply_ms: diff(sendCompletedAt || aiCompletedAt, detectedAt || webhookReceivedAt),
     missing_fields: missingFields,
+    ai_breakdown: {
+      config_lookup_ms: diff(aiConfigLookupCompletedAt, aiConfigLookupStartedAt),
+      product_context_lookup_ms: diff(aiProductContextLookupCompletedAt, aiProductContextLookupStartedAt),
+      sales_context_build_ms: diff(aiSalesContextBuildCompletedAt, aiSalesContextBuildStartedAt),
+      intent_detection_ms: diff(aiIntentDetectionCompletedAt, aiIntentDetectionStartedAt),
+      reply_render_ms: diff(aiReplyRenderCompletedAt, aiReplyRenderStartedAt),
+      public_reply_send_ms: diff(publicReplySendCompletedAt, publicReplySendStartedAt),
+      private_reply_enqueue_ms: diff(privateReplyEnqueueCompletedAt, privateReplyEnqueueStartedAt),
+    },
   };
 };
 const logSocialCommentLatencySendDone = ({
@@ -172,6 +195,7 @@ const logSocialCommentLatencySendDone = ({
     send_ms: summary.send_ms ?? null,
     total_comment_reply_ms: summary.total_comment_reply_ms ?? null,
     total_ms: summary.total_comment_reply_ms ?? null,
+    ai_breakdown: summary.ai_breakdown || null,
     latency_summary: summary,
     meta_status: metaStatus,
     meta_message: metaMessage,
@@ -193,6 +217,20 @@ const withSocialCommentLatencyState = ({ row = {}, automationState = {}, patch =
     private_reply_started_at: normalizeTimestampForDb(trace.private_reply_started_at || null, "backgroundJobs.withSocialCommentLatencyState.private_reply_started_at"),
     ai_started_at: normalizeTimestampForDb(trace.ai_started_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_started_at"),
     ai_completed_at: normalizeTimestampForDb(trace.ai_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_completed_at"),
+    ai_config_lookup_started_at: normalizeTimestampForDb(trace.ai_config_lookup_started_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_config_lookup_started_at"),
+    ai_config_lookup_completed_at: normalizeTimestampForDb(trace.ai_config_lookup_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_config_lookup_completed_at"),
+    ai_product_context_lookup_started_at: normalizeTimestampForDb(trace.ai_product_context_lookup_started_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_product_context_lookup_started_at"),
+    ai_product_context_lookup_completed_at: normalizeTimestampForDb(trace.ai_product_context_lookup_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_product_context_lookup_completed_at"),
+    ai_sales_context_build_started_at: normalizeTimestampForDb(trace.ai_sales_context_build_started_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_sales_context_build_started_at"),
+    ai_sales_context_build_completed_at: normalizeTimestampForDb(trace.ai_sales_context_build_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_sales_context_build_completed_at"),
+    ai_intent_detection_started_at: normalizeTimestampForDb(trace.ai_intent_detection_started_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_intent_detection_started_at"),
+    ai_intent_detection_completed_at: normalizeTimestampForDb(trace.ai_intent_detection_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_intent_detection_completed_at"),
+    ai_reply_render_started_at: normalizeTimestampForDb(trace.ai_reply_render_started_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_reply_render_started_at"),
+    ai_reply_render_completed_at: normalizeTimestampForDb(trace.ai_reply_render_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.ai_reply_render_completed_at"),
+    public_reply_send_started_at: normalizeTimestampForDb(trace.public_reply_send_started_at || null, "backgroundJobs.withSocialCommentLatencyState.public_reply_send_started_at"),
+    public_reply_send_completed_at: normalizeTimestampForDb(trace.public_reply_send_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.public_reply_send_completed_at"),
+    private_reply_enqueue_started_at: normalizeTimestampForDb(trace.private_reply_enqueue_started_at || null, "backgroundJobs.withSocialCommentLatencyState.private_reply_enqueue_started_at"),
+    private_reply_enqueue_completed_at: normalizeTimestampForDb(trace.private_reply_enqueue_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.private_reply_enqueue_completed_at"),
     send_started_at: normalizeTimestampForDb(trace.send_started_at || null, "backgroundJobs.withSocialCommentLatencyState.send_started_at"),
     send_completed_at: normalizeTimestampForDb(trace.send_completed_at || null, "backgroundJobs.withSocialCommentLatencyState.send_completed_at"),
   });
@@ -537,6 +575,20 @@ export const registerBackgroundJobHandlers = () => {
         detected_at: normalizeTimestampForDb(detectedAt || null, "backgroundJobs.private_reply.detected_at"),
         ai_started_at: normalizeTimestampForDb(latencyTrace.ai_started_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_started_at || null, "backgroundJobs.private_reply.ai_started_at"),
         ai_completed_at: normalizeTimestampForDb(latencyTrace.ai_completed_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_completed_at || null, "backgroundJobs.private_reply.ai_completed_at"),
+        ai_config_lookup_started_at: normalizeTimestampForDb(latencyTrace.ai_config_lookup_started_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_config_lookup_started_at || null, "backgroundJobs.private_reply.ai_config_lookup_started_at"),
+        ai_config_lookup_completed_at: normalizeTimestampForDb(latencyTrace.ai_config_lookup_completed_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_config_lookup_completed_at || null, "backgroundJobs.private_reply.ai_config_lookup_completed_at"),
+        ai_product_context_lookup_started_at: normalizeTimestampForDb(latencyTrace.ai_product_context_lookup_started_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_product_context_lookup_started_at || null, "backgroundJobs.private_reply.ai_product_context_lookup_started_at"),
+        ai_product_context_lookup_completed_at: normalizeTimestampForDb(latencyTrace.ai_product_context_lookup_completed_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_product_context_lookup_completed_at || null, "backgroundJobs.private_reply.ai_product_context_lookup_completed_at"),
+        ai_sales_context_build_started_at: normalizeTimestampForDb(latencyTrace.ai_sales_context_build_started_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_sales_context_build_started_at || null, "backgroundJobs.private_reply.ai_sales_context_build_started_at"),
+        ai_sales_context_build_completed_at: normalizeTimestampForDb(latencyTrace.ai_sales_context_build_completed_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_sales_context_build_completed_at || null, "backgroundJobs.private_reply.ai_sales_context_build_completed_at"),
+        ai_intent_detection_started_at: normalizeTimestampForDb(latencyTrace.ai_intent_detection_started_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_intent_detection_started_at || null, "backgroundJobs.private_reply.ai_intent_detection_started_at"),
+        ai_intent_detection_completed_at: normalizeTimestampForDb(latencyTrace.ai_intent_detection_completed_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_intent_detection_completed_at || null, "backgroundJobs.private_reply.ai_intent_detection_completed_at"),
+        ai_reply_render_started_at: normalizeTimestampForDb(latencyTrace.ai_reply_render_started_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_reply_render_started_at || null, "backgroundJobs.private_reply.ai_reply_render_started_at"),
+        ai_reply_render_completed_at: normalizeTimestampForDb(latencyTrace.ai_reply_render_completed_at || row?.automation_state?.runtime_monitor?.latency_trace?.ai_reply_render_completed_at || null, "backgroundJobs.private_reply.ai_reply_render_completed_at"),
+        public_reply_send_started_at: normalizeTimestampForDb(latencyTrace.public_reply_send_started_at || row?.automation_state?.runtime_monitor?.latency_trace?.public_reply_send_started_at || null, "backgroundJobs.private_reply.public_reply_send_started_at"),
+        public_reply_send_completed_at: normalizeTimestampForDb(latencyTrace.public_reply_send_completed_at || row?.automation_state?.runtime_monitor?.latency_trace?.public_reply_send_completed_at || null, "backgroundJobs.private_reply.public_reply_send_completed_at"),
+        private_reply_enqueue_started_at: normalizeTimestampForDb(latencyTrace.private_reply_enqueue_started_at || row?.automation_state?.runtime_monitor?.latency_trace?.private_reply_enqueue_started_at || null, "backgroundJobs.private_reply.private_reply_enqueue_started_at"),
+        private_reply_enqueue_completed_at: normalizeTimestampForDb(latencyTrace.private_reply_enqueue_completed_at || row?.automation_state?.runtime_monitor?.latency_trace?.private_reply_enqueue_completed_at || null, "backgroundJobs.private_reply.private_reply_enqueue_completed_at"),
         send_started_at: normalizeTimestampForDb(latencyTrace.send_started_at || null, "backgroundJobs.private_reply.send_started_at"),
         send_completed_at: normalizeTimestampForDb(latencyTrace.send_completed_at || null, "backgroundJobs.private_reply.send_completed_at"),
         webhook_received_at: normalizeTimestampForDb(latencyTrace.webhook_received_at || row?.automation_state?.runtime_monitor?.latency_trace?.webhook_received_at || null, "backgroundJobs.private_reply.webhook_received_at"),

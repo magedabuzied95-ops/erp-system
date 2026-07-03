@@ -436,6 +436,20 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
   const privateReplyStartedAt = parseDateOrNull(trace.private_reply_started_at || trace.dequeue_at || null);
   const sendStartedAt = parseDateOrNull(trace.send_started_at || null);
   const sendCompletedAt = parseDateOrNull(trace.send_completed_at || null);
+  const aiConfigLookupStartedAt = parseDateOrNull(trace.ai_config_lookup_started_at || null);
+  const aiConfigLookupCompletedAt = parseDateOrNull(trace.ai_config_lookup_completed_at || null);
+  const aiProductContextLookupStartedAt = parseDateOrNull(trace.ai_product_context_lookup_started_at || null);
+  const aiProductContextLookupCompletedAt = parseDateOrNull(trace.ai_product_context_lookup_completed_at || null);
+  const aiSalesContextBuildStartedAt = parseDateOrNull(trace.ai_sales_context_build_started_at || null);
+  const aiSalesContextBuildCompletedAt = parseDateOrNull(trace.ai_sales_context_build_completed_at || null);
+  const aiIntentDetectionStartedAt = parseDateOrNull(trace.ai_intent_detection_started_at || null);
+  const aiIntentDetectionCompletedAt = parseDateOrNull(trace.ai_intent_detection_completed_at || null);
+  const aiReplyRenderStartedAt = parseDateOrNull(trace.ai_reply_render_started_at || null);
+  const aiReplyRenderCompletedAt = parseDateOrNull(trace.ai_reply_render_completed_at || null);
+  const publicReplySendStartedAt = parseDateOrNull(trace.public_reply_send_started_at || null);
+  const publicReplySendCompletedAt = parseDateOrNull(trace.public_reply_send_completed_at || null);
+  const privateReplyEnqueueStartedAt = parseDateOrNull(trace.private_reply_enqueue_started_at || null);
+  const privateReplyEnqueueCompletedAt = parseDateOrNull(trace.private_reply_enqueue_completed_at || null);
   const requiredFields = [
     "detected_at",
     "enqueue_at",
@@ -448,6 +462,15 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
   ];
   const missingFields = requiredFields.filter((field) => !parseDateOrNull(trace[field] || null));
   const diff = (end, start) => (end && start ? Math.max(0, end.getTime() - start.getTime()) : null);
+  const ai_breakdown = {
+    config_lookup_ms: diff(aiConfigLookupCompletedAt, aiConfigLookupStartedAt),
+    product_context_lookup_ms: diff(aiProductContextLookupCompletedAt, aiProductContextLookupStartedAt),
+    sales_context_build_ms: diff(aiSalesContextBuildCompletedAt, aiSalesContextBuildStartedAt),
+    intent_detection_ms: diff(aiIntentDetectionCompletedAt, aiIntentDetectionStartedAt),
+    reply_render_ms: diff(aiReplyRenderCompletedAt, aiReplyRenderStartedAt),
+    public_reply_send_ms: diff(publicReplySendCompletedAt, publicReplySendStartedAt),
+    private_reply_enqueue_ms: diff(privateReplyEnqueueCompletedAt, privateReplyEnqueueStartedAt),
+  };
   return {
     webhook_to_store_ms: diff(storedAt, webhookReceivedAt),
     webhook_to_enqueue_ms: diff(enqueueAt, webhookReceivedAt),
@@ -458,6 +481,7 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
     send_ms: diff(sendCompletedAt, sendStartedAt),
     total_comment_reply_ms: diff(sendCompletedAt || aiCompletedAt, detectedAt || webhookReceivedAt),
     missing_fields: missingFields,
+    ai_breakdown,
   };
 };
 
@@ -494,6 +518,20 @@ const buildSocialCommentRuntimeMonitor = ({
     private_reply_started_at: normalizeTimestampForDb(trace.private_reply_started_at || null, "buildSocialCommentRuntimeMonitor.private_reply_started_at"),
     ai_started_at: normalizeTimestampForDb(trace.ai_started_at || null, "buildSocialCommentRuntimeMonitor.ai_started_at"),
     ai_completed_at: normalizeTimestampForDb(trace.ai_completed_at || null, "buildSocialCommentRuntimeMonitor.ai_completed_at"),
+    ai_config_lookup_started_at: normalizeTimestampForDb(trace.ai_config_lookup_started_at || null, "buildSocialCommentRuntimeMonitor.ai_config_lookup_started_at"),
+    ai_config_lookup_completed_at: normalizeTimestampForDb(trace.ai_config_lookup_completed_at || null, "buildSocialCommentRuntimeMonitor.ai_config_lookup_completed_at"),
+    ai_product_context_lookup_started_at: normalizeTimestampForDb(trace.ai_product_context_lookup_started_at || null, "buildSocialCommentRuntimeMonitor.ai_product_context_lookup_started_at"),
+    ai_product_context_lookup_completed_at: normalizeTimestampForDb(trace.ai_product_context_lookup_completed_at || null, "buildSocialCommentRuntimeMonitor.ai_product_context_lookup_completed_at"),
+    ai_sales_context_build_started_at: normalizeTimestampForDb(trace.ai_sales_context_build_started_at || null, "buildSocialCommentRuntimeMonitor.ai_sales_context_build_started_at"),
+    ai_sales_context_build_completed_at: normalizeTimestampForDb(trace.ai_sales_context_build_completed_at || null, "buildSocialCommentRuntimeMonitor.ai_sales_context_build_completed_at"),
+    ai_intent_detection_started_at: normalizeTimestampForDb(trace.ai_intent_detection_started_at || null, "buildSocialCommentRuntimeMonitor.ai_intent_detection_started_at"),
+    ai_intent_detection_completed_at: normalizeTimestampForDb(trace.ai_intent_detection_completed_at || null, "buildSocialCommentRuntimeMonitor.ai_intent_detection_completed_at"),
+    ai_reply_render_started_at: normalizeTimestampForDb(trace.ai_reply_render_started_at || null, "buildSocialCommentRuntimeMonitor.ai_reply_render_started_at"),
+    ai_reply_render_completed_at: normalizeTimestampForDb(trace.ai_reply_render_completed_at || null, "buildSocialCommentRuntimeMonitor.ai_reply_render_completed_at"),
+    public_reply_send_started_at: normalizeTimestampForDb(trace.public_reply_send_started_at || null, "buildSocialCommentRuntimeMonitor.public_reply_send_started_at"),
+    public_reply_send_completed_at: normalizeTimestampForDb(trace.public_reply_send_completed_at || null, "buildSocialCommentRuntimeMonitor.public_reply_send_completed_at"),
+    private_reply_enqueue_started_at: normalizeTimestampForDb(trace.private_reply_enqueue_started_at || null, "buildSocialCommentRuntimeMonitor.private_reply_enqueue_started_at"),
+    private_reply_enqueue_completed_at: normalizeTimestampForDb(trace.private_reply_enqueue_completed_at || null, "buildSocialCommentRuntimeMonitor.private_reply_enqueue_completed_at"),
     send_started_at: normalizeTimestampForDb(trace.send_started_at || null, "buildSocialCommentRuntimeMonitor.send_started_at"),
     send_completed_at: normalizeTimestampForDb(trace.send_completed_at || null, "buildSocialCommentRuntimeMonitor.send_completed_at"),
   });
@@ -788,6 +826,15 @@ const SOCIAL_COMMENT_GENERIC_PUBLIC_REPLIES = new Set([
   "تم إرسال التفاصيل في رسالة خاصة",
   "تم إرسال التفاصيل في رسالة خاصة ",
 ]);
+const SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE = `أهلاً وسهلاً يا {{customer_name}} ❤️
+تم الرد في الخاص يا صديقي 
+وعندنا شحن لجميع محافظات مصر 
+━━━━━━━━━━━━━━━━━━
+ العنوان:
+دمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️
+
+ اللوكيشن:
+https://share.google/1e0cM7JVmxyLTpWVe`;
 
 const SOCIAL_COMMENT_GENERIC_PRIVATE_REPLIES = new Set([
   "تم الرد على حضرتك خاص",
@@ -1177,7 +1224,15 @@ const COMMENT_LEAD_TEMPERATURE = {
 const COMMENT_THREAD_LABELS = new Set(Object.keys(COMMENT_LEAD_SCORE));
 const COMMENT_AUTOMATION_ELIGIBLE_LABELS = new Set(Object.keys(COMMENT_LEAD_SCORE));
 const COMMENT_AUTOMATION_MIN_SCORE = 0.9;
-const COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT = "تم إرسال التفاصيل في رسالة خاصة ";
+const COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT = `أهلاً وسهلاً يا {{customer_name}} ❤️
+تم الرد في الخاص يا صديقي 
+وعندنا شحن لجميع محافظات مصر 
+━━━━━━━━━━━━━━━━━━
+ العنوان:
+دمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️
+
+ اللوكيشن:
+https://share.google/1e0cM7JVmxyLTpWVe`;
 
 const featureFlagEnabled = (value = "") => ["1", "true", "yes", "on"].includes(text(value).toLowerCase());
 const socialCommentsDebugEnabled = () =>
@@ -2330,6 +2385,22 @@ const executeSocialCommentAutomationRuntime = async ({
         stepResults,
       }),
     });
+  const aiPhaseTimings = {
+    config_lookup_started_at: new Date().toISOString(),
+    config_lookup_completed_at: "",
+    product_context_lookup_started_at: "",
+    product_context_lookup_completed_at: "",
+    sales_context_build_started_at: "",
+    sales_context_build_completed_at: "",
+    intent_detection_started_at: "",
+    intent_detection_completed_at: "",
+    reply_render_started_at: "",
+    reply_render_completed_at: "",
+    public_reply_send_started_at: "",
+    public_reply_send_completed_at: "",
+    private_reply_enqueue_started_at: "",
+    private_reply_enqueue_completed_at: "",
+  };
 
   if (!safeTenantId) {
     const diagnostics = buildCurrentDiagnostics({ skippedReason: "invalid_tenant" });
@@ -2711,6 +2782,7 @@ const executeSocialCommentAutomationRuntime = async ({
     });
     return returnWithFlowExit({ applied: false, skipped: true, reason: "config_disabled", row: safeRow, step_results: stepResults }, { exitReason: "config_disabled", exitType: "disabled" });
   }
+  aiPhaseTimings.config_lookup_completed_at = new Date().toISOString();
 
   if (config.lookup_matched_key && config.lookup_matched_key !== "post_id") {
     debugSocialCommentsLog("SOCIAL_COMMENT_AUTOMATION_RUNTIME_LOOKUP_MATCH", {
@@ -2753,6 +2825,7 @@ const executeSocialCommentAutomationRuntime = async ({
     ),
   });
 
+  aiPhaseTimings.product_context_lookup_started_at = new Date().toISOString();
   const hasProductContext = hasLinkedProductForAutomation({ row: safeRow, productContext });
   if (hasProductContext && productContext?.source === "sibling_post_mapping") {
     console.log("SOCIAL_COMMENT_AUTOMATION_PRODUCT_RESOLVED_FROM_SIBLING", {
@@ -2768,6 +2841,7 @@ const executeSocialCommentAutomationRuntime = async ({
     });
   }
   const effectiveProductContext = Boolean(productContext?.found) ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
+  aiPhaseTimings.product_context_lookup_completed_at = new Date().toISOString();
   if (!hasProductContext) {
     console.log("SOCIAL_COMMENT_PRODUCT_RESOLUTION_PATH", buildSocialCommentProductResolutionPathPayload({
       row: safeRow,
@@ -2830,19 +2904,21 @@ const executeSocialCommentAutomationRuntime = async ({
   const privateReplyTemplate = text(config.message_templates?.privateReplyTemplate || "");
   const aiOpeningPrompt = text(config.message_templates?.aiOpeningPrompt || "");
   const renderedAiOpeningPrompt = renderAutomationTemplate(aiOpeningPrompt, templateContext).trim();
-  const renderedPublicReply = renderAutomationTemplate(publicReplyTemplate || "تم الرد على حضرتك في الخاص ✅", templateContext).trim() || "تم الرد على حضرتك في الخاص ✅";
+  const renderedPublicReply = renderAutomationTemplate(publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE, templateContext).trim() || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE;
   const renderedPrivateReply = renderSocialCommentTemplateText(privateReplyTemplate || buildSocialCommentSuggestedReply({
     classificationLabel: safeRow.classification_label || "",
     commenterName: templateContext.customerName || "",
     originalCommentText: safeRow.original_comment_text || "",
     postPermalink: templateContext.postPermalink || "",
   }), templateContext).trim();
+  aiPhaseTimings.sales_context_build_started_at = new Date().toISOString();
   const salesContext = buildSocialCommentSalesContext({
     row: safeRow,
     productContext: effectiveProductContext || {},
     websiteLinks,
     templateContext,
   });
+  aiPhaseTimings.sales_context_build_completed_at = new Date().toISOString();
   console.log("SOCIAL_COMMENT_AI_SALES_CONTEXT", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
@@ -2885,9 +2961,11 @@ const executeSocialCommentAutomationRuntime = async ({
       return reference ? Math.max(0, aiGenerationStartedAt.getTime() - reference.getTime()) : null;
     })(),
   });
+  aiPhaseTimings.intent_detection_started_at = new Date().toISOString();
   const detectedIntent = detectSocialCommentSalesIntent({
     commentText: safeRow.original_comment_text || safeRow.comment_text || "",
   });
+  aiPhaseTimings.intent_detection_completed_at = new Date().toISOString();
   console.log("SOCIAL_COMMENT_AI_INTENT_DETECTED", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
@@ -2897,6 +2975,7 @@ const executeSocialCommentAutomationRuntime = async ({
     confidence: detectedIntent.confidence,
     matched_pattern: detectedIntent.matched_pattern,
   });
+  aiPhaseTimings.reply_render_started_at = new Date().toISOString();
   const salesReplies = buildSocialCommentSalesReplies({
     salesContext,
     intent: detectedIntent.intent,
@@ -2925,6 +3004,7 @@ const executeSocialCommentAutomationRuntime = async ({
       : initialRenderedPublicReply
   );
   const effectiveRenderedPrivateReply = text(salesReplies.private_reply || renderedPrivateReply);
+  aiPhaseTimings.reply_render_completed_at = new Date().toISOString();
   const aiSalesRuntime = {
     intent: detectedIntent.intent,
     confidence: detectedIntent.confidence,
@@ -3041,12 +3121,13 @@ const executeSocialCommentAutomationRuntime = async ({
       intent: aiSalesRuntime.intent,
     },
   };
-  const persistedRuntimeStateWithLatency = buildSocialCommentRuntimeMonitor({
+  let persistedRuntimeStateWithLatency = buildSocialCommentRuntimeMonitor({
     row: safeRow,
     automationState: persistedRuntimeState,
     latencyPatch: {
       ai_started_at: aiGenerationStartedAt.toISOString(),
       ai_completed_at: aiGenerationCompletedAt.toISOString(),
+      ...aiPhaseTimings,
       correlation_id: correlationId,
     },
     status: "ai_generated",
@@ -3116,7 +3197,9 @@ const executeSocialCommentAutomationRuntime = async ({
       enabled: true,
       stepResults,
       run: async () => {
+        aiPhaseTimings.public_reply_send_started_at = new Date().toISOString();
         await replyToComment(normalizedPlatform, safeCommentId, effectiveRenderedPublicReply, safeTenantId);
+        aiPhaseTimings.public_reply_send_completed_at = new Date().toISOString();
         workingRow.public_reply_status = "sent";
         persistedRuntimeStateWithLatency.public_reply = {
           ...(persistedRuntimeStateWithLatency.public_reply || {}),
@@ -3127,6 +3210,23 @@ const executeSocialCommentAutomationRuntime = async ({
         aiSalesRuntime.approval_status = "sent";
         aiSalesRuntime.delivery_status = "sent_public_reply";
         persistedRuntimeStateWithLatency.social_comment_runtime.ai_sales = aiSalesRuntime;
+        persistedRuntimeStateWithLatency = buildSocialCommentRuntimeMonitor({
+          row: safeRow,
+          automationState: {
+            ...persistedRuntimeStateWithLatency,
+            public_reply: {
+              ...(persistedRuntimeStateWithLatency.public_reply || {}),
+              status: "sent",
+              rendered_reply: effectiveRenderedPublicReply,
+              sent_at: new Date().toISOString(),
+            },
+          },
+          latencyPatch: {
+            ...aiPhaseTimings,
+          },
+          status: "ai_generated",
+        });
+        workingRow.automation_state = persistedRuntimeStateWithLatency;
         await persistRuntimeState({
           publicReplyStatus: "sent",
           automationState: persistedRuntimeStateWithLatency,
@@ -3162,6 +3262,7 @@ const executeSocialCommentAutomationRuntime = async ({
         enqueue_template: effectiveRenderedPrivateReply,
       });
       const queuedAt = new Date().toISOString();
+      aiPhaseTimings.private_reply_enqueue_started_at = new Date().toISOString();
       workingRow.dm_status = "queued";
       persistedRuntimeStateWithLatency.private_reply = {
         ...(persistedRuntimeStateWithLatency.private_reply || {}),
@@ -3182,6 +3283,7 @@ const executeSocialCommentAutomationRuntime = async ({
       latencyPatch: {
         enqueue_at: queuedAt,
         private_reply_enqueued_at: queuedAt,
+        ...aiPhaseTimings,
       },
       status: "queued",
     });
@@ -3192,6 +3294,7 @@ const executeSocialCommentAutomationRuntime = async ({
       dmStatus: "queued",
       automationState: workingRow.automation_state,
     }).catch(() => {});
+      aiPhaseTimings.private_reply_enqueue_completed_at = new Date().toISOString();
       logSocialCommentFlowStep("PRIVATE_REPLY_ENQUEUE", buildSocialCommentFlowLogPayload({
         stage: "PRIVATE_REPLY_ENQUEUE",
         tenantId: safeTenantId,
@@ -3232,6 +3335,20 @@ const executeSocialCommentAutomationRuntime = async ({
         postId: safePostId,
         row: workingRow,
       }).catch(() => {});
+      workingRow.automation_state = buildSocialCommentRuntimeMonitor({
+        row: workingRow,
+        automationState: persistedRuntimeStateWithLatency,
+        latencyPatch: {
+          enqueue_at: queuedAt,
+          private_reply_enqueued_at: queuedAt,
+          ...aiPhaseTimings,
+        },
+        status: "queued",
+      });
+      await persistRuntimeState({
+        dmStatus: "queued",
+        automationState: workingRow.automation_state,
+      }).catch(() => {});
       console.log("SOCIAL_COMMENT_PRIVATE_REPLY_ENQUEUE_AFTER", {
         tenant_id: safeTenantId,
         platform: normalizedPlatform,
@@ -3252,6 +3369,24 @@ const executeSocialCommentAutomationRuntime = async ({
       message: effectiveRenderedPrivateReply,
     });
   }
+
+  const aiPhaseLatencySummary = computeSocialCommentLatencySummary({
+    ...(metadataObject(workingRow.automation_state?.runtime_monitor?.latency_trace || safeRow.automation_state?.runtime_monitor?.latency_trace || {})),
+    ...aiPhaseTimings,
+    enqueue_at: aiPhaseTimings.private_reply_enqueue_started_at || "",
+    private_reply_enqueued_at: aiPhaseTimings.private_reply_enqueue_started_at || "",
+  });
+  console.log("SOCIAL_COMMENT_AI_PHASE_TIMINGS", {
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    comment_id: safeCommentId,
+    run_id: safeCurrentRunId,
+    correlation_id: correlationId,
+    ai_phase_timings: aiPhaseTimings,
+    ai_breakdown: aiPhaseLatencySummary.ai_breakdown || null,
+    latency_summary: aiPhaseLatencySummary,
+  });
 
   if (aiFollowUpEnabled) {
     const aiFollowUpResult = await executeAutomationStep({
@@ -4186,6 +4321,20 @@ export const enqueueSocialCommentPrivateReplyJob = async ({ tenantId = null, pla
       private_reply_started_at: normalizeTimestampForDb(latencyTrace.private_reply_started_at || null, "enqueueSocialCommentPrivateReplyJob.private_reply_started_at"),
       ai_started_at: normalizeTimestampForDb(latencyTrace.ai_started_at || null, "enqueueSocialCommentPrivateReplyJob.ai_started_at"),
       ai_completed_at: normalizeTimestampForDb(latencyTrace.ai_completed_at || null, "enqueueSocialCommentPrivateReplyJob.ai_completed_at"),
+      ai_config_lookup_started_at: normalizeTimestampForDb(latencyTrace.ai_config_lookup_started_at || null, "enqueueSocialCommentPrivateReplyJob.ai_config_lookup_started_at"),
+      ai_config_lookup_completed_at: normalizeTimestampForDb(latencyTrace.ai_config_lookup_completed_at || null, "enqueueSocialCommentPrivateReplyJob.ai_config_lookup_completed_at"),
+      ai_product_context_lookup_started_at: normalizeTimestampForDb(latencyTrace.ai_product_context_lookup_started_at || null, "enqueueSocialCommentPrivateReplyJob.ai_product_context_lookup_started_at"),
+      ai_product_context_lookup_completed_at: normalizeTimestampForDb(latencyTrace.ai_product_context_lookup_completed_at || null, "enqueueSocialCommentPrivateReplyJob.ai_product_context_lookup_completed_at"),
+      ai_sales_context_build_started_at: normalizeTimestampForDb(latencyTrace.ai_sales_context_build_started_at || null, "enqueueSocialCommentPrivateReplyJob.ai_sales_context_build_started_at"),
+      ai_sales_context_build_completed_at: normalizeTimestampForDb(latencyTrace.ai_sales_context_build_completed_at || null, "enqueueSocialCommentPrivateReplyJob.ai_sales_context_build_completed_at"),
+      ai_intent_detection_started_at: normalizeTimestampForDb(latencyTrace.ai_intent_detection_started_at || null, "enqueueSocialCommentPrivateReplyJob.ai_intent_detection_started_at"),
+      ai_intent_detection_completed_at: normalizeTimestampForDb(latencyTrace.ai_intent_detection_completed_at || null, "enqueueSocialCommentPrivateReplyJob.ai_intent_detection_completed_at"),
+      ai_reply_render_started_at: normalizeTimestampForDb(latencyTrace.ai_reply_render_started_at || null, "enqueueSocialCommentPrivateReplyJob.ai_reply_render_started_at"),
+      ai_reply_render_completed_at: normalizeTimestampForDb(latencyTrace.ai_reply_render_completed_at || null, "enqueueSocialCommentPrivateReplyJob.ai_reply_render_completed_at"),
+      public_reply_send_started_at: normalizeTimestampForDb(latencyTrace.public_reply_send_started_at || null, "enqueueSocialCommentPrivateReplyJob.public_reply_send_started_at"),
+      public_reply_send_completed_at: normalizeTimestampForDb(latencyTrace.public_reply_send_completed_at || null, "enqueueSocialCommentPrivateReplyJob.public_reply_send_completed_at"),
+      private_reply_enqueue_started_at: normalizeTimestampForDb(latencyTrace.private_reply_enqueue_started_at || null, "enqueueSocialCommentPrivateReplyJob.private_reply_enqueue_started_at"),
+      private_reply_enqueue_completed_at: normalizeTimestampForDb(latencyTrace.private_reply_enqueue_completed_at || null, "enqueueSocialCommentPrivateReplyJob.private_reply_enqueue_completed_at"),
       send_started_at: normalizeTimestampForDb(latencyTrace.send_started_at || null, "enqueueSocialCommentPrivateReplyJob.send_started_at"),
       send_completed_at: normalizeTimestampForDb(latencyTrace.send_completed_at || null, "enqueueSocialCommentPrivateReplyJob.send_completed_at"),
     },
@@ -7969,7 +8118,7 @@ export const testSocialCommentAutomationRuntime = async ({ tenantId = null, plat
     [safeTenantId, normalizedPlatform, duplicatePostIds]
   ).catch(() => ({ rows: [] }));
   const duplicateExists = Boolean(duplicateRun.rows?.[0] || duplicateAuditRun.rows?.[0]);
-  const publicTemplate = text(config?.message_templates?.publicReplyTemplate || "تم الرد على حضرتك في الخاص ✅");
+  const publicTemplate = text(config?.message_templates?.publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE);
   const privateTemplate = text(config?.message_templates?.privateReplyTemplate || "");
   const warnings = {
     publicReplyTemplate: detectMissingTemplatePlaceholders(publicTemplate, templateContext),
