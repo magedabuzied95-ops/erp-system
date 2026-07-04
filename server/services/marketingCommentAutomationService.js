@@ -733,6 +733,7 @@ export const replyToComment = async (platform, commentId, message, businessId) =
   const endpoint = platform === "instagram"
     ? `/${encodeURIComponent(commentId)}/replies`
     : `/${encodeURIComponent(commentId)}/comments`;
+  const sendStartedAt = Date.now();
   console.log("ACTIVE_PUBLIC_REPLY_SEND_PATH", {
     file: "server/services/marketingCommentAutomationService.js",
     function: "replyToComment",
@@ -747,20 +748,63 @@ export const replyToComment = async (platform, commentId, message, businessId) =
     message_preview: trimString(message).slice(0, 400),
     message_length: trimString(message).length,
   });
-  return callMetaPost({
-    businessId,
-    endpoint,
-    label: "public reply",
-    params: { message: trimString(message) },
+  console.log("SOCIAL_COMMENT_PUBLIC_REPLY_SEND_START", {
+    platform,
+    comment_id: String(commentId || ""),
+    business_id: Number(businessId || 0) || null,
+    timeout_ms: null,
+    retry_count: 0,
+    message_preview: trimString(message).slice(0, 400),
   });
+  try {
+    const result = await callMetaPost({
+      businessId,
+      endpoint,
+      label: "public reply",
+      params: { message: trimString(message) },
+    });
+    console.log("SOCIAL_COMMENT_PUBLIC_REPLY_SEND_DONE", {
+      platform,
+      comment_id: String(commentId || ""),
+      business_id: Number(businessId || 0) || null,
+      timeout_ms: null,
+      retry_count: 0,
+      send_ms: Date.now() - sendStartedAt,
+      message_preview: trimString(message).slice(0, 400),
+    });
+    return result;
+  } catch (error) {
+    console.warn("SOCIAL_COMMENT_PUBLIC_REPLY_SEND_ERROR", {
+      platform,
+      comment_id: String(commentId || ""),
+      business_id: Number(businessId || 0) || null,
+      timeout_ms: null,
+      retry_count: 0,
+      send_ms: Date.now() - sendStartedAt,
+      message_preview: trimString(message).slice(0, 400),
+      error: error?.message || "",
+    });
+    throw error;
+  }
 };
 
 export const sendPrivateReply = async (platform, commentId, message, businessId, options = {}) => {
+  const sendStartedAt = Date.now();
   const settings = await getSettingsRow(businessId);
   const tokenStatus = validateMetaToken(settings || {});
   const selectedMessage = trimString(message) || "تم الرد على حضرتك في الخاص ✅";
   const hasProductContext = Boolean(options?.productContext?.found || options?.productContext?.has_product_context);
   const selectedSource = trimString(options?.selectedSource || (hasProductContext ? "product_aware_rendered_reply" : "sendPrivateReply_argument"));
+  console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_START", {
+    platform: trimString(platform || ""),
+    comment_id: trimString(commentId || ""),
+    business_id: Number(businessId || 0) || null,
+    timeout_ms: null,
+    retry_count: Number(options?.retryCount || 0) || 0,
+    has_product_context: hasProductContext,
+    selected_source: selectedSource,
+    message_preview: selectedMessage.slice(0, 280),
+  });
   const capabilityDebug = await loadPrivateReplyCapabilityDebug({ businessId, commentId }).catch((error) => ({
     settings,
     accessToken: tokenStatus?.accessToken || "",
@@ -1182,6 +1226,16 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
         page_id: pageId,
         token_delivery: "query",
       });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_DONE", {
+        platform: trimString(platform || ""),
+        comment_id: trimString(commentId || ""),
+        business_id: Number(businessId || 0) || null,
+        timeout_ms: null,
+        retry_count: Number(options?.retryCount || 0) || 0,
+        send_ms: Date.now() - sendStartedAt,
+        has_product_context: hasProductContext,
+        selected_source: selectedSource,
+      });
       if (quickReplies.length) {
         console.log("SOCIAL_COMMENT_QUICK_REPLY_SENT", {
           comment_id: graphCommentId,
@@ -1258,6 +1312,17 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
         page_id: pageId,
         token_delivery: "query",
         status: error?.status || details.status || null,
+        message: details.message || error?.message || "",
+      });
+      console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_ERROR", {
+        platform: trimString(platform || ""),
+        comment_id: trimString(commentId || ""),
+        business_id: Number(businessId || 0) || null,
+        timeout_ms: null,
+        retry_count: Number(options?.retryCount || 0) || 0,
+        send_ms: Date.now() - sendStartedAt,
+        has_product_context: hasProductContext,
+        selected_source: selectedSource,
         message: details.message || error?.message || "",
       });
       const mappedCode = Number(details.code) === 100 && Number(details.subcode) === 33
@@ -1355,6 +1420,16 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
       token_delivery: "query",
       final_url_without_token: finalUrlWithoutToken,
     });
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_DONE", {
+      platform: trimString(platform || ""),
+      comment_id: trimString(commentId || ""),
+      business_id: Number(businessId || 0) || null,
+      timeout_ms: null,
+      retry_count: Number(options?.retryCount || 0) || 0,
+      send_ms: Date.now() - sendStartedAt,
+      has_product_context: hasProductContext,
+      selected_source: selectedSource,
+    });
     return payload;
   } catch (error) {
     const details = extractMetaErrorDetails(error);
@@ -1394,6 +1469,17 @@ export const sendPrivateReply = async (platform, commentId, message, businessId,
       resolved_comment_id: graphCommentId,
       token_delivery: "query",
       final_url_without_token: finalUrlWithoutToken,
+    });
+    console.log("SOCIAL_COMMENT_PRIVATE_REPLY_SEND_ERROR", {
+      platform: trimString(platform || ""),
+      comment_id: trimString(commentId || ""),
+      business_id: Number(businessId || 0) || null,
+      timeout_ms: null,
+      retry_count: Number(options?.retryCount || 0) || 0,
+      send_ms: Date.now() - sendStartedAt,
+      has_product_context: hasProductContext,
+      selected_source: selectedSource,
+      message: details.message || error?.message || "",
     });
   }
 

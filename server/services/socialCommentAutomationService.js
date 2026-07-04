@@ -480,6 +480,8 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
   const aiReplyRenderCompletedAt = parseDateOrNull(trace.ai_reply_render_completed_at || null);
   const publicReplySendStartedAt = parseDateOrNull(trace.public_reply_send_started_at || null);
   const publicReplySendCompletedAt = parseDateOrNull(trace.public_reply_send_completed_at || null);
+  const privateReplySendStartedAt = parseDateOrNull(trace.private_reply_send_started_at || null);
+  const privateReplySendCompletedAt = parseDateOrNull(trace.private_reply_send_completed_at || null);
   const privateReplyEnqueueStartedAt = parseDateOrNull(trace.private_reply_enqueue_started_at || null);
   const privateReplyEnqueueCompletedAt = parseDateOrNull(trace.private_reply_enqueue_completed_at || null);
   const runtimePhaseCompletedAt = selectLatestDateOrNull(
@@ -508,6 +510,7 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
     reply_render_ms: diff(aiReplyRenderCompletedAt, aiReplyRenderStartedAt),
     public_reply_send_ms: diff(publicReplySendCompletedAt, publicReplySendStartedAt),
     private_reply_enqueue_ms: diff(privateReplyEnqueueCompletedAt, privateReplyEnqueueStartedAt),
+    private_reply_send_ms: diff(privateReplySendCompletedAt, privateReplySendStartedAt),
   };
   return {
     webhook_to_store_ms: diff(storedAt, webhookReceivedAt),
@@ -523,6 +526,10 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
     ai_to_private_reply_enqueue_ms: diff(privateReplyEnqueuedAt, aiCompletedAt),
     private_reply_queue_wait_ms: diff(privateReplyStartedAt, privateReplyEnqueuedAt),
     send_ms: diff(sendCompletedAt, sendStartedAt),
+    public_reply_send_ms: diff(publicReplySendCompletedAt, publicReplySendStartedAt),
+    private_reply_send_ms: diff(privateReplySendCompletedAt || sendCompletedAt, privateReplySendStartedAt || sendStartedAt),
+    time_to_private_reply_enqueued_ms: diff(privateReplyEnqueuedAt, aiCompletedAt || detectedAt || webhookReceivedAt),
+    time_to_private_reply_sent_ms: diff(privateReplySendCompletedAt || sendCompletedAt, aiCompletedAt || detectedAt || webhookReceivedAt),
     total_comment_reply_ms: diff(sendCompletedAt || aiCompletedAt, detectedAt || webhookReceivedAt),
     missing_fields: missingFields,
     ai_breakdown,
@@ -574,6 +581,8 @@ const buildSocialCommentRuntimeMonitor = ({
     ai_reply_render_completed_at: normalizeTimestampForDb(trace.ai_reply_render_completed_at || null, "buildSocialCommentRuntimeMonitor.ai_reply_render_completed_at"),
     public_reply_send_started_at: normalizeTimestampForDb(trace.public_reply_send_started_at || null, "buildSocialCommentRuntimeMonitor.public_reply_send_started_at"),
     public_reply_send_completed_at: normalizeTimestampForDb(trace.public_reply_send_completed_at || null, "buildSocialCommentRuntimeMonitor.public_reply_send_completed_at"),
+    private_reply_send_started_at: normalizeTimestampForDb(trace.private_reply_send_started_at || null, "buildSocialCommentRuntimeMonitor.private_reply_send_started_at"),
+    private_reply_send_completed_at: normalizeTimestampForDb(trace.private_reply_send_completed_at || null, "buildSocialCommentRuntimeMonitor.private_reply_send_completed_at"),
     private_reply_enqueue_started_at: normalizeTimestampForDb(trace.private_reply_enqueue_started_at || null, "buildSocialCommentRuntimeMonitor.private_reply_enqueue_started_at"),
     private_reply_enqueue_completed_at: normalizeTimestampForDb(trace.private_reply_enqueue_completed_at || null, "buildSocialCommentRuntimeMonitor.private_reply_enqueue_completed_at"),
     runtime_phase_completed_at: normalizeTimestampForDb(trace.runtime_phase_completed_at || null, "buildSocialCommentRuntimeMonitor.runtime_phase_completed_at"),
@@ -3255,6 +3264,17 @@ const executeSocialCommentAutomationRuntime = async ({
     fastPrivateFirstEnabled &&
     publicReplyEnabled &&
     privateReplyEnabled;
+  if (shouldEnqueuePrivateReplyBeforePublic) {
+    console.log("SOCIAL_COMMENT_FAST_PRIVATE_FIRST_APPLIED", {
+      tenant_id: safeTenantId,
+      platform: normalizedPlatform,
+      post_id: safePostId,
+      comment_id: safeCommentId,
+      enabled: true,
+      public_reply_enabled: publicReplyEnabled,
+      private_reply_enabled: privateReplyEnabled,
+    });
+  }
 
   const runPublicReplyStep = async () => {
     if (publicReplyEnabled) {
