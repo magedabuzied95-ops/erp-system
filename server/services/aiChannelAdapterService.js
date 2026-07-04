@@ -739,7 +739,16 @@ export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } 
       });
       const channel = metaEventChannel({ body, event });
       const senderId = toText(event.sender?.id);
-      if (!senderId) return;
+      if (!senderId) {
+        console.log("META_WEBHOOK_ECHO_SKIP_RETURNED_CLEANLY", {
+          reason: "missing_sender_id",
+          channel,
+          recipient_id: toText(event?.recipient?.id || "") ? "***" : "",
+          has_message: Boolean(event?.message),
+          is_echo: Boolean(event?.message?.is_echo === true),
+        });
+        continue;
+      }
       const recipientId = toText(event.recipient?.id);
       const pageId = toText(entry.id || recipientId);
       const isEcho = event.message?.is_echo === true || event.message?.app_id || event.message?.metadata;
@@ -753,7 +762,19 @@ export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } 
           is_echo: Boolean(isEcho),
           sender_equals_page: Boolean(senderLooksLikePage),
         });
-        return;
+        console.log("META_WEBHOOK_ECHO_SKIP_RETURNED_CLEANLY", {
+          reason: isEcho ? "is_echo_or_page_origin" : "sender_looks_like_page",
+          channel,
+          sender_id: senderId ? "***" : "",
+          recipient_id: recipientId ? "***" : "",
+          page_id: pageId ? "***" : "",
+          is_echo: Boolean(isEcho),
+          sender_equals_page: Boolean(senderLooksLikePage),
+          attachment_types: Array.isArray(event?.message?.attachments)
+            ? event.message.attachments.map((attachment) => toText(attachment?.type || "")).filter(Boolean)
+            : [],
+        });
+        continue;
       }
       const messageText = extractMetaMessageText(event);
       const attachments = extractMetaAttachments(event);

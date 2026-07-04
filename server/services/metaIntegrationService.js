@@ -22079,7 +22079,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
   const storedCommentEvents = commentEvents.length
     ? await storeSocialCommentAutomationRuns({ tenantId: config.tenant_id, events: commentEvents })
     : [];
-  const messages = (await extractMetaWebhookMessages({ body: payload, tenantId: config.tenant_id })).filter((message) => message.message_text || message.attachments?.length);
+  const extractedMessages = await extractMetaWebhookMessages({ body: payload, tenantId: config.tenant_id });
+  const messages = (Array.isArray(extractedMessages) ? extractedMessages : []).filter((message) => message?.message_text || message?.attachments?.length);
   const results = [];
   for (const incomingMessage of messages) {
     const resolvedPageId = await resolveMessengerProfileFetchPageId({
