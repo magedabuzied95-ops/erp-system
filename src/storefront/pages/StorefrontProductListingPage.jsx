@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
@@ -491,7 +491,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     [backendSearchTerm, gender, saleView, sort]
   );
   const { products, loading, error } = useProducts(productsApiParams, { ttlMs: 0 });
-  const filterBasePath = sale ? "/shop/sale" : "/shop/products";
+  const filterBasePath = sale ? "/sale" : "/products";
   const activeFilterCount = [
     brand,
     gender,

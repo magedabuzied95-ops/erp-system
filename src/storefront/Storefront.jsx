@@ -1,4 +1,4 @@
-﻿import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { memo, useCallback } from "react";
 import { useDeferredValue } from "react";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
@@ -74,6 +74,20 @@ import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocatio
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
+import {
+  isStorefrontCheckoutFlowPath,
+  isStorefrontCheckoutPath,
+  isStorefrontHomePath,
+  isStorefrontOfferPath,
+  isStorefrontPath,
+  isStorefrontProductPath,
+  isStorefrontProductsPath,
+  normalizePathname,
+  productPath,
+  productsPath,
+  storefrontPath,
+  storefrontPathFromLink,
+} from "./lib/paths";
 import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import instaPayLogo from "../assets/payments/instapay.png";
@@ -92,7 +106,7 @@ const productRouteIdentifier = (product = {}) =>
   );
 const productBaseUrl = (product = {}) => {
   const identifier = productRouteIdentifier(product);
-  return identifier ? `/shop/product/${encodeURIComponent(identifier)}` : "/shop/products";
+  return identifier ? productPath(identifier) : productsPath();
 };
 const appendProductUrlParams = (url = "", entries = []) => {
   const [path, query = ""] = String(url || "").split("?");
@@ -108,7 +122,7 @@ const productUrl = (product = {}) => {
   const variantId = product.selected_variant_id || product.display_variant_id || product.matched_variant_id || "";
   const color = product.color_key || product.display_color_key || product.color || product.display_color || "";
   const linkedPath = storefrontPathFromLink(product.link || product.product_url || product.url);
-  const linkedProductPath = linkedPath.startsWith("/shop/product/") ? linkedPath : "";
+  const linkedProductPath = isStorefrontProductPath(linkedPath) ? linkedPath : "";
   return appendProductUrlParams(linkedProductPath || productBaseUrl(product), [
     ["variant", variantId],
     ["color", color],
@@ -1553,7 +1567,7 @@ const productCardBrandLabel = (product = {}) => firstTextValue(
 const productCardBrandFilterUrl = (product = {}) => {
   const brandLabel = String(productCardBrandLabel(product) || "").trim();
   if (!brandLabel) return "";
-  return `/shop/products?brand=${encodeURIComponent(brandLabel)}`;
+  return productsPath({ brand: brandLabel });
 };
 const productCardIsNew = (product = {}) => {
   const createdAt = new Date(product.created_at || product.createdAt || 0).getTime();
@@ -2246,7 +2260,7 @@ const featuredCategoryDefinitions = [
     subtitleEn: "Premium styles. Daily arrivals.",
     subtitleAr: "Premium styles. Daily arrivals.",
     query: "Jordan 4 Nike Shox Air Force Adidas Campus رجالي",
-    href: "/shop/products?gender=men",
+    href: "/products?gender=men",
     examples: ["Jordan 4", "Nike Shox", "Air Force", "Adidas Campus"],
     test: (product, text) => productAudienceValues(product).includes("men") || /(?:^|\b)(men|mens|male|رجالي|رجال)(?:\b|$)/i.test(text),
     icon: Briefcase,
@@ -2260,7 +2274,7 @@ const featuredCategoryDefinitions = [
     subtitleEn: "Soft colors, bold silhouettes, and everyday favorites in one edit.",
     subtitleAr: "ألوان ناعمة، قصات جريئة، ومفضلات يومية في اختيار واحد.",
     query: "Nike Adidas Jordan حريمي",
-    href: "/shop/products?gender=women",
+    href: "/products?gender=women",
     examples: ["Nike", "Adidas", "Jordan"],
     test: (product, text) => productAudienceValues(product).includes("women") || /(?:^|\b)(women|womens|female|ladies|حريمي|نساء|بناتي)(?:\b|$)/i.test(text),
     icon: Users,
@@ -2274,7 +2288,7 @@ const featuredCategoryDefinitions = [
     subtitleEn: "Built for school, play and movement.",
     subtitleAr: "مصممة للمدرسة، اللعب والحركة.",
     query: "kids children school play أطفال",
-    href: "/shop/products?gender=kids",
+    href: "/products?gender=kids",
     examples: ["kids", "children", "school", "play"],
     test: (product, text) => productAudienceValues(product).includes("kids") || /(?:^|\b)(kids?|children|child|boys|girls|أطفال|طفل)(?:\b|$)/i.test(text),
     icon: Baby,
@@ -2288,7 +2302,7 @@ const featuredCategoryDefinitions = [
     subtitleEn: "Selected discounts and high-value picks for a limited time.",
     subtitleAr: "خصومات مختارة وقطع عالية القيمة لفترة محدودة.",
     query: "offers sale discount عروض",
-    href: "/shop/offers",
+    href: "/offers",
     examples: ["Sale", "Discount", "Offers", "Best Price"],
     test: (product, text) => isOfferStory(product) || /(?:^|\b)(offer|offers|sale|discount|خصم|عروض?)(?:\b|$)/i.test(text),
     icon: BadgePercent,
@@ -2302,7 +2316,7 @@ const featuredCategoryDefinitions = [
     subtitleEn: "Easy comfort, summer colors, and quick everyday pairs.",
     subtitleAr: "راحة سهلة، ألوان صيفية، وقطع يومية خفيفة.",
     query: "crocs crocband classic clog slides كروكس",
-    href: "/shop/products?type=crocs",
+    href: "/products?type=crocs",
     examples: ["Crocs", "Crocband", "Classic Clog", "Slides"],
     test: (product, text) => String(product?.product_type || product?.productType || product?.category || "").toLowerCase().includes("croc") || /(?:^|\b)(crocs?|crocband|classics?\s*clog|slides)(?:\b|$)/i.test(text),
     icon: Footprints,
@@ -2316,7 +2330,7 @@ const featuredCategoryDefinitions = [
     subtitleEn: "Limited pairs with final sizes before they disappear.",
     subtitleAr: "أزواج محدودة بالمقاسات الأخيرة قبل نفادها.",
     query: "last sizes final size آخر المقاسات",
-    href: "/shop/products?stock=last",
+    href: "/products?stock=last",
     examples: ["Last Sizes", "Final Size", "Limited Stock"],
     test: (product, text) => isLastPieceProduct(product) || /(?:^|\b)(last\s*sizes?|final\s*size|last\s*size|آخر\s*المقاسات|المقاسات\s*الأخيرة|final\s*pieces?)(?:\b|$)/i.test(text),
     icon: PackageSearch,
@@ -2393,16 +2407,6 @@ const firstNumberValue = (...values) => {
     if (Number.isFinite(number) && number > 0) return number;
   }
   return 0;
-};
-const storefrontPathFromLink = (value = "") => {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  try {
-    const url = new URL(raw, typeof window !== "undefined" ? window.location.origin : "https://storefront.local");
-    return `${url.pathname}${url.search}${url.hash}`;
-  } catch {
-    return raw.startsWith("/") ? raw : "";
-  }
 };
 const nestedProductFor = (item = {}) => {
   if (item?.product && typeof item.product === "object") return item.product;
@@ -2705,7 +2709,7 @@ function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, t
   const cta = isRtl ? "تسوّق الفئة" : t("storefront.common.shopCategory", "Shop category");
   const headline = isRtl ? activeCategory.headlineAr : activeCategory.headlineEn;
   const subtitle = isRtl ? activeCategory.subtitleAr : activeCategory.subtitleEn;
-  const categoryHref = activeCategory.href || `/shop/products?q=${encodeURIComponent(activeCategory.query || activeCategory.label)}`;
+  const categoryHref = activeCategory.href || `/products?q=${encodeURIComponent(activeCategory.query || activeCategory.label)}`;
   const supportingSlides = [activeSlide, ...slides.filter((slide) => slide.product?.id !== activeSlide.product?.id)].slice(0, 5);
 
   return (
@@ -2807,7 +2811,7 @@ const mainHomeCategoryCards = [
     titleEn: "Men",
     subtitleAr: "أحدث Nike و Adidas و Jordan",
     subtitleEn: "Latest Nike, Adidas & Jordan",
-    href: "/shop/products?gender=men",
+    href: "/products?gender=men",
     test: (product) => productAudienceValues(product).includes("men"),
     icon: Briefcase,
   },
@@ -2817,7 +2821,7 @@ const mainHomeCategoryCards = [
     titleEn: "Women",
     subtitleAr: "راحة وأناقة لكل يوم",
     subtitleEn: "Comfort and style for every day",
-    href: "/shop/products?gender=women",
+    href: "/products?gender=women",
     test: (product) => productAudienceValues(product).includes("women"),
     icon: Users,
   },
@@ -2827,7 +2831,7 @@ const mainHomeCategoryCards = [
     titleEn: "Kids",
     subtitleAr: "مصممة للمدرسة واللعب والحركة",
     subtitleEn: "Built for school, play and movement",
-    href: "/shop/products?gender=kids",
+    href: "/products?gender=kids",
     test: (product) => productAudienceValues(product).includes("kids"),
     icon: Baby,
   },
@@ -2837,7 +2841,7 @@ const mainHomeCategoryCards = [
     titleEn: "Offers",
     subtitleAr: "عروض الموسم",
     subtitleEn: "Season offers",
-    href: "/shop/offers",
+    href: "/offers",
     test: (product) => isOfferStory(product),
     icon: BadgePercent,
   },
@@ -2847,7 +2851,7 @@ const mainHomeCategoryCards = [
     titleEn: "Crocs",
     subtitleAr: "راحة سهلة لكل يوم",
     subtitleEn: "Easy comfort for every day",
-    href: "/shop/products?type=crocs",
+    href: "/products?type=crocs",
     test: (product) => categoryCardHasCrocs(product),
     icon: Footprints,
   },
@@ -2857,7 +2861,7 @@ const mainHomeCategoryCards = [
     titleEn: "Last Sizes",
     subtitleAr: "مقاسات محدودة قبل النفاد",
     subtitleEn: "Limited pairs before they disappear",
-    href: "/shop/products?stock=last",
+    href: "/products?stock=last",
     test: (product) => isLastPieceProduct(product),
     icon: PackageSearch,
   },
@@ -2903,7 +2907,7 @@ function MobileStoryCategories({ products = [], lang = "ar", themeMode = "dark" 
         <div className="grid w-full grid-cols-4 gap-[clamp(10px,3vw,16px)]">
         {storyCards.map((card) => {
           const Icon = card.icon;
-          const href = card.href || `/shop/products?q=${encodeURIComponent(card.titleAr || card.titleEn || "")}`;
+          const href = card.href || `/products?q=${encodeURIComponent(card.titleAr || card.titleEn || "")}`;
           const label = isRtl ? card.titleAr : card.titleEn;
           const imageSrc = card.image ? imageFor(card.image) : "";
           return (
@@ -2996,7 +3000,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
             الأقسام المميزة
           </h2>
         </div>
-        <Link to="/shop/products" className={`hidden min-h-11 items-center justify-center rounded-full border px-6 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.08)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:inline-flex ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#101010] hover:border-[#d4af37]/50 hover:bg-white hover:text-[#101010]"}`}>
+        <Link to="/products" className={`hidden min-h-11 items-center justify-center rounded-full border px-6 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.08)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:inline-flex ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#101010] hover:border-[#d4af37]/50 hover:bg-white hover:text-[#101010]"}`}>
           {sfText("common.viewAll")}
         </Link>
       </div>
@@ -3053,7 +3057,7 @@ function ShopByMainCategories({ products = [], lang = "ar", loading = false, the
   );
 }
 
-function HomeProductSection({ title, subtitle, viewAllTo = "/shop/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, onAddToCart, themeMode = "light" }) {
+function HomeProductSection({ title, subtitle, viewAllTo = "/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, onAddToCart, themeMode = "light" }) {
   const isRtl = normalizeLanguage(i18n.language) === "ar";
   const darkMode = themeMode === "dark";
   const railViewportRef = useRef(null);
@@ -3485,7 +3489,7 @@ function HomeBrandsSection() {
         {isSingleBrand ? (
           <div className="mx-auto flex w-fit justify-center">
             {visibleBrands.map((brand) => {
-              const brandHref = `/shop?brand=${encodeURIComponent(brand.id || brand.slug)}`;
+              const brandHref = `/?brand=${encodeURIComponent(brand.id || brand.slug)}`;
               const brandName = brand.name || "";
               return (
                 <Link
@@ -3516,7 +3520,7 @@ function HomeBrandsSection() {
         ) : (
           <div className={gridClassName}>
             {visibleBrands.map((brand) => {
-              const brandHref = `/shop?brand=${encodeURIComponent(brand.id || brand.slug)}`;
+              const brandHref = `/?brand=${encodeURIComponent(brand.id || brand.slug)}`;
               const brandName = brand.name || "";
               return (
                 <Link
@@ -3579,8 +3583,8 @@ function HomePage(props) {
   const { products: saleProducts, loading: saleLoading } = useProducts({ offer_story: 1, limit: 12 });
 
   useEffect(() => {
-    if (!brandFilter || location.pathname.replace(/\/+$/, "") !== "/shop") return;
-    navigate(`/shop/products?brand=${encodeURIComponent(brandFilter)}`, { replace: true });
+    if (!brandFilter || !isStorefrontHomePath(location.pathname)) return;
+    navigate(productsPath({ brand: brandFilter }), { replace: true });
   }, [brandFilter, location.pathname, navigate]);
 
   const merchProducts = useMemo(() => products.filter(isAvailableProduct), [products]);
@@ -3655,10 +3659,10 @@ function HomePage(props) {
       <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={themeMode} />
       {showHomeProductSections ? (
         <>
-          <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/shop/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
-    <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/shop/offers" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
-          <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/shop/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
-          <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات رائجة مع أحدث المنتجات كخيار بديل." : "Popular picks, with newest products as fallback."} viewAllTo="/shop/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
+          <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
+    <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/offers" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
+          <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
+          <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات رائجة مع أحدث المنتجات كخيار بديل." : "Popular picks, with newest products as fallback."} viewAllTo="/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
         </>
       ) : null}
       <Reviews />
@@ -3680,7 +3684,7 @@ function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false
           <h2 className="text-[1.9rem] font-black tracking-tight text-stone-950 dark:text-stone-100 md:text-[2.85rem]">{title}</h2>
           {subtitle ? <p className="mt-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 md:text-sm">{subtitle}</p> : null}
         </div>
-        <Link to="/shop/products" className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#d4af37]/50 hover:text-[#d4af37] active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+        <Link to="/products" className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#d4af37]/50 hover:text-[#d4af37] active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
           {sfText("common.viewAll")}
         </Link>
       </div>
@@ -4238,7 +4242,7 @@ function OfferStoryViewer() {
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const onKeyDown = (event) => {
-      if (event.key === "Escape") navigate("/shop");
+      if (event.key === "Escape") navigate("/");
       if (stage !== "story") return;
       if (event.key === "ArrowLeft") setCurrentIndex((index) => Math.max(0, index - 1));
       if (event.key === "ArrowRight") setCurrentIndex((index) => Math.min(Math.max(storyProducts.length - 1, 0), index + 1));
@@ -4248,7 +4252,7 @@ function OfferStoryViewer() {
   }, [navigate, stage, storyProducts.length]);
 
   const goPrev = () => {
-    if (stage === "size") return navigate("/shop");
+    if (stage === "size") return navigate("/");
     if (stage === "type") return setSelectedSize("");
     setCurrentIndex((index) => {
       const total = storyProducts.length;
@@ -4295,7 +4299,7 @@ function OfferStoryViewer() {
       navigate(-1);
       return;
     }
-    navigate("/shop");
+    navigate("/");
   }, [navigate]);
 
   const handleViewerClick = useCallback((event) => {
@@ -4352,7 +4356,7 @@ function OfferStoryViewer() {
                 title="تعذر تحميل العروض"
                 text={String(loadError || "حدث خطأ أثناء تحميل العروض")}
                 actionLabel="العودة للرئيسية"
-                onAction={() => navigate("/shop")}
+                onAction={() => navigate("/")}
               />
             </div>
           ) : stage === "size" ? (
@@ -4398,7 +4402,7 @@ function OfferStoryViewer() {
                     title="لا توجد عروض متاحة الآن"
                     text="لم نتمكن من العثور على منتجات عروض صالحة للعرض في المتجر."
                     actionLabel="العودة للرئيسية"
-                    onAction={() => navigate("/shop")}
+                    onAction={() => navigate("/")}
                   />
                 </div>
               ) : null}
@@ -4488,7 +4492,7 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
           {subtitle ? <p className="mt-0.5 text-[11px] font-bold text-stone-500 dark:text-stone-400 md:mt-1 md:text-sm">{subtitle}</p> : null}
           <div className="mt-1 h-0.5 w-10 rounded-full bg-gradient-to-l from-[#d4af37] to-[#f3d77a] md:mt-1.5 md:h-1 md:w-14" />
         </div>
-        <Link to="/shop/products" className="mb-0.5 inline-flex min-h-8 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 shadow-[0_10px_26px_rgba(39,20,75,0.07)] transition hover:-translate-y-0.5 hover:border-[#d4af37]/50 hover:text-[#d4af37] active:scale-[0.98] md:mb-1 md:min-h-10 md:px-5 md:py-2 md:text-xs dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+        <Link to="/products" className="mb-0.5 inline-flex min-h-8 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-3 py-1.5 text-[11px] font-black text-stone-700 shadow-[0_10px_26px_rgba(39,20,75,0.07)] transition hover:-translate-y-0.5 hover:border-[#d4af37]/50 hover:text-[#d4af37] active:scale-[0.98] md:mb-1 md:min-h-10 md:px-5 md:py-2 md:text-xs dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
           {t("common.viewAll")}
         </Link>
       </div>
@@ -5066,8 +5070,8 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   const navigate = useNavigate();
   const location = useLocation();
   const deferredSearch = useDeferredValue(search);
-  const compactDisabled = /^\/shop\/product\/[^/]+/.test(location.pathname);
-  const isCheckoutMobile = location.pathname === "/shop/checkout";
+  const compactDisabled = isStorefrontProductPath(location.pathname);
+  const isCheckoutMobile = isStorefrontCheckoutPath(location.pathname);
   const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
   const nextLanguage = currentLanguage === "ar" ? "en" : "ar";
   const languageLabel =
@@ -5083,11 +5087,11 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     return Tag;
   };
   const mobileCategoryChips = [
-    { key: "men", label: "رجالي", to: "/shop/products?gender=men", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "men" },
-    { key: "women", label: "حريمي", to: "/shop/products?gender=women", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "women" },
-    { key: "kids", label: "أطفال", to: "/shop/products?gender=kids", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("gender") === "kids" },
-    { key: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/shop/products?type=bags", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "bags" },
-    { key: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/shop/products?type=crocs", active: location.pathname === "/shop/products" && new URLSearchParams(location.search).get("type") === "crocs" },
+    { key: "men", label: "رجالي", to: "/products?gender=men", active: location.pathname === "/products" && new URLSearchParams(location.search).get("gender") === "men" },
+    { key: "women", label: "حريمي", to: "/products?gender=women", active: location.pathname === "/products" && new URLSearchParams(location.search).get("gender") === "women" },
+    { key: "kids", label: "أطفال", to: "/products?gender=kids", active: location.pathname === "/products" && new URLSearchParams(location.search).get("gender") === "kids" },
+    { key: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/products?type=bags", active: location.pathname === "/products" && new URLSearchParams(location.search).get("type") === "bags" },
+    { key: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/products?type=crocs", active: location.pathname === "/products" && new URLSearchParams(location.search).get("type") === "crocs" },
   ];
   const searchPlaceholders = getSearchPlaceholders();
   const announcementItems = [
@@ -5098,26 +5102,26 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     t("storefront.header.announcements.todayDeals"),
   ];
   const headerCategoryItems = [
-    { label: t("storefront.nav.men"), to: "/shop/products?gender=men" },
-    { label: t("storefront.nav.women"), to: "/shop/products?gender=women" },
-    { label: t("storefront.nav.kids"), to: "/shop/products?gender=kids" },
-    { label: getProductTypeLabel("bags", currentLanguage), to: "/shop/products?type=bags" },
-    { label: getProductTypeLabel("crocs", currentLanguage), to: "/shop/products?type=crocs" },
-    { label: getProductTypeLabel("slippers", currentLanguage), to: "/shop/products?type=slippers" },
+    { label: t("storefront.nav.men"), to: "/products?gender=men" },
+    { label: t("storefront.nav.women"), to: "/products?gender=women" },
+    { label: t("storefront.nav.kids"), to: "/products?gender=kids" },
+    { label: getProductTypeLabel("bags", currentLanguage), to: "/products?type=bags" },
+    { label: getProductTypeLabel("crocs", currentLanguage), to: "/products?type=crocs" },
+    { label: getProductTypeLabel("slippers", currentLanguage), to: "/products?type=slippers" },
   ];
   const utilityItems = [
     { label: "WhatsApp", to: "https://wa.me/", icon: <MessageCircle className="h-3.5 w-3.5" />, external: true },
-    { label: t("storefront.header.trackOrder"), to: "/shop/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.wishlist"), to: "/shop/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
-    { label: t("storefront.header.account"), to: "/shop/account", icon: <User className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.trackOrder"), to: "/track", icon: <PackageSearch className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.wishlist"), to: "/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
+    { label: t("storefront.header.account"), to: "/account", icon: <User className="h-3.5 w-3.5" /> },
   ];
   const navItems = [
-    { label: t("storefront.nav.categories"), to: "/shop/products" },
-    { label: t("storefront.nav.sale"), to: "/shop/offers" },
-    { label: t("storefront.nav.new"), to: "/shop/products?sort=new" },
-    { label: t("storefront.nav.men"), to: "/shop/products?gender=men" },
-    { label: t("storefront.nav.women"), to: "/shop/products?gender=women" },
-    { label: t("storefront.nav.kids"), to: "/shop/products?gender=kids" },
+    { label: t("storefront.nav.categories"), to: "/products" },
+    { label: t("storefront.nav.sale"), to: "/offers" },
+    { label: t("storefront.nav.new"), to: "/products?sort=new" },
+    { label: t("storefront.nav.men"), to: "/products?gender=men" },
+    { label: t("storefront.nav.women"), to: "/products?gender=women" },
+    { label: t("storefront.nav.kids"), to: "/products?gender=kids" },
   ];
   const themeIsDark = effectiveTheme === "dark";
   const themeToggleLabel = themeIsDark
@@ -5298,7 +5302,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     if (!term) return;
     rememberSearch(term);
     closeSearch();
-    navigate(`/shop/products?q=${encodeURIComponent(term)}`);
+    navigate(`/products?q=${encodeURIComponent(term)}`);
   };
 
   const pickSearchTerm = (term) => {
@@ -5307,7 +5311,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     setSearch(value);
     rememberSearch(value);
     closeSearch();
-    navigate(`/shop/products?q=${encodeURIComponent(value)}`);
+    navigate(`/products?q=${encodeURIComponent(value)}`);
   };
 
   const pickProduct = (product, options = {}) => {
@@ -5493,7 +5497,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             >
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
-            <Link to="/shop" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
+            <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
               <span
                 className="sf-mobile-header-logo grid h-11 w-11 place-items-center overflow-hidden rounded-full text-[0.7rem] font-black tracking-[0.16em] transition"
                 style={{ clipPath: "circle(50% at 50% 50%)", transform: "translateZ(0)", backfaceVisibility: "hidden" }}
@@ -5566,7 +5570,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
               {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
             <span className="hidden h-14 w-px bg-stone-200/90 dark:bg-white/10 md:block" />
-            <Link to="/shop" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#d4af37] dark:text-white" aria-label={brandName || "MONE"}>
+            <Link to="/" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#d4af37] dark:text-white" aria-label={brandName || "MONE"}>
               <span
                 className="sf-header-logo-chip grid h-[78px] w-[78px] place-items-center overflow-hidden rounded-full border border-transparent bg-transparent text-base font-black tracking-[0.18em] text-white transition group-hover:scale-[1.01] md:h-[98px] md:w-[98px]"
                 style={{ clipPath: "circle(50% at 50% 50%)", transform: "translateZ(0)", backfaceVisibility: "hidden", border: "1px solid rgba(255,255,255,0.40)" }}
@@ -5605,7 +5609,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
             >
               {themeIsDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
             </button>
-            <HeaderAction to="/shop/account" label={t("storefront.header.account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
+            <HeaderAction to="/account" label={t("storefront.header.account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
             <button onClick={onCart} className="sf-header-action sf-cart-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10" aria-label={t("storefront.cart.title")} type="button">
               <ShoppingCart className="h-5 w-5" />
               {cartCount ? <span className="sf-action-badge">{cartCount}</span> : null}
@@ -5731,9 +5735,9 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
                   drawerMode
                 />
                 {[
-                  { label: "دليل المقاسات", to: "/shop/size-guide" },
-                  { label: "سياسة الاستبدال", to: "/shop/returns" },
-                  { label: "تواصل معنا / رقم المتجر", to: "/shop/contact" },
+                  { label: "دليل المقاسات", to: "/size-guide" },
+                  { label: "سياسة الاستبدال", to: "/returns" },
+                  { label: "تواصل معنا / رقم المتجر", to: "/contact" },
                 ].map(({ label, to, external = false, icon: Icon }) =>
                   external ? (
                     <a
@@ -6483,7 +6487,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       <div className={`flex flex-col md:p-3 md:pt-2 ${densityClasses.body}`}>
         {brandLabel ? (
           <Link
-            to={brandFilterUrl || "/shop/products"}
+            to={brandFilterUrl || "/products"}
             onClick={(event) => event.stopPropagation()}
             aria-label={`عرض منتجات ${brandLabel}`}
             dir="ltr"
@@ -6893,7 +6897,7 @@ function RelatedProducts({ currentId, ...props }) {
           <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.products.similarProducts")}</h2>
           <p className="mt-1 text-xs font-bold text-stone-500 dark:text-white/55">{sfText("storefront.products.youMayAlsoLike")}</p>
         </div>
-        <Link to="/shop/products" className="rounded-full border border-stone-200 bg-white/70 px-3 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:border-stone-950 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70 dark:hover:border-white/25 dark:hover:text-white">{sfText("storefront.common.viewAll")}</Link>
+        <Link to="/products" className="rounded-full border border-stone-200 bg-white/70 px-3 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:border-stone-950 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70 dark:hover:border-white/25 dark:hover:text-white">{sfText("storefront.common.viewAll")}</Link>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {filtered.length ? filtered.map((product, index) => <ProductCard key={productCardKey(product, index)} product={product} railType="similar" {...props} />) : <MiniRailEmpty />}
@@ -6915,11 +6919,11 @@ function RecentProductsSection({ currentId, recent = [] }) {
           <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.account.recentlyViewed")}</h2>
           <p className="mt-1 text-xs font-bold text-stone-500 dark:text-white/55">{sfText("storefront.account.recentEmpty")}</p>
         </div>
-        <Link to="/shop/recently-viewed" className="rounded-full border border-stone-200 bg-stone-100 px-3 py-2 text-xs font-black text-stone-700 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
+        <Link to="/recently-viewed" className="rounded-full border border-stone-200 bg-stone-100 px-3 py-2 text-xs font-black text-stone-700 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70">{sfText("storefront.common.viewAll")}</Link>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {items.map((item) => (
-          <Link key={item.id} to={`/shop/product/${item.slug || item.id}`} onClick={resetStorefrontViewportScroll} className="min-w-0 rounded-2xl bg-stone-50 p-2 transition hover:-translate-y-0.5 dark:bg-white/[0.055]">
+          <Link key={item.id} to={`/product/${item.slug || item.id}`} onClick={resetStorefrontViewportScroll} className="min-w-0 rounded-2xl bg-stone-50 p-2 transition hover:-translate-y-0.5 dark:bg-white/[0.055]">
             <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="aspect-square w-full rounded-xl object-cover" loading="lazy" decoding="async" width="240" height="240" />
             <div className="mt-2 truncate text-sm font-black text-stone-950 dark:text-white">{item.name}</div>
             <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs font-bold text-stone-500 dark:text-white/55">
@@ -8059,7 +8063,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       });
       clearCart();
       playSuccess();
-      navigate(`/shop/success/${encodeURIComponent(publicNumber)}?phone=${encodeURIComponent(cleanPhone)}`, { state: successPayload });
+      navigate(`/success/${encodeURIComponent(publicNumber)}?phone=${encodeURIComponent(cleanPhone)}`, { state: successPayload });
     } catch (error) {
       if (import.meta.env.DEV) {
         console.error("[storefront-checkout-error]", {
@@ -8530,8 +8534,8 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
         </div>
         <aside className="sf-storefront-card h-max rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-white shadow-[0_18px_50px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)] lg:sticky lg:top-24">
           <div className="grid gap-3">
-            <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-[#101010] px-5 py-4 text-center font-black text-white transition hover:bg-[#d4af37]">{t("storefront.orders.trackOrder")}</Link>
-            <Link to="/shop/products" className="sf-soft-pill rounded-full border border-stone-300 px-5 py-4 text-center font-black transition hover:border-[#d4af37] hover:text-[#d4af37]">{t("storefront.common.continueShopping")}</Link>
+            <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="rounded-full bg-[#101010] px-5 py-4 text-center font-black text-white transition hover:bg-[#d4af37]">{t("storefront.orders.trackOrder")}</Link>
+            <Link to="/products" className="sf-soft-pill rounded-full border border-stone-300 px-5 py-4 text-center font-black transition hover:border-[#d4af37] hover:text-[#d4af37]">{t("storefront.common.continueShopping")}</Link>
             {whatsAppHref ? <a href={whatsAppHref} className="rounded-full border border-emerald-200 bg-emerald-50 px-5 py-4 text-center font-black text-emerald-700">{t("storefront.support.whatsapp")}</a> : <button disabled className="rounded-full border border-stone-200 bg-stone-100 px-5 py-4 font-black text-stone-400">{t("storefront.support.whatsappUnavailable")}</button>}
           </div>
           <div className="sf-info-box mt-5 rounded-2xl border border-white/10 bg-[#101010] p-4 text-sm font-bold leading-6 text-white/72">{t("storefront.success.reviewNotice")}</div>
@@ -8697,7 +8701,7 @@ function ContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
       "google_map_url",
       "location_url",
     ),
-    "/shop/contact",
+    "/contact",
   );
   const weekdayHours = firstValue(
     "storefront.weekday_hours",
@@ -9882,7 +9886,7 @@ function ProductGalleryFallback() {
   );
 }
 
-function EmptyState({ title, text, actionTo = "/shop/products", actionLabel }) {
+function EmptyState({ title, text, actionTo = "/products", actionLabel }) {
   return (
     <div className="sf-empty-state mx-auto mt-6 mb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] max-w-xl rounded-[1.75rem] border border-[#d4af37]/18 bg-[linear-gradient(180deg,#020617,#0b0f19_40%,#151515_100%)] p-6 text-center text-stone-50 shadow-[0_18px_45px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl md:mb-6 md:p-7">
       <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#d4af37]/20 bg-[rgba(212,175,55,0.14)] text-[#d4af37] shadow-[0_14px_34px_rgba(212,175,55,0.16)]">
@@ -9933,7 +9937,7 @@ function CartDrawer({ open, onClose, cart, updateCart, removeFromCart }) {
               </div>
               <p className="max-w-32 text-start text-[11px] font-bold leading-5 text-white/46">{sfText("storefront.checkout.finalShippingAtCheckout")}</p>
             </div>
-            <Link to="/shop/checkout" onClick={onClose} className="sf-cart-drawer-checkout-button sf-shimmer-button block min-h-14 rounded-full border border-[#d4af37]/20 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-4 text-center text-base font-black text-stone-950 shadow-[0_18px_42px_rgba(212,175,55,0.26)] transition hover:-translate-y-0.5 hover:border-[#e5c158]/40 hover:shadow-[0_22px_54px_rgba(212,175,55,0.34)] active:translate-y-0 active:scale-[0.98]">
+            <Link to="/checkout" onClick={onClose} className="sf-cart-drawer-checkout-button sf-shimmer-button block min-h-14 rounded-full border border-[#d4af37]/20 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-4 text-center text-base font-black text-stone-950 shadow-[0_18px_42px_rgba(212,175,55,0.26)] transition hover:-translate-y-0.5 hover:border-[#e5c158]/40 hover:shadow-[0_22px_54px_rgba(212,175,55,0.34)] active:translate-y-0 active:scale-[0.98]">
               {sfText("storefront.checkout.actions.completePurchase")}
             </Link>
           </div>
@@ -9989,14 +9993,14 @@ function Footer() {
     <footer className="mt-4 border-t border-stone-200 bg-[#f0ebe2] px-4 py-6 md:mt-8 md:py-10 dark:border-white/10 dark:bg-[linear-gradient(180deg,#080808,#020617)] dark:text-white">
       <div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
         <div><h3 className="text-2xl font-black tracking-normal">{sfText("storefront.footer.brand")}</h3><p className="mt-2 max-w-sm text-sm font-bold leading-6 text-stone-600 dark:text-stone-400">{sfText("storefront.footer.tagline")}</p></div>
-        <FooterLinks title={sfText("storefront.footer.links")} links={[[sfText("storefront.returns.title"), "/shop/returns"], [sfText("storefront.nav.sizeGuide"), "/shop/size-guide"], [sfText("storefront.faq.title"), "/shop/faq"]]} />
-        <FooterLinks title={sfText("storefront.footer.contact")} links={[[sfText("storefront.contact.title"), "/shop/contact"], [sfText("storefront.support.whatsapp"), "https://wa.me/"], ["Instagram", "/shop/contact"]]} />
+        <FooterLinks title={sfText("storefront.footer.links")} links={[[sfText("storefront.returns.title"), "/returns"], [sfText("storefront.nav.sizeGuide"), "/size-guide"], [sfText("storefront.faq.title"), "/faq"]]} />
+        <FooterLinks title={sfText("storefront.footer.contact")} links={[[sfText("storefront.contact.title"), "/contact"], [sfText("storefront.support.whatsapp"), "https://wa.me/"], ["Instagram", "/contact"]]} />
         <div>
           <h4 className="font-black">{sfText("storefront.footer.followUs")}</h4>
           <div className="mt-3 flex gap-2">
             <a href="https://wa.me/" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:text-emerald-600 dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-emerald-300/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-300" aria-label="WhatsApp"><MessageCircle className="h-5 w-5" /></a>
-            <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#f3d77a] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#f3d77a]/40 dark:hover:bg-[#d4af37]/12 dark:hover:text-[#f3d77a]" aria-label="Instagram"><Camera className="h-5 w-5" /></Link>
-            <Link to="/shop/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#f3d77a] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#f3d77a]/40 dark:hover:bg-[#d4af37]/12 dark:hover:text-[#d8b4fd]" aria-label="Facebook"><ExternalLink className="h-5 w-5" /></Link>
+            <Link to="/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#f3d77a] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#f3d77a]/40 dark:hover:bg-[#d4af37]/12 dark:hover:text-[#f3d77a]" aria-label="Instagram"><Camera className="h-5 w-5" /></Link>
+            <Link to="/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#f3d77a] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#f3d77a]/40 dark:hover:bg-[#d4af37]/12 dark:hover:text-[#d8b4fd]" aria-label="Facebook"><ExternalLink className="h-5 w-5" /></Link>
           </div>
           <a href="https://wa.me/" className="mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300/30 bg-stone-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#d4af37] dark:bg-emerald-500 dark:text-white dark:shadow-[0_14px_34px_rgba(16,185,129,0.22)] dark:hover:bg-emerald-400">
             <MessageCircle className={`h-4 w-4 ${darkMode ? "text-white" : "text-[#d4af37]"}`} />
@@ -10021,42 +10025,42 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
   const path = location.pathname || "";
   const search = location.search || "";
   const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
-  const isCheckoutFlow = /^\/shop\/(checkout|success|confirm)/.test(path) || /^\/c\/[^/]+/.test(path);
-  const isVisible = /^(\/shop(\/|$)|\/c\/[^/]+)/.test(path) && !isCheckoutFlow;
-  const saleHref = "/shop/offers";
+  const isCheckoutFlow = isStorefrontCheckoutFlowPath(path);
+  const isVisible = isStorefrontPath(path) && !isCheckoutFlow;
+  const saleHref = storefrontPath("/offers");
   const scrollToTop = useCallback(() => {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
   const handleHomeClick = useCallback((event) => {
     event.preventDefault();
-    if (path !== "/shop") {
-      navigate("/shop");
+    if (!isStorefrontHomePath(path)) {
+      navigate(storefrontPath("/"));
       requestAnimationFrame(() => requestAnimationFrame(scrollToTop));
       return;
     }
     scrollToTop();
   }, [navigate, path, scrollToTop]);
   const categoryLinks = [
-    { id: "men", label: "رجالي", to: "/shop/products?gender=men", icon: Users },
-    { id: "women", label: "حريمي", to: "/shop/products?gender=women", icon: Users },
-    { id: "kids", label: "أطفال", to: "/shop/products?gender=kids", icon: Baby },
-    { id: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/shop/products?type=bags", icon: ShoppingBag },
-    { id: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/shop/products?type=crocs", icon: Footprints },
-    { id: "slippers", label: getProductTypeLabel("slippers", currentLanguage), to: "/shop/products?type=slippers", icon: SlidersHorizontal },
+    { id: "men", label: "رجالي", to: "/products?gender=men", icon: Users },
+    { id: "women", label: "حريمي", to: "/products?gender=women", icon: Users },
+    { id: "kids", label: "أطفال", to: "/products?gender=kids", icon: Baby },
+    { id: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/products?type=bags", icon: ShoppingBag },
+    { id: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/products?type=crocs", icon: Footprints },
+    { id: "slippers", label: getProductTypeLabel("slippers", currentLanguage), to: "/products?type=slippers", icon: SlidersHorizontal },
   ];
   const links = [
-    { id: "home", to: "/shop", label: "الرئيسية", icon: Home },
+    { id: "home", to: "/", label: "الرئيسية", icon: Home },
     { id: "categories", label: "الأقسام", icon: Grid2x2, action: "categories" },
     { id: "sale", to: saleHref, label: "العروض", icon: Tag },
-    { id: "wishlist", to: "/shop/wishlist", label: "المفضلة", icon: Heart },
-    { id: "account", to: "/shop/account", label: "حسابي", icon: User },
+    { id: "wishlist", to: "/wishlist", label: "المفضلة", icon: Heart },
+    { id: "account", to: "/account", label: "حسابي", icon: User },
   ];
   const isActive = (item) => {
-    if (item.id === "home") return path === "/shop";
-    if (item.id === "categories") return path === "/shop/products" || categoriesOpen;
-    if (item.id === "sale") return path === "/shop/offers" || path === "/shop/sale";
-    if (item.id === "wishlist") return path === "/shop/wishlist";
-    if (item.id === "account") return path === "/shop/account";
+    if (item.id === "home") return isStorefrontHomePath(path);
+    if (item.id === "categories") return isStorefrontProductsPath(path) || categoriesOpen;
+    if (item.id === "sale") return isStorefrontOfferPath(path);
+    if (item.id === "wishlist") return normalizePathname(path) === "/wishlist";
+    if (item.id === "account") return normalizePathname(path) === "/account";
     return false;
   };
 
@@ -10326,7 +10330,7 @@ function SmallProductList({ items, empty = sfText("storefront.common.noResults")
   return safeItems.slice(0, 6).map((item) => {
     const product = normalizeWishlistProduct(item);
     return (
-      <Link key={product.id || product.slug} to={`/shop/product/${product.slug || product.id}`} className="sf-small-product-row sf-storefront-card flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
+      <Link key={product.id || product.slug} to={`/product/${product.slug || product.id}`} className="sf-small-product-row sf-storefront-card flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
         <img src={imageFor(product.image_url)} onError={fallbackProductImage} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" loading="lazy" decoding="async" width="48" height="48" />
         <span className="sf-small-product-name truncate font-black">{product.name || sfText("storefront.products.savedProduct")}</span>
       </Link>
@@ -10365,7 +10369,7 @@ function SmallProductGrid({ items, action, onAddToCart }) {
               <p className="mt-1 text-xs font-bold leading-5 text-white/50">{sfText("storefront.products.openForDetails")}</p>
             </div>
           ) : (
-            <Link to={`/shop/product/${item.slug || item.id}`} className="flex min-h-0 flex-1 flex-col">
+            <Link to={`/product/${item.slug || item.id}`} className="flex min-h-0 flex-1 flex-col">
               <div className="aspect-[4/5] w-full overflow-hidden rounded-xl border border-white/70 bg-gradient-to-br from-stone-50 via-white to-stone-100 p-3 shadow-inner shadow-stone-200/70">
                 <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt={item.name || ""} className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.035]" loading="lazy" decoding="async" width="320" height="400" />
               </div>
@@ -10666,7 +10670,7 @@ function Storefront() {
 
   useLayoutEffect(() => {
     if (typeof window === "undefined" || typeof document === "undefined") return undefined;
-    if (!location.pathname.startsWith("/shop/product/")) return undefined;
+    if (!isStorefrontProductPath(location.pathname)) return undefined;
     const scrollTop = () => {
       const scrollTargets = [
         window,
@@ -10987,14 +10991,14 @@ function Storefront() {
           "google_map_url",
           "location_url",
         ),
-        "/shop/contact",
+        "/contact",
       ),
     };
   }, [publicStoreSettings]);
-  const hideMobileBottomNav = /^\/shop\/(checkout|success|confirm)/.test(location.pathname || "") || /^\/c\/[^/]+/.test(location.pathname || "");
+  const hideMobileBottomNav = isStorefrontCheckoutFlowPath(location.pathname || "");
   const showMobileBottomNav = routeReady && !hideMobileBottomNav && !cartDrawerOpen && !mobileMenuOpen;
-  const isCheckoutPage = (location.pathname || "").replace(/\/+$/, "") === "/shop/checkout";
-  const isOfferStoryPage = (location.pathname || "").startsWith("/shop/offers") || (location.pathname || "").startsWith("/shop/sale");
+  const isCheckoutPage = isStorefrontCheckoutPath(location.pathname || "");
+  const isOfferStoryPage = isStorefrontOfferPath(location.pathname || "");
   const hideFloatingWhatsApp = cartDrawerOpen || mobileMenuOpen || isCheckoutPage || isOfferStoryPage;
 
   useEffect(() => {
@@ -11032,7 +11036,7 @@ function Storefront() {
         <Header
           cartCount={cartCount}
           wishlistCount={wishlistCount}
-          onCart={() => navigate("/shop/cart")}
+          onCart={() => navigate("/cart")}
           effectiveTheme={themeMode}
           onToggleTheme={toggleThemeMode}
           brandName={storefrontBrandSettings.brandName}
@@ -11045,75 +11049,75 @@ function Storefront() {
       ) : null}
       <Routes>
       <Route
-        index
+        path="/"
         element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} themeMode={themeMode} />}
       />
       <Route
-        path="products"
+        path="/products"
         element={<LazyStorefrontProductListingPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} />}
       />
       <Route
-        path="offers"
+        path="/offers"
         element={<OfferStoryViewer />}
       />
       <Route
-        path="sale"
+        path="/sale"
         element={<OfferStoryViewer />}
       />
       <Route
-        path="product/:identifier"
+        path="/product/:identifier"
         element={<LazyStorefrontProductDetailPage key={storefrontRouteKey} onAddToCart={onAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />}
       />
       <Route
-        path="cart"
+        path="/cart"
         element={<LazyStorefrontCartPage cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} helpers={helpers} components={components} />}
       />
       <Route
-        path="checkout"
+        path="/checkout"
         element={<CheckoutPage cart={cart} clearCart={clearCart} profile={profile} setProfile={setProfile} themeMode={themeMode} />}
       />
       <Route
-        path="success/:orderNumber"
+        path="/success/:orderNumber"
         element={<OrderSuccess profile={profile} themeMode={themeMode} brandName={storefrontBrandSettings.brandName} brandLogoUrl={storefrontBrandSettings.brandLogoUrl} />}
       />
       <Route
-        path="track"
+        path="/track"
         element={<LazyStorefrontTrackOrderPage helpers={helpers} components={components} />}
       />
       <Route
-        path="confirm/:code"
+        path="/confirm/:code"
         element={<LazyOrderConfirmationActionPage />}
       />
       <Route
-        path="c/:code"
+        path="/c/:code"
         element={<LazyOrderConfirmationActionPage />}
       />
       <Route
-        path="account"
+        path="/account"
         element={<LazyStorefrontAccountPage profile={profile} setProfile={setProfile} wishlist={wishlist} recent={recent} onAddToCart={onAddToCart} helpers={helpers} components={components} />}
       />
       <Route
-        path="wishlist"
+        path="/wishlist"
         element={<LazyStorefrontWishlistPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} helpers={helpers} components={components} />}
       />
       <Route
-        path="recently-viewed"
+        path="/recently-viewed"
         element={<LazyStorefrontRecentPage recent={recent} helpers={helpers} components={components} />}
       />
       <Route
-        path="faq"
+        path="/faq"
         element={<FaqPage />}
       />
       <Route
-        path="contact"
+        path="/contact"
         element={<PremiumContactPage publicStoreSettings={publicStoreSettings} quickActionLinks={quickActionLinks} />}
       />
       <Route
-        path="size-guide"
+        path="/size-guide"
         element={<LazyStorefrontSizeGuidePage />}
       />
       <Route
-        path="returns"
+        path="/returns"
         element={<ReturnsPolicy />}
       />
       <Route

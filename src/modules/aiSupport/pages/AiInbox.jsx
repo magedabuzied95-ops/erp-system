@@ -1,4 +1,4 @@
-﻿import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   AlertTriangle,
@@ -1471,7 +1471,7 @@ function VisualAttachmentsPreview({ attachments = [] }) {
             <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{attachment?.title || "Visual attachments"}</div>
             <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
               {items.slice(0, 10).map((item, itemIndex) => (
-                <a key={`${item.id || item.product_id || itemIndex}`} href={item.product_url || (item.product_id ? `/shop/product/${item.product_id}` : "#")} className="min-w-[7.5rem] max-w-[7.5rem] rounded-xl border border-white/10 bg-slate-950 p-2 transition hover:border-cyan-300/30">
+                <a key={`${item.id || item.product_id || itemIndex}`} href={item.product_url || (item.product_id ? `/product/${item.product_id}` : "#")} className="min-w-[7.5rem] max-w-[7.5rem] rounded-xl border border-white/10 bg-slate-950 p-2 transition hover:border-cyan-300/30">
                   <img src={item.image_url} alt={item.title || "Visual attachment"} className="aspect-square w-full rounded-lg object-cover" loading="lazy" />
                   <div className="mt-1 truncate text-xs font-black text-white">{item.title || "منتج"}</div>
                   {item.subtitle ? <div className="truncate text-[11px] text-slate-500">{item.subtitle}</div> : null}
@@ -1494,7 +1494,7 @@ function ProductCards({ products = [] }) {
       {items.slice(0, 4).map((product, index) => {
         const image = product.matched_variant_image || product.matched_image_url || product.selected_card_image_url || product.image_url || product.image;
         return (
-          <a key={product.id || index} href={product.product_url || (product.id ? `/shop/product/${product.id}` : "#")} className="flex min-w-0 gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-2 transition hover:border-cyan-300/30">
+          <a key={product.id || index} href={product.product_url || (product.id ? `/product/${product.id}` : "#")} className="flex min-w-0 gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-2 transition hover:border-cyan-300/30">
             {image ? <img src={image} alt={product.name || "منتج"} className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-white/[0.055]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
             <span className="min-w-0">
               <span className="block truncate text-sm font-black text-white">{product.name || product.title || "منتج"}</span>
@@ -2732,7 +2732,7 @@ function RecommendationsPanel({ products = [], loading, onRefresh, onQuickSend, 
                   <button type="button" onClick={() => onQuickSend(product)} className="h-9 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2 text-[11px] font-black text-cyan-100">Quick send</button>
                   <button type="button" onClick={() => onSendImages?.(product)} className="h-9 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2 text-[11px] font-black text-violet-100">Send images</button>
                   <button type="button" onClick={() => onCreateDraft(product)} className="h-9 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2 text-[11px] font-black text-emerald-100">Draft order</button>
-                  <a href={product.product_url || (product.id ? `/shop/product/${product.id}` : "#")} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2 text-[11px] font-black text-white">Open product</a>
+                  <a href={product.product_url || (product.id ? `/product/${product.id}` : "#")} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2 text-[11px] font-black text-white">Open product</a>
                 </div>
               </div>
             );

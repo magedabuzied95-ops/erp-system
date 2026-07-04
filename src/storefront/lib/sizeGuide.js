@@ -1,8 +1,8 @@
 const SIZE_GUIDE_TYPES = {
   men: {
-    label: "رجالي",
-    title: "دليل مقاسات الأحذية الرجالية",
-    columns: ["EU", "طول القدم CM"],
+    label: "ط±ط¬ط§ظ„ظٹ",
+    title: "ط¯ظ„ظٹظ„ ظ…ظ‚ط§ط³ط§طھ ط§ظ„ط£ط­ط°ظٹط© ط§ظ„ط±ط¬ط§ظ„ظٹط©",
+    columns: ["EU", "ط·ظˆظ„ ط§ظ„ظ‚ط¯ظ… CM"],
     rows: [
       ["40", "25.4"],
       ["41", "26.0"],
@@ -18,9 +18,9 @@ const SIZE_GUIDE_TYPES = {
     ],
   },
   women: {
-    label: "حريمي",
-    title: "دليل مقاسات الأحذية الحريمي",
-    columns: ["EU", "طول القدم CM"],
+    label: "ط­ط±ظٹظ…ظٹ",
+    title: "ط¯ظ„ظٹظ„ ظ…ظ‚ط§ط³ط§طھ ط§ظ„ط£ط­ط°ظٹط© ط§ظ„ط­ط±ظٹظ…ظٹ",
+    columns: ["EU", "ط·ظˆظ„ ط§ظ„ظ‚ط¯ظ… CM"],
     rows: [
       ["36", "23.0"],
       ["37", "23.6"],
@@ -31,9 +31,9 @@ const SIZE_GUIDE_TYPES = {
     ],
   },
   kids: {
-    label: "أطفال",
-    title: "دليل مقاسات أحذية الأطفال",
-    columns: ["EU", "طول القدم CM"],
+    label: "ط£ط·ظپط§ظ„",
+    title: "ط¯ظ„ظٹظ„ ظ…ظ‚ط§ط³ط§طھ ط£ط­ط°ظٹط© ط§ظ„ط£ط·ظپط§ظ„",
+    columns: ["EU", "ط·ظˆظ„ ط§ظ„ظ‚ط¯ظ… CM"],
     rows: [
       ["22", "13.2"],
       ["23", "13.8"],
@@ -53,8 +53,8 @@ const SIZE_GUIDE_TYPES = {
     ],
   },
   "crocs-adult": {
-    label: "كروكس كبار",
-    title: "دليل مقاسات كروكس للكبار",
+    label: "ظƒط±ظˆظƒط³ ظƒط¨ط§ط±",
+    title: "ط¯ظ„ظٹظ„ ظ…ظ‚ط§ط³ط§طھ ظƒط±ظˆظƒط³ ظ„ظ„ظƒط¨ط§ط±",
     columns: ["EU", "US", "CM"],
     rows: [
       ["35/36", "M3/W5", "22"],
@@ -70,8 +70,8 @@ const SIZE_GUIDE_TYPES = {
     ],
   },
   "crocs-kids": {
-    label: "كروكس أطفال",
-    title: "دليل مقاسات كروكس للأطفال",
+    label: "ظƒط±ظˆظƒط³ ط£ط·ظپط§ظ„",
+    title: "ط¯ظ„ظٹظ„ ظ…ظ‚ط§ط³ط§طھ ظƒط±ظˆظƒط³ ظ„ظ„ط£ط·ظپط§ظ„",
     columns: ["EU", "Kids", "CM"],
     rows: [
       ["20/21", "C4-C5", "12"],
@@ -95,9 +95,9 @@ const normalizeSizeGuideType = (value = "") => {
     .replace(/[\s_-]+/g, "");
 
   if (!normalized) return "";
-  if (["men", "mens", "male", "رجالي", "رجال"].includes(normalized)) return "men";
-  if (["women", "womens", "woman", "female", "ladies", "lady", "حريمي", "نساء", "بناتي"].includes(normalized)) return "women";
-  if (["kids", "kid", "children", "child", "boys", "girls", "أطفال", "طفل"].includes(normalized)) return "kids";
+  if (["men", "mens", "male", "ط±ط¬ط§ظ„ظٹ", "ط±ط¬ط§ظ„"].includes(normalized)) return "men";
+  if (["women", "womens", "woman", "female", "ladies", "lady", "ط­ط±ظٹظ…ظٹ", "ظ†ط³ط§ط،", "ط¨ظ†ط§طھظٹ"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls", "ط£ط·ظپط§ظ„", "ط·ظپظ„"].includes(normalized)) return "kids";
   if (normalized.includes("crocskids") || normalized.includes("crocskids") || normalized.includes("kidscrocs")) return "crocs-kids";
   if (normalized.includes("crocsadult") || normalized.includes("adultcrocs")) return "crocs-adult";
   if (normalized.includes("crocs") || normalized.includes("croc")) return "crocs-adult";
@@ -134,7 +134,7 @@ const resolveSizeGuideTypeForProduct = (product = {}) => {
     .join(" ");
 
   const normalizedProductText = normalizeProductText(audienceText);
-  const isCrocsProduct = normalizedProductText.includes("croc") || normalizedProductText.includes("كروكس");
+  const isCrocsProduct = normalizedProductText.includes("croc") || normalizedProductText.includes("ظƒط±ظˆظƒط³");
   if (isCrocsProduct) {
     const audience = normalizeSizeGuideType(audienceText);
     return audience === "kids" ? "crocs-kids" : "crocs-adult";
@@ -145,7 +145,7 @@ const resolveSizeGuideTypeForProduct = (product = {}) => {
 
 const buildSizeGuidePath = (type = "") => {
   const normalizedType = normalizeSizeGuideType(type) || "";
-  return normalizedType ? `/shop/size-guide?type=${encodeURIComponent(normalizedType)}` : "/shop/size-guide";
+  return storefrontPath("/size-guide", normalizedType ? { type: normalizedType } : "");
 };
 
 const getSizeGuideConfig = (type = "") => {
@@ -161,3 +161,4 @@ export {
   normalizeSizeGuideType,
   resolveSizeGuideTypeForProduct,
 };
+import { storefrontPath } from "./paths";

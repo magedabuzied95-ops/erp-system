@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { api } from "../../shared/api/api";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
@@ -245,7 +245,7 @@ export function RecentPageRoute({ recent, helpers, components }) {
           <p className="text-sm font-black text-[#d4af37]">{sfText("storefront.recent.lastTwenty", "ط¢ط®ط± 20 ظ…ظ†طھط¬ظ‹ط§")}</p>
           <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.recentlyViewed", "ط´ظˆظ‡ط¯ ظ…ط¤ط®ط±ظ‹ط§")}</h1>
         </div>
-        <Link to="/shop/products" className="inline-flex min-h-12 items-center justify-center rounded-full bg-stone-950 px-5 py-3 font-black text-white">{sfText("storefront.common.continueShopping", "ظ…طھط§ط¨ط¹ط© ط§ظ„طھط³ظˆظ‚")}</Link>
+        <Link to="/products" className="inline-flex min-h-12 items-center justify-center rounded-full bg-stone-950 px-5 py-3 font-black text-white">{sfText("storefront.common.continueShopping", "ظ…طھط§ط¨ط¹ط© ط§ظ„طھط³ظˆظ‚")}</Link>
       </div>
       {recent.length ? <SmallProductGrid items={recent.slice(0, 20)} /> : <EmptyState title={sfText("storefront.recent.emptyTitle", "ظ„ط§ طھظˆط¬ط¯ ظ…ظ†طھط¬ط§طھ ظ‡ظ†ط§ ط¨ط¹ط¯")} text={sfText("storefront.account.recentEmpty", "ط³طھط¸ظ‡ط± ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„طھظٹ ط´ط§ظ‡ط¯طھظ‡ط§ ظ…ط¤ط®ط±ظ‹ط§ ظ‡ظ†ط§")} />}
     </section>
@@ -285,7 +285,7 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
         <SummaryRow rtl dark label="المنتجات" value={money(subtotal)} />
         <SummaryRow rtl dark label="الشحن التقديري" value={money(0)} />
         <SummaryRow rtl dark label="الإجمالي" value={money(subtotal)} strong />
-        <Link to="/shop/checkout" className="mt-5 block rounded-full bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-4 text-center font-black text-[#151515] shadow-[0_18px_42px_rgba(212,175,55,0.26)]">إتمام الشراء</Link>
+        <Link to="/checkout" className="mt-5 block rounded-full bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-4 text-center font-black text-[#151515] shadow-[0_18px_42px_rgba(212,175,55,0.26)]">إتمام الشراء</Link>
         <p className="mt-3 text-xs font-bold text-white/54">يُحتسب الشحن النهائي عند الدفع</p>
       </aside>
     </div>

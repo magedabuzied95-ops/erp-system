@@ -1,4 +1,4 @@
-﻿import { Component, useCallback, useEffect, useMemo, useState } from "react";
+import { Component, useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import {
   AlertCircle,
@@ -822,8 +822,8 @@ function SettingsCenterContent({ debugMode = false }) {
 
   const quickActions = {
     storefront: [
-      [ui.openStore, ExternalLink, () => window.open(storeUrl || "/shop", "_blank", "noopener,noreferrer")],
-      [ui.previewStore, Eye, () => window.open("/shop", "_blank", "noopener,noreferrer")],
+      [ui.openStore, ExternalLink, () => window.open(storeUrl || "/", "_blank", "noopener,noreferrer")],
+      [ui.previewStore, Eye, () => window.open("/", "_blank", "noopener,noreferrer")],
       [ui.copyUrl, Copy, async () => { await navigator.clipboard?.writeText(storeUrl); toast.success("Copied"); }],
     ],
     orders: [

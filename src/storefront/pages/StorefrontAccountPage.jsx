@@ -1,4 +1,4 @@
-﻿import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../i18n/i18n";
@@ -182,7 +182,7 @@ const AccountOrderRow = memo(function AccountOrderRow({ order, phone, onOpen, on
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
         <button onClick={open} className="sf-soft-pill min-h-11 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-black">{sfText("storefront.orders.orderDetails", "طھظپط§طµظٹظ„ ط§ظ„ط·ظ„ط¨")}</button>
-        <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}</Link>
+        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}</Link>
         <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-4 py-2 text-sm font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "ط¥ط¹ط§ط¯ط© ط§ظ„ط·ظ„ط¨")}</button>
       </div>
     </div>
@@ -206,7 +206,7 @@ function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
       <OrderTimeline timeline={data.timeline || []} />
       <OrderItemsSummaryLocal items={data.items || []} helpers={helpers} />
       <div className="grid gap-2 sm:grid-cols-3">
-        <Link to={`/shop/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}</Link>
+        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}</Link>
         <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-5 py-3 font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "ط¥ط¹ط§ط¯ط© ط§ظ„ط·ظ„ط¨")}</button>
         <a href={supportHref(publicNumber)} className="min-h-12 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-center font-black text-emerald-700">{sfText("storefront.support.whatsapp", "ظˆط§طھط³ط§ط¨")}</a>
       </div>
@@ -548,7 +548,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
           <p className="text-sm font-black text-[#d4af37]">{sfText("storefront.account.eyebrow", "حساب سريع برقم الهاتف")}</p>
           <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.title", "حسابي")}</h1>
         </div>
-        <Link to="/shop/track" className="sf-soft-pill inline-flex min-h-12 items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 font-black">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
+        <Link to="/track" className="sf-soft-pill inline-flex min-h-12 items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 font-black">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-[340px_1fr]">
         <div className="sf-storefront-card h-max rounded-[1.7rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24">

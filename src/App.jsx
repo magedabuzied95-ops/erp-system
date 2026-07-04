@@ -8,6 +8,7 @@ import {
   Routes,
   Route,
   Navigate,
+  useLocation,
 } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
@@ -198,6 +199,7 @@ import DebugErrorBoundary from "./shared/components/DebugErrorBoundary";
 import Forbidden from "./pages/Forbidden";
 
 import { TenantProvider } from "./modules/saas/context/TenantContext";
+import { legacyShopToRootPath } from "./storefront/lib/paths";
 
 const RegisterCompany = lazy(() => import("./modules/saas/pages/RegisterCompany"));
 const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
@@ -242,6 +244,12 @@ function RouteSkeleton() {
     </div>
   );
 }
+
+function StorefrontLegacyRedirect() {
+  const location = useLocation();
+  return <Navigate to={legacyShopToRootPath(location.pathname, location.search)} replace />;
+}
+
 function App() {
   useTranslation();
   const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
@@ -443,6 +451,42 @@ function App() {
           </ProtectedRoute>
         }
       />
+
+      <Route path="/" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/products" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/product/:identifier" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/account" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/cart" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/checkout" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/track" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/wishlist" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/recently-viewed" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/offers" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/sale" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/contact" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/size-guide" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/returns" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/faq" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/success/:orderNumber" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      <Route path="/confirm/:code" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+
+      <Route path="/shop" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/products" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/product/:identifier" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/account" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/cart" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/checkout" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/track" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/wishlist" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/recently-viewed" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/contact" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/size-guide" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/offers" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/sale" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/returns" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/faq" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/success/:orderNumber" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/confirm/:code" element={<StorefrontLegacyRedirect />} />
 
       <Route
         path="/shop/*"

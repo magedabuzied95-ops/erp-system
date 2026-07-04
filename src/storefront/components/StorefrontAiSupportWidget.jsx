@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import toast from "react-hot-toast";
@@ -185,7 +185,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
 
   const supportHref = useMemo(() => {
     const text = encodeURIComponent(`ظ…ط­طھط§ط¬ ظ…ط³ط§ط¹ط¯ط© ظ…ظ† ط§ظ„ط¯ط¹ظ… ط¨ط®طµظˆطµ ظ…ط­ط§ط¯ط«ط© ط±ظ‚ظ… ${sessionId}`);
-    return whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${text}` : "/shop/contact";
+    return whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${text}` : "/contact";
   }, [sessionId, whatsappPhone]);
 
   const pushAiSupportContext = useCallback((patch = {}) => {
@@ -739,7 +739,7 @@ export default function StorefrontAiSupportWidget({ onAddToCart, helpers }) {
         ]);
       }
       if (["buy_now", "buy_now_action", "checkout", "order_now"].includes(key)) {
-        navigate("/shop/checkout");
+        navigate("/checkout");
       }
       return;
     }

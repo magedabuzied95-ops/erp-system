@@ -1,4 +1,4 @@
-﻿import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
@@ -101,7 +101,7 @@ function StorefrontProductDetailErrorState({ title, text, onRetry, retryLabel, b
           {retryLabel}
         </button>
         <Link
-          to="/shop/products"
+          to="/products"
           className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] px-5 py-3 text-sm font-black text-white/80 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white active:scale-[0.98]"
         >
           {backToProductsLabel}
@@ -410,7 +410,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     const result = onAddToCart(product, candidate, quantity, action === "buy" ? { intent: "buy" } : undefined);
     if (result === "capture_required") return;
     setVariantSheetAction("");
-    if (action === "buy") navigate("/shop/checkout");
+    if (action === "buy") navigate("/checkout");
   };
   const buyNow = () => {
     submitVariant(safeActiveVariant, qty, "buy");
@@ -606,7 +606,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             const result = onAddToCart(product, candidate, quantity, action === "buy" ? { intent: "buy" } : undefined);
             if (result === "capture_required") return;
             setVariantSheetAction("");
-            if (action === "buy") navigate("/shop/checkout");
+            if (action === "buy") navigate("/checkout");
           }}
         />
       </Suspense>

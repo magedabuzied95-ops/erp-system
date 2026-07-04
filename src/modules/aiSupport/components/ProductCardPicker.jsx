@@ -5,6 +5,7 @@ import { CheckCircle2, Loader2, Search, ShoppingBag, Square, X } from "lucide-re
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../utils/availableProductsLink";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { productPath, productsPath } from "../../../storefront/lib/paths";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -35,14 +36,14 @@ const resolveStorefrontUrl = (product = {}, variant = null, color = "", size = "
   const productId = product.product_id || product.id || "";
   const baseUrl = rawUrl || (productId
     ? (typeof window !== "undefined" && window.location?.origin
-      ? (() => {
+        ? (() => {
           try {
-            return new URL(`/shop/product/${encodeURIComponent(productId)}`, window.location.origin).toString();
+            return new URL(productPath(productId), window.location.origin).toString();
           } catch {
-            return `/shop/product/${encodeURIComponent(productId)}`;
+            return productPath(productId);
           }
         })()
-      : `/shop/product/${encodeURIComponent(productId)}`)
+      : productPath(productId))
     : "");
   if (!baseUrl) return "";
   try {
@@ -137,7 +138,7 @@ const buildAvailableBySizeUrl = ({
   if (clean(minPrice)) params.set("min_price", clean(minPrice));
   if (clean(maxPrice)) params.set("max_price", clean(maxPrice));
   params.set("inStock", "1");
-  const path = `/shop/products${params.toString() ? `?${params.toString()}` : ""}`;
+  const path = productsPath(params);
   if (typeof window === "undefined") return path;
   return `${window.location.origin}${path}`;
 };
@@ -152,13 +153,13 @@ const buildAvailableBySizeMessage = ({
   url = "",
 } = {}) => {
   const selectedSizes = uniqueSizeValues(Array.isArray(sizes) ? sizes : [sizes]);
-  const sizeText = selectedSizes.length > 1 ? `المقاسات ${selectedSizes.join("، ")}` : `المقاس ${selectedSizes[0] || ""}`;
-  const filters = [gender, type, brand, clean(minPrice) ? `أقل سعر ${clean(minPrice)}` : "", clean(maxPrice) ? `أعلى سعر ${clean(maxPrice)}` : ""]
+  const sizeText = selectedSizes.length > 1 ? `ط§ظ„ظ…ظ‚ط§ط³ط§طھ ${selectedSizes.join("طŒ ")}` : `ط§ظ„ظ…ظ‚ط§ط³ ${selectedSizes[0] || ""}`;
+  const filters = [gender, type, brand, clean(minPrice) ? `ط£ظ‚ظ„ ط³ط¹ط± ${clean(minPrice)}` : "", clean(maxPrice) ? `ط£ط¹ظ„ظ‰ ط³ط¹ط± ${clean(maxPrice)}` : ""]
     .map((value) => clean(value))
     .filter(Boolean);
   return [
-    `دي كل الموديلات المتاحة بالمقاس${selectedSizes.length > 1 ? "ات" : ""} ${sizeText.replace(/^المقاسات?\s*/, "")}`.trim(),
-    filters.length ? `الفلاتر: ${filters.join(" / ")}` : "",
+    `ط¯ظٹ ظƒظ„ ط§ظ„ظ…ظˆط¯ظٹظ„ط§طھ ط§ظ„ظ…طھط§ط­ط© ط¨ط§ظ„ظ…ظ‚ط§ط³${selectedSizes.length > 1 ? "ط§طھ" : ""} ${sizeText.replace(/^ط§ظ„ظ…ظ‚ط§ط³ط§طھ?\s*/, "")}`.trim(),
+    filters.length ? `ط§ظ„ظپظ„ط§طھط±: ${filters.join(" / ")}` : "",
     url,
   ]
     .filter(Boolean)
@@ -330,7 +331,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       })
       .catch((err) => {
         if (!active) return;
-        setError(err?.message || "تعذر تحميل كتالوج المنتجات");
+        setError(err?.message || "طھط¹ط°ط± طھط­ظ…ظٹظ„ ظƒطھط§ظ„ظˆط¬ ط§ظ„ظ…ظ†طھط¬ط§طھ");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -573,7 +574,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     try {
       await onSubmit?.([activeCard]);
     } catch (err) {
-      setError(err?.message || "تعذر إرسال المنتج");
+      setError(err?.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط§ظ„ظ…ظ†طھط¬");
     } finally {
       setSubmitting(false);
     }
@@ -608,7 +609,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
       if (onSubmitLink) await onSubmitLink({ url, message, sizes, gender: selectedLinkGender, type: selectedLinkType, brand: selectedLinkBrand, minPrice: selectedLinkMinPrice, maxPrice: selectedLinkMaxPrice });
       else await onSubmit?.([{ url, storefront_url: url, product_url: url, share_url: url, name: message, product_name: message }]);
     } catch (err) {
-      setError(err?.message || "تعذر إرسال الرابط");
+      setError(err?.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط§ظ„ط±ط§ط¨ط·");
     } finally {
       setSubmitting(false);
     }
@@ -660,8 +661,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
           <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : "sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 bg-slate-950/95 px-4 py-3 backdrop-blur"}>
             <div className="min-w-0">
               <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>AI INBOX</div>
-              <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>المتاح بالمقاس</h3>
-              <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.</p>
+              <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>ط§ظ„ظ…طھط§ط­ ط¨ط§ظ„ظ…ظ‚ط§ط³</h3>
+              <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>ط§ط®طھط± ط§ظ„ظ…ظ‚ط§ط³ ط£ظˆ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط«ظ… ظپظ„طھط± ط¨ط§ظ„ط¨ط±ط§ظ†ط¯ ط£ظˆ ط§ظ„ظ†ظˆط¹ ط£ظˆ ط§ظ„ط¬ظ†ط³ ط£ظˆ ط§ظ„ط³ط¹ط±طŒ ظˆط³ظ†ط±ط³ظ„ ط±ط§ط¨ط·ظ‹ط§ ظˆط§ط­ط¯ظ‹ط§ ظ„ظ„ظ…طھط¬ط±.</p>
             </div>
             <button
               type="button"
@@ -675,8 +676,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
           <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-white p-4" : "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-slate-950 p-4"}>
             <div className={inlineFullscreenMode ? "rounded-3xl border border-slate-200 bg-slate-50 p-4" : "rounded-3xl border border-white/10 bg-white/[0.04] p-4"}>
               <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Sizes</div>
-              <div className={inlineFullscreenMode ? "mt-2 text-lg font-black text-slate-900" : "mt-2 text-lg font-black text-white"}>اختر المقاس أو المقاسات</div>
-              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.</div>
+              <div className={inlineFullscreenMode ? "mt-2 text-lg font-black text-slate-900" : "mt-2 text-lg font-black text-white"}>ط§ط®طھط± ط§ظ„ظ…ظ‚ط§ط³ ط£ظˆ ط§ظ„ظ…ظ‚ط§ط³ط§طھ</div>
+              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>ط§ظ„ظ…طھط¬ط± ط³ظٹظڈظپطھط­ ظ…ط¹ ط§ظ„ظپظ„ط§طھط± ط§ظ„ظ…ط­ط¯ط¯ط© طھظ„ظ‚ط§ط¦ظٹظ‹ط§.</div>
               <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                 {availableSizes.length ? availableSizes.map((size) => {
                   const active = normalizedSelectedSizes.includes(size);
@@ -696,7 +697,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   );
                 }) : (
                   <div className={inlineFullscreenMode ? "col-span-full rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm font-semibold text-slate-500" : "col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm font-semibold text-slate-500"}>
-                    لا توجد مقاسات متاحة حاليًا
+                    ظ„ط§ طھظˆط¬ط¯ ظ…ظ‚ط§ط³ط§طھ ظ…طھط§ط­ط© ط­ط§ظ„ظٹظ‹ط§
                   </div>
                 )}
               </div>
@@ -706,20 +707,20 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Gender</span>
                 <select value={selectedLinkGender} onChange={(event) => setSelectedLinkGender(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
-                  {genderOptions.map((option) => <option key={option} value={option}>{option === "all" ? "الكل" : option}</option>)}
+                  {genderOptions.map((option) => <option key={option} value={option}>{option === "all" ? "ط§ظ„ظƒظ„" : option}</option>)}
                 </select>
               </label>
               <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Type</span>
                 <select value={selectedLinkType} onChange={(event) => setSelectedLinkType(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
-                  <option value="all">الكل</option>
+                  <option value="all">ط§ظ„ظƒظ„</option>
                   {typeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
               <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Brand</span>
                 <select value={selectedLinkBrand} onChange={(event) => setSelectedLinkBrand(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
-                  <option value="all">الكل</option>
+                  <option value="all">ط§ظ„ظƒظ„</option>
                   {brandOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
@@ -737,8 +738,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
             <div className={inlineFullscreenMode ? "rounded-3xl border border-slate-200 bg-white p-4" : "rounded-3xl border border-white/10 bg-white/[0.04] p-4"}>
               <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Preview</div>
-              <div className={inlineFullscreenMode ? "mt-2 text-base font-black text-slate-900" : "mt-2 text-base font-black text-white"}>{normalizedSelectedSizes.length ? `سيتم البحث عن ${normalizedSelectedSizes.join("، ")}` : "اختر المقاس أولًا"}</div>
-              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>النتائج المطابقة: {matchingCount}</div>
+              <div className={inlineFullscreenMode ? "mt-2 text-base font-black text-slate-900" : "mt-2 text-base font-black text-white"}>{normalizedSelectedSizes.length ? `ط³ظٹطھظ… ط§ظ„ط¨ط­ط« ط¹ظ† ${normalizedSelectedSizes.join("طŒ ")}` : "ط§ط®طھط± ط§ظ„ظ…ظ‚ط§ط³ ط£ظˆظ„ظ‹ط§"}</div>
+              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>ط§ظ„ظ†طھط§ط¦ط¬ ط§ظ„ظ…ط·ط§ط¨ظ‚ط©: {matchingCount}</div>
             </div>
           </div>
 
@@ -750,9 +751,9 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 text-sm font-semibold text-slate-950 disabled:opacity-50"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              إرسال الرابط
+              ط¥ط±ط³ط§ظ„ ط§ظ„ط±ط§ط¨ط·
             </button>
-            {!normalizedSelectedSizes.length ? <div className="mt-2 text-xs text-slate-500">اختر المقاس أولًا.</div> : null}
+            {!normalizedSelectedSizes.length ? <div className="mt-2 text-xs text-slate-500">ط§ط®طھط± ط§ظ„ظ…ظ‚ط§ط³ ط£ظˆظ„ظ‹ط§.</div> : null}
           </div>
         </section>
       </div>
@@ -782,8 +783,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
         <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : "sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 bg-slate-950/95 px-4 py-3 backdrop-blur"}>
           <div className="min-w-0">
             <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>AI INBOX</div>
-            <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>إرسال منتج</h3>
-            <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>ابحث بالاسم أو الباركود، ثم اختر اللون والمقاس قبل الإرسال.</p>
+            <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>ط¥ط±ط³ط§ظ„ ظ…ظ†طھط¬</h3>
+            <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>ط§ط¨ط­ط« ط¨ط§ظ„ط§ط³ظ… ط£ظˆ ط§ظ„ط¨ط§ط±ظƒظˆط¯طŒ ط«ظ… ط§ط®طھط± ط§ظ„ظ„ظˆظ† ظˆط§ظ„ظ…ظ‚ط§ط³ ظ‚ط¨ظ„ ط§ظ„ط¥ط±ط³ط§ظ„.</p>
           </div>
           <button
             type="button"
@@ -798,8 +799,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
           <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-white p-4" : "absolute inset-x-0 bottom-0 top-[57px] z-20 flex min-h-0 flex-col gap-3 overflow-y-auto bg-slate-950 p-4"}>
             <div className={inlineFullscreenMode ? "rounded-3xl border border-slate-200 bg-slate-50 p-4" : "rounded-3xl border border-white/10 bg-white/[0.04] p-4"}>
               <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Size filter</div>
-              <div className={inlineFullscreenMode ? "mt-2 text-lg font-black text-slate-900" : "mt-2 text-lg font-black text-white"}>اختر المقاس المتاح</div>
-              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>سيتم إظهار المنتجات التي لديها stock فعلي لهذا المقاس فقط.</div>
+              <div className={inlineFullscreenMode ? "mt-2 text-lg font-black text-slate-900" : "mt-2 text-lg font-black text-white"}>ط§ط®طھط± ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ…طھط§ط­</div>
+              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>ط³ظٹطھظ… ط¥ط¸ظ‡ط§ط± ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„طھظٹ ظ„ط¯ظٹظ‡ط§ stock ظپط¹ظ„ظٹ ظ„ظ‡ط°ط§ ط§ظ„ظ…ظ‚ط§ط³ ظپظ‚ط·.</div>
               <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                 {availableSizes.length ? availableSizes.map((size) => (
                   <button
@@ -812,7 +813,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   </button>
                 )) : (
                   <div className={inlineFullscreenMode ? "col-span-full rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm font-semibold text-slate-500" : "col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm font-semibold text-slate-500"}>
-                    لا توجد مقاسات متاحة حالياً
+                    ظ„ط§ طھظˆط¬ط¯ ظ…ظ‚ط§ط³ط§طھ ظ…طھط§ط­ط© ط­ط§ظ„ظٹط§ظ‹
                   </div>
                 )}
               </div>
@@ -827,7 +828,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               <input
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
-                placeholder="ابحث باسم المنتج أو الباركود"
+                placeholder="ط§ط¨ط­ط« ط¨ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬ ط£ظˆ ط§ظ„ط¨ط§ط±ظƒظˆط¯"
                 className={inlineFullscreenMode ? "h-11 w-full rounded-2xl border border-slate-200 bg-white pl-3 pr-9 text-sm font-bold text-slate-900 outline-none placeholder:text-slate-400 focus:border-cyan-300/40" : "h-11 w-full rounded-2xl border border-white/10 bg-slate-950/70 pl-3 pr-9 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40"}
               />
             </label>
@@ -836,7 +837,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Brand</span>
                 <select value={brand} onChange={(event) => setBrand(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
-                  <option value="all">الكل</option>
+                  <option value="all">ط§ظ„ظƒظ„</option>
                   {brandOptions.map((item) => (
                     <option key={item} value={item}>{item}</option>
                   ))}
@@ -845,7 +846,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Category</span>
                 <select value={category} onChange={(event) => setCategory(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
-                  <option value="all">الكل</option>
+                  <option value="all">ط§ظ„ظƒظ„</option>
                   {categoryOptions.map((item) => (
                     <option key={item} value={item}>{item}</option>
                   ))}
@@ -857,7 +858,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               {loading ? (
                 <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
                   <Loader2 className="ml-2 h-4 w-4 animate-spin" />
-                  جاري تحميل كتالوج المنتجات...
+                  ط¬ط§ط±ظٹ طھط­ظ…ظٹظ„ ظƒطھط§ظ„ظˆط¬ ط§ظ„ظ…ظ†طھط¬ط§طھ...
                 </div>
               ) : error ? (
                 <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">{error}</div>
@@ -879,7 +880,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                             {isSelected ? <CheckCircle2 className="h-3.5 w-3.5" /> : <Square className="h-3.5 w-3.5" />}
                           </span>
                           {card.image ? (
-                            <img src={card.image} alt={card.productName || "منتج"} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
+                            <img src={card.image} alt={card.productName || "ظ…ظ†طھط¬"} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
                           ) : (
                             <span className={inlineFullscreenMode ? "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-400" : "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500"}>
                               <ShoppingBag className="h-5 w-5" />
@@ -888,10 +889,10 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           <div className="min-w-0 flex-1">
                             <div className="flex items-start justify-between gap-2">
                               <div className="min-w-0">
-                                <div className={`truncate text-sm font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{card.productName || "منتج"}</div>
+                                <div className={`truncate text-sm font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{card.productName || "ظ…ظ†طھط¬"}</div>
                                 <div className={`mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
                                   {card.color ? <span>{card.color}</span> : null}
-                                  {card.size ? <span>المقاس: {card.size}</span> : null}
+                                  {card.size ? <span>ط§ظ„ظ…ظ‚ط§ط³: {card.size}</span> : null}
                                 </div>
                               </div>
                               {isSelected ? <CheckCircle2 className="h-4 w-4 shrink-0 text-cyan-200" /> : null}
@@ -908,7 +909,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   </div>
                 ) : (
                   <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
-                    لا توجد بطاقات متاحة لهذا المقاس
+                    ظ„ط§ طھظˆط¬ط¯ ط¨ط·ط§ظ‚ط§طھ ظ…طھط§ط­ط© ظ„ظ‡ط°ط§ ط§ظ„ظ…ظ‚ط§ط³
                   </div>
                 )
               ) : visibleProducts.length ? (
@@ -936,7 +937,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           </span>
                         ) : null}
                         {previewImage ? (
-                          <img src={previewImage} alt={product.name || "منتج"} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
+                          <img src={previewImage} alt={product.name || "ظ…ظ†طھط¬"} className="h-16 w-16 shrink-0 rounded-xl object-cover" loading="lazy" />
                         ) : (
                           <span className={inlineFullscreenMode ? "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-400" : "grid h-16 w-16 shrink-0 place-items-center rounded-xl bg-white/[0.05] text-slate-500"}>
                             <ShoppingBag className="h-5 w-5" />
@@ -945,7 +946,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <div className={`truncate text-sm font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{product.name || product.product_name || "منتج"}</div>
+                              <div className={`truncate text-sm font-black ${inlineFullscreenMode ? "text-slate-900" : "text-white"}`}>{product.name || product.product_name || "ظ…ظ†طھط¬"}</div>
                               <div className={`mt-1 flex flex-wrap gap-1.5 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
                                 {product.brand || product.brand_name ? <span>{product.brand || product.brand_name}</span> : null}
                                 {product.category || product.category_name ? <span>{product.category || product.category_name}</span> : null}
@@ -955,7 +956,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           </div>
                           <div className={`mt-2 flex flex-wrap items-center gap-2 text-[11px] font-bold ${inlineFullscreenMode ? "text-slate-600" : "text-slate-400"}`}>
                             {Number.isFinite(previewPrice) && previewPrice > 0 ? <span className={`font-black ${inlineFullscreenMode ? "text-emerald-700" : "text-emerald-100"}`}>{money(previewPrice)}</span> : null}
-                            {productBarcode(product) ? <span>باركود: {productBarcode(product)}</span> : null}
+                            {productBarcode(product) ? <span>ط¨ط§ط±ظƒظˆط¯: {productBarcode(product)}</span> : null}
                           </div>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {previewColors.map((item) => (
@@ -972,7 +973,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                 </div>
               ) : (
                 <div className={inlineFullscreenMode ? "grid min-h-48 place-items-center rounded-2xl border border-dashed border-slate-200 bg-white text-sm font-bold text-slate-500" : "grid min-h-48 place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500"}>
-                  لا توجد منتجات مطابقة للبحث الحالي
+                  ظ„ط§ طھظˆط¬ط¯ ظ…ظ†طھط¬ط§طھ ظ…ط·ط§ط¨ظ‚ط© ظ„ظ„ط¨ط­ط« ط§ظ„ط­ط§ظ„ظٹ
                 </div>
               )}
             </div>
@@ -983,17 +984,17 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               <div className="space-y-3">
                 <div className="rounded-2xl border border-white/10 bg-slate-950/70 p-4">
                   <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Size mode</div>
-                  <div className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>المقاس المختار: {selectedSize}</div>
-                  <div className="mt-2 text-sm font-semibold text-slate-400">اختر المنتجات التي تريد إرسالها من القائمة.</div>
+                  <div className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ…ط®طھط§ط±: {selectedSize}</div>
+                  <div className="mt-2 text-sm font-semibold text-slate-400">ط§ط®طھط± ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„طھظٹ طھط±ظٹط¯ ط¥ط±ط³ط§ظ„ظ‡ط§ ظ…ظ† ط§ظ„ظ‚ط§ط¦ظ…ط©.</div>
                   <div className="mt-3 inline-flex rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-black text-cyan-100">
-                    عدد المنتجات المحددة: {selectedSizeCards.length}
+                    ط¹ط¯ط¯ ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„ظ…ط­ط¯ط¯ط©: {selectedSizeCards.length}
                 </div>
                   </div>
 
                 <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
-                  <div className="text-sm font-black text-white">إرسال محددات المقاس</div>
+                  <div className="text-sm font-black text-white">ط¥ط±ط³ط§ظ„ ظ…ط­ط¯ط¯ط§طھ ط§ظ„ظ…ظ‚ط§ط³</div>
                   <div className="mt-2 text-xs font-semibold leading-6 text-slate-400">
-                    المنتجات الظاهرة في القائمة هي فقط التي لديها stock فعلي لهذا المقاس. لا حاجة لاختيار لون أو مقاس لكل منتج.
+                    ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„ط¸ط§ظ‡ط±ط© ظپظٹ ط§ظ„ظ‚ط§ط¦ظ…ط© ظ‡ظٹ ظپظ‚ط· ط§ظ„طھظٹ ظ„ط¯ظٹظ‡ط§ stock ظپط¹ظ„ظٹ ظ„ظ‡ط°ط§ ط§ظ„ظ…ظ‚ط§ط³. ظ„ط§ ط­ط§ط¬ط© ظ„ط§ط®طھظٹط§ط± ظ„ظˆظ† ط£ظˆ ظ…ظ‚ط§ط³ ظ„ظƒظ„ ظ…ظ†طھط¬.
                   </div>
                 </div>
 
@@ -1004,7 +1005,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     disabled={!visibleSizeCards.length}
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-300/10 px-3 py-2 text-sm font-black text-cyan-100 transition hover:bg-cyan-300/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    تحديد الكل
+                    طھط­ط¯ظٹط¯ ط§ظ„ظƒظ„
                   </button>
                   <button
                     type="button"
@@ -1012,7 +1013,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                     disabled={!visibleSizeCards.length}
                     className="inline-flex min-h-11 items-center justify-center rounded-2xl border border-white/10 bg-black/30 px-3 py-2 text-sm font-black text-white transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    إلغاء تحديد الكل
+                    ط¥ظ„ط؛ط§ط، طھط­ط¯ظٹط¯ ط§ظ„ظƒظ„
                   </button>
                 </div>
 
@@ -1023,7 +1024,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  إرسال المنتجات المحددة
+                  ط¥ط±ط³ط§ظ„ ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„ظ…ط­ط¯ط¯ط©
                 </button>
 
                 {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
@@ -1032,7 +1033,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
               <div className="space-y-3">
                 <div className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950/70">
                   {activeImage ? (
-                    <img src={activeImage} alt={selectedProduct.name || "منتج"} className="aspect-[16/10] w-full object-cover" loading="lazy" />
+                    <img src={activeImage} alt={selectedProduct.name || "ظ…ظ†طھط¬"} className="aspect-[16/10] w-full object-cover" loading="lazy" />
                   ) : (
                     <div className="grid aspect-[16/10] w-full place-items-center bg-white/[0.05]">
                       <ShoppingBag className="h-12 w-12 text-slate-500" />
@@ -1040,18 +1041,18 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   )}
                   <div className="p-3">
                     <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Selected product</div>
-                    <div className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{selectedProduct.name || selectedProduct.product_name || "منتج"}</div>
+                    <div className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>{selectedProduct.name || selectedProduct.product_name || "ظ…ظ†طھط¬"}</div>
                     <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-slate-400">
                       {selectedProduct.brand || selectedProduct.brand_name ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{selectedProduct.brand || selectedProduct.brand_name}</span> : null}
                       {selectedProduct.category || selectedProduct.category_name ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">{selectedProduct.category || selectedProduct.category_name}</span> : null}
-                      {productBarcode(selectedProduct) ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">باركود: {productBarcode(selectedProduct)}</span> : null}
+                      {productBarcode(selectedProduct) ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">ط¨ط§ط±ظƒظˆط¯: {productBarcode(selectedProduct)}</span> : null}
                     </div>
                     {activePrice > 0 ? <div className="mt-2 text-base font-black text-emerald-100">{money(activePrice)}</div> : null}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
-                  <div className="text-sm font-black text-white">اللون</div>
+                  <div className="text-sm font-black text-white">ط§ظ„ظ„ظˆظ†</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {activeColors.length ? (
                       activeColors.map((color) => {
@@ -1078,15 +1079,15 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                         );
                       })
                     ) : (
-                      <span className="text-sm font-semibold text-slate-500">لا يوجد لون محدد</span>
+                      <span className="text-sm font-semibold text-slate-500">ظ„ط§ ظٹظˆط¬ط¯ ظ„ظˆظ† ظ…ط­ط¯ط¯</span>
                     )}
                   </div>
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-slate-950/60 p-3">
                   <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-black text-white">المقاس</div>
-                    <div className="text-[11px] font-bold text-slate-500">المقاسات المتاحة فقط</div>
+                    <div className="text-sm font-black text-white">ط§ظ„ظ…ظ‚ط§ط³</div>
+                    <div className="text-[11px] font-bold text-slate-500">ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…طھط§ط­ط© ظپظ‚ط·</div>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
                     {activeSizes.length ? (
@@ -1106,7 +1107,7 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                         );
                       })
                     ) : (
-                      <div className="col-span-full text-sm font-semibold text-slate-500">لا توجد مقاسات متاحة لهذا اللون</div>
+                      <div className="col-span-full text-sm font-semibold text-slate-500">ظ„ط§ طھظˆط¬ط¯ ظ…ظ‚ط§ط³ط§طھ ظ…طھط§ط­ط© ظ„ظ‡ط°ط§ ط§ظ„ظ„ظˆظ†</div>
                     )}
                   </div>
                 </div>
@@ -1121,14 +1122,14 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                   className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 px-4 py-3 text-sm font-black text-slate-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  إرسال المنتج
+                  ط¥ط±ط³ط§ظ„ ط§ظ„ظ…ظ†طھط¬
                 </button>
 
                 {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{error}</div> : null}
               </div>
             ) : (
               <div className="grid min-h-[24rem] place-items-center rounded-2xl border border-dashed border-white/10 bg-white/[0.03] text-sm font-bold text-slate-500">
-                اختر منتجًا لعرض اللون والمقاس
+                ط§ط®طھط± ظ…ظ†طھط¬ظ‹ط§ ظ„ط¹ط±ط¶ ط§ظ„ظ„ظˆظ† ظˆط§ظ„ظ…ظ‚ط§ط³
               </div>
             )}
           </div>

@@ -2,6 +2,7 @@ import { memo } from "react";
 import { ArrowUpRight, ShoppingBag } from "lucide-react";
 
 import { formatCurrency } from "../../../shared/lib/currency";
+import { productPath } from "../../../storefront/lib/paths";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -56,7 +57,7 @@ const absoluteTime = (value) => {
 const productCardRoute = (productId = "") => {
   const safeId = clean(productId);
   if (!safeId) return "";
-  const route = `/shop/product/${encodeURIComponent(safeId)}`;
+  const route = productPath(safeId);
   if (typeof window !== "undefined" && window.location?.origin) {
     try {
       return new URL(route, window.location.origin).toString();
@@ -92,7 +93,7 @@ const normalizeProductCard = (card = {}, inherited = {}) => {
     inherited.product_name,
     inherited.name,
     inherited.title,
-    "منتج"
+    "ظ…ظ†طھط¬"
   );
   const storefrontUrl = firstText(
     merged.storefront_url,
@@ -160,14 +161,14 @@ function ProductCardMessage({ message = {}, cards = [] }) {
     >
       <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
         <ShoppingBag className="h-3.5 w-3.5" />
-        <span>إرسال منتج</span>
+        <span>ط¥ط±ط³ط§ظ„ ظ…ظ†طھط¬</span>
         {deliveryStatus ? (
           <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] tracking-[0.08em] text-slate-200">
             {deliveryStatus}
           </span>
         ) : null}
         {message.created_at ? <span className="text-slate-500">{absoluteTime(message.created_at)}</span> : null}
-        {items.length > 1 ? <span className="text-slate-500">{items.length} منتجات</span> : null}
+        {items.length > 1 ? <span className="text-slate-500">{items.length} ظ…ظ†طھط¬ط§طھ</span> : null}
       </div>
 
       <div className={`mt-3 grid gap-2 ${items.length > 1 ? "sm:grid-cols-2" : ""}`}>
@@ -184,21 +185,21 @@ function ProductCardMessage({ message = {}, cards = [] }) {
               {storefrontUrl ? (
                 <a href={storefrontUrl} target="_blank" rel="noreferrer" className="block">
                   {image ? (
-                    <img src={image} alt={card.product_name || card.name || card.title || "منتج"} className="aspect-[16/10] w-full object-cover" loading="lazy" decoding="async" />
+                    <img src={image} alt={card.product_name || card.name || card.title || "ظ…ظ†طھط¬"} className="aspect-[16/10] w-full object-cover" loading="lazy" decoding="async" />
                   ) : (
                     <div className="grid aspect-[16/10] w-full place-items-center bg-white/[0.05]">
                       <ShoppingBag className="h-10 w-10 text-slate-500" />
                     </div>
                   )}
                   <div className="p-3">
-                    <div className="truncate text-sm font-black text-white">{card.product_name || card.name || card.title || "منتج"}</div>
+                    <div className="truncate text-sm font-black text-white">{card.product_name || card.name || card.title || "ظ…ظ†طھط¬"}</div>
                     {priceValue > 0 ? <div className="mt-1 text-xs font-bold text-emerald-100">{money(priceValue)}</div> : null}
                     <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-300">
-                      {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">اللون: {card.color}</span> : null}
-                      {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">المقاس: {card.size}</span> : null}
+                      {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">ط§ظ„ظ„ظˆظ†: {card.color}</span> : null}
+                      {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">ط§ظ„ظ…ظ‚ط§ط³: {card.size}</span> : null}
                     </div>
                     <div className="mt-3 inline-flex items-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 py-2 text-[11px] font-black text-cyan-100">
-                      فتح المنتج
+                      ظپطھط­ ط§ظ„ظ…ظ†طھط¬
                       <ArrowUpRight className="h-3.5 w-3.5" />
                     </div>
                   </div>
@@ -206,17 +207,17 @@ function ProductCardMessage({ message = {}, cards = [] }) {
               ) : (
                 <div className="p-3">
                   {image ? (
-                    <img src={image} alt={card.product_name || card.name || card.title || "منتج"} className="aspect-[16/10] w-full rounded-xl object-cover" loading="lazy" decoding="async" />
+                    <img src={image} alt={card.product_name || card.name || card.title || "ظ…ظ†طھط¬"} className="aspect-[16/10] w-full rounded-xl object-cover" loading="lazy" decoding="async" />
                   ) : (
                     <div className="grid aspect-[16/10] w-full place-items-center rounded-xl bg-white/[0.05]">
                       <ShoppingBag className="h-10 w-10 text-slate-500" />
                     </div>
                   )}
-                  <div className="mt-3 truncate text-sm font-black text-white">{card.product_name || card.name || card.title || "منتج"}</div>
+                  <div className="mt-3 truncate text-sm font-black text-white">{card.product_name || card.name || card.title || "ظ…ظ†طھط¬"}</div>
                   {priceValue > 0 ? <div className="mt-1 text-xs font-bold text-emerald-100">{money(priceValue)}</div> : null}
                   <div className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-bold text-slate-300">
-                    {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">اللون: {card.color}</span> : null}
-                    {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">المقاس: {card.size}</span> : null}
+                    {card.color ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">ط§ظ„ظ„ظˆظ†: {card.color}</span> : null}
+                    {card.size ? <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-1">ط§ظ„ظ…ظ‚ط§ط³: {card.size}</span> : null}
                   </div>
                 </div>
               )}

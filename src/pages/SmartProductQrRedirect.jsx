@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 
 import { api } from "../shared/api/api";
+import { productPath } from "../storefront/lib/paths";
 
 const text = (value = "") => String(value || "").trim();
 
@@ -80,7 +81,7 @@ export default function SmartProductQrRedirect() {
         const product = response?.product || response?.data?.product || null;
         const slug = text(product?.slug || product?.canonical_slug || product?.id || productId);
         navigate(
-          `/shop/product/${encodeURIComponent(slug)}${buildQuery([
+          `${productPath(slug)}${buildQuery([
             ["variant", variantId],
             ["color", colorId],
           ])}`,
@@ -89,7 +90,7 @@ export default function SmartProductQrRedirect() {
       } catch {
         if (cancelled) return;
         navigate(
-          `/shop/product/${encodeURIComponent(productId)}${buildQuery([
+          `${productPath(productId)}${buildQuery([
             ["variant", variantId],
             ["color", colorId],
           ])}`,

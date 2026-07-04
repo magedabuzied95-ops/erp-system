@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { accentClasses, animationVariants, getStoryTemplate, normalizeAnimation, STORY_TEMPLATES } from "./storyTemplateEngine";
 import StoryExportControls from "./StoryExportControls";
+import { productPath } from "../../../storefront/lib/paths";
 
 const formatCurrency = (value) => {
   const amount = Number(value || 0);
@@ -35,7 +36,7 @@ const storyCtaUrl = (...sources) => {
     const url = String(source?.cta_url || source?.product_url || source?.public_url || source?.url || source?.social_meta?.url || "").trim();
     if (url) return url;
     const slug = productSlug(source || {});
-    if (slug) return `/shop/product/${slug}`;
+    if (slug) return productPath(slug);
   }
   return "";
 };
@@ -161,22 +162,22 @@ const normalizeArabicCopy = (value = "", fallback = "") => {
   const copy = String(value || "").trim();
   if (!copy) return fallback;
   const replacements = [
-    [/just landed/gi, "وصل حديثًا"],
-    [/is almost gone/gi, "آخر القطع المتوفرة"],
-    [/only 1 piece left/gi, "آخر قطعة متاحة"],
-    [/only (\d+) left/gi, "متبقي $1 قطع فقط"],
-    [/limited drop/gi, "كمية محدودة"],
-    [/starts from/gi, "السعر يبدأ من"],
-    [/customer favorite/gi, "الأكثر طلبًا"],
-    [/ready to get it\?/gi, "جاهز تطلبه؟"],
-    [/shop now/gi, "تسوق الآن"],
-    [/order now/gi, "اطلب الآن"],
-    [/dm now/gi, "اطلب عبر الرسائل"],
+    [/just landed/gi, "ظˆطµظ„ ط­ط¯ظٹط«ظ‹ط§"],
+    [/is almost gone/gi, "ط¢ط®ط± ط§ظ„ظ‚ط·ط¹ ط§ظ„ظ…طھظˆظپط±ط©"],
+    [/only 1 piece left/gi, "ط¢ط®ط± ظ‚ط·ط¹ط© ظ…طھط§ط­ط©"],
+    [/only (\d+) left/gi, "ظ…طھط¨ظ‚ظٹ $1 ظ‚ط·ط¹ ظپظ‚ط·"],
+    [/limited drop/gi, "ظƒظ…ظٹط© ظ…ط­ط¯ظˆط¯ط©"],
+    [/starts from/gi, "ط§ظ„ط³ط¹ط± ظٹط¨ط¯ط£ ظ…ظ†"],
+    [/customer favorite/gi, "ط§ظ„ط£ظƒط«ط± ط·ظ„ط¨ظ‹ط§"],
+    [/ready to get it\?/gi, "ط¬ط§ظ‡ط² طھط·ظ„ط¨ظ‡طں"],
+    [/ now/gi, "طھط³ظˆظ‚ ط§ظ„ط¢ظ†"],
+    [/order now/gi, "ط§ط·ظ„ط¨ ط§ظ„ط¢ظ†"],
+    [/dm now/gi, "ط§ط·ظ„ط¨ ط¹ط¨ط± ط§ظ„ط±ط³ط§ط¦ظ„"],
     [/hot/gi, "HOT"],
-    [/new/gi, "جديد"],
-    [/featured/gi, "مختار"],
-    [/last piece/gi, "آخر قطعة"],
-    [/low stock/gi, "كمية محدودة"],
+    [/new/gi, "ط¬ط¯ظٹط¯"],
+    [/featured/gi, "ظ…ط®طھط§ط±"],
+    [/last piece/gi, "ط¢ط®ط± ظ‚ط·ط¹ط©"],
+    [/low stock/gi, "ظƒظ…ظٹط© ظ…ط­ط¯ظˆط¯ط©"],
   ];
   return replacements.reduce((text, [pattern, replacement]) => text.replace(pattern, replacement), copy);
 };
@@ -184,16 +185,16 @@ const normalizeArabicCopy = (value = "", fallback = "") => {
 const hasArabic = (value = "") => /[\u0600-\u06FF]/.test(String(value || ""));
 
 const GENERIC_HOOK_PATTERNS = [
-  /اختيار\s+(فاخر|مميز)?\s*يلفت\s+النظر/i,
-  /منتج\s+فاخر\s+يلفت\s+النظر/i,
-  /إطلالة\s+تخطف\s+الأنظار/i,
-  /اختيار\s+لا\s+يفوت/i,
-  /تفاصيل\s+أنيقة\s+بدون\s+مبالغة/i,
-  /يلفت\s+النظر/i,
+  /ط§ط®طھظٹط§ط±\s+(ظپط§ط®ط±|ظ…ظ…ظٹط²)?\s*ظٹظ„ظپطھ\s+ط§ظ„ظ†ط¸ط±/i,
+  /ظ…ظ†طھط¬\s+ظپط§ط®ط±\s+ظٹظ„ظپطھ\s+ط§ظ„ظ†ط¸ط±/i,
+  /ط¥ط·ظ„ط§ظ„ط©\s+طھط®ط·ظپ\s+ط§ظ„ط£ظ†ط¸ط§ط±/i,
+  /ط§ط®طھظٹط§ط±\s+ظ„ط§\s+ظٹظپظˆطھ/i,
+  /طھظپط§طµظٹظ„\s+ط£ظ†ظٹظ‚ط©\s+ط¨ط¯ظˆظ†\s+ظ…ط¨ط§ظ„ط؛ط©/i,
+  /ظٹظ„ظپطھ\s+ط§ظ„ظ†ط¸ط±/i,
 ];
 
 const USEFUL_HOOK_PATTERNS = [
-  /آخر|المتوفرة|متبقي|محدودة|نفاد|وصل|حديث|عرض|خصم|وفر|الأكثر|طلب/i,
+  /ط¢ط®ط±|ط§ظ„ظ…طھظˆظپط±ط©|ظ…طھط¨ظ‚ظٹ|ظ…ط­ط¯ظˆط¯ط©|ظ†ظپط§ط¯|ظˆطµظ„|ط­ط¯ظٹط«|ط¹ط±ط¶|ط®طµظ…|ظˆظپط±|ط§ظ„ط£ظƒط«ط±|ط·ظ„ط¨/i,
   /last|limited|new|sale|discount|hot|trending|stock|piece/i,
 ];
 
@@ -209,7 +210,7 @@ const cleanProductTitle = (value = "") => {
     .replace(/\[[^\]]*\]/g, " ")
     .replace(/\b(for\s+(men|women|kids|boys|girls|unisex|male|female)|mens|women'?s|kids'?|boys'?|girls'?)\b/gi, " ")
     .replace(/\b(sneakers?|shoes?|shoe|running|casual|fashion|original|premium|high\s*quality|new\s*arrival|latest|202\d|size\s*\d+)\b/gi, " ")
-    .replace(/\b(حذاء|كوتشي|رجالي|حريمي|اطفال|أطفال|اصلي|أصلي|جديد)\b/gi, " ")
+    .replace(/\b(ط­ط°ط§ط،|ظƒظˆطھط´ظٹ|ط±ط¬ط§ظ„ظٹ|ط­ط±ظٹظ…ظٹ|ط§ط·ظپط§ظ„|ط£ط·ظپط§ظ„|ط§طµظ„ظٹ|ط£طµظ„ظٹ|ط¬ط¯ظٹط¯)\b/gi, " ")
     .replace(/[|/_,]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -231,11 +232,11 @@ const commercialHook = (story = {}, template = {}, product = {}) => {
   if (hasArabic(generated) && (!productName || !generated.includes(productName))) return isUsefulHook(generated) ? normalizeArabicCopy(generated, "") : "";
   if (story?.type === "cta") return "";
   if (hasArabic(generated) && (!productName || !generated.includes(productName))) {
-    return normalizeArabicCopy(generated, template.commercial?.hook || "اختيار يلفت النظر");
+    return normalizeArabicCopy(generated, template.commercial?.hook || "ط§ط®طھظٹط§ط± ظٹظ„ظپطھ ط§ظ„ظ†ط¸ط±");
   }
   if (story?.type === "urgency" || story?.type === "social_proof" || story?.type === "cta") return "";
   if (!isUsefulHook(template.commercial?.hook)) return "";
-  return template.commercial?.hook || "اختيار يلفت النظر";
+  return template.commercial?.hook || "ط§ط®طھظٹط§ط± ظٹظ„ظپطھ ط§ظ„ظ†ط¸ط±";
 };
 
 const storyBadgeText = () => {
@@ -248,8 +249,8 @@ const legacyStoryBadgeText = (story = {}, template = {}, product = {}) => {
   if (lastPieceVariants.length > 1) return `Last ${lastPieceVariants.length} pieces`;
   const stickers = Array.isArray(story.stickers) ? story.stickers : [];
   const first = stickers[0] || template.commercial?.badge;
-  if (comparePrice(product) > activeSellingPrice(product)) return "عرض";
-  return normalizeArabicCopy(first, template.commercial?.badge || "جديد");
+  if (comparePrice(product) > activeSellingPrice(product)) return "ط¹ط±ط¶";
+  return normalizeArabicCopy(first, template.commercial?.badge || "ط¬ط¯ظٹط¯");
 };
 
 const ctaText = () => "View details";
@@ -257,11 +258,11 @@ const ctaText = () => "View details";
 const benefitChips = (product = {}) => {
   const stock = Number(product.stock || product.total_stock || product.quantity || 0);
   const chips = [
-    stock === 1 ? "آخر قطعة" : stock > 1 && stock <= 3 ? "قطع محدودة" : "",
-    "خامة premium",
-    "تصميم مميز",
-    "راحة طوال اليوم",
-    "الأكثر طلبًا",
+    stock === 1 ? "ط¢ط®ط± ظ‚ط·ط¹ط©" : stock > 1 && stock <= 3 ? "ظ‚ط·ط¹ ظ…ط­ط¯ظˆط¯ط©" : "",
+    "ط®ط§ظ…ط© premium",
+    "طھطµظ…ظٹظ… ظ…ظ…ظٹط²",
+    "ط±ط§ط­ط© ط·ظˆط§ظ„ ط§ظ„ظٹظˆظ…",
+    "ط§ظ„ط£ظƒط«ط± ط·ظ„ط¨ظ‹ط§",
   ].filter(Boolean);
   return [...new Set(chips)].slice(0, 4);
 };
@@ -305,7 +306,7 @@ export function StoryHero({ campaign, story, template, product }) {
   const displayProductName = cleanProductTitle(rawProductTitle);
   const displayHook = commercialHook(story, template, { ...product, name: rawProductTitle });
   const safeHook = isUsefulHook(displayHook) ? displayHook : "";
-  const productName = product.name || campaign?.product_name || campaign?.title || "منتج مختار";
+  const productName = product.name || campaign?.product_name || campaign?.title || "ظ…ظ†طھط¬ ظ…ط®طھط§ط±";
   return (
     <div className="flex min-h-[142px] max-h-[166px] shrink-0 flex-col justify-start gap-3 overflow-hidden text-right">
       <StoryBadge story={story} template={template} product={product} />
@@ -340,7 +341,7 @@ export function StoryProductVisual({ campaign, product, animationName }) {
         />
       ) : (
         <div className="relative z-10 flex h-72 w-52 items-center justify-center rounded-[2rem] border border-dashed border-white/20 bg-white/10 text-sm font-black text-white/70 backdrop-blur">
-          صورة المنتج
+          طµظˆط±ط© ط§ظ„ظ…ظ†طھط¬
         </div>
       )}
     </motion.div>
@@ -362,7 +363,7 @@ export function StoryPricing({ product, template }) {
       <div className={`text-[2.55rem] font-black leading-none tracking-normal ${light ? "text-slate-950" : "text-white"}`}>{formatCurrency(selling)}</div>
       {saving ? (
         <div dir="rtl" className={`mt-2 inline-flex rounded-full px-3.5 py-1.5 text-[11px] font-black shadow-lg ${light ? "bg-rose-600 text-white" : "bg-white text-slate-950"}`}>
-          {percent ? `خصم ${percent}%` : `وفر ${formatCurrency(saving).replace("EGP", "جنيه")}`}
+          {percent ? `ط®طµظ… ${percent}%` : `ظˆظپط± ${formatCurrency(saving).replace("EGP", "ط¬ظ†ظٹظ‡")}`}
         </div>
       ) : null}
     </motion.div>
@@ -501,7 +502,7 @@ export function StoryTimeline({ stories = [], currentIndex, onSelect }) {
         >
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-black">{story.position || index + 1}</span>
           <span className="min-w-0">
-            <span className="block text-xs font-black">{normalizeArabicCopy(story.type || "قصة", "قصة").replaceAll("_", " ")}</span>
+            <span className="block text-xs font-black">{normalizeArabicCopy(story.type || "ظ‚طµط©", "ظ‚طµط©").replaceAll("_", " ")}</span>
             <span className="block truncate text-xs opacity-70" dir="rtl">{normalizeArabicCopy(story.headline)}</span>
           </span>
         </button>
