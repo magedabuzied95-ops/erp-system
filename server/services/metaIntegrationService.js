@@ -190,6 +190,10 @@ const numberOrNull = (value) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? Math.trunc(parsed) : null;
 };
+const moneyNumberOrZero = (value) => {
+  const parsed = Number(String(value ?? "").replace(/[^\d.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
 const json = (value) => JSON.stringify(value === undefined ? null : value);
 const nowIso = () => new Date().toISOString();
 const minutesFromNow = (minutes) => new Date(Date.now() + minutes * 60 * 1000).toISOString();
@@ -13950,9 +13954,9 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
     slug: text(productRow.slug || ""),
     canonical_slug: text(productRow.canonical_slug || ""),
     image_url: text(productRow.image_url || ""),
-    price: numeric(productRow.price, 0),
-    sale_price: numeric(productRow.sale_price, 0),
-    selling_price: numeric(productRow.selling_price, 0),
+    price: moneyNumberOrZero(productRow.price),
+    sale_price: moneyNumberOrZero(productRow.sale_price),
+    selling_price: moneyNumberOrZero(productRow.selling_price),
     confidence: 1,
   };
   const variant = {
@@ -13964,10 +13968,10 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
     name: text([product.name || "المنتج", variantRow.size, variantRow.color].filter(Boolean).join(" / ")),
     sku: text(variantRow.sku || ""),
     barcode: text(variantRow.barcode || ""),
-    stock: numeric(variantRow.stock, 0),
-    price: numeric(variantRow.price, 0),
-    sale_price: numeric(variantRow.sale_price, 0),
-    selling_price: numeric(variantRow.selling_price, 0),
+    stock: moneyNumberOrZero(variantRow.stock),
+    price: moneyNumberOrZero(variantRow.price),
+    sale_price: moneyNumberOrZero(variantRow.sale_price),
+    selling_price: moneyNumberOrZero(variantRow.selling_price),
   };
   const resolvedPrice = await resolveSocialProductDisplayPrice({
     tenantId: safeTenantId,
@@ -13981,7 +13985,7 @@ const resolveSocialCommentSalesFlowDraftOrderData = async ({
     },
     callsite: "metaIntegrationService.resolveSocialCommentSalesFlowDraftOrderData",
   }).catch(() => null);
-  const unitPrice = numeric(resolvedPrice?.selected_price, 0);
+  const unitPrice = moneyNumberOrZero(resolvedPrice?.selected_price);
   return {
     product,
     variant,
@@ -14101,6 +14105,11 @@ const createSocialCommentDraftOrder = async ({
         shipping_product_name: text(shippingProductData?.productName || ""),
       },
     };
+    console.log("SOCIAL_COMMENT_DRAFT_ORDER_PRICE_INPUT", {
+      raw_price: draftData?.priceTrace?.selected_price ?? draftData?.selectedPriceText ?? null,
+      parsed_price: draftData.unitPrice > 0 ? draftData.unitPrice : null,
+      type: typeof draftData.unitPrice,
+    });
     const draft = await createAiOrderDraft(payload);
     const orderId = draft?.order?.id || null;
     const orderStatus = "pending_staff_review";
