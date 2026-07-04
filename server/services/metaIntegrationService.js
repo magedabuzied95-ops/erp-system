@@ -22080,6 +22080,14 @@ export const processMetaWebhook = async ({ req } = {}) => {
       detected_at: webhookReceivedAt,
     },
   }));
+  console.log("META_WEBHOOK_COMMENT_EVENTS_EXTRACTED", {
+    tenant_id: config.tenant_id,
+    comment_events_count: commentEvents.length,
+    comment_ids: commentEvents.map((event) => text(event.comment_id || "")).filter(Boolean).slice(0, 10),
+    post_ids: commentEvents.map((event) => text(event.post_id || "")).filter(Boolean).slice(0, 10),
+    has_comment_events: commentEvents.length > 0,
+    has_messaging: Array.isArray(payload.entry) ? payload.entry.some((entry) => Array.isArray(entry?.messaging) && entry.messaging.length > 0) : false,
+  });
   const storedCommentEvents = commentEvents.length
     ? await storeSocialCommentAutomationRuns({ tenantId: config.tenant_id, events: commentEvents })
     : [];

@@ -7059,6 +7059,18 @@ export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null }
   asArray(body.entry).forEach((entry) => {
     asArray(entry.changes).forEach((change) => {
       const value = change.value || {};
+      const isComment = isCommentChange(body, change);
+      console.log("FACEBOOK_COMMENT_WEBHOOK_RECEIVED", {
+        tenant_id: tenantId,
+        object: text(body.object || ""),
+        field: text(change.field || ""),
+        item: text(value.item || ""),
+        verb: text(value.verb || ""),
+        comment_id: text(value.comment_id || value.commentId || value.id || ""),
+        post_id: text(value.post_id || value.media_id || value.id || entry.id || ""),
+        message_preview: text(value.message || value.text || value.comment_text || value.message_text || "").slice(0, 400),
+        accepted: isComment,
+      });
       console.log("[META_WEBHOOK_CHANGE_DEBUG]", {
         object: text(body.object || ""),
         field: text(change.field || ""),
@@ -7071,7 +7083,7 @@ export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null }
         message: text(value.message || value.text || value.comment_text || value.message_text || ""),
         raw_value_keys: Object.keys(value || {}),
       });
-      if (!isCommentChange(body, change)) return;
+      if (!isComment) return;
       console.log("[COMMENT_WEBHOOK_HIT]", {
         platform: normalizedPlatform(body),
         field: text(change.field || ""),
