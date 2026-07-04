@@ -22,7 +22,6 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
-import { productPath } from "../../../storefront/lib/paths";
 
 import {
   buildSocialAICopy,
@@ -272,7 +271,7 @@ const storyCtaUrl = (...sources) => {
     const direct = String(source?.cta_url || source?.product_url || source?.public_url || source?.product?.public_url || source?.product?.product_url || source?.product?.url || "").trim();
     if (direct) return direct;
     const slug = storyProductSlug(source || {});
-    if (slug) return productPath(slug);
+    if (slug) return `/shop/product/${slug}`;
   }
   return "";
 };
@@ -560,27 +559,27 @@ const makeSchedulePreset = (id) => {
 const captionBank = {
   casual: [
     ({ productName, price }) =>
-      `ظˆطµظ„ ط¬ط¯ظٹط¯ ظˆط­ظ„ظˆ ط¬ط¯ط§\n${productName}\n\nط³طھط§ظٹظ„ ط³ظ‡ظ„ ظٹظ„ظٹظ‚ ط¹ظ„ظ‰ ظƒظ„ ظٹظˆظ…طŒ ظˆظ…طھظˆظپط± ط¨طھظپط§طµظٹظ„ ظ…ظ…ظٹط²ط©.\n${price ? `ط§ظ„ط³ط¹ط± ظٹط¨ط¯ط£ ظ…ظ†: ${price} ط¬.ظ…\n` : ""}\nط§ط·ظ„ط¨ظ‡ ط¯ظ„ظˆظ‚طھظٹ ظˆط®ظ„ظٹظƒ ط³ط§ط¨ظ‚ ط¨ط®ط·ظˆط© âœ¨`,
+      `وصل جديد وحلو جدا\n${productName}\n\nستايل سهل يليق على كل يوم، ومتوفر بتفاصيل مميزة.\n${price ? `السعر يبدأ من: ${price} ج.م\n` : ""}\nاطلبه دلوقتي وخليك سابق بخطوة ✨`,
     ({ productName, price }) =>
-      `ط¬ط¯ظٹط¯ ط¹ظ†ط¯ظ†ط§\n${productName}\n\nط§ط®طھظٹط§ط± ط¹ظ…ظ„ظٹ ظˆط´ظٹظƒ ظپظٹ ظ†ظپط³ ط§ظ„ظˆظ‚طھطŒ ظ…ظ†ط§ط³ط¨ ظ„ظ„ط®ط±ظˆط¬ ظˆط§ظ„ط´ط؛ظ„ ظˆظƒظ„ ظ…ط´ط§ظˆظٹط±ظƒ.\n${price ? `ط§ط¨طھط¯ط§ط، ظ…ظ† ${price} ط¬.ظ…\n` : ""}\nط§ط¨ط¹طھظ„ظ†ط§ ظˆط§ط­ط¬ط² ظ…ظ‚ط§ط³ظƒ.`,
+      `جديد عندنا\n${productName}\n\nاختيار عملي وشيك في نفس الوقت، مناسب للخروج والشغل وكل مشاويرك.\n${price ? `ابتداء من ${price} ج.م\n` : ""}\nابعتلنا واحجز مقاسك.`,
   ],
   luxury: [
     ({ productName, price }) =>
-      `ط¥ط·ظ„ط§ظ„ط© ط¨طھظپط§طµظٹظ„ ط£ط±ظ‚ظ‰\n${productName}\n\nطھطµظ…ظٹظ… ظ…ط®طھط§ط± ط¨ط¹ظ†ط§ظٹط© ظ„ط¹ط´ط§ظ‚ ط§ظ„ط°ظˆظ‚ ط§ظ„ظ‡ط§ط¯ط¦ ظˆط§ظ„ط¬ظˆط¯ط© ط§ظ„ط¹ط§ظ„ظٹط©.\n${price ? `ط§ظ„ط³ط¹ط± ظٹط¨ط¯ط£ ظ…ظ†: ${price} ط¬.ظ…\n` : ""}\nط§ط®طھظٹط§ط±ظƒ ظ„ظ…ط§ طھط­ط¨ طھظ…ظٹط²ظƒ ظٹط¨ط§ظ†.`,
+      `إطلالة بتفاصيل أرقى\n${productName}\n\nتصميم مختار بعناية لعشاق الذوق الهادئ والجودة العالية.\n${price ? `السعر يبدأ من: ${price} ج.م\n` : ""}\nاختيارك لما تحب تميزك يبان.`,
     ({ productName, price }) =>
-      `ط±ظپط§ظ‡ظٹط© ظپظٹ ط§ظ„طھظپط§طµظٹظ„\n${productName}\n\nظ‚ط·ط¹ط© طھط¶ظٹظپ ط­ط¶ظˆط± ط£ظ‚ظˆظ‰ ظ„ط¥ط·ظ„ط§ظ„طھظƒطŒ ط¨ط®ط§ظ…ط© ظˆظ„ظ…ط³ط© طھظ†ط§ط³ط¨ ط§ظ„ط§ط®طھظٹط§ط±ط§طھ ط§ظ„ط±ط§ظ‚ظٹط©.\n${price ? `ظ…طھط§ط­ ط§ط¨طھط¯ط§ط، ظ…ظ† ${price} ط¬.ظ…\n` : ""}\nط§ط­ط¬ط²ظ‡ ط§ظ„ط¢ظ†.`,
+      `رفاهية في التفاصيل\n${productName}\n\nقطعة تضيف حضور أقوى لإطلالتك، بخامة ولمسة تناسب الاختيارات الراقية.\n${price ? `متاح ابتداء من ${price} ج.م\n` : ""}\nاحجزه الآن.`,
   ],
   offer: [
     ({ productName, price }) =>
-      `ط¹ط±ط¶ ظ…ظ…ظٹط² ط¹ظ„ظ‰ ${productName}\n\nظ„ظˆ ظƒظ†طھ ظ…ط³طھظ†ظٹ ط§ظ„ظپط±طµط© ط§ظ„ظ…ظ†ط§ط³ط¨ط©طŒ ظپظ‡ظٹ ط¯ظ„ظˆظ‚طھظٹ.\n${price ? `ط§ظ„ط³ط¹ط± ظٹط¨ط¯ط£ ظ…ظ†: ${price} ط¬.ظ…\n` : ""}\nط§ط·ظ„ط¨ظ‡ ط§ظ„ط¢ظ† ظˆط§ط³طھظپط¯ ط¨ط§ظ„ط¹ط±ط¶ ظ‚ط¨ظ„ ظ…ط§ ظٹظ†طھظ‡ظٹ.`,
+      `عرض مميز على ${productName}\n\nلو كنت مستني الفرصة المناسبة، فهي دلوقتي.\n${price ? `السعر يبدأ من: ${price} ج.م\n` : ""}\nاطلبه الآن واستفد بالعرض قبل ما ينتهي.`,
     ({ productName, price }) =>
-      `${productName} ط¨ط³ط¹ط± ظ…ظ†ط§ط³ط¨ ط¬ط¯ط§\n\nظ…ظ†طھط¬ ط¹ظ…ظ„ظٹطŒ ط´ظƒظ„ ظ…ظ…ظٹط²طŒ ظˆظ‚ظٹظ…ط© ظ…ظ…طھط§ط²ط© ظ…ظ‚ط§ط¨ظ„ ط§ظ„ط³ط¹ط±.\n${price ? `ط§ط¨طھط¯ط§ط، ظ…ظ† ${price} ط¬.ظ…\n` : ""}\nظƒظ„ظ…ظ†ط§ ظˆط§ط­ط¬ط² ظ‚ط¨ظ„ ط§ظ†طھظ‡ط§ط، ط§ظ„ظƒظ…ظٹط©.`,
+      `${productName} بسعر مناسب جدا\n\nمنتج عملي، شكل مميز، وقيمة ممتازة مقابل السعر.\n${price ? `ابتداء من ${price} ج.م\n` : ""}\nكلمنا واحجز قبل انتهاء الكمية.`,
   ],
   urgency: [
     ({ productName, price }) =>
-      `ط§ظ„ظƒظ…ظٹط© ظ…ط­ط¯ظˆط¯ط©\n${productName}\n\nط§ظ„ظ…ظ‚ط§ط³ط§طھ ظˆط§ظ„ط£ظ„ظˆط§ظ† ط§ظ„ظ…ظ…ظٹط²ط© ط¨طھط®ظ„طµ ط¨ط³ط±ط¹ط©.\n${price ? `ط§ظ„ط³ط¹ط± ظٹط¨ط¯ط£ ظ…ظ†: ${price} ط¬.ظ…\n` : ""}\nط§ط·ظ„ط¨ظ‡ ط§ظ„ط¢ظ† ظ‚ط¨ظ„ ظ†ظپط§ط¯ ط§ظ„ظƒظ…ظٹط© âœ¨`,
+      `الكمية محدودة\n${productName}\n\nالمقاسات والألوان المميزة بتخلص بسرعة.\n${price ? `السعر يبدأ من: ${price} ج.م\n` : ""}\nاطلبه الآن قبل نفاد الكمية ✨`,
     ({ productName, price }) =>
-      `ط¢ط®ط± ظپط±طµط© ظ„ظ„ط­ط¬ط²\n${productName}\n\nط§ظ„ط·ظ„ط¨ ط¹ظ„ظٹظ‡ ط¹ط§ظ„ظٹ ظˆط§ظ„ظƒظ…ظٹط© ط§ظ„ظ…طھط§ط­ط© ظ…ط­ط¯ظˆط¯ط©.\n${price ? `ظ…طھط§ط­ ط§ط¨طھط¯ط§ط، ظ…ظ† ${price} ط¬.ظ…\n` : ""}\nط§ط¨ط¹طھظ„ظ†ط§ ط¯ظ„ظˆظ‚طھظٹ ظ‚ط¨ظ„ ظ…ط§ ظٹط®ظ„طµ.`,
+      `آخر فرصة للحجز\n${productName}\n\nالطلب عليه عالي والكمية المتاحة محدودة.\n${price ? `متاح ابتداء من ${price} ج.م\n` : ""}\nابعتلنا دلوقتي قبل ما يخلص.`,
   ],
 };
 
@@ -618,16 +617,16 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
           <div className="flex gap-2 overflow-x-auto border-b border-white/10 p-3">
             {thumbnailUrls.slice(0, 6).map((url, index) => (
               <div key={url} className="h-12 w-12 shrink-0 overflow-hidden rounded-xl border border-white/10">
-                <img src={url} alt={`ظˆط³ط§ط¦ط· ط¥ظ†ط³طھط¬ط±ط§ظ… ${index + 1}`} className="h-full w-full object-cover" />
+                <img src={url} alt={`وسائط إنستجرام ${index + 1}`} className="h-full w-full object-cover" />
               </div>
             ))}
           </div>
         ) : null}
         <div className="space-y-3 p-4">
           <div className="flex gap-4 text-2xl text-white">
-            <span>â™،</span>
-            <span>â—Œ</span>
-            <span>â†—</span>
+            <span>♡</span>
+            <span>◌</span>
+            <span>↗</span>
           </div>
           <div className="text-sm font-bold text-white">{t("marketing.social.preview.likesCount")}</div>
           <div className="whitespace-pre-wrap text-sm leading-6 text-slate-200">
@@ -646,7 +645,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
     const storySlides = buildStoryCreativeSlides({ form, mediaUrls });
     return (
       <div className="mx-auto w-full max-w-[620px]">
-        <StoryCreativePreview slides={storySlides} showThumbnails={storySlides.length > 1} title="ط´ط±ط§ط¦ط­ ط§ظ„ظ‚طµط©" />
+        <StoryCreativePreview slides={storySlides} showThumbnails={storySlides.length > 1} title="شرائح القصة" />
       </div>
     );
   }
@@ -674,7 +673,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
             <div className="mt-3 line-clamp-5 whitespace-pre-wrap text-sm leading-6 text-white/90">{caption}</div>
           </div>
           <div className="absolute bottom-5 left-1/2 -translate-x-1/2 rounded-full bg-white px-5 py-3 text-sm font-black text-black">
-            ط§ط·ظ„ط¨ ط§ظ„ط¢ظ†
+            اطلب الآن
           </div>
         </div>
       </div>
@@ -709,7 +708,7 @@ const PlatformShell = ({ form, hashtags, type, mediaUrls = [], t }) => {
         <div className="flex gap-2 overflow-x-auto border-t border-white/10 p-3">
           {thumbnailUrls.slice(0, 7).map((url, index) => (
             <div key={url} className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10">
-              <img src={url} alt={`ظˆط³ط§ط¦ط· ظپظٹط³ط¨ظˆظƒ ${index + 1}`} className="h-full w-full object-cover" />
+              <img src={url} alt={`وسائط فيسبوك ${index + 1}`} className="h-full w-full object-cover" />
             </div>
           ))}
         </div>
@@ -760,7 +759,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
           <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-950 text-xs font-black text-white">ERP</div>
           <div>
             <div className="text-xs font-black text-slate-950">erp.store</div>
-            <div className="text-[10px] font-bold uppercase tracking-normal text-slate-600">ظ…ط¹ط§ظٹظ†ط© ط§ظ„ظ‚طµط©</div>
+            <div className="text-[10px] font-bold uppercase tracking-normal text-slate-600">معاينة القصة</div>
           </div>
         </div>
         <div className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-black text-slate-950 shadow-lg backdrop-blur">{badge}</div>
@@ -821,7 +820,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
   );
 }
 
-export function StoryCreativePreview({ slides = [], activeIndex = null, onSelectSlide, showThumbnails = true, title = "ط´ط±ط§ط¦ط­ ط§ظ„ظ‚طµط©", compact = false }) {
+export function StoryCreativePreview({ slides = [], activeIndex = null, onSelectSlide, showThumbnails = true, title = "شرائح القصة", compact = false }) {
   const [activeStorySlideIndex, setActiveStorySlideIndex] = useState(0);
   const safeSlides = slides.length ? slides : [{}];
   const isControlled = Number.isInteger(activeIndex);
@@ -919,7 +918,7 @@ export default function PostEditorModal({
     return buildStoryCreativeSlides({ form, mediaUrls })[0]?.audio || null;
   }, [form, mediaUrls]);
 
-  const productName = form.product_name || form.title || "ط§ظ„ظ…ظ†طھط¬";
+  const productName = form.product_name || form.title || "المنتج";
   const price = form.price || extractPrice(form.caption);
 
   const composedAiCopy = useMemo(
@@ -1139,7 +1138,7 @@ export default function PostEditorModal({
                 <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
                   <div className="font-black text-white">TikTok</div>
                   <div className="mt-1 font-semibold">Coming Soon</div>
-                  <div className="mt-1 text-xs text-amber-100/90">Connect TikTok ظ„ط§ط­ظ‚ظ‹ط§</div>
+                  <div className="mt-1 text-xs text-amber-100/90">Connect TikTok لاحقًا</div>
                 </div>
               ) : null}
               <label className="space-y-2">
