@@ -38,6 +38,10 @@ const numeric = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const numberOrNull = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+};
 const integer = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isInteger(parsed) ? parsed : fallback;
@@ -798,6 +802,12 @@ export const createAiOrderDraft = async (payload = {}) => {
   const providedUnitPrice = numeric(payload.unit_price ?? payload.unitPrice ?? 0, 0);
   const unitPrice = providedUnitPrice > 0 ? providedUnitPrice : numeric(selectedVariant.price || product.product_price, 0);
   const subtotal = unitPrice * quantity;
+  const safeCustomerId = numberOrNull(payload.customer_id ?? payload.customerId);
+  const safeProductId = numberOrNull(product.id ?? product.product_id);
+  const safeVariantId = numberOrNull(selectedVariant.id ?? selectedVariant.variant_id);
+  const safeQuantity = Math.max(1, integer(quantity, 1));
+  const safeUnitPrice = numeric(unitPrice, 0);
+  const safeSubtotal = numeric(subtotal, 0);
   const idempotencyKey = text(
     payload.idempotency_key ||
       payload.idempotencyKey ||
@@ -836,11 +846,18 @@ export const createAiOrderDraft = async (payload = {}) => {
       return { order: attachPublicOrderNumber(existing.rows[0], channel), items: [], product, variant: selectedVariant, duplicate: true };
     }
     const invoiceNumber = buildTemporaryInvoiceNumber();
+    console.log("AI_AGENT_DRAFT_ORDER_NUMERIC_INPUT", {
+      product_id: safeProductId,
+      variant_id: safeVariantId,
+      quantity: safeQuantity,
+      unit_price: safeUnitPrice,
+      line_total: safeSubtotal,
+    });
     const { order, items } = await insertOrderWithItems(client, {
       order: {
         tenant_id: tenantId,
         invoice_number: invoiceNumber,
-        customer_id: numberOrNull(payload.customer_id ?? payload.customerId),
+        customer_id: safeCustomerId,
         customer_name: text(payload.customer_name || payload.name),
         customer_phone: phone,
         channel,
@@ -848,10 +865,10 @@ export const createAiOrderDraft = async (payload = {}) => {
         status: "ai_draft",
         payment_status: "unpaid",
         payment_method: "pending",
-        subtotal,
-        total_amount: subtotal,
-        total_price: subtotal,
-        total: subtotal,
+        subtotal: safeSubtotal,
+        total_amount: safeSubtotal,
+        total_price: safeSubtotal,
+        total: safeSubtotal,
         paid_amount: 0,
         customer_address: text(payload.customer_address || payload.address),
         governorate: text(payload.governorate),
@@ -864,8 +881,8 @@ export const createAiOrderDraft = async (payload = {}) => {
         ai_agent_status: "ai_draft",
         ai_agent_confidence: numeric(product.confidence, 0),
         ai_agent_metadata: json({
-          matched_product_id: product.id,
-          matched_variant_id: selectedVariant.id,
+          matched_product_id: safeProductId,
+          matched_variant_id: safeVariantId,
           original_customer_message: text(payload.original_customer_message || payload.message),
           confidence_score: numeric(product.confidence, 0),
           transcript: payload.transcript || "",
@@ -873,22 +890,22 @@ export const createAiOrderDraft = async (payload = {}) => {
           source,
           sales_intent: payload.metadata?.sales_intent || null,
           external_customer_id: text(payload.external_customer_id || payload.metadata?.external_customer_id),
-          customer_id: numberOrNull(payload.customer_id ?? payload.customerId),
+          customer_id: safeCustomerId,
           idempotency_key: idempotencyKey,
         }),
       },
       items: [{
         tenant_id: tenantId,
-        product_id: product.id,
-        variant_id: selectedVariant.id,
+        product_id: safeProductId,
+        variant_id: safeVariantId,
         product_name: product.name,
         variant_name: selectedVariant.name || [selectedVariant.size, selectedVariant.color].filter(Boolean).join(" / "),
         sku: selectedVariant.sku || "",
         barcode: selectedVariant.barcode || "",
-        quantity,
-        price: unitPrice,
-        sale_price: unitPrice,
-        total_amount: subtotal,
+        quantity: safeQuantity,
+        price: safeUnitPrice,
+        sale_price: safeUnitPrice,
+        total_amount: safeSubtotal,
       }],
     });
     await client.query("COMMIT");
