@@ -254,6 +254,7 @@ const STOREFRONT_ROOT_HOSTS = new Set([
 
 const ERP_HOST = "erp.m1store-egy.com";
 const STOREFRONT_CANONICAL_ORIGIN = "https://m1store-egy.com";
+const ERP_CANONICAL_ORIGIN = "https://erp.m1store-egy.com";
 
 const readHostname = () => {
   if (typeof window === "undefined") return "";
@@ -268,6 +269,18 @@ const isStorefrontRootHost = () => {
 };
 
 const isErpHost = () => readHostname() === ERP_HOST;
+
+function PublicHostErpRedirect() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const nextUrl = `${ERP_CANONICAL_ORIGIN}${location.pathname}${location.search}${location.hash}`;
+    window.location.replace(nextUrl);
+  }, [location]);
+
+  return null;
+}
 
 function StorefrontLegacyRedirect() {
   const location = useLocation();
@@ -285,6 +298,7 @@ function App() {
   const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
   const employeeAppToken = isEmployeeAppRoute ? window.location.pathname.split("/")[2] || "" : "";
   const enableStorefrontRootRoutes = isStorefrontRootHost() && !isErpHost();
+  const enableErpAppRoutes = !enableStorefrontRootRoutes;
 
   useEffect(() => {
     if (isEmployeeAppRoute) return undefined;
@@ -502,6 +516,12 @@ function App() {
           <Route path="/faq" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/success/:orderNumber" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/confirm/:code" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/dashboard" element={<PublicHostErpRedirect />} />
+          <Route path="/orders" element={<PublicHostErpRedirect />} />
+          <Route path="/orders/*" element={<PublicHostErpRedirect />} />
+          <Route path="/settings" element={<PublicHostErpRedirect />} />
+          <Route path="/settings/*" element={<PublicHostErpRedirect />} />
+          <Route path="/products/*" element={<PublicHostErpRedirect />} />
         </>
       ) : null}
 
@@ -556,6 +576,7 @@ function App() {
 
       {/* MAIN APP */}
 
+      {enableErpAppRoutes ? (
       <Route
         path="/*"
         element={<MainLayout />}
@@ -1459,6 +1480,7 @@ function App() {
         />
 
       </Route>
+      ) : null}
 
     </Routes>
     </Suspense>
