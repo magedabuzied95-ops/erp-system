@@ -3264,6 +3264,13 @@ const executeSocialCommentAutomationRuntime = async ({
         stepResults,
         run: async () => {
           aiPhaseTimings.public_reply_send_started_at = new Date().toISOString();
+          console.log("ACTIVE_PUBLIC_REPLY_SEND_PATH", {
+            file: "server/services/socialCommentAutomationService.js",
+            function: "executeSocialCommentAutomationRuntime.runPublicReplyStep",
+            platform: normalizedPlatform,
+            commentId: safeCommentId,
+            message_preview: text(effectiveRenderedPublicReply || "").slice(0, 400),
+          });
           await replyToComment(normalizedPlatform, safeCommentId, effectiveRenderedPublicReply, safeTenantId);
           aiPhaseTimings.public_reply_send_completed_at = new Date().toISOString();
           workingRow.public_reply_status = "sent";

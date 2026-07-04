@@ -733,6 +733,13 @@ export const replyToComment = async (platform, commentId, message, businessId) =
   const endpoint = platform === "instagram"
     ? `/${encodeURIComponent(commentId)}/replies`
     : `/${encodeURIComponent(commentId)}/comments`;
+  console.log("ACTIVE_PUBLIC_REPLY_SEND_PATH", {
+    file: "server/services/marketingCommentAutomationService.js",
+    function: "replyToComment",
+    platform: trimString(platform || ""),
+    commentId: trimString(commentId || ""),
+    message_preview: trimString(message).slice(0, 400),
+  });
   console.log("SOCIAL_COMMENT_PUBLIC_REPLY_TO_META_REQUEST", {
     platform,
     comment_id: String(commentId || ""),
@@ -2165,7 +2172,16 @@ export const processCommentEvent = async (event = {}) => {
           successLog: "[meta-action] public reply success",
           errorLog: "[meta-action] public reply error",
           logContext,
-          run: () => replyToComment(event.platform, event.commentId, publicMessage, event.businessId),
+          run: () => {
+            console.log("ACTIVE_PUBLIC_REPLY_SEND_PATH", {
+              file: "server/services/marketingCommentAutomationService.js",
+              function: "processAutomationEvent.public_reply",
+              platform: trimString(event.platform || ""),
+              commentId: trimString(event.commentId || ""),
+              message_preview: trimString(publicMessage).slice(0, 400),
+            });
+            return replyToComment(event.platform, event.commentId, publicMessage, event.businessId);
+          },
         });
         if (error) actionErrors.push(error);
       }

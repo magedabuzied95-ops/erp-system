@@ -2550,6 +2550,13 @@ router.post("/comments/:commentId/reply", protect, permit("settings", "edit"), a
   const nowIso = new Date().toISOString();
 
   try {
+    console.log("ACTIVE_PUBLIC_REPLY_SEND_PATH", {
+      file: "server/routes/aiAgentOrders.js",
+      function: "POST /ai-agent-orders/.../reply-comment",
+      platform,
+      commentId: envText(commentRun.comment_id || ""),
+      message_preview: envText(replyText || "").slice(0, 400),
+    });
     const metaReply = await replyToComment(platform, commentRun.comment_id, replyText, tenantId);
     const externalReplyId = envText(metaReply?.id || metaReply?.comment_id || metaReply?.reply_id || "");
     const message = await appendManualAiSupportReply({

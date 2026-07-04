@@ -47,12 +47,21 @@ const buildInfo = {
   ).slice(0, 40) || "unknown",
   environment: process.env.NODE_ENV || "development",
 };
+const startupServiceName =
+  process.env.SERVICE_NAME ||
+  process.env.RENDER_SERVICE_NAME ||
+  packageJson.name ||
+  "server";
 console.log("[build] version", buildInfo);
+console.log("APP_COMMIT_SHA", buildInfo.commit);
+console.log("NODE_ENV", buildInfo.environment);
+console.log("SERVICE_NAME", startupServiceName);
 console.log("APP_STARTUP_VERSION", {
   app_version: buildInfo.version,
   git_commit: buildInfo.commit,
   render_git_commit: process.env.RENDER_GIT_COMMIT || "",
   node_env: buildInfo.environment,
+  service_name: startupServiceName,
 });
 console.log("[env] META_APP_ID loaded:", Boolean(process.env.META_APP_ID));
 console.log("[env] META_APP_SECRET loaded:", Boolean(process.env.META_APP_SECRET));

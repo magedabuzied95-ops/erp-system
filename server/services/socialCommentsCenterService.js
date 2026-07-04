@@ -4680,6 +4680,13 @@ const processSocialCommentAutoReply = async ({ tenantId = null, platform = "", p
 
   try {
     if (replyEnabled && decision.rendered_reply) {
+      console.log("ACTIVE_PUBLIC_REPLY_SEND_PATH", {
+        file: "server/services/socialCommentsCenterService.js",
+        function: "processSocialCommentAutoReply",
+        platform: normalizedPlatform,
+        commentId: safeCommentId,
+        message_preview: text(decision.rendered_reply || "").slice(0, 400),
+      });
       await replyToComment(normalizedPlatform, safeCommentId, decision.rendered_reply, safeTenantId);
       replyStatus = "sent";
       console.log("SOCIAL_COMMENT_AUTOMATION_PUBLIC_REPLY_SENT", {
