@@ -23,6 +23,20 @@ const parseDateOrNull = (value = null) => {
   const parsed = value instanceof Date ? value : new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
+const selectLatestDateOrNull = (...values) =>
+  values
+    .map((value) => parseDateOrNull(value || null))
+    .filter(Boolean)
+    .sort((a, b) => b.getTime() - a.getTime())[0] || null;
+const resolveSocialCommentAiGenerationMs = ({
+  aiReplyRenderStartedAt = null,
+  aiReplyRenderCompletedAt = null,
+  aiStartedAt = null,
+  aiCompletedAt = null,
+} = {}) => {
+  const diff = (end, start) => (end && start ? Math.max(0, end.getTime() - start.getTime()) : null);
+  return diff(aiReplyRenderCompletedAt, aiReplyRenderStartedAt) ?? diff(aiCompletedAt, aiStartedAt);
+};
 const buildSocialCommentCorrelationId = ({ tenantId = null, commentId = "", postId = "", runId = null } = {}) => {
   const safeTenantId = Number(tenantId || 0) || 0;
   const safeCommentId = String(commentId || "").trim();
@@ -125,11 +139,23 @@ const computeSocialCommentLatencySummary = (trace = {}) => {
   const publicReplySendCompletedAt = parse(trace.public_reply_send_completed_at);
   const privateReplyEnqueueStartedAt = parse(trace.private_reply_enqueue_started_at);
   const privateReplyEnqueueCompletedAt = parse(trace.private_reply_enqueue_completed_at);
+  const runtimePhaseCompletedAt = selectLatestDateOrNull(
+    trace.runtime_phase_completed_at || null,
+    trace.private_reply_enqueue_completed_at || null,
+    trace.public_reply_send_completed_at || null,
+    trace.ai_completed_at || null
+  );
   const missingFields = collectMissingSocialCommentLatencyFields(trace);
   return {
     webhook_to_enqueue_ms: diff(enqueueAt, webhookReceivedAt),
     enqueue_to_ai_start_ms: diff(aiStartedAt, enqueueAt || dequeueAt),
-    ai_generation_ms: diff(aiCompletedAt, aiStartedAt),
+    ai_generation_ms: resolveSocialCommentAiGenerationMs({
+      aiReplyRenderStartedAt,
+      aiReplyRenderCompletedAt,
+      aiStartedAt,
+      aiCompletedAt,
+    }),
+    runtime_phase_ms: diff(runtimePhaseCompletedAt, aiStartedAt),
     ai_to_private_reply_enqueue_ms: diff(privateReplyEnqueuedAt, aiCompletedAt),
     private_reply_queue_wait_ms: diff(privateReplyStartedAt, privateReplyEnqueuedAt),
     send_ms: diff(sendCompletedAt, sendStartedAt),
@@ -190,6 +216,7 @@ const logSocialCommentLatencySendDone = ({
     webhook_to_enqueue_ms: summary.webhook_to_enqueue_ms ?? null,
     enqueue_to_ai_start_ms: summary.enqueue_to_ai_start_ms ?? null,
     ai_generation_ms: summary.ai_generation_ms ?? null,
+    runtime_phase_ms: summary.runtime_phase_ms ?? null,
     ai_to_private_reply_enqueue_ms: summary.ai_to_private_reply_enqueue_ms ?? null,
     private_reply_queue_wait_ms: summary.private_reply_queue_wait_ms ?? null,
     send_ms: summary.send_ms ?? null,
