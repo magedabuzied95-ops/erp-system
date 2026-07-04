@@ -31,6 +31,7 @@ import {
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { resolveStorefrontPriceBreakdown } from "../../../shared/lib/storefrontPricing.js";
+import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 
 import {
   createSocialPublisherPost,
@@ -299,10 +300,7 @@ const buildFullProductUrl = (value = "") => {
   const text = normalizeTextValue(value);
   if (!text) return "";
   if (/^https?:\/\//i.test(text)) return text;
-  if (typeof window !== "undefined" && window.location?.origin) {
-    return new URL(text.startsWith("/") ? text : `/${text}`, window.location.origin).toString();
-  }
-  return text;
+  return publicStorefrontUrl(text.startsWith("/") ? text : `/${text}`);
 };
 const buildCatalogCaption = (product = {}, options = {}) => {
   const name = String(product?.name || "").trim();

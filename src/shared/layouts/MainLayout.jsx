@@ -14,7 +14,7 @@ import usePageTitle from "../hooks/usePageTitle";
 import LanguageSwitcher from "../components/LanguageSwitcher";
 import { NotificationBoundary, NotificationsProvider, useNotifications } from "../notifications/index.js";
 import { useRealtimeConnection } from "../realtime/socketStore";
-import { isStorefrontPath } from "../../storefront/lib/paths";
+import { publicStorefrontUrl } from "../lib/publicStorefront";
 
 const NotificationBell = lazy(() => import("../notifications/NotificationBell.jsx"));
 const SIDEBAR_GROUPS_STORAGE_KEY = "erp.sidebar.openGroups.v2";
@@ -33,28 +33,28 @@ const ENTERPRISE_GROUPS = [
 ];
 
 const GROUP_TITLE_KEYS = {
-  Main: "ط§ظ„ط±ط¦ظٹط³ظٹط©",
-  Sales: "ط§ظ„ظ…ط¨ظٹط¹ط§طھ",
-  Operations: "ط§ظ„ط¹ظ…ظ„ظٹط§طھ",
-  "Products & Inventory": "ط§ظ„ظ…ظ†طھط¬ط§طھ ظˆط§ظ„ظ…ط®ط²ظˆظ†",
-  Purchasing: "ط§ظ„ظ…ط´طھط±ظٹط§طھ",
-  Employees: "ط§ظ„ظ…ظˆط¸ظپظˆظ†",
-  Finance: "ط§ظ„ظ…ط§ظ„ظٹط©",
-  "AI & Marketing": "ط§ظ„ط°ظƒط§ط، ظˆط§ظ„طھط³ظˆظٹظ‚",
-  "System Settings": "ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ظ†ط¸ط§ظ…",
+  Main: "الرئيسية",
+  Sales: "المبيعات",
+  Operations: "العمليات",
+  "Products & Inventory": "المنتجات والمخزون",
+  Purchasing: "المشتريات",
+  Employees: "الموظفون",
+  Finance: "المالية",
+  "AI & Marketing": "الذكاء والتسويق",
+  "System Settings": "إعدادات النظام",
 };
 
 const HEADER_QUICK_ACTION_ROUTES = ["/orders", "/products/add", "/products", "/marketing/ai-center"];
 const QUICK_ACCESS_LABELS = {
-  "/orders": "ط§ظ„ط·ظ„ط¨ط§طھ",
-  "/products/add": "ط¥ط¶ط§ظپط© ظ…ظ†طھط¬",
-  "/marketing/ai-center": "ظ…ط±ظƒط² ط§ظ„طھط³ظˆظٹظ‚ ط§ظ„ط°ظƒظٹ",
-  "/products": "ط§ظ„ظ…ظ†طھط¬ط§طھ",
+  "/orders": "الطلبات",
+  "/products/add": "إضافة منتج",
+  "/marketing/ai-center": "مركز التسويق الذكي",
+  "/products": "المنتجات",
 };
 const SIDEBAR_SUBGROUP_TITLE_KEYS = {
-  "AI Marketing": "ط§ظ„طھط³ظˆظٹظ‚ ط§ظ„ط°ظƒظٹ",
-  "AI Support": "ط¯ط¹ظ… ط§ظ„ط°ظƒط§ط،",
-  "System Settings": "ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ظ†ط¸ط§ظ…",
+  "AI Marketing": "التسويق الذكي",
+  "AI Support": "دعم الذكاء",
+  "System Settings": "إعدادات النظام",
 };
 
 const SYSTEM_PREFERENCE_ROUTES = new Set(["/settings", "/settings/appearance", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments"]);
@@ -78,20 +78,20 @@ const SETTINGS_CENTER_ACTIVE_ROUTES = new Set([
 const AI_MARKETING_ROUTES = new Set(["/marketing/ai-center", "/marketing/ai-center/leads", "/marketing/ai-center/videos", "/admin/ai-inbox", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics"]);
 const AI_SUPPORT_ROUTES = new Set(["/admin/ai-support-console", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"]);
 const ARABIC_GROUP_LABELS = {
-  Main: "ط§ظ„ط±ط¦ظٹط³ظٹط©",
-  Sales: "ط§ظ„ظ…ط¨ظٹط¹ط§طھ",
-  Operations: "ط§ظ„ط¹ظ…ظ„ظٹط§طھ",
-  "Products & Inventory": "ط§ظ„ظ…ظ†طھط¬ط§طھ ظˆط§ظ„ظ…ط®ط²ظˆظ†",
-  Purchasing: "ط§ظ„ظ…ط´طھط±ظٹط§طھ",
-  Employees: "ط§ظ„ظ…ظˆط¸ظپظˆظ†",
-  Finance: "ط§ظ„ظ…ط§ظ„ظٹط©",
-  "AI & Marketing": "ط§ظ„ط°ظƒط§ط، ظˆط§ظ„طھط³ظˆظٹظ‚",
-  "System Settings": "ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ظ†ط¸ط§ظ…",
+  Main: "الرئيسية",
+  Sales: "المبيعات",
+  Operations: "العمليات",
+  "Products & Inventory": "المنتجات والمخزون",
+  Purchasing: "المشتريات",
+  Employees: "الموظفون",
+  Finance: "المالية",
+  "AI & Marketing": "الذكاء والتسويق",
+  "System Settings": "إعدادات النظام",
 };
 const ARABIC_SUBGROUP_LABELS = {
-  "AI Marketing": "ط§ظ„طھط³ظˆظٹظ‚ ط§ظ„ط°ظƒظٹ",
-  "AI Support": "ط¯ط¹ظ… ط§ظ„ط°ظƒط§ط،",
-  "System Settings": "ط¥ط¹ط¯ط§ط¯ط§طھ ط§ظ„ظ†ط¸ط§ظ…",
+  "AI Marketing": "التسويق الذكي",
+  "AI Support": "دعم الذكاء",
+  "System Settings": "إعدادات النظام",
 };
 
 const sidebarSubgroupForItem = (groupTitle, item) => {
@@ -157,9 +157,9 @@ const normalizeSearchText = (value = "") =>
   String(value || "")
     .normalize("NFKD")
     .replace(ARABIC_DIACRITICS, "")
-    .replace(/[ط£ط¥ط¢]/g, "ط§")
-    .replace(/ط©/g, "ظ‡")
-    .replace(/ظ‰/g, "ظٹ")
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي")
     .trim()
     .toLowerCase();
 
@@ -289,17 +289,17 @@ const buildEnterpriseSidebarGroups = (sections) => {
       seen.add(key);
       const groupTitle = groupForSidebarItem(section.sourceTitle || section.title, item);
       const sidebarLabel = item.to === "/settings/appearance"
-        ? "ط§ظ„ظ…ط¸ظ‡ط±"
+        ? "المظهر"
         : item.to === "/settings"
-          ? "ظ…ط±ظƒط² ط§ظ„ط¥ط¹ط¯ط§ط¯ط§طھ"
+          ? "مركز الإعدادات"
         : item.to === "/settings/company"
-          ? "ط¹ط§ظ…"
+          ? "عام"
         : item.to === "/settings/storefront"
-          ? "ط§ظ„ظ…طھط¬ط± ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ"
+          ? "المتجر الإلكتروني"
         : item.to === "/settings/shipping"
-          ? "ط§ظ„ط´ط­ظ†"
+          ? "الشحن"
         : item.to === "/settings/payments"
-          ? "ط§ظ„ظ…ط¯ظپظˆط¹ط§طھ"
+          ? "المدفوعات"
           : undefined;
       const sidebarIcon = item.to === "/settings/appearance"
         ? Paintbrush
@@ -340,6 +340,34 @@ function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
   const Icon = item.icon;
   const active = sidebarItemActive(item, location);
   const displayLabel = item.sidebarLabel || item.label;
+  const className = [
+    "group/nav relative flex min-h-9 items-center rounded-xl border text-sm font-semibold transition duration-200",
+    collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2",
+    active
+      ? "border-[var(--primary)]/45 bg-[var(--primary-soft)] text-[var(--primary)] shadow-sm"
+      : "border-transparent text-[var(--muted)] hover:border-[var(--border)] hover:bg-[var(--card)] hover:text-[var(--text)]",
+  ].join(" ");
+  if (item.external) {
+    return (
+      <a
+        key={item.to}
+        href={item.to}
+        target="_blank"
+        rel="noreferrer"
+        title={collapsed ? displayLabel : undefined}
+        aria-label={displayLabel}
+        onClick={onNavigate}
+        className={className}
+      >
+        {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+        {collapsed ? null : <span className="min-w-0 flex-1 truncate text-start">{displayLabel}</span>}
+        <span className={collapsed ? "absolute end-1 top-1" : "ms-auto flex items-center gap-1.5"}>
+          <SidebarNotificationBadge item={item} />
+          <SidebarPulseIndicator item={item} />
+        </span>
+      </a>
+    );
+  }
   return (
     <NavLink
       key={item.to}
@@ -347,13 +375,7 @@ function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
       title={collapsed ? displayLabel : undefined}
       aria-label={displayLabel}
       onClick={onNavigate}
-      className={[
-        "group/nav relative flex min-h-9 items-center rounded-xl border text-sm font-semibold transition duration-200",
-        collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2",
-        active
-          ? "border-[var(--primary)]/45 bg-[var(--primary-soft)] text-[var(--primary)] shadow-sm"
-          : "border-transparent text-[var(--muted)] hover:border-[var(--border)] hover:bg-[var(--card)] hover:text-[var(--text)]",
-      ].join(" ")}
+      className={className}
     >
       {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
       {collapsed ? null : <span className="min-w-0 flex-1 truncate text-start">{displayLabel}</span>}
@@ -396,7 +418,7 @@ function NotificationBellFallback() {
     <button
       type="button"
       className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] text-[var(--text)] opacity-70 shadow-sm"
-      aria-label="ط§ظ„ط¥ط´ط¹ط§ط±ط§طھ"
+      aria-label="الإشعارات"
       disabled
     >
       <Bell className="h-5 w-5" />
@@ -419,7 +441,7 @@ function RealtimePill({ label }) {
   return (
     <div className="hidden h-11 items-center justify-center gap-2 rounded-full border border-cyan-300/25 bg-zinc-950/75 px-3 text-sm font-black text-cyan-100 shadow-[0_10px_30px_rgba(0,0,0,0.18),0_0_22px_rgba(34,211,238,0.12)] backdrop-blur sm:flex sm:px-4">
       <span className={`h-2 w-2 rounded-full ${connected ? "bg-emerald-300 shadow-[0_0_14px_rgba(110,231,183,0.85)]" : "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.75)]"}`} />
-      <span className="hidden md:inline">{connected ? label : "ط¬ط§ط±ظچ ط¥ط¹ط§ط¯ط© ط§ظ„ط§طھطµط§ظ„"}</span>
+      <span className="hidden md:inline">{connected ? label : "جارٍ إعادة الاتصال"}</span>
     </div>
   );
 }
@@ -522,8 +544,8 @@ function MainLayout() {
   const dir = (resolvedDir || documentDir) === "rtl" ? "rtl" : "ltr";
   const isRtl = dir === "rtl";
   const isPosActive = location.pathname === "/pos" || location.pathname.startsWith("/pos/");
-  const isStoreActive = isStorefrontPath(location.pathname);
-  const posLabel = "ظ†ظ‚ط·ط© ط§ظ„ط¨ظٹط¹";
+  const isStoreActive = location.pathname === "/shop" || location.pathname.startsWith("/shop/");
+  const posLabel = "نقطة البيع";
   const searchQuery = normalizeSearchText(sidebarSearch);
   const activeGroupTitle = useMemo(() => {
     const activeGroup = groupedSections.find((group) => group.items.some((item) => sidebarItemActive(item, location)));
@@ -613,7 +635,7 @@ function MainLayout() {
       {mobileDrawerOpen ? (
         <button
           type="button"
-          aria-label={t("common.close", "ط¥ط؛ظ„ط§ظ‚")}
+          aria-label={t("common.close", "إغلاق")}
           onClick={() => setMobileDrawerOpen(false)}
           className="fixed inset-0 z-40 bg-black/60 lg:hidden"
         />
@@ -641,7 +663,7 @@ function MainLayout() {
             type="button"
             onClick={() => setMobileDrawerOpen(false)}
             className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-2 text-[var(--text)]"
-            aria-label={t("common.close", "ط¥ط؛ظ„ط§ظ‚")}
+            aria-label={t("common.close", "إغلاق")}
           >
             <X className="h-5 w-5" />
           </button>
@@ -661,8 +683,8 @@ function MainLayout() {
                 type="button"
                 onClick={() => setSidebarCollapsed((value) => !value)}
                 className="hidden h-8 w-8 shrink-0 place-items-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
-                title={sidebarCollapsed ? "طھظˆط³ظٹط¹ ط§ظ„ط´ط±ظٹط· ط§ظ„ط¬ط§ظ†ط¨ظٹ" : "ط·ظٹ ط§ظ„ط´ط±ظٹط· ط§ظ„ط¬ط§ظ†ط¨ظٹ"}
-                aria-label={sidebarCollapsed ? "طھظˆط³ظٹط¹ ط§ظ„ط´ط±ظٹط· ط§ظ„ط¬ط§ظ†ط¨ظٹ" : "ط·ظٹ ط§ظ„ط´ط±ظٹط· ط§ظ„ط¬ط§ظ†ط¨ظٹ"}
+                title={sidebarCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
+                aria-label={sidebarCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
               >
                 <CollapseIcon className="h-4 w-4" />
               </button>
@@ -675,13 +697,13 @@ function MainLayout() {
               <input
                 value={sidebarSearch}
                 onChange={(event) => setSidebarSearch(event.target.value)}
-                placeholder="ط§ط¨ط­ط« ظپظٹ ط§ظ„ظˆط­ط¯ط§طھ..."
+                placeholder="ابحث في الوحدات..."
                 className="h-10 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
               />
             </label>
           </div>
 
-          <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pe-1" aria-label={t("common.mainNavigation", "ط§ظ„طھظ†ظ‚ظ„ ط§ظ„ط±ط¦ظٹط³ظٹ")}>
+          <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pe-1" aria-label={t("common.mainNavigation", "التنقل الرئيسي")}>
             {visibleGroupedSections.length ? visibleGroupedSections.map((group) => {
               const isOpen = Boolean(searchQuery || openGroups[group.title] || activeGroupTitle === group.title);
               const groupLabel = ARABIC_GROUP_LABELS[group.title] || group.title;
@@ -776,7 +798,7 @@ function MainLayout() {
               );
             }) : (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--card)] p-3 text-sm font-semibold text-[var(--muted)]">
-                {t("sidebar.noMatchingModules", isRtl ? "ظ„ط§ طھظˆط¬ط¯ ظ†طھط§ط¦ط¬ ظ…ط·ط§ط¨ظ‚ط©" : "No matching modules found")}
+                {t("sidebar.noMatchingModules", isRtl ? "لا توجد نتائج مطابقة" : "No matching modules found")}
               </div>
             )}
           </nav>
@@ -786,11 +808,11 @@ function MainLayout() {
           <button
             type="button"
             onClick={handleLogout}
-            title={sidebarCompact ? "طھط³ط¬ظٹظ„ ط§ظ„ط®ط±ظˆط¬" : undefined}
+            title={sidebarCompact ? "تسجيل الخروج" : undefined}
             className={["flex w-full items-center justify-center rounded-xl bg-[var(--danger)] text-sm font-black text-white shadow-lg", sidebarCompact ? "h-10 px-2" : "gap-2 px-3 py-2"].join(" ")}
           >
             <LogOut className="h-4 w-4" />
-            {sidebarCompact ? null : "طھط³ط¬ظٹظ„ ط§ظ„ط®ط±ظˆط¬"}
+            {sidebarCompact ? null : "تسجيل الخروج"}
           </button>
         </div>
       </aside>
@@ -807,7 +829,7 @@ function MainLayout() {
                   type="button"
                   onClick={() => setMobileDrawerOpen(true)}
                   className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-[var(--border)] bg-[var(--card)] text-[var(--text)]"
-                  aria-label={t("common.openMenu", "ظپطھط­ ط§ظ„ظ‚ط§ط¦ظ…ط©")}
+                  aria-label={t("common.openMenu", "فتح القائمة")}
                 >
                   <Menu className="h-5 w-5" />
                 </button>
@@ -823,7 +845,7 @@ function MainLayout() {
                   <div className="min-w-0">
                     <h2 className="truncate text-2xl font-bold tracking-tight text-[var(--text)]">{workspaceName}</h2>
                     <p className="mt-1 text-sm text-[var(--muted)]">
-                      ط¹ظˆط¯ط© ظ…ظˆظپظ‚ط©طŒ {user?.name}
+                      عودة موفقة، {user?.name}
                     </p>
                   </div>
                 </div>
@@ -832,9 +854,9 @@ function MainLayout() {
               <div className="flex min-w-0 max-w-[calc(100vw-5rem)] items-center justify-end gap-2 overflow-x-auto pointer-events-auto sm:gap-2.5 lg:max-w-none lg:gap-3 lg:overflow-visible">
                 <button
                   type="button"
-                  onClick={() => navigate("/")}
-                  title="ط§ظ„ظ…طھط¬ط±"
-                  aria-label="ظپطھط­ ط§ظ„ظ…طھط¬ط±"
+                  onClick={() => window.open(publicStorefrontUrl("/"), "_blank", "noopener,noreferrer")}
+                  title="المتجر"
+                  aria-label="فتح المتجر"
                   className={[
                     "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
                     "bg-zinc-950/75 text-[var(--text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
@@ -844,7 +866,7 @@ function MainLayout() {
                   ].join(" ")}
                 >
                   <ShoppingBag className="h-4 w-4 text-emerald-300 transition group-hover:text-emerald-200" />
-                  <span className="hidden sm:inline">ط§ظ„ظ…طھط¬ط±</span>
+                  <span className="hidden sm:inline">المتجر</span>
                 </button>
                 {headerQuickActionItems.length ? (
                   <div className="hidden min-w-0 max-w-[34vw] items-center gap-1.5 overflow-x-auto pe-1 lg:flex 2xl:max-w-none">
@@ -880,7 +902,7 @@ function MainLayout() {
                   type="button"
                   onClick={handleLogout}
                   className="inline-flex h-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] lg:hidden"
-                  aria-label="طھط³ط¬ظٹظ„ ط§ظ„ط®ط±ظˆط¬"
+                  aria-label="تسجيل الخروج"
                 >
                   <LogOut className="h-4 w-4" />
                 </button>

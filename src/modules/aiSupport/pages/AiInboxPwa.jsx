@@ -44,7 +44,6 @@ import { SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsW
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
-import { productPath } from "../../../storefront/lib/paths";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -1273,14 +1272,14 @@ const productUrl = (card = {}) => {
   if (raw) return raw;
   const productId = card.product_id || card.id || "";
   if (!productId) return "";
-  return productPath(productId);
+  return `/shop/product/${encodeURIComponent(productId)}`;
 };
 
 const buildProductCardUrl = (product = {}, variant = null, selectedColor = "") => {
   const productId = product.product_id ?? product.id ?? "";
   if (!productId) return "";
 
-  const baseUrl = productPath(productId);
+  const baseUrl = `/shop/product/${encodeURIComponent(productId)}`;
   const color = clean(selectedColor).toLowerCase();
   const variantId = clean(variant?.id ?? "");
   if (variantId) {

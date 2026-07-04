@@ -69,12 +69,19 @@ import { getSocialCommentRealTimestamp } from "../components/socialCommentTimeli
 import { useTenant } from "../../saas/context/TenantContext";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { publicProductUrl, publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 import { toast } from "react-hot-toast";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
 const clean = (value = "") => String(value || "").trim();
+const storefrontProductUrl = (product = {}) => {
+  const rawUrl = clean(product.product_url || product.storefront_url || product.url || "");
+  if (rawUrl) return publicStorefrontUrl(rawUrl);
+  const productId = clean(product.product_id || product.id || product.slug || "");
+  return productId ? publicProductUrl(productId) : "#";
+};
 const parseOptionalCount = (...values) => {
   for (const value of values) {
     if (value === null || value === undefined || value === "") continue;
@@ -1056,7 +1063,7 @@ const LEAD_STATUS_META = {
   interested: { label: "Interested", tone: "emerald" },
   negotiation: { label: "Negotiation", tone: "violet" },
   won: { label: "Won", tone: "emerald" },
-  lost: { label: "❌ Lost", tone: "rose" },
+  lost: { label: "? Lost", tone: "rose" },
 };
 
 const normalizeLeadStatus = (value = "") => {
@@ -1471,7 +1478,7 @@ function VisualAttachmentsPreview({ attachments = [] }) {
             <div className="text-xs font-black uppercase tracking-[0.14em] text-slate-500">{attachment?.title || "Visual attachments"}</div>
             <div className="mt-2 flex gap-2 overflow-x-auto pb-1">
               {items.slice(0, 10).map((item, itemIndex) => (
-                <a key={`${item.id || item.product_id || itemIndex}`} href={item.product_url || (item.product_id ? `/product/${item.product_id}` : "#")} className="min-w-[7.5rem] max-w-[7.5rem] rounded-xl border border-white/10 bg-slate-950 p-2 transition hover:border-cyan-300/30">
+                <a key={`${item.id || item.product_id || itemIndex}`} href={storefrontProductUrl(item)} className="min-w-[7.5rem] max-w-[7.5rem] rounded-xl border border-white/10 bg-slate-950 p-2 transition hover:border-cyan-300/30">
                   <img src={item.image_url} alt={item.title || "Visual attachment"} className="aspect-square w-full rounded-lg object-cover" loading="lazy" />
                   <div className="mt-1 truncate text-xs font-black text-white">{item.title || "منتج"}</div>
                   {item.subtitle ? <div className="truncate text-[11px] text-slate-500">{item.subtitle}</div> : null}
@@ -1494,7 +1501,7 @@ function ProductCards({ products = [] }) {
       {items.slice(0, 4).map((product, index) => {
         const image = product.matched_variant_image || product.matched_image_url || product.selected_card_image_url || product.image_url || product.image;
         return (
-          <a key={product.id || index} href={product.product_url || (product.id ? `/product/${product.id}` : "#")} className="flex min-w-0 gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-2 transition hover:border-cyan-300/30">
+          <a key={product.id || index} href={storefrontProductUrl(product)} className="flex min-w-0 gap-3 rounded-xl border border-white/10 bg-white/[0.035] p-2 transition hover:border-cyan-300/30">
             {image ? <img src={image} alt={product.name || "منتج"} className="h-14 w-14 shrink-0 rounded-lg object-cover" loading="lazy" /> : <span className="grid h-14 w-14 shrink-0 place-items-center rounded-lg bg-white/[0.055]"><ShoppingBag className="h-5 w-5 text-slate-500" /></span>}
             <span className="min-w-0">
               <span className="block truncate text-sm font-black text-white">{product.name || product.title || "منتج"}</span>
@@ -2491,7 +2498,7 @@ function ManualReplyComposer({
       ) : null}
       <div className="flex flex-col gap-1.5">
         <div className="flex min-w-0 flex-col gap-1.5 rounded-2xl border border-white/10 bg-slate-950/70 p-1.5 focus-within:border-cyan-300/40 sm:flex-row sm:items-end">
-          <button type="button" title="Emoji picker coming soon" className="grid h-7 w-7 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">⋯</button>
+          <button type="button" title="Emoji picker coming soon" className="grid h-7 w-7 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">?</button>
           <textarea
             ref={textareaRef}
             dir={isRtlText(value) ? "rtl" : "auto"}
@@ -2527,7 +2534,7 @@ function ManualReplyComposer({
           <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="hidden h-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2.5 text-[10px] font-black text-slate-100 disabled:opacity-50 sm:inline-flex">Save draft</button>
           <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="hidden h-7 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50 sm:inline-flex">Approve AI reply</button>
           <details className="relative sm:hidden">
-            <summary className="list-none cursor-pointer grid h-7 w-7 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-slate-200">⋮</summary>
+            <summary className="list-none cursor-pointer grid h-7 w-7 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-slate-200">?</summary>
             <div className="absolute right-0 z-20 mt-2 w-44 rounded-2xl border border-white/10 bg-slate-950/98 p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
               {isCommentConversation ? (
                 <button
@@ -2732,7 +2739,7 @@ function RecommendationsPanel({ products = [], loading, onRefresh, onQuickSend, 
                   <button type="button" onClick={() => onQuickSend(product)} className="h-9 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2 text-[11px] font-black text-cyan-100">Quick send</button>
                   <button type="button" onClick={() => onSendImages?.(product)} className="h-9 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2 text-[11px] font-black text-violet-100">Send images</button>
                   <button type="button" onClick={() => onCreateDraft(product)} className="h-9 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2 text-[11px] font-black text-emerald-100">Draft order</button>
-                  <a href={product.product_url || (product.id ? `/product/${product.id}` : "#")} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2 text-[11px] font-black text-white">Open product</a>
+                  <a href={storefrontProductUrl(product)} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2 text-[11px] font-black text-white">Open product</a>
                 </div>
               </div>
             );
@@ -2844,7 +2851,7 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
                     {productScore(primary) ? <Pill tone="cyan">Score {productScore(primary).toFixed(2)}</Pill> : null}
                   </div>
                   {productReason(primary) ? <p dir={isRtlText(productReason(primary)) ? "rtl" : "auto"} className="mt-2 line-clamp-2 text-[12px] leading-5 text-slate-400">{productReason(primary)}</p> : null}
-                  <button type="button" onClick={() => onUseText(`${primary.name || primary.title}\n${money(primary.final_price || primary.price)}\n${primary.product_url || ""}`.trim())} className="mt-2 inline-flex h-8 items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100">Quick send card</button>
+                  <button type="button" onClick={() => onUseText(`${primary.name || primary.title}\n${money(primary.final_price || primary.price)}\n${storefrontProductUrl(primary)}`.trim())} className="mt-2 inline-flex h-8 items-center rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100">Quick send card</button>
                 </div>
               </div>
             </div>
@@ -6275,7 +6282,7 @@ export default function AiInbox() {
   }, [headers, loadAll, patchConversation, selectedConversation, tenantId]);
 
   const quickSendProduct = (product) => {
-    const textValue = `${product.name || product.title}\n${money(product.final_price || product.price)}\n${product.product_url || ""}`.trim();
+    const textValue = `${product.name || product.title}\n${money(product.final_price || product.price)}\n${storefrontProductUrl(product)}`.trim();
     setReplyText(textValue);
   };
 
@@ -6415,7 +6422,7 @@ export default function AiInbox() {
             : "border border-white/10 bg-white/[0.055] text-white hover:border-white/20"
         }`}
       >
-        <span>⚙ Automation</span>
+        <span>? Automation</span>
       </button>
     </div>
   );
@@ -6773,7 +6780,7 @@ export default function AiInbox() {
         <details className="hidden rounded-3xl border border-white/10 bg-white/[0.045] shadow-[0_14px_40px_rgba(0,0,0,0.16)]">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3">
             <div>
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">مؤشرات مركز المبيعات</div>
+              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">ملخص مركز المحادثات</div>
               <div className="mt-1 text-sm font-black text-white">مطوية افتراضيًا</div>
             </div>
             <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[11px] font-black text-slate-200">
@@ -6782,10 +6789,10 @@ export default function AiInbox() {
             </span>
           </summary>
           <div className="grid gap-3 border-t border-white/10 p-3 md:grid-cols-4">
-            <Metric icon={Radio} label="محادثات ميتا الحية" value={realMetaCount} tone="emerald" />
-            <Metric icon={MessageSquareText} label="كل المحادثات" value={conversations.length} tone="cyan" />
-            <Metric icon={Clock3} label="غير المقروء / بانتظار" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
-            <Metric icon={EyeOff} label="بيانات العرض مخفية" value="مفعل" tone="violet" />
+            <Metric icon={Radio} label="إجمالي Meta النشطة" value={realMetaCount} tone="emerald" />
+            <Metric icon={MessageSquareText} label="عدد المحادثات" value={conversations.length} tone="cyan" />
+            <Metric icon={Clock3} label="تحتاج متابعة / رد" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
+            <Metric icon={EyeOff} label="لوحة قيد التجربة" value="قريبًا" tone="violet" />
           </div>
         </details>
 
@@ -6793,7 +6800,7 @@ export default function AiInbox() {
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <SectionTitle icon={ArrowUpRight} title="مسار العملاء المحتملين" />
+                <SectionTitle icon={ArrowUpRight} title="خط متابعة العملاء" />
                 <Pill tone="zinc">{leadPipelineSummary.total}</Pill>
               </div>
               <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
@@ -6943,14 +6950,14 @@ export default function AiInbox() {
                               <MessageSquareText className="h-4 w-4" />
                               تعليقات السوشيال
                             </div>
-                            <div className="mt-1 text-xl font-black text-white">{clean(selectedSocialCommentPost.customerName) || "مستخدم مجهول"}</div>
+                            <div className="mt-1 text-xl font-black text-white">{clean(selectedSocialCommentPost.customerName) || "عميل غير معروف"}</div>
                             <div className="mt-1 text-sm text-slate-400">{clean(selectedSocialCommentPost.platform || "social")}</div>
                           </div>
                           <div className="flex flex-wrap gap-2">
                             {clean(selectedSocialCommentPost.permalinkUrl) ? (
                               <a href={clean(selectedSocialCommentPost.permalinkUrl)} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100">
                                 <ExternalLink className="h-4 w-4" />
-                                فتح البوست
+                                فتح المنشور
                               </a>
                             ) : null}
                           </div>
@@ -6982,27 +6989,27 @@ export default function AiInbox() {
                         <div className="grid gap-2 lg:grid-cols-3">
                           <button type="button" disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-60">
                             <MessageSquareText className="h-4 w-4" />
-                            رد على التعليق
+                            رد سريع
                           </button>
                           <button type="button" disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-60">
                             <MessageSquareText className="h-4 w-4" />
-                            إرسال رسالة خاصة
+                            رسالة خاصة
                           </button>
                           {clean(selectedSocialCommentPost.permalinkUrl) ? (
                             <a href={clean(selectedSocialCommentPost.permalinkUrl)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100">
                               <ExternalLink className="h-4 w-4" />
-                              فتح البوست
+                              فتح المنشور
                             </a>
                           ) : (
                             <button type="button" disabled className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-3 text-xs font-black text-emerald-100 disabled:opacity-60">
                               <ExternalLink className="h-4 w-4" />
-                              فتح البوست
+                              فتح المنشور
                             </button>
                           )}
                         </div>
 
                         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">مسودة رد</div>
+                          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الرد المقترح</div>
                           <textarea
                             value={replyText}
                             onChange={(event) => setReplyText(event.target.value)}
@@ -7011,17 +7018,17 @@ export default function AiInbox() {
                           />
                           <div className="mt-2 flex flex-wrap gap-2">
                             <button type="button" disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-white disabled:opacity-60">
-                              إرسال الرد
+                              حفظ الرد
                             </button>
                             <button type="button" disabled className="inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-3 text-xs font-black text-white disabled:opacity-60">
-                              حفظ مسودة
+                              إرسال الرد
                             </button>
                           </div>
                         </div>
                       </div>
                     </>
                   ) : (
-                    <EmptyBlock text="لا توجد تعليقات سوشيال حاليًا" />
+                    <EmptyBlock text="لا يوجد تعليق محدد" />
                   )}
                 </div>
               </div>
@@ -7204,24 +7211,24 @@ export default function AiInbox() {
         </section>
 
         <section className="hidden grid gap-3 md:grid-cols-4">
-          <Metric icon={Radio} label="محادثات Meta الحية" value={realMetaCount} tone="emerald" />
-          <Metric icon={MessageSquareText} label="كل المحادثات" value={conversations.length} tone="cyan" />
-          <Metric icon={Clock3} label="غير مقروء / بانتظار الرد" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
-          <Metric icon={EyeOff} label="بيانات العرض مخفية" value="مفعّل" tone="violet" />
+          <Metric icon={Radio} label="إجمالي Meta النشطة" value={realMetaCount} tone="emerald" />
+          <Metric icon={MessageSquareText} label="عدد المحادثات" value={conversations.length} tone="cyan" />
+          <Metric icon={Clock3} label="غير مقروء / يحتاج تدخل" value={conversations.filter((item) => item.unread || item.needs_human_support).length} tone="amber" />
+          <Metric icon={EyeOff} label="لوحة قيد التجربة" value="قريبًا" tone="violet" />
         </section>
 
         <section className="hidden rounded-2xl border border-white/10 bg-white/[0.045] p-3">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
             <label className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو رقم الهاتف أو اسم الصفحة أو محتوى الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
             </label>
             <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
               <ArrowUpDown className="h-4 w-4 text-slate-500" />
               <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
               <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
                 <option value="recent">الأحدث</option>
-                <option value="lead_score_desc">الأعلى في درجة العميل أولًا</option>
+                <option value="lead_score_desc">الأعلى في درجة العميل</option>
               </select>
             </label>
           </div>
@@ -7271,7 +7278,7 @@ export default function AiInbox() {
               </div>
             ) : null}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرشحات العملاء المحتملين</span>
+              <span className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">مرحلة العميل المحتمل</span>
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {leadFilters.map((item) => (
                   <button
@@ -7401,7 +7408,7 @@ export default function AiInbox() {
                               rel="noreferrer"
                               className="inline-flex h-10 items-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-sm font-black text-cyan-100"
                             >
-                              فتح البوست
+                              فتح المنشور
                               <ExternalLink className="h-4 w-4" />
                             </a>
                           ) : null}
@@ -7414,11 +7421,11 @@ export default function AiInbox() {
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Price</div>
-                            <div className="mt-1 text-sm font-black text-white">{selectedSocialThreadPost.productPrice || selectedSocialCommentPost.productPrice || "—"}</div>
+                            <div className="mt-1 text-sm font-black text-white">{selectedSocialThreadPost.productPrice || selectedSocialCommentPost.productPrice || "-"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sale</div>
-                            <div className="mt-1 text-sm font-black text-white">{selectedSocialThreadPost.productSalePrice || selectedSocialCommentPost.productSalePrice || "—"}</div>
+                            <div className="mt-1 text-sm font-black text-white">{selectedSocialThreadPost.productSalePrice || selectedSocialCommentPost.productSalePrice || "-"}</div>
                           </div>
                           <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Sizes</div>
@@ -7436,7 +7443,7 @@ export default function AiInbox() {
 
                         <div className="mt-4 flex flex-wrap gap-2">
                           <button type="button" disabled className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-slate-400">
-                            إرسال المنتج
+                            نسخ تفاصيل المنتج
                           </button>
                           <button type="button" disabled className="inline-flex h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-slate-400">
                             Reply on comment
@@ -7540,9 +7547,9 @@ export default function AiInbox() {
                                   loading: false,
                                   error: "",
                                 });
-                                setToast({ tone: "emerald", text: "تم حفظ قالب البوست" });
+                                setToast({ tone: "emerald", text: "تم حفظ القالب" });
                               } catch (templateError) {
-                                setToast({ tone: "rose", text: templateError?.message || "تعذر حفظ قالب البوست" });
+                                setToast({ tone: "rose", text: templateError?.message || "تعذر حفظ القالب" });
                               }
                             }}
                             className="inline-flex h-10 items-center justify-center rounded-xl bg-cyan-300 px-3 text-sm font-black text-slate-950"
@@ -7558,9 +7565,9 @@ export default function AiInbox() {
                                   platform: clean(selectedSocialCommentPost.platform || "facebook"),
                                   post_id: clean(selectedSocialCommentPost.postId || selectedSocialCommentPost.conversationId || ""),
                                 }, { headers, perfComponent: "AiInbox.socialCommentPreview" });
-                                setToast({ tone: "emerald", text: payload?.preview?.rendered_reply ? "تم توليد معاينة الرد" : "No preview available" });
+                                setToast({ tone: "emerald", text: payload?.preview?.rendered_reply ? "تم إنشاء معاينة الرد" : "لا توجد معاينة متاحة" });
                               } catch (previewError) {
-                                setToast({ tone: "rose", text: previewError?.message || "تعذر توليد المعاينة" });
+                                setToast({ tone: "rose", text: previewError?.message || "تعذر إنشاء المعاينة" });
                               }
                             }}
                             className="inline-flex h-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-black text-slate-200"
@@ -7568,7 +7575,7 @@ export default function AiInbox() {
                             Preview
                           </button>
                         </div>
-                        {selectedSocialTemplate.loading ? <div className="mt-3 text-xs text-slate-500">جارٍ تحميل قالب البوست...</div> : null}
+                        {selectedSocialTemplate.loading ? <div className="mt-3 text-xs text-slate-500">جارٍ تحميل القالب...</div> : null}
                         {selectedSocialTemplate.error ? <div className="mt-2 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-xs font-bold text-rose-100">{selectedSocialTemplate.error}</div> : null}
                       </div>
 
@@ -7576,7 +7583,7 @@ export default function AiInbox() {
                         <div className="flex items-center justify-between gap-3">
                           <div>
                             <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Comments Timeline</div>
-                            <div className="mt-1 text-sm font-black text-white">كل التعليقات داخل نفس البوست</div>
+                            <div className="mt-1 text-sm font-black text-white">لا توجد إعدادات خاصة لهذا المنشور</div>
                           </div>
                           {selectedSocialThread.comments.length ? <Pill tone="zinc">{selectedSocialThread.comments.length} تعليق</Pill> : null}
                         </div>
@@ -7621,7 +7628,7 @@ export default function AiInbox() {
                                     Preview / Send Auto Reply
                                   </button>
                                   <button type="button" disabled className="inline-flex h-9 items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-400">
-                                    رد على التعليق
+                                    تم إرسال الرد
                                   </button>
                                   <button type="button" disabled className="inline-flex h-9 items-center rounded-xl border border-white/10 bg-white/[0.04] px-3 text-xs font-black text-slate-400">
                                     إرسال رسالة خاصة
@@ -7648,14 +7655,14 @@ export default function AiInbox() {
                                 </div>
                               </div>
                             );
-                          }) : <EmptyBlock text="لا توجد تعليقات سوشيال حاليًا" />}
+                          }) : <EmptyBlock text="لا توجد تعليقات في هذا المنشور" />}
                         </div>
                       </div>
                     </div>
                   </div>
                 </>
               ) : (
-                <EmptyBlock text="لا توجد تعليقات سوشيال حاليًا" />
+                <EmptyBlock text="لا توجد تعليقات لعرضها" />
               )}
             </main>
           </section>
@@ -7713,14 +7720,14 @@ export default function AiInbox() {
                   ) : null}
 
                   <div className="mt-1.5 grid gap-1.5 rounded-2xl border border-white/10 bg-slate-950/60 p-2 text-[11px] sm:grid-cols-3">
-                    <div><span className="text-slate-500">الويب هوك</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "سليم" : "فشل"}</div></div>
-                    <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "نشط" : "منتهي"}</div></div>
-                    <div><span className="text-slate-500">Messaging</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "نشط" : "غير نشط"}</div></div>
+                    <div><span className="text-slate-500">آخر ويب هوك</span><div className={selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedChannelStatus.webhook_healthy || safeConversation.last_webhook_event_at ? "سليم" : "غير سليم"}</div></div>
+                    <div><span className="text-slate-500">Token</span><div className={selectedTokenActive ? "font-black text-emerald-100" : "font-black text-rose-100"}>{selectedTokenActive ? "نشط" : "مفقود"}</div></div>
+                    <div><span className="text-slate-500">Messaging</span><div className={selectedMessagingActive ? "font-black text-emerald-100" : "font-black text-slate-300"}>{selectedMessagingActive ? "نشط" : "غير مفعّل"}</div></div>
                     {safeConversation.escalation_reason || safeConversation.last_escalation_keyword ? (
                       <div className="sm:col-span-3">
-                        <span className="text-slate-500">التصعيد</span>
+                        <span className="text-slate-500">سبب التصعيد</span>
                         <div className="font-black text-amber-100">
-                          {safeConversation.escalation_reason || "يحتاج تدخلًا بشريًا"}
+                          {safeConversation.escalation_reason || "تم تصعيد المحادثة"}
                           {safeConversation.last_escalation_keyword ? ` / ${safeConversation.last_escalation_keyword}` : ""}
                         </div>
                       </div>
@@ -7730,9 +7737,9 @@ export default function AiInbox() {
                   <div className="mt-1.5 grid gap-1.5 rounded-2xl border border-white/10 bg-slate-950/65 p-2 lg:grid-cols-4">
                     <Info label="درجة العميل المحتمل" value={conversationLeadScore(safeConversation)} />
                     <Info label="حرارة العميل" value={conversationLeadTemperature(safeConversation)} />
-                    <Info label="الإجراء الموصى به" value={conversationRecommendedSalesAction(safeConversation)} />
+                    <Info label="الإجراء المقترح" value={conversationRecommendedSalesAction(safeConversation)} />
                     <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3 lg:col-span-4">
-                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أسباب العميل المحتمل</div>
+                      <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أسباب التقييم</div>
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {conversationLeadReasons(safeConversation).length ? conversationLeadReasons(safeConversation).map((reason) => <Pill key={reason} tone="zinc">{reason.replace(/_/g, " ")}</Pill>) : <span className="text-sm text-slate-500">لا توجد أسباب بعد</span>}
                       </div>
@@ -7759,12 +7766,12 @@ export default function AiInbox() {
                   <details className="group mb-3 rounded-2xl border border-white/10 bg-slate-950/50 p-3">
                     <summary className="flex cursor-pointer list-none items-center justify-between gap-3">
                       <div>
-                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أدوات المطور</div>
-                        <div className="mt-1 text-sm font-black text-white">تشخيص، مزامنة الملف، التتبعات، وإعادة الضبط</div>
+                        <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">أدوات الدعم</div>
+                        <div className="mt-1 text-sm font-black text-white">فحص الجلسة والملف الشخصي والحالة الحالية</div>
                       </div>
                       <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-[11px] font-black text-slate-200">
                         <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
-                        تبديل
+                        عرض
                       </span>
                     </summary>
                     <div className="mt-3 grid gap-2 lg:grid-cols-[1fr_auto]">
@@ -7778,7 +7785,7 @@ export default function AiInbox() {
                               className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50"
                             >
                               {aiTrace.loading && aiTrace.sessionId === safeConversation.session_id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Brain className="h-4 w-4" />}
-                              أثر الذكاء الاصطناعي
+                              عرض تتبع الذكاء
                             </button>
                           ) : null}
                           <button
@@ -7788,7 +7795,7 @@ export default function AiInbox() {
                             className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"
                           >
                             {profileSyncing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                            مزامنة ملف ماسنجر
+                            مزامنة ملف العميل
                           </button>
                           <button
                             type="button"
@@ -7797,7 +7804,7 @@ export default function AiInbox() {
                             className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50"
                           >
                             {profileDebugging ? <Loader2 className="h-4 w-4 animate-spin" /> : <InfoIcon className="h-4 w-4" />}
-                            تشخيص ملف ماسنجر
+                            فحص ملف العميل
                           </button>
                           <button
                             type="button"
@@ -7806,14 +7813,14 @@ export default function AiInbox() {
                             className="inline-flex h-9 items-center gap-2 whitespace-nowrap rounded-xl border border-rose-300/20 bg-rose-300/10 px-3 text-xs font-black text-rose-100 disabled:opacity-50"
                           >
                             {resettingAiState ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                            إعادة ضبط حالة الذكاء الاصطناعي
+                            إعادة ضبط حالة الذكاء
                           </button>
                         </div>
                       </div>
                       <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3">
                         <button type="button" onClick={() => setProfileOpen((value) => !value)} className="inline-flex h-8 items-center gap-2 rounded-xl border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-100">
                           {profileOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-                          {profileOpen ? "إخفاء الملف" : "إظهار الملف"}
+                          {profileOpen ? "إغلاق الملف" : "فتح الملف"}
                         </button>
                       </div>
                     </div>
@@ -7839,16 +7846,16 @@ export default function AiInbox() {
                       saving={modeSaving}
                     />
                     <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                      <SectionTitle icon={Sparkles} title="محرك رد الذكاء الاصطناعي" action={(
+                      <SectionTitle icon={Sparkles} title="رد الذكاء الاصطناعي" action={(
                         <div className="flex flex-wrap items-center gap-2">
                           <Pill tone={autoReplyShadowTone} className="px-2 py-0.5 text-[10px] font-black">{autoReplyShadowLabel}</Pill>
-                          {aiReply.loading ? <Pill tone="cyan">جاري الكتابة...</Pill> : null}
+                          {aiReply.loading ? <Pill tone="cyan">جارٍ التحضير...</Pill> : null}
                         </div>
                       )} />
                       {aiReply.error ? <div className="mb-3 rounded-xl border border-rose-300/20 bg-rose-400/10 p-3 text-sm font-bold text-rose-100">{aiReply.error}</div> : null}
                       <div className="grid gap-2 sm:grid-cols-2">
-                        <button type="button" onClick={() => generateAiReply({ persist: false })} disabled={aiReply.loading || safeConversation.conversation_status === "closed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">{aiReply.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}مسودة رد الذكاء الاصطناعي</button>
-                        <button type="button" onClick={() => generateAiReply({ persist: true })} disabled={aiReply.loading || safeConversation.conversation_status !== "ai_active"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><Bot className="h-4 w-4" />حفظ رد الذكاء الاصطناعي</button>
+                        <button type="button" onClick={() => generateAiReply({ persist: false })} disabled={aiReply.loading || safeConversation.conversation_status === "closed"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50">{aiReply.loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}إنشاء رد مقترح</button>
+                        <button type="button" onClick={() => generateAiReply({ persist: true })} disabled={aiReply.loading || safeConversation.conversation_status !== "ai_active"} className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-3 text-xs font-black text-cyan-100 disabled:opacity-50"><Bot className="h-4 w-4" />اعتماد رد الذكاء</button>
                       </div>
                     </div>
                   </div>
@@ -7881,7 +7888,7 @@ export default function AiInbox() {
                         <div className="mb-1 flex items-center justify-between gap-3">
                           <div>
                             <h3 className="text-sm font-black leading-5">سجل المحادثة</h3>
-                            <p className="text-[11px] leading-4.5 text-slate-400">تسلسل مباشر للرسائل وردود الموظفين وأحداث المحادثة.</p>
+                            <p className="text-[11px] leading-4.5 text-slate-400">مراجعة الرسائل والأحداث والردود المقترحة داخل المحادثة.</p>
                           </div>
                           {selectedConversation?.messages?.length ? <Pill tone="zinc">{selectedConversation.messages.length} رسالة</Pill> : null}
                         </div>
@@ -7928,7 +7935,7 @@ export default function AiInbox() {
                     </div>
                   </div>
                 </>
-              ) : <EmptyBlock text={isSocialMode ? "لا توجد تعليقات سوشيال حاليًا" : "لا توجد محادثات حاليًا"} />}
+              ) : <EmptyBlock text={isSocialMode ? "لا توجد تعليقات محددة" : "لا توجد محادثة محددة"} />}
             </div>
           </main>
 
@@ -7936,7 +7943,7 @@ export default function AiInbox() {
             <SectionTitle
               icon={MessageSquareText}
               title={inboxSection === "social_comments" ? "تعليقات السوشيال" : "قائمة المحادثات"}
-              action={<Pill tone="zinc">{inboxSection === "social_comments" ? socialComments.items.length : filteredConversations.length} {inboxSection === "social_comments" ? "تعليق" : "ظاهرة"}</Pill>}
+              action={<Pill tone="zinc">{inboxSection === "social_comments" ? socialComments.items.length : filteredConversations.length} {inboxSection === "social_comments" ? "تعليق" : "محادثة"}</Pill>}
             />
             {inboxSection === "conversations" ? (
               <>
@@ -7944,7 +7951,7 @@ export default function AiInbox() {
 	                <div className="flex flex-col gap-3">
 	                  <label className="relative min-w-0">
 	                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500" />
-	                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث عن العميل أو المعرف الخارجي أو الهاتف أو الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
+	                    <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="ابحث بالاسم أو رقم الهاتف أو اسم الصفحة أو محتوى الرسالة" className="h-10 w-full rounded-xl border border-white/10 bg-slate-950/70 pl-9 pr-3 text-sm font-bold text-white outline-none placeholder:text-slate-600 focus:border-cyan-300/40" />
 	                  </label>
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="flex items-center gap-2 rounded-xl border border-white/10 bg-slate-950/70 px-3 h-10">
@@ -7952,7 +7959,7 @@ export default function AiInbox() {
                       <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">الترتيب</span>
                       <select value={leadSort} onChange={(event) => setLeadSort(event.target.value)} className="min-w-0 bg-transparent text-xs font-black text-white outline-none">
                         <option value="recent">الأحدث</option>
-                        <option value="lead_score_desc">الأعلى في درجة العميل أولًا</option>
+                        <option value="lead_score_desc">الأعلى في درجة العميل</option>
                       </select>
                     </label>
                   </div>
@@ -7977,7 +7984,7 @@ export default function AiInbox() {
                         </div>
                       )}
                     />
-                  ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
+                  ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد محادثات Meta بعد. سيظهر النشاط هنا مع بدء استقبال الرسائل والتعليقات." : "لا توجد محادثات مطابقة للفلاتر الحالية."} /> : null}
                 </div>
               </>
             ) : null}
@@ -8011,5 +8018,3 @@ function LoadingBlock({ text }) {
 function EmptyBlock({ text }) {
   return <div className="rounded-2xl border border-dashed border-white/10 bg-white/[0.03] p-8 text-center text-sm text-slate-500">{text}</div>;
 }
-
-

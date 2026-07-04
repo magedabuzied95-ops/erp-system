@@ -51,6 +51,7 @@ import { useTranslation } from "react-i18next";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser, setCurrentTenant } from "../../../shared/auth/authStorage";
+import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 import { normalizeSettingsCategory, settingsCategories, settingsByCategory, settingsByKey } from "../../../../shared/settingsRegistry.js";
 import { defaultEgyptShippingLocations } from "../../../../shared/egyptShippingLocations.js";
 import {
@@ -816,15 +817,16 @@ function SettingsCenterContent({ debugMode = false }) {
   const value = (key, fallback = "") => values[key] ?? fallback;
   const hero = safeParseJson(value("storefront.homepage_hero"), {});
   const featuredCollections = Array.isArray(value("storefront.featured_collections")) ? value("storefront.featured_collections") : [];
-  const storeUrl = value("storefront.public_url") || "";
+  const publicStoreUrl = publicStorefrontUrl(value("storefront.public_url") || "/");
+  const storeUrl = value("storefront.public_url") || publicStoreUrl;
   const storeName = value("storefront.store_name") || "";
   const logoUrl = value("storefront.store_logo_url");
 
   const quickActions = {
     storefront: [
-      [ui.openStore, ExternalLink, () => window.open(storeUrl || "/", "_blank", "noopener,noreferrer")],
-      [ui.previewStore, Eye, () => window.open("/", "_blank", "noopener,noreferrer")],
-      [ui.copyUrl, Copy, async () => { await navigator.clipboard?.writeText(storeUrl); toast.success("Copied"); }],
+      [ui.openStore, ExternalLink, () => window.open(publicStoreUrl, "_blank", "noopener,noreferrer")],
+      [ui.previewStore, Eye, () => window.open(publicStoreUrl, "_blank", "noopener,noreferrer")],
+      [ui.copyUrl, Copy, async () => { await navigator.clipboard?.writeText(publicStoreUrl); toast.success("Copied"); }],
     ],
     orders: [
       [ui.testShipping, TestTube2, () => toast.success("Shipping settings ready")],
@@ -978,7 +980,7 @@ function SettingsCenterContent({ debugMode = false }) {
               {shouldShowPreviewPanel ? (
                 <button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-4 w-4" />{ui.preview}</button>
               ) : null}
-              <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-white">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "حفظ إعدادات الدفع" : ui.save)}</button>
+              <button type="button" disabled={!isDirty || saving} onClick={save} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white disabled:opacity-45 dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500 dark:text-white">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
             </div>
           </div>
         </header>
@@ -1223,7 +1225,7 @@ function SettingsCenterContent({ debugMode = false }) {
             <div className="flex items-center gap-2 text-sm font-black text-slate-800 dark:text-white"><AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-300" />{dirtyCount} {ui.unsaved}</div>
             <div className="grid grid-cols-2 gap-2 sm:flex">
               <button type="button" onClick={discard} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200"><Undo2 className="h-4 w-4" />{ui.discard}</button>
-              <button type="button" onClick={save} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "حفظ إعدادات الدفع" : ui.save)}</button>
+              <button type="button" onClick={save} disabled={saving} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl bg-slate-950 px-4 text-sm font-black text-white dark:bg-gradient-to-r dark:from-blue-500 dark:to-violet-500">{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}{saving ? ui.saving : (language === "ar" && activeCategory === "storefront" ? "??? ??????? ??????" : ui.save)}</button>
             </div>
           </div>
         </div>
@@ -2280,33 +2282,33 @@ const shippingUi = {
 };
 
 const egyptGovernorates = [
-  ["cairo", "Cairo", "ط§ظ„ظ‚ط§ظ‡ط±ط©", 70, false, true, "2-4 business days"],
-  ["giza", "Giza", "ط§ظ„ط¬ظٹط²ط©", 70, false, true, "2-4 business days"],
-  ["alexandria", "Alexandria", "ط§ظ„ط¥ط³ظƒظ†ط¯ط±ظٹط©", 75, false, true, "2-5 business days"],
-  ["dakahlia", "Dakahlia", "ط§ظ„ط¯ظ‚ظ‡ظ„ظٹط©", 75, false, true, "2-5 business days"],
-  ["red-sea", "Red Sea", "ط§ظ„ط¨ط­ط± ط§ظ„ط£ط­ظ…ط±", 90, false, true, "3-6 business days"],
-  ["beheira", "Beheira", "ط§ظ„ط¨ط­ظٹط±ط©", 75, false, true, "2-5 business days"],
-  ["fayoum", "Fayoum", "ط§ظ„ظپظٹظˆظ…", 80, false, true, "2-5 business days"],
-  ["gharbia", "Gharbia", "ط§ظ„ط؛ط±ط¨ظٹط©", 75, false, true, "2-5 business days"],
-  ["ismailia", "Ismailia", "ط§ظ„ط¥ط³ظ…ط§ط¹ظٹظ„ظٹط©", 75, false, true, "2-5 business days"],
-  ["menofia", "Menofia", "ط§ظ„ظ…ظ†ظˆظپظٹط©", 75, false, true, "2-5 business days"],
-  ["minya", "Minya", "ط§ظ„ظ…ظ†ظٹط§", 85, false, true, "3-6 business days"],
-  ["qalyubia", "Qalyubia", "ط§ظ„ظ‚ظ„ظٹظˆط¨ظٹط©", 70, false, true, "2-4 business days"],
-  ["new-valley", "New Valley", "ط§ظ„ظˆط§ط¯ظٹ ط§ظ„ط¬ط¯ظٹط¯", 95, false, true, "4-7 business days"],
-  ["suez", "Suez", "ط§ظ„ط³ظˆظٹط³", 75, false, true, "2-5 business days"],
-  ["aswan", "Aswan", "ط£ط³ظˆط§ظ†", 90, false, true, "3-6 business days"],
-  ["assiut", "Assiut", "ط£ط³ظٹظˆط·", 85, false, true, "3-6 business days"],
-  ["beni-suef", "Beni Suef", "ط¨ظ†ظٹ ط³ظˆظٹظپ", 80, false, true, "2-5 business days"],
-  ["port-said", "Port Said", "ط¨ظˆط±ط³ط¹ظٹط¯", 75, false, true, "2-5 business days"],
-  ["damietta", "Damietta", "ط¯ظ…ظٹط§ط·", 45, true, false, "1-2 business days"],
-  ["sharqia", "Sharqia", "ط§ظ„ط´ط±ظ‚ظٹط©", 75, false, true, "2-5 business days"],
-  ["south-sinai", "South Sinai", "ط¬ظ†ظˆط¨ ط³ظٹظ†ط§ط،", 95, false, true, "4-7 business days"],
-  ["kafr-el-sheikh", "Kafr El Sheikh", "ظƒظپط± ط§ظ„ط´ظٹط®", 75, false, true, "2-5 business days"],
-  ["matrouh", "Matrouh", "ظ…ط·ط±ظˆط­", 90, false, true, "3-6 business days"],
-  ["luxor", "Luxor", "ط§ظ„ط£ظ‚طµط±", 90, false, true, "3-6 business days"],
-  ["qena", "Qena", "ظ‚ظ†ط§", 90, false, true, "3-6 business days"],
-  ["north-sinai", "North Sinai", "ط´ظ…ط§ظ„ ط³ظٹظ†ط§ط،", 95, false, true, "4-7 business days"],
-  ["sohag", "Sohag", "ط³ظˆظ‡ط§ط¬", 90, false, true, "3-6 business days"],
+  ["cairo", "Cairo", "القاهرة", 70, false, true, "2-4 business days"],
+  ["giza", "Giza", "الجيزة", 70, false, true, "2-4 business days"],
+  ["alexandria", "Alexandria", "الإسكندرية", 75, false, true, "2-5 business days"],
+  ["dakahlia", "Dakahlia", "الدقهلية", 75, false, true, "2-5 business days"],
+  ["red-sea", "Red Sea", "البحر الأحمر", 90, false, true, "3-6 business days"],
+  ["beheira", "Beheira", "البحيرة", 75, false, true, "2-5 business days"],
+  ["fayoum", "Fayoum", "الفيوم", 80, false, true, "2-5 business days"],
+  ["gharbia", "Gharbia", "الغربية", 75, false, true, "2-5 business days"],
+  ["ismailia", "Ismailia", "الإسماعيلية", 75, false, true, "2-5 business days"],
+  ["menofia", "Menofia", "المنوفية", 75, false, true, "2-5 business days"],
+  ["minya", "Minya", "المنيا", 85, false, true, "3-6 business days"],
+  ["qalyubia", "Qalyubia", "القليوبية", 70, false, true, "2-4 business days"],
+  ["new-valley", "New Valley", "الوادي الجديد", 95, false, true, "4-7 business days"],
+  ["suez", "Suez", "السويس", 75, false, true, "2-5 business days"],
+  ["aswan", "Aswan", "أسوان", 90, false, true, "3-6 business days"],
+  ["assiut", "Assiut", "أسيوط", 85, false, true, "3-6 business days"],
+  ["beni-suef", "Beni Suef", "بني سويف", 80, false, true, "2-5 business days"],
+  ["port-said", "Port Said", "بورسعيد", 75, false, true, "2-5 business days"],
+  ["damietta", "Damietta", "دمياط", 45, true, false, "1-2 business days"],
+  ["sharqia", "Sharqia", "الشرقية", 75, false, true, "2-5 business days"],
+  ["south-sinai", "South Sinai", "جنوب سيناء", 95, false, true, "4-7 business days"],
+  ["kafr-el-sheikh", "Kafr El Sheikh", "كفر الشيخ", 75, false, true, "2-5 business days"],
+  ["matrouh", "Matrouh", "مطروح", 90, false, true, "3-6 business days"],
+  ["luxor", "Luxor", "الأقصر", 90, false, true, "3-6 business days"],
+  ["qena", "Qena", "قنا", 90, false, true, "3-6 business days"],
+  ["north-sinai", "North Sinai", "شمال سيناء", 95, false, true, "4-7 business days"],
+  ["sohag", "Sohag", "سوهاج", 90, false, true, "3-6 business days"],
 ];
 
 const shippingZonePresets = [
@@ -2326,7 +2328,7 @@ const shippingZonePresets = [
     minimum_order_for_cod: 0,
     active: true,
   })),
-  { id: "new-damietta", governorate: "Damietta", arabic_alias: "ط¯ظ…ظٹط§ط· ط§ظ„ط¬ط¯ظٹط¯ط©", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "in_store_delivery", provider_id: "in_store_delivery", free_shipping_threshold: 0, minimum_order_for_cod: 0, active: true },
+  { id: "new-damietta", governorate: "Damietta", arabic_alias: "دمياط الجديدة", city: "New Damietta", area: "", price: 40, cod_allowed: true, requires_shipping_proof: false, estimated_delivery_text: "1-2 business days", provider: "in_store_delivery", provider_id: "in_store_delivery", free_shipping_threshold: 0, minimum_order_for_cod: 0, active: true },
 ];
 
 const normalizeZoneKey = (value = "") => String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -3697,4 +3699,3 @@ function SkeletonGrid() {
     </div>
   );
 }
-
