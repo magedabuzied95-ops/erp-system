@@ -7,7 +7,7 @@ const browserOrigin = () =>
   typeof window !== "undefined" ? window.location.origin : "";
 
 const LOCAL_API_ORIGIN = "http://localhost:8000";
-const PRODUCTION_API_ORIGIN = "https://erp-system-0qhp.onrender.com";
+const PRODUCTION_API_ORIGIN = "http://13.140.141.50";
 const PRODUCTION_API_BASE_URL = `${PRODUCTION_API_ORIGIN}/api`;
 const IS_PRODUCTION = import.meta.env.PROD;
 
