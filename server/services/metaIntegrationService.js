@@ -120,6 +120,7 @@ const META_OAUTH_SCOPES = [
   "instagram_content_publish",
 ];
 const META_WEBHOOK_SUBSCRIBED_FIELDS = [
+  "feed",
   "messages",
   "messaging_postbacks",
   "messaging_optins",
@@ -129,11 +130,11 @@ const META_WEBHOOK_SUBSCRIBED_FIELDS = [
   "message_echoes",
 ];
 const META_WEBHOOK_COMMENT_FIELDS = [
-  "feed",
   "comments",
   "mentions",
 ];
 const META_WEBHOOK_MINIMAL_FIELDS = [
+  "feed",
   "messages",
   "messaging_postbacks",
 ];

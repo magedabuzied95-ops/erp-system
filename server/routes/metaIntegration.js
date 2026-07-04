@@ -215,6 +215,36 @@ webhookRouter.get("/webhook-health", protect, permit("settings", "view"), async 
   }
 });
 
+webhookRouter.get("/webhook-subscribed-apps", protect, permit("settings", "view"), async (req, res) => {
+  try {
+    const tenantId = toTenantId(req);
+    const status = await getMetaIntegrationStatus({ tenantId, req });
+    const subscription = status?.subscription || {};
+    console.log("[meta-webhook] subscribed_apps_debug", {
+      tenant_id: tenantId,
+      page_id: status?.page_id || "",
+      subscribed_fields: Array.isArray(subscription?.subscribed_fields) ? subscription.subscribed_fields : [],
+      app_installed: Boolean(subscription?.app_installed),
+      page_subscription_present: Boolean(subscription?.page_subscription_present),
+    });
+    res.json({
+      success: true,
+      data: {
+        tenant_id: tenantId,
+        page_id: status?.page_id || "",
+        callback_url: status?.callback_url || "",
+        subscription,
+        subscribed_fields: Array.isArray(subscription?.subscribed_fields) ? subscription.subscribed_fields : [],
+        app_installed: Boolean(subscription?.app_installed),
+        page_subscription_present: Boolean(subscription?.page_subscription_present),
+        errors: Array.isArray(status?.errors) ? status.errors : [],
+      },
+    });
+  } catch (error) {
+    sendError(res, error, "Unable to load Meta subscribed apps");
+  }
+});
+
 webhookRouter.post("/webhook-enable", protect, permit("settings", "edit"), async (req, res) => {
   console.log("[meta-webhook] webhook_enable_route_entered", {
     tenant_id: toTenantId(req),
