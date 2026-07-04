@@ -245,8 +245,38 @@ function RouteSkeleton() {
   );
 }
 
+const STOREFRONT_ROOT_HOSTS = new Set([
+  "m1store-egy.com",
+  "www.m1store-egy.com",
+  "localhost",
+  "127.0.0.1",
+]);
+
+const ERP_HOST = "erp.m1store-egy.com";
+const STOREFRONT_CANONICAL_ORIGIN = "https://m1store-egy.com";
+
+const readHostname = () => {
+  if (typeof window === "undefined") return "";
+  return String(window.location.hostname || "").trim().toLowerCase();
+};
+
+const isStorefrontRootHost = () => {
+  const hostname = readHostname();
+  if (!hostname) return false;
+  if (STOREFRONT_ROOT_HOSTS.has(hostname)) return true;
+  return hostname.endsWith(".vercel.app");
+};
+
+const isErpHost = () => readHostname() === ERP_HOST;
+
 function StorefrontLegacyRedirect() {
   const location = useLocation();
+  if (isErpHost()) {
+    if (typeof window !== "undefined") {
+      window.location.replace(`${STOREFRONT_CANONICAL_ORIGIN}${legacyShopToRootPath(location.pathname, location.search)}`);
+    }
+    return null;
+  }
   return <Navigate to={legacyShopToRootPath(location.pathname, location.search)} replace />;
 }
 
@@ -254,6 +284,7 @@ function App() {
   useTranslation();
   const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
   const employeeAppToken = isEmployeeAppRoute ? window.location.pathname.split("/")[2] || "" : "";
+  const enableStorefrontRootRoutes = isStorefrontRootHost() && !isErpHost();
 
   useEffect(() => {
     if (isEmployeeAppRoute) return undefined;
@@ -452,23 +483,27 @@ function App() {
         }
       />
 
-      <Route path="/" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/products" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/product/:identifier" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/account" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/cart" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/checkout" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/track" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/wishlist" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/recently-viewed" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/offers" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/sale" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/contact" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/size-guide" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/returns" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/faq" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/success/:orderNumber" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
-      <Route path="/confirm/:code" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+      {enableStorefrontRootRoutes ? (
+        <>
+          <Route path="/" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/products" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/product/:identifier" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/account" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/cart" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/checkout" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/track" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/wishlist" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/recently-viewed" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/offers" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/sale" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/contact" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/size-guide" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/returns" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/faq" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/success/:orderNumber" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/confirm/:code" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+        </>
+      ) : null}
 
       <Route path="/shop" element={<StorefrontLegacyRedirect />} />
       <Route path="/shop/products" element={<StorefrontLegacyRedirect />} />
@@ -491,9 +526,13 @@ function App() {
       <Route
         path="/shop/*"
         element={
-          <Suspense fallback={<RouteSkeleton />}>
-            <Storefront />
-          </Suspense>
+          isErpHost()
+            ? <StorefrontLegacyRedirect />
+            : (
+              <Suspense fallback={<RouteSkeleton />}>
+                <Storefront />
+              </Suspense>
+            )
         }
       />
 
