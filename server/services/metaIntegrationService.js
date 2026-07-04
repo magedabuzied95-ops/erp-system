@@ -12669,7 +12669,10 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     inboundMetaMid: explicitInboundMetaMid,
   });
   const signature = outboundSignature({ messageText: finalReplyText, productCards: [], trigger: detectedIntent || finalMetadata?.trigger || "" });
-  const dedupe = await checkAndStoreOutboundSignature({
+  const bypassOutboundDedupe = metadata?.bypass_outbound_dedupe === true;
+  const dedupe = bypassOutboundDedupe
+    ? { duplicate: false, reason: "bypass_outbound_dedupe" }
+    : await checkAndStoreOutboundSignature({
     tenantId: config.tenant_id,
     channel: message.channel,
     conversationId: message.external_conversation_id,
@@ -12678,7 +12681,7 @@ const sendAndLogMetaText = async ({ config, message, text: replyText, detectedIn
     preview: finalReplyText,
     inboundKey,
     inboundMetaMid,
-  });
+    });
   if (dedupe.duplicate) {
     await storeMetaOutboundDiagnostics({
       tenantId: config.tenant_id,
@@ -14186,6 +14189,7 @@ const createSocialCommentDraftOrder = async ({
         comment_id: text(commentId || ""),
         product_id: Number(productId || 0) || null,
         order_id: orderRow?.id || orderId || null,
+        existing_order_id: draft?.existing_order_id || null,
         customer_id: customer?.id || null,
         duplicate: Boolean(draft?.duplicate),
         selected_size: text(selectedSize || ""),
@@ -22662,6 +22666,8 @@ export const processMetaWebhook = async ({ req } = {}) => {
             customer_id: draftOrderResult.customer?.id || null,
             social_comment_quick_reply: true,
             social_comment_draft_order_created: true,
+            social_comment_draft_order_duplicate: Boolean(draftOrderResult.duplicate),
+            bypass_outbound_dedupe: Boolean(draftOrderResult.duplicate),
           },
           inboundKey,
           inboundMetaMid: message.external_message_id || messageId,
@@ -22674,6 +22680,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           comment_id: shippingCommentId,
           product_id: shippingProductId,
           order_id: draftOrderResult.order?.id || null,
+          source: draftOrderResult.duplicate ? "draft_order_duplicate" : "draft_order_created",
           message_id: ackResult?.message_id || ackResult?.id || "",
         });
         await persistSocialCommentSalesFlowState({
@@ -22709,6 +22716,7 @@ export const processMetaWebhook = async ({ req } = {}) => {
           comment_id: shippingCommentId,
           product_id: shippingProductId,
           order_id: draftOrderResult.order?.id || null,
+          existing_order_id: draftOrderResult.existing_order_id || draftOrderResult.order?.id || null,
           duplicate: Boolean(draftOrderResult.duplicate),
           message_id: ackResult?.message_id || ackResult?.id || "",
         });

@@ -843,7 +843,14 @@ export const createAiOrderDraft = async (payload = {}) => {
     );
     if (existing.rows[0]) {
       await client.query("COMMIT");
-      return { order: attachPublicOrderNumber(existing.rows[0], channel), items: [], product, variant: selectedVariant, duplicate: true };
+      return {
+        order: attachPublicOrderNumber(existing.rows[0], channel),
+        existing_order_id: existing.rows[0].id,
+        items: [],
+        product,
+        variant: selectedVariant,
+        duplicate: true,
+      };
     }
     const invoiceNumber = buildTemporaryInvoiceNumber();
     console.log("AI_AGENT_DRAFT_ORDER_NUMERIC_INPUT", {
