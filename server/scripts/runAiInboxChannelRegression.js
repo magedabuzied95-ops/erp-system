@@ -7,7 +7,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const reportsDir = path.resolve(__dirname, "../reports");
 
-const BASE_URL = String(process.env.AI_INBOX_REGRESSION_BASE_URL || "https://erp-system-0qhp.onrender.com").replace(/\/+$/g, "");
+const BASE_URL = String(process.env.AI_INBOX_REGRESSION_BASE_URL || "https://api.m1store-egy.com").replace(/\/+$/g, "");
 const ADMIN_EMAIL = String(process.env.AI_INBOX_REGRESSION_EMAIL || "admin").trim();
 const ADMIN_PASSWORD = String(process.env.AI_INBOX_REGRESSION_PASSWORD || "admin").trim();
 const TENANT_ID = Number(process.env.AI_INBOX_REGRESSION_TENANT_ID || 1) || 1;

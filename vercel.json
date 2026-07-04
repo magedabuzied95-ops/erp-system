@@ -10,19 +10,19 @@
     },
     {
       "source": "/share/product/(.*)",
-      "destination": "https://erp-system-0qhp.onrender.com/share/product/$1"
+      "destination": "https://api.m1store-egy.com/share/product/$1"
     },
     {
       "source": "/share/available",
-      "destination": "https://erp-system-0qhp.onrender.com/share/available"
+      "destination": "https://api.m1store-egy.com/share/available"
     },
     {
       "source": "/share/available/og-image.png",
-      "destination": "https://erp-system-0qhp.onrender.com/share/available/og-image.png"
+      "destination": "https://api.m1store-egy.com/share/available/og-image.png"
     },
     {
       "source": "/share/available/(.*)",
-      "destination": "https://erp-system-0qhp.onrender.com/share/available/$1"
+      "destination": "https://api.m1store-egy.com/share/available/$1"
     },
     {
       "source": "/assets/(.*)",

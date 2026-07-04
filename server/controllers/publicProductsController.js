@@ -1,4 +1,4 @@
-ï»¿import db from "../database/db.js";
+import db from "../database/db.js";
 import { access, readFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
@@ -33,9 +33,9 @@ const currentDir = path.dirname(currentFilePath);
 
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
-  if (["men", "man", "male", "mens", "Ø·Â±Ø·Â¬Ø·Â§Ø¸â€", "Ø·Â±Ø·Â¬Ø·Â§Ø¸â€Ø¸Ù¹"].includes(normalized)) return "men";
-  if (["women", "woman", "female", "ladies", "lady", "Ø¸â€ Ø·Â³Ø·Â§Ø·ØŒ", "Ø¸â€ Ø·Â³Ø·Â§Ø·Â¦Ø¸Ù¹", "Ø·Â­Ø·Â±Ø¸Ù¹Ø¸â€¦Ø¸Ù¹"].includes(normalized)) return "women";
-  if (["kids", "kid", "children", "child", "boys", "girls", "Ø·Â§Ø·Â·Ø¸Ù¾Ø·Â§Ø¸â€", "Ø·Â£Ø·Â·Ø¸Ù¾Ø·Â§Ø¸â€", "Ø·Â·Ø¸Ù¾Ø¸â€"].includes(normalized)) return "kids";
+  if (["men", "man", "male", "mens", "Ø±Ø¬Ø§Ù„", "Ø±Ø¬Ø§Ù„ÙŠ"].includes(normalized)) return "men";
+  if (["women", "woman", "female", "ladies", "lady", "Ù†Ø³Ø§Ø¡", "Ù†Ø³Ø§Ø¦ÙŠ", "Ø­Ø±ÙŠÙ…ÙŠ"].includes(normalized)) return "women";
+  if (["kids", "kid", "children", "child", "boys", "girls", "Ø§Ø·ÙØ§Ù„", "Ø£Ø·ÙØ§Ù„", "Ø·ÙÙ„"].includes(normalized)) return "kids";
   return "";
 };
 
@@ -428,7 +428,7 @@ const deriveColorGroupsFromVariants = (variants = []) => {
 };
 
 let storefrontShellPromise = null;
-const DEFAULT_PUBLIC_APP_URL = "https://erp-system-ten-green.vercel.app";
+const DEFAULT_PUBLIC_APP_URL = "https://m1store-egy.com";
 const resolveStorefrontShellCandidates = () => {
   const cwd = process.cwd();
   return [
@@ -911,13 +911,13 @@ const loadShareAvailableProducts = async (req = {}, filters = {}) => {
 const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = [], count = 0 } = {}) => {
   const imageGeneratorVersion = "V2";
   const sizeValue = filters.sizes?.[0] || "";
-  const title = escapeHtml(`Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø§Ù„Ù…Ù‚Ø§Ø³ ${sizeValue}`.trim() || "Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø§Ù„Ù…Ù‚Ø§Ø³");
+  const title = escapeHtml(`ÇáãÊÇÍ ÈÇáãŞÇÓ ${sizeValue}`.trim() || "ÇáãÊÇÍ ÈÇáãŞÇÓ");
   const firstImageProduct = products.find((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || "")) || null;
   const primaryImage = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
   const fallbackImage = buildShareAvailableFallbackImageUrl(req) || "";
   const selectedImage = primaryImage || fallbackImage || "";
   const routeBranch = primaryImage ? "single-product" : fallbackImage ? "fallback" : "empty";
-  const selectedTitle = title || "Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø§Ù„Ù…Ù‚Ø§Ø³";
+  const selectedTitle = title || "ÇáãÊÇÍ ÈÇáãŞÇÓ";
   const imageTag = selectedImage
     ? `<image href="${escapeHtml(selectedImage)}" x="86" y="286" width="1028" height="248" preserveAspectRatio="xMidYMid meet" />`
     : "";
@@ -959,8 +959,8 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
   <rect width="1200" height="630" rx="36" fill="url(#frameGradient)" />
   <text x="92" y="112" fill="#f4e8bf" font-size="20" font-weight="800" font-family="Arial, sans-serif">M1 Store</text>
   <text x="92" y="178" fill="#ffffff" font-size="54" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
-  <text x="92" y="220" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">Ø§ÙØªØ­ ÙƒÙ„ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª Ø§Ù„Ù…ØªØ§Ø­Ø© Ø§Ù„Ø¢Ù† ÙÙŠ M1 Store</text>
-  <text x="92" y="254" fill="#cbd5e1" font-size="18" font-weight="700" font-family="Arial, sans-serif">Ø§Ù„Ù…Ù‚Ø§Ø³ Ø§Ù„Ù…ØªØ§Ø­ Ø§Ù„Ø¢Ù† ÙŠØ¸Ù‡Ø± Ù…Ø¨Ø§Ø´Ø±Ø© Ø¯Ø§Ø®Ù„ Ø§Ù„Ù…ØªØ¬Ø±</text>
+  <text x="92" y="220" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">ÇİÊÍ ßá ÇáãäÊÌÇÊ ÇáãÊÇÍÉ ÇáÂä İí M1 Store</text>
+  <text x="92" y="254" fill="#cbd5e1" font-size="18" font-weight="700" font-family="Arial, sans-serif">ÇáãŞÇÓ ÇáãÊÇÍ ÇáÂä íÙåÑ ãÈÇÔÑÉ ÏÇÎá ÇáãÊÌÑ</text>
   ${selectedImage
     ? `
       ${imageTag}
@@ -974,16 +974,16 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
 const buildShareAvailableFallbackSvg = (options = {}) => buildShareAvailablePreviewSvg(options);
 
 const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "", targetUrl = "", products = [] } = {}) => {
-  const sizeLabel = filters.sizes?.length > 1 ? `Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø§Ù„Ù…Ù‚Ø§Ø³Ø§Øª ${filters.sizes.join("ØŒ ")}` : `Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø§Ù„Ù…Ù‚Ø§Ø³ ${filters.sizes?.[0] || ""}`.trim();
-  const title = escapeHtml(sizeLabel || "Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø§Ù„Ù…Ù‚Ø§Ø³");
-  const description = escapeHtml(Number(count || 0) > 0 ? `${count} Ù…ÙˆØ¯ÙŠÙ„ Ù…ØªØ§Ø­ Ø§Ù„Ø¢Ù† ÙÙŠ M1 Store` : "Ø§ÙØªØ­ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª Ø§Ù„Ù…ØªØ§Ø­Ø© Ø§Ù„Ø¢Ù† ÙÙŠ M1 Store");
+  const sizeLabel = filters.sizes?.length > 1 ? `ÇáãÊÇÍ ÈÇáãŞÇÓÇÊ ${filters.sizes.join("¡ ")}` : `ÇáãÊÇÍ ÈÇáãŞÇÓ ${filters.sizes?.[0] || ""}`.trim();
+  const title = escapeHtml(sizeLabel || "ÇáãÊÇÍ ÈÇáãŞÇÓ");
+  const description = escapeHtml(Number(count || 0) > 0 ? `${count} ãæÏíá ãÊÇÍ ÇáÂä İí M1 Store` : "ÇİÊÍ ÇáãäÊÌÇÊ ÇáãÊÇÍÉ ÇáÂä İí M1 Store");
   const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
   const absoluteUrl = escapeHtml(new URL(req.originalUrl || req.url || "/share/available", publicBaseUrl).toString());
   const absoluteImage = escapeHtml(ogImageUrl || buildShareAvailableOgImageUrl(req, filters, "png"));
   const fallbackTarget = escapeHtml(targetUrl || buildShareAvailableTargetUrl(req, filters));
   const productsPreview = products
     .slice(0, 4)
-    .map((product) => `<li>${escapeHtml(firstText(product.name, product.brand_name, product.brand, "Ù„Ø§ ØªÙˆØ¬Ø¯ ØµÙˆØ±Ø©"))}</li>`)
+    .map((product) => `<li>${escapeHtml(firstText(product.name, product.brand_name, product.brand, "áÇ ÊæÌÏ ÕæÑÉ"))}</li>`)
     .join("");
   return `<!doctype html>
 <html lang="ar" dir="rtl">
@@ -1018,8 +1018,8 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
       <section class="card">
         <h1 style="margin:0 0 12px;font-size:34px;">${title}</h1>
         <p style="margin:0 0 8px;font-size:18px;opacity:.92;">${description}</p>
-        <p style="margin:0 0 18px;opacity:.72;">Ø§Ù„Ø±Ø§Ø¨Ø· Ù‡ÙŠÙØªØ­ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª ØªÙ„Ù‚Ø§Ø¦ÙŠÙ‹Ø§ Ø®Ù„Ø§Ù„ Ø«Ø§Ù†ÙŠØ©. Ù„Ùˆ Ù…Ø§ ÙØªØ­Ø´ØŒ Ø§Ø³ØªØ®Ø¯Ù… Ø§Ù„Ø²Ø± Ø¨Ø§Ù„Ø£Ø³ÙÙ„.</p>
-        <a href="${fallbackTarget}">ÙØªØ­ Ø§Ù„Ù…Ù†ØªØ¬Ø§Øª</a>
+        <p style="margin:0 0 18px;opacity:.72;">ÇáÑÇÈØ åíİÊÍ ÇáãäÊÌÇÊ ÊáŞÇÆíğÇ ÎáÇá ËÇäíÉ. áæ ãÇ İÊÍÔ¡ ÇÓÊÎÏã ÇáÒÑ ÈÇáÃÓİá.</p>
+        <a href="${fallbackTarget}">İÊÍ ÇáãäÊÌÇÊ</a>
         ${productsPreview ? `<ul>${productsPreview}</ul>` : ""}
       </section>
     </main>
@@ -1091,8 +1091,8 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const ogImageUrls = products
       .map((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || ""))
       .filter(Boolean);
-    const ogTitle = filters.sizes?.length > 1 ? `Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø§Ù„Ù…Ù‚Ø§Ø³Ø§Øª ${filters.sizes.join("ØŒ ")}` : `Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø§Ù„Ù…Ù‚Ø§Ø³ ${filters.sizes?.[0] || ""}`.trim();
-    const ogDescription = `${ogProductsCount} Ù…ÙˆØ¯ÙŠÙ„ Ù…ØªØ§Ø­ Ø§Ù„Ø¢Ù† ÙÙŠ M1 Store`;
+    const ogTitle = filters.sizes?.length > 1 ? `ÇáãÊÇÍ ÈÇáãŞÇÓÇÊ ${filters.sizes.join("¡ ")}` : `ÇáãÊÇÍ ÈÇáãŞÇÓ ${filters.sizes?.[0] || ""}`.trim();
+    const ogDescription = `${ogProductsCount} ãæÏíá ãÊÇÍ ÇáÂä İí M1 Store`;
     const ogImageUrl = buildShareAvailableOgImageUrl(req, filters, "png");
     const routeBranch = ogImageUrls[0] ? "single-product" : (buildShareAvailableFallbackImageUrl(req) ? "fallback" : "empty");
     const selectedImage = ogImageUrls[0] || buildShareAvailableFallbackImageUrl(req) || "";
@@ -1171,8 +1171,8 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const ogProductsCount = 0;
     const svg = buildShareAvailableFallbackSvg({
       req,
-      title: filters.sizes?.length ? `Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø§Ù„Ù…Ù‚Ø§Ø³ ${filters.sizes.join("ØŒ ")}` : "Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø§Ù„Ù…Ù‚Ø§Ø³",
-      description: "Ø¬Ø±Ù‘Ø¨ Ù…Ù‚Ø§Ø³Ø§Ù‹ Ø£Ùˆ ÙÙ„ØªØ±Ø§Ù‹ Ø¢Ø®Ø±",
+      title: filters.sizes?.length ? `ÇáãÊÇÍ ÈÇáãŞÇÓ ${filters.sizes.join("¡ ")}` : "ÇáãÊÇÍ ÈÇáãŞÇÓ",
+      description: "ÌÑøÈ ãŞÇÓÇğ Ãæ İáÊÑÇğ ÂÎÑ",
       targetUrl,
     });
     const png = await sharp(Buffer.from(svg, "utf8")).png().toBuffer();

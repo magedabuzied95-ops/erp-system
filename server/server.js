@@ -725,7 +725,7 @@ app.get("/api/debug/meta-webhook-health", async (req, res) => {
   }
 });
 app.get("/api/debug/meta-webhook-callback-self-test", async (req, res) => {
-  const pingUrl = "https://erp-system-0qhp.onrender.com/api/meta/webhook/ping";
+  const pingUrl = "https://api.m1store-egy.com/api/meta/webhook/ping";
   const result = {
     success: false,
     url: pingUrl,
