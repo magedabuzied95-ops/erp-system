@@ -1,0 +1,55 @@
+{
+  "report_name": "social-comment-latency-benchmark",
+  "generated_at": "2026-07-04T11:37:24.466Z",
+  "source": {
+    "table": "social_comment_automation_runs",
+    "status": "completed",
+    "ordering": "processed_at_desc",
+    "requested_sample_count": 20,
+    "measured_sample_count": 0
+  },
+  "status": "unavailable",
+  "reason": "No completed social comment runs with runtime_monitor.latency_summary.total_comment_reply_ms were found.",
+  "metrics": {
+    "webhook_to_enqueue_ms": {
+      "average": null,
+      "median": null,
+      "p95": null,
+      "min": null,
+      "max": null
+    },
+    "runtime_phase_ms": {
+      "average": null,
+      "median": null,
+      "p95": null,
+      "min": null,
+      "max": null
+    },
+    "public_reply_send_ms": {
+      "average": null,
+      "median": null,
+      "p95": null,
+      "min": null,
+      "max": null
+    },
+    "private_reply_send_ms": {
+      "average": null,
+      "median": null,
+      "p95": null,
+      "min": null,
+      "max": null
+    },
+    "total_comment_reply_ms": {
+      "average": null,
+      "median": null,
+      "p95": null,
+      "min": null,
+      "max": null
+    }
+  },
+  "samples": [],
+  "notes": [
+    "Benchmark generation requires completed social comment runs with persisted runtime_monitor.latency_summary.total_comment_reply_ms.",
+    "Regenerate this file after more completed runs are available."
+  ]
+}
