@@ -258,6 +258,8 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
   const hasCustomerToken = Boolean(customerAuth.token);
   const normalizedLoginPhone = normalizePhoneDigits(phone);
   const resetTokenFromQuery = searchParams.get("token") || "";
+  const isResetMode = authMode === "reset";
+  const hasResetToken = Boolean(String(resetToken || resetTokenFromQuery || "").trim());
   const showEmailAuth = !hasCustomerToken;
 
   useEffect(() => {
@@ -744,14 +746,18 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
   const backendRecent = account?.recent_products || [];
   const authSummary = account?.customer?.name || profile.full_name || sfText("storefront.account.enterPhoneHint", "أدخل رقم هاتفك لعرض الحساب");
   const isRestoringAccount = hasCustomerToken && !account;
-  const showOtpLogin = !hasCustomerToken;
+  const showOtpLogin = !hasCustomerToken && !isResetMode;
 
   return (
     <section className="mx-auto max-w-7xl px-4 py-5 md:py-8">
       <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-black text-[#d4af37]">{sfText("storefront.account.eyebrow", "حساب سريع برقم الهاتف")}</p>
-          <h1 className="text-3xl font-black md:text-5xl">{sfText("storefront.account.title", "حسابي")}</h1>
+          <p className="text-sm font-black text-[#d4af37]">
+            {isResetMode ? "استعادة الوصول للحساب" : sfText("storefront.account.eyebrow", "حساب سريع برقم الهاتف")}
+          </p>
+          <h1 className="text-3xl font-black md:text-5xl">
+            {isResetMode ? "إعادة تعيين كلمة المرور" : sfText("storefront.account.title", "حسابي")}
+          </h1>
         </div>
         <Link to="/track" className="sf-soft-pill inline-flex min-h-12 items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 font-black">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
       </div>
@@ -877,11 +883,16 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
 
                   {authMode === "reset" ? (
                     <>
+                      {!hasResetToken ? (
+                        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">
+                          رابط إعادة التعيين غير مكتمل. تأكد من فتح الرابط الكامل من البريد الإلكتروني أو اطلب رابطًا جديدًا.
+                        </div>
+                      ) : null}
                       <Field label="كلمة المرور الجديدة" value={resetPassword} onChange={setResetPassword} autoComplete="new-password" type="password" />
                       <Field label="تأكيد كلمة المرور الجديدة" value={resetPasswordConfirm} onChange={setResetPasswordConfirm} autoComplete="new-password" type="password" />
                       <button
                         onClick={submitPasswordReset}
-                        disabled={authSubmitting}
+                        disabled={authSubmitting || !hasResetToken}
                         className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
                       >
                         {authSubmitting ? (
