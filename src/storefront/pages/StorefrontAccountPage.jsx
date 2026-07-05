@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import { Component, memo, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../i18n/i18n";
@@ -59,9 +59,9 @@ const defaultPreferredSizes = () => ({
 const normalizePreferredSizes = (value = {}) => {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   return {
-    men: String(source.men || source.male || source["رجالي"] || source.man || source.men_size || source.size_men || "").trim(),
-    women: String(source.women || source.female || source["حريمي"] || source.women_size || source.size_women || "").trim(),
-    kids: String(source.kids || source.children || source["أطفال"] || source["اطفال"] || source.kids_size || source.size_kids || "").trim(),
+    men: String(source.men || source.male || source["ط±ط¬ط§ظ„ظٹ"] || source.man || source.men_size || source.size_men || "").trim(),
+    women: String(source.women || source.female || source["ط­ط±ظٹظ…ظٹ"] || source.women_size || source.size_women || "").trim(),
+    kids: String(source.kids || source.children || source["ط£ط·ظپط§ظ„"] || source["ط§ط·ظپط§ظ„"] || source.kids_size || source.size_kids || "").trim(),
     crocs: String(source.crocs || source.crocs_size || source.size_crocs || "").trim(),
   };
 };
@@ -78,17 +78,17 @@ const clearAccountIdentityStorage = () => {
 function OrderItemsSummaryLocal({ items = [], helpers }) {
   const { sfText, money, imageFor, fallbackProductImage } = helpers;
   if (!items.length) {
-    return <p className="sf-muted-empty mt-4 rounded-2xl bg-stone-50 p-4 font-bold text-stone-500">{sfText("storefront.orders.itemsLoading", "ط³ظٹط¸ظ‡ط± ظ…ظ„ط®طµ ط§ظ„ظ…ظ†طھط¬ط§طھ ظ‡ظ†ط§ ط¨ط¹ط¯ طھط­ظ…ظٹظ„ طھظپط§طµظٹظ„ ط§ظ„ط·ظ„ط¨.")}</p>;
+    return <p className="sf-muted-empty mt-4 rounded-2xl bg-stone-50 p-4 font-bold text-stone-500">{sfText("storefront.orders.itemsLoading", "ط·آ³ط¸ظ¹ط·آ¸ط¸â€،ط·آ± ط¸â€¦ط¸â€‍ط·آ®ط·آµ ط·آ§ط¸â€‍ط¸â€¦ط¸â€ ط·ع¾ط·آ¬ط·آ§ط·ع¾ ط¸â€،ط¸â€ ط·آ§ ط·آ¨ط·آ¹ط·آ¯ ط·ع¾ط·آ­ط¸â€¦ط¸ظ¹ط¸â€‍ ط·ع¾ط¸ظ¾ط·آ§ط·آµط¸ظ¹ط¸â€‍ ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨.")}</p>;
   }
   return (
     <div className="sf-order-items mt-5 space-y-3">
-      <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "ظ…ظ„ط®طµ ط§ظ„ظ…ظ†طھط¬ط§طھ")}</h3>
+      <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "ط¸â€¦ط¸â€‍ط·آ®ط·آµ ط·آ§ط¸â€‍ط¸â€¦ط¸â€ ط·ع¾ط·آ¬ط·آ§ط·ع¾")}</h3>
       {items.map((item) => (
         <div key={item.id || `${item.product_id}-${item.variant_id}`} className="sf-order-item-row flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
           <img src={imageFor(item.product_image || item.image_url)} onError={fallbackProductImage} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
           <div className="min-w-0 flex-1">
             <div className="sf-order-item-name truncate font-black">{item.product_name || item.name}</div>
-            <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "ط§ظ„ظ„ظˆظ†")} / {item.size || sfText("storefront.products.size", "ط§ظ„ظ…ظ‚ط§ط³")} ط£â€” {item.quantity}</div>
+            <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "ط·آ§ط¸â€‍ط¸â€‍ط¸ث†ط¸â€ ")} / {item.size || sfText("storefront.products.size", "ط·آ§ط¸â€‍ط¸â€¦ط¸â€ڑط·آ§ط·آ³")} ط·آ£أ¢â‚¬â€‌ {item.quantity}</div>
           </div>
           <div className="sf-order-item-price shrink-0 font-black">{money(item.total_amount || Number(item.price || item.sale_price || 0) * Number(item.quantity || 1))}</div>
         </div>
@@ -194,9 +194,9 @@ const AccountOrderRow = memo(function AccountOrderRow({ order, phone, onOpen, on
         <div className="sf-primary-text font-black">{money(order.total_amount || order.total || order.total_price)}</div>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <button onClick={open} className="sf-soft-pill min-h-11 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-black">{sfText("storefront.orders.orderDetails", "طھظپط§طµظٹظ„ ط§ظ„ط·ظ„ط¨")}</button>
-        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}</Link>
-        <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-4 py-2 text-sm font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "ط¥ط¹ط§ط¯ط© ط§ظ„ط·ظ„ط¨")}</button>
+        <button onClick={open} className="sf-soft-pill min-h-11 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-black">{sfText("storefront.orders.orderDetails", "ط·ع¾ط¸ظ¾ط·آ§ط·آµط¸ظ¹ط¸â€‍ ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}</button>
+        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "ط·ع¾ط·ع¾ط·آ¨ط·آ¹ ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}</Link>
+        <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-4 py-2 text-sm font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "ط·آ¥ط·آ¹ط·آ§ط·آ¯ط·آ© ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}</button>
       </div>
     </div>
   );
@@ -209,25 +209,25 @@ function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
   const publicNumber = displayOrderNumber(order);
   if (data.loading) return <div className="sf-storefront-card h-40 animate-pulse rounded-3xl bg-white" />;
   return (
-    <Panel title={sfText("storefront.orders.orderDetails", "طھظپط§طµظٹظ„ ط§ظ„ط·ظ„ط¨")}>
+    <Panel title={sfText("storefront.orders.orderDetails", "ط·ع¾ط¸ظ¾ط·آ§ط·آµط¸ظ¹ط¸â€‍ ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}>
       <OrderNumberBadge value={publicNumber} className="mb-1 border-[#d4af37]/20 bg-[#d4af37]/10 text-[#d4af37]" />
       <div className="grid gap-3 md:grid-cols-3">
-        <InfoBox label={sfText("storefront.orders.orderStatus", "ط­ط§ظ„ط© ط§ظ„ط·ظ„ط¨")} value={statusCopy(order.status)} />
+        <InfoBox label={sfText("storefront.orders.orderStatus", "ط·آ­ط·آ§ط¸â€‍ط·آ© ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")} value={statusCopy(order.status)} />
         <InfoBox label={sfText("storefront.checkout.paymentMethod", "Payment")} value={`${paymentCopy(order.payment_method)} - ${statusCopy(order.payment_status)}`} />
         <InfoBox label={sfText("storefront.checkout.shipping", "Shipping")} value={`${shippingProviderCopy(order.shipping_provider)} - ${statusCopy(order.shipping_status)}`} />
       </div>
       <OrderTimeline timeline={data.timeline || []} />
       <OrderItemsSummaryLocal items={data.items || []} helpers={helpers} />
       <div className="grid gap-2 sm:grid-cols-3">
-        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}</Link>
-        <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-5 py-3 font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "ط¥ط¹ط§ط¯ط© ط§ظ„ط·ظ„ط¨")}</button>
-        <a href={supportHref(publicNumber)} className="min-h-12 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-center font-black text-emerald-700">{sfText("storefront.support.whatsapp", "ظˆط§طھط³ط§ط¨")}</a>
+        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "ط·ع¾ط·ع¾ط·آ¨ط·آ¹ ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}</Link>
+        <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-5 py-3 font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "ط·آ¥ط·آ¹ط·آ§ط·آ¯ط·آ© ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}</button>
+        <a href={supportHref(publicNumber)} className="min-h-12 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-center font-black text-emerald-700">{sfText("storefront.support.whatsapp", "ط¸ث†ط·آ§ط·ع¾ط·آ³ط·آ§ط·آ¨")}</a>
       </div>
     </Panel>
   );
 }
 
-export function StorefrontAccountPage({
+function StorefrontAccountPageContent({
   profile = {},
   setProfile = () => {},
   wishlist = [],
@@ -266,6 +266,7 @@ export function StorefrontAccountPage({
   const [savingPreferences, setSavingPreferences] = useState(false);
   const [otpRequestedAt, setOtpRequestedAt] = useState(0);
   const [resendCountdown, setResendCountdown] = useState(0);
+  const [otpPanelOpen, setOtpPanelOpen] = useState(false);
   const [preferredSizes, setPreferredSizes] = useState(() => defaultPreferredSizes());
   const accountRefreshIntervalMs = selectedOrder ? 10 * 1000 : 30 * 1000;
   const hasCustomerToken = Boolean(customerAuth.token);
@@ -283,6 +284,12 @@ export function StorefrontAccountPage({
       setResetToken(resetTokenFromQuery);
     }
   }, [initialAuthMode, resetTokenFromQuery]);
+
+  useEffect(() => {
+    if (hasCustomerToken) {
+      setOtpPanelOpen(false);
+    }
+  }, [hasCustomerToken]);
 
   useEffect(() => {
     if (customerAuth.phone || !savedIdentity.primary_phone) return;
@@ -343,7 +350,7 @@ export function StorefrontAccountPage({
 
   const invalidateCustomerIdentity = useCallback(() => {
     clearCustomerIdentity();
-    toast.error("انتهت صلاحية الدخول. سجّل دخولك مرة أخرى.");
+    toast.error("ط§ظ†طھظ‡طھ طµظ„ط§ط­ظٹط© ط§ظ„ط¯ط®ظˆظ„. ط³ط¬ظ‘ظ„ ط¯ط®ظˆظ„ظƒ ظ…ط±ط© ط£ط®ط±ظ‰.");
   }, [clearCustomerIdentity]);
 
   const load = useCallback(async ({ silent = false } = {}) => {
@@ -384,13 +391,13 @@ export function StorefrontAccountPage({
       );
       setCustomerAuth({ token, phone: requestPhone || storedPhone || "" });
       return data;
-    } catch (error) {
+    } catch {
       const status = Number(error?.status || error?.response?.status || 0);
       if (status === 401 || status === 403) {
         invalidateCustomerIdentity();
       }
       if (!silent) {
-        toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "لا يمكن فتح الحساب الآن."));
+        toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "ظ„ط§ ظٹظ…ظƒظ† ظپطھط­ ط§ظ„ط­ط³ط§ط¨ ط§ظ„ط¢ظ†."));
       }
       return null;
     } finally {
@@ -445,7 +452,7 @@ export function StorefrontAccountPage({
   const requestOtp = useCallback(async () => {
     const normalizedPhone = normalizeStorefrontCustomerPhone(phone);
     if (normalizedPhone.length < 10) {
-      toast.error("أدخل رقم موبايل صحيح");
+      toast.error("ط£ط¯ط®ظ„ ط±ظ‚ظ… ظ…ظˆط¨ط§ظٹظ„ طµط­ظٹط­");
       return;
     }
     setRequestingOtp(true);
@@ -456,9 +463,9 @@ export function StorefrontAccountPage({
       });
       setOtpRequestedAt(Date.now());
       setOtpCode("");
-      toast.success("أرسلنا كود الدخول على واتساب");
+      toast.success("ط£ط±ط³ظ„ظ†ط§ ظƒظˆط¯ ط§ظ„ط¯ط®ظˆظ„ ط¹ظ„ظ‰ ظˆط§طھط³ط§ط¨");
     } catch (error) {
-      toast.error(error.message || "تعذر إرسال كود الدخول");
+      toast.error(error.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ظƒظˆط¯ ط§ظ„ط¯ط®ظˆظ„");
     } finally {
       setRequestingOtp(false);
     }
@@ -468,11 +475,11 @@ export function StorefrontAccountPage({
     const normalizedPhone = normalizeStorefrontCustomerPhone(phone);
     const otp = String(otpCode || "").replace(/\D/g, "").slice(0, 6);
     if (normalizedPhone.length < 10) {
-      toast.error("أدخل رقم موبايل صحيح");
+      toast.error("ط£ط¯ط®ظ„ ط±ظ‚ظ… ظ…ظˆط¨ط§ظٹظ„ طµط­ظٹط­");
       return;
     }
     if (otp.length !== 6) {
-      toast.error("أدخل كود OTP من 6 أرقام");
+      toast.error("ط£ط¯ط®ظ„ ظƒظˆط¯ OTP ظ…ظ† 6 ط£ط±ظ‚ط§ظ…");
       return;
     }
     setVerifyingOtp(true);
@@ -491,10 +498,10 @@ export function StorefrontAccountPage({
       setResendCountdown(0);
       setOtpCode("");
       setAccount(null);
-      toast.success("تم تسجيل الدخول بنجاح");
+      toast.success("طھظ… طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ظ†ط¬ط§ط­");
       await load({ silent: true });
     } catch (error) {
-      toast.error("الكود غير صحيح أو انتهت صلاحيته");
+      toast.error("ط§ظ„ظƒظˆط¯ ط؛ظٹط± طµط­ظٹط­ ط£ظˆ ط§ظ†طھظ‡طھ طµظ„ط§ط­ظٹطھظ‡");
     } finally {
       setVerifyingOtp(false);
     }
@@ -530,15 +537,15 @@ export function StorefrontAccountPage({
     const password = String(authPassword || "");
     const confirm = String(authConfirmPassword || "");
     if (!name || !email || !normalizedPhone || !password) {
-      toast.error("أدخل الاسم والبريد والهاتف وكلمة المرور");
+      toast.error("ط£ط¯ط®ظ„ ط§ظ„ط§ط³ظ… ظˆط§ظ„ط¨ط±ظٹط¯ ظˆط§ظ„ظ‡ط§طھظپ ظˆظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±");
       return;
     }
     if (password.length < 8) {
-      toast.error("كلمة المرور يجب ألا تقل عن 8 أحرف");
+      toast.error("ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ظٹط¬ط¨ ط£ظ„ط§ طھظ‚ظ„ ط¹ظ† 8 ط£ط­ط±ظپ");
       return;
     }
     if (password !== confirm) {
-      toast.error("كلمتا المرور غير متطابقتين");
+      toast.error("ظƒظ„ظ…طھط§ ط§ظ„ظ…ط±ظˆط± ط؛ظٹط± ظ…طھط·ط§ط¨ظ‚طھظٹظ†");
       return;
     }
     setAuthSubmitting(true);
@@ -561,10 +568,10 @@ export function StorefrontAccountPage({
       setResetPasswordConfirm("");
       setSearchParams({});
       setAccount(null);
-      toast.success("تم إنشاء الحساب وتسجيل الدخول بنجاح");
+      toast.success("طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ط­ط³ط§ط¨ ظˆطھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ظ†ط¬ط§ط­");
       await load({ silent: true });
     } catch (error) {
-      toast.error(error?.message || "تعذر إنشاء الحساب حاليا");
+      toast.error(error?.message || "طھط¹ط°ط± ط¥ظ†ط´ط§ط، ط§ظ„ط­ط³ط§ط¨ ط­ط§ظ„ظٹط§");
     } finally {
       setAuthSubmitting(false);
     }
@@ -574,7 +581,7 @@ export function StorefrontAccountPage({
     const email = String(authEmail || "").trim();
     const password = String(authPassword || "");
     if (!email || !password) {
-      toast.error("أدخل البريد الإلكتروني وكلمة المرور");
+      toast.error("ط£ط¯ط®ظ„ ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ظˆظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±");
       return;
     }
     setAuthSubmitting(true);
@@ -590,10 +597,10 @@ export function StorefrontAccountPage({
       setAuthMode("login");
       setAccount(null);
       setAuthPassword("");
-      toast.success("تم تسجيل الدخول بنجاح");
+      toast.success("طھظ… طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ظ†ط¬ط§ط­");
       await load({ silent: true });
     } catch (error) {
-      toast.error(error?.message || "البريد أو كلمة المرور غير صحيحة");
+      toast.error(error?.message || "ط§ظ„ط¨ط±ظٹط¯ ط£ظˆ ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ط؛ظٹط± طµط­ظٹط­ط©");
     } finally {
       setAuthSubmitting(false);
     }
@@ -602,7 +609,7 @@ export function StorefrontAccountPage({
   const requestPasswordReset = useCallback(async () => {
     const email = String(authEmail || "").trim();
     if (!email) {
-      toast.error("أدخل البريد الإلكتروني");
+      toast.error("ط£ط¯ط®ظ„ ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ");
       return;
     }
     setAuthSubmitting(true);
@@ -612,9 +619,9 @@ export function StorefrontAccountPage({
         body: { email },
       });
       setAuthMode("forgot");
-      toast.success("إذا كان الحساب موجودًا، ستصلك رسالة إعادة التعيين");
+      toast.success("ط¥ط°ط§ ظƒط§ظ† ط§ظ„ط­ط³ط§ط¨ ظ…ظˆط¬ظˆط¯ظ‹ط§طŒ ط³طھطµظ„ظƒ ط±ط³ط§ظ„ط© ط¥ط¹ط§ط¯ط© ط§ظ„طھط¹ظٹظٹظ†");
     } catch (error) {
-      toast.error(error?.message || "تعذر إرسال رسالة إعادة التعيين");
+      toast.error(error?.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط±ط³ط§ظ„ط© ط¥ط¹ط§ط¯ط© ط§ظ„طھط¹ظٹظٹظ†");
     } finally {
       setAuthSubmitting(false);
     }
@@ -625,15 +632,15 @@ export function StorefrontAccountPage({
     const password = String(resetPassword || "");
     const confirm = String(resetPasswordConfirm || "");
     if (!token) {
-      toast.error("رابط إعادة التعيين غير صالح");
+      toast.error("ط±ط§ط¨ط· ط¥ط¹ط§ط¯ط© ط§ظ„طھط¹ظٹظٹظ† ط؛ظٹط± طµط§ظ„ط­");
       return;
     }
     if (!password || password.length < 8) {
-      toast.error("كلمة المرور يجب ألا تقل عن 8 أحرف");
+      toast.error("ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ظٹط¬ط¨ ط£ظ„ط§ طھظ‚ظ„ ط¹ظ† 8 ط£ط­ط±ظپ");
       return;
     }
     if (password !== confirm) {
-      toast.error("كلمتا المرور غير متطابقتين");
+      toast.error("ظƒظ„ظ…طھط§ ط§ظ„ظ…ط±ظˆط± ط؛ظٹط± ظ…طھط·ط§ط¨ظ‚طھظٹظ†");
       return;
     }
     setAuthSubmitting(true);
@@ -642,7 +649,7 @@ export function StorefrontAccountPage({
         method: "POST",
         body: { token, password },
       });
-      toast.success("تم تحديث كلمة المرور. يمكنك تسجيل الدخول الآن");
+      toast.success("طھظ… طھط­ط¯ظٹط« ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±. ظٹظ…ظƒظ†ظƒ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط§ظ„ط¢ظ†");
       setAuthMode("login");
       setResetPassword("");
       setResetPasswordConfirm("");
@@ -650,7 +657,7 @@ export function StorefrontAccountPage({
       setSearchParams({});
       navigate("/account", { replace: true });
     } catch (error) {
-      toast.error(error?.message || "تعذر تحديث كلمة المرور");
+      toast.error(error?.message || "طھط¹ط°ط± طھط­ط¯ظٹط« ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±");
     } finally {
       setAuthSubmitting(false);
     }
@@ -665,7 +672,7 @@ export function StorefrontAccountPage({
 
   const savePreferredSizes = useCallback(async () => {
     if (!hasCustomerToken) {
-      toast.error("سجّل الدخول أولًا حتى نحفظ مقاساتك");
+      toast.error("ط³ط¬ظ‘ظ„ ط§ظ„ط¯ط®ظˆظ„ ط£ظˆظ„ظ‹ط§ ط­طھظ‰ ظ†ط­ظپط¸ ظ…ظ‚ط§ط³ط§طھظƒ");
       return;
     }
     setSavingPreferences(true);
@@ -675,13 +682,13 @@ export function StorefrontAccountPage({
         body: { preferred_sizes: preferredSizes },
       });
       setPreferredSizes(normalizePreferredSizes(response?.preferences || preferredSizes));
-      toast.success("تم حفظ مقاساتك");
+      toast.success("طھظ… ط­ظپط¸ ظ…ظ‚ط§ط³ط§طھظƒ");
     } catch (error) {
       if (Number(error?.status || error?.response?.status || 0) === 401) {
-        toast.error("سجّل الدخول مرة أخرى");
+        toast.error("ط³ط¬ظ‘ظ„ ط§ظ„ط¯ط®ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰");
         return;
       }
-      toast.error("تعذر حفظ المقاسات حاليًا");
+      toast.error("طھط¹ط°ط± ط­ظپط¸ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط­ط§ظ„ظٹظ‹ط§");
     } finally {
       setSavingPreferences(false);
     }
@@ -760,245 +767,163 @@ export function StorefrontAccountPage({
   const authSummary = account?.customer?.name || safeProfile.full_name || sfText("storefront.account.enterPhoneHint", "أدخل رقم هاتفك لعرض الحساب");
   const isRestoringAccount = hasCustomerToken && !account;
   const showOtpLogin = !hasCustomerToken && !isResetMode;
+  const showResetView = authMode === "reset";
+  const showForgotView = authMode === "forgot";
+  const activePrimaryTab = authMode === "register" ? "register" : "login";
 
   return (
-    <section className="mx-auto max-w-7xl px-4 py-5 md:py-8">
-      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+    <section className="mx-auto max-w-6xl px-4 py-5 pb-28 md:py-8 md:pb-12">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="text-sm font-black text-[#d4af37]">
-            {isResetMode ? "استعادة الوصول للحساب" : sfText("storefront.account.eyebrow", "حساب سريع برقم الهاتف")}
-          </p>
-          <h1 className="text-3xl font-black md:text-5xl">
-            {isResetMode ? "إعادة تعيين كلمة المرور" : sfText("storefront.account.title", "حسابي")}
+          <p className="text-sm font-black uppercase tracking-[0.32em] text-[#d4af37]">M1 Store</p>
+          <h1 className="mt-2 text-3xl font-black text-stone-950 dark:text-white md:text-4xl">
+            {isResetMode ? "إعادة تعيين كلمة المرور" : "أهلاً بك"}
           </h1>
+          <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-stone-600 dark:text-white/70">
+            {isResetMode
+              ? "أدخل كلمة المرور الجديدة لإكمال استعادة حسابك بأمان."
+              : "سجل دخولك لمتابعة طلباتك وعناوينك ونقاطك، أو أنشئ حسابًا جديدًا خلال ثوانٍ."}
+          </p>
         </div>
-        <Link to="/track" className="sf-soft-pill inline-flex min-h-12 items-center justify-center rounded-full border border-stone-300 bg-white px-5 py-3 font-black">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
+        <Link to="/track" className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#d4af37]/30 bg-white px-5 py-3 font-black text-stone-900 shadow-sm transition hover:border-[#d4af37] hover:text-[#b68c16] dark:border-[#d4af37]/20 dark:bg-white/5 dark:text-white">
+          {sfText("storefront.orders.trackOrder", "تتبع الطلب")}
+        </Link>
       </div>
-      <div className="mt-5 grid gap-5 lg:grid-cols-[340px_1fr]">
-        <div className="sf-storefront-card h-max rounded-[1.7rem] border border-stone-200 bg-white p-5 shadow-[0_18px_50px_rgba(39,20,75,0.07)] lg:sticky lg:top-24">
-          <div className="flex items-start gap-3 rounded-2xl bg-stone-50 p-4">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-stone-950 text-white">
-              <ShieldCheck className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <div className="text-sm font-black text-stone-900">تسجيل الدخول بالإيميل أو واتساب</div>
-              <p className="mt-1 text-sm font-bold leading-6 text-stone-500">البريد الإلكتروني هو الأساس الآن، وواتساب OTP متاح كخيار احتياطي.</p>
-            </div>
-          </div>
-          <div className="mt-4 space-y-3">
-            {showEmailAuth ? (
-              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode("login")}
-                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${authMode === "login" ? "bg-stone-950 text-white" : "border border-stone-200 bg-white text-stone-600"}`}
-                  >
-                    تسجيل الدخول
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode("register")}
-                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${authMode === "register" ? "bg-stone-950 text-white" : "border border-stone-200 bg-white text-stone-600"}`}
-                  >
-                    إنشاء حساب
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setAuthMode("forgot")}
-                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${authMode === "forgot" ? "bg-stone-950 text-white" : "border border-stone-200 bg-white text-stone-600"}`}
-                  >
-                    نسيت كلمة المرور
-                  </button>
-                  {resetTokenFromQuery ? (
-                    <button
-                      type="button"
-                      onClick={() => setAuthMode("reset")}
-                      className={`rounded-full px-3 py-1.5 text-xs font-black transition ${authMode === "reset" ? "bg-stone-950 text-white" : "border border-stone-200 bg-white text-stone-600"}`}
-                    >
-                      إعادة التعيين
-                    </button>
-                  ) : null}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[420px_1fr]">
+        <div className="h-max rounded-[2rem] border border-[#d4af37]/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.98),rgba(248,245,237,0.96))] p-5 shadow-[0_24px_70px_rgba(18,18,18,0.08)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(17,17,17,0.98),rgba(24,24,24,0.94))] lg:sticky lg:top-24">
+          <div className="rounded-[1.6rem] border border-black/5 bg-white/80 p-5 dark:border-white/8 dark:bg-white/[0.03]">
+            <div className="flex items-start gap-3">
+              <span className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-stone-950 text-[#d4af37] dark:bg-[#d4af37] dark:text-stone-950">
+                <ShieldCheck className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <div className="text-lg font-black text-stone-950 dark:text-white">
+                  {showResetView ? "استعادة الوصول" : "حسابك في M1 Store"}
                 </div>
-                <div className="mt-4 space-y-3">
+                <p className="mt-1 text-sm font-bold leading-6 text-stone-500 dark:text-white/65">
+                  {showResetView
+                    ? "أدخل كلمة المرور الجديدة ثم عد لتسجيل الدخول."
+                    : "واجهة دخول مرتبة وآمنة للوصول إلى طلباتك، عناوينك، والمفضلة."}
+                </p>
+              </div>
+            </div>
+            {showEmailAuth ? (
+              <div className="mt-6 rounded-[1.5rem] border border-stone-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,15,15,0.04)] dark:border-white/8 dark:bg-black/20">
+                {!showForgotView && !showResetView ? (
+                  <div className="grid grid-cols-2 gap-2 rounded-full border border-stone-200 bg-stone-100/80 p-1 dark:border-white/10 dark:bg-white/[0.04]">
+                    <button type="button" onClick={() => setAuthMode("login")} className={`min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "login" ? "bg-stone-950 text-white shadow-sm dark:bg-[#d4af37] dark:text-stone-950" : "text-stone-600 dark:text-white/70"}`}>تسجيل الدخول</button>
+                    <button type="button" onClick={() => setAuthMode("register")} className={`min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "register" ? "bg-stone-950 text-white shadow-sm dark:bg-[#d4af37] dark:text-stone-950" : "text-stone-600 dark:text-white/70"}`}>إنشاء حساب</button>
+                  </div>
+                ) : null}
+                <div className="mt-5 space-y-4">
                   {authMode === "login" ? (
                     <>
                       <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" />
-                      <Field label="كلمة المرور" value={authPassword} onChange={setAuthPassword} autoComplete="current-password" type="password" />
-                      <button
-                        onClick={submitEmailAuthLogin}
-                        disabled={authSubmitting}
-                        className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
-                      >
-                        {authSubmitting ? (
-                          <span className="inline-flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            جاري الدخول...
-                          </span>
-                        ) : (
-                          "دخول بالإيميل"
-                        )}
+                      <div className="space-y-2">
+                        <Field label="كلمة المرور" value={authPassword} onChange={setAuthPassword} autoComplete="current-password" type="password" />
+                        <div className="flex justify-end">
+                          <button type="button" onClick={() => setAuthMode("forgot")} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16] dark:text-white/65">نسيت كلمة المرور؟</button>
+                        </div>
+                      </div>
+                      <button onClick={submitEmailAuthLogin} disabled={authSubmitting} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
+                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري تسجيل الدخول...</span> : "تسجيل الدخول"}
                       </button>
-                      <button
-                        type="button"
-                        onClick={() => setAuthMode("forgot")}
-                        className="w-full text-sm font-black text-stone-600 underline-offset-4 hover:underline"
-                      >
-                        نسيت كلمة المرور؟
-                      </button>
+                      {showOtpLogin ? (
+                        <>
+                          <div className="flex items-center gap-3 py-1">
+                            <div className="h-px flex-1 bg-stone-200 dark:bg-white/10" />
+                            <span className="text-xs font-black uppercase tracking-[0.28em] text-stone-400">أو</span>
+                            <div className="h-px flex-1 bg-stone-200 dark:bg-white/10" />
+                          </div>
+                          {!otpPanelOpen ? (
+                            <button type="button" onClick={() => setOtpPanelOpen(true)} className="min-h-12 w-full rounded-full border border-[#d4af37]/35 bg-[#d4af37]/8 px-5 py-3 font-black text-[#a17805] transition hover:border-[#d4af37] hover:bg-[#d4af37]/12 dark:border-[#d4af37]/25 dark:bg-[#d4af37]/10 dark:text-[#f3d77a]">الدخول برقم الموبايل / واتساب</button>
+                          ) : (
+                            <div className="rounded-[1.25rem] border border-[#d4af37]/20 bg-[#fbf7ea] p-4 dark:border-[#d4af37]/15 dark:bg-[#d4af37]/[0.06]">
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-sm font-black text-stone-950 dark:text-white">الدخول برقم الموبايل</div>
+                                  <p className="mt-1 text-xs font-bold leading-6 text-stone-500 dark:text-white/60">سنرسل كود واتساب لمرة واحدة على رقمك ثم نكمل تسجيل الدخول.</p>
+                                </div>
+                                <button type="button" onClick={() => { setOtpPanelOpen(false); setOtpRequestedAt(0); setOtpCode(""); }} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4 dark:text-white/60">إغلاق</button>
+                              </div>
+                              <div className="mt-4 space-y-3">
+                                <Field label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" />
+                                {!otpRequestedAt ? (
+                                  <button onClick={requestOtp} disabled={requestingOtp || !normalizedLoginPhone} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
+                                    {requestingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري إرسال الكود...</span> : "إرسال كود واتساب"}
+                                  </button>
+                                ) : (
+                                  <>
+                                    <Field label="كود OTP" value={otpCode} onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))} inputMode="numeric" />
+                                    <button onClick={verifyOtp} disabled={verifyingOtp || String(otpCode || "").replace(/\D/g, "").length !== 6} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
+                                      {verifyingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري التحقق...</span> : "تأكيد الدخول"}
+                                    </button>
+                                    <button onClick={requestOtp} disabled={requestingOtp || resendCountdown > 0} className="min-h-11 w-full rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/80">
+                                      <span className="inline-flex items-center justify-center gap-2"><RefreshCcw className="h-4 w-4" />{resendCountdown > 0 ? `إعادة الإرسال بعد ${resendCountdown} ثانية` : "إعادة إرسال الكود"}</span>
+                                    </button>
+                                    <p className="text-xs font-bold leading-6 text-stone-500 dark:text-white/60">أرسلنا كود الدخول عبر واتساب. أدخل الكود المكوّن من 6 أرقام خلال 5 دقائق.</p>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </>
+                      ) : null}
                     </>
                   ) : null}
-
                   {authMode === "register" ? (
                     <>
                       <Field label="الاسم" value={authFullName} onChange={setAuthFullName} autoComplete="name" />
                       <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" />
-                      <Field label={sfText("storefront.form.mobileNumber", "رقم الهاتف")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" />
+                      <Field label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" />
                       <Field label="كلمة المرور" value={authPassword} onChange={setAuthPassword} autoComplete="new-password" type="password" />
                       <Field label="تأكيد كلمة المرور" value={authConfirmPassword} onChange={setAuthConfirmPassword} autoComplete="new-password" type="password" />
-                      <button
-                        onClick={submitEmailAuthRegister}
-                        disabled={authSubmitting}
-                        className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
-                      >
-                        {authSubmitting ? (
-                          <span className="inline-flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            جاري إنشاء الحساب...
-                          </span>
-                        ) : (
-                          "إنشاء حساب"
-                        )}
+                      <button onClick={submitEmailAuthRegister} disabled={authSubmitting} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
+                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري إنشاء الحساب...</span> : "إنشاء حساب"}
                       </button>
                     </>
                   ) : null}
-
                   {authMode === "forgot" ? (
                     <>
+                      <div>
+                        <div className="text-base font-black text-stone-950 dark:text-white">استعادة كلمة المرور</div>
+                        <p className="mt-1 text-sm font-bold leading-6 text-stone-500 dark:text-white/65">أدخل بريدك الإلكتروني وسنرسل لك رابط الاستعادة حسب نفس المنطق الحالي.</p>
+                      </div>
                       <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" />
-                      <button
-                        onClick={requestPasswordReset}
-                        disabled={authSubmitting}
-                        className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
-                      >
-                        {authSubmitting ? (
-                          <span className="inline-flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            جاري الإرسال...
-                          </span>
-                        ) : (
-                          "إرسال رابط إعادة التعيين"
-                        )}
+                      <button onClick={requestPasswordReset} disabled={authSubmitting} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
+                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري الإرسال...</span> : "إرسال رابط الاستعادة"}
                       </button>
-                      <p className="text-xs font-bold leading-6 text-stone-500">سيرسل النظام رابطًا آمنًا لإعادة التعيين إلى بريدك الإلكتروني إذا كان الحساب موجودًا.</p>
+                      <button type="button" onClick={() => setAuthMode("login")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16] dark:text-white/65">رجوع إلى تسجيل الدخول</button>
                     </>
                   ) : null}
-
                   {authMode === "reset" ? (
                     <>
-                      {!hasResetToken ? (
-                        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">
-                          رابط إعادة التعيين غير مكتمل. تأكد من فتح الرابط الكامل من البريد الإلكتروني أو اطلب رابطًا جديدًا.
-                        </div>
-                      ) : null}
+                      {!hasResetToken ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">رابط إعادة التعيين غير مكتمل. تأكد من فتح الرابط الكامل من البريد الإلكتروني أو اطلب رابطًا جديدًا.</div> : null}
                       <Field label="كلمة المرور الجديدة" value={resetPassword} onChange={setResetPassword} autoComplete="new-password" type="password" />
                       <Field label="تأكيد كلمة المرور الجديدة" value={resetPasswordConfirm} onChange={setResetPasswordConfirm} autoComplete="new-password" type="password" />
-                      <button
-                        onClick={submitPasswordReset}
-                        disabled={authSubmitting || !hasResetToken}
-                        className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
-                      >
-                        {authSubmitting ? (
-                          <span className="inline-flex items-center justify-center gap-2">
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                            جاري التحديث...
-                          </span>
-                        ) : (
-                          "تحديث كلمة المرور"
-                        )}
+                      <button onClick={submitPasswordReset} disabled={authSubmitting || !hasResetToken} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
+                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري التحديث...</span> : "تحديث كلمة المرور"}
                       </button>
-                      <p className="text-xs font-bold leading-6 text-stone-500">استخدم الرابط الذي وصلك على البريد لتعيين كلمة المرور الجديدة.</p>
+                      {!hasResetToken ? <button type="button" onClick={() => setAuthMode("forgot")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16] dark:text-white/65">طلب رابط جديد</button> : null}
                     </>
                   ) : null}
                 </div>
               </div>
             ) : null}
-            {showOtpLogin ? (
-              <>
-                <Field label={sfText("storefront.form.mobileNumber", "رقم الهاتف")} value={phone} onChange={setPhone} inputMode="tel" />
-                {!otpRequestedAt ? (
-                  <button
-                    onClick={requestOtp}
-                    disabled={requestingOtp || !normalizedLoginPhone}
-                    className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
-                  >
-                    {requestingOtp ? (
-                      <span className="inline-flex items-center justify-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        جارٍ الإرسال...
-                      </span>
-                    ) : (
-                      "إرسال كود واتساب"
-                    )}
-                  </button>
-                ) : (
-                  <>
-                    <Field
-                      label="كود OTP"
-                      value={otpCode}
-                      onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))}
-                      inputMode="numeric"
-                    />
-                    <button
-                      onClick={verifyOtp}
-                      disabled={verifyingOtp || String(otpCode || "").replace(/\D/g, "").length !== 6}
-                      className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
-                    >
-                      {verifyingOtp ? (
-                        <span className="inline-flex items-center justify-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                          جارٍ التحقق...
-                        </span>
-                      ) : (
-                        "تأكيد الدخول"
-                      )}
-                    </button>
-                    <button
-                      onClick={requestOtp}
-                      disabled={requestingOtp || resendCountdown > 0}
-                      className="min-h-11 w-full rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-600 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <span className="inline-flex items-center justify-center gap-2">
-                        <RefreshCcw className="h-4 w-4" />
-                        {resendCountdown > 0 ? `إعادة الإرسال بعد ${resendCountdown} ثانية` : "إعادة إرسال الكود"}
-                      </span>
-                    </button>
-                    <p className="text-xs font-bold leading-6 text-stone-500">أرسلنا كود الدخول على واتساب. أدخل الكود المكوّن من 6 أرقام خلال 5 دقائق.</p>
-                  </>
-                )}
-              </>
-            ) : isRestoringAccount ? (
-              <div className="rounded-2xl border border-stone-200 bg-stone-50 px-4 py-5">
+            {isRestoringAccount ? (
+              <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-5 dark:border-white/10 dark:bg-white/[0.03]">
                 <div className="flex items-center gap-3">
                   <Loader2 className="h-5 w-5 animate-spin text-stone-500" />
                   <div>
-                    <div className="text-sm font-black text-stone-900">جارٍ استعادة حسابك</div>
-                    <p className="mt-1 text-sm font-bold leading-6 text-stone-500">نستخدم Remember Me لعرض بياناتك مباشرة.</p>
+                    <div className="text-sm font-black text-stone-900 dark:text-white">جاري استعادة حسابك</div>
+                    <p className="mt-1 text-sm font-bold leading-6 text-stone-500 dark:text-white/65">نعرض بياناتك المحفوظة مباشرة عند توفر الجلسة.</p>
                   </div>
                 </div>
               </div>
             ) : null}
-            <button
-              onClick={clearCustomerIdentity}
-              type="button"
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-600 transition hover:bg-stone-50"
-            >
-              <LogOut className="h-4 w-4" />
-              تسجيل الخروج
-            </button>
-          </div>
-          <div className="mt-4">
-            <InfoBox label={sfText("storefront.account.myData", "بياناتي")} value={hasCustomerToken ? authSummary : "أدخل بريدك الإلكتروني أو فعّل OTP لعرض الحساب"} />
+            <div className="mt-4">
+              <InfoBox label={sfText("storefront.account.myData", "بياناتي")} value={hasCustomerToken ? authSummary : "سجل دخولك لعرض بيانات الحساب المحفوظة"} />
+            </div>
             {hasCustomerToken ? <LoyaltyWidget loyalty={account?.loyalty} loading={loading} helpers={helpers} /> : null}
             {hasCustomerToken ? (
               <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
@@ -1011,16 +936,17 @@ export function StorefrontAccountPage({
                   <Field label="حريمي" value={preferredSizes.women} onChange={(value) => updatePreferredSize("women", value)} placeholder="39" inputMode="text" />
                   <Field label="أطفال" value={preferredSizes.kids} onChange={(value) => updatePreferredSize("kids", value)} placeholder="31" inputMode="text" />
                   <Field label="كروكس" value={preferredSizes.crocs} onChange={(value) => updatePreferredSize("crocs", value)} placeholder="41/42" inputMode="text" />
-                  <button
-                    type="button"
-                    onClick={savePreferredSizes}
-                    disabled={savingPreferences}
-                    className="min-h-11 rounded-full bg-stone-950 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-stone-300"
-                  >
-                    {savingPreferences ? "جارٍ الحفظ..." : "حفظ المقاسات"}
+                  <button type="button" onClick={savePreferredSizes} disabled={savingPreferences} className="min-h-11 rounded-full bg-stone-950 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-stone-300">
+                    {savingPreferences ? "جاري الحفظ..." : "حفظ المقاسات"}
                   </button>
                 </div>
               </div>
+            ) : null}
+            {hasCustomerToken ? (
+              <button onClick={clearCustomerIdentity} type="button" className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-700 transition hover:bg-stone-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/80">
+                <LogOut className="h-4 w-4" />
+                تسجيل الخروج
+              </button>
             ) : null}
           </div>
         </div>
@@ -1039,25 +965,72 @@ export function StorefrontAccountPage({
                 ) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.noOrders", "No orders yet")}</p>}
               </Panel>
               {selectedOrder ? <CustomerOrderDetails data={selectedOrder} phone={customerAuth.phone || phone} onReorder={reorder} helpers={helpers} components={components} /> : null}
-              <Panel title={sfText("storefront.account.myAddresses", "عناويني")}>
-                {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl bg-stone-50 p-3 font-bold text-stone-700">{address}</div>) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.addressesEmpty", "ستظهر العناوين المستخدمة في الطلبات هنا")}</p>}
+              <Panel title={sfText("storefront.account.myAddresses", "ط¹ظ†ط§ظˆظٹظ†ظٹ")}>
+                {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl bg-stone-50 p-3 font-bold text-stone-700">{address}</div>) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.addressesEmpty", "ط³طھط¸ظ‡ط± ط§ظ„ط¹ظ†ط§ظˆظٹظ† ط§ظ„ظ…ط³طھط®ط¯ظ…ط© ظپظٹ ط§ظ„ط·ظ„ط¨ط§طھ ظ‡ظ†ط§")}</p>}
               </Panel>
-              <Panel title={sfText("storefront.header.wishlist", "المفضلة")}>
-                <SmallProductList items={backendWishlist.length ? backendWishlist : wishlist} empty={sfText("storefront.account.wishlistEmpty", "احفظ المنتجات التي تعجبك هنا")} />
+              <Panel title={sfText("storefront.header.wishlist", "ط§ظ„ظ…ظپط¶ظ„ط©")}>
+                <SmallProductList items={backendWishlist.length ? backendWishlist : wishlist} empty={sfText("storefront.account.wishlistEmpty", "ط§ط­ظپط¸ ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„طھظٹ طھط¹ط¬ط¨ظƒ ظ‡ظ†ط§")} />
               </Panel>
-              <Panel title={sfText("storefront.account.recentlyViewed", "شاهد مؤخرًا")}>
-                <SmallProductList items={backendRecent.length ? backendRecent : recent} empty={sfText("storefront.account.recentEmpty", "ستظهر المنتجات التي شاهدتها مؤخرًا هنا")} />
+              <Panel title={sfText("storefront.account.recentlyViewed", "ط´ط§ظ‡ط¯ ظ…ط¤ط®ط±ظ‹ط§")}>
+                <SmallProductList items={backendRecent.length ? backendRecent : recent} empty={sfText("storefront.account.recentEmpty", "ط³طھط¸ظ‡ط± ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„طھظٹ ط´ط§ظ‡ط¯طھظ‡ط§ ظ…ط¤ط®ط±ظ‹ط§ ظ‡ظ†ط§")} />
               </Panel>
             </>
           ) : (
-            <Panel title="حسابك محمي">
+            <Panel title="ط­ط³ط§ط¨ظƒ ظ…ط­ظ…ظٹ">
               <div className="rounded-2xl bg-stone-50 p-4 font-bold leading-7 text-stone-600">
-                سجّل الدخول بالبريد الإلكتروني لعرض الطلبات، العناوين، المفضلة، والمنتجات التي تمت مشاهدتها. واتساب OTP متاح كخيار احتياطي.
+                ط³ط¬ظ‘ظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ظ„ط¹ط±ط¶ ط§ظ„ط·ظ„ط¨ط§طھطŒ ط§ظ„ط¹ظ†ط§ظˆظٹظ†طŒ ط§ظ„ظ…ظپط¶ظ„ط©طŒ ظˆط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„طھظٹ طھظ…طھ ظ…ط´ط§ظ‡ط¯طھظ‡ط§. ظˆط§طھط³ط§ط¨ OTP ظ…طھط§ط­ ظƒط®ظٹط§ط± ط§ط­طھظٹط§ط·ظٹ.
               </div>
             </Panel>
           )}
         </div>
       </div>
     </section>
+  );
+}
+
+class StorefrontAccountPageBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error) {
+    console.error("[storefront-account] render error", error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <section className="mx-auto max-w-3xl px-4 py-8" dir="rtl">
+          <div className="rounded-[1.5rem] border border-stone-200 bg-white p-6 text-stone-950 shadow-[0_18px_50px_rgba(39,20,75,0.08)]">
+            <div className="text-sm font-black text-[#d4af37]">ط­ط³ط§ط¨ظٹ</div>
+            <h1 className="mt-2 text-2xl font-black">طھط¹ط°ط± ظپطھط­ طµظپط­ط© ط§ظ„ط­ط³ط§ط¨ ط§ظ„ط¢ظ†</h1>
+            <p className="mt-2 text-sm font-bold leading-6 text-stone-600">
+              ط­ط¯ط« ط®ط·ط£ ط£ط«ظ†ط§ط، طھط­ظ…ظٹظ„ ط´ط§ط´ط© ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ط£ظˆ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„. ظٹظ…ظƒظ†ظƒ طھط­ط¯ظٹط« ط§ظ„طµظپط­ط© ظˆط§ظ„ظ…ط­ط§ظˆظ„ط© ظ…ط±ط© ط£ط®ط±ظ‰.
+            </p>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="mt-5 rounded-full bg-stone-950 px-5 py-3 text-sm font-black text-white"
+            >
+              طھط­ط¯ظٹط« ط§ظ„طµظپط­ط©
+            </button>
+          </div>
+        </section>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export function StorefrontAccountPage(props) {
+  return (
+    <StorefrontAccountPageBoundary>
+      <StorefrontAccountPageContent {...props} />
+    </StorefrontAccountPageBoundary>
   );
 }
