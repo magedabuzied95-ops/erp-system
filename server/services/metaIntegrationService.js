@@ -22945,16 +22945,10 @@ export const processMetaWebhook = async ({ req } = {}) => {
         return null;
       });
       if (draftOrderResult?.order) {
-        const reviewAddressLine = [text(shippingMergedInfo.governorate || ""), text(shippingMergedInfo.customerAddress || "")]
-          .filter(Boolean)
-          .join(" - ") || "—";
         const successText = [
-          "✅ تم استلام بياناتك بنجاح",
+          "✅ تم تأكيد طلبك بنجاح",
           "",
-          "العنوان:",
-          reviewAddressLine,
-          "",
-          "طلبك قيد المراجعة الآن، وهيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️",
+          "طلبك اتسجل عندنا، وهيتواصل معاك فريق خدمة العملاء لتأكيد التفاصيل والشحن في أقرب وقت ❤️",
           "",
           "شكراً لاختيارك M1 Store",
         ].join("\n");
