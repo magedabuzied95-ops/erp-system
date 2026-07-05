@@ -36,6 +36,19 @@ const normalizeAccountIdentity = (value = {}) => ({
   customer_id: String(value?.customer_id || value?.id || "").trim(),
 });
 
+const normalizeStorefrontProfile = (value = {}) => {
+  const profile = value && typeof value === "object" ? value : {};
+  const primaryPhone = String(profile.primary_phone || profile.phone || profile.customer_phone || "").trim();
+  const customerId = String(profile.customer_id || profile.id || "").trim();
+  return {
+    ...profile,
+    full_name: String(profile.full_name || "").trim(),
+    primary_phone: primaryPhone,
+    phone: String(profile.phone || primaryPhone || "").trim(),
+    customer_id: customerId,
+  };
+};
+
 const defaultPreferredSizes = () => ({
   men: "",
   women: "",
