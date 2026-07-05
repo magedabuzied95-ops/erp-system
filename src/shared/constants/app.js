@@ -29,6 +29,11 @@ const isLocalApiUrl = (value) => {
 const devEnvValue = (value) =>
   IS_PRODUCTION ? "" : trimTrailingSlash(value);
 
+const isLocalBrowserHost = () => {
+  if (typeof window === "undefined") return true;
+  return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(window.location.hostname);
+};
+
 const normalizeApiBaseUrl = (value) => {
   const base = trimTrailingSlash(value);
   if (!base) return `${defaultApiOrigin()}/api`;
@@ -48,6 +53,9 @@ const resolveApiBaseUrl = () => {
   }
 
   const envApiBaseUrl = API_BASE_URL_ENV || API_ORIGIN_ENV;
+  if (envApiBaseUrl === "/api" && isLocalBrowserHost()) {
+    return `${LOCAL_API_ORIGIN}/api`;
+  }
   return normalizeApiBaseUrl(envApiBaseUrl);
 };
 

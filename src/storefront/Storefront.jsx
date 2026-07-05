@@ -74,6 +74,7 @@ import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocatio
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
+import { getStorefrontThemeTokens } from "./lib/themeTokens";
 import {
   isStorefrontCheckoutFlowPath,
   isStorefrontCheckoutPath,
@@ -3674,57 +3675,715 @@ function HomePage(props) {
   );
 }
 
-function SimpleHomeProductGrid({ title, subtitle, products = [], loading = false }) {
+function PremiumHomePage(props) {
+  const { i18n } = useTranslation();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [params] = useSearchParams();
+  const lang = i18n.language || "ar";
+  const isRtl = normalizeLanguage(lang) === "ar";
+  const themeMode = props.themeMode || "dark";
+  const themeTokens = useMemo(() => getStorefrontThemeTokens(themeMode), [themeMode]);
+  const brandName = props.brandName || "M1 Store";
+  const brandFilter = params.get("brand") || "";
+  const storefrontHome = useStorefrontHome();
+  const { brands, loading: brandsLoading } = useStorefrontBrands();
+  const { products, loading } = useProducts({ limit: 24 });
+  const { products: saleProducts } = useProducts({ offer_story: 1, limit: 12 });
+
+  useEffect(() => {
+    if (!brandFilter || !isStorefrontHomePath(location.pathname)) return;
+    navigate(productsPath({ brand: brandFilter }), { replace: true });
+  }, [brandFilter, location.pathname, navigate]);
+
+  const merchProducts = useMemo(() => products.filter(isAvailableProduct), [products]);
+  const railProducts = useMemo(() => (merchProducts.length ? merchProducts : products), [merchProducts, products]);
+  const saleRailProducts = useMemo(() => saleProducts.filter(isAvailableProduct), [saleProducts]);
+  const saleFallback = useMemo(() => railProducts.filter(isOfferStory), [railProducts]);
+  const bestBase = useMemo(
+    () => uniqueProductsByIdentity([...railProducts].sort((a, b) => stockScore(b) - stockScore(a) || newestScore(b) - newestScore(a))),
+    [railProducts]
+  );
+  const freshBase = useMemo(
+    () => uniqueProductsByIdentity([...railProducts].sort((a, b) => newestScore(b) - newestScore(a))),
+    [railProducts]
+  );
+  const saleBase = useMemo(
+    () => uniqueProductsByIdentity([...(saleRailProducts.length ? saleRailProducts : saleProducts), ...saleFallback].filter(isOfferStory)),
+    [saleFallback, saleProducts, saleRailProducts]
+  );
+  const storefrontHomeProducts = useMemo(
+    () => uniqueProductsByIdentity((storefrontHome.collections || []).flatMap((collection) => collection.products || [])),
+    [storefrontHome.collections]
+  );
+  const homepageProductPool = useMemo(
+    () => uniqueProductsByIdentity([...railProducts, ...storefrontHomeProducts, ...saleBase, ...saleProducts, ...freshBase, ...bestBase]),
+    [bestBase, freshBase, railProducts, saleBase, saleProducts, storefrontHomeProducts]
+  );
+  const homepageProductsWithImages = useMemo(
+    () => homepageProductPool.filter((product) => isAvailableProduct(product) && homeProductWithImage(product)),
+    [homepageProductPool]
+  );
+  const heroSlide = useMemo(() => {
+    const candidate = storefrontHome.hero || homepageProductsWithImages[0] || homepageProductPool[0] || null;
+    return candidate ? featuredSlideProduct(candidate) : null;
+  }, [homepageProductPool, homepageProductsWithImages, storefrontHome.hero]);
+  const heroCollection = storefrontHome.collections[0] || null;
+  const homeCategoryCards = useMemo(() => {
+    const sourceProducts = uniqueProductsByIdentity(homepageProductPool).filter((product) => product?.id && product?.name && isAvailableProduct(product));
+    return mainHomeCategoryCards.slice(0, 4).map((definition) => {
+      const match = sourceProducts.find((product) => {
+        if (definition.id === "offers") return isOfferStory(product);
+        return definition.test(product, productSearchText(product));
+      });
+      const matchSlide = match ? homeProductWithImage(match) : null;
+      const totalMatches = sourceProducts.filter((product) => {
+        if (definition.id === "offers") return isOfferStory(product);
+        return definition.test(product, productSearchText(product));
+      }).length;
+      return {
+        ...definition,
+        title: isRtl ? definition.titleAr : definition.titleEn,
+        subtitle: isRtl ? definition.subtitleAr : definition.subtitleEn,
+        image: matchSlide?.image || "",
+        count: totalMatches,
+      };
+    });
+  }, [homepageProductPool, isRtl]);
+  const visibleBrands = useMemo(() => (Array.isArray(brands) ? brands : []).filter((brand) => brand?.id && brand?.name && brand?.logo_url).slice(0, 8), [brands]);
+  const homeSections = useMemo(() => {
+    const used = new Set();
+    const pick = ({ preferred = [], fallback = [], limit = 8, allowRepeatIfEmpty = false } = {}) => {
+      let selected = pickHomeProducts({ preferred, fallback, exclude: used, limit });
+      if (!selected.length && allowRepeatIfEmpty) {
+        selected = pickHomeProducts({ preferred, fallback, limit });
+      }
+      selected.forEach((product, index) => {
+        const key = productIdentityKey(product, index);
+        if (key) used.add(key);
+      });
+      return selected;
+    };
+
+    const popularPreferred = uniqueProductsByIdentity([...homepageProductPool]
+      .filter((product) => homeProductWithImage(product))
+      .sort((a, b) => popularScore(b) - popularScore(a) || newestScore(b) - newestScore(a)));
+    const newestPreferred = freshBase.filter((product) => homeProductWithImage(product));
+
+    return {
+      mostPopular: pick({ preferred: popularPreferred, fallback: homepageProductsWithImages, limit: 8 }),
+      newArrivals: pick({ preferred: newestPreferred, fallback: [], limit: 8, allowRepeatIfEmpty: true }),
+    };
+  }, [freshBase, homepageProductPool, homepageProductsWithImages]);
+
+  const heroCopy = isRtl
+    ? {
+        badge: "مختارات M1 Store",
+        title: "واجهة بسيطة، اختيار Premium، وتجربة شراء واضحة.",
+        subtitle: "تصميم نظيف، صور كبيرة، ومساحات مريحة تخلّي التصفح أسرع وأوضح من غير زحمة بصرية.",
+        primary: "تسوق الآن",
+        secondary: "العروض",
+      }
+    : {
+        badge: "Curated by M1 Store",
+        title: "Clean design. Premium picks. A faster shopping flow.",
+        subtitle: "A refined storefront built around large visuals, calm spacing, and a sharper first impression.",
+        primary: "Shop now",
+        secondary: "Offers",
+      };
+
+  return (
+    <div
+      className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0"
+      data-theme={themeTokens.resolvedMode}
+      style={{
+        background: themeTokens.background,
+        color: themeTokens.textPrimary,
+      }}
+    >
+      <HomePremiumHero
+        lang={lang}
+        brandName={brandName}
+        themeTokens={themeTokens}
+        loading={loading || storefrontHome.loading}
+        heroSlide={heroSlide}
+        heroCollection={heroCollection}
+        heroCopy={heroCopy}
+      />
+      <HomeCategoryCards cards={homeCategoryCards} lang={lang} themeTokens={themeTokens} loading={loading || storefrontHome.loading} />
+      <HomeBrandStrip lang={lang} themeTokens={themeTokens} brands={visibleBrands} loading={brandsLoading} />
+      <SimpleHomeProductGrid
+        title={isRtl ? "الأكثر طلبًا" : "Most Wanted"}
+        subtitle={isRtl ? "مختارات قوية من القطع الأكثر جذبًا." : "The strongest edits and the most wanted picks."}
+        viewAllTo="/products?sort=trending"
+        loading={loading || storefrontHome.loading}
+        products={homeSections.mostPopular}
+        themeTokens={themeTokens}
+        lang={lang}
+      />
+      <SimpleHomeProductGrid
+        title={isRtl ? "وصل حديثًا" : "New Arrivals"}
+        subtitle={isRtl ? "أحدث القطع المختارة حديثًا للعرض الأول." : "Fresh arrivals with a calmer, more premium presentation."}
+        viewAllTo="/products?sort=newest"
+        loading={loading || storefrontHome.loading}
+        products={homeSections.newArrivals}
+        themeTokens={themeTokens}
+        lang={lang}
+      />
+      <HomeWhySection lang={lang} themeTokens={themeTokens} />
+      <HomeSimpleFooter lang={lang} themeTokens={themeTokens} />
+    </div>
+  );
+}
+
+function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}, loading = false, heroSlide = null, heroCollection = null, heroCopy = {} }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
+  const heroImage = heroSlide?.image || heroCollection?.image || heroCollection?.hero_image || "";
+  const heroTitle = heroCopy.title || (isRtl ? "واجهة بسيطة، اختيار Premium، وتجربة شراء واضحة." : "Clean design. Premium picks. A faster shopping flow.");
+  const heroSubtitle = heroCopy.subtitle || (isRtl ? "تصميم نظيف، صور كبيرة، ومساحات مريحة تخلّي التصفح أسرع وأوضح من غير زحمة بصرية." : "A refined storefront built around large visuals, calm spacing, and a sharper first impression.");
+  const heroPrice = Number(heroSlide?.price || 0) > 0 ? money(heroSlide.price) : "";
+  const comparePrice = Number(heroSlide?.comparePrice || 0) > Number(heroSlide?.price || 0) ? money(heroSlide.comparePrice) : "";
+  const featureLine = heroSlide?.product?.name || heroCollection?.title || (isRtl ? "مختارات الموسم" : "Curated picks");
+
+  return (
+    <section className="mx-auto max-w-[1400px] px-4 pt-4 md:pt-8">
+      <div
+        className="relative overflow-hidden rounded-[2.2rem] border"
+        style={{
+          background: themeTokens.heroGradient,
+          borderColor: themeTokens.border,
+          boxShadow: themeTokens.shadow,
+        }}
+      >
+        <div className="pointer-events-none absolute inset-0" style={{ background: themeTokens.heroGlow }} />
+        <div className="relative grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
+          <div className="flex min-w-0 flex-col justify-center px-5 py-6 text-right md:px-8 md:py-9 lg:px-10 lg:py-11">
+            <span
+              className="inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em]"
+              style={{
+                background: themeTokens.card,
+                borderColor: themeTokens.border,
+                color: themeTokens.accent,
+              }}
+            >
+              {heroCopy.badge || brandName}
+            </span>
+            <h1 className="mt-4 max-w-2xl text-[2.25rem] font-black leading-[1.02] tracking-[-0.04em] md:text-[3.5rem] lg:text-[4.55rem]" style={{ color: themeTokens.textPrimary }}>
+              {heroTitle}
+            </h1>
+            <p className="mt-4 max-w-2xl text-sm font-bold leading-7 md:text-lg md:leading-8" style={{ color: themeTokens.textSecondary }}>
+              {heroSubtitle}
+            </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <Link
+                to="/products"
+                className="inline-flex min-h-12 items-center justify-center rounded-full px-5 text-sm font-black transition duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
+                style={{
+                  background: themeTokens.accent,
+                  color: themeTokens.accentText,
+                  boxShadow: `0 18px 42px ${themeTokens.accentSoft}`,
+                }}
+              >
+                {heroCopy.primary || (isRtl ? "تسوق الآن" : "Shop now")}
+              </Link>
+              <Link
+                to="/offers"
+                className="inline-flex min-h-12 items-center justify-center rounded-full border px-5 text-sm font-black transition duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
+                style={{
+                  background: themeTokens.card,
+                  color: themeTokens.textPrimary,
+                  borderColor: themeTokens.border,
+                }}
+              >
+                {heroCopy.secondary || (isRtl ? "العروض" : "Offers")}
+              </Link>
+            </div>
+            <div className="mt-7 grid gap-3 sm:grid-cols-3">
+              {[
+                isRtl ? "شحن سريع" : "Fast shipping",
+                isRtl ? "استبدال سهل" : "Easy exchange",
+                isRtl ? "الدفع عند الاستلام" : "Cash on delivery",
+              ].map((text) => (
+                <div
+                  key={text}
+                  className="rounded-[1.2rem] border px-4 py-3 text-sm font-black"
+                  style={{
+                    background: themeTokens.cardSoft,
+                    borderColor: themeTokens.border,
+                    color: themeTokens.textPrimary,
+                  }}
+                >
+                  {text}
+                </div>
+              ))}
+            </div>
+            {featureLine ? (
+              <div
+                className="mt-7 inline-flex w-fit max-w-full items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold"
+                style={{
+                  background: themeTokens.card,
+                  borderColor: themeTokens.border,
+                  color: themeTokens.textSecondary,
+                }}
+              >
+                <Sparkles className="h-4 w-4 shrink-0" style={{ color: themeTokens.accent }} />
+                <span className="truncate">{featureLine}</span>
+                {heroPrice ? <span className="font-black" style={{ color: themeTokens.textPrimary }}>{heroPrice}</span> : null}
+                {comparePrice ? <span className="text-xs line-through" style={{ color: themeTokens.muted }}>{comparePrice}</span> : null}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="relative px-5 pb-5 pt-0 md:px-8 md:pb-8 lg:px-10 lg:py-10">
+            <div
+              className="relative overflow-hidden rounded-[2rem] border p-4 md:p-5"
+              style={{
+                background: themeTokens.card,
+                borderColor: themeTokens.borderStrong,
+                boxShadow: themeTokens.shadowSoft,
+              }}
+            >
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(212,175,55,0.12),transparent_42%)]" />
+              <div
+                className="relative flex min-h-[320px] items-center justify-center overflow-hidden rounded-[1.5rem] border p-4 md:min-h-[430px]"
+                style={{ background: themeTokens.surface, borderColor: themeTokens.border }}
+              >
+                {loading && !heroImage ? (
+                  <div className="h-[240px] w-[82%] animate-pulse rounded-[1.5rem]" style={{ background: themeTokens.cardSoft }} />
+                ) : heroImage ? (
+                  <img
+                    src={imageFor(heroImage)}
+                    {...responsiveImageProps(heroImage, "hero")}
+                    alt={heroSlide?.product?.name || brandName}
+                    onError={fallbackProductImage}
+                    className="h-full w-full max-h-[340px] object-contain md:max-h-[420px]"
+                    loading="eager"
+                    decoding="async"
+                    width="900"
+                    height="720"
+                  />
+                ) : (
+                  <div className="flex h-[240px] w-[82%] items-center justify-center rounded-[1.5rem] border border-dashed text-center text-sm font-black" style={{ color: themeTokens.textSecondary, borderColor: themeTokens.border }}>
+                    {isRtl ? "صورة العرض تظهر هنا" : "Hero image appears here"}
+                  </div>
+                )}
+              </div>
+              <div className="relative mt-4 flex items-end justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: themeTokens.accent }}>
+                    {isRtl ? "القطعة المختارة" : "Featured drop"}
+                  </p>
+                  <h2 className="mt-1 line-clamp-2 text-xl font-black leading-7" style={{ color: themeTokens.textPrimary }}>
+                    {heroSlide?.product?.name || brandName}
+                  </h2>
+                </div>
+                {heroPrice ? (
+                  <div className="shrink-0 rounded-full border px-4 py-2 text-base font-black" style={{ background: themeTokens.surface, borderColor: themeTokens.border, color: themeTokens.textPrimary }}>
+                    {heroPrice}
+                  </div>
+                ) : null}
+              </div>
+              {heroCollection?.subtitle ? (
+                <p className="relative mt-2 text-sm font-semibold leading-6" style={{ color: themeTokens.textSecondary }}>
+                  {heroCollection.subtitle}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HomeCategoryCards({ cards = [], lang = "ar", themeTokens = {}, loading = false }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
+  const visibleCards = Array.isArray(cards) ? cards.filter(Boolean) : [];
+  if (!visibleCards.length && !loading) return null;
+
+  return (
+    <section className="mx-auto max-w-[1400px] px-4 py-5 md:py-7">
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: themeTokens.accent }}>
+            {isRtl ? "الأقسام الرئيسية" : "Main categories"}
+          </p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight md:text-4xl" style={{ color: themeTokens.textPrimary }}>
+            {isRtl ? "اختيارات واضحة وسهلة التصفح" : "Clear categories, easier discovery"}
+          </h2>
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {(loading && !visibleCards.length ? Array.from({ length: 4 }) : visibleCards).map((card, index) => {
+          const Icon = card?.icon || Sparkles;
+          const image = card?.image || "";
+          return (
+            <Link
+              key={card?.id || index}
+              to={card?.href || "/products"}
+              className="group relative overflow-hidden rounded-[1.6rem] border transition duration-300 hover:-translate-y-1 active:scale-[0.99]"
+              style={{
+                background: themeTokens.card,
+                borderColor: themeTokens.border,
+                boxShadow: themeTokens.shadowSoft,
+              }}
+            >
+              {card ? (
+                <>
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_12%,rgba(212,175,55,0.12),transparent_36%)]" />
+                  <div className="relative flex h-full min-h-[190px] flex-col justify-between p-4 md:min-h-[230px] md:p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl" style={{ background: themeTokens.accentSoft, color: themeTokens.accent }}>
+                        <Icon className="h-5 w-5" />
+                      </div>
+                      <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]" style={{ background: themeTokens.surface, borderColor: themeTokens.border, color: themeTokens.textSecondary }}>
+                        {isRtl ? "تصفح" : "Explore"}
+                      </span>
+                    </div>
+                    <div className="mt-4 grid grid-cols-[1fr_auto] items-end gap-3">
+                      <div className="min-w-0">
+                        <h3 className="text-2xl font-black leading-[1.04] tracking-tight" style={{ color: themeTokens.textPrimary }}>
+                          {card.title}
+                        </h3>
+                        <p className="mt-2 text-sm font-semibold leading-6" style={{ color: themeTokens.textSecondary }}>
+                          {card.subtitle}
+                        </p>
+                      </div>
+                      {Number(card.count || 0) > 0 ? (
+                        <span className="rounded-full border px-3 py-1 text-[11px] font-black" style={{ background: themeTokens.surface, borderColor: themeTokens.border, color: themeTokens.textPrimary }}>
+                          {card.count}
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="mt-4 flex min-h-[96px] items-end justify-between gap-4">
+                      <div className="min-w-0">
+                        <p className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: themeTokens.accent }}>
+                          {isRtl ? "ابدأ هنا" : "Start here"}
+                        </p>
+                        <p className="mt-1 text-sm font-bold" style={{ color: themeTokens.textSecondary }}>
+                          {isRtl ? "ابدأ التصفح" : "Start browsing"}
+                        </p>
+                      </div>
+                      <div className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-[1.3rem] border md:h-28 md:w-28" style={{ background: themeTokens.surface, borderColor: themeTokens.border }}>
+                        {image ? (
+                          <img
+                            src={imageFor(image)}
+                            {...responsiveImageProps(image, "grid")}
+                            alt={card.title}
+                            onError={fallbackProductImage}
+                            className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-[1.04]"
+                            loading="lazy"
+                            decoding="async"
+                            width="240"
+                            height="240"
+                          />
+                        ) : (
+                          <Icon className="h-10 w-10" style={{ color: themeTokens.accent }} />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="h-[190px] animate-pulse rounded-[1.6rem]" style={{ background: themeTokens.cardSoft }} />
+              )}
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = false }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
+  const visibleBrands = Array.isArray(brands) ? brands.filter((brand) => brand?.id && brand?.name && brand?.logo_url) : [];
+  if (!loading && !visibleBrands.length) return null;
+
+  return (
+    <section className="mx-auto max-w-[1400px] px-4 py-5 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: themeTokens.accent }}>
+            {isRtl ? "العلامات التجارية" : "Brand strip"}
+          </p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight md:text-4xl" style={{ color: themeTokens.textPrimary }}>
+            {isRtl ? "أسماء موثوقة، مختارة بعناية" : "Trusted names, carefully curated"}
+          </h2>
+        </div>
+      </div>
+      <div className="flex gap-3 overflow-x-auto pb-2">
+        {(loading && !visibleBrands.length ? Array.from({ length: 6 }) : visibleBrands).map((brand, index) => (
+          <Link
+            key={brand?.id || index}
+            to={brand ? `/?brand=${encodeURIComponent(brand.id || brand.slug)}` : "#"}
+            className="group flex min-w-[150px] items-center gap-3 rounded-[1.35rem] border px-4 py-3 transition duration-300 hover:-translate-y-0.5"
+            style={{
+              background: themeTokens.card,
+              borderColor: themeTokens.border,
+              boxShadow: themeTokens.shadowSoft,
+            }}
+          >
+            {brand ? (
+              <>
+                <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border" style={{ background: themeTokens.surface, borderColor: themeTokens.border }}>
+                  <img
+                    src={imageFor(brand.logo_url)}
+                    alt={brand.name || ""}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-contain p-2"
+                    width="72"
+                    height="72"
+                  />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-black" style={{ color: themeTokens.textPrimary }}>{brand.name}</span>
+                  <span className="mt-0.5 block text-[11px] font-semibold" style={{ color: themeTokens.textSecondary }}>
+                    {isRtl ? "موجودة في المتجر" : "Available in store"}
+                  </span>
+                </span>
+              </>
+            ) : (
+              <div className="h-12 w-full animate-pulse rounded-[1rem]" style={{ background: themeTokens.cardSoft }} />
+            )}
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function HomeWhySection({ lang = "ar", themeTokens = {} }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
+  const items = [
+    {
+      icon: Crown,
+      title: isRtl ? "اختيارات Premium" : "Premium selection",
+      text: isRtl ? "منتجات منتقاة بعناية مع عرض بصري هادي وواضح." : "Curated products presented with a calm, premium visual tone.",
+    },
+    {
+      icon: Truck,
+      title: isRtl ? "شحن سريع" : "Fast shipping",
+      text: isRtl ? "تجربة توصيل عملية مع خطوات واضحة ومبسطة." : "Practical delivery flow with clear and simple steps.",
+    },
+    {
+      icon: RefreshCcw,
+      title: isRtl ? "استبدال سهل" : "Easy exchange",
+      text: isRtl ? "سياسة مرنة تخلّي تجربة الشراء أكثر راحة." : "Flexible policy that keeps the buying experience comfortable.",
+    },
+    {
+      icon: ShieldCheck,
+      title: isRtl ? "ثقة ووضوح" : "Trust and clarity",
+      text: isRtl ? "معلومات أساسية وحضور بصري نظيف بدون زحمة." : "Essential details with a clean visual hierarchy and less clutter.",
+    },
+  ];
+
+  return (
+    <section className="mx-auto max-w-[1400px] px-4 py-5 md:py-8">
+      <div className="mb-4 flex items-end justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: themeTokens.accent }}>
+            {isRtl ? "لماذا M1 Store" : "Why M1 Store"}
+          </p>
+          <h2 className="mt-1 text-2xl font-black tracking-tight md:text-4xl" style={{ color: themeTokens.textPrimary }}>
+            {isRtl ? "تجربة أهدأ، أوضح، وأرقى" : "A calmer, clearer, more premium experience"}
+          </h2>
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map((item) => {
+          const Icon = item.icon;
+          return (
+            <div
+              key={item.title}
+              className="rounded-[1.4rem] border p-4 transition duration-300 hover:-translate-y-0.5"
+              style={{
+                background: themeTokens.card,
+                borderColor: themeTokens.border,
+                boxShadow: themeTokens.shadowSoft,
+              }}
+            >
+              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl" style={{ background: themeTokens.accentSoft, color: themeTokens.accent }}>
+                <Icon className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-lg font-black" style={{ color: themeTokens.textPrimary }}>{item.title}</h3>
+              <p className="mt-2 text-sm font-semibold leading-6" style={{ color: themeTokens.textSecondary }}>{item.text}</p>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
+  const links = [
+    { label: isRtl ? "المنتجات" : "Products", to: "/products" },
+    { label: isRtl ? "العروض" : "Offers", to: "/offers" },
+    { label: isRtl ? "حسابي" : "Account", to: "/account" },
+    { label: "WhatsApp", to: "https://wa.me/", external: true },
+  ];
+
+  return (
+    <footer className="mx-auto max-w-[1400px] px-4 pb-8 pt-4 md:pb-12">
+      <div
+        className="rounded-[1.6rem] border px-5 py-5 md:px-6 md:py-6"
+        style={{
+          background: themeTokens.surface,
+          borderColor: themeTokens.border,
+          boxShadow: themeTokens.shadowSoft,
+        }}
+      >
+        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <div className="text-sm font-black uppercase tracking-[0.18em]" style={{ color: themeTokens.accent }}>M1 Store</div>
+            <p className="mt-1.5 max-w-xl text-sm font-semibold leading-6" style={{ color: themeTokens.textSecondary }}>
+              {isRtl ? "واجهة مرتبة، أقسام واضحة، واختيار منتجات بهوية Premium." : "A tidy storefront, clear categories, and premium product editing."}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {links.map((link) => (
+              link.external ? (
+                <a
+                  key={link.label}
+                  href={link.to}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-black transition hover:-translate-y-0.5"
+                  style={{
+                    background: themeTokens.card,
+                    borderColor: themeTokens.border,
+                    color: themeTokens.textPrimary,
+                  }}
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.label}
+                  to={link.to}
+                  className="inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-black transition hover:-translate-y-0.5"
+                  style={{
+                    background: themeTokens.card,
+                    borderColor: themeTokens.border,
+                    color: themeTokens.textPrimary,
+                  }}
+                >
+                  {link.label}
+                </Link>
+              )
+            ))}
+          </div>
+        </div>
+      </div>
+    </footer>
+  );
+}
+
+function SimpleHomeProductGrid({ title, subtitle, viewAllTo = "/products", products = [], loading = false, themeTokens = getStorefrontThemeTokens("dark"), lang = "ar" }) {
+  const isRtl = normalizeLanguage(lang) === "ar";
   const visibleProducts = (Array.isArray(products) ? products : []).filter((product) => product?.id && product?.name).slice(0, 8);
   if (!visibleProducts.length && !loading) return null;
 
   return (
-    <section className="mx-auto max-w-[1200px] px-4 py-3 md:py-5">
-      <div className="mb-4 flex items-end justify-between gap-3 text-right md:mb-5">
+    <section className="mx-auto max-w-[1400px] px-4 py-5 md:py-7">
+      <div
+        className="overflow-hidden rounded-[2rem] border"
+        style={{
+          background: themeTokens.surface,
+          borderColor: themeTokens.border,
+          boxShadow: themeTokens.shadowSoft,
+        }}
+      >
+        <div className="flex flex-col gap-4 border-b px-4 py-5 md:flex-row md:items-end md:justify-between md:px-6" style={{ borderColor: themeTokens.border }}>
         <div className="min-w-0">
-          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-[#d4af37] dark:text-[#f3d77a]">{sfText("storefront.common.shopNow")}</div>
-          <h2 className="text-[1.9rem] font-black tracking-tight text-stone-950 dark:text-stone-100 md:text-[2.85rem]">{title}</h2>
-          {subtitle ? <p className="mt-1.5 text-xs font-bold text-stone-500 dark:text-stone-400 md:text-sm">{subtitle}</p> : null}
+          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: themeTokens.accent }}>
+            {isRtl ? "الأقسام المختارة" : "Selected section"}
+          </div>
+          <h2 className="text-[1.9rem] font-black tracking-tight md:text-[3.15rem]" style={{ color: themeTokens.textPrimary }}>{title}</h2>
+          {subtitle ? <p className="mt-1.5 text-xs font-bold md:text-sm" style={{ color: themeTokens.textSecondary }}>{subtitle}</p> : null}
         </div>
-        <Link to="/products" className="inline-flex min-h-9 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white px-4 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#d4af37]/50 hover:text-[#d4af37] active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+        <Link
+          to={viewAllTo}
+          className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-full border px-4 py-2 text-xs font-black transition hover:-translate-y-0.5 active:scale-[0.98]"
+          style={{
+            background: themeTokens.card,
+            borderColor: themeTokens.border,
+            color: themeTokens.textPrimary,
+          }}
+        >
           {sfText("common.viewAll")}
         </Link>
       </div>
       {loading && !visibleProducts.length ? (
-        <ProductSkeleton count={4} className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" />
+        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 md:p-6">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-[320px] animate-pulse rounded-[1.45rem] border" style={{ background: themeTokens.cardSoft, borderColor: themeTokens.border }} />
+          ))}
+        </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 lg:grid-cols-4 md:p-6">
           {visibleProducts.map((product, index) => {
-          const price = Number(product.price || product.final_price || product.selling_price || product.regular_price || 0) || 0;
-          const image = product.image_url || product.product_image_url || product.gallery_images?.[0] || "";
-          return (
+            const slide = featuredSlideProduct(product);
+            const price = Number(slide.price || product.price || product.final_price || product.selling_price || product.regular_price || 0) || 0;
+            const comparePrice = Number(slide.comparePrice || product.compare_price || product.compare_at_price || 0) || 0;
+            const image = slide.image || product.image_url || product.product_image_url || product.gallery_images?.[0] || "";
+            return (
             <Link
               key={product.card_id || product.id || index}
               to={productUrl(product)}
-              className="group min-w-0 overflow-hidden rounded-[1.15rem] border border-stone-200 bg-white text-right shadow-[0_12px_30px_rgba(39,20,75,0.07)] transition duration-300 hover:-translate-y-1 hover:border-[#d4af37]/45 hover:shadow-[0_20px_50px_rgba(0,0,0,0.14)] active:scale-[0.99] dark:border-white/10 dark:bg-[#101010]"
+              className="group min-w-0 overflow-hidden rounded-[1.45rem] border text-right transition duration-300 hover:-translate-y-1 active:scale-[0.99]"
+              style={{
+                background: themeTokens.card,
+                borderColor: themeTokens.border,
+                boxShadow: themeTokens.shadowSoft,
+              }}
             >
-              <div className="aspect-[0.95/1] overflow-hidden bg-stone-100 p-2.5 dark:bg-white/5">
+              <div className="relative aspect-[0.98/1] overflow-hidden" style={{ background: themeTokens.surface }}>
                 <img
                   src={imageFor(image)}
                   {...responsiveImageProps(image, "grid")}
                   alt={product.name || ""}
                   onError={fallbackProductImage}
-                  className="h-full w-full rounded-[0.9rem] object-contain transition duration-500 group-hover:scale-[1.08]"
+                  className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-[1.05]"
                   loading="lazy"
                   decoding="async"
                   width="360"
                   height="360"
                 />
+                {price > 0 && comparePrice > price ? (
+                  <span className="absolute left-3 top-3 rounded-full px-2.5 py-1 text-[10px] font-black" style={{ background: themeTokens.accent, color: themeTokens.accentText }}>
+                    {Math.max(1, Math.round(((comparePrice - price) / comparePrice) * 100))}%
+                  </span>
+                ) : null}
               </div>
-              <div className="p-3 pt-2.5">
-                <h3 className="line-clamp-2 min-h-10 text-[0.95rem] font-black leading-5 text-stone-950 dark:text-stone-100">{product.name}</h3>
-                <div className="mt-2 text-[1.05rem] font-black text-stone-950 dark:text-white">{money(price)}</div>
+              <div className="p-4">
+                <h3 className="line-clamp-2 min-h-12 text-[0.98rem] font-black leading-5" style={{ color: themeTokens.textPrimary }}>{product.name}</h3>
+                <div className="mt-2 flex items-end justify-between gap-2">
+                  <div className="text-[1.05rem] font-black" style={{ color: themeTokens.textPrimary }}>
+                    {price > 0 ? money(price) : "-"}
+                  </div>
+                  {comparePrice > price ? (
+                    <div className="text-xs font-bold line-through" style={{ color: themeTokens.muted }}>{money(comparePrice)}</div>
+                  ) : null}
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className="inline-flex rounded-full border px-3 py-1 text-[11px] font-black" style={{ background: themeTokens.surface, borderColor: themeTokens.border, color: themeTokens.textSecondary }}>
+                    {isRtl ? "تفاصيل" : "Details"}
+                  </span>
+                  <span className="inline-flex rounded-full px-3 py-1 text-[11px] font-black" style={{ background: themeTokens.accentSoft, color: themeTokens.accent }}>
+                    {isRtl ? "تسوق" : "Shop"}
+                  </span>
+                </div>
               </div>
             </Link>
-          );
+            );
           })}
         </div>
       )}
+      </div>
     </section>
   );
 }
@@ -11142,7 +11801,7 @@ function Storefront() {
     if (currentStorefrontPath === ROOT_PATHS.returns) return <ReturnsPolicy />;
 
     return (
-      <HomePage
+      <PremiumHomePage
         wishlist={wishlist}
         toggleWishlist={toggleWishlist}
         onAddToCart={onAddToCart}
