@@ -3841,12 +3841,14 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
   const heroImage = heroSlide?.image || heroCollection?.image || heroCollection?.hero_image || "";
   const heroTitle = heroCopy.title || (isRtl ? "واجهة بسيطة، اختيار Premium، وتجربة شراء واضحة." : "Clean design. Premium picks. A faster shopping flow.");
   const heroSubtitle = heroCopy.subtitle || (isRtl ? "تصميم نظيف، صور كبيرة، ومساحات مريحة تخلّي التصفح أسرع وأوضح من غير زحمة بصرية." : "A refined storefront built around large visuals, calm spacing, and a sharper first impression.");
+  const heroMobileTitle = heroCopy.mobileTitle || (isRtl ? "اكتشف أحدث الموديلات" : "Discover the latest models");
+  const heroMobileSubtitle = heroCopy.mobileSubtitle || (isRtl ? "رجالي • حريمي • أطفال • كروكس" : "Men • Women • Kids • Crocs");
   const heroPrice = Number(heroSlide?.price || 0) > 0 ? money(heroSlide.price) : "";
   const comparePrice = Number(heroSlide?.comparePrice || 0) > Number(heroSlide?.price || 0) ? money(heroSlide.comparePrice) : "";
   const featureLine = heroSlide?.product?.name || heroCollection?.title || (isRtl ? "مختارات الموسم" : "Curated picks");
 
   return (
-    <section className="mx-auto max-w-[1400px] px-4 pt-4 md:pt-8">
+    <section className="mx-auto max-w-[1400px] px-4 pt-3 md:pt-8">
       <div
         className="relative overflow-hidden rounded-[2.2rem] border"
         style={{
@@ -3856,8 +3858,8 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
         }}
       >
         <div className="pointer-events-none absolute inset-0" style={{ background: themeTokens.heroGlow }} />
-        <div className="relative grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
-          <div className="flex min-w-0 flex-col justify-center px-5 py-6 text-right md:px-8 md:py-9 lg:px-10 lg:py-11">
+        <div className="relative grid gap-4 lg:grid-cols-[1.08fr_0.92fr] md:gap-6">
+          <div className="flex min-w-0 flex-col justify-center px-5 py-5 text-right md:px-8 md:py-9 lg:px-10 lg:py-11">
             <span
               className="inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em]"
               style={{
@@ -3868,13 +3870,15 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
             >
               {heroCopy.badge || brandName}
             </span>
-            <h1 className="mt-4 max-w-2xl text-[2.25rem] font-black leading-[1.02] tracking-[-0.04em] md:text-[3.5rem] lg:text-[4.55rem]" style={{ color: themeTokens.textPrimary }}>
-              {heroTitle}
+            <h1 className="mt-3 max-w-2xl text-[2rem] font-black leading-[1.02] tracking-[-0.04em] md:mt-4 md:text-[3.5rem] lg:text-[4.55rem]" style={{ color: themeTokens.textPrimary }}>
+              <span className="md:hidden">{heroMobileTitle}</span>
+              <span className="hidden md:inline">{heroTitle}</span>
             </h1>
-            <p className="mt-4 max-w-2xl text-sm font-bold leading-7 md:text-lg md:leading-8" style={{ color: themeTokens.textSecondary }}>
-              {heroSubtitle}
+            <p className="mt-2 max-w-2xl text-[0.95rem] font-bold leading-6 md:mt-4 md:text-lg md:leading-8" style={{ color: themeTokens.textSecondary }}>
+              <span className="md:hidden">{heroMobileSubtitle}</span>
+              <span className="hidden md:inline">{heroSubtitle}</span>
             </p>
-            <div className="mt-7 flex flex-wrap gap-3">
+            <div className="mt-4 flex flex-wrap gap-3 md:mt-7">
               <Link
                 to="/products"
                 className="inline-flex min-h-12 items-center justify-center rounded-full px-5 text-sm font-black transition duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
@@ -3898,7 +3902,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
                 {heroCopy.secondary || (isRtl ? "العروض" : "Offers")}
               </Link>
             </div>
-            <div className="mt-7 grid gap-3 sm:grid-cols-3">
+            <div className="mt-4 grid gap-2 sm:grid-cols-3 md:mt-7 md:gap-3">
               {[
                 isRtl ? "شحن سريع" : "Fast shipping",
                 isRtl ? "استبدال سهل" : "Easy exchange",
@@ -3919,7 +3923,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
             </div>
             {featureLine ? (
               <div
-                className="mt-7 inline-flex w-fit max-w-full items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold"
+                className="mt-5 hidden w-fit max-w-full items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold md:inline-flex md:mt-7"
                 style={{
                   background: themeTokens.card,
                   borderColor: themeTokens.border,
@@ -3934,7 +3938,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
             ) : null}
           </div>
 
-          <div className="relative px-5 pb-5 pt-0 md:px-8 md:pb-8 lg:px-10 lg:py-10">
+          <div className="relative px-5 pb-4 pt-0 md:px-8 md:pb-8 lg:px-10 lg:py-10">
             <div
               className="relative overflow-hidden rounded-[2rem] border p-4 md:p-5"
               style={{
@@ -3945,18 +3949,18 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
             >
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(212,175,55,0.12),transparent_42%)]" />
               <div
-                className="relative flex min-h-[320px] items-center justify-center overflow-hidden rounded-[1.5rem] border p-4 md:min-h-[430px]"
+                className="relative flex min-h-[220px] items-center justify-center overflow-hidden rounded-[1.5rem] border p-4 md:min-h-[430px]"
                 style={{ background: themeTokens.surface, borderColor: themeTokens.border }}
               >
                 {loading && !heroImage ? (
-                  <div className="h-[240px] w-[82%] animate-pulse rounded-[1.5rem]" style={{ background: themeTokens.cardSoft }} />
+                  <div className="h-[180px] w-[82%] animate-pulse rounded-[1.5rem] md:h-[240px]" style={{ background: themeTokens.cardSoft }} />
                 ) : heroImage ? (
                   <img
                     src={imageFor(heroImage)}
                     {...responsiveImageProps(heroImage, "hero")}
                     alt={heroSlide?.product?.name || brandName}
                     onError={fallbackProductImage}
-                    className="h-full w-full max-h-[340px] object-contain md:max-h-[420px]"
+                    className="h-full w-full max-h-[220px] object-contain md:max-h-[420px]"
                     loading="eager"
                     decoding="async"
                     width="900"
@@ -5785,6 +5789,10 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     { label: t("storefront.nav.kids"), to: "/products?gender=kids" },
   ];
   const themeIsDark = effectiveTheme === "dark";
+  const headerShellClassName = [
+    "sf-luxury-header sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent",
+    themeIsDark ? "" : "border-b border-black/5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]",
+  ].join(" ");
   const themeToggleLabel = themeIsDark
     ? t("storefront.header.lightMode")
     : t("storefront.header.darkMode");
@@ -6138,7 +6146,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
   return (
     <header
       data-compact={!compactDisabled && isCompact ? "true" : "false"}
-      className="sf-luxury-header sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent"
+      className={headerShellClassName}
     >
       <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(90deg,#050505_0%,#0a0a0a_55%,#111111_100%)] text-white/90 backdrop-blur transition-all duration-300`}>
         <div className="mx-auto flex h-8 w-full max-w-7xl items-center justify-center px-4 md:h-10">
@@ -10677,7 +10685,7 @@ function FooterLinks({ title, links }) {
   return <div><h4 className="font-black">{title}</h4><div className="mt-3 grid gap-2 text-sm font-bold text-stone-600 dark:text-stone-400">{links.map(([label, href]) => <Link className="transition hover:text-[#d4af37] dark:hover:text-[#f3d77a]" key={label} to={href}>{label}</Link>)}</div></div>;
 }
 
-function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = {}, publicStoreSettings = {} }) {
+function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = {}, publicStoreSettings = {}, themeMode = "dark" }) {
   const { i18n: storefrontI18n } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
@@ -10686,6 +10694,7 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
   const path = location.pathname || "";
   const search = location.search || "";
   const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
+  const isDarkMode = themeMode === "dark";
   const isCheckoutFlow = isStorefrontCheckoutFlowPath(path);
   const isVisible = isStorefrontPath(path) && !isCheckoutFlow;
   const saleHref = storefrontPath("/offers");
@@ -10788,13 +10797,18 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
         aria-label={sfText("storefront.nav.mobileNavigation")}
       >
         <div className="mx-auto">
-          <div className="flex h-[calc(var(--mobile-bottom-nav-height,58px))] items-center justify-evenly overflow-hidden rounded-[999px] border border-[rgba(255,255,255,0.10)] bg-[linear-gradient(180deg,rgba(5,5,5,0.94),rgba(10,10,10,0.96))] px-2 backdrop-blur-[20px] shadow-[0_-18px_40px_rgba(0,0,0,0.45)]">
+          <div className={[
+            "flex h-[calc(var(--mobile-bottom-nav-height,58px))] items-center justify-evenly overflow-hidden rounded-[999px] px-2",
+            isDarkMode
+              ? "border border-[rgba(255,255,255,0.10)] bg-[linear-gradient(180deg,rgba(5,5,5,0.94),rgba(10,10,10,0.96))] backdrop-blur-[20px] shadow-[0_-18px_40px_rgba(0,0,0,0.45)]"
+              : "border border-black/8 bg-[linear-gradient(180deg,rgba(23,23,23,0.94),rgba(17,17,17,0.96))] backdrop-blur-[22px] shadow-[0_-16px_34px_rgba(0,0,0,0.24)] [height:calc(var(--mobile-bottom-nav-height,61px))]",
+          ].join(" ")}>
             {links.map((item) => {
               const active = isActive(item);
               const Icon = item.icon;
               const isSale = item.id === "sale";
               const baseClass = [
-                "group flex h-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-full px-1.5 text-[9px] leading-none transition duration-200 ease-out active:scale-[0.98]",
+                "group flex h-full min-w-0 flex-col items-center justify-center gap-[3px] rounded-full px-1.5 text-[9px] leading-none transition duration-200 ease-out active:scale-[0.98]",
                 active ? "scale-[1.05] bg-[rgba(212,175,55,0.12)] text-[#d4af37]" : "opacity-75 text-white/90 hover:opacity-90",
               ].join(" ");
               const iconClass = "h-[22px] w-[22px]";
@@ -11871,7 +11885,7 @@ function Storefront() {
         </a>
       ) : null}
       {showMobileBottomNav && !isOfferStoryPage ? (
-        <MobileBottomNav cartCount={cartCount} quickActionLinks={quickActionLinks} publicStoreSettings={publicStoreSettings} />
+        <MobileBottomNav cartCount={cartCount} quickActionLinks={quickActionLinks} publicStoreSettings={publicStoreSettings} themeMode={themeMode} />
       ) : null}
     </>
   );
