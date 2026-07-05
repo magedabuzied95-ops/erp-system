@@ -66,6 +66,7 @@ const mapLegacyPathname = (pathname = "/shop") => {
   if (normalized === `${LEGACY_PREFIX}/products`) return ROOT_PATHS.products;
   if (normalized.startsWith(`${LEGACY_PREFIX}/product/`)) return normalized.replace(`${LEGACY_PREFIX}/product/`, `${ROOT_PATHS.product}/`);
   if (normalized === `${LEGACY_PREFIX}/account`) return ROOT_PATHS.account;
+  if (normalized === `${LEGACY_PREFIX}/account/reset-password`) return `${ROOT_PATHS.account}/reset-password`;
   if (normalized === `${LEGACY_PREFIX}/cart`) return ROOT_PATHS.cart;
   if (normalized === `${LEGACY_PREFIX}/checkout`) return ROOT_PATHS.checkout;
   if (normalized === `${LEGACY_PREFIX}/track`) return ROOT_PATHS.track;
@@ -152,6 +153,7 @@ const isStorefrontCheckoutFlowPath = (pathname = "") => {
 const isStorefrontPath = (pathname = "") => {
   const normalized = normalizePathname(pathname);
   if (/^\/c\/[^/]+$/.test(normalized)) return true;
+  if (normalized === `${ROOT_PATHS.account}/reset-password` || normalized === `${LEGACY_PREFIX}/account/reset-password`) return true;
   return [
     ROOT_PATHS.home,
     ROOT_PATHS.products,

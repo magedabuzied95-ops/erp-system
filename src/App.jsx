@@ -503,6 +503,7 @@ function App() {
           <Route path="/products" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/product/:identifier" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/account" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
+          <Route path="/account/reset-password" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/cart" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/checkout" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
           <Route path="/track" element={<Suspense fallback={<RouteSkeleton />}><Storefront /></Suspense>} />
@@ -529,6 +530,7 @@ function App() {
       <Route path="/shop/products" element={<StorefrontLegacyRedirect />} />
       <Route path="/shop/product/:identifier" element={<StorefrontLegacyRedirect />} />
       <Route path="/shop/account" element={<StorefrontLegacyRedirect />} />
+      <Route path="/shop/account/reset-password" element={<StorefrontLegacyRedirect />} />
       <Route path="/shop/cart" element={<StorefrontLegacyRedirect />} />
       <Route path="/shop/checkout" element={<StorefrontLegacyRedirect />} />
       <Route path="/shop/track" element={<StorefrontLegacyRedirect />} />
