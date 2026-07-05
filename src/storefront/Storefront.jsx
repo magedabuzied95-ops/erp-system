@@ -11328,6 +11328,10 @@ function Storefront() {
     writeStorefrontStorage(THEME_KEY, themeMode);
     if (typeof document === "undefined") return;
     document.body.classList.toggle("storefront-dark", themeMode === "dark");
+    document.body.classList.add("storefront-shell");
+    return () => {
+      document.body.classList.remove("storefront-shell");
+    };
   }, [themeMode]);
 
   useEffect(() => {
