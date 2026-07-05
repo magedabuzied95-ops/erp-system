@@ -1,7 +1,7 @@
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { memo, useCallback } from "react";
 import { useDeferredValue } from "react";
-import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 import { FaWhatsapp } from "react-icons/fa";
@@ -82,9 +82,11 @@ import {
   isStorefrontPath,
   isStorefrontProductPath,
   isStorefrontProductsPath,
+  ROOT_PATHS,
   normalizePathname,
   productPath,
   productsPath,
+  resolveStorefrontPathname,
   storefrontPath,
   storefrontPathFromLink,
 } from "./lib/paths";
@@ -11000,6 +11002,7 @@ function Storefront() {
   const isCheckoutPage = isStorefrontCheckoutPath(location.pathname || "");
   const isOfferStoryPage = isStorefrontOfferPath(location.pathname || "");
   const hideFloatingWhatsApp = cartDrawerOpen || mobileMenuOpen || isCheckoutPage || isOfferStoryPage;
+  const currentStorefrontPath = resolveStorefrontPathname(location.pathname || "");
 
   useEffect(() => {
     if (!isOfferStoryPage || typeof document === "undefined") return undefined;
@@ -11028,6 +11031,145 @@ function Storefront() {
     CityAreaField,
   }), []);
 
+  const storefrontPage = useMemo(() => {
+    if (isStorefrontProductsPath(currentStorefrontPath)) {
+      return (
+        <LazyStorefrontProductListingPage
+          wishlist={wishlist}
+          toggleWishlist={toggleWishlist}
+          onAddToCart={onAddToCart}
+        />
+      );
+    }
+
+    if (isStorefrontOfferPath(currentStorefrontPath)) return <OfferStoryViewer />;
+
+    if (isStorefrontProductPath(currentStorefrontPath)) {
+      return (
+        <LazyStorefrontProductDetailPage
+          key={storefrontRouteKey}
+          onAddToCart={onAddToCart}
+          toggleWishlist={toggleWishlist}
+          wishlist={wishlist}
+          rememberProduct={rememberProduct}
+          recent={recent}
+          profile={profile}
+        />
+      );
+    }
+
+    if (currentStorefrontPath === ROOT_PATHS.cart) {
+      return (
+        <LazyStorefrontCartPage
+          cart={cart}
+          updateCart={updateCart}
+          removeFromCart={removeFromCart}
+          helpers={helpers}
+          components={components}
+        />
+      );
+    }
+
+    if (currentStorefrontPath === ROOT_PATHS.checkout) {
+      return (
+        <CheckoutPage
+          cart={cart}
+          clearCart={clearCart}
+          profile={profile}
+          setProfile={setProfile}
+          themeMode={themeMode}
+        />
+      );
+    }
+
+    if (currentStorefrontPath.startsWith(`${ROOT_PATHS.success}/`)) {
+      return (
+        <OrderSuccess
+          profile={profile}
+          themeMode={themeMode}
+          brandName={storefrontBrandSettings.brandName}
+          brandLogoUrl={storefrontBrandSettings.brandLogoUrl}
+        />
+      );
+    }
+
+    if (currentStorefrontPath === ROOT_PATHS.track) {
+      return <LazyStorefrontTrackOrderPage helpers={helpers} components={components} />;
+    }
+
+    if (currentStorefrontPath.startsWith(`${ROOT_PATHS.confirm}/`) || /^\/c\/[^/]+$/.test(currentStorefrontPath)) {
+      return <LazyOrderConfirmationActionPage />;
+    }
+
+    if (currentStorefrontPath === ROOT_PATHS.account) {
+      return (
+        <LazyStorefrontAccountPage
+          profile={profile}
+          setProfile={setProfile}
+          wishlist={wishlist}
+          recent={recent}
+          onAddToCart={onAddToCart}
+          helpers={helpers}
+          components={components}
+        />
+      );
+    }
+
+    if (currentStorefrontPath === ROOT_PATHS.wishlist) {
+      return (
+        <LazyStorefrontWishlistPage
+          wishlist={wishlist}
+          toggleWishlist={toggleWishlist}
+          onAddToCart={onAddToCart}
+          helpers={helpers}
+          components={components}
+        />
+      );
+    }
+
+    if (currentStorefrontPath === ROOT_PATHS.recentlyViewed) {
+      return <LazyStorefrontRecentPage recent={recent} helpers={helpers} components={components} />;
+    }
+
+    if (currentStorefrontPath === ROOT_PATHS.faq) return <FaqPage />;
+
+    if (currentStorefrontPath === ROOT_PATHS.contact) {
+      return <PremiumContactPage publicStoreSettings={publicStoreSettings} quickActionLinks={quickActionLinks} />;
+    }
+
+    if (currentStorefrontPath === ROOT_PATHS.sizeGuide) return <LazyStorefrontSizeGuidePage />;
+    if (currentStorefrontPath === ROOT_PATHS.returns) return <ReturnsPolicy />;
+
+    return (
+      <HomePage
+        wishlist={wishlist}
+        toggleWishlist={toggleWishlist}
+        onAddToCart={onAddToCart}
+        themeMode={themeMode}
+      />
+    );
+  }, [
+    cart,
+    clearCart,
+    components,
+    currentStorefrontPath,
+    helpers,
+    onAddToCart,
+    profile,
+    publicStoreSettings,
+    quickActionLinks,
+    recent,
+    rememberProduct,
+    setProfile,
+    storefrontBrandSettings,
+    storefrontRouteKey,
+    themeMode,
+    toggleWishlist,
+    updateCart,
+    removeFromCart,
+    wishlist,
+  ]);
+
   if (!routeReady) return <StorefrontPageFallback />;
 
   return (
@@ -11047,84 +11189,7 @@ function Storefront() {
           setMobileMenuOpen={setMobileMenuOpen}
         />
       ) : null}
-      <Routes>
-      <Route
-        path="/"
-        element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} themeMode={themeMode} />}
-      />
-      <Route
-        path="/products"
-        element={<LazyStorefrontProductListingPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} />}
-      />
-      <Route
-        path="/offers"
-        element={<OfferStoryViewer />}
-      />
-      <Route
-        path="/sale"
-        element={<OfferStoryViewer />}
-      />
-      <Route
-        path="/product/:identifier"
-        element={<LazyStorefrontProductDetailPage key={storefrontRouteKey} onAddToCart={onAddToCart} toggleWishlist={toggleWishlist} wishlist={wishlist} rememberProduct={rememberProduct} recent={recent} profile={profile} />}
-      />
-      <Route
-        path="/cart"
-        element={<LazyStorefrontCartPage cart={cart} updateCart={updateCart} removeFromCart={removeFromCart} helpers={helpers} components={components} />}
-      />
-      <Route
-        path="/checkout"
-        element={<CheckoutPage cart={cart} clearCart={clearCart} profile={profile} setProfile={setProfile} themeMode={themeMode} />}
-      />
-      <Route
-        path="/success/:orderNumber"
-        element={<OrderSuccess profile={profile} themeMode={themeMode} brandName={storefrontBrandSettings.brandName} brandLogoUrl={storefrontBrandSettings.brandLogoUrl} />}
-      />
-      <Route
-        path="/track"
-        element={<LazyStorefrontTrackOrderPage helpers={helpers} components={components} />}
-      />
-      <Route
-        path="/confirm/:code"
-        element={<LazyOrderConfirmationActionPage />}
-      />
-      <Route
-        path="/c/:code"
-        element={<LazyOrderConfirmationActionPage />}
-      />
-      <Route
-        path="/account"
-        element={<LazyStorefrontAccountPage profile={profile} setProfile={setProfile} wishlist={wishlist} recent={recent} onAddToCart={onAddToCart} helpers={helpers} components={components} />}
-      />
-      <Route
-        path="/wishlist"
-        element={<LazyStorefrontWishlistPage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} helpers={helpers} components={components} />}
-      />
-      <Route
-        path="/recently-viewed"
-        element={<LazyStorefrontRecentPage recent={recent} helpers={helpers} components={components} />}
-      />
-      <Route
-        path="/faq"
-        element={<FaqPage />}
-      />
-      <Route
-        path="/contact"
-        element={<PremiumContactPage publicStoreSettings={publicStoreSettings} quickActionLinks={quickActionLinks} />}
-      />
-      <Route
-        path="/size-guide"
-        element={<LazyStorefrontSizeGuidePage />}
-      />
-      <Route
-        path="/returns"
-        element={<ReturnsPolicy />}
-      />
-      <Route
-        path="*"
-        element={<HomePage wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} themeMode={themeMode} />}
-      />
-      </Routes>
+      {storefrontPage}
       {!isOfferStoryPage ? (
         <CartDrawer
           open={cartDrawerOpen}

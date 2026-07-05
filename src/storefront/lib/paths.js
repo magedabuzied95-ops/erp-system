@@ -82,6 +82,12 @@ const mapLegacyPathname = (pathname = "/shop") => {
   return normalized;
 };
 
+const resolveStorefrontPathname = (pathname = "/") => {
+  const normalized = normalizePathname(pathname);
+  if (!normalized.startsWith(LEGACY_PREFIX)) return normalized;
+  return normalizePathname(mapLegacyPathname(normalized));
+};
+
 const legacyShopToRootPath = (pathname = "/shop", search = "", hash = "") => {
   const targetPath = mapLegacyPathname(pathname);
   const query = String(search || "").replace(/^\?/, "");
@@ -193,6 +199,7 @@ export {
   normalizePathname,
   productPath,
   productsPath,
+  resolveStorefrontPathname,
   startsWithRootPath,
   storefrontPath,
   storefrontPathFromLink,
