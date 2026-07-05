@@ -9424,11 +9424,11 @@ function SuccessTimeline({ darkMode: darkModeProp } = {}) {
   );
 }
 
-function Field({ label, value, onChange, required, error, inputMode, placeholder, inputClassName = "" }) {
+function Field({ label, value, onChange, required, error, inputMode, placeholder, inputClassName = "", type = "text", autoComplete = "" }) {
   return (
     <label className="sf-field sf-checkout-field block">
       <span className="sf-field-label sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <input required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input ${inputClassName} min-h-14 w-full rounded-2xl border bg-[#101010] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-[#151515] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <input type={type} autoComplete={autoComplete || undefined} required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input ${inputClassName} min-h-14 w-full rounded-2xl border bg-[#101010] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-[#151515] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
@@ -11101,7 +11101,7 @@ function Storefront() {
       return <LazyOrderConfirmationActionPage />;
     }
 
-    if (currentStorefrontPath === ROOT_PATHS.account) {
+    if (currentStorefrontPath === ROOT_PATHS.account || currentStorefrontPath === `${ROOT_PATHS.account}/reset-password`) {
       return (
         <LazyStorefrontAccountPage
           profile={profile}
@@ -11111,6 +11111,7 @@ function Storefront() {
           onAddToCart={onAddToCart}
           helpers={helpers}
           components={components}
+          initialAuthMode={currentStorefrontPath === `${ROOT_PATHS.account}/reset-password` ? "reset" : "login"}
         />
       );
     }

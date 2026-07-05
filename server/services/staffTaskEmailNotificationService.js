@@ -39,7 +39,9 @@ export const sendSmtpMail = async ({ to, subject, body }) => {
   const port = Number(process.env.SMTP_PORT || 587);
   const user = text(process.env.SMTP_USER);
   const pass = text(process.env.SMTP_PASS);
-  const from = text(process.env.SMTP_FROM || user);
+  const from = text(process.env.MAIL_FROM || process.env.SMTP_FROM || user);
+  const fromName = text(process.env.MAIL_FROM_NAME || process.env.SMTP_FROM_NAME || "");
+  const fromHeader = fromName ? `=?UTF-8?B?${encodeBase64(fromName)}?= <${from}>` : from;
 
   if (!host || !from) {
     throw new Error("SMTP is not configured");
@@ -65,7 +67,7 @@ export const sendSmtpMail = async ({ to, subject, body }) => {
     await smtpCommand(secureSocket, `RCPT TO:<${to}>`, [250, 251]);
     await smtpCommand(secureSocket, "DATA", [354]);
     secureSocket.write([
-      `From: ${from}`,
+      `From: ${fromHeader}`,
       `To: ${to}`,
       `Subject: =?UTF-8?B?${encodeBase64(subject)}?=`,
       "MIME-Version: 1.0",
@@ -90,7 +92,7 @@ export const sendSmtpMail = async ({ to, subject, body }) => {
   await smtpCommand(socket, `RCPT TO:<${to}>`, [250, 251]);
   await smtpCommand(socket, "DATA", [354]);
   socket.write([
-    `From: ${from}`,
+    `From: ${fromHeader}`,
     `To: ${to}`,
     `Subject: =?UTF-8?B?${encodeBase64(subject)}?=`,
     "MIME-Version: 1.0",

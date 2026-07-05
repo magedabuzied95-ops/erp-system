@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../i18n/i18n";
 import { api } from "../../shared/api/api";
@@ -214,12 +214,23 @@ function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
   );
 }
 
-export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, onAddToCart, helpers, components }) {
+export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, onAddToCart, helpers, components, initialAuthMode = "login" }) {
   const { sfText, displayOrderNumber } = helpers;
   const { Field, Panel, InfoBox, SmallProductList } = components;
   const savedIdentity = normalizeAccountIdentity(profile);
+  const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [customerAuth, setCustomerAuth] = useState(() => readStorefrontCustomerAuth());
   const [phone, setPhone] = useState(customerAuth.phone || savedIdentity.primary_phone || "");
+  const [authMode, setAuthMode] = useState(() => (initialAuthMode === "reset" ? "reset" : "login"));
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authConfirmPassword, setAuthConfirmPassword] = useState("");
+  const [authFullName, setAuthFullName] = useState(savedIdentity.full_name || "");
+  const [resetToken, setResetToken] = useState(() => searchParams.get("token") || "");
+  const [resetPassword, setResetPassword] = useState("");
+  const [resetPasswordConfirm, setResetPasswordConfirm] = useState("");
+  const [authSubmitting, setAuthSubmitting] = useState(false);
   const [otpCode, setOtpCode] = useState("");
   const [account, setAccount] = useState(null);
   const [selectedOrder, setSelectedOrder] = useState(null);
@@ -233,11 +244,28 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
   const accountRefreshIntervalMs = selectedOrder ? 10 * 1000 : 30 * 1000;
   const hasCustomerToken = Boolean(customerAuth.token);
   const normalizedLoginPhone = normalizePhoneDigits(phone);
+  const resetTokenFromQuery = searchParams.get("token") || "";
+  const showEmailAuth = !hasCustomerToken;
+
+  useEffect(() => {
+    if (initialAuthMode === "reset" || resetTokenFromQuery) {
+      setAuthMode("reset");
+    }
+    if (resetTokenFromQuery) {
+      setResetToken(resetTokenFromQuery);
+    }
+  }, [initialAuthMode, resetTokenFromQuery]);
 
   useEffect(() => {
     if (customerAuth.phone || !savedIdentity.primary_phone) return;
     setPhone(savedIdentity.primary_phone);
   }, [customerAuth.phone, savedIdentity.primary_phone]);
+
+  useEffect(() => {
+    if (savedIdentity.full_name && !authFullName) {
+      setAuthFullName(savedIdentity.full_name);
+    }
+  }, [authFullName, savedIdentity.full_name]);
 
   useEffect(() => {
     if (!otpRequestedAt) {
@@ -258,6 +286,14 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     clearAccountIdentityStorage();
     setCustomerAuth({ token: "", phone: "" });
     setPhone("");
+    setAuthEmail("");
+    setAuthPassword("");
+    setAuthConfirmPassword("");
+    setAuthFullName("");
+    setResetToken("");
+    setResetPassword("");
+    setResetPasswordConfirm("");
+    setAuthMode("login");
     setOtpCode("");
     setOtpRequestedAt(0);
     setResendCountdown(0);
@@ -436,6 +472,162 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
     }
   }, [load, otpCode, phone]);
 
+  const syncEmailAuthResponse = useCallback((data, fallbackPhone = "") => {
+    const token = String(data?.token || "").trim();
+    const customer = data?.customer || {};
+    const customerPhone = normalizeStorefrontCustomerPhone(customer?.phone || fallbackPhone || phone || "");
+    if (token) {
+      storeStorefrontCustomerAuth({ token, phone: customerPhone || fallbackPhone || phone || "" });
+    }
+    setCustomerAuth(readStorefrontCustomerAuth());
+    if (customer && typeof customer === "object") {
+      setProfile((prev) =>
+        normalizeStorefrontProfile({
+          ...prev,
+          full_name: String(customer.name || prev.full_name || authFullName || "").trim(),
+          primary_phone: customerPhone || prev.primary_phone || phone || "",
+          phone: customerPhone || prev.phone || phone || "",
+          customer_id: String(customer.id || customer.customer_id || prev.customer_id || "").trim(),
+        })
+      );
+    }
+    setPhone(customerPhone || fallbackPhone || phone || "");
+    return { token, customerPhone };
+  }, [authFullName, phone, setProfile]);
+
+  const submitEmailAuthRegister = useCallback(async () => {
+    const email = String(authEmail || "").trim();
+    const name = String(authFullName || "").trim();
+    const normalizedPhone = normalizeStorefrontCustomerPhone(phone);
+    const password = String(authPassword || "");
+    const confirm = String(authConfirmPassword || "");
+    if (!name || !email || !normalizedPhone || !password) {
+      toast.error("أدخل الاسم والبريد والهاتف وكلمة المرور");
+      return;
+    }
+    if (password.length < 8) {
+      toast.error("كلمة المرور يجب ألا تقل عن 8 أحرف");
+      return;
+    }
+    if (password !== confirm) {
+      toast.error("كلمتا المرور غير متطابقتين");
+      return;
+    }
+    setAuthSubmitting(true);
+    try {
+      const data = await storefrontCustomerRequest("/storefront/auth/register", {
+        method: "POST",
+        body: {
+          name,
+          email,
+          phone: normalizedPhone,
+          password,
+        },
+      });
+      syncEmailAuthResponse(data, normalizedPhone);
+      setAuthMode("login");
+      setAuthPassword("");
+      setAuthConfirmPassword("");
+      setResetToken("");
+      setResetPassword("");
+      setResetPasswordConfirm("");
+      setSearchParams({});
+      setAccount(null);
+      toast.success("تم إنشاء الحساب وتسجيل الدخول بنجاح");
+      await load({ silent: true });
+    } catch (error) {
+      toast.error(error?.message || "تعذر إنشاء الحساب حاليا");
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }, [authConfirmPassword, authEmail, authFullName, authPassword, load, phone, setSearchParams, syncEmailAuthResponse]);
+
+  const submitEmailAuthLogin = useCallback(async () => {
+    const email = String(authEmail || "").trim();
+    const password = String(authPassword || "");
+    if (!email || !password) {
+      toast.error("أدخل البريد الإلكتروني وكلمة المرور");
+      return;
+    }
+    setAuthSubmitting(true);
+    try {
+      const data = await storefrontCustomerRequest("/storefront/auth/login", {
+        method: "POST",
+        body: {
+          email,
+          password,
+        },
+      });
+      syncEmailAuthResponse(data);
+      setAuthMode("login");
+      setAccount(null);
+      setAuthPassword("");
+      toast.success("تم تسجيل الدخول بنجاح");
+      await load({ silent: true });
+    } catch (error) {
+      toast.error(error?.message || "البريد أو كلمة المرور غير صحيحة");
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }, [authEmail, authPassword, load, syncEmailAuthResponse]);
+
+  const requestPasswordReset = useCallback(async () => {
+    const email = String(authEmail || "").trim();
+    if (!email) {
+      toast.error("أدخل البريد الإلكتروني");
+      return;
+    }
+    setAuthSubmitting(true);
+    try {
+      await storefrontCustomerRequest("/storefront/auth/request-reset", {
+        method: "POST",
+        body: { email },
+      });
+      setAuthMode("forgot");
+      toast.success("إذا كان الحساب موجودًا، ستصلك رسالة إعادة التعيين");
+    } catch (error) {
+      toast.error(error?.message || "تعذر إرسال رسالة إعادة التعيين");
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }, [authEmail]);
+
+  const submitPasswordReset = useCallback(async () => {
+    const token = String(resetToken || resetTokenFromQuery || "").trim();
+    const password = String(resetPassword || "");
+    const confirm = String(resetPasswordConfirm || "");
+    if (!token) {
+      toast.error("رابط إعادة التعيين غير صالح");
+      return;
+    }
+    if (!password || password.length < 8) {
+      toast.error("كلمة المرور يجب ألا تقل عن 8 أحرف");
+      return;
+    }
+    if (password !== confirm) {
+      toast.error("كلمتا المرور غير متطابقتين");
+      return;
+    }
+    setAuthSubmitting(true);
+    try {
+      await storefrontCustomerRequest("/storefront/auth/reset-password", {
+        method: "POST",
+        body: { token, password },
+      });
+      toast.success("تم تحديث كلمة المرور. يمكنك تسجيل الدخول الآن");
+      setAuthMode("login");
+      setResetPassword("");
+      setResetPasswordConfirm("");
+      setResetToken("");
+      setSearchParams({});
+      navigate("/account", { replace: true });
+    } catch (error) {
+      toast.error(error?.message || "تعذر تحديث كلمة المرور");
+    } finally {
+      setAuthSubmitting(false);
+    }
+  }, [navigate, resetPassword, resetPasswordConfirm, resetToken, resetTokenFromQuery, setSearchParams]);
+
   const updatePreferredSize = useCallback((key, value) => {
     setPreferredSizes((prev) => ({
       ...prev,
@@ -557,11 +749,143 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
               <ShieldCheck className="h-5 w-5" />
             </span>
             <div className="min-w-0">
-              <div className="text-sm font-black text-stone-900">تسجيل الدخول عبر واتساب</div>
-              <p className="mt-1 text-sm font-bold leading-6 text-stone-500">أدخل رقم الهاتف ثم اطلب كود الدخول لعرض الطلبات والعناوين والمفضلة.</p>
+              <div className="text-sm font-black text-stone-900">تسجيل الدخول بالإيميل أو واتساب</div>
+              <p className="mt-1 text-sm font-bold leading-6 text-stone-500">البريد الإلكتروني هو الأساس الآن، وواتساب OTP متاح كخيار احتياطي.</p>
             </div>
           </div>
           <div className="mt-4 space-y-3">
+            {showEmailAuth ? (
+              <div className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode("login")}
+                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${authMode === "login" ? "bg-stone-950 text-white" : "border border-stone-200 bg-white text-stone-600"}`}
+                  >
+                    تسجيل الدخول
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode("register")}
+                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${authMode === "register" ? "bg-stone-950 text-white" : "border border-stone-200 bg-white text-stone-600"}`}
+                  >
+                    إنشاء حساب
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAuthMode("forgot")}
+                    className={`rounded-full px-3 py-1.5 text-xs font-black transition ${authMode === "forgot" ? "bg-stone-950 text-white" : "border border-stone-200 bg-white text-stone-600"}`}
+                  >
+                    نسيت كلمة المرور
+                  </button>
+                  {resetTokenFromQuery ? (
+                    <button
+                      type="button"
+                      onClick={() => setAuthMode("reset")}
+                      className={`rounded-full px-3 py-1.5 text-xs font-black transition ${authMode === "reset" ? "bg-stone-950 text-white" : "border border-stone-200 bg-white text-stone-600"}`}
+                    >
+                      إعادة التعيين
+                    </button>
+                  ) : null}
+                </div>
+                <div className="mt-4 space-y-3">
+                  {authMode === "login" ? (
+                    <>
+                      <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" />
+                      <Field label="كلمة المرور" value={authPassword} onChange={setAuthPassword} autoComplete="current-password" type="password" />
+                      <button
+                        onClick={submitEmailAuthLogin}
+                        disabled={authSubmitting}
+                        className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
+                      >
+                        {authSubmitting ? (
+                          <span className="inline-flex items-center justify-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            جاري الدخول...
+                          </span>
+                        ) : (
+                          "دخول بالإيميل"
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAuthMode("forgot")}
+                        className="w-full text-sm font-black text-stone-600 underline-offset-4 hover:underline"
+                      >
+                        نسيت كلمة المرور؟
+                      </button>
+                    </>
+                  ) : null}
+
+                  {authMode === "register" ? (
+                    <>
+                      <Field label="الاسم" value={authFullName} onChange={setAuthFullName} autoComplete="name" />
+                      <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" />
+                      <Field label={sfText("storefront.form.mobileNumber", "رقم الهاتف")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" />
+                      <Field label="كلمة المرور" value={authPassword} onChange={setAuthPassword} autoComplete="new-password" type="password" />
+                      <Field label="تأكيد كلمة المرور" value={authConfirmPassword} onChange={setAuthConfirmPassword} autoComplete="new-password" type="password" />
+                      <button
+                        onClick={submitEmailAuthRegister}
+                        disabled={authSubmitting}
+                        className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
+                      >
+                        {authSubmitting ? (
+                          <span className="inline-flex items-center justify-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            جاري إنشاء الحساب...
+                          </span>
+                        ) : (
+                          "إنشاء حساب"
+                        )}
+                      </button>
+                    </>
+                  ) : null}
+
+                  {authMode === "forgot" ? (
+                    <>
+                      <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" />
+                      <button
+                        onClick={requestPasswordReset}
+                        disabled={authSubmitting}
+                        className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
+                      >
+                        {authSubmitting ? (
+                          <span className="inline-flex items-center justify-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            جاري الإرسال...
+                          </span>
+                        ) : (
+                          "إرسال رابط إعادة التعيين"
+                        )}
+                      </button>
+                      <p className="text-xs font-bold leading-6 text-stone-500">سيرسل النظام رابطًا آمنًا لإعادة التعيين إلى بريدك الإلكتروني إذا كان الحساب موجودًا.</p>
+                    </>
+                  ) : null}
+
+                  {authMode === "reset" ? (
+                    <>
+                      <Field label="كلمة المرور الجديدة" value={resetPassword} onChange={setResetPassword} autoComplete="new-password" type="password" />
+                      <Field label="تأكيد كلمة المرور الجديدة" value={resetPasswordConfirm} onChange={setResetPasswordConfirm} autoComplete="new-password" type="password" />
+                      <button
+                        onClick={submitPasswordReset}
+                        disabled={authSubmitting}
+                        className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white disabled:bg-stone-300"
+                      >
+                        {authSubmitting ? (
+                          <span className="inline-flex items-center justify-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            جاري التحديث...
+                          </span>
+                        ) : (
+                          "تحديث كلمة المرور"
+                        )}
+                      </button>
+                      <p className="text-xs font-bold leading-6 text-stone-500">استخدم الرابط الذي وصلك على البريد لتعيين كلمة المرور الجديدة.</p>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
             {showOtpLogin ? (
               <>
                 <Field label={sfText("storefront.form.mobileNumber", "رقم الهاتف")} value={phone} onChange={setPhone} inputMode="tel" />
@@ -637,7 +961,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
             </button>
           </div>
           <div className="mt-4">
-            <InfoBox label={sfText("storefront.account.myData", "بياناتي")} value={hasCustomerToken ? authSummary : "أدخل رقم هاتفك ثم فعّل OTP لعرض الحساب"} />
+            <InfoBox label={sfText("storefront.account.myData", "بياناتي")} value={hasCustomerToken ? authSummary : "أدخل بريدك الإلكتروني أو فعّل OTP لعرض الحساب"} />
             {hasCustomerToken ? <LoyaltyWidget loyalty={account?.loyalty} loading={loading} helpers={helpers} /> : null}
             {hasCustomerToken ? (
               <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
@@ -691,7 +1015,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
           ) : (
             <Panel title="حسابك محمي">
               <div className="rounded-2xl bg-stone-50 p-4 font-bold leading-7 text-stone-600">
-                سجّل الدخول عبر OTP لعرض الطلبات، العناوين، المفضلة، والمنتجات التي تمت مشاهدتها.
+                سجّل الدخول بالبريد الإلكتروني لعرض الطلبات، العناوين، المفضلة، والمنتجات التي تمت مشاهدتها. واتساب OTP متاح كخيار احتياطي.
               </div>
             </Panel>
           )}

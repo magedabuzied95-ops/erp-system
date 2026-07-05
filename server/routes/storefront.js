@@ -30,6 +30,12 @@ import {
   trackOrder,
   visualSearchProducts,
 } from "../controllers/storefrontController.js";
+import {
+  loginStorefrontCustomerEmailAuth,
+  registerStorefrontCustomerEmailAuth,
+  requestStorefrontCustomerPasswordReset,
+  resetStorefrontCustomerPassword,
+} from "../services/storefrontCustomerEmailAuthService.js";
 import paymentProofUpload from "../config/paymentProofUpload.js";
 import { getWebsiteSettings } from "../services/liveActivityService.js";
 import {
@@ -381,6 +387,94 @@ router.post("/auth/request-otp", async (req, res) => {
     return res.status(error?.status || 500).json({
       success: false,
       message: "تعذر إرسال كود الدخول حاليًا",
+    });
+  }
+});
+
+router.post("/auth/register", async (req, res) => {
+  try {
+    const tenantId = publicTenantId(req);
+    const result = await registerStorefrontCustomerEmailAuth({
+      tenantId,
+      name: req.body?.name || "",
+      email: req.body?.email || "",
+      phone: req.body?.phone || req.body?.mobile || "",
+      password: req.body?.password || "",
+    });
+    return res.status(201).json({
+      success: true,
+      token: result.token,
+      customer: result.customer,
+    });
+  } catch (error) {
+    return res.status(error?.status || 400).json({
+      success: false,
+      message: error?.message || "تعذر إنشاء الحساب حاليا",
+      error: error?.code || "EMAIL_AUTH_REGISTER_FAILED",
+    });
+  }
+});
+
+router.post("/auth/login", async (req, res) => {
+  try {
+    const tenantId = publicTenantId(req);
+    const result = await loginStorefrontCustomerEmailAuth({
+      tenantId,
+      email: req.body?.email || "",
+      password: req.body?.password || "",
+    });
+    return res.json({
+      success: true,
+      token: result.token,
+      customer: result.customer,
+    });
+  } catch (error) {
+    return res.status(error?.status || 400).json({
+      success: false,
+      message: error?.message || "البريد أو كلمة المرور غير صحيحة",
+      error: error?.code || "EMAIL_AUTH_LOGIN_FAILED",
+    });
+  }
+});
+
+router.post("/auth/request-reset", async (req, res) => {
+  try {
+    const tenantId = publicTenantId(req);
+    await requestStorefrontCustomerPasswordReset({
+      tenantId,
+      email: req.body?.email || "",
+    });
+    return res.json({
+      success: true,
+      sent: true,
+      message: "إذا كان الحساب موجودًا، فستصلك رسالة إعادة التعيين خلال دقائق.",
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "تعذر إرسال رسالة إعادة التعيين حاليا",
+      error: error?.code || "PASSWORD_RESET_REQUEST_FAILED",
+    });
+  }
+});
+
+router.post("/auth/reset-password", async (req, res) => {
+  try {
+    const tenantId = publicTenantId(req);
+    await resetStorefrontCustomerPassword({
+      tenantId,
+      token: req.body?.token || "",
+      password: req.body?.password || "",
+    });
+    return res.json({
+      success: true,
+      message: "تم تحديث كلمة المرور بنجاح",
+    });
+  } catch (error) {
+    return res.status(error?.status || 400).json({
+      success: false,
+      message: error?.message || "تعذر تحديث كلمة المرور",
+      error: error?.code || "PASSWORD_RESET_FAILED",
     });
   }
 });

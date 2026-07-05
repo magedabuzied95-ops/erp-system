@@ -1,4 +1,5 @@
 import jwt from "jsonwebtoken";
+import db from "../database/db.js";
 
 const getBearerToken = (req = {}) => {
   const header = String(req.headers?.authorization || "").trim();
@@ -8,7 +9,7 @@ const getBearerToken = (req = {}) => {
 
 export const hasStorefrontCustomerToken = (req = {}) => Boolean(getBearerToken(req));
 
-export const requireStorefrontCustomerAuth = (req, res, next) => {
+export const requireStorefrontCustomerAuth = async (req, res, next) => {
   try {
     const token = getBearerToken(req);
     if (!token) {
@@ -18,10 +19,34 @@ export const requireStorefrontCustomerAuth = (req, res, next) => {
     if (!decoded || decoded.type !== "storefront_customer") {
       return res.status(401).json({ success: false, error: "OTP_REQUIRED" });
     }
+    const customerId = decoded.customer_id ?? decoded.customerId ?? null;
+    let tenantId = decoded.tenant_id ?? null;
+    let phone = decoded.phone ?? "";
+    let email = decoded.email ?? "";
+    if ((!phone || !String(phone).trim()) && customerId) {
+      const result = await db.query(
+        `
+        SELECT phone, email, tenant_id
+        FROM customers
+        WHERE id = $1
+        LIMIT 1
+        `,
+        [customerId]
+      );
+      const customer = result.rows?.[0] || null;
+      if (customer) {
+        phone = customer.phone ?? "";
+        email = customer.email ?? email ?? "";
+        tenantId = tenantId ?? customer.tenant_id ?? null;
+      }
+    }
     req.storefrontCustomer = {
       type: decoded.type,
-      tenant_id: decoded.tenant_id ?? null,
-      phone: decoded.phone ?? "",
+      tenant_id: tenantId,
+      phone,
+      email,
+      customer_id: customerId,
+      auth_method: decoded.auth_method || "",
     };
     return next();
   } catch {

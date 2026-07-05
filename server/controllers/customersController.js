@@ -293,6 +293,24 @@ const ensureCustomerSchema = async () => {
   if (!columns.emailColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS email VARCHAR(255)`);
   }
+  if (!columns.columns?.includes("password_hash")) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_hash TEXT`);
+  }
+  if (!columns.columns?.includes("password_changed_at")) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_changed_at TIMESTAMP NULL`);
+  }
+  if (!columns.columns?.includes("password_reset_token_hash")) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_reset_token_hash TEXT`);
+  }
+  if (!columns.columns?.includes("password_reset_token_expires_at")) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_reset_token_expires_at TIMESTAMP NULL`);
+  }
+  if (!columns.columns?.includes("password_reset_requested_at")) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS password_reset_requested_at TIMESTAMP NULL`);
+  }
+  if (!columns.columns?.includes("email_verified_at")) {
+    missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP NULL`);
+  }
   if (!columns.addressColumn) {
     missingStatements.push(`ALTER TABLE customers ADD COLUMN IF NOT EXISTS address TEXT`);
   }
