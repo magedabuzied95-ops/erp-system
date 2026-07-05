@@ -1,4 +1,4 @@
-import { Component, memo, useCallback, useEffect, useRef, useState } from "react";
+﻿import { Component, memo, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import toast from "react-hot-toast";
 import i18n from "../../i18n/i18n";
@@ -59,9 +59,9 @@ const defaultPreferredSizes = () => ({
 const normalizePreferredSizes = (value = {}) => {
   const source = value && typeof value === "object" && !Array.isArray(value) ? value : {};
   return {
-    men: String(source.men || source.male || source["ط±ط¬ط§ظ„ظٹ"] || source.man || source.men_size || source.size_men || "").trim(),
-    women: String(source.women || source.female || source["ط­ط±ظٹظ…ظٹ"] || source.women_size || source.size_women || "").trim(),
-    kids: String(source.kids || source.children || source["ط£ط·ظپط§ظ„"] || source["ط§ط·ظپط§ظ„"] || source.kids_size || source.size_kids || "").trim(),
+    men: String(source.men || source.male || source["رجالي"] || source.man || source.men_size || source.size_men || "").trim(),
+    women: String(source.women || source.female || source["حريمي"] || source.women_size || source.size_women || "").trim(),
+    kids: String(source.kids || source.children || source["أطفال"] || source["اطفال"] || source.kids_size || source.size_kids || "").trim(),
     crocs: String(source.crocs || source.crocs_size || source.size_crocs || "").trim(),
   };
 };
@@ -78,17 +78,17 @@ const clearAccountIdentityStorage = () => {
 function OrderItemsSummaryLocal({ items = [], helpers }) {
   const { sfText, money, imageFor, fallbackProductImage } = helpers;
   if (!items.length) {
-    return <p className="sf-muted-empty mt-4 rounded-2xl bg-stone-50 p-4 font-bold text-stone-500">{sfText("storefront.orders.itemsLoading", "ط·آ³ط¸ظ¹ط·آ¸ط¸â€،ط·آ± ط¸â€¦ط¸â€‍ط·آ®ط·آµ ط·آ§ط¸â€‍ط¸â€¦ط¸â€ ط·ع¾ط·آ¬ط·آ§ط·ع¾ ط¸â€،ط¸â€ ط·آ§ ط·آ¨ط·آ¹ط·آ¯ ط·ع¾ط·آ­ط¸â€¦ط¸ظ¹ط¸â€‍ ط·ع¾ط¸ظ¾ط·آ§ط·آµط¸ظ¹ط¸â€‍ ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨.")}</p>;
+    return <p className="sf-muted-empty mt-4 rounded-2xl bg-stone-50 p-4 font-bold text-stone-500">{sfText("storefront.orders.itemsLoading", "سيظهر ملخص المنتجات هنا بعد تحميل تفاصيل الطلب.")}</p>;
   }
   return (
     <div className="sf-order-items mt-5 space-y-3">
-      <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "ط¸â€¦ط¸â€‍ط·آ®ط·آµ ط·آ§ط¸â€‍ط¸â€¦ط¸â€ ط·ع¾ط·آ¬ط·آ§ط·ع¾")}</h3>
+      <h3 className="sf-section-heading text-lg font-black">{sfText("storefront.orders.itemsSummary", "ملخص المنتجات")}</h3>
       {items.map((item) => (
         <div key={item.id || `${item.product_id}-${item.variant_id}`} className="sf-order-item-row flex min-w-0 items-center gap-3 rounded-2xl bg-stone-50 p-3">
           <img src={imageFor(item.product_image || item.image_url)} onError={fallbackProductImage} alt="" className="h-14 w-14 shrink-0 rounded-2xl object-cover" loading="lazy" decoding="async" width="56" height="56" />
           <div className="min-w-0 flex-1">
             <div className="sf-order-item-name truncate font-black">{item.product_name || item.name}</div>
-            <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "ط·آ§ط¸â€‍ط¸â€‍ط¸ث†ط¸â€ ")} / {item.size || sfText("storefront.products.size", "ط·آ§ط¸â€‍ط¸â€¦ط¸â€ڑط·آ§ط·آ³")} ط·آ£أ¢â‚¬â€‌ {item.quantity}</div>
+            <div className="sf-order-item-meta text-xs font-bold text-stone-500">{item.color || sfText("storefront.products.color", "اللون")} / {item.size || sfText("storefront.products.size", "المقاس")} × {item.quantity}</div>
           </div>
           <div className="sf-order-item-price shrink-0 font-black">{money(item.total_amount || Number(item.price || item.sale_price || 0) * Number(item.quantity || 1))}</div>
         </div>
@@ -194,9 +194,9 @@ const AccountOrderRow = memo(function AccountOrderRow({ order, phone, onOpen, on
         <div className="sf-primary-text font-black">{money(order.total_amount || order.total || order.total_price)}</div>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <button onClick={open} className="sf-soft-pill min-h-11 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-black">{sfText("storefront.orders.orderDetails", "ط·ع¾ط¸ظ¾ط·آ§ط·آµط¸ظ¹ط¸â€‍ ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}</button>
-        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "ط·ع¾ط·ع¾ط·آ¨ط·آ¹ ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}</Link>
-        <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-4 py-2 text-sm font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "ط·آ¥ط·آ¹ط·آ§ط·آ¯ط·آ© ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}</button>
+        <button onClick={open} className="sf-soft-pill min-h-11 rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-black">{sfText("storefront.orders.orderDetails", "تفاصيل الطلب")}</button>
+        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-11 rounded-full bg-stone-950 px-4 py-2 text-center text-sm font-black text-white">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
+        <button onClick={reorderOrder} className="min-h-11 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-4 py-2 text-sm font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "إعادة الطلب")}</button>
       </div>
     </div>
   );
@@ -209,19 +209,19 @@ function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
   const publicNumber = displayOrderNumber(order);
   if (data.loading) return <div className="sf-storefront-card h-40 animate-pulse rounded-3xl bg-white" />;
   return (
-    <Panel title={sfText("storefront.orders.orderDetails", "ط·ع¾ط¸ظ¾ط·آ§ط·آµط¸ظ¹ط¸â€‍ ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}>
+    <Panel title={sfText("storefront.orders.orderDetails", "تفاصيل الطلب")}>
       <OrderNumberBadge value={publicNumber} className="mb-1 border-[#d4af37]/20 bg-[#d4af37]/10 text-[#d4af37]" />
       <div className="grid gap-3 md:grid-cols-3">
-        <InfoBox label={sfText("storefront.orders.orderStatus", "ط·آ­ط·آ§ط¸â€‍ط·آ© ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")} value={statusCopy(order.status)} />
+        <InfoBox label={sfText("storefront.orders.orderStatus", "حالة الطلب")} value={statusCopy(order.status)} />
         <InfoBox label={sfText("storefront.checkout.paymentMethod", "Payment")} value={`${paymentCopy(order.payment_method)} - ${statusCopy(order.payment_status)}`} />
         <InfoBox label={sfText("storefront.checkout.shipping", "Shipping")} value={`${shippingProviderCopy(order.shipping_provider)} - ${statusCopy(order.shipping_status)}`} />
       </div>
       <OrderTimeline timeline={data.timeline || []} />
       <OrderItemsSummaryLocal items={data.items || []} helpers={helpers} />
       <div className="grid gap-2 sm:grid-cols-3">
-        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "ط·ع¾ط·ع¾ط·آ¨ط·آ¹ ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}</Link>
-        <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-5 py-3 font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "ط·آ¥ط·آ¹ط·آ§ط·آ¯ط·آ© ط·آ§ط¸â€‍ط·آ·ط¸â€‍ط·آ¨")}</button>
-        <a href={supportHref(publicNumber)} className="min-h-12 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-center font-black text-emerald-700">{sfText("storefront.support.whatsapp", "ط¸ث†ط·آ§ط·ع¾ط·آ³ط·آ§ط·آ¨")}</a>
+        <Link to={`/track?order=${encodeURIComponent(publicNumber)}&phone=${encodeURIComponent(phone)}`} className="min-h-12 rounded-full bg-stone-950 px-5 py-3 text-center font-black text-white">{sfText("storefront.orders.trackOrder", "تتبع الطلب")}</Link>
+        <button onClick={() => onReorder({ ...order, items: data.items || [] })} className="min-h-12 rounded-full border border-[#d4af37]/30 bg-[#f8e7b3]/10 px-5 py-3 font-black text-[#d4af37]">{sfText("storefront.orders.reorder", "إعادة الطلب")}</button>
+        <a href={supportHref(publicNumber)} className="min-h-12 rounded-full border border-emerald-200 bg-emerald-50 px-5 py-3 text-center font-black text-emerald-700">{sfText("storefront.support.whatsapp", "واتساب")}</a>
       </div>
     </Panel>
   );
@@ -350,7 +350,7 @@ function StorefrontAccountPageContent({
 
   const invalidateCustomerIdentity = useCallback(() => {
     clearCustomerIdentity();
-    toast.error("ط§ظ†طھظ‡طھ طµظ„ط§ط­ظٹط© ط§ظ„ط¯ط®ظˆظ„. ط³ط¬ظ‘ظ„ ط¯ط®ظˆظ„ظƒ ظ…ط±ط© ط£ط®ط±ظ‰.");
+    toast.error("ط·آ§ط¸â€ ط·ع¾ط¸â€،ط·ع¾ ط·آµط¸â€‍ط·آ§ط·آ­ط¸ظ¹ط·آ© ط·آ§ط¸â€‍ط·آ¯ط·آ®ط¸ث†ط¸â€‍. ط·آ³ط·آ¬ط¸â€کط¸â€‍ ط·آ¯ط·آ®ط¸ث†ط¸â€‍ط¸ئ’ ط¸â€¦ط·آ±ط·آ© ط·آ£ط·آ®ط·آ±ط¸â€°.");
   }, [clearCustomerIdentity]);
 
   const load = useCallback(async ({ silent = false } = {}) => {
@@ -397,7 +397,7 @@ function StorefrontAccountPageContent({
         invalidateCustomerIdentity();
       }
       if (!silent) {
-        toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "ظ„ط§ ظٹظ…ظƒظ† ظپطھط­ ط§ظ„ط­ط³ط§ط¨ ط§ظ„ط¢ظ†."));
+        toast.error(error.message || sfText("storefront.toasts.accountUnavailable", "ط¸â€‍ط·آ§ ط¸ظ¹ط¸â€¦ط¸ئ’ط¸â€  ط¸ظ¾ط·ع¾ط·آ­ ط·آ§ط¸â€‍ط·آ­ط·آ³ط·آ§ط·آ¨ ط·آ§ط¸â€‍ط·آ¢ط¸â€ ."));
       }
       return null;
     } finally {
@@ -452,7 +452,7 @@ function StorefrontAccountPageContent({
   const requestOtp = useCallback(async () => {
     const normalizedPhone = normalizeStorefrontCustomerPhone(phone);
     if (normalizedPhone.length < 10) {
-      toast.error("ط£ط¯ط®ظ„ ط±ظ‚ظ… ظ…ظˆط¨ط§ظٹظ„ طµط­ظٹط­");
+      toast.error("أدخل رقم موبايل صحيح");
       return;
     }
     setRequestingOtp(true);
@@ -463,9 +463,9 @@ function StorefrontAccountPageContent({
       });
       setOtpRequestedAt(Date.now());
       setOtpCode("");
-      toast.success("ط£ط±ط³ظ„ظ†ط§ ظƒظˆط¯ ط§ظ„ط¯ط®ظˆظ„ ط¹ظ„ظ‰ ظˆط§طھط³ط§ط¨");
+      toast.success("تم إرسال كود الدخول على واتساب");
     } catch (error) {
-      toast.error(error.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ظƒظˆط¯ ط§ظ„ط¯ط®ظˆظ„");
+      toast.error(error.message || "تعذر إرسال كود الدخول");
     } finally {
       setRequestingOtp(false);
     }
@@ -475,11 +475,11 @@ function StorefrontAccountPageContent({
     const normalizedPhone = normalizeStorefrontCustomerPhone(phone);
     const otp = String(otpCode || "").replace(/\D/g, "").slice(0, 6);
     if (normalizedPhone.length < 10) {
-      toast.error("ط£ط¯ط®ظ„ ط±ظ‚ظ… ظ…ظˆط¨ط§ظٹظ„ طµط­ظٹط­");
+      toast.error("أدخل رقم موبايل صحيح");
       return;
     }
     if (otp.length !== 6) {
-      toast.error("ط£ط¯ط®ظ„ ظƒظˆط¯ OTP ظ…ظ† 6 ط£ط±ظ‚ط§ظ…");
+      toast.error("أدخل كود OTP من 6 أرقام");
       return;
     }
     setVerifyingOtp(true);
@@ -498,10 +498,10 @@ function StorefrontAccountPageContent({
       setResendCountdown(0);
       setOtpCode("");
       setAccount(null);
-      toast.success("طھظ… طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ظ†ط¬ط§ط­");
+      toast.success("تم تسجيل الدخول بنجاح");
       await load({ silent: true });
     } catch (error) {
-      toast.error("ط§ظ„ظƒظˆط¯ ط؛ظٹط± طµط­ظٹط­ ط£ظˆ ط§ظ†طھظ‡طھ طµظ„ط§ط­ظٹطھظ‡");
+      toast.error(error?.message || "الكود غير صحيح أو انتهت صلاحيته");
     } finally {
       setVerifyingOtp(false);
     }
@@ -537,15 +537,15 @@ function StorefrontAccountPageContent({
     const password = String(authPassword || "");
     const confirm = String(authConfirmPassword || "");
     if (!name || !email || !normalizedPhone || !password) {
-      toast.error("ط£ط¯ط®ظ„ ط§ظ„ط§ط³ظ… ظˆط§ظ„ط¨ط±ظٹط¯ ظˆط§ظ„ظ‡ط§طھظپ ظˆظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±");
+      toast.error("أدخل الاسم والبريد ورقم الموبايل وكلمة المرور");
       return;
     }
     if (password.length < 8) {
-      toast.error("ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ظٹط¬ط¨ ط£ظ„ط§ طھظ‚ظ„ ط¹ظ† 8 ط£ط­ط±ظپ");
+      toast.error("كلمة المرور يجب ألا تقل عن 8 أحرف");
       return;
     }
     if (password !== confirm) {
-      toast.error("ظƒظ„ظ…طھط§ ط§ظ„ظ…ط±ظˆط± ط؛ظٹط± ظ…طھط·ط§ط¨ظ‚طھظٹظ†");
+      toast.error("كلمتا المرور غير متطابقتين");
       return;
     }
     setAuthSubmitting(true);
@@ -568,10 +568,10 @@ function StorefrontAccountPageContent({
       setResetPasswordConfirm("");
       setSearchParams({});
       setAccount(null);
-      toast.success("طھظ… ط¥ظ†ط´ط§ط، ط§ظ„ط­ط³ط§ط¨ ظˆطھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ظ†ط¬ط§ط­");
+      toast.success("تم إنشاء الحساب وتسجيل الدخول بنجاح");
       await load({ silent: true });
     } catch (error) {
-      toast.error(error?.message || "طھط¹ط°ط± ط¥ظ†ط´ط§ط، ط§ظ„ط­ط³ط§ط¨ ط­ط§ظ„ظٹط§");
+      toast.error(error?.message || "تعذر إنشاء الحساب حاليًا");
     } finally {
       setAuthSubmitting(false);
     }
@@ -581,7 +581,7 @@ function StorefrontAccountPageContent({
     const email = String(authEmail || "").trim();
     const password = String(authPassword || "");
     if (!email || !password) {
-      toast.error("ط£ط¯ط®ظ„ ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ظˆظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±");
+      toast.error("أدخل البريد الإلكتروني وكلمة المرور");
       return;
     }
     setAuthSubmitting(true);
@@ -597,10 +597,10 @@ function StorefrontAccountPageContent({
       setAuthMode("login");
       setAccount(null);
       setAuthPassword("");
-      toast.success("طھظ… طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ظ†ط¬ط§ط­");
+      toast.success("تم تسجيل الدخول بنجاح");
       await load({ silent: true });
     } catch (error) {
-      toast.error(error?.message || "ط§ظ„ط¨ط±ظٹط¯ ط£ظˆ ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ط؛ظٹط± طµط­ظٹط­ط©");
+      toast.error(error?.message || "البريد أو كلمة المرور غير صحيحة");
     } finally {
       setAuthSubmitting(false);
     }
@@ -609,7 +609,7 @@ function StorefrontAccountPageContent({
   const requestPasswordReset = useCallback(async () => {
     const email = String(authEmail || "").trim();
     if (!email) {
-      toast.error("ط£ط¯ط®ظ„ ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ");
+      toast.error("أدخل البريد الإلكتروني");
       return;
     }
     setAuthSubmitting(true);
@@ -619,9 +619,9 @@ function StorefrontAccountPageContent({
         body: { email },
       });
       setAuthMode("forgot");
-      toast.success("ط¥ط°ط§ ظƒط§ظ† ط§ظ„ط­ط³ط§ط¨ ظ…ظˆط¬ظˆط¯ظ‹ط§طŒ ط³طھطµظ„ظƒ ط±ط³ط§ظ„ط© ط¥ط¹ط§ط¯ط© ط§ظ„طھط¹ظٹظٹظ†");
+      toast.success("إذا كان الحساب موجودًا فسيصلك رابط استعادة التعيين");
     } catch (error) {
-      toast.error(error?.message || "طھط¹ط°ط± ط¥ط±ط³ط§ظ„ ط±ط³ط§ظ„ط© ط¥ط¹ط§ط¯ط© ط§ظ„طھط¹ظٹظٹظ†");
+      toast.error(error?.message || "تعذر إرسال رسالة إعادة التعيين");
     } finally {
       setAuthSubmitting(false);
     }
@@ -632,15 +632,15 @@ function StorefrontAccountPageContent({
     const password = String(resetPassword || "");
     const confirm = String(resetPasswordConfirm || "");
     if (!token) {
-      toast.error("ط±ط§ط¨ط· ط¥ط¹ط§ط¯ط© ط§ظ„طھط¹ظٹظٹظ† ط؛ظٹط± طµط§ظ„ط­");
+      toast.error("رابط إعادة التعيين غير صالح");
       return;
     }
     if (!password || password.length < 8) {
-      toast.error("ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ظٹط¬ط¨ ط£ظ„ط§ طھظ‚ظ„ ط¹ظ† 8 ط£ط­ط±ظپ");
+      toast.error("كلمة المرور يجب ألا تقل عن 8 أحرف");
       return;
     }
     if (password !== confirm) {
-      toast.error("ظƒظ„ظ…طھط§ ط§ظ„ظ…ط±ظˆط± ط؛ظٹط± ظ…طھط·ط§ط¨ظ‚طھظٹظ†");
+      toast.error("كلمتا المرور غير متطابقتين");
       return;
     }
     setAuthSubmitting(true);
@@ -649,7 +649,7 @@ function StorefrontAccountPageContent({
         method: "POST",
         body: { token, password },
       });
-      toast.success("طھظ… طھط­ط¯ظٹط« ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±. ظٹظ…ظƒظ†ظƒ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„ ط§ظ„ط¢ظ†");
+      toast.success("تم تحديث كلمة المرور. يمكنك تسجيل الدخول الآن");
       setAuthMode("login");
       setResetPassword("");
       setResetPasswordConfirm("");
@@ -657,7 +657,7 @@ function StorefrontAccountPageContent({
       setSearchParams({});
       navigate("/account", { replace: true });
     } catch (error) {
-      toast.error(error?.message || "طھط¹ط°ط± طھط­ط¯ظٹط« ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±");
+      toast.error(error?.message || "تعذر تحديث كلمة المرور");
     } finally {
       setAuthSubmitting(false);
     }
@@ -672,7 +672,7 @@ function StorefrontAccountPageContent({
 
   const savePreferredSizes = useCallback(async () => {
     if (!hasCustomerToken) {
-      toast.error("ط³ط¬ظ‘ظ„ ط§ظ„ط¯ط®ظˆظ„ ط£ظˆظ„ظ‹ط§ ط­طھظ‰ ظ†ط­ظپط¸ ظ…ظ‚ط§ط³ط§طھظƒ");
+      toast.error("سجل دخولك أولًا حتى نحفظ مقاساتك");
       return;
     }
     setSavingPreferences(true);
@@ -682,13 +682,13 @@ function StorefrontAccountPageContent({
         body: { preferred_sizes: preferredSizes },
       });
       setPreferredSizes(normalizePreferredSizes(response?.preferences || preferredSizes));
-      toast.success("طھظ… ط­ظپط¸ ظ…ظ‚ط§ط³ط§طھظƒ");
+      toast.success("تم حفظ المقاسات");
     } catch (error) {
       if (Number(error?.status || error?.response?.status || 0) === 401) {
-        toast.error("ط³ط¬ظ‘ظ„ ط§ظ„ط¯ط®ظˆظ„ ظ…ط±ط© ط£ط®ط±ظ‰");
+        toast.error("سجل الدخول مرة أخرى");
         return;
       }
-      toast.error("طھط¹ط°ط± ط­ظپط¸ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط­ط§ظ„ظٹظ‹ط§");
+      toast.error("تعذر حفظ المقاسات حاليًا");
     } finally {
       setSavingPreferences(false);
     }
@@ -756,7 +756,7 @@ function StorefrontAccountPageContent({
     if (added) {
       toast.success(skipped ? sfText("storefront.toasts.reorderPartial", "Available items were added to cart. Some choices are currently unavailable.") : sfText("storefront.toasts.reorderAdded", "The order was added to cart again."));
     } else {
-      toast.error(sfText("storefront.toasts.reorderUnavailable", "هذه المنتجات غير متاحة حاليًا. جرّب اختيارات أخرى."));
+      toast.error(sfText("storefront.toasts.reorderUnavailable", "ظ‡ط°ظ‡ ط§ظ„ظ…ظ†طھط¬ط§طھ ط؛ظٹط± ظ…طھط§ط­ط© ط­ط§ظ„ظٹظ‹ط§. ط¬ط±ظ‘ط¨ ط§ط®طھظٹط§ط±ط§طھ ط£ط®ط±ظ‰."));
     }
   }, [customerAuth.phone, displayOrderNumber, loadProductsForReorder, onAddToCart, selectedOrder?.items, sfText]);
 
@@ -764,7 +764,7 @@ function StorefrontAccountPageContent({
   const addresses = account?.addresses || [];
   const backendWishlist = account?.wishlist_products || [];
   const backendRecent = account?.recent_products || [];
-  const authSummary = account?.customer?.name || safeProfile.full_name || sfText("storefront.account.enterPhoneHint", "أدخل رقم هاتفك لعرض الحساب");
+  const authSummary = account?.customer?.name || safeProfile.full_name || sfText("storefront.account.enterPhoneHint", "ط£ط¯ط®ظ„ ط±ظ‚ظ… ظ‡ط§طھظپظƒ ظ„ط¹ط±ط¶ ط§ظ„ط­ط³ط§ط¨");
   const isRestoringAccount = hasCustomerToken && !account;
   const showOtpLogin = !hasCustomerToken && !isResetMode;
   const showResetView = authMode === "reset";
@@ -778,16 +778,16 @@ function StorefrontAccountPageContent({
         <div>
           <p className="text-sm font-black uppercase tracking-[0.32em] text-[#d4af37]">M1 Store</p>
           <h1 className="mt-2 text-3xl font-black text-stone-950 dark:text-white md:text-4xl">
-            {isResetMode ? "إعادة تعيين كلمة المرور" : "أهلاً بك"}
+            {isResetMode ? "ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±" : "ط£ظ‡ظ„ط§ظ‹ ط¨ظƒ"}
           </h1>
           <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-stone-600 dark:text-white/70">
             {isResetMode
-              ? "أدخل كلمة المرور الجديدة لإكمال استعادة حسابك بأمان."
-              : "سجل دخولك لمتابعة طلباتك وعناوينك ونقاطك، أو أنشئ حسابًا جديدًا خلال ثوانٍ."}
+              ? "ط£ط¯ط®ظ„ ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ط§ظ„ط¬ط¯ظٹط¯ط© ظ„ط¥ظƒظ…ط§ظ„ ط§ط³طھط¹ط§ط¯ط© ط­ط³ط§ط¨ظƒ ط¨ط£ظ…ط§ظ†."
+              : "ط³ط¬ظ„ ط¯ط®ظˆظ„ظƒ ظ„ظ…طھط§ط¨ط¹ط© ط·ظ„ط¨ط§طھظƒ ظˆط¹ظ†ط§ظˆظٹظ†ظƒ ظˆظ†ظ‚ط§ط·ظƒطŒ ط£ظˆ ط£ظ†ط´ط¦ ط­ط³ط§ط¨ظ‹ط§ ط¬ط¯ظٹط¯ظ‹ط§ ط®ظ„ط§ظ„ ط«ظˆط§ظ†ظچ."}
           </p>
         </div>
         <Link to="/track" className="inline-flex min-h-12 items-center justify-center rounded-full border border-[#d4af37]/30 bg-white px-5 py-3 font-black text-stone-900 shadow-sm transition hover:border-[#d4af37] hover:text-[#b68c16] dark:border-[#d4af37]/20 dark:bg-white/5 dark:text-white">
-          {sfText("storefront.orders.trackOrder", "تتبع الطلب")}
+          {sfText("storefront.orders.trackOrder", "طھطھط¨ط¹ ط§ظ„ط·ظ„ط¨")}
         </Link>
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-[420px_1fr]">
@@ -799,12 +799,12 @@ function StorefrontAccountPageContent({
               </span>
               <div className="min-w-0">
                 <div className="text-lg font-black text-stone-950 dark:text-white">
-                  {showResetView ? "استعادة الوصول" : "حسابك في M1 Store"}
+                  {showResetView ? "ط§ط³طھط¹ط§ط¯ط© ط§ظ„ظˆطµظˆظ„" : "ط­ط³ط§ط¨ظƒ ظپظٹ M1 Store"}
                 </div>
                 <p className="mt-1 text-sm font-bold leading-6 text-stone-500 dark:text-white/65">
                   {showResetView
-                    ? "أدخل كلمة المرور الجديدة ثم عد لتسجيل الدخول."
-                    : "واجهة دخول مرتبة وآمنة للوصول إلى طلباتك، عناوينك، والمفضلة."}
+                    ? "ط£ط¯ط®ظ„ ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ط§ظ„ط¬ط¯ظٹط¯ط© ط«ظ… ط¹ط¯ ظ„طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„."
+                    : "ظˆط§ط¬ظ‡ط© ط¯ط®ظˆظ„ ظ…ط±طھط¨ط© ظˆط¢ظ…ظ†ط© ظ„ظ„ظˆطµظˆظ„ ط¥ظ„ظ‰ ط·ظ„ط¨ط§طھظƒطŒ ط¹ظ†ط§ظˆظٹظ†ظƒطŒ ظˆط§ظ„ظ…ظپط¶ظ„ط©."}
                 </p>
               </div>
             </div>
@@ -812,57 +812,57 @@ function StorefrontAccountPageContent({
               <div className="mt-6 rounded-[1.5rem] border border-stone-200/80 bg-white p-4 shadow-[0_10px_30px_rgba(15,15,15,0.04)] dark:border-white/8 dark:bg-black/20">
                 {!showForgotView && !showResetView ? (
                   <div className="grid grid-cols-2 gap-2 rounded-full border border-stone-200 bg-stone-100/80 p-1 dark:border-white/10 dark:bg-white/[0.04]">
-                    <button type="button" onClick={() => setAuthMode("login")} className={`min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "login" ? "bg-stone-950 text-white shadow-sm dark:bg-[#d4af37] dark:text-stone-950" : "text-stone-600 dark:text-white/70"}`}>تسجيل الدخول</button>
-                    <button type="button" onClick={() => setAuthMode("register")} className={`min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "register" ? "bg-stone-950 text-white shadow-sm dark:bg-[#d4af37] dark:text-stone-950" : "text-stone-600 dark:text-white/70"}`}>إنشاء حساب</button>
+                    <button type="button" onClick={() => setAuthMode("login")} className={`min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "login" ? "bg-stone-950 text-white shadow-sm dark:bg-[#d4af37] dark:text-stone-950" : "text-stone-600 dark:text-white/70"}`}>طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„</button>
+                    <button type="button" onClick={() => setAuthMode("register")} className={`min-h-11 rounded-full px-4 text-sm font-black transition ${activePrimaryTab === "register" ? "bg-stone-950 text-white shadow-sm dark:bg-[#d4af37] dark:text-stone-950" : "text-stone-600 dark:text-white/70"}`}>ط¥ظ†ط´ط§ط، ط­ط³ط§ط¨</button>
                   </div>
                 ) : null}
                 <div className="mt-5 space-y-4">
                   {authMode === "login" ? (
                     <>
-                      <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
+                      <Field label="ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
                       <div className="space-y-2">
-                        <Field label="كلمة المرور" value={authPassword} onChange={setAuthPassword} autoComplete="current-password" type="password" inputClassName={ltrInputClassName} />
+                        <Field label="ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±" value={authPassword} onChange={setAuthPassword} autoComplete="current-password" type="password" inputClassName={ltrInputClassName} />
                         <div className="flex justify-end">
-                          <button type="button" onClick={() => setAuthMode("forgot")} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16] dark:text-white/65">نسيت كلمة المرور؟</button>
+                          <button type="button" onClick={() => setAuthMode("forgot")} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16] dark:text-white/65">ظ†ط³ظٹطھ ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±طں</button>
                         </div>
                       </div>
                       <button onClick={submitEmailAuthLogin} disabled={authSubmitting} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
-                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري تسجيل الدخول...</span> : "تسجيل الدخول"}
+                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />ط¬ط§ط±ظٹ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„...</span> : "طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„"}
                       </button>
                       {showOtpLogin ? (
                         <>
                           <div className="flex items-center gap-3 py-1">
                             <div className="h-px flex-1 bg-stone-200 dark:bg-white/10" />
-                            <span className="text-xs font-black uppercase tracking-[0.28em] text-stone-400">أو</span>
+                            <span className="text-xs font-black uppercase tracking-[0.28em] text-stone-400">ط£ظˆ</span>
                             <div className="h-px flex-1 bg-stone-200 dark:bg-white/10" />
                           </div>
                           {!otpPanelOpen ? (
-                            <button type="button" onClick={() => setOtpPanelOpen(true)} className="min-h-12 w-full rounded-full border border-[#d4af37]/35 bg-[#d4af37]/8 px-5 py-3 font-black text-[#a17805] transition hover:border-[#d4af37] hover:bg-[#d4af37]/12 dark:border-[#d4af37]/25 dark:bg-[#d4af37]/10 dark:text-[#f3d77a]">الدخول برقم الموبايل / واتساب</button>
+                            <button type="button" onClick={() => setOtpPanelOpen(true)} className="min-h-12 w-full rounded-full border border-[#d4af37]/35 bg-[#d4af37]/8 px-5 py-3 font-black text-[#a17805] transition hover:border-[#d4af37] hover:bg-[#d4af37]/12 dark:border-[#d4af37]/25 dark:bg-[#d4af37]/10 dark:text-[#f3d77a]">ط§ظ„ط¯ط®ظˆظ„ ط¨ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ / ظˆط§طھط³ط§ط¨</button>
                           ) : (
                             <div className="rounded-[1.25rem] border border-[#d4af37]/20 bg-[#fbf7ea] p-4 dark:border-[#d4af37]/15 dark:bg-[#d4af37]/[0.06]">
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <div className="text-sm font-black text-stone-950 dark:text-white">الدخول برقم الموبايل</div>
-                                  <p className="mt-1 text-xs font-bold leading-6 text-stone-500 dark:text-white/60">سنرسل كود واتساب لمرة واحدة على رقمك ثم نكمل تسجيل الدخول.</p>
+                                  <div className="text-sm font-black text-stone-950 dark:text-white">ط§ظ„ط¯ط®ظˆظ„ ط¨ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„</div>
+                                  <p className="mt-1 text-xs font-bold leading-6 text-stone-500 dark:text-white/60">ط³ظ†ط±ط³ظ„ ظƒظˆط¯ ظˆط§طھط³ط§ط¨ ظ„ظ…ط±ط© ظˆط§ط­ط¯ط© ط¹ظ„ظ‰ ط±ظ‚ظ…ظƒ ط«ظ… ظ†ظƒظ…ظ„ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„.</p>
                                 </div>
-                                <button type="button" onClick={() => { setOtpPanelOpen(false); setOtpRequestedAt(0); setOtpCode(""); }} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4 dark:text-white/60">إغلاق</button>
+                                <button type="button" onClick={() => { setOtpPanelOpen(false); setOtpRequestedAt(0); setOtpCode(""); }} className="text-xs font-black text-stone-500 underline decoration-stone-300 underline-offset-4 dark:text-white/60">ط¥ط؛ظ„ط§ظ‚</button>
                               </div>
                               <div className="mt-4 space-y-3">
-                                <Field label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" inputClassName={ltrInputClassName} />
+                                <Field label={sfText("storefront.form.mobileNumber", "ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" inputClassName={ltrInputClassName} />
                                 {!otpRequestedAt ? (
                                   <button onClick={requestOtp} disabled={requestingOtp || !normalizedLoginPhone} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
-                                    {requestingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري إرسال الكود...</span> : "إرسال كود واتساب"}
+                                    {requestingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />ط¬ط§ط±ظٹ ط¥ط±ط³ط§ظ„ ط§ظ„ظƒظˆط¯...</span> : "ط¥ط±ط³ط§ظ„ ظƒظˆط¯ ظˆط§طھط³ط§ط¨"}
                                   </button>
                                 ) : (
                                   <>
-                                    <Field label="كود OTP" value={otpCode} onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))} inputMode="numeric" inputClassName={ltrInputClassName} />
+                                    <Field label="ظƒظˆط¯ OTP" value={otpCode} onChange={(value) => setOtpCode(String(value || "").replace(/\D/g, "").slice(0, 6))} inputMode="numeric" inputClassName={ltrInputClassName} />
                                     <button onClick={verifyOtp} disabled={verifyingOtp || String(otpCode || "").replace(/\D/g, "").length !== 6} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
-                                      {verifyingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري التحقق...</span> : "تأكيد الدخول"}
+                                      {verifyingOtp ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />ط¬ط§ط±ظٹ ط§ظ„طھط­ظ‚ظ‚...</span> : "طھط£ظƒظٹط¯ ط§ظ„ط¯ط®ظˆظ„"}
                                     </button>
                                     <button onClick={requestOtp} disabled={requestingOtp || resendCountdown > 0} className="min-h-11 w-full rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-700 transition hover:bg-stone-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/80">
-                                      <span className="inline-flex items-center justify-center gap-2"><RefreshCcw className="h-4 w-4" />{resendCountdown > 0 ? `إعادة الإرسال بعد ${resendCountdown} ثانية` : "إعادة إرسال الكود"}</span>
+                                      <span className="inline-flex items-center justify-center gap-2"><RefreshCcw className="h-4 w-4" />{resendCountdown > 0 ? `ط¥ط¹ط§ط¯ط© ط§ظ„ط¥ط±ط³ط§ظ„ ط¨ط¹ط¯ ${resendCountdown} ط«ط§ظ†ظٹط©` : "ط¥ط¹ط§ط¯ط© ط¥ط±ط³ط§ظ„ ط§ظ„ظƒظˆط¯"}</span>
                                     </button>
-                                    <p className="text-xs font-bold leading-6 text-stone-500 dark:text-white/60">أرسلنا كود الدخول عبر واتساب. أدخل الكود المكوّن من 6 أرقام خلال 5 دقائق.</p>
+                                    <p className="text-xs font-bold leading-6 text-stone-500 dark:text-white/60">ط£ط±ط³ظ„ظ†ط§ ظƒظˆط¯ ط§ظ„ط¯ط®ظˆظ„ ط¹ط¨ط± ظˆط§طھط³ط§ط¨. ط£ط¯ط®ظ„ ط§ظ„ظƒظˆط¯ ط§ظ„ظ…ظƒظˆظ‘ظ† ظ…ظ† 6 ط£ط±ظ‚ط§ظ… ط®ظ„ط§ظ„ 5 ط¯ظ‚ط§ط¦ظ‚.</p>
                                   </>
                                 )}
                               </div>
@@ -874,38 +874,38 @@ function StorefrontAccountPageContent({
                   ) : null}
                   {authMode === "register" ? (
                     <>
-                      <Field label="الاسم" value={authFullName} onChange={setAuthFullName} autoComplete="name" />
-                      <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
-                      <Field label={sfText("storefront.form.mobileNumber", "رقم الموبايل")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" inputClassName={ltrInputClassName} />
-                      <Field label="كلمة المرور" value={authPassword} onChange={setAuthPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
-                      <Field label="تأكيد كلمة المرور" value={authConfirmPassword} onChange={setAuthConfirmPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
+                      <Field label="ط§ظ„ط§ط³ظ…" value={authFullName} onChange={setAuthFullName} autoComplete="name" />
+                      <Field label="ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
+                      <Field label={sfText("storefront.form.mobileNumber", "ط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„")} value={phone} onChange={setPhone} inputMode="tel" autoComplete="tel" inputClassName={ltrInputClassName} />
+                      <Field label="ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±" value={authPassword} onChange={setAuthPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
+                      <Field label="طھط£ظƒظٹط¯ ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±" value={authConfirmPassword} onChange={setAuthConfirmPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
                       <button onClick={submitEmailAuthRegister} disabled={authSubmitting} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
-                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري إنشاء الحساب...</span> : "إنشاء حساب"}
+                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />ط¬ط§ط±ظٹ ط¥ظ†ط´ط§ط، ط§ظ„ط­ط³ط§ط¨...</span> : "ط¥ظ†ط´ط§ط، ط­ط³ط§ط¨"}
                       </button>
                     </>
                   ) : null}
                   {authMode === "forgot" ? (
                     <>
                       <div>
-                        <div className="text-base font-black text-stone-950 dark:text-white">استعادة كلمة المرور</div>
-                        <p className="mt-1 text-sm font-bold leading-6 text-stone-500 dark:text-white/65">أدخل بريدك الإلكتروني وسنرسل لك رابط الاستعادة حسب نفس المنطق الحالي.</p>
+                        <div className="text-base font-black text-stone-950 dark:text-white">ط§ط³طھط¹ط§ط¯ط© ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±</div>
+                        <p className="mt-1 text-sm font-bold leading-6 text-stone-500 dark:text-white/65">ط£ط¯ط®ظ„ ط¨ط±ظٹط¯ظƒ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ظˆط³ظ†ط±ط³ظ„ ظ„ظƒ ط±ط§ط¨ط· ط§ظ„ط§ط³طھط¹ط§ط¯ط© ط­ط³ط¨ ظ†ظپط³ ط§ظ„ظ…ظ†ط·ظ‚ ط§ظ„ط­ط§ظ„ظٹ.</p>
                       </div>
-                      <Field label="البريد الإلكتروني" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
+                      <Field label="ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ" value={authEmail} onChange={setAuthEmail} inputMode="email" autoComplete="email" inputClassName={ltrInputClassName} />
                       <button onClick={requestPasswordReset} disabled={authSubmitting} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
-                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري الإرسال...</span> : "إرسال رابط الاستعادة"}
+                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />ط¬ط§ط±ظٹ ط§ظ„ط¥ط±ط³ط§ظ„...</span> : "ط¥ط±ط³ط§ظ„ ط±ط§ط¨ط· ط§ظ„ط§ط³طھط¹ط§ط¯ط©"}
                       </button>
-                      <button type="button" onClick={() => setAuthMode("login")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16] dark:text-white/65">رجوع إلى تسجيل الدخول</button>
+                      <button type="button" onClick={() => setAuthMode("login")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16] dark:text-white/65">ط±ط¬ظˆط¹ ط¥ظ„ظ‰ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„</button>
                     </>
                   ) : null}
                   {authMode === "reset" ? (
                     <>
-                      {!hasResetToken ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">رابط إعادة التعيين غير مكتمل. تأكد من فتح الرابط الكامل من البريد الإلكتروني أو اطلب رابطًا جديدًا.</div> : null}
-                      <Field label="كلمة المرور الجديدة" value={resetPassword} onChange={setResetPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
-                      <Field label="تأكيد كلمة المرور الجديدة" value={resetPasswordConfirm} onChange={setResetPasswordConfirm} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
+                      {!hasResetToken ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">ط±ط§ط¨ط· ط¥ط¹ط§ط¯ط© ط§ظ„طھط¹ظٹظٹظ† ط؛ظٹط± ظ…ظƒطھظ…ظ„. طھط£ظƒط¯ ظ…ظ† ظپطھط­ ط§ظ„ط±ط§ط¨ط· ط§ظ„ظƒط§ظ…ظ„ ظ…ظ† ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ط£ظˆ ط§ط·ظ„ط¨ ط±ط§ط¨ط·ظ‹ط§ ط¬ط¯ظٹط¯ظ‹ط§.</div> : null}
+                      <Field label="ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ط§ظ„ط¬ط¯ظٹط¯ط©" value={resetPassword} onChange={setResetPassword} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
+                      <Field label="طھط£ظƒظٹط¯ ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ط§ظ„ط¬ط¯ظٹط¯ط©" value={resetPasswordConfirm} onChange={setResetPasswordConfirm} autoComplete="new-password" type="password" inputClassName={ltrInputClassName} />
                       <button onClick={submitPasswordReset} disabled={authSubmitting || !hasResetToken} className="min-h-12 w-full rounded-full bg-stone-950 px-5 py-3 font-black text-white transition hover:bg-black disabled:bg-stone-300 dark:bg-[#d4af37] dark:text-stone-950 dark:hover:bg-[#e7c969]">
-                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />جاري التحديث...</span> : "تحديث كلمة المرور"}
+                        {authSubmitting ? <span className="inline-flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" />ط¬ط§ط±ظٹ ط§ظ„طھط­ط¯ظٹط«...</span> : "طھط­ط¯ظٹط« ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط±"}
                       </button>
-                      {!hasResetToken ? <button type="button" onClick={() => setAuthMode("forgot")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16] dark:text-white/65">طلب رابط جديد</button> : null}
+                      {!hasResetToken ? <button type="button" onClick={() => setAuthMode("forgot")} className="text-sm font-black text-stone-500 underline decoration-stone-300 underline-offset-4 transition hover:text-[#b68c16] dark:text-white/65">ط·ظ„ط¨ ط±ط§ط¨ط· ط¬ط¯ظٹط¯</button> : null}
                     </>
                   ) : null}
                 </div>
@@ -916,29 +916,29 @@ function StorefrontAccountPageContent({
                 <div className="flex items-center gap-3">
                   <Loader2 className="h-5 w-5 animate-spin text-stone-500" />
                   <div>
-                    <div className="text-sm font-black text-stone-900 dark:text-white">جاري استعادة حسابك</div>
-                    <p className="mt-1 text-sm font-bold leading-6 text-stone-500 dark:text-white/65">نعرض بياناتك المحفوظة مباشرة عند توفر الجلسة.</p>
+                    <div className="text-sm font-black text-stone-900 dark:text-white">ط¬ط§ط±ظٹ ط§ط³طھط¹ط§ط¯ط© ط­ط³ط§ط¨ظƒ</div>
+                    <p className="mt-1 text-sm font-bold leading-6 text-stone-500 dark:text-white/65">ظ†ط¹ط±ط¶ ط¨ظٹط§ظ†ط§طھظƒ ط§ظ„ظ…ط­ظپظˆط¸ط© ظ…ط¨ط§ط´ط±ط© ط¹ظ†ط¯ طھظˆظپط± ط§ظ„ط¬ظ„ط³ط©.</p>
                   </div>
                 </div>
               </div>
             ) : null}
             <div className="mt-4">
-              <InfoBox label={sfText("storefront.account.myData", "بياناتي")} value={hasCustomerToken ? authSummary : "سجل دخولك لعرض بيانات الحساب المحفوظة"} />
+              <InfoBox label={sfText("storefront.account.myData", "ط¨ظٹط§ظ†ط§طھظٹ")} value={hasCustomerToken ? authSummary : "ط³ط¬ظ„ ط¯ط®ظˆظ„ظƒ ظ„ط¹ط±ط¶ ط¨ظٹط§ظ†ط§طھ ط§ظ„ط­ط³ط§ط¨ ط§ظ„ظ…ط­ظپظˆط¸ط©"} />
             </div>
             {hasCustomerToken ? <LoyaltyWidget loyalty={account?.loyalty} loading={loading} helpers={helpers} /> : null}
             {hasCustomerToken ? (
               <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
                 <div>
-                  <div className="text-sm font-black text-stone-900">مقاساتي</div>
-                  <p className="mt-1 text-xs font-bold leading-6 text-stone-500">احفظ المقاسات المفضلة حتى تراها من أي جهاز بعد تسجيل الدخول.</p>
+                  <div className="text-sm font-black text-stone-900">ظ…ظ‚ط§ط³ط§طھظٹ</div>
+                  <p className="mt-1 text-xs font-bold leading-6 text-stone-500">ط§ط­ظپط¸ ط§ظ„ظ…ظ‚ط§ط³ط§طھ ط§ظ„ظ…ظپط¶ظ„ط© ط­طھظ‰ طھط±ط§ظ‡ط§ ظ…ظ† ط£ظٹ ط¬ظ‡ط§ط² ط¨ط¹ط¯ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„.</p>
                 </div>
                 <div className="mt-4 grid gap-3">
-                  <Field label="رجالي" value={preferredSizes.men} onChange={(value) => updatePreferredSize("men", value)} placeholder="44" inputMode="text" />
-                  <Field label="حريمي" value={preferredSizes.women} onChange={(value) => updatePreferredSize("women", value)} placeholder="39" inputMode="text" />
-                  <Field label="أطفال" value={preferredSizes.kids} onChange={(value) => updatePreferredSize("kids", value)} placeholder="31" inputMode="text" />
-                  <Field label="كروكس" value={preferredSizes.crocs} onChange={(value) => updatePreferredSize("crocs", value)} placeholder="41/42" inputMode="text" />
+                  <Field label="ط±ط¬ط§ظ„ظٹ" value={preferredSizes.men} onChange={(value) => updatePreferredSize("men", value)} placeholder="44" inputMode="text" />
+                  <Field label="ط­ط±ظٹظ…ظٹ" value={preferredSizes.women} onChange={(value) => updatePreferredSize("women", value)} placeholder="39" inputMode="text" />
+                  <Field label="ط£ط·ظپط§ظ„" value={preferredSizes.kids} onChange={(value) => updatePreferredSize("kids", value)} placeholder="31" inputMode="text" />
+                  <Field label="ظƒط±ظˆظƒط³" value={preferredSizes.crocs} onChange={(value) => updatePreferredSize("crocs", value)} placeholder="41/42" inputMode="text" />
                   <button type="button" onClick={savePreferredSizes} disabled={savingPreferences} className="min-h-11 rounded-full bg-stone-950 px-4 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:bg-stone-300">
-                    {savingPreferences ? "جاري الحفظ..." : "حفظ المقاسات"}
+                    {savingPreferences ? "ط¬ط§ط±ظٹ ط§ظ„ط­ظپط¸..." : "ط­ظپط¸ ط§ظ„ظ…ظ‚ط§ط³ط§طھ"}
                   </button>
                 </div>
               </div>
@@ -946,7 +946,7 @@ function StorefrontAccountPageContent({
             {hasCustomerToken ? (
               <button onClick={clearCustomerIdentity} type="button" className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-full border border-stone-200 bg-white px-5 py-3 text-sm font-black text-stone-700 transition hover:bg-stone-50 dark:border-white/10 dark:bg-white/[0.03] dark:text-white/80">
                 <LogOut className="h-4 w-4" />
-                تسجيل الخروج
+                طھط³ط¬ظٹظ„ ط§ظ„ط®ط±ظˆط¬
               </button>
             ) : null}
           </div>
@@ -966,20 +966,20 @@ function StorefrontAccountPageContent({
                 ) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.noOrders", "No orders yet")}</p>}
               </Panel>
               {selectedOrder ? <CustomerOrderDetails data={selectedOrder} phone={customerAuth.phone || phone} onReorder={reorder} helpers={helpers} components={components} /> : null}
-              <Panel title={sfText("storefront.account.myAddresses", "ط¹ظ†ط§ظˆظٹظ†ظٹ")}>
-                {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl bg-stone-50 p-3 font-bold text-stone-700">{address}</div>) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.addressesEmpty", "ط³طھط¸ظ‡ط± ط§ظ„ط¹ظ†ط§ظˆظٹظ† ط§ظ„ظ…ط³طھط®ط¯ظ…ط© ظپظٹ ط§ظ„ط·ظ„ط¨ط§طھ ظ‡ظ†ط§")}</p>}
+              <Panel title={sfText("storefront.account.myAddresses", "عناويني")}>
+                {addresses.length ? addresses.map((address) => <div key={address} className="sf-account-address-row rounded-2xl bg-stone-50 p-3 font-bold text-stone-700">{address}</div>) : <p className="sf-muted-empty font-bold text-stone-500">{sfText("storefront.account.addressesEmpty", "ستظهر العناوين المستخدمة في الطلبات هنا")}</p>}
               </Panel>
-              <Panel title={sfText("storefront.header.wishlist", "ط§ظ„ظ…ظپط¶ظ„ط©")}>
-                <SmallProductList items={backendWishlist.length ? backendWishlist : wishlist} empty={sfText("storefront.account.wishlistEmpty", "ط§ط­ظپط¸ ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„طھظٹ طھط¹ط¬ط¨ظƒ ظ‡ظ†ط§")} />
+              <Panel title={sfText("storefront.header.wishlist", "المفضلة")}>
+                <SmallProductList items={backendWishlist.length ? backendWishlist : wishlist} empty={sfText("storefront.account.wishlistEmpty", "احفظ المنتجات التي تعجبك هنا")} />
               </Panel>
-              <Panel title={sfText("storefront.account.recentlyViewed", "ط´ط§ظ‡ط¯ ظ…ط¤ط®ط±ظ‹ط§")}>
-                <SmallProductList items={backendRecent.length ? backendRecent : recent} empty={sfText("storefront.account.recentEmpty", "ط³طھط¸ظ‡ط± ط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„طھظٹ ط´ط§ظ‡ط¯طھظ‡ط§ ظ…ط¤ط®ط±ظ‹ط§ ظ‡ظ†ط§")} />
+              <Panel title={sfText("storefront.account.recentlyViewed", "شوهد مؤخرًا")}>
+                <SmallProductList items={backendRecent.length ? backendRecent : recent} empty={sfText("storefront.account.recentEmpty", "ستظهر المنتجات التي شاهدتها مؤخرًا هنا")} />
               </Panel>
             </>
           ) : (
-            <Panel title="ط­ط³ط§ط¨ظƒ ظ…ط­ظ…ظٹ">
+            <Panel title="حسابك محفوظ">
               <div className="rounded-2xl bg-stone-50 p-4 font-bold leading-7 text-stone-600">
-                ط³ط¬ظ‘ظ„ ط§ظ„ط¯ط®ظˆظ„ ط¨ط§ظ„ط¨ط±ظٹط¯ ط§ظ„ط¥ظ„ظƒطھط±ظˆظ†ظٹ ظ„ط¹ط±ط¶ ط§ظ„ط·ظ„ط¨ط§طھطŒ ط§ظ„ط¹ظ†ط§ظˆظٹظ†طŒ ط§ظ„ظ…ظپط¶ظ„ط©طŒ ظˆط§ظ„ظ…ظ†طھط¬ط§طھ ط§ظ„طھظٹ طھظ…طھ ظ…ط´ط§ظ‡ط¯طھظ‡ط§. ظˆط§طھط³ط§ط¨ OTP ظ…طھط§ط­ ظƒط®ظٹط§ط± ط§ط­طھظٹط§ط·ظٹ.
+                سجل الدخول بالبريد الإلكتروني لعرض الطلبات، العناوين، المفضلة، والمنتجات التي تمت مشاهدتها. واتساب OTP متاح كخيار احتياطي.
               </div>
             </Panel>
           )}
@@ -1008,17 +1008,17 @@ class StorefrontAccountPageBoundary extends Component {
       return (
         <section className="mx-auto max-w-3xl px-4 py-8" dir="rtl">
           <div className="rounded-[1.5rem] border border-stone-200 bg-white p-6 text-stone-950 shadow-[0_18px_50px_rgba(39,20,75,0.08)]">
-            <div className="text-sm font-black text-[#d4af37]">ط­ط³ط§ط¨ظٹ</div>
-            <h1 className="mt-2 text-2xl font-black">طھط¹ط°ط± ظپطھط­ طµظپط­ط© ط§ظ„ط­ط³ط§ط¨ ط§ظ„ط¢ظ†</h1>
+            <div className="text-sm font-black text-[#d4af37]">حسابك</div>
+            <h1 className="mt-2 text-2xl font-black">تعذر فتح صفحة الحساب الآن</h1>
             <p className="mt-2 text-sm font-bold leading-6 text-stone-600">
-              ط­ط¯ط« ط®ط·ط£ ط£ط«ظ†ط§ط، طھط­ظ…ظٹظ„ ط´ط§ط´ط© ط¥ط¹ط§ط¯ط© طھط¹ظٹظٹظ† ظƒظ„ظ…ط© ط§ظ„ظ…ط±ظˆط± ط£ظˆ طھط³ط¬ظٹظ„ ط§ظ„ط¯ط®ظˆظ„. ظٹظ…ظƒظ†ظƒ طھط­ط¯ظٹط« ط§ظ„طµظپط­ط© ظˆط§ظ„ظ…ط­ط§ظˆظ„ط© ظ…ط±ط© ط£ط®ط±ظ‰.
+              حدث خطأ أثناء العرض. حاول تحديث الصفحة أو إعادة تعيين كلمة المرور ثم تسجيل الدخول. يمكنك تحديث الصفحة والمحاولة مرة أخرى.
             </p>
             <button
               type="button"
               onClick={() => window.location.reload()}
               className="mt-5 rounded-full bg-stone-950 px-5 py-3 text-sm font-black text-white"
             >
-              طھط­ط¯ظٹط« ط§ظ„طµظپط­ط©
+              تحديث الصفحة
             </button>
           </div>
         </section>
