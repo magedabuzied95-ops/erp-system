@@ -121,7 +121,7 @@ const persistCustomerPassword = async (client, { customerId, passwordHash, email
     UPDATE customers
     SET name = COALESCE(NULLIF($3, ''), name),
         email = COALESCE(NULLIF($4, ''), email),
-        phone = COALESCE(NULLIF($5, ''), phone),
+        phone = COALESCE(NULLIF(phone, ''), NULLIF($5, ''), phone),
         password_hash = $2,
         password_changed_at = CURRENT_TIMESTAMP,
         email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP),
@@ -168,6 +168,14 @@ const insertCustomerWithPassword = async (client, { tenantId, name, email, phone
   return result.rows[0] || null;
 };
 
+const buildEmailConflictError = () => {
+  const error = new Error("EMAIL_ALREADY_EXISTS");
+  error.status = 409;
+  error.code = "EMAIL_ALREADY_EXISTS";
+  error.message = "هذا البريد الإلكتروني مرتبط بحساب آخر.";
+  return error;
+};
+
 const prepareAuthCustomer = (customer = {}) => ({
   id: customer.id || null,
   tenant_id: customer.tenant_id ?? null,
@@ -206,28 +214,34 @@ export const registerStorefrontCustomerEmailAuth = async ({ tenantId = null, nam
   const client = await db.connect();
   try {
     await client.query("BEGIN");
-    const emailCustomer = await resolveCustomerByEmail(client, { tenantId: safeTenantId, email: safeEmail });
     const phoneCustomer = await resolveCustomerByPhone(client, { tenantId: safeTenantId, phone: safePhone });
+    const emailCustomer = await resolveCustomerByEmail(client, { tenantId: safeTenantId, email: safeEmail });
 
     if (emailCustomer && phoneCustomer && emailCustomer.id !== phoneCustomer.id) {
       await client.query("ROLLBACK");
-      const error = new Error("EMAIL_OR_PHONE_ALREADY_REGISTERED");
-      error.status = 409;
-      error.code = "EMAIL_OR_PHONE_ALREADY_REGISTERED";
+      const error = buildEmailConflictError();
+      logEvent("CUSTOMER_EMAIL_AUTH_REGISTER_EMAIL_CONFLICT", {
+        tenant_id: safeTenantId,
+        phone_suffix: safePhone ? safePhone.slice(-4) : "",
+        email_domain: safeEmailDomain(safeEmail),
+      });
+      throw error;
+    }
+
+    if (!phoneCustomer && emailCustomer) {
+      await client.query("ROLLBACK");
+      const error = buildEmailConflictError();
+      logEvent("CUSTOMER_EMAIL_AUTH_REGISTER_EMAIL_CONFLICT", {
+        tenant_id: safeTenantId,
+        phone_suffix: safePhone ? safePhone.slice(-4) : "",
+        email_domain: safeEmailDomain(safeEmail),
+      });
       throw error;
     }
 
     const passwordHash = await bcrypt.hash(safePassword, 10);
     let customer = null;
-    if (emailCustomer) {
-      customer = await persistCustomerPassword(client, {
-        customerId: emailCustomer.id,
-        passwordHash,
-        email: safeEmail,
-        phone: safePhone || emailCustomer.phone || "",
-        name: safeName || emailCustomer.name || "",
-      });
-    } else if (phoneCustomer) {
+    if (phoneCustomer) {
       customer = await persistCustomerPassword(client, {
         customerId: phoneCustomer.id,
         passwordHash,
@@ -248,6 +262,21 @@ export const registerStorefrontCustomerEmailAuth = async ({ tenantId = null, nam
     await client.query("COMMIT");
     const authCustomer = prepareAuthCustomer(customer || {});
     const token = buildCustomerAuthToken(authCustomer, "email_password");
+    if (phoneCustomer) {
+      logEvent("CUSTOMER_EMAIL_AUTH_REGISTER_LINKED_BY_PHONE", {
+        tenant_id: safeTenantId,
+        customer_id: authCustomer.id,
+        email_domain: safeEmailDomain(safeEmail),
+        phone_suffix: authCustomer.phone ? authCustomer.phone.slice(-4) : "",
+      });
+    } else {
+      logEvent("CUSTOMER_EMAIL_AUTH_REGISTER_CREATED", {
+        tenant_id: safeTenantId,
+        customer_id: authCustomer.id,
+        email_domain: safeEmailDomain(safeEmail),
+        phone_suffix: authCustomer.phone ? authCustomer.phone.slice(-4) : "",
+      });
+    }
     logEvent("CUSTOMER_EMAIL_AUTH_REGISTER", {
       tenant_id: safeTenantId,
       customer_id: authCustomer.id,
@@ -261,23 +290,18 @@ export const registerStorefrontCustomerEmailAuth = async ({ tenantId = null, nam
       customer: authCustomer,
     };
   } catch (error) {
-    if (isUniqueEmailConflictError(error)) {
-      try {
-        await client.query("ROLLBACK");
-      } catch {}
-      const emailExistsError = buildEmailAlreadyExistsError();
-      logEvent("CUSTOMER_EMAIL_AUTH_REGISTER", {
-        tenant_id: safeTenantId,
-        email_domain: safeEmailDomain(safeEmail),
-        phone_suffix: safePhone ? safePhone.slice(-4) : "",
-        success: false,
-        error: emailExistsError.code,
-      });
-      throw emailExistsError;
-    }
     try {
       await client.query("ROLLBACK");
     } catch {}
+    if (isUniqueEmailConflictError(error)) {
+      const emailConflictError = buildEmailConflictError();
+      logEvent("CUSTOMER_EMAIL_AUTH_REGISTER_EMAIL_CONFLICT", {
+        tenant_id: safeTenantId,
+        email_domain: safeEmailDomain(safeEmail),
+        phone_suffix: safePhone ? safePhone.slice(-4) : "",
+      });
+      throw emailConflictError;
+    }
     logEvent("CUSTOMER_EMAIL_AUTH_REGISTER", {
       tenant_id: safeTenantId,
       email_domain: safeEmailDomain(safeEmail),
