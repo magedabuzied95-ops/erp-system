@@ -16,6 +16,7 @@ dotenv.config({ path: path.join(serverDir, ".env"), quiet: true });
 
 const CONFIRM_FLAG = "--confirm-factory-reset";
 const UNDERSTAND_FLAG = "--i-understand-this-deletes-data";
+const SKIP_BACKUP_AFTER_MANUAL_CONFIRM_FLAG = "--skip-backup-after-manual-confirm";
 
 const protectedNameFragments = [
   "setting",
@@ -165,9 +166,12 @@ const explicitOperationalOverrides = lowercaseSet(["ai_shoe_cover_jobs"]);
 const flags = new Set(process.argv.slice(2).map((value) => String(value || "").trim().toLowerCase()));
 const hasConfirmFlag = flags.has(CONFIRM_FLAG);
 const hasUnderstandFlag = flags.has(UNDERSTAND_FLAG);
+const hasSkipBackupAfterManualConfirmFlag = flags.has(SKIP_BACKUP_AFTER_MANUAL_CONFIRM_FLAG);
 const requestedLiveRun = hasConfirmFlag || hasUnderstandFlag;
 const canExecuteLiveRun = hasConfirmFlag && hasUnderstandFlag;
 const isProduction = String(process.env.NODE_ENV || "").trim().toLowerCase() === "production";
+const backupAlreadyCreated = ["1", "true", "yes", "on"].includes(String(process.env.BACKUP_ALREADY_CREATED || "").trim().toLowerCase());
+const canSkipAutomaticBackup = backupAlreadyCreated || hasSkipBackupAfterManualConfirmFlag;
 
 const quoteIdentifier = (value = "") => `"${String(value || "").replace(/"/g, "\"\"")}"`;
 const formatInt = (value = 0) => new Intl.NumberFormat("en-US").format(Number(value || 0));
@@ -659,13 +663,23 @@ const run = async () => {
   }
 
   const backupFile = buildBackupFilePath();
-  logSection("Backup", [`- Creating backup at: ${backupFile}`]);
-  const backupResult = runPgDumpBackup(backupFile);
-  logSection("Backup Result", [
-    "- Backup completed successfully.",
-    `- Command: ${backupResult.command}`,
-    `- File: ${backupResult.backupFile}`,
-  ]);
+  if (canSkipAutomaticBackup) {
+    logSection("Backup Override", [
+      "- Automatic pg_dump backup was skipped by explicit manual confirmation.",
+      `- BACKUP_ALREADY_CREATED=${backupAlreadyCreated ? "true" : "false"}`,
+      `- Flag ${SKIP_BACKUP_AFTER_MANUAL_CONFIRM_FLAG}: ${hasSkipBackupAfterManualConfirmFlag ? "present" : "absent"}`,
+      "- WARNING: execution is continuing under the assumption that a manual backup already exists.",
+      "- WARNING: responsibility for backup validity is on the operator.",
+    ]);
+  } else {
+    logSection("Backup", [`- Creating backup at: ${backupFile}`]);
+    const backupResult = runPgDumpBackup(backupFile);
+    logSection("Backup Result", [
+      "- Backup completed successfully.",
+      `- Command: ${backupResult.command}`,
+      `- File: ${backupResult.backupFile}`,
+    ]);
+  }
 
   const executionClient = await db.connect();
   const deletedCounts = new Map();
