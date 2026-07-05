@@ -227,10 +227,23 @@ function CustomerOrderDetails({ data, phone, onReorder, helpers, components }) {
   );
 }
 
-export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, onAddToCart, helpers, components, initialAuthMode = "login" }) {
-  const { sfText, displayOrderNumber } = helpers;
+export function StorefrontAccountPage({
+  profile = {},
+  setProfile = () => {},
+  wishlist = [],
+  recent = [],
+  onAddToCart = () => {},
+  helpers = {},
+  components = {},
+  initialAuthMode = "login",
+}) {
+  const {
+    sfText = (_key, fallback = "") => fallback,
+    displayOrderNumber = (value) => String(value?.id || value?.order_number || ""),
+  } = helpers;
   const { Field, Panel, InfoBox, SmallProductList } = components;
-  const savedIdentity = normalizeAccountIdentity(profile);
+  const safeProfile = profile && typeof profile === "object" ? profile : {};
+  const savedIdentity = normalizeAccountIdentity(safeProfile);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [customerAuth, setCustomerAuth] = useState(() => readStorefrontCustomerAuth());
@@ -258,7 +271,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
   const hasCustomerToken = Boolean(customerAuth.token);
   const normalizedLoginPhone = normalizePhoneDigits(phone);
   const resetTokenFromQuery = searchParams.get("token") || "";
-  const isResetMode = authMode === "reset";
+  const isResetMode = initialAuthMode === "reset" || Boolean(resetTokenFromQuery) || authMode === "reset";
   const hasResetToken = Boolean(String(resetToken || resetTokenFromQuery || "").trim());
   const showEmailAuth = !hasCustomerToken;
 
@@ -744,7 +757,7 @@ export function StorefrontAccountPage({ profile, setProfile, wishlist, recent, o
   const addresses = account?.addresses || [];
   const backendWishlist = account?.wishlist_products || [];
   const backendRecent = account?.recent_products || [];
-  const authSummary = account?.customer?.name || profile.full_name || sfText("storefront.account.enterPhoneHint", "أدخل رقم هاتفك لعرض الحساب");
+  const authSummary = account?.customer?.name || safeProfile.full_name || sfText("storefront.account.enterPhoneHint", "أدخل رقم هاتفك لعرض الحساب");
   const isRestoringAccount = hasCustomerToken && !account;
   const showOtpLogin = !hasCustomerToken && !isResetMode;
 
