@@ -15,6 +15,8 @@
     "preview": "vite preview",
     "db:setup": "node server/scripts/dbSetup.js",
     "db:seed": "node server/scripts/seedFoundation.js",
+    "factory-reset:dry-run": "node server/scripts/factoryResetOperationalData.js",
+    "factory-reset:production": "node server/scripts/factoryResetOperationalData.js",
     "catalog:delete-all": "node server/scripts/deleteAllProducts.js",
     "thermal:backfill": "node server/scripts/backfillThermalArtwork.js",
     "ai:reindex-images": "node server/scripts/reindexAiProductImages.js",
