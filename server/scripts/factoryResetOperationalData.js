@@ -153,12 +153,14 @@ const operationalTargetCandidates = [
   "task_activity_logs",
   "task_assignments",
   "task_attachments",
+  "ai_shoe_cover_jobs",
 ];
 
 const lowercaseSet = (items = []) => new Set(items.map((item) => String(item || "").toLowerCase()));
 
 const explicitProtectedTableSet = lowercaseSet(explicitProtectedTables);
 const operationalTargetSet = lowercaseSet(operationalTargetCandidates);
+const explicitOperationalOverrides = lowercaseSet(["ai_shoe_cover_jobs"]);
 
 const flags = new Set(process.argv.slice(2).map((value) => String(value || "").trim().toLowerCase()));
 const hasConfirmFlag = flags.has(CONFIRM_FLAG);
@@ -209,6 +211,7 @@ const listLines = (items = [], emptyLabel = "(none)") => {
 
 const classifyTable = (tableName = "") => {
   const normalized = String(tableName || "").toLowerCase();
+  if (explicitOperationalOverrides.has(normalized)) return "operational";
   if (explicitProtectedTableSet.has(normalized) || protectedNameFragments.some((fragment) => normalized.includes(fragment))) {
     return "protected";
   }
@@ -425,19 +428,21 @@ const analyzeExternalDependencies = async (client, targetTables = [], foreignKey
       constraint: fk.constraintName,
       action: fk.deleteActionLabel,
       actionCode: fk.deleteAction,
+      dependentColumns: [...fk.dependentColumns],
+      referencedColumns: [...fk.referencedColumns],
       columns: fk.dependentColumns.join(", "),
       rowCount: referencedCount,
       allNullable: fk.allDependentColumnsNullable,
       type: dependentType,
     };
 
-    const isSafeSetNull = fk.deleteAction === "n" && fk.allDependentColumnsNullable;
-    const isBlocked = referencedCount > 0 && !isSafeSetNull;
+    const canPreNullify = fk.allDependentColumnsNullable;
+    const isBlocked = referencedCount > 0 && !canPreNullify;
 
     if (dependentType === "protected") {
       protectedDependencies.push({
         ...baseRecord,
-        status: isBlocked ? "blocked" : referencedCount > 0 ? "safe_set_null" : "no_active_rows",
+        status: isBlocked ? "blocked_not_nullable" : referencedCount > 0 ? "requires_pre_nullify" : "no_active_rows",
       });
       if (isBlocked) blockedDependencies.push({ ...baseRecord, status: "blocked_protected" });
       continue;
@@ -451,7 +456,7 @@ const analyzeExternalDependencies = async (client, targetTables = [], foreignKey
     if (referencedCount > 0 || dependentType === "other") {
       safeExternalDependencies.push({
         ...baseRecord,
-        status: referencedCount > 0 ? "safe_set_null" : "no_active_rows",
+        status: referencedCount > 0 ? "requires_pre_nullify" : "no_active_rows",
       });
     }
   }
@@ -468,6 +473,23 @@ const analyzeExternalDependencies = async (client, targetTables = [], foreignKey
 
 const formatDependencyLine = (dependency) =>
   `${dependency.table} -> ${dependency.references} | action=${dependency.action} | rows=${formatInt(dependency.rowCount)} | columns=${dependency.columns} | status=${dependency.status}`;
+
+const buildProtectedNullifyUpdateSql = (dependency) => {
+  const setClause = dependency.dependentColumns.map((columnName) => `${quoteIdentifier(columnName)} = NULL`).join(", ");
+  const notNullPredicate = buildNotNullPredicate("d", dependency.dependentColumns);
+  const joinPredicate = buildExistsJoinPredicate("d", "r", dependency.dependentColumns, dependency.referencedColumns);
+
+  return `
+    UPDATE ${quoteIdentifier(dependency.table)} d
+    SET ${setClause}
+    WHERE ${notNullPredicate}
+      AND EXISTS (
+        SELECT 1
+        FROM ${quoteIdentifier(dependency.references)} r
+        WHERE ${joinPredicate}
+      )
+  `;
+};
 
 const loadSequenceResets = async (client, tableName) => {
   const result = await client.query(
@@ -524,6 +546,7 @@ const printPlan = ({
   logSection("Warning", [
     "!!! FACTORY RESET OPERATIONAL DATA ONLY !!!",
     "!!! NO TRUNCATE CASCADE. NO DELETE CASCADE RELIANCE OUTSIDE THE APPROVED TARGET DELETE ORDER !!!",
+    "!!! PROTECTED TABLES MAY ONLY BE TOUCHED WITH SAFE FK NULLIFICATION WHEN THE FK COLUMNS ARE NULLABLE !!!",
     "!!! LIVE EXECUTION REFUSES TO RUN IF ANY BLOCKED DEPENDENCY REMAINS !!!",
   ]);
 };
@@ -569,6 +592,22 @@ const resolvePlan = async (client) => {
     blockedDependencies,
     rowCounts,
   };
+};
+
+const runProtectedPreNullify = async (client, plan) => {
+  const updates = [];
+  for (const dependency of plan.protectedDependencies) {
+    if (dependency.status !== "requires_pre_nullify" || Number(dependency.rowCount || 0) <= 0) continue;
+    const sql = buildProtectedNullifyUpdateSql(dependency);
+    const result = await client.query(sql);
+    updates.push({
+      table: dependency.table,
+      references: dependency.references,
+      columns: dependency.columns,
+      updatedRows: Number(result.rowCount || 0),
+    });
+  }
+  return updates;
 };
 
 const run = async () => {
@@ -636,7 +675,26 @@ const run = async () => {
   try {
     await executionClient.query("BEGIN");
 
-    for (const tableName of plan.deleteOrder) {
+    const protectedPreNullifyUpdates = await runProtectedPreNullify(executionClient, plan);
+    if (protectedPreNullifyUpdates.length) {
+      logSection(
+        "Protected FK Nullify",
+        protectedPreNullifyUpdates.map(
+          (item) => `- ${item.table} -> ${item.references} | columns=${item.columns} | updated=${formatInt(item.updatedRows)}`
+        )
+      );
+    }
+
+    const recheckedPlan = await resolvePlan(executionClient);
+    if (recheckedPlan.blockedDependencies.length) {
+      throw new Error(
+        `Live execution remains blocked after protected FK nullification:\n${recheckedPlan.blockedDependencies
+          .map(formatDependencyLine)
+          .join("\n")}`
+      );
+    }
+
+    for (const tableName of recheckedPlan.deleteOrder) {
       deletedCounts.set(tableName, await countTableRows(executionClient, tableName));
       await executionClient.query(`DELETE FROM ${quoteIdentifier(tableName)}`);
       postCounts.set(tableName, await countTableRows(executionClient, tableName));
