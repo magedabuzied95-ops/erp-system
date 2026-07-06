@@ -843,7 +843,9 @@ function ProductEdit() {
     setProduct((current) => ({ ...current, sku: uniqueSmartSkuPrefix }));
     setSkuTouched(false);
   };
-  const handleRegenerateAiCover = async ({ colorGroup = null } = {}) => {
+  const handleRegenerateAiCover = async ({ colorGroup = null, trigger = "" } = {}) => {
+    // Auto AI Cover disabled temporarily. Manual generation only.
+    if (trigger !== "manual") return;
     if (!productId) return;
     const targetType = colorGroup ? "color" : "product";
     const targetKey = targetType === "color" ? normalizeColorKey(colorGroup?.color) : "product";
@@ -3134,7 +3136,7 @@ function ProductEdit() {
                   {canRegenerateAiCover ? (
                     <button
                       type="button"
-                      onClick={() => handleRegenerateAiCover()}
+                      onClick={() => handleRegenerateAiCover({ trigger: "manual" })}
                       disabled={aiCoverRegeneratingKey === "product:product" || !productId || !coverImage}
                       className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-emerald-300/25 bg-emerald-400/10 px-4 text-sm font-black text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
@@ -3579,7 +3581,7 @@ function ProductEdit() {
                       {canRegenerateAiCover ? (
                         <button
                           type="button"
-                          onClick={() => handleRegenerateAiCover({ colorGroup: group })}
+                          onClick={() => handleRegenerateAiCover({ colorGroup: group, trigger: "manual" })}
                           disabled={aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` || !getPrimaryColorImage(group)}
                           className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[12px] border border-emerald-300/25 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-100 transition hover:border-emerald-300/45 hover:bg-emerald-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                         >
