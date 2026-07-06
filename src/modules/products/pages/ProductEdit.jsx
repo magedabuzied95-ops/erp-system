@@ -77,6 +77,7 @@ import { isMirrorProduct, slugifyEdition } from "../../../shared/lib/mirrorProdu
 import { isInvalidEditionName } from "../../../shared/lib/editionNameGenerator";
 import { safeGenerateProductDescriptions } from "../../../shared/lib/generateProductDescriptions";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { isAdminUser } from "../../../shared/auth/authStorage";
 
 const emptyProduct = {
@@ -123,26 +124,7 @@ const emptyProduct = {
   low_stock_alert: "",
 };
 
-const resolveAssetUrl = (url) => {
-  const value = String(url || "").trim();
-  if (!value) return "";
-  if (value.startsWith("data:") || value.startsWith("blob:")) return value;
-  if (/^https?:\/\//i.test(value)) {
-    try {
-      const parsed = new URL(value);
-      if (/^(localhost|127\.0\.0\.1)$/i.test(parsed.hostname)) {
-        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-      }
-    } catch {
-      return value;
-    }
-    return value;
-  }
-  if (value.startsWith("/uploads/")) return value;
-  if (value.startsWith("uploads/")) return `/${value}`;
-  if (value.startsWith("/")) return value;
-  return `/uploads/products/${value}`;
-};
+const resolveAssetUrl = (url) => resolveProductImageUrl(url);
 
 const firstPreviewText = (...values) => {
   for (const value of values) {

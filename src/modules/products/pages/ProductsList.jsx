@@ -57,6 +57,7 @@ import {
   updateProductPrices,
   updateProductStatus,
 } from "../services/productsApi";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
 import PostEditorModal from "../../marketing/components/PostEditorModal";
 import {
@@ -282,27 +283,6 @@ const duplicateProductPayload = (row = {}) => ({
         : [],
 });
 
-const resolveImageUrl = (value) => {
-  const imageUrl = String(value || "").trim();
-  if (!imageUrl) return "";
-  if (imageUrl.startsWith("data:image/") || imageUrl.startsWith("blob:")) return imageUrl;
-  if (/^https?:\/\//i.test(imageUrl)) {
-    try {
-      const parsed = new URL(imageUrl);
-      if (/^(localhost|127\.0\.0\.1)$/i.test(parsed.hostname)) {
-        return `${parsed.pathname}${parsed.search}${parsed.hash}`;
-      }
-    } catch {
-      return imageUrl;
-    }
-    return imageUrl;
-  }
-  if (imageUrl.startsWith("/uploads/")) return imageUrl;
-  if (imageUrl.startsWith("uploads/")) return `/${imageUrl}`;
-  if (imageUrl.startsWith("/")) return imageUrl;
-  return `/uploads/products/${imageUrl}`;
-};
-
 const firstImageValue = (...values) => {
   for (const value of values) {
     if (Array.isArray(value)) {
@@ -377,8 +357,7 @@ const getProductThumbnail = (row = {}) => {
     getFirstVariantFallbackImage(row)
   );
 
-  if (imageValue.startsWith("data:image/")) return imageValue;
-  return resolveImageUrl(imageValue);
+  return resolveProductImageUrl(imageValue);
 };
 
 const normalizeQueueColorKey = (value = "") => String(value ?? "").trim().toLowerCase();
