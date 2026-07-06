@@ -375,11 +375,74 @@ const getResponseText = (payload = {}) => {
     .join("\n");
 };
 
+const buildVisionImageAccessError = (details = {}) => {
+  const error = new Error("AI vision could not access the product image.");
+  error.code = "AI_VISION_IMAGE_UNREACHABLE";
+  error.userMessage = "AI vision could not access the product image. Please re-upload/save the image then try again.";
+  error.details = details;
+  return error;
+};
+
+const validateVisionImageUrl = async (imageUrl = "") => {
+  const targetUrl = cleanText(imageUrl);
+  if (!targetUrl || !/^https?:\/\//i.test(targetUrl)) {
+    throw buildVisionImageAccessError({
+      reason: "invalid_or_non_public_url",
+      imageUrl: targetUrl,
+    });
+  }
+
+  const runCheck = async (method) => {
+    const response = await fetch(targetUrl, { method, redirect: "follow" });
+    return {
+      ok: response.ok,
+      status: response.status,
+      contentType: cleanText(response.headers.get("content-type")).toLowerCase(),
+    };
+  };
+
+  let probe;
+  try {
+    probe = await runCheck("HEAD");
+    if (!probe.ok && [405, 501].includes(Number(probe.status))) {
+      probe = await runCheck("GET");
+    }
+  } catch (error) {
+    throw buildVisionImageAccessError({
+      reason: "probe_failed",
+      imageUrl: targetUrl,
+      message: error?.message || "Image probe failed",
+    });
+  }
+
+  if (!probe.ok || !probe.contentType.startsWith("image/")) {
+    throw buildVisionImageAccessError({
+      reason: !probe.ok ? "http_error" : "invalid_content_type",
+      imageUrl: targetUrl,
+      status: probe.status,
+      contentType: probe.contentType,
+    });
+  }
+
+  return probe;
+};
+
 const callOpenAiVision = async ({ imageUrl, imageBase64, current }) => {
   const apiKey = cleanText(process.env.OPENAI_API_KEY);
   if (!apiKey) return null;
-  const image = cleanText(imageBase64 || imageUrl);
+  const normalizedImageBase64 = cleanText(imageBase64);
+  const normalizedImageUrl = cleanText(imageUrl);
+  const image = cleanText(normalizedImageBase64 || normalizedImageUrl);
   if (!image) return null;
+
+  if (!normalizedImageBase64 && normalizedImageUrl) {
+    const probe = await validateVisionImageUrl(normalizedImageUrl);
+    console.log("[ai-product-data] OpenAI vision image URL", {
+      imageUrl: normalizedImageUrl,
+      status: probe.status,
+      contentType: probe.contentType,
+    });
+  }
 
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -428,7 +491,15 @@ export const generateAiProductData = async (input = {}) => {
     if (!raw) return fallback;
     return normalizeAiSuggestion(raw, fallback, current);
   } catch (error) {
-    console.error("[ai-product-data] vision generation failed", error);
+    console.error("[ai-product-data] vision generation failed", {
+      message: error?.message,
+      code: error?.code,
+      details: error?.details || null,
+      imageUrl: cleanText(input.image_url),
+    });
+    if (error?.code === "AI_VISION_IMAGE_UNREACHABLE") {
+      throw error;
+    }
     return fallback;
   }
 };
