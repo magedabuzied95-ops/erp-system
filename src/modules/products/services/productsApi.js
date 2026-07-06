@@ -321,6 +321,11 @@ export const getProductsWithVariants = async (options = {}) => {
   return unwrapArray(response);
 };
 
+export const getProductFull = async (id, options = {}) => {
+  const response = await api.get(`/products/${encodeURIComponent(id)}/full`, options);
+  return unwrapItem(response);
+};
+
 export const getProductByQrToken = async (token) => {
   return unwrapItem(await api.get(`/products/qr/${encodeURIComponent(token)}`), "product");
 };
@@ -330,8 +335,11 @@ export const createProduct = async (body) => {
 };
 
 export const updateProduct = async (id, body) => {
+  const payloadJson = JSON.stringify(body ?? {});
   console.log("[productsApi.updateProduct] request payload", {
     id,
+    payload_size_bytes: payloadJson.length,
+    variants_included: Array.isArray(body?.variants) && body.variants.length > 0,
     pricing_fields: {
       regular_price: body?.regular_price,
       price: body?.price,
@@ -348,6 +356,8 @@ export const updateProduct = async (id, body) => {
       wholesale_price: body?.wholesale_price,
     },
     variants_count: Array.isArray(body?.variants) ? body.variants.length : 0,
+    variant_images_count: Array.isArray(body?.variantImages) ? body.variantImages.length : 0,
+    color_images_count: Array.isArray(body?.colorImages) ? body.colorImages.length : 0,
   });
   console.log("[productsApi.updateProduct] request payload json", JSON.stringify(body, null, 2));
   return unwrapItem(await api.put(`/products/${id}`, body));

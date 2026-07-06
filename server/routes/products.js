@@ -7,6 +7,7 @@ import {
   deleteProduct,
   deleteVariant,
   getProductsAdminList,
+  getProductFull,
   getProductByQrToken,
   getProducts,
   getProductsWithVariants,
@@ -39,6 +40,7 @@ router.use((req, res, next) => {
 router.get("/admin-list", protect, getProductsAdminList);
 router.get("/", protect, getProducts);
 router.get("/with-variants", protect, getProductsWithVariants);
+router.get("/:id/full", protect, getProductFull);
 router.get("/qr/:token", protect, getProductByQrToken);
 router.post("/generate-ai-data", protect, generateAiProductDataController);
 router.post("/generate-description", protect, async (req, res) => {

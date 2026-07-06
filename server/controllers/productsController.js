@@ -3235,6 +3235,47 @@ export const loadProductsWithVariantsPayload = async ({ query = {}, user = null,
   return payload;
 };
 
+export const getProductFull = async (req, res) => {
+  const productId = Number(req.params.id || 0);
+  if (!Number.isFinite(productId) || productId <= 0) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid product id",
+    });
+  }
+
+  try {
+    const payload = await loadProductsWithVariantsPayload({
+      query: {
+        ...req.query,
+        productId,
+      },
+      user: req.user || null,
+      requestId: req.id || `product-full-${productId}`,
+    });
+    const products = Array.isArray(payload?.products) ? payload.products : [];
+    const product = products[0] || null;
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: product,
+      product,
+    });
+  } catch (error) {
+    return res.status(error?.status || 500).json({
+      success: false,
+      message: error?.message || "Failed to fetch product",
+      error: error?.payload || undefined,
+    });
+  }
+};
+
 export const regenerateAiShoeCover = async (req, res) => {
   const tenantId = getTenantId(req, req.user?.tenant_id);
   if (!tenantId) {

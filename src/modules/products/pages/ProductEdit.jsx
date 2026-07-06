@@ -66,7 +66,7 @@ import {
   regenerateAiShoeCover,
   generateThermalArtwork,
   getManufacturers,
-  getProductsWithVariants,
+  getProductFull,
   normalizeVariantPayload,
   suggestMirrorEditionName,
   updateProduct,
@@ -438,6 +438,88 @@ const buildVariantPricingSnapshot = (source = {}) => ({
 const pricingSnapshotsEqual = (left = {}, right = {}) =>
   JSON.stringify(left || {}) === JSON.stringify(right || {});
 
+const buildProductEditCoreSnapshot = ({
+  product = {},
+  mainCategory = "",
+  subCategory = "",
+  childCategory = "",
+  brand = "",
+  unit = "",
+  defaultManufacturerId = "",
+} = {}) =>
+  JSON.stringify({
+    product: {
+      name: product.name || "",
+      brand: product.brand || "",
+      brand_id: product.brand_id ?? "",
+      category: product.category || "",
+      category_id: product.category_id ?? "",
+      unit: product.unit || "",
+      unit_id: product.unit_id ?? "",
+      description: product.description || "",
+      description_ar: product.description_ar || "",
+      description_en: product.description_en || "",
+      meta_title: product.meta_title || "",
+      seo_description: product.seo_description || "",
+      seo_keywords: product.seo_keywords || "",
+      canonical_slug: product.canonical_slug || "",
+      sku: product.sku || "",
+      barcode: product.barcode || "",
+      status: product.status || "active",
+      gender: product.gender || "",
+      audiences: Array.isArray(product.audiences) ? product.audiences : [],
+      product_audiences: Array.isArray(product.product_audiences) ? product.product_audiences : [],
+      product_type: product.product_type || "",
+      style: product.style || "",
+      grade: product.grade || "",
+      is_offer_story: Boolean(product.is_offer_story),
+      variation_mode: product.variation_mode || "full_variations",
+      fixed_size_label: product.fixed_size_label || "",
+      purchase_alerts_enabled: Boolean(product.purchase_alerts_enabled),
+      purchase_alert_by_color: Boolean(product.purchase_alert_by_color),
+      carton_size: product.carton_size ?? "",
+      suggested_purchase_cartons: product.suggested_purchase_cartons ?? "",
+      low_stock_threshold: product.low_stock_threshold ?? "",
+      low_stock_alert: product.low_stock_alert ?? "",
+    },
+    mainCategory,
+    subCategory,
+    childCategory,
+    brand,
+    unit,
+    defaultManufacturerId: String(defaultManufacturerId || ""),
+  });
+
+const buildProductEditVariantContentSnapshot = (groups = []) =>
+  JSON.stringify(
+    (Array.isArray(groups) ? groups : []).map((group) => ({
+      color: String(group.color || "").trim(),
+      manufacturer_id: String(group.manufacturer_id || "").trim(),
+      manufacturer_override: Boolean(group.manufacturer_override),
+      article_code: String(group.article_code || "").trim(),
+      planned_qty: String(group.planned_qty || "").trim(),
+      edition_name: String(group.edition_name || "").trim(),
+      edition_slug: String(group.edition_slug || "").trim(),
+      sizes: (Array.isArray(group.sizes) ? group.sizes : []).map((row) => ({
+        variantId: String(row.variantId || "").trim(),
+        size: String(row.size || "").trim(),
+        stock: String(row.stock || "").trim(),
+        available_stock: String(row.available_stock || "").trim(),
+        price: String(row.price || "").trim(),
+        sale_price: String(row.sale_price || "").trim(),
+        sale_price_enabled: Boolean(row.sale_price_enabled),
+        wholesale_price: String(row.wholesale_price || "").trim(),
+        cost_price: String(row.cost_price || "").trim(),
+        sku: String(row.sku || "").trim(),
+        article_code: String(row.article_code || "").trim(),
+        barcode: String(row.barcode || "").trim(),
+        edition_name: String(row.edition_name || "").trim(),
+        edition_slug: String(row.edition_slug || "").trim(),
+        manufacturer_id: String(row.manufacturer_id || "").trim(),
+      })),
+    }))
+  );
+
 const normalizeGalleryImages = (value) => {
   let source = value;
 
@@ -736,6 +818,8 @@ function ProductEdit() {
   const colorImageUrlsRef = useRef(new Map());
   const initialProductPricingRef = useRef(buildProductPricingSnapshot(emptyProduct));
   const initialVariantPricingRef = useRef(new Map());
+  const initialProductCoreSnapshotRef = useRef("");
+  const initialVariantContentSnapshotRef = useRef("");
   const [manufacturers, setManufacturers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1166,27 +1250,23 @@ function ProductEdit() {
         setDescriptionGenerating({ ar: false, en: false });
         setVariantsHydrationFailed(false);
         setSavedVariantsCount(0);
+        initialProductCoreSnapshotRef.current = "";
+        initialVariantContentSnapshotRef.current = "";
         pendingColorUploadsRef.current.clear();
         colorImageUrlsRef.current.clear();
         console.log("[edit-product] route productId", productId);
 
-        const rows = await getProductsWithVariants();
-        const allRows = Array.isArray(rows) ? rows : [];
+        const firstRow = await getProductFull(productId, {
+          params: { refresh: Date.now() },
+        });
+        const allRows = firstRow ? [firstRow] : [];
         const loadedExistingSkus = collectSkuValues(allRows, { excludeProductId: productId });
         if (active) setExistingSkuValues(loadedExistingSkus);
-
-        const productRows = allRows.filter((row) => {
-          const hasProductReference = hasValue(row?.product_id) || hasValue(row?.productId) || hasValue(row?.product?.id);
-          if (hasProductReference) {
-            return idsMatch(row.product_id, productId) || idsMatch(row.productId, productId) || idsMatch(row.product?.id, productId);
-          }
-          return idsMatch(row?.id, productId);
-        });
-        const firstRow = productRows[0];
+        const productRows = firstRow ? [firstRow] : [];
         const rawSavedVariants = collectProductVariants(productRows, firstRow);
         console.log("[edit-product] raw product payload", firstRow || null);
         console.log("[edit-product] raw variants count", rawSavedVariants.length);
-        console.log("[edit-product] with-variants product match", {
+        console.log("[edit-product] focused product payload", {
           productId,
           rows: productRows.length,
           firstRow,
@@ -1211,6 +1291,10 @@ function ProductEdit() {
           setDefaultManufacturerId("");
           setVariantsHydrationFailed(true);
           setColorGroups([]);
+          initialProductCoreSnapshotRef.current = buildProductEditCoreSnapshot({
+            product: emptyProduct,
+          });
+          initialVariantContentSnapshotRef.current = buildProductEditVariantContentSnapshot([]);
           return;
         }
 
@@ -1266,6 +1350,21 @@ function ProductEdit() {
           setGallery(normalizeGalleryImages(firstRow.gallery_images));
           setDefaultManufacturerId("");
           setColorGroups([]);
+          initialProductCoreSnapshotRef.current = buildProductEditCoreSnapshot({
+            product: {
+              ...normalizedProduct,
+              category: hydratedCategory.childCategory || hydratedCategory.subCategory || hydratedCategory.mainCategory || firstRow.category || "",
+              brand: hydratedBrand.brand || firstRow.brand || "",
+              unit: hydratedUnit.unit || firstRow.unit || "",
+            },
+            mainCategory: hydratedCategory.mainCategory || "",
+            subCategory: hydratedCategory.subCategory || "",
+            childCategory: hydratedCategory.childCategory || "",
+            brand: hydratedBrand.brand || "",
+            unit: hydratedUnit.unit || "",
+            defaultManufacturerId: "",
+          });
+          initialVariantContentSnapshotRef.current = buildProductEditVariantContentSnapshot([]);
           return;
         }
 
@@ -1376,6 +1475,21 @@ function ProductEdit() {
         setColorGroups(skuAwareColorGroups);
         setExpandedGroupId(skuAwareColorGroups[0]?.id || "");
         setVariantStructureEdited(false);
+        initialProductCoreSnapshotRef.current = buildProductEditCoreSnapshot({
+          product: {
+            ...normalizedProduct,
+            category: hydratedCategory.childCategory || hydratedCategory.subCategory || hydratedCategory.mainCategory || firstRow.category || "",
+            brand: hydratedBrand.brand || firstRow.brand || "",
+            unit: hydratedUnit.unit || firstRow.unit || "",
+          },
+          mainCategory: hydratedCategory.mainCategory || "",
+          subCategory: hydratedCategory.subCategory || "",
+          childCategory: hydratedCategory.childCategory || "",
+          brand: hydratedBrand.brand || "",
+          unit: hydratedUnit.unit || "",
+          defaultManufacturerId: resolvedDefaultManufacturerId,
+        });
+        initialVariantContentSnapshotRef.current = buildProductEditVariantContentSnapshot(skuAwareColorGroups);
       } catch (err) {
         console.log(err);
         if (!active) return;
@@ -2044,7 +2158,12 @@ function ProductEdit() {
     );
 
     try {
-      const result = await generateAiProductData(buildAiProductPayload());
+      const payload = buildAiProductPayload();
+      if (!payload.image_base64_optional && !payload.image_url) {
+        toast.error(t("products.editor.uploadMainImageFirst"));
+        return;
+      }
+      const result = await generateAiProductData(payload);
       setAiProductData(result);
       if (result?.source === "TEXT_FALLBACK") {
         toast("Vision AI unavailable. Text generator suggestions are ready.");
@@ -2394,6 +2513,46 @@ function ProductEdit() {
     return payload;
   };
 
+  const buildVariantImagesPayload = (groups = []) =>
+    (Array.isArray(groups) ? groups : []).flatMap((group) => {
+      const groupColor = String(group.color || "").trim();
+      const groupImageUrl = String(getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "").trim();
+      const groupThermalImageUrl = String(group.thermal_image_url || "").trim();
+      return (Array.isArray(group.sizes) ? group.sizes : [])
+        .map((row) => {
+          const variantId = row.variantId || null;
+          if (!variantId) return null;
+          const rowImages = normalizeColorImages(row.images);
+          const rowImageUrl = String(row.image_url || groupImageUrl || "").trim();
+          const rowThermalImageUrl = String(row.thermal_image_url || row.thermalImageUrl || groupThermalImageUrl || "").trim();
+          if (!rowImageUrl && !rowThermalImageUrl && rowImages.length === 0) return null;
+          return {
+            id: variantId,
+            variant_id: variantId,
+            color: groupColor,
+            size: String(row.size || "").trim(),
+            image_url: rowImageUrl,
+            variant_image_url: rowImageUrl,
+            color_image_url: groupImageUrl,
+            thermal_image_url: rowThermalImageUrl,
+            thermalImageUrl: rowThermalImageUrl,
+            color_thermal_image_url: rowThermalImageUrl,
+            colorThermalImageUrl: rowThermalImageUrl,
+            variant_color_thermal_image_url: rowThermalImageUrl,
+            variantColorThermalImageUrl: rowThermalImageUrl,
+            images: rowImages.map((image, index) => ({
+              id: image.id || makeId(),
+              preview: image.image_url || image.preview || "",
+              image_url: image.image_url || image.preview || "",
+              is_primary: image.is_primary ?? index === 0,
+              generated_by_ai: Boolean(image.generated_by_ai),
+              name: image.name || `${groupColor || "Variant"} image ${index + 1}`,
+            })),
+          };
+        })
+        .filter(Boolean);
+    });
+
   const handleSave = async () => {
     console.log("[edit-product] save diagnostics", {
       savedVariantsCount,
@@ -2511,6 +2670,7 @@ function ProductEdit() {
         };
       })
       .filter(Boolean);
+    const variantImagesPayload = buildVariantImagesPayload(normalizedGroups);
     const resolvedThermalImageUrl = getResolvedThermalImageUrl({
       product: {
         thermal_image_url: thermalImageUrl,
@@ -2675,6 +2835,24 @@ function ProductEdit() {
       removed_variant_ids: removedVariantIds,
     });
 
+    const currentProductCoreSnapshot = buildProductEditCoreSnapshot({
+      product,
+      mainCategory,
+      subCategory,
+      childCategory,
+      brand,
+      unit,
+      defaultManufacturerId,
+    });
+    const currentVariantContentSnapshot = buildProductEditVariantContentSnapshot(colorGroups);
+    const pricingPayload = getChangedProductPricingPayload();
+    const imageOnlySave =
+      currentProductCoreSnapshot === initialProductCoreSnapshotRef.current &&
+      currentVariantContentSnapshot === initialVariantContentSnapshotRef.current &&
+      !variantStructureEdited &&
+      removedVariantIds.length === 0 &&
+      Object.keys(pricingPayload).length === 0;
+
     const categoryPayload = resolveCategoryPayload(categories, {
       mainCategory,
       subCategory,
@@ -2711,53 +2889,73 @@ function ProductEdit() {
         gallery,
       });
 
-      const pricingPayload = getChangedProductPricingPayload();
-      const updatePayload = {
-        name: product.name,
-        ...categoryPayload,
-        ...brandPayload,
-        ...unitPayload,
-        description: product.description,
-        description_ar: product.description_ar,
-        description_en: product.description_en,
-        meta_title: product.meta_title,
-        seo_description: product.seo_description || product.description_en || product.description_ar || product.description,
-        seo_keywords: product.seo_keywords,
-        canonical_slug: product.canonical_slug,
-        ...pricingPayload,
-        gender: product.audiences?.[0] || product.gender || "",
-        audiences: product.audiences || [],
-        product_audiences: product.audiences || [],
-        product_type: product.product_type || "",
-        style: product.style || "",
-        grade: product.grade || "",
-        is_offer_story: Boolean(product.is_offer_story),
-        variation_mode: product.variation_mode || "full_variations",
-        fixed_size_label: isColorOnlyMode ? product.fixed_size_label || "One Size" : "",
-        purchase_alerts_enabled: Boolean(product.purchase_alerts_enabled),
-        purchase_alert_by_color: Boolean(product.purchase_alert_by_color),
-        carton_size: product.carton_size === "" || product.carton_size === null || product.carton_size === undefined ? null : Number(product.carton_size),
-        suggested_purchase_cartons: Number(product.suggested_purchase_cartons || 1),
-        planned_quantities: [],
-        low_stock_threshold: Number(product.low_stock_threshold || product.low_stock_alert || 0),
-        low_stock_alert: Number(product.low_stock_alert || product.low_stock_threshold || 0),
-        low_stock_tracking_mode: null,
-        product_low_stock_threshold: null,
-        minimum_distinct_sizes_required: null,
-        sku: product.sku || uniqueSmartSkuPrefix,
-        barcode: product.barcode || "",
-        status: product.status || "active",
-        image_url: coverImageUrl,
-        thermal_image_url: resolvedThermalImageUrl,
-        gallery_images: galleryPayload,
-        variants: isSimpleMode ? [] : variantPayloads,
-        colorImages: isSimpleMode ? [] : colorImagesPayload.map((group) => ({
-          ...group,
-          images: dedupeImages(group.images),
-        })),
-        ...getManufacturerPayload(defaultManufacturerId),
-        deleted_variant_ids: removedVariantIds,
-      };
+      const updatePayload = imageOnlySave
+        ? {
+            image_url: coverImageUrl,
+            thermal_image_url: resolvedThermalImageUrl,
+            gallery_images: galleryPayload,
+            colorImages: isSimpleMode ? [] : colorImagesPayload.map((group) => ({
+              ...group,
+              images: dedupeImages(group.images),
+            })),
+            variantImages: variantImagesPayload,
+          }
+        : {
+            name: product.name,
+            ...categoryPayload,
+            ...brandPayload,
+            ...unitPayload,
+            description: product.description,
+            description_ar: product.description_ar,
+            description_en: product.description_en,
+            meta_title: product.meta_title,
+            seo_description: product.seo_description || product.description_en || product.description_ar || product.description,
+            seo_keywords: product.seo_keywords,
+            canonical_slug: product.canonical_slug,
+            ...pricingPayload,
+            gender: product.audiences?.[0] || product.gender || "",
+            audiences: product.audiences || [],
+            product_audiences: product.audiences || [],
+            product_type: product.product_type || "",
+            style: product.style || "",
+            grade: product.grade || "",
+            is_offer_story: Boolean(product.is_offer_story),
+            variation_mode: product.variation_mode || "full_variations",
+            fixed_size_label: isColorOnlyMode ? product.fixed_size_label || "One Size" : "",
+            purchase_alerts_enabled: Boolean(product.purchase_alerts_enabled),
+            purchase_alert_by_color: Boolean(product.purchase_alert_by_color),
+            carton_size: product.carton_size === "" || product.carton_size === null || product.carton_size === undefined ? null : Number(product.carton_size),
+            suggested_purchase_cartons: Number(product.suggested_purchase_cartons || 1),
+            planned_quantities: [],
+            low_stock_threshold: Number(product.low_stock_threshold || product.low_stock_alert || 0),
+            low_stock_alert: Number(product.low_stock_alert || product.low_stock_threshold || 0),
+            low_stock_tracking_mode: null,
+            product_low_stock_threshold: null,
+            minimum_distinct_sizes_required: null,
+            sku: product.sku || uniqueSmartSkuPrefix,
+            barcode: product.barcode || "",
+            status: product.status || "active",
+            image_url: coverImageUrl,
+            thermal_image_url: resolvedThermalImageUrl,
+            gallery_images: galleryPayload,
+            colorImages: isSimpleMode ? [] : colorImagesPayload.map((group) => ({
+              ...group,
+              images: dedupeImages(group.images),
+            })),
+            ...getManufacturerPayload(defaultManufacturerId),
+            variants: isSimpleMode ? [] : variantPayloads,
+            deleted_variant_ids: removedVariantIds,
+          };
+      const updatePayloadJson = JSON.stringify(updatePayload);
+      console.log("[edit-product] update payload summary", {
+        productId,
+        imageOnlySave,
+        payloadSizeBytes: updatePayloadJson.length,
+        variantsIncluded: Array.isArray(updatePayload.variants) && updatePayload.variants.length > 0,
+        variantsCount: Array.isArray(updatePayload.variants) ? updatePayload.variants.length : 0,
+        variantImagesCount: Array.isArray(updatePayload.variantImages) ? updatePayload.variantImages.length : 0,
+        colorImagesCount: Array.isArray(updatePayload.colorImages) ? updatePayload.colorImages.length : 0,
+      });
       console.log("[edit-product] outgoing updateProduct payload", updatePayload);
       console.log("[edit-product] outgoing updateProduct payload json", JSON.stringify(updatePayload, null, 2));
       const savedProduct = await updateProduct(productId, updatePayload);
@@ -2773,6 +2971,8 @@ function ProductEdit() {
       setRemovedVariantIds([]);
       setVariantStructureEdited(false);
       initialEditorSignatureRef.current = editorSignature;
+      initialProductCoreSnapshotRef.current = currentProductCoreSnapshot;
+      initialVariantContentSnapshotRef.current = currentVariantContentSnapshot;
       cleanupProductCache();
 
       if (savedProduct?.color_images?.length) {
@@ -4289,6 +4489,7 @@ const getAiImagePayload = (image = "") => {
   const value = String(image || "").trim();
   if (!value) return {};
   if (value.startsWith("data:image/")) return { image_base64_optional: value };
+  if (value.startsWith("blob:")) return {};
   return { image_url: value };
 };
 
