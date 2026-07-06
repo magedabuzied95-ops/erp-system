@@ -1492,6 +1492,10 @@ const buildProductSearchClause = ({ values, search }) => {
     "p.sku",
     "p.barcode",
     "p.qr_token",
+    "p.brand",
+    "p.category",
+    "b.name",
+    "c.name",
   ];
   const variantFields = [
     "sv.sku",
@@ -1529,6 +1533,109 @@ const buildProductSearchClause = ({ values, search }) => {
       )
     )
   `;
+};
+
+const normalizeAdminListFilterValue = (value = "") => String(value ?? "").trim();
+
+const buildProductsAdminListFiltersClause = ({ values, filters = {} }) => {
+  const parts = [];
+  const applied = {};
+
+  const rawStatus = normalizeAdminListFilterValue(filters.status).toLowerCase();
+  if (rawStatus && rawStatus !== "all") {
+    if (rawStatus === "active") {
+      parts.push(`
+        COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'archived', 'deleted')
+        AND COALESCE(vt.total_stock, GREATEST(COALESCE(p.stock, 0), 0)) > COALESCE(p.low_stock_alert, 0)
+      `);
+      applied.status = "active";
+    } else if (rawStatus === "low") {
+      parts.push(`
+        (
+          COALESCE(vt.total_stock, GREATEST(COALESCE(p.stock, 0), 0)) <= 0
+          OR (
+            COALESCE(vt.total_stock, GREATEST(COALESCE(p.stock, 0), 0)) > 0
+            AND COALESCE(p.low_stock_alert, 0) > 0
+            AND COALESCE(vt.total_stock, GREATEST(COALESCE(p.stock, 0), 0)) <= COALESCE(p.low_stock_alert, 0)
+          )
+        )
+      `);
+      applied.status = "low";
+    } else if (rawStatus === "inactive") {
+      parts.push(`COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') IN ('inactive', 'archived', 'deleted')`);
+      applied.status = "inactive";
+    }
+  }
+
+  const rawBrand = normalizeAdminListFilterValue(filters.brand);
+  if (rawBrand && rawBrand.toLowerCase() !== "all") {
+    values.push(rawBrand);
+    parts.push(`COALESCE(NULLIF(TRIM(b.name), ''), NULLIF(TRIM(p.brand), ''), '') = $${values.length}`);
+    applied.brand = rawBrand;
+  }
+
+  const rawCategory = normalizeAdminListFilterValue(filters.category);
+  if (rawCategory && rawCategory.toLowerCase() !== "all") {
+    values.push(rawCategory);
+    parts.push(`COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(p.category), ''), '') = $${values.length}`);
+    applied.category = rawCategory;
+  }
+
+  const rawVisibility = normalizeAdminListFilterValue(
+    filters.storefront_visibility ?? filters.storefrontVisibility
+  ).toLowerCase();
+  if (rawVisibility && rawVisibility !== "all") {
+    if (rawVisibility === "visible") {
+      parts.push(`CASE WHEN p.is_storefront_visible IS NULL THEN TRUE ELSE p.is_storefront_visible END = TRUE`);
+      applied.storefrontVisibility = "visible";
+    } else if (rawVisibility === "hidden") {
+      parts.push(`CASE WHEN p.is_storefront_visible IS NULL THEN TRUE ELSE p.is_storefront_visible END = FALSE`);
+      applied.storefrontVisibility = "hidden";
+    }
+  }
+
+  const rawCatalogTab = normalizeAdminListFilterValue(filters.catalog_tab ?? filters.catalogTab).toLowerCase();
+  const rawOffers = normalizeAdminListFilterValue(filters.sale ?? filters.offers ?? filters.is_offer_story).toLowerCase();
+  if (rawCatalogTab === "offers" || rawOffers === "offers" || rawOffers === "true") {
+    parts.push(`COALESCE(p.is_offer_story, FALSE) = TRUE`);
+    applied.offers = "offers";
+  } else if (rawCatalogTab === "products") {
+    parts.push(`COALESCE(p.is_offer_story, FALSE) = FALSE`);
+    applied.offers = "products";
+  }
+
+  const rawGender = normalizeClassificationValue(filters.gender);
+  if (rawGender && rawGender !== "all") {
+    values.push(rawGender);
+    parts.push(`
+      EXISTS (
+        SELECT 1
+        FROM product_audiences paf
+        WHERE paf.product_id = p.id
+          AND LOWER(TRIM(COALESCE(paf.audience, ''))) = LOWER(TRIM($${values.length}))
+      )
+    `);
+    applied.gender = rawGender;
+  }
+
+  const rawProductType = normalizeClassificationValue(filters.product_type ?? filters.productType);
+  if (rawProductType && rawProductType !== "all") {
+    values.push(rawProductType);
+    parts.push(`LOWER(TRIM(COALESCE(p.product_type, ''))) = LOWER(TRIM($${values.length}))`);
+    applied.productType = rawProductType;
+  }
+
+  const rawGrade = normalizeClassificationValue(filters.grade);
+  if (rawGrade && rawGrade !== "all") {
+    values.push(rawGrade);
+    parts.push(`LOWER(TRIM(COALESCE(p.grade, ''))) = LOWER(TRIM($${values.length}))`);
+    applied.grade = rawGrade;
+  }
+
+  return {
+    sql: parts.join("\nAND "),
+    applied,
+  };
 };
 
 const runTimedProductQuery = async ({
@@ -2561,7 +2668,6 @@ export const getProductsAdminList = async (req, res) => {
     await ensureProductAdminListIndexes();
     const columns = await getProductColumns();
     const scopeClause = buildProductScopeClause({ columns, scope });
-    const hasWarehouseInventory = await tableExists(db, "warehouse_inventory");
     const hasProductVariantImages = await tableExists(db, "product_variant_images");
     const hasProductAudiences = await tableExists(db, "product_audiences");
 
@@ -2570,9 +2676,26 @@ export const getProductsAdminList = async (req, res) => {
       values,
       search: req.query.search ?? req.query.q ?? "",
     });
+    const filtersClause = buildProductsAdminListFiltersClause({
+      values,
+      filters: {
+        status: req.query.status,
+        brand: req.query.brand,
+        category: req.query.category,
+        storefront_visibility: req.query.storefront_visibility ?? req.query.storefrontVisibility,
+        sale: req.query.sale,
+        offers: req.query.offers,
+        is_offer_story: req.query.is_offer_story,
+        catalog_tab: req.query.catalog_tab ?? req.query.catalogTab,
+        gender: req.query.gender,
+        product_type: req.query.product_type ?? req.query.productType,
+        grade: req.query.grade,
+      },
+    });
     const whereSql = [
       scopeClause.whereSql,
       searchClause ? `${scopeClause.whereSql ? "AND" : "WHERE"} ${searchClause}` : "",
+      filtersClause.sql ? `${scopeClause.whereSql || searchClause ? "AND" : "WHERE"} ${filtersClause.sql}` : "",
     ].filter(Boolean).join("\n");
 
     const page = Math.max(1, Number(req.query.page || 1) || 1);
@@ -2583,24 +2706,6 @@ export const getProductsAdminList = async (req, res) => {
     if (limit) {
       values.push(limit, offset);
     }
-
-    const variantStockSql = hasWarehouseInventory
-      ? `
-        COALESCE(SUM(GREATEST(COALESCE(wi.total_stock, v.stock, 0), 0)), 0)::int AS total_stock
-      `
-      : `
-        COALESCE(SUM(GREATEST(COALESCE(v.stock, 0), 0)), 0)::int AS total_stock
-      `;
-
-    const variantStockJoinSql = hasWarehouseInventory
-      ? `
-        LEFT JOIN (
-          SELECT variant_id, COALESCE(SUM(stock), 0) AS total_stock
-          FROM warehouse_inventory
-          GROUP BY variant_id
-        ) wi ON wi.variant_id = v.id
-      `
-      : "";
 
     const coverImageJoinSql = hasProductVariantImages
       ? `
@@ -2631,9 +2736,8 @@ export const getProductsAdminList = async (req, res) => {
         SELECT
           v.product_id,
           COUNT(*)::int AS active_variant_count,
-          ${variantStockSql}
+          COALESCE(SUM(GREATEST(COALESCE(v.stock, 0), 0)), 0)::int AS total_variant_stock
         FROM product_variants v
-        ${variantStockJoinSql}
         WHERE v.is_active IS DISTINCT FROM FALSE
           AND v.deleted_at IS NULL
         GROUP BY v.product_id
@@ -2653,7 +2757,16 @@ export const getProductsAdminList = async (req, res) => {
           ${hasProductVariantImages ? "NULLIF(TRIM(pvi_cover.image_url), '')" : "NULL"},
           ''
         ) AS cover_image_url,
-        COALESCE(vt.total_stock, GREATEST(COALESCE(p.stock, 0), 0))::int AS total_stock,
+        GREATEST(COALESCE(p.stock, 0), 0)::int AS product_stock,
+        COALESCE(vt.total_variant_stock, 0)::int AS total_variant_stock,
+        CASE
+          WHEN COALESCE(vt.active_variant_count, 0) > 0 THEN COALESCE(vt.total_variant_stock, 0)
+          ELSE GREATEST(COALESCE(p.stock, 0), 0)
+        END::int AS total_stock,
+        CASE
+          WHEN COALESCE(vt.active_variant_count, 0) > 0 THEN COALESCE(vt.total_variant_stock, 0)
+          ELSE GREATEST(COALESCE(p.stock, 0), 0)
+        END::int AS stock,
         COALESCE(p.selling_price, p.regular_price, p.price, 0) AS selling_price,
         COALESCE(p.regular_price, p.price, p.selling_price, 0) AS regular_price,
         COALESCE(p.sale_price, 0) AS sale_price,
@@ -2689,22 +2802,56 @@ export const getProductsAdminList = async (req, res) => {
       values
     );
 
-    const rows = (result.rows || []).map((row) => ({
-      ...row,
-      image_url: row.cover_image_url || "",
-      product_image_url: row.cover_image_url || "",
-      thumbnail_url: row.cover_image_url || "",
-      photo_url: row.cover_image_url || "",
-      variants: [],
-      color_images: [],
-      product_audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
-      audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
-    }));
+    const filterOptionsResult = await db.query(
+      `
+      SELECT
+        ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(b.name, p.brand, '')), '') ORDER BY NULLIF(TRIM(COALESCE(b.name, p.brand, '')), '')), NULL) AS brands,
+        ARRAY_REMOVE(ARRAY_AGG(DISTINCT NULLIF(TRIM(COALESCE(c.name, p.category, '')), '') ORDER BY NULLIF(TRIM(COALESCE(c.name, p.category, '')), '')), NULL) AS categories
+      FROM products p
+      LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN brands b ON b.id = p.brand_id
+      ${scopeClause.whereSql}
+      `,
+      scopeClause.values
+    );
+
+    const rows = (result.rows || []).map((row) => {
+      const normalizedRow = {
+        ...row,
+        image_url: row.cover_image_url || "",
+        product_image_url: row.cover_image_url || "",
+        thumbnail_url: row.cover_image_url || "",
+        photo_url: row.cover_image_url || "",
+        variants: [],
+        color_images: [],
+        product_audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
+        audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
+      };
+
+      if (Number(normalizedRow.id) === 3) {
+        console.log("PRODUCT_ADMIN_LIST_STOCK_DEBUG", {
+          productId: normalizedRow.id,
+          productsStock: Number(normalizedRow.product_stock || 0),
+          summedVariantStock: Number(normalizedRow.total_variant_stock || 0),
+          returnedStockField: Number(normalizedRow.stock || 0),
+          returnedTotalStock: Number(normalizedRow.total_stock || 0),
+          activeVariantCount: Number(normalizedRow.active_variant_count || 0),
+        });
+      }
+
+      return normalizedRow;
+    });
     const total = Number(result.rows?.[0]?.total_count || 0);
+    const availableBrands = Array.isArray(filterOptionsResult.rows?.[0]?.brands) ? filterOptionsResult.rows[0].brands.filter(Boolean) : [];
+    const availableCategories = Array.isArray(filterOptionsResult.rows?.[0]?.categories) ? filterOptionsResult.rows[0].categories.filter(Boolean) : [];
 
     console.log("PRODUCT_ADMIN_LIST_TIMING", {
       durationMs: Date.now() - startedAt,
       productsCount: rows.length,
+      page,
+      limit: limit || rows.length,
+      searchApplied: Boolean(String(req.query.search ?? req.query.q ?? "").trim()),
+      filtersApplied: filtersClause.applied,
     });
 
     return res.json({
@@ -2714,8 +2861,13 @@ export const getProductsAdminList = async (req, res) => {
       pagination: {
         page,
         limit: limit || rows.length,
+        offset,
         total,
         totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1,
+      },
+      filters: {
+        brands: availableBrands,
+        categories: availableCategories,
       },
     });
   } catch (error) {

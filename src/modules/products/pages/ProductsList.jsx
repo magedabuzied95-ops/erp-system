@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { Link, useNavigate } from "react-router-dom";
@@ -495,11 +495,7 @@ const getProductId = (row = {}) =>
 const getProductTotalStock = (product) => {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
 
-  if (
-    product?.variation_mode === "full_variations" ||
-    product?.variation_mode === "simple_variations" ||
-    variants.length > 0
-  ) {
+  if (variants.length > 0) {
     return variants.reduce((sum, variant) => {
       return (
         sum +
@@ -515,6 +511,21 @@ const getProductTotalStock = (product) => {
         )
       );
     }, 0);
+  }
+
+  const aggregatedStock = Number(
+    product?.total_variant_stock ??
+      product?.total_stock ??
+      product?.stock ??
+      product?.quantity ??
+      product?.qty ??
+      product?.available_quantity ??
+      product?.inventory_quantity ??
+      product?.current_stock ??
+      0
+  );
+  if (Number.isFinite(aggregatedStock)) {
+    return aggregatedStock;
   }
 
   return Number(
@@ -637,7 +648,7 @@ function PriceLine({ label, value, varies = false, variesLabel = "متنوع", t
   );
 }
 
-function ProductThumbnail({ row }) {
+const ProductThumbnail = memo(function ProductThumbnail({ row }) {
   const src = getProductThumbnail(row);
 
   if (!src) {
@@ -656,7 +667,7 @@ function ProductThumbnail({ row }) {
       className="h-14 w-14 shrink-0 rounded-2xl border border-white/10 bg-white/5 object-cover"
     />
   );
-}
+});
 
 function PriceEditorModal({ product, onClose, onSave }) {
   const { t } = useTranslation();
@@ -1136,6 +1147,7 @@ function ProductsList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [catalogTab, setCatalogTab] = useState("products");
   const [statusFilter, setStatusFilter] = useState("all");
   const [storefrontVisibilityFilter, setStorefrontVisibilityFilter] = useState("all");
@@ -1147,6 +1159,8 @@ function ProductsList() {
   const [brandFilter, setBrandFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(8);
+  const [pagination, setPagination] = useState({ page: 1, limit: 8, offset: 0, total: 0, totalPages: 1 });
+  const [brandOptions, setBrandOptions] = useState(["all"]);
   const [selectedIds, setSelectedIds] = useState([]);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [openActionId, setOpenActionId] = useState(null);
@@ -1164,11 +1178,13 @@ function ProductsList() {
   const [barcodeQueueDialogSelection, setBarcodeQueueDialogSelection] = useState({});
   const [barcodeQueueSubmitting, setBarcodeQueueSubmitting] = useState(false);
   const [barcodeQueueRows, setBarcodeQueueRows] = useState([]);
+  const [reloadNonce, setReloadNonce] = useState(0);
   const actionMenuRef = useRef(null);
   const actionMenuTriggerRef = useRef(null);
   const filtersRef = useRef(null);
   const filtersTriggerRef = useRef(null);
   const productDetailsCacheRef = useRef(new Map());
+  const latestProductsRequestRef = useRef(0);
   const canCreateMarketingPost = hasPermission("marketing.create");
   const canUpdateMarketingPost = hasPermission("marketing.update");
   const canPublishMarketingPost = hasPermission("marketing.publish");
@@ -1211,44 +1227,12 @@ function ProductsList() {
     onDismiss: () => setFiltersOpen(false),
   });
 
-  const loadProducts = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      try {
-        await api.get("/health", { timeoutMs: REQUEST_TIMEOUT_MS });
-      } catch (healthError) {
-        const message = t("common.noData");
-        console.error("[products:list] backend health check failed", {
-          url: healthError?.url || "/api/health",
-          method: "GET",
-          message: healthError?.message,
-        });
-        setError(message);
-        toast.error(message);
-        return;
-      }
-
-      const refreshToken = Date.now();
-      const productsResult = await getProductsAdminList({ timeoutMs: REQUEST_TIMEOUT_MS, params: { refresh: refreshToken } });
-      const baseProducts = Array.isArray(productsResult?.products) ? productsResult.products : [];
-      productDetailsCacheRef.current.clear();
-      setRows(baseProducts);
-    } catch (err) {
-      console.error("[products:list] load error", err);
-      const message =
-        String(err?.message || "").toLowerCase().includes("session expired")
-          ? "Session expired. Please login again."
-          : Number(err?.status || err?.responseBody?.status) === 401
-            ? "Session expired. Please login again."
-            : getErrorMessage(err, "Failed to load products");
-      setError(message);
-      toast.error(message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const loadProductDetails = async (productId) => {
     const key = String(productId || "");
@@ -1271,25 +1255,115 @@ function ProductsList() {
     return results.filter(Boolean);
   };
 
+  const refreshProducts = () => {
+    setRows([]);
+    setReloadNonce((prev) => prev + 1);
+  };
+
   useEffect(() => {
-    const timer = window.setTimeout(() => {
-      loadProducts();
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, []);
+    let cancelled = false;
+    const requestId = latestProductsRequestRef.current + 1;
+    latestProductsRequestRef.current = requestId;
+
+    const loadProducts = async () => {
+      try {
+        setLoading(true);
+        setError("");
+
+        try {
+          await api.get("/health", { timeoutMs: REQUEST_TIMEOUT_MS });
+        } catch (healthError) {
+          const message = t("common.noData");
+          console.error("[products:list] backend health check failed", {
+            url: healthError?.url || "/api/health",
+            method: "GET",
+            message: healthError?.message,
+          });
+          if (!cancelled && latestProductsRequestRef.current === requestId) {
+            setError(message);
+            toast.error(message);
+          }
+          return;
+        }
+
+        const refreshToken = Date.now();
+        const productsResult = await getProductsAdminList({
+          timeoutMs: REQUEST_TIMEOUT_MS,
+          params: {
+            refresh: refreshToken,
+            page,
+            limit: pageSize,
+            search: debouncedSearch,
+            status: statusFilter,
+            brand: brandFilter,
+            storefrontVisibility: storefrontVisibilityFilter,
+            catalogTab,
+            gender: classificationFilters.gender,
+            productType: classificationFilters.productType,
+            grade: classificationFilters.grade,
+          },
+        });
+        if (cancelled || latestProductsRequestRef.current !== requestId) return;
+        const baseProducts = Array.isArray(productsResult?.products) ? productsResult.products : [];
+        const nextPagination = productsResult?.pagination || {};
+        const apiBrands = Array.isArray(productsResult?.raw?.filters?.brands) ? productsResult.raw.filters.brands : [];
+        productDetailsCacheRef.current.clear();
+        setRows(baseProducts);
+        setPagination({
+          page: Number(nextPagination.page || page) || 1,
+          limit: Number(nextPagination.limit || pageSize) || pageSize,
+          offset: Number(nextPagination.offset || 0) || 0,
+          total: Number(nextPagination.total || 0) || 0,
+          totalPages: Number(nextPagination.totalPages || 1) || 1,
+        });
+        setBrandOptions(["all", ...apiBrands.filter(Boolean)]);
+      } catch (err) {
+        if (cancelled || latestProductsRequestRef.current !== requestId) return;
+        console.error("[products:list] load error", err);
+        const message =
+          String(err?.message || "").toLowerCase().includes("session expired")
+            ? "Session expired. Please login again."
+            : Number(err?.status || err?.responseBody?.status) === 401
+              ? "Session expired. Please login again."
+              : getErrorMessage(err, "Failed to load products");
+        setError(message);
+        toast.error(message);
+      } finally {
+        if (!cancelled && latestProductsRequestRef.current === requestId) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadProducts();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    page,
+    pageSize,
+    debouncedSearch,
+    statusFilter,
+    brandFilter,
+    storefrontVisibilityFilter,
+    catalogTab,
+    classificationFilters.gender,
+    classificationFilters.productType,
+    classificationFilters.grade,
+    reloadNonce,
+    t,
+  ]);
 
   useEffect(() => {
     const refetchProducts = () => {
-      setRows([]);
-      loadProducts();
+      refreshProducts();
     };
     window.addEventListener("products:refetch", refetchProducts);
     return () => window.removeEventListener("products:refetch", refetchProducts);
   }, []);
 
-  const brands = useMemo(() => {
-    const unique = new Set(rows.map((row) => row.brand).filter(Boolean));
-    return ["all", ...unique];
+  useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => rows.some((row) => row.id === id)));
   }, [rows]);
 
   const classificationOptions = useMemo(
@@ -1342,68 +1416,10 @@ function ProductsList() {
     setPage(1);
   };
 
-  const filteredRows = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    return rows.filter((row) => {
-      const dbStatus = String(row.status || "").toLowerCase();
-      const { isLowStock, isOutOfStock } = getProductStockState(row);
-      const effectiveStatus =
-        row.active === false || dbStatus === "inactive" || dbStatus === "archived"
-          ? "inactive"
-          : isOutOfStock || isLowStock
-            ? "low"
-            : "active";
-      const matchesSearch =
-        !query ||
-        [
-          row.name,
-          row.sku,
-          row.barcode,
-          ...(Array.isArray(row.variants) ? row.variants.flatMap((variant) => [variant.article_code, variant.sku, variant.barcode]) : []),
-          ...getProductAudiences(row),
-          row.category,
-          row.brand,
-          row.gender,
-          row.product_type,
-          row.grade,
-        ]
-          .join(" ")
-          .toLowerCase()
-          .includes(query);
-      const matchesTab = catalogTab === "offers" ? isOfferStoryValue(row) : isNonOfferStoryValue(row);
-      const matchesStatus = statusFilter === "all" || effectiveStatus === statusFilter;
-      const isStorefrontVisible = isStorefrontVisibleValue(row);
-      const matchesStorefrontVisibility =
-        storefrontVisibilityFilter === "all" ||
-        (storefrontVisibilityFilter === "visible" ? isStorefrontVisible : !isStorefrontVisible);
-      const matchesClassification = CLASSIFICATION_FILTER_FIELDS.every(({ key, field }) => {
-        const selectedValue = classificationFilters[key];
-        if (!selectedValue || selectedValue === "all") return true;
-        if (key === "gender") return getProductAudiences(row).includes(selectedValue);
-        const rowClassificationValue =
-          field === "product_type"
-            ? row.product_type || row.productType || row.category
-            : row[field];
-        return normalizeClassificationValue(rowClassificationValue) === selectedValue;
-      });
-      const matchesBrand = brandFilter === "all" || row.brand === brandFilter;
-      return matchesSearch && matchesTab && matchesStatus && matchesStorefrontVisibility && matchesClassification && matchesBrand;
-    });
-  }, [rows, search, statusFilter, storefrontVisibilityFilter, classificationFilters, brandFilter, catalogTab]);
-
-  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const totalPages = Math.max(1, Number(pagination.totalPages || 1) || 1);
   const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * pageSize;
-  const visibleRows = filteredRows.slice(start, start + pageSize);
-
-  useEffect(() => {
-    if (currentPage !== page) {
-      const timer = window.setTimeout(() => {
-        setPage(currentPage);
-      }, 0);
-      return () => window.clearTimeout(timer);
-    }
-  }, [currentPage, page]);
+  const start = Number(pagination.offset || 0) || 0;
+  const visibleRows = rows;
 
   const selectedCount = selectedIds.length;
   const selectedRows = useMemo(
@@ -1502,11 +1518,11 @@ function ProductsList() {
           ? t("products.toasts.productActivated", "Product activated")
           : t("products.toasts.productDeactivated", "Product deactivated")
       );
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       console.error("[products:list] status toggle failed", err);
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.statusUpdateFailed", "Failed to update product status"));
-      await loadProducts();
+      refreshProducts();
     }
   };
 
@@ -1519,11 +1535,11 @@ function ProductsList() {
       console.log("[products:list] offer story update response", { rowId: row.id, response, snapshot });
       updateLocalOfferStory(row.id, snapshot || nextOfferStory);
       toast.success(nextOfferStory ? t("products.toasts.addedToOffers", "Added to offers") : t("products.toasts.removedFromOffers", "Removed from offers"));
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       console.error("[products:list] offer story toggle failed", err);
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.offerStoryUpdateFailed", "Failed to update offers"));
-      await loadProducts();
+      refreshProducts();
     }
   };
 
@@ -1539,11 +1555,11 @@ function ProductsList() {
           ? t("products.toasts.storefrontVisible", "Shown on storefront")
           : t("products.toasts.storefrontHidden", "Hidden from storefront")
       );
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       console.error("[products:list] storefront visibility bulk update failed", err);
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.storefrontVisibilityUpdateFailed", "Failed to update storefront visibility"));
-      await loadProducts();
+      refreshProducts();
     }
   };
 
@@ -1570,7 +1586,7 @@ function ProductsList() {
       }
 
       toast.success(t("products.toasts.productDuplicated", "Product duplicated successfully"));
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       console.log(err);
       if (isQuotaExceeded(err)) {
@@ -1812,7 +1828,7 @@ function ProductsList() {
     await updateProductPrices(productId, payload);
     toast.success(t("products.priceEditor.saved", "Prices updated"));
     setPriceEditorProduct(null);
-    await loadProducts();
+    refreshProducts();
   };
 
   const handleDelete = async (id) => {
@@ -1824,11 +1840,11 @@ function ProductsList() {
       toast.success(result?.message || t("products.actionsMenu.delete", "حذف"));
       setSelectedIds((prev) => prev.filter((item) => item !== id));
       setSelectedProduct((prev) => (prev?.id === id ? null : prev));
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       console.log(err);
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.deleteFailed", "Failed to delete product"));
-      await loadProducts();
+      refreshProducts();
     }
   };
 
@@ -1865,7 +1881,7 @@ function ProductsList() {
       const result = await publishProductStoryEverywhere(product.id);
       if (result?.story_status === "failed") toast.error(result.story_error_message || t("products.marketing.storyPublishFailed", "Story publish failed"));
       else toast.success(t("products.marketing.storyPublishCompleted", "Story publish completed"));
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       toast.error(err?.message || t("common.noData"));
     } finally {
@@ -1884,7 +1900,7 @@ function ProductsList() {
       setMarketingSaving(true);
       await scheduleProductStoryEverywhere(product.id, { scheduled_at: scheduledAt });
       toast.success(t("products.marketing.storyScheduled", "Story scheduled"));
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       toast.error(err?.message || t("common.noData"));
     } finally {
@@ -2008,7 +2024,7 @@ function ProductsList() {
     } catch (err) {
       console.error("[products:list] bulk status failed", err);
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.statusUpdateFailed", "Failed to update product status"));
-      await loadProducts();
+      refreshProducts();
     }
   };
 
@@ -2064,7 +2080,7 @@ function ProductsList() {
       toast.success(t("products.barcodePrintQueue.addedToQueueToast", { count: totalColors, defaultValue: `تمت إضافة ${totalColors} لون إلى قائمة الملصقات` }));
       window.dispatchEvent(new Event("barcode-print-queue:refetch"));
       setBarcodeQueueDialogOpen(false);
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       console.error("[products:list] barcode print queue bulk add failed", err);
       toast.error(err?.responseBody?.message || err?.message || t("common.noData"));
@@ -2087,7 +2103,7 @@ function ProductsList() {
             {t("products.newProduct")}
           </button>
           <button
-            onClick={loadProducts}
+            onClick={() => setReloadNonce((prev) => prev + 1)}
             className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 sm:px-5 sm:py-3 sm:text-base"
           >
             <Filter size={18} />
@@ -2163,7 +2179,7 @@ function ProductsList() {
             }}
             className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
           >
-            {brands.map((brand) => (
+            {brandOptions.map((brand) => (
               <option key={brand} value={brand}>
                 {brand === "all" ? t("products.filters.allBrands") : brand}
               </option>
@@ -2648,7 +2664,7 @@ function ProductsList() {
 
         <div className="mt-6 flex flex-col gap-4 border-t border-white/8 pt-5 lg:flex-row lg:items-center lg:justify-between">
           <p className="text-sm text-zinc-400">
-            Showing {visibleRows.length ? start + 1 : 0}-{Math.min(start + pageSize, filteredRows.length)} of {filteredRows.length}
+            Showing {visibleRows.length ? start + 1 : 0}-{Math.min(start + visibleRows.length, Number(pagination.total || 0))} of {Number(pagination.total || 0)}
           </p>
 
           <div className="flex flex-wrap items-center gap-3">
