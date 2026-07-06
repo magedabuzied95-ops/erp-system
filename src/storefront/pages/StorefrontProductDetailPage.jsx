@@ -111,6 +111,44 @@ function StorefrontProductDetailErrorState({ title, text, onRetry, retryLabel, b
   );
 }
 
+function ProductDetailReviewSection() {
+  const reviews = [
+    { id: "quality", name: "M", text: sfText("storefront.reviews.items.quality"), badge: "جودة ممتازة" },
+    { id: "size", name: "A", text: sfText("storefront.reviews.items.size"), badge: "مقاس مضبوط" },
+    { id: "experience", name: "S", text: sfText("storefront.reviews.items.experience"), badge: "تجربة مريحة" },
+  ];
+
+  return (
+    <section className="rounded-[1.5rem] border border-white/[0.08] bg-[linear-gradient(180deg,#090909_0%,#111111_100%)] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.28)] md:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">Reviews</div>
+          <h2 className="mt-2 text-2xl font-black">{sfText("storefront.reviews.title")}</h2>
+        </div>
+        <div className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-black text-white/80">
+          {Array.from({ length: 5 }).map((_, index) => <Star key={index} className="h-3.5 w-3.5 fill-[#f3d77a] text-[#f3d77a]" />)}
+          <span className="ms-1">4.9/5</span>
+        </div>
+      </div>
+      <div className="mt-4 grid gap-3 md:grid-cols-3">
+        {reviews.map((review) => (
+          <div key={review.id} className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="flex items-start justify-between gap-3">
+              <div className="grid h-10 w-10 place-items-center rounded-full bg-[#d4af37]/14 text-sm font-black text-[#f3d77a]">
+                {review.name}
+              </div>
+              <span className="rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-[11px] font-black text-white/65">
+                {review.badge}
+              </span>
+            </div>
+            <p className="mt-4 text-sm font-bold leading-6 text-white/85">{review.text}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile }) {
   const { identifier } = useParams();
   const location = useLocation();
@@ -456,9 +494,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   }
 
   return (
-    <section dir="rtl" className="sf-product-details-page mx-auto max-w-7xl px-3 pb-28 pt-1 md:px-4 md:pb-36 md:pt-5 lg:pb-8">
+    <section dir="rtl" className="sf-product-details-page mx-auto max-w-7xl px-3 pb-28 pt-2 md:px-4 md:pb-36 md:pt-5 lg:pb-8">
       <div ref={productTopRef} aria-hidden="true" className="h-0 w-0 overflow-hidden" />
-      <div className="grid gap-2 md:gap-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)] lg:items-start">
+      <div className="grid gap-4 md:gap-6 lg:grid-cols-[minmax(0,58fr)_minmax(380px,42fr)] lg:items-start">
+        <div className="overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.12),transparent_34%),linear-gradient(180deg,#090909_0%,#111111_100%)] p-2 shadow-[0_28px_80px_rgba(0,0,0,0.32)] md:rounded-[2rem] md:p-3">
         <Suspense fallback={<ProductGalleryFallback />}>
           <LazyStorefrontProductGallery
             mainImage={mainImage}
@@ -470,8 +509,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             fallbackProductImage={fallbackProductImage}
           />
         </Suspense>
+        </div>
         <div className="sf-product-info-sticky min-w-0 lg:sticky lg:self-start">
-          <div className="sf-product-summary-card overflow-hidden rounded-[1rem] border border-white/[0.08] bg-[linear-gradient(180deg,#080808_0%,#080808_100%)] p-3.5 text-white shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:rounded-[1.45rem] md:p-6">
+          <div className="sf-product-summary-card overflow-hidden rounded-[1.45rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.16),transparent_35%),linear-gradient(180deg,#080808_0%,#111111_100%)] p-4 text-white shadow-[0_24px_70px_rgba(0,0,0,0.35)] md:p-6">
             <div className="mb-2 flex items-start justify-between gap-3 md:mb-4">
               <div className="min-w-0">
                 <div className="mt-1.5 hidden text-[11px] font-black text-[#f3d77a] md:mt-3 md:block md:text-xs">{sfText("storefront.products.curatedDetails", "Carefully selected product details")}</div>
@@ -485,27 +525,41 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 </button>
               </div>
             </div>
-            <div className="text-[11px] font-black uppercase tracking-[0.18em] text-[#f3d77a]">{sfText("storefront.products.selectedProduct", "Selected product")}</div>
-            <h1 className="mt-1 line-clamp-2 text-[1.75rem] font-black leading-[1.08] md:text-4xl">{displayTitle}</h1>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <div className="text-2xl font-black text-white md:text-4xl">{money(selectedSellingPrice)}</div>
-              {selectedComparePrice > selectedSellingPrice ? <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-sm font-black text-white/65 line-through">{money(selectedComparePrice)}</span> : null}
-              {selectedDiscountPercent ? <span className="rounded-full bg-emerald-400/15 px-3 py-1 text-sm font-black text-emerald-200">{sfText("storefront.products.discountPercent", "-{{percent}}%", { percent: selectedDiscountPercent })}</span> : null}
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#d4af37]/18 bg-[#d4af37]/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-[#f3d77a]">
+              <Check className="h-3.5 w-3.5" />
+              {sfText("storefront.products.selectedProduct", "Selected product")}
+            </div>
+            <h1 className="mt-3 line-clamp-2 text-[1.85rem] font-black leading-[1.08] md:text-4xl">{displayTitle}</h1>
+            <div className="mt-5 flex flex-wrap items-end gap-x-3 gap-y-2">
+              <div className="text-3xl font-black text-white md:text-[2.65rem]">{money(selectedSellingPrice)}</div>
+              {selectedComparePrice > selectedSellingPrice ? <span className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-sm font-black text-white/60 line-through">{money(selectedComparePrice)}</span> : null}
+              {selectedDiscountPercent ? <span className="rounded-full bg-emerald-400/15 px-3 py-1.5 text-sm font-black text-emerald-200">{sfText("storefront.products.discountPercent", "-{{percent}}%", { percent: selectedDiscountPercent })}</span> : null}
               {safeActiveVariant && Number(safeActiveVariant.stock || 0) > 0 && Number(safeActiveVariant.stock || 0) <= 3 ? (
-                <span className="rounded-full bg-amber-400/15 px-3 py-1 text-sm font-black text-amber-100">
+                <span className="rounded-full bg-amber-400/15 px-3 py-1.5 text-sm font-black text-amber-100">
                   {sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: safeActiveVariant.stock })}
                 </span>
               ) : null}
             </div>
+            {false && <div className="mt-4 flex flex-wrap gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/78">
+                <Star className="h-3.5 w-3.5 fill-[#f3d77a] text-[#f3d77a]" />
+                تقييم مرتفع من العملاء
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/78">
+                <Truck className="h-3.5 w-3.5 text-emerald-200" />
+                شحن سريع
+              </span>
+            </div>}
           </div>
 
           {colors.length > 1 ? (
-            <div className="sf-product-option-card mt-4 rounded-[1.1rem] border border-white/[0.08] bg-[#080808] p-3 text-white md:rounded-[1.45rem] md:p-4">
+            <div className="sf-product-option-card mt-4 rounded-[1.45rem] border border-white/[0.08] bg-[#0b0b0b] p-4 text-white shadow-[0_18px_52px_rgba(0,0,0,0.22)]">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.color", "Color")}</div>
-                  <h2 className="text-sm font-black">{sfText("storefront.products.chooseColor", "Choose color")}</h2>
+                  <h2 className="text-base font-black">{sfText("storefront.products.chooseColor", "Choose color")}</h2>
                 </div>
+                {selected.colorName ? <span className="text-xs font-black text-white/55">{selected.colorName}</span> : null}
               </div>
               <div className="sf-scroll flex gap-2 overflow-x-auto pb-1">
                 {colors.map((group) => {
@@ -517,7 +571,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                       type="button"
                       onClick={() => selectColor(group)}
                       disabled={!hasStock}
-                      className={`min-h-9 shrink-0 rounded-full border px-3 py-2 text-xs font-black transition ${active ? "border-[#d4af37]/70 bg-[rgba(212,175,55,0.12)] text-[#f3d77a] shadow-[0_12px_28px_rgba(212,175,55,0.32)]" : "border-white/10 bg-white/6 text-white/70"} disabled:cursor-not-allowed disabled:opacity-35`}
+                      className={`min-h-10 shrink-0 rounded-full border px-4 py-2 text-xs font-black transition ${active ? "border-[#d4af37]/70 bg-[rgba(212,175,55,0.14)] text-[#f3d77a] shadow-[0_12px_28px_rgba(212,175,55,0.24)]" : "border-white/10 bg-white/[0.05] text-white/72 hover:border-white/20 hover:text-white"} disabled:cursor-not-allowed disabled:opacity-35`}
                     >
                       {group.colorName || group.color}
                     </button>
@@ -527,11 +581,11 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
           ) : null}
 
-          <div className="sf-product-option-card mt-4 rounded-[1.1rem] border border-white/[0.08] bg-[#080808] p-3 text-white md:rounded-[1.45rem] md:p-4">
+          <div className="sf-product-option-card mt-4 rounded-[1.45rem] border border-white/[0.08] bg-[#0b0b0b] p-4 text-white shadow-[0_18px_52px_rgba(0,0,0,0.22)]">
             <div className="mb-2 flex items-center justify-between gap-3">
               <div>
                 <div className="text-[10px] font-black uppercase tracking-[0.18em] text-white/35">{sfText("storefront.products.size", "Size")}</div>
-                <h2 className="text-sm font-black">{sfText("storefront.products.chooseSize", "Choose size")}</h2>
+                <h2 className="text-base font-black">{sfText("storefront.products.chooseSize", "Choose size")}</h2>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -544,7 +598,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                     type="button"
                     onClick={() => selectSize(size)}
                     disabled={!hasStock}
-                    className={`relative min-w-11 overflow-hidden rounded-full border px-3 py-1.5 text-xs font-black transition ${active ? "border-white bg-white text-stone-950" : hasStock ? "border-white/10 bg-white/6 text-white/75" : "cursor-not-allowed border-white/[0.07] bg-white/[0.035] text-white/25 opacity-60"}`}
+                    className={`relative min-w-[3.25rem] overflow-hidden rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "border-white bg-white text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.14)]" : hasStock ? "border-white/10 bg-white/[0.05] text-white/78 hover:border-white/20 hover:bg-white/[0.08] hover:text-white" : "cursor-not-allowed border-white/[0.07] bg-white/[0.035] text-white/25 opacity-60"}`}
                   >
                     {!hasStock ? <span className="pointer-events-none absolute left-1/2 top-1/2 h-px w-[120%] -translate-x-1/2 -translate-y-1/2 rotate-[-18deg] bg-white/35" /> : null}
                     <span className="relative z-10">{size || sfText("storefront.products.oneSize", "One size")}</span>
@@ -555,8 +609,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             <div className="mt-3">
               <Link
                 to={sizeGuideHref}
-                className="inline-flex min-h-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/80 transition hover:border-[#d4af37]/35 hover:bg-white/[0.08] hover:text-[#f3d77a]"
+                className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/80 transition hover:border-[#d4af37]/35 hover:bg-white/[0.08] hover:text-[#f3d77a]"
               >
+                <Ruler className="h-3.5 w-3.5" />
                 {sfText("storefront.products.sizeGuide", "دليل المقاسات")}
               </Link>
             </div>
@@ -567,24 +622,35 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             </div>
           ) : null}
 
-          <div className="sf-product-quantity-card mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-2">
-            <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))} className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-lg font-black">-</button>
+          <div className="sf-product-quantity-card mt-4 flex items-center justify-between gap-3 rounded-[1.35rem] border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_16px_42px_rgba(0,0,0,0.16)]">
+            <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))} className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-lg font-black text-white">-</button>
             <div className="text-center">
               <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">{sfText("storefront.cart.quantity", "Quantity")}</div>
-              <div className="text-lg font-black">{qty}</div>
+              <div className="mt-1 text-xl font-black text-white">{qty}</div>
             </div>
-            <button type="button" onClick={() => setQty((current) => Math.min(Number(safeActiveVariant?.stock || 1), current + 1))} className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-lg font-black">+</button>
+            <button type="button" onClick={() => setQty((current) => Math.min(Number(safeActiveVariant?.stock || 1), current + 1))} className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-lg font-black text-white">+</button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty)}
-            disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
-            className="sf-product-cta mt-4 flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.16)] disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
-          >
-            <ShoppingCart className="h-4 w-4" />
-            {sfText("storefront.cart.addToCart", "Add to cart")}
-          </button>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+            <button
+              type="button"
+              onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty)}
+              disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
+              className="sf-product-cta flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
+            >
+              <ShoppingCart className="h-4 w-4" />
+              {sfText("storefront.cart.addToCart", "Add to cart")}
+            </button>
+            {false && <button
+              type="button"
+              onClick={buyNow}
+              disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
+              className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#d4af37]/24 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-sm font-black text-[#151515] shadow-[0_14px_34px_rgba(212,175,55,0.24)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:border-white/10 disabled:bg-white/10 disabled:text-white/35"
+            >
+              <Sparkles className="h-4 w-4" />
+              اشترِ الآن
+            </button>}
+          </div>
         </div>
       </div>
       <Suspense fallback={<div className="h-40 animate-pulse rounded-[1.5rem] bg-white/50" />}>
@@ -611,9 +677,60 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         />
       </Suspense>
       <div className="mt-6 grid gap-5 md:mt-8">
+        {false && <div className="grid gap-4 md:grid-cols-[minmax(0,1.1fr)_minmax(280px,0.9fr)]">
+          <div className="rounded-[1.5rem] border border-white/[0.08] bg-[linear-gradient(180deg,#0b0b0b_0%,#111111_100%)] p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.22)] md:p-5">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">{sfText("storefront.products.selectedProduct", "Selected product")}</div>
+            <h2 className="mt-3 text-xl font-black md:text-2xl">{sfText("storefront.products.productDetails", "Product details")}</h2>
+            <p className="mt-3 text-sm font-bold leading-7 text-white/82">{descriptionText}</p>
+          </div>
+          <div className="rounded-[1.5rem] border border-white/[0.08] bg-[linear-gradient(180deg,#0a0a0a_0%,#101010_100%)] p-4 text-white shadow-[0_20px_60px_rgba(0,0,0,0.22)] md:p-5">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f3d77a]">Why You'll Love It</div>
+            <div className="mt-4 space-y-3">
+              <div className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#d4af37]/14 text-[#f3d77a]"><Sparkles className="h-4 w-4" /></span>
+                <div>
+                  <div className="font-black text-white">{sfText("storefront.products.curatedDetails", "Carefully selected product details")}</div>
+                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">خامات وشكل معروضين بوضوح قبل الشراء.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-emerald-400/12 text-emerald-200"><Truck className="h-4 w-4" /></span>
+                <div>
+                  <div className="font-black text-white">شحن سريع</div>
+                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">تجهيز سريع ووضوح في حالة المنتج المختار.</p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-2xl border border-white/8 bg-white/[0.04] p-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-400/12 text-sky-200"><ShieldCheck className="h-4 w-4" /></span>
+                <div>
+                  <div className="font-black text-white">اختيار آمن</div>
+                  <p className="mt-1 text-xs font-bold leading-6 text-white/68">راجع اللون والمقاس قبل إضافة المنتج للسلة.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>}
+        {false && <ProductDetailReviewSection />}
         <RelatedProducts currentId={product.id} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} />
         <RecentProductsSection currentId={product.id} recent={recent} />
       </div>
+      {false && <div className="md:hidden">
+        <div className="h-28" aria-hidden="true" />
+        <div className="fixed inset-x-0 bottom-[calc(env(safe-area-inset-bottom)+0.4rem)] z-[55] px-3">
+          <div className="mx-auto max-w-xl rounded-[1.35rem] border border-white/10 bg-[linear-gradient(180deg,rgba(7,7,7,0.97),rgba(18,18,18,0.97))] p-3 text-white shadow-[0_20px_46px_rgba(0,0,0,0.38)] backdrop-blur-xl">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-black text-white">{displayTitle}</div>
+                <div className="mt-1 text-lg font-black text-[#f3d77a]">{money(selectedSellingPrice)}</div>
+              </div>
+              <button type="button" onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty)} disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-black text-stone-950 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35">
+                <ShoppingCart className="h-4 w-4" />
+                {sfText("storefront.cart.addToCart", "Add to cart")}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>}
     </section>
   );
 }

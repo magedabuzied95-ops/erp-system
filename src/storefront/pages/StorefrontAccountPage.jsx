@@ -127,10 +127,10 @@ function LoyaltyWidget({ loyalty, loading, helpers }) {
   const { sfText } = helpers;
   if (loading && !loyalty) {
     return (
-      <div className="sf-loyalty-card mt-4 overflow-hidden rounded-[1.35rem] border border-stone-200 bg-stone-50 p-4">
-        <div className="sf-skeleton h-4 w-24 animate-pulse rounded-full bg-stone-200" />
-        <div className="sf-skeleton mt-4 h-10 w-36 animate-pulse rounded-xl bg-stone-200" />
-        <div className="sf-skeleton mt-4 h-2 w-full animate-pulse rounded-full bg-stone-200" />
+      <div className="sf-loyalty-card mt-4 overflow-hidden rounded-[1.5rem] border border-stone-200/80 bg-white/96 p-4 shadow-[0_18px_42px_rgba(15,23,42,0.07)]">
+        <div className="sf-skeleton h-4 w-24 animate-pulse rounded-full bg-stone-200/90" />
+        <div className="sf-skeleton mt-4 h-10 w-36 animate-pulse rounded-[0.95rem] bg-stone-200/90" />
+        <div className="sf-skeleton mt-4 h-2 w-full animate-pulse rounded-full bg-stone-200/90" />
       </div>
     );
   }

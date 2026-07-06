@@ -3860,17 +3860,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
         <div className="pointer-events-none absolute inset-0" style={{ background: themeTokens.heroGlow }} />
         <div className="relative grid gap-4 lg:grid-cols-[1.08fr_0.92fr] md:gap-6">
           <div className="flex min-w-0 flex-col justify-center px-5 py-5 text-right md:px-8 md:py-9 lg:px-10 lg:py-11">
-            <span
-              className="inline-flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em]"
-              style={{
-                background: themeTokens.card,
-                borderColor: themeTokens.border,
-                color: themeTokens.accent,
-              }}
-            >
-              {heroCopy.badge || brandName}
-            </span>
-            <h1 className="mt-3 max-w-2xl text-[2rem] font-black leading-[1.02] tracking-[-0.04em] md:mt-4 md:text-[3.5rem] lg:text-[4.55rem]" style={{ color: themeTokens.textPrimary }}>
+            <h1 className="max-w-2xl text-[2rem] font-black leading-[1.02] tracking-[-0.04em] md:text-[3.5rem] lg:text-[4.55rem]" style={{ color: themeTokens.textPrimary }}>
               <span className="md:hidden">{heroMobileTitle}</span>
               <span className="hidden md:inline">{heroTitle}</span>
             </h1>
@@ -3902,43 +3892,9 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
                 {heroCopy.secondary || (isRtl ? "العروض" : "Offers")}
               </Link>
             </div>
-            <div className="mt-4 grid gap-2 sm:grid-cols-3 md:mt-7 md:gap-3">
-              {[
-                isRtl ? "شحن سريع" : "Fast shipping",
-                isRtl ? "استبدال سهل" : "Easy exchange",
-                isRtl ? "الدفع عند الاستلام" : "Cash on delivery",
-              ].map((text) => (
-                <div
-                  key={text}
-                  className="rounded-[1.2rem] border px-4 py-3 text-sm font-black"
-                  style={{
-                    background: themeTokens.cardSoft,
-                    borderColor: themeTokens.border,
-                    color: themeTokens.textPrimary,
-                  }}
-                >
-                  {text}
-                </div>
-              ))}
-            </div>
-            {featureLine ? (
-              <div
-                className="mt-5 hidden w-fit max-w-full items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold md:inline-flex md:mt-7"
-                style={{
-                  background: themeTokens.card,
-                  borderColor: themeTokens.border,
-                  color: themeTokens.textSecondary,
-                }}
-              >
-                <Sparkles className="h-4 w-4 shrink-0" style={{ color: themeTokens.accent }} />
-                <span className="truncate">{featureLine}</span>
-                {heroPrice ? <span className="font-black" style={{ color: themeTokens.textPrimary }}>{heroPrice}</span> : null}
-                {comparePrice ? <span className="text-xs line-through" style={{ color: themeTokens.muted }}>{comparePrice}</span> : null}
-              </div>
-            ) : null}
           </div>
 
-          <div className="relative px-5 pb-4 pt-0 md:px-8 md:pb-8 lg:px-10 lg:py-10">
+          <div className="relative px-5 pb-4 pt-0 md:px-8 md:pb-8 lg:px-10 lg:pt-7 lg:pb-10">
             <div
               className="relative overflow-hidden rounded-[2rem] border p-4 md:p-5"
               style={{
@@ -5693,7 +5649,12 @@ const swatchColorStyle = (label = "") => {
 };
 function HeaderAction({ to, icon, count, label, className = "" }) {
   return (
-    <Link to={to} className={`sf-header-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10 ${className}`} aria-label={label} title={label}>
+    <Link
+      to={to}
+      className={`sf-header-action border border-stone-200/80 bg-white/92 text-stone-800 shadow-[0_12px_28px_rgba(15,23,42,0.08)] transition duration-200 ease-out hover:-translate-y-px hover:border-[var(--sf-purple)] hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.06] dark:text-white/82 dark:shadow-[0_14px_30px_rgba(0,0,0,0.24)] dark:hover:bg-white/[0.10] ${className}`}
+      aria-label={label}
+      title={label}
+    >
       {icon}
       {count ? <span className="sf-action-badge">{count}</span> : null}
     </Link>
@@ -6744,7 +6705,7 @@ function SearchChips({ title, items, onPick }) {
       <div className="mb-2 px-1 text-xs font-black text-stone-500 dark:text-stone-400">{title}</div>
       <div className="flex flex-wrap gap-2">
         {[...new Set(items)].slice(0, 8).map((item) => (
-          <button key={item} type="button" onClick={() => onPick(item)} className="rounded-full border border-stone-200 bg-stone-50 px-3 py-1.5 text-xs font-black text-stone-700 transition hover:border-[#d4af37]/40 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
+          <button key={item} type="button" onClick={() => onPick(item)} className="rounded-full border border-stone-200/80 bg-white/92 px-3.5 py-2 text-xs font-black text-stone-700 shadow-[0_8px_18px_rgba(15,23,42,0.06)] transition hover:-translate-y-px hover:border-[var(--sf-purple)] hover:text-stone-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-200 dark:shadow-[0_12px_24px_rgba(0,0,0,0.22)]">
             {item}
           </button>
         ))}
@@ -6755,11 +6716,11 @@ function SearchChips({ title, items, onPick }) {
 
 function SearchQuickCard({ title, items, onPick }) {
   return (
-    <div className="rounded-2xl border border-stone-200 bg-stone-50/80 p-3 dark:border-white/10 dark:bg-white/5">
-      <div className="mb-2 text-xs font-black text-stone-500 dark:text-stone-400">{title}</div>
-      <div className="grid gap-1">
+    <div className="rounded-[1.4rem] border border-stone-200/80 bg-white/94 p-3.5 shadow-[0_16px_34px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-[0_18px_42px_rgba(0,0,0,0.24)]">
+      <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">{title}</div>
+      <div className="grid gap-1.5">
         {items.map((item) => (
-          <button key={item} type="button" onClick={() => onPick(item)} className="rounded-xl px-2 py-1.5 text-right text-xs font-bold text-stone-700 transition hover:bg-white dark:text-stone-200 dark:hover:bg-white/8">
+          <button key={item} type="button" onClick={() => onPick(item)} className="rounded-[1rem] border border-transparent bg-stone-50/72 px-3 py-2 text-right text-xs font-bold text-stone-700 transition hover:border-[var(--sf-purple)] hover:bg-white hover:text-stone-950 dark:bg-white/[0.03] dark:text-stone-200 dark:hover:bg-white/[0.08]">
             {item}
           </button>
         ))}
@@ -6773,7 +6734,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
     <button
       type="button"
       onClick={() => onPickProduct(product)}
-      className={`flex items-center gap-3 rounded-2xl p-2 text-right transition hover:bg-[#f7f4ee] active:scale-[0.99] dark:hover:bg-white/5 ${active ? "bg-[#f5f3ff] dark:bg-white/8" : ""}`}
+      className={`flex items-center gap-3 rounded-[1.2rem] border p-2.5 text-right shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition hover:-translate-y-px active:scale-[0.99] dark:shadow-[0_14px_26px_rgba(0,0,0,0.22)] ${active ? "border-[var(--sf-purple)] bg-[rgba(212,175,55,0.10)] dark:bg-white/[0.08]" : "border-stone-200/80 bg-white/92 hover:border-[var(--sf-purple)] hover:bg-[var(--sf-cream)] dark:border-white/10 dark:bg-white/[0.045] dark:hover:bg-white/[0.06]"}`}
     >
       <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" />
       <div className="min-w-0 flex-1">
@@ -6782,7 +6743,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
           {[product.category, product.brand, product.style, product.grade].filter(Boolean).join(" / ") || product.sizes?.slice(0, 4).join(" / ") || "Browse items"}
         </div>
       </div>
-      <div className="rounded-full bg-stone-950 px-3 py-1 text-xs font-black text-white dark:bg-white dark:text-stone-950">{money(product.sale_price || product.price)}</div>
+      <div className="rounded-full border border-stone-200/80 bg-white px-3 py-1 text-xs font-black text-stone-950 shadow-[0_8px_18px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.08] dark:text-white dark:shadow-none">{money(product.sale_price || product.price)}</div>
     </button>
   );
 }
@@ -7033,7 +6994,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [productIdentifier, requestDetailPrefetch]);
   const cardDensityClasses = {
     hero: {
-      image: "aspect-[0.7/1] p-[2.5px]",
+      image: "aspect-[0.68/1] p-[1.75px] md:p-[2.5px]",
       body: "px-[13px] pb-[13px] pt-[6px]",
       title: "min-h-10 text-[12.75px] leading-[1.22rem]",
       price: "text-[16.5px]",
@@ -7043,20 +7004,20 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       swatch: "h-3.5 w-3.5",
     },
     standard: {
-      image: "aspect-[0.72/1] p-[2.5px]",
-      body: "px-[13px] pb-[13px] pt-[6px]",
+      image: "aspect-[0.7/1] p-[1.75px] md:p-[2.5px]",
+      body: "px-[12px] pb-[13px] pt-[6px] md:px-[13px]",
       title: "min-h-10 text-[13px] leading-[1.2rem]",
-      price: "text-[16px]",
+      price: "text-[16.25px]",
       sizes: "gap-1.5",
       chip: "h-6 px-2 text-[8.5px]",
       color: "h-[22px] w-[22px]",
       swatch: "h-3.5 w-3.5",
     },
     compact: {
-      image: "aspect-[0.76/1] p-[2.5px]",
-      body: "px-[13px] pb-[13px] pt-[6px]",
+      image: "aspect-[0.74/1] p-[1.75px] md:p-[2.5px]",
+      body: "px-[12px] pb-[12px] pt-[6px] md:px-[13px]",
       title: "min-h-9 text-[12.75px] leading-[1.18rem]",
-      price: "text-[15.5px]",
+      price: "text-[15.75px]",
       sizes: "gap-1.25",
       chip: "h-6 px-2 text-[8.5px]",
       color: "h-6 w-6",
@@ -7081,9 +7042,9 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [discountPercent, product]);
 
   return (
-    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.2rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_8px_20px_rgba(15,23,42,0.06)] ring-1 ring-white/[0.04] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-0.5 hover:border-[#d4af37]/28 hover:shadow-[0_12px_28px_rgba(15,23,42,0.08)] md:rounded-[1.4rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#d4af37]/20 dark:hover:shadow-[0_14px_30px_rgba(0,0,0,0.24)] ${featured ? "md:shadow-[0_14px_34px_rgba(212,175,55,0.08)]" : ""}`}>
-      <div className="pointer-events-none absolute inset-x-10 top-8 h-12 rounded-full bg-[rgba(212,175,55,0)] transition duration-200 group-hover/product:bg-[rgba(212,175,55,0.06)]" />
-      <div className={`relative overflow-hidden rounded-[1rem] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] ring-1 ring-white/[0.04] md:rounded-[1.1rem] md:p-2.5 dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/10 ${densityClasses.image}`}>
+    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.45rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ring-1 ring-white/[0.045] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#d4af37]/30 hover:shadow-[0_18px_42px_rgba(15,23,42,0.12)] active:translate-y-[1px] active:scale-[0.995] touch-manipulation md:rounded-[1.7rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#d4af37]/22 dark:hover:shadow-[0_20px_34px_rgba(0,0,0,0.26)] ${featured ? "md:shadow-[0_16px_38px_rgba(212,175,55,0.08)]" : ""}`}>
+      <div className="pointer-events-none absolute inset-x-8 top-6 h-16 rounded-full bg-[rgba(212,175,55,0)] transition duration-200 group-hover/product:bg-[rgba(212,175,55,0.075)]" />
+      <div className={`relative overflow-hidden rounded-[1.05rem] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] ring-1 ring-white/[0.04] md:rounded-[1.2rem] md:p-3 dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/10 ${densityClasses.image}`}>
         <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full active:opacity-95">
           {displayImage ? (
             <div
@@ -7102,7 +7063,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 {...responsiveImageProps(displayImage, imagePreset)}
                 alt={product.name}
                 onError={fallbackProductImage}
-                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:scale-[1.035] md:group-active/product:scale-[1.02] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/product:opacity-0" : "md:group-hover/product:opacity-100"}`}
+                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:scale-[1.03] md:group-active/product:scale-[1.015] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/product:opacity-0" : "md:group-hover/product:opacity-100"}`}
                 style={{ backfaceVisibility: "hidden", transform: "translateZ(0)" }}
                 loading={eagerImage ? "eager" : "lazy"}
                 decoding="async"
@@ -7116,7 +7077,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   alt={product.name}
                   aria-hidden="true"
                   onError={fallbackProductImage}
-                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:opacity-100 md:group-active/product:opacity-95"
+                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:scale-[1.01] md:group-hover/product:opacity-100 md:group-active/product:opacity-95"
                   style={{ backfaceVisibility: "hidden", transform: "translateZ(0)" }}
                   loading="lazy"
                   decoding="async"
@@ -7132,12 +7093,12 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           )}
         </Link>
         <div className="absolute right-3 top-[29px] z-20 flex flex-col items-end gap-2.5 md:right-3.5 md:top-[31px]">
-          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex min-h-6 items-center gap-1 rounded-full border border-[#d4af37]/30 bg-[linear-gradient(135deg,rgba(212,175,55,0.98),rgba(229,193,88,0.98))] px-2.5 py-0.5 text-[8.5px] font-extrabold leading-none tracking-[0.02em] text-stone-950 shadow-[0_10px_20px_rgba(212,175,55,0.22)] md:min-h-7 md:px-3 md:text-[9px] dark:border-[#d4af37]/20 dark:bg-[linear-gradient(135deg,rgba(212,175,55,0.98),rgba(229,193,88,0.98))]"><Star className="h-3 w-3 fill-current" />TOP {rank}</span> : null}
-          {discountPercent ? <span className="inline-flex min-h-7 items-center rounded-full border border-[#f3d77a]/26 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-2.5 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_4px_10px_rgba(212,175,55,0.12)] backdrop-blur md:min-h-8 md:px-3 md:text-[9.5px] dark:border-[#f3d77a]/18 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
+          {rank && railType === "bestseller" && rank <= 3 ? <span className="inline-flex min-h-6 items-center gap-1 rounded-full border border-[#f3d77a]/24 bg-[linear-gradient(135deg,rgba(212,175,55,0.98),rgba(229,193,88,0.98))] px-2.5 py-0.5 text-[8.5px] font-extrabold leading-none tracking-[0.02em] text-stone-950 shadow-[0_10px_22px_rgba(212,175,55,0.24)] backdrop-blur md:min-h-7 md:px-3 md:text-[9px]"><Star className="h-3 w-3 fill-current" />TOP {rank}</span> : null}
+          {discountPercent ? <span className="inline-flex min-h-7 items-center rounded-full border border-[#f3d77a]/26 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-2.5 py-0.5 text-[9px] font-extrabold leading-none tracking-[0.02em] text-white shadow-[0_8px_18px_rgba(212,175,55,0.16)] backdrop-blur md:min-h-8 md:px-3 md:text-[9.5px] dark:border-[#f3d77a]/18 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)] dark:text-[#ffffff]">-{discountPercent}%</span> : null}
         </div>
           <button
             onClick={(event) => { event.stopPropagation(); handleWishlist(); }}
-          className="absolute left-3 top-[29px] z-20 grid h-10 w-10 place-items-center rounded-full border border-white/70 bg-white text-stone-700 shadow-[0_10px_22px_rgba(15,23,42,0.18)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:scale-[1.03] hover:border-white hover:bg-white active:scale-95 active:translate-y-0 md:h-11 md:w-11 dark:border-white/12 dark:bg-[#0d0d0d] dark:text-stone-100 dark:shadow-[0_10px_22px_rgba(0,0,0,0.2)] dark:hover:bg-[#151515]"
+          className="absolute left-3 top-[28px] z-20 grid h-10 w-10 place-items-center rounded-full border border-white/70 bg-white text-stone-700 shadow-[0_12px_24px_rgba(15,23,42,0.16)] backdrop-blur-md transition duration-200 hover:-translate-y-0.5 hover:scale-[1.04] hover:border-white hover:bg-white active:translate-y-[1px] active:scale-[0.96] touch-manipulation md:h-11 md:w-11 dark:border-white/12 dark:bg-[#0d0d0d] dark:text-stone-100 dark:shadow-[0_10px_22px_rgba(0,0,0,0.2)] dark:hover:bg-[#151515]"
           aria-label={t("storefront.header.wishlist")}
         >
           <Heart className={`h-4.5 w-4.5 transition duration-200 md:h-5 md:w-5 ${inWishlist ? "animate-[wishlist-pop_320ms_ease-out] fill-rose-500 text-rose-500" : "text-stone-600 dark:text-stone-200"}`} />
@@ -7145,7 +7106,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         {cardBadge ? (
           <div className="absolute bottom-3 right-3 z-20 flex max-w-[78%] flex-col items-end gap-1.5 md:bottom-3.5 md:right-3.5 md:gap-1.5">
             <span
-              className={`inline-flex min-h-8 items-center gap-1 rounded-full px-3.5 py-0.5 text-[10px] font-black leading-none tracking-[0.02em] shadow-[0_8px_16px_rgba(15,23,42,0.14)] ${cardBadge.key === "sale" ? "border border-[#f3d77a]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-white dark:border-[#f3d77a]/18 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)]" : cardBadge.key === "bestseller" ? "border border-[#f3d77a]/30 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-white dark:border-[#f3d77a]/20 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)]" : "border border-emerald-300/30 bg-[linear-gradient(135deg,rgba(22,163,74,0.98),rgba(34,197,94,0.98))] text-white dark:border-emerald-300/20 dark:bg-[linear-gradient(135deg,rgba(21,128,61,0.98),rgba(22,163,74,0.98))]"}`}
+              className={`inline-flex min-h-8 items-center gap-1 rounded-full px-3.5 py-0.5 text-[10px] font-black leading-none tracking-[0.02em] shadow-[0_8px_18px_rgba(15,23,42,0.14)] backdrop-blur-md ${cardBadge.key === "sale" ? "border border-[#f3d77a]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-white dark:border-[#f3d77a]/18 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)]" : cardBadge.key === "bestseller" ? "border border-[#f3d77a]/30 bg-[linear-gradient(135deg,#d4af37,#e5c158)] text-white dark:border-[#f3d77a]/20 dark:bg-[linear-gradient(135deg,#d4af37,#e5c158)]" : "border border-emerald-300/30 bg-[linear-gradient(135deg,rgba(22,163,74,0.98),rgba(34,197,94,0.98))] text-white dark:border-emerald-300/20 dark:bg-[linear-gradient(135deg,rgba(21,128,61,0.98),rgba(22,163,74,0.98))]"}`}
             >
               {cardBadge.key === "bestseller" ? <Star className="h-3 w-3 fill-current" /> : null}
               {cardBadge.label}
@@ -7169,11 +7130,11 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           to={detailsUrl}
           onClick={resetStorefrontViewportScroll}
           dir="ltr"
-          className={`mt-0 flex min-h-[2.55rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition hover:text-[#d4af37] md:min-h-[2.85rem] md:text-[13.5px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}
+          className={`mt-0 flex min-h-[2.55rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition duration-200 hover:text-[#d4af37] md:min-h-[2.85rem] md:text-[13.5px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}
         >
           {product.name}
         </Link>
-        <div className="mt-[3px] flex min-h-[2.15rem] items-center justify-between gap-2 md:min-h-[2.2rem]">
+        <div className="mt-[4px] flex min-h-[2.35rem] items-center justify-between gap-2 md:min-h-[2.35rem]">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
             <span className={`font-black leading-none text-[#d4af37] md:text-[1.18rem] dark:text-[#f3d77a] ${densityClasses.price}`}>{money(sellingPrice)}</span>
             {comparePrice ? <span className="text-[9px] font-semibold leading-none text-stone-400 line-through opacity-80 dark:text-stone-500 md:text-[9.5px]">{money(comparePrice)}</span> : null}
@@ -7185,7 +7146,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               openVariantSheet();
             }}
             disabled={!canQuickAdd}
-            className="sf-quick-add-button inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-3.5 py-1.5 text-[10px] font-black leading-none text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_14px_30px_rgba(212,175,55,0.24)] active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
+            className="sf-quick-add-button inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-3.5 py-1.5 text-[10px] font-black leading-none text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_14px_30px_rgba(212,175,55,0.24)] active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
             aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
           >
             <ShoppingCart className="h-3.5 w-3.5" />
@@ -7203,7 +7164,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   onClick={(event) => chooseColor(event, group)}
                   title={group.colorName || group.color}
                   aria-label={group.colorName || group.color}
-                  className={`grid shrink-0 place-items-center rounded-full border transition active:scale-95 md:h-7 md:w-7 ${densityClasses.color} ${active ? "border-[#d4af37] bg-[rgba(212,175,55,0.12)] shadow-[0_0_0_2px_rgba(212,175,55,0.12)] dark:border-[#e5c158] dark:bg-[rgba(212,175,55,0.12)]" : "border-stone-200 bg-white/70 hover:border-[#d4af37]/35 dark:border-white/10 dark:bg-white/[0.055]"}`}
+                  className={`grid shrink-0 place-items-center rounded-full border transition duration-200 active:scale-95 md:h-7 md:w-7 ${densityClasses.color} ${active ? "border-[#d4af37] bg-[rgba(212,175,55,0.12)] shadow-[0_0_0_2px_rgba(212,175,55,0.12)] dark:border-[#e5c158] dark:bg-[rgba(212,175,55,0.12)]" : "border-stone-200 bg-white/70 hover:border-[#d4af37]/35 dark:border-white/10 dark:bg-white/[0.055]"}`}
                 >
                   <span className={`rounded-full border border-black/10 shadow-inner md:h-4 md:w-4 ${densityClasses.swatch}`} style={swatchColorStyle(group.colorName || group.color)} />
                 </button>
@@ -7220,7 +7181,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 key={`${activeColorGroup?.key || "default"}-${size}`}
                 type="button"
                 onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
-                className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#d4af37] bg-[linear-gradient(135deg,#d4af37,#d4af37)] text-white shadow-none ring-1 ring-[#f3d77a]/12 dark:border-[#f3d77a] dark:bg-[linear-gradient(135deg,#e5c158,#d4af37)] dark:text-white dark:ring-[#f3d77a]/14" : "border-stone-300/90 bg-white text-stone-700 shadow-none hover:border-[#d4af37]/35 hover:bg-[#faf7ff] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#f3d77a]/45 dark:hover:bg-white/[0.08] dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
+                className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 active:translate-y-[1px] active:scale-[0.98] md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#d4af37] bg-[linear-gradient(135deg,#d4af37,#d4af37)] text-white shadow-[0_8px_18px_rgba(212,175,55,0.12)] ring-1 ring-[#f3d77a]/12 dark:border-[#f3d77a] dark:bg-[linear-gradient(135deg,#e5c158,#d4af37)] dark:text-white dark:ring-[#f3d77a]/14" : "border-stone-300/90 bg-white text-stone-700 shadow-none hover:border-[#d4af37]/35 hover:bg-[#faf7ff] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#f3d77a]/45 dark:hover:bg-white/[0.08] dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
               >
                 {size}
               </button>
@@ -7239,7 +7200,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               event.stopPropagation();
               navigate(buildSizeGuidePath(resolveSizeGuideTypeForProduct(product)));
             }}
-            className="inline-flex h-6 shrink-0 whitespace-nowrap items-center justify-center rounded-full border border-stone-200 bg-white px-2.5 text-[9px] font-black text-stone-600 transition hover:border-[#d4af37]/35 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-200"
+            className="inline-flex h-6 shrink-0 whitespace-nowrap items-center justify-center rounded-full border border-stone-200 bg-white px-2.5 text-[9px] font-black text-stone-600 transition duration-200 hover:border-[#d4af37]/35 hover:text-[#d4af37] active:translate-y-[1px] active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-200"
           >
             {t("storefront.products.sizeGuide", "\u062f\u0644\u064a\u0644 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a")}
           </button>
@@ -9981,14 +9942,16 @@ function ReturnsPolicy() {
 function StaticPage({ title, items }) {
   return (
     <section className="mx-auto max-w-4xl px-4 py-6">
-      <h1 className="text-3xl font-black">{title}</h1>
-      <div className="mt-5 grid gap-3">
+      <div className="rounded-[1.75rem] border border-stone-200/80 bg-white/96 p-5 shadow-[0_20px_48px_rgba(15,23,42,0.07)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-[0_22px_56px_rgba(0,0,0,0.28)]">
+        <h1 className="text-3xl font-black">{title}</h1>
+        <div className="mt-5 grid gap-3">
         {items.map(([question, answer]) => (
-          <div key={question} className="rounded-3xl border border-stone-200 bg-white p-5">
+          <div key={question} className="rounded-[1.35rem] border border-stone-200/80 bg-stone-50/82 p-5 shadow-[0_12px_28px_rgba(15,23,42,0.05)] dark:border-white/10 dark:bg-white/[0.04] dark:shadow-none">
             <h2 className="font-black">{question}</h2>
             <p className="mt-2 font-bold leading-7 text-stone-600">{answer}</p>
           </div>
         ))}
+        </div>
       </div>
     </section>
   );
@@ -10092,20 +10055,26 @@ function SuccessTimeline({ darkMode: darkModeProp } = {}) {
 }
 
 function Field({ label, value, onChange, required, error, inputMode, placeholder, inputClassName = "", type = "text", autoComplete = "" }) {
+  const inputStateClassName = error
+    ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]"
+    : "border-white/10 focus:border-[var(--sf-purple)] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)]";
   return (
     <label className="sf-field sf-checkout-field block">
       <span className="sf-field-label sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <input type={type} autoComplete={autoComplete || undefined} required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input ${inputClassName} min-h-14 w-full rounded-2xl border bg-[#101010] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-[#151515] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <input type={type} autoComplete={autoComplete || undefined} required={required} inputMode={inputMode} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input ${inputClassName} min-h-14 w-full rounded-[1.15rem] border bg-white/[0.045] px-4 text-[15px] font-bold text-white shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:bg-white/[0.065] ${inputStateClassName}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
 }
 
 function TextField({ label, value, onChange, required, error, compact, placeholder, inputClassName = "" }) {
+  const inputStateClassName = error
+    ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]"
+    : "border-white/10 focus:border-[var(--sf-purple)] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)]";
   return (
     <label className="sf-checkout-field block md:col-span-2">
       <span className="sf-checkout-field-label mb-1.5 block text-sm font-black text-white/82">{label}{required ? " *" : ""}</span>
-      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input ${inputClassName} ${compact ? "sf-checkout-notes-textarea max-h-[90px]" : ""} w-full resize-y rounded-2xl border bg-[#101010] p-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-[#151515] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`} />
+      <textarea required={required} placeholder={placeholder || ""} value={value} onChange={(event) => onChange(event.target.value)} rows={compact ? 2 : 3} className={`sf-field-input sf-checkout-field-input ${inputClassName} ${compact ? "sf-checkout-notes-textarea max-h-[90px]" : ""} w-full resize-y rounded-[1.15rem] border bg-white/[0.045] p-4 text-[15px] font-bold text-white shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:bg-white/[0.065] ${inputStateClassName}`} />
       {error ? <span className="mt-1.5 block text-xs font-black text-rose-200">{error}</span> : null}
     </label>
   );
@@ -10199,7 +10168,7 @@ function CityAreaField({ governorate, options, value, onChange, manual, onManual
           placeholder={sfText("storefront.checkout.cityAreaManualPlaceholder")}
           value={value}
           onChange={(event) => onManualChange(event.target.value)}
-          className={`sf-field-input sf-checkout-field-input mt-2 min-h-14 w-full rounded-2xl border bg-[#101010] px-4 text-[15px] font-bold text-white shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[#e5c158] focus:bg-[#151515] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.16),0_18px_38px_rgba(212,175,55,0.16)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/12"}`}
+          className={`sf-field-input sf-checkout-field-input mt-2 min-h-14 w-full rounded-[1.15rem] border bg-white/[0.045] px-4 text-[15px] font-bold text-white shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 placeholder:text-white/34 focus:-translate-y-0.5 focus:border-[var(--sf-purple)] focus:bg-white/[0.065] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)] ${error ? "border-rose-300/70 focus:border-rose-300 focus:shadow-[0_0_0_4px_rgba(244,63,94,0.14)]" : "border-white/10"}`}
         />
       ) : null}
       {error ? <span className={`mt-1.5 block text-xs font-black ${darkMode ? "text-rose-200" : "text-rose-600"}`}>{error}</span> : null}
@@ -10215,7 +10184,7 @@ function CityAreaNativeSelect({ governorate, options, value, onChange, required,
       disabled={!governorate}
       value={value || ""}
       onChange={(event) => onChange(event.target.value)}
-      className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#d4af37] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(212,175,55,0.16)] disabled:opacity-60 ${darkMode ? "bg-[#101010] text-white placeholder:text-white/34 border-white/12 focus:bg-[#151515]" : "bg-[#101010] text-white placeholder:text-white/34 border-white/12 focus:bg-[#151515]"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}
+      className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-[1.15rem] border px-4 text-[15px] font-bold shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[var(--sf-purple)] focus:bg-white/[0.065] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)] disabled:opacity-60 ${darkMode ? "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10" : "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}
     >
       <option value="" className="bg-[#101010] text-white">
         {governorate ? sfText("storefront.checkout.cityAreaPlaceholder") : sfText("storefront.checkout.chooseGovernorateFirst")}
@@ -10234,7 +10203,7 @@ function SelectField({ label, value, onChange, options, labels = {}, required, e
   return (
     <label className="block">
       <span className={`mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>{label}{required ? " *" : ""}</span>
-      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-2xl border px-4 text-[15px] font-bold shadow-[0_12px_28px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[#d4af37] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(212,175,55,0.16)] ${darkMode ? "bg-[#101010] text-white placeholder:text-white/34 border-white/12 focus:bg-[#151515]" : "bg-[#101010] text-white placeholder:text-white/34 border-white/12 focus:bg-[#151515]"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}>
+      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-[1.15rem] border px-4 text-[15px] font-bold shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[var(--sf-purple)] focus:bg-white/[0.065] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)] ${darkMode ? "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10" : "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}>
         <option value="" className="bg-[#101010] text-white">{sfText("storefront.common.choose")}</option>
         {options.map((option) => <option key={option} value={option} className="bg-[#101010] text-white">{labels[option] || option}</option>)}
       </select>
@@ -10557,13 +10526,13 @@ function ProductGalleryFallback() {
 
 function EmptyState({ title, text, actionTo = "/products", actionLabel }) {
   return (
-    <div className="sf-empty-state mx-auto mt-6 mb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] max-w-xl rounded-[1.75rem] border border-[#d4af37]/18 bg-[linear-gradient(180deg,#020617,#0b0f19_40%,#151515_100%)] p-6 text-center text-stone-50 shadow-[0_18px_45px_rgba(0,0,0,0.45),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl md:mb-6 md:p-7">
-      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[#d4af37]/20 bg-[rgba(212,175,55,0.14)] text-[#d4af37] shadow-[0_14px_34px_rgba(212,175,55,0.16)]">
+    <div className="sf-empty-state mx-auto mt-6 mb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] max-w-xl rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-6 text-center text-stone-50 shadow-[0_22px_56px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.04)] backdrop-blur-xl md:mb-6 md:p-7">
+      <div className="mx-auto grid h-14 w-14 place-items-center rounded-full border border-[var(--sf-purple)]/25 bg-[rgba(212,175,55,0.12)] text-[var(--sf-purple)] shadow-[0_14px_34px_rgba(212,175,55,0.14)]">
         <PackageSearch className="h-7 w-7" />
       </div>
       <h2 className="mt-4 text-2xl font-black text-stone-50">{title}</h2>
-      <p className="mx-auto mt-2 max-w-md font-bold leading-7 text-stone-400">{text}</p>
-      <Link to={actionTo} className="mt-5 inline-flex min-h-12 items-center justify-center rounded-full border border-[#d4af37]/24 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-5 py-3 text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(212,175,55,0.25)] transition hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_18px_42px_rgba(212,175,55,0.34)] active:scale-[0.98]">
+      <p className="mx-auto mt-2 max-w-md font-bold leading-7 text-white/60">{text}</p>
+      <Link to={actionTo} className="mt-5 inline-flex min-h-12 items-center justify-center rounded-full border border-white/10 bg-[linear-gradient(135deg,var(--sf-purple),var(--sf-purple-2))] px-5 py-3 text-sm font-black text-stone-950 shadow-[0_16px_36px_rgba(212,175,55,0.20)] transition hover:-translate-y-0.5 hover:shadow-[0_20px_44px_rgba(212,175,55,0.28)] active:scale-[0.98]">
         {actionLabel || sfText("storefront.common.shopNow")}
       </Link>
     </div>
@@ -10659,7 +10628,7 @@ function QuantityStepper({ quantity, onMinus, onPlus }) {
 function Footer() {
   const darkMode = typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
   return (
-    <footer className="mt-4 border-t border-stone-200 bg-[#f0ebe2] px-4 py-6 md:mt-8 md:py-10 dark:border-white/10 dark:bg-[linear-gradient(180deg,#080808,#020617)] dark:text-white">
+    <footer className="mt-4 border-t border-stone-200/80 bg-[var(--sf-cream)] px-4 py-6 md:mt-8 md:py-10 dark:border-white/10 dark:bg-[linear-gradient(180deg,#080808,#020617)] dark:text-white">
       <div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
         <div><h3 className="text-2xl font-black tracking-normal">{sfText("storefront.footer.brand")}</h3><p className="mt-2 max-w-sm text-sm font-bold leading-6 text-stone-600 dark:text-stone-400">{sfText("storefront.footer.tagline")}</p></div>
         <FooterLinks title={sfText("storefront.footer.links")} links={[[sfText("storefront.returns.title"), "/returns"], [sfText("storefront.nav.sizeGuide"), "/size-guide"], [sfText("storefront.faq.title"), "/faq"]]} />
@@ -10667,12 +10636,12 @@ function Footer() {
         <div>
           <h4 className="font-black">{sfText("storefront.footer.followUs")}</h4>
           <div className="mt-3 flex gap-2">
-            <a href="https://wa.me/" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-300 hover:text-emerald-600 dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-emerald-300/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-300" aria-label="WhatsApp"><MessageCircle className="h-5 w-5" /></a>
-            <Link to="/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#f3d77a] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#f3d77a]/40 dark:hover:bg-[#d4af37]/12 dark:hover:text-[#f3d77a]" aria-label="Instagram"><Camera className="h-5 w-5" /></Link>
-            <Link to="/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200 bg-white text-stone-950 shadow-sm transition hover:-translate-y-0.5 hover:border-[#f3d77a] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] dark:hover:border-[#f3d77a]/40 dark:hover:bg-[#d4af37]/12 dark:hover:text-[#d8b4fd]" aria-label="Facebook"><ExternalLink className="h-5 w-5" /></Link>
+            <a href="https://wa.me/" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200/80 bg-white/96 text-stone-950 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-emerald-300 hover:text-emerald-600 dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[0_14px_28px_rgba(0,0,0,0.22)] dark:hover:border-emerald-300/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-300" aria-label="WhatsApp"><MessageCircle className="h-5 w-5" /></a>
+            <Link to="/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200/80 bg-white/96 text-stone-950 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-[var(--sf-purple)] hover:text-[var(--sf-purple)] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[0_14px_28px_rgba(0,0,0,0.22)] dark:hover:border-[var(--sf-purple)]/40 dark:hover:bg-[rgba(212,175,55,0.12)] dark:hover:text-[var(--sf-purple-2)]" aria-label="Instagram"><Camera className="h-5 w-5" /></Link>
+            <Link to="/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200/80 bg-white/96 text-stone-950 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-[var(--sf-purple)] hover:text-[var(--sf-purple)] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[0_14px_28px_rgba(0,0,0,0.22)] dark:hover:border-[var(--sf-purple)]/40 dark:hover:bg-[rgba(212,175,55,0.12)] dark:hover:text-[var(--sf-purple-2)]" aria-label="Facebook"><ExternalLink className="h-5 w-5" /></Link>
           </div>
-          <a href="https://wa.me/" className="mt-4 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-300/30 bg-stone-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-[#d4af37] dark:bg-emerald-500 dark:text-white dark:shadow-[0_14px_34px_rgba(16,185,129,0.22)] dark:hover:bg-emerald-400">
-            <MessageCircle className={`h-4 w-4 ${darkMode ? "text-white" : "text-[#d4af37]"}`} />
+          <a href="https://wa.me/" className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-transparent bg-stone-950 px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(15,23,42,0.12)] transition hover:-translate-y-0.5 hover:bg-[var(--sf-purple)] hover:text-stone-950 dark:bg-[linear-gradient(135deg,var(--sf-purple),var(--sf-purple-2))] dark:text-stone-950 dark:shadow-[0_16px_34px_rgba(212,175,55,0.20)] dark:hover:bg-[linear-gradient(135deg,var(--sf-purple-2),var(--sf-purple))]">
+            <MessageCircle className={`h-4 w-4 ${darkMode ? "text-stone-950" : "text-[var(--sf-purple)]"}`} />
             {sfText("storefront.support.whatsappHelp")}
           </a>
         </div>
@@ -10682,7 +10651,7 @@ function Footer() {
 }
 
 function FooterLinks({ title, links }) {
-  return <div><h4 className="font-black">{title}</h4><div className="mt-3 grid gap-2 text-sm font-bold text-stone-600 dark:text-stone-400">{links.map(([label, href]) => <Link className="transition hover:text-[#d4af37] dark:hover:text-[#f3d77a]" key={label} to={href}>{label}</Link>)}</div></div>;
+  return <div><h4 className="font-black">{title}</h4><div className="mt-3 grid gap-2.5 text-sm font-bold text-stone-600 dark:text-stone-400">{links.map(([label, href]) => <Link className="transition hover:text-stone-950 dark:hover:text-[var(--sf-purple-2)]" key={label} to={href}>{label}</Link>)}</div></div>;
 }
 
 function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = {}, publicStoreSettings = {}, themeMode = "dark" }) {
@@ -10800,8 +10769,8 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
           <div className={[
             "flex h-[calc(var(--mobile-bottom-nav-height,58px))] items-center justify-evenly overflow-hidden rounded-[999px] px-2",
             isDarkMode
-              ? "border border-[rgba(255,255,255,0.10)] bg-[linear-gradient(180deg,rgba(5,5,5,0.94),rgba(10,10,10,0.96))] backdrop-blur-[20px] shadow-[0_-18px_40px_rgba(0,0,0,0.45)]"
-              : "border border-black/8 bg-[linear-gradient(180deg,rgba(23,23,23,0.94),rgba(17,17,17,0.96))] backdrop-blur-[22px] shadow-[0_-16px_34px_rgba(0,0,0,0.24)] [height:calc(var(--mobile-bottom-nav-height,61px))]",
+              ? "border border-white/10 bg-[linear-gradient(180deg,rgba(5,5,5,0.94),rgba(10,10,10,0.96))] backdrop-blur-[20px] shadow-[0_-18px_40px_rgba(0,0,0,0.45)]"
+              : "border border-stone-200/80 bg-[rgba(255,255,255,0.94)] backdrop-blur-[22px] shadow-[0_-16px_34px_rgba(15,23,42,0.14)] [height:calc(var(--mobile-bottom-nav-height,61px))]",
           ].join(" ")}>
             {links.map((item) => {
               const active = isActive(item);
@@ -10809,7 +10778,11 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
               const isSale = item.id === "sale";
               const baseClass = [
                 "group flex h-full min-w-0 flex-col items-center justify-center gap-[3px] rounded-full px-1.5 text-[9px] leading-none transition duration-200 ease-out active:scale-[0.98]",
-                active ? "scale-[1.05] bg-[rgba(212,175,55,0.12)] text-[#d4af37]" : "opacity-75 text-white/90 hover:opacity-90",
+                active
+                  ? "scale-[1.05] border border-[var(--sf-purple)]/25 bg-[rgba(212,175,55,0.12)] text-[var(--sf-purple)]"
+                  : isDarkMode
+                    ? "opacity-75 text-white/90 hover:opacity-90"
+                    : "text-stone-600 hover:text-stone-950",
               ].join(" ");
               const iconClass = "h-[22px] w-[22px]";
               const content = (
@@ -10817,7 +10790,7 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
                   <span className={iconClass}>
                     <Icon className="h-[22px] w-[22px]" strokeWidth={2.1} />
                   </span>
-                  <span className={`max-w-full min-w-[2.8rem] truncate text-center font-semibold ${isSale ? "text-[10px]" : "text-[9px]"} ${active || isSale ? "opacity-100" : "opacity-75"}`}>{item.label}</span>
+                  <span className={`max-w-full min-w-[2.8rem] truncate text-center font-semibold ${isSale ? "text-[10px]" : "text-[9px]"} ${active ? "opacity-100" : isDarkMode ? "opacity-75" : "opacity-90"}`}>{item.label}</span>
                 </>
               );
               if (item.action === "categories") {
@@ -10856,9 +10829,9 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
 
 function SummaryRow({ label, value, strong, dark = false, rtl = false }) {
   if (dark) {
-    return <div className={`sf-summary-row flex items-center justify-between gap-3 ${rtl ? "flex-row-reverse text-right" : ""} ${strong ? "mt-3 border-t border-white/10 pt-3 text-xl font-black text-white" : "mt-2 text-sm font-bold text-white/58"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-[#e5c158]/20 bg-[#d4af37]/18 px-3 py-1 text-white shadow-[0_10px_24px_rgba(212,175,55,0.18)]" : "font-black text-white"}`}>{value}</span></div>;
+    return <div className={`sf-summary-row flex items-center justify-between gap-3 ${rtl ? "flex-row-reverse text-right" : ""} ${strong ? "mt-3 border-t border-white/10 pt-3 text-xl font-black text-white" : "mt-2 text-sm font-bold text-white/58"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-white shadow-[0_10px_24px_rgba(0,0,0,0.20)]" : "font-black text-white"}`}>{value}</span></div>;
   }
-  return <div className={`sf-summary-row flex items-center justify-between gap-3 ${rtl ? "flex-row-reverse text-right" : ""} ${strong ? "mt-3 border-t border-stone-200 pt-3 text-xl font-black text-stone-950" : "mt-2 text-sm font-bold text-stone-600"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full bg-white px-3 py-1 shadow-sm" : "font-black text-stone-800"}`}>{value}</span></div>;
+  return <div className={`sf-summary-row flex items-center justify-between gap-3 ${rtl ? "flex-row-reverse text-right" : ""} ${strong ? "mt-3 border-t border-stone-200/80 pt-3 text-xl font-black text-stone-950" : "mt-2 text-sm font-bold text-stone-600"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-stone-200/80 bg-white px-3 py-1 shadow-[0_8px_18px_rgba(15,23,42,0.06)]" : "font-black text-stone-800"}`}>{value}</span></div>;
 }
 
 function InfoLine({ icon, text }) {
@@ -10996,7 +10969,7 @@ function InfoBox({ label, value, darkMode: darkModeProp } = {}) {
 }
 
 function Panel({ title, children }) {
-  return <div className="sf-panel sf-checkout-panel rounded-3xl border border-stone-200 bg-white p-5"><h2 className="sf-section-heading mb-3 text-xl font-black">{title}</h2><div className="grid gap-2">{children}</div></div>;
+  return <div className="sf-panel sf-checkout-panel rounded-[1.75rem] border border-stone-200/80 bg-white/96 p-5 shadow-[0_18px_42px_rgba(15,23,42,0.07)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-[0_22px_54px_rgba(0,0,0,0.26)]"><h2 className="sf-section-heading mb-3 text-xl font-black">{title}</h2><div className="grid gap-2.5">{children}</div></div>;
 }
 
 function SmallProductList({ items, empty = sfText("storefront.common.noResults") }) {
@@ -11034,7 +11007,7 @@ function SmallProductGrid({ items, action, onAddToCart }) {
   return (
     <div className="mt-6 grid auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
       {normalizedItems.map((item) => (
-        <div key={item.id} className={`sf-storefront-card sf-small-product-card group min-w-0 overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_20px_58px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.025] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#d4af37]/25 hover:shadow-[0_28px_74px_rgba(0,0,0,0.42)] ${item.unavailable ? "flex min-h-[430px] flex-col p-4" : "flex min-h-[460px] flex-col p-3.5"}`}>
+        <div key={item.id} className={`sf-storefront-card sf-small-product-card group min-w-0 overflow-hidden rounded-[1.7rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_22px_60px_rgba(0,0,0,0.34)] ring-1 ring-white/[0.03] backdrop-blur-xl transition duration-300 hover:-translate-y-1 hover:border-[#d4af37]/25 hover:shadow-[0_30px_80px_rgba(0,0,0,0.44)] active:translate-y-[1px] active:scale-[0.996] touch-manipulation ${item.unavailable ? "flex min-h-[430px] flex-col p-4" : "flex min-h-[460px] flex-col p-3.5"}`}>
           {item.unavailable ? (
             <div className="flex flex-1 flex-col justify-center rounded-[1.25rem] border border-rose-300/15 bg-gradient-to-br from-rose-500/10 to-white/[0.04] p-4 text-center">
               <span className="mx-auto grid h-12 w-12 place-items-center rounded-full border border-rose-300/20 bg-rose-400/10 text-rose-300 shadow-[0_12px_30px_rgba(244,63,94,0.12)]">
@@ -11045,19 +11018,19 @@ function SmallProductGrid({ items, action, onAddToCart }) {
             </div>
           ) : (
             <Link to={`/product/${item.slug || item.id}`} className="flex min-h-0 flex-1 flex-col">
-              <div className="aspect-[4/5] w-full overflow-hidden rounded-xl border border-white/70 bg-gradient-to-br from-stone-50 via-white to-stone-100 p-3 shadow-inner shadow-stone-200/70">
-                <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt={item.name || ""} className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.035]" loading="lazy" decoding="async" width="320" height="400" />
+              <div className="aspect-[4/5] w-full overflow-hidden rounded-[1.15rem] border border-white/70 bg-gradient-to-br from-stone-50 via-white to-stone-100 p-2.5 shadow-inner shadow-stone-200/70">
+                <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt={item.name || ""} className="h-full w-full object-contain transition duration-500 group-hover:scale-[1.03] group-active:scale-[1.01]" loading="lazy" decoding="async" width="320" height="400" />
               </div>
-              <div className="mt-4 line-clamp-2 min-h-12 break-words text-start text-base font-black leading-6 text-white">{item.name || sfText("storefront.products.savedProduct")}</div>
+              <div className="mt-4 line-clamp-2 min-h-12 break-words text-start text-[15px] font-black leading-6 text-white">{item.name || sfText("storefront.products.savedProduct")}</div>
               <div className="mt-2 flex min-h-7 flex-wrap items-center gap-2 text-start text-sm font-black text-white">
-                {item.price ? <span className="text-lg text-white">{money(item.price)}</span> : <span className="text-sm font-bold text-white/50">{sfText("storefront.products.openForDetails")}</span>}
+                {item.price ? <span className="text-[1.05rem] text-[#f3d77a]">{money(item.price)}</span> : <span className="text-sm font-bold text-white/50">{sfText("storefront.products.openForDetails")}</span>}
                 {item.compare_at_price && item.compare_at_price > item.price ? <span className="text-xs font-bold text-white/40 line-through">{money(item.compare_at_price)}</span> : null}
               </div>
             </Link>
           )}
           <div className="mt-3 grid gap-2">
-            {onAddToCart && !item.unavailable ? <button type="button" onClick={() => addWishlistItemToCart(item)} className="sf-wishlist-add-button min-h-12 rounded-full bg-gradient-to-l from-[#4c1d95] via-[#d4af37] to-[#151515] px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(212,175,55,0.3)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(212,175,55,0.38)]">{sfText("storefront.cart.addToCart")}</button> : null}
-            {action ? <button type="button" onClick={() => action(item)} className="sf-wishlist-remove-button min-h-11 rounded-full border border-white/[0.1] bg-white/[0.045] px-4 py-2 text-sm font-black text-rose-200 transition hover:border-rose-400/70 hover:bg-rose-500 hover:text-white">{item.unavailable ? sfText("storefront.wishlist.removeFromWishlist") : sfText("storefront.common.remove")}</button> : null}
+            {onAddToCart && !item.unavailable ? <button type="button" onClick={() => addWishlistItemToCart(item)} className="sf-wishlist-add-button min-h-12 rounded-full bg-gradient-to-l from-[#d4af37] via-[#e5c158] to-[#111111] px-4 py-3 text-sm font-black text-white shadow-[0_14px_34px_rgba(212,175,55,0.3)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(212,175,55,0.38)] active:translate-y-[1px] active:scale-[0.99] touch-manipulation">{sfText("storefront.cart.addToCart")}</button> : null}
+            {action ? <button type="button" onClick={() => action(item)} className="sf-wishlist-remove-button min-h-11 rounded-full border border-white/[0.1] bg-white/[0.045] px-4 py-2 text-sm font-black text-rose-200 transition duration-200 hover:border-rose-400/70 hover:bg-rose-500 hover:text-white active:translate-y-[1px] active:scale-[0.99] touch-manipulation">{item.unavailable ? sfText("storefront.wishlist.removeFromWishlist") : sfText("storefront.common.remove")}</button> : null}
           </div>
         </div>
       ))}

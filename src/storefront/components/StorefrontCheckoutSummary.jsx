@@ -110,6 +110,20 @@ export default function StorefrontCheckoutSummary({
         <span className="text-xl font-black text-white">{t("storefront.checkout.orderSummary", "ملخص الطلب")}</span>
         <span className="rounded-full border border-white/10 bg-white/[0.055] px-3 py-1 text-xs font-black text-white/70 md:hidden">{open ? t("common.hide", "إخفاء") : t("common.show", "إظهار")}</span>
       </button>
+      {false && <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2">
+          <div className="text-[10px] font-black text-white/50">{t("storefront.checkout.products", "المنتجات")}</div>
+          <div className="mt-1 text-base font-black text-white">{cartCount}</div>
+        </div>
+        <div className="rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2">
+          <div className="text-[10px] font-black text-white/50">{t("storefront.checkout.shipping", "الشحن")}</div>
+          <div className="mt-1 text-sm font-black text-white">{shippingText}</div>
+        </div>
+        <div className="rounded-2xl border border-[#d4af37]/20 bg-[#d4af37]/10 px-3 py-2">
+          <div className="text-[10px] font-black text-[#f3d77a]/80">{t("storefront.checkout.total", "الإجمالي")}</div>
+          <div className="mt-1 text-base font-black text-white">{money(total)}</div>
+        </div>
+      </div>}
       <div className={`${open ? "block" : "hidden"} mt-3 space-y-2.5 md:block`}>
         <section className="rounded-2xl border border-white/10 bg-black/16 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div className="mb-3 flex items-center justify-between gap-2">

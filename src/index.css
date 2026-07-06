@@ -1298,6 +1298,180 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
+  .sf-cart-shell {
+    position: relative;
+  }
+
+  .sf-cart-item-card,
+  .sf-cart-summary-card,
+  .sf-cart-hero,
+  .sf-cart-empty {
+    backdrop-filter: blur(20px) saturate(1.08);
+    -webkit-backdrop-filter: blur(20px) saturate(1.08);
+  }
+
+  .sf-cart-item-card {
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .sf-cart-item-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(212, 175, 55, 0.18);
+    box-shadow:
+      0 24px 58px rgba(0, 0, 0, 0.34),
+      0 0 0 1px rgba(212, 175, 55, 0.08);
+  }
+
+  .sf-cart-qty-control {
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.06),
+      0 12px 24px rgba(0, 0, 0, 0.18);
+  }
+
+  .sf-cart-quantity-button {
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .sf-cart-remove-button {
+    box-shadow: 0 12px 24px rgba(244, 63, 94, 0.12);
+  }
+
+  .storefront-shell--checkout .sf-checkout-page {
+    background:
+      radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 28%),
+      linear-gradient(180deg, #030303 0%, #070707 45%, #0b0b0b 100%) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-shell > .mb-4 {
+    margin-bottom: 1.25rem;
+  }
+
+  .storefront-shell--checkout .sf-checkout-section {
+    border-radius: 1.75rem;
+    padding: 1.15rem;
+    box-shadow:
+      0 26px 64px rgba(0, 0, 0, 0.34),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .storefront-shell--checkout .sf-checkout-summary {
+    border-radius: 1.8rem;
+    box-shadow:
+      0 28px 72px rgba(0, 0, 0, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  .storefront-shell--checkout .sf-checkout-summary-item {
+    border-radius: 1.25rem;
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease;
+  }
+
+  .storefront-shell--checkout .sf-checkout-summary-item:hover {
+    transform: translateY(-2px);
+    border-color: rgba(212, 175, 55, 0.16) !important;
+    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.2);
+  }
+
+  .storefront-shell--checkout .sf-checkout-summary-totals {
+    border-radius: 1.35rem;
+    background:
+      radial-gradient(circle at top, rgba(212, 175, 55, 0.09), transparent 48%),
+      rgba(0, 0, 0, 0.22) !important;
+  }
+
+  .storefront-shell--checkout .sf-checkout-field,
+  .storefront-shell--checkout .sf-checkout-bosta-card,
+  .storefront-shell--checkout .sf-checkout-address-success,
+  .storefront-shell--checkout .checkout-payment-choice,
+  .storefront-shell--checkout .checkout-payment-method {
+    border-radius: 1.35rem;
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease,
+      box-shadow 180ms ease,
+      background-color 180ms ease;
+  }
+
+  .storefront-shell--checkout .sf-checkout-field:hover,
+  .storefront-shell--checkout .sf-checkout-bosta-card:hover,
+  .storefront-shell--checkout .checkout-payment-choice:hover,
+  .storefront-shell--checkout .checkout-payment-method:hover {
+    transform: translateY(-1px);
+  }
+
+  .storefront-shell--checkout .sf-checkout-field-label,
+  .storefront-shell--checkout .sf-field-label {
+    margin-bottom: 0.55rem;
+    letter-spacing: 0.01em;
+  }
+
+  .storefront-shell--checkout .sf-checkout-page :is(.sf-field-input, textarea.sf-field-input, select.sf-field-input, .sf-checkout-field-input, .checkout-picker-search input) {
+    min-height: 3.5rem;
+    border-radius: 1.15rem;
+    padding-inline: 1rem;
+  }
+
+  .storefront-shell--checkout .sf-checkout-bosta-card {
+    background:
+      radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 36%),
+      rgba(255, 255, 255, 0.035) !important;
+    padding: 1rem;
+  }
+
+  .storefront-shell--checkout .sf-checkout-address-success {
+    background:
+      linear-gradient(135deg, rgba(16, 185, 129, 0.16), rgba(5, 46, 22, 0.18)),
+      rgba(16, 185, 129, 0.08) !important;
+    padding: 0.85rem 1rem;
+  }
+
+  .storefront-shell--checkout .checkout-payment-choice {
+    min-height: 5.25rem;
+    padding: 1rem 1.1rem;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 14px 32px rgba(0, 0, 0, 0.14);
+  }
+
+  .storefront-shell--checkout .checkout-payment-methods {
+    display: grid;
+    gap: 0.9rem;
+    margin-top: 1rem;
+  }
+
+  .storefront-shell--checkout .checkout-payment-method {
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background:
+      radial-gradient(circle at top right, rgba(212, 175, 55, 0.08), transparent 34%),
+      linear-gradient(180deg, #090909 0%, #111111 100%);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.04),
+      0 18px 36px rgba(0, 0, 0, 0.18);
+  }
+
+  .storefront-shell--checkout .checkout-payment-method--active {
+    border-color: rgba(212, 175, 55, 0.32);
+    box-shadow:
+      0 0 0 1px rgba(212, 175, 55, 0.18),
+      0 18px 42px rgba(212, 175, 55, 0.12);
+  }
+
+  .storefront-shell--checkout .sf-checkout-trust-pills {
+    gap: 0.65rem;
+  }
+
+  .storefront-shell--checkout .sf-checkout-trust-pill {
+    min-height: 2.75rem;
+    border-radius: 999px;
+  }
+
   @media (min-width: 768px) {
     .sf-ai-chat {
       right: max(1.5rem, env(safe-area-inset-right));
@@ -1320,6 +1494,55 @@
 
     .sf-checkout-page {
       padding-bottom: 2rem;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .sf-cart-hero {
+      padding: 1rem;
+    }
+
+    .sf-cart-item-card {
+      padding: 0.9rem;
+      border-radius: 1.4rem;
+    }
+
+    .sf-cart-item-card img {
+      width: 5.25rem;
+      height: 5.25rem;
+    }
+
+    .sf-cart-summary-card {
+      position: static;
+    }
+
+    .storefront-shell--checkout .sf-checkout-shell {
+      padding-inline: 0.85rem;
+    }
+
+    .storefront-shell--checkout .sf-checkout-progress {
+      border-radius: 1.15rem;
+    }
+
+    .storefront-shell--checkout .sf-checkout-progress-step {
+      min-height: 3.15rem;
+      padding-inline: 0.45rem;
+      font-size: 0.68rem;
+      line-height: 1.1;
+    }
+
+    .storefront-shell--checkout .sf-checkout-section,
+    .storefront-shell--checkout .sf-checkout-summary {
+      border-radius: 1.35rem;
+      padding: 0.95rem;
+    }
+
+    .storefront-shell--checkout .checkout-payment-choice {
+      min-height: 4.6rem;
+    }
+
+    .storefront-shell--checkout .sf-checkout-summary > .mt-3.grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 
