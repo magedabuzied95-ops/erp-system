@@ -344,13 +344,37 @@ const getFirstGalleryImage = (row = {}) =>
     parseGalleryImages(row.gallery)
   );
 
+const getFirstVariantFallbackImage = (row = {}) => {
+  const variants = Array.isArray(row.variants) ? row.variants : [];
+  return firstImageValue(
+    variants.map((variant) =>
+      firstImageValue(
+        variant.image_url,
+        variant.variant_image_url,
+        variant.color_image_url,
+        variant.image,
+        variant.photo_url,
+        variant.thumbnail_url,
+        variant.images,
+        variant.gallery_images,
+        variant.color_images
+      )
+    )
+  );
+};
+
 const getProductThumbnail = (row = {}) => {
   const imageValue = firstImageValue(
-    row.thumbnail_url,
+    row.cover_image_url,
     row.image_url,
+    row.main_image_url,
+    row.featured_image_url,
+    row.product_image_url,
     row.photo_url,
     row.image,
-    getFirstGalleryImage(row)
+    row.thumbnail_url,
+    getFirstGalleryImage(row),
+    getFirstVariantFallbackImage(row)
   );
 
   if (imageValue.startsWith("data:image/")) return imageValue;

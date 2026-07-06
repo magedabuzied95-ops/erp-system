@@ -144,6 +144,33 @@ const resolveAssetUrl = (url) => {
   return `/uploads/products/${value}`;
 };
 
+const firstPreviewText = (...values) => {
+  for (const value of values) {
+    if (value && typeof value === "object") {
+      const nested = firstPreviewText(
+        value.image_url,
+        value.secure_url,
+        value.original_url,
+        value.thumbnail_url,
+        value.url,
+        value.preview,
+        value.image,
+        value.photo_url
+      );
+      if (nested) return nested;
+      continue;
+    }
+
+    const text = String(value || "").trim();
+    if (text) return text;
+  }
+  return "";
+};
+
+const resolveMainPreviewImageValue = (value = "") => firstPreviewText(value);
+
+const resolveMainPreviewImageUrl = (value = "") => resolveAssetUrl(resolveMainPreviewImageValue(value));
+
 const makeId = () =>
   typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
     ? crypto.randomUUID()
@@ -1210,9 +1237,9 @@ function ProductEdit() {
             brand: hydratedBrand.brand || firstRow.brand || "",
             unit: hydratedUnit.unit || firstRow.unit || "",
           });
-          setCoverImage(resolveAssetUrl(firstRow.product_image_url || firstRow.image_url || ""));
+          setCoverImage(resolveMainPreviewImageUrl(firstRow));
           setThermalImageUrl(resolveAssetUrl(getResolvedThermalImageUrl({ product: firstRow, variants: variantRows }) || firstRow.thermal_image_url || ""));
-          setCoverLabel(firstRow.product_image_url || firstRow.image_url ? t("products.editor.currentProductImage") : "");
+          setCoverLabel(resolveMainPreviewImageValue(firstRow) ? t("products.editor.currentProductImage") : "");
           setGallery(normalizeGalleryImages(firstRow.gallery_images));
           setDefaultManufacturerId("");
           setColorGroups([]);
@@ -1223,9 +1250,9 @@ function ProductEdit() {
           setVariantsHydrationFailed(true);
           setError(t("products.editor.variantsFailed"));
           setProduct(normalizedProduct);
-          setCoverImage(resolveAssetUrl(firstRow.product_image_url || firstRow.image_url || ""));
+          setCoverImage(resolveMainPreviewImageUrl(firstRow));
           setThermalImageUrl(resolveAssetUrl(getResolvedThermalImageUrl({ product: firstRow, variants: variantRows }) || firstRow.thermal_image_url || ""));
-          setCoverLabel(firstRow.product_image_url || firstRow.image_url ? t("products.editor.currentProductImage") : "");
+          setCoverLabel(resolveMainPreviewImageValue(firstRow) ? t("products.editor.currentProductImage") : "");
           setGallery(normalizeGalleryImages(firstRow.gallery_images));
           setColorGroups([]);
           return;
@@ -1318,9 +1345,9 @@ function ProductEdit() {
           brand: hydratedBrand.brand || firstRow.brand || "",
           unit: hydratedUnit.unit || firstRow.unit || "",
         });
-        setCoverImage(resolveAssetUrl(firstRow.product_image_url || firstRow.image_url || ""));
+        setCoverImage(resolveMainPreviewImageUrl(firstRow));
         setThermalImageUrl(resolveAssetUrl(hydratedThermalImageUrl || firstRow.thermal_image_url || ""));
-        setCoverLabel(firstRow.product_image_url || firstRow.image_url ? t("products.editor.currentProductImage") : "");
+        setCoverLabel(resolveMainPreviewImageValue(firstRow) ? t("products.editor.currentProductImage") : "");
         setGallery(normalizeGalleryImages(firstRow.gallery_images));
         setDefaultManufacturerId(resolvedDefaultManufacturerId);
         setColorGroups(skuAwareColorGroups);
@@ -2183,7 +2210,7 @@ function ProductEdit() {
     setGallery(next);
     if (removedPrimary) {
       const nextPrimary = next[0] || null;
-      setCoverImage(nextPrimary?.preview || nextPrimary?.image_url || nextPrimary?.url || "");
+      setCoverImage(resolveMainPreviewImageUrl(nextPrimary));
       setCoverLabel(nextPrimary?.name || "");
       setThermalImageUrl("");
     }
@@ -2191,7 +2218,7 @@ function ProductEdit() {
   };
 
   const setGalleryItemAsPrimary = (item) => {
-    const src = item?.preview || item?.image_url || item?.url || "";
+    const src = resolveMainPreviewImageUrl(item);
     if (!src) return;
     setCoverImage(src);
     setCoverLabel(item?.name || "Gallery image");
@@ -3196,7 +3223,7 @@ function ProductEdit() {
                         key={item.id || item.name}
                         image={{ ...item, preview: resolveAssetUrl(item.preview || item.image_url) }}
                         alt={item.name || "Gallery image"}
-                        isPrimary={Boolean(coverImage && (coverImage === item.preview || coverImage === item.image_url))}
+                        isPrimary={Boolean(coverImage && resolveMainPreviewImageUrl(item) === resolveMainPreviewImageUrl(coverImage))}
                         onPrimary={() => setGalleryItemAsPrimary(item)}
                         deleteDisabled={Boolean(item.uploading)}
                         deleteDisabledReason="Image is still uploading"
