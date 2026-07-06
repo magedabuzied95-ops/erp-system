@@ -2732,16 +2732,6 @@ export const getProductsAdminList = async (req, res) => {
 
     const result = await db.query(
       `
-      WITH variant_totals AS (
-        SELECT
-          v.product_id,
-          COUNT(*)::int AS active_variant_count,
-          COALESCE(SUM(GREATEST(COALESCE(v.stock, 0), 0)), 0)::int AS total_variant_stock
-        FROM product_variants v
-        WHERE v.is_active IS DISTINCT FROM FALSE
-          AND v.deleted_at IS NULL
-        GROUP BY v.product_id
-      )
       SELECT
         p.id,
         COALESCE(NULLIF(TRIM(p.name), ''), 'Product') AS name,
@@ -2758,13 +2748,21 @@ export const getProductsAdminList = async (req, res) => {
           ''
         ) AS cover_image_url,
         GREATEST(COALESCE(p.stock, 0), 0)::int AS product_stock,
-        COALESCE(vt.total_variant_stock, 0)::int AS total_variant_stock,
+        COALESCE(vst.total_variant_stock, 0)::int AS total_variant_stock,
         CASE
-          WHEN COALESCE(vt.active_variant_count, 0) > 0 THEN COALESCE(vt.total_variant_stock, 0)
+          WHEN EXISTS (
+            SELECT 1
+            FROM product_variants sv_exists
+            WHERE sv_exists.product_id = p.id
+          ) THEN COALESCE(vst.total_variant_stock, 0)
           ELSE GREATEST(COALESCE(p.stock, 0), 0)
         END::int AS total_stock,
         CASE
-          WHEN COALESCE(vt.active_variant_count, 0) > 0 THEN COALESCE(vt.total_variant_stock, 0)
+          WHEN EXISTS (
+            SELECT 1
+            FROM product_variants sv_exists
+            WHERE sv_exists.product_id = p.id
+          ) THEN COALESCE(vst.total_variant_stock, 0)
           ELSE GREATEST(COALESCE(p.stock, 0), 0)
         END::int AS stock,
         COALESCE(p.selling_price, p.regular_price, p.price, 0) AS selling_price,
@@ -2786,13 +2784,23 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(p.gender, '') AS gender,
         COALESCE(p.product_type, '') AS product_type,
         COALESCE(p.grade, '') AS grade,
-        COALESCE(vt.active_variant_count, 0) AS active_variant_count,
+        COALESCE((
+          SELECT COUNT(*)::int
+          FROM product_variants sv_count
+          WHERE sv_count.product_id = p.id
+            AND sv_count.is_active IS DISTINCT FROM FALSE
+            AND sv_count.deleted_at IS NULL
+        ), 0) AS active_variant_count,
         ${hasProductAudiences ? "COALESCE(pa.audiences, '[]'::jsonb)" : "'[]'::jsonb"} AS product_audiences,
         COUNT(*) OVER()::int AS total_count
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
       LEFT JOIN brands b ON b.id = p.brand_id
-      LEFT JOIN variant_totals vt ON vt.product_id = p.id
+      LEFT JOIN (
+        SELECT product_id, COALESCE(SUM(stock), 0)::int AS total_variant_stock
+        FROM product_variants
+        GROUP BY product_id
+      ) vst ON vst.product_id = p.id
       ${coverImageJoinSql}
       ${audienceJoinSql}
       ${whereSql}
@@ -2815,32 +2823,17 @@ export const getProductsAdminList = async (req, res) => {
       scopeClause.values
     );
 
-    const rows = (result.rows || []).map((row) => {
-      const normalizedRow = {
-        ...row,
-        image_url: row.cover_image_url || "",
-        product_image_url: row.cover_image_url || "",
-        thumbnail_url: row.cover_image_url || "",
-        photo_url: row.cover_image_url || "",
-        variants: [],
-        color_images: [],
-        product_audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
-        audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
-      };
-
-      if (Number(normalizedRow.id) === 3) {
-        console.log("PRODUCT_ADMIN_LIST_STOCK_DEBUG", {
-          productId: normalizedRow.id,
-          productsStock: Number(normalizedRow.product_stock || 0),
-          summedVariantStock: Number(normalizedRow.total_variant_stock || 0),
-          returnedStockField: Number(normalizedRow.stock || 0),
-          returnedTotalStock: Number(normalizedRow.total_stock || 0),
-          activeVariantCount: Number(normalizedRow.active_variant_count || 0),
-        });
-      }
-
-      return normalizedRow;
-    });
+    const rows = (result.rows || []).map((row) => ({
+      ...row,
+      image_url: row.cover_image_url || "",
+      product_image_url: row.cover_image_url || "",
+      thumbnail_url: row.cover_image_url || "",
+      photo_url: row.cover_image_url || "",
+      variants: [],
+      color_images: [],
+      product_audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
+      audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
+    }));
     const total = Number(result.rows?.[0]?.total_count || 0);
     const availableBrands = Array.isArray(filterOptionsResult.rows?.[0]?.brands) ? filterOptionsResult.rows[0].brands.filter(Boolean) : [];
     const availableCategories = Array.isArray(filterOptionsResult.rows?.[0]?.categories) ? filterOptionsResult.rows[0].categories.filter(Boolean) : [];
