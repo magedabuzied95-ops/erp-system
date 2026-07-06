@@ -37,7 +37,7 @@ import {
 import { api } from "../../shared/api/api";
 import { applyProductSocialMeta } from "../../shared/lib/socialMeta";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
-import { Check, Heart, Share2, ShoppingCart } from "lucide-react";
+import { Check, Heart, Ruler, Share2, ShoppingCart } from "lucide-react";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 
