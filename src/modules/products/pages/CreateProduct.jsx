@@ -111,8 +111,17 @@ const getAiImagePayload = (image = "") => {
   const value = String(image || "").trim();
   if (!value) return {};
   if (value.startsWith("data:image/")) return { image_base64_optional: value };
+  if (value.startsWith("blob:")) return {};
   return { image_url: value };
 };
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 
 const isDataImageUrl = (value) => typeof value === "string" && value.trim().startsWith("data:image/");
 
@@ -1505,8 +1514,8 @@ function CreateProduct() {
     setThermalImageUrl("");
   };
 
-  const buildAiProductPayload = () => ({
-    ...getAiImagePayload(coverImage),
+  const buildAiProductPayload = async () => ({
+    ...(coverImageFile ? { image_base64_optional: await readFileAsDataUrl(coverImageFile) } : getAiImagePayload(coverImage)),
     brand_id: selectedBrandId || undefined,
     brand_name: selectedBrandName || undefined,
     color_name: colorGroups.map((group) => group.color).filter(Boolean).join(", "),
@@ -1542,7 +1551,12 @@ function CreateProduct() {
     );
 
     try {
-      const result = await generateAiProductData(buildAiProductPayload());
+      const payload = await buildAiProductPayload();
+      if (!payload.image_base64_optional && !payload.image_url) {
+        toast.error(t("products.editor.uploadMainImageFirst"));
+        return;
+      }
+      const result = await generateAiProductData(payload);
       setAiProductData(result);
       if (selectedBrandId || selectedBrandName) {
         setBrandId(selectedBrandId || "");
