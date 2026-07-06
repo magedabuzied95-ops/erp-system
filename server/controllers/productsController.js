@@ -1537,26 +1537,36 @@ const buildProductSearchClause = ({ values, search }) => {
 
 const normalizeAdminListFilterValue = (value = "") => String(value ?? "").trim();
 
-const buildProductsAdminListFiltersClause = ({ values, filters = {} }) => {
+const buildProductsAdminListFiltersClause = async ({ values, filters = {} }) => {
   const parts = [];
   const applied = {};
+  const effectiveStockSql = `
+    CASE
+      WHEN EXISTS (
+        SELECT 1
+        FROM product_variants sv_exists
+        WHERE sv_exists.product_id = p.id
+      ) THEN COALESCE(vst.total_variant_stock, 0)
+      ELSE GREATEST(COALESCE(p.stock, 0), 0)
+    END
+  `;
 
   const rawStatus = normalizeAdminListFilterValue(filters.status).toLowerCase();
   if (rawStatus && rawStatus !== "all") {
     if (rawStatus === "active") {
       parts.push(`
         COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'archived', 'deleted')
-        AND COALESCE(vt.total_stock, GREATEST(COALESCE(p.stock, 0), 0)) > COALESCE(p.low_stock_alert, 0)
+        AND (${effectiveStockSql}) > COALESCE(p.low_stock_alert, 0)
       `);
       applied.status = "active";
     } else if (rawStatus === "low") {
       parts.push(`
         (
-          COALESCE(vt.total_stock, GREATEST(COALESCE(p.stock, 0), 0)) <= 0
+          (${effectiveStockSql}) <= 0
           OR (
-            COALESCE(vt.total_stock, GREATEST(COALESCE(p.stock, 0), 0)) > 0
+            (${effectiveStockSql}) > 0
             AND COALESCE(p.low_stock_alert, 0) > 0
-            AND COALESCE(vt.total_stock, GREATEST(COALESCE(p.stock, 0), 0)) <= COALESCE(p.low_stock_alert, 0)
+            AND (${effectiveStockSql}) <= COALESCE(p.low_stock_alert, 0)
           )
         )
       `);
@@ -1604,7 +1614,7 @@ const buildProductsAdminListFiltersClause = ({ values, filters = {} }) => {
     applied.offers = "products";
   }
 
-  const rawGender = normalizeClassificationValue(filters.gender);
+  const rawGender = await normalizeClassificationValue("gender", filters.gender);
   if (rawGender && rawGender !== "all") {
     values.push(rawGender);
     parts.push(`
@@ -1618,14 +1628,14 @@ const buildProductsAdminListFiltersClause = ({ values, filters = {} }) => {
     applied.gender = rawGender;
   }
 
-  const rawProductType = normalizeClassificationValue(filters.product_type ?? filters.productType);
+  const rawProductType = await normalizeClassificationValue("product_type", filters.product_type ?? filters.productType);
   if (rawProductType && rawProductType !== "all") {
     values.push(rawProductType);
     parts.push(`LOWER(TRIM(COALESCE(p.product_type, ''))) = LOWER(TRIM($${values.length}))`);
     applied.productType = rawProductType;
   }
 
-  const rawGrade = normalizeClassificationValue(filters.grade);
+  const rawGrade = await normalizeClassificationValue("grade", filters.grade);
   if (rawGrade && rawGrade !== "all") {
     values.push(rawGrade);
     parts.push(`LOWER(TRIM(COALESCE(p.grade, ''))) = LOWER(TRIM($${values.length}))`);
@@ -2676,7 +2686,7 @@ export const getProductsAdminList = async (req, res) => {
       values,
       search: req.query.search ?? req.query.q ?? "",
     });
-    const filtersClause = buildProductsAdminListFiltersClause({
+    const filtersClause = await buildProductsAdminListFiltersClause({
       values,
       filters: {
         status: req.query.status,
