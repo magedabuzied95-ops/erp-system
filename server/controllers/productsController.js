@@ -2775,6 +2775,10 @@ export const getProductsAdminList = async (req, res) => {
           ) THEN COALESCE(vst.total_variant_stock, 0)
           ELSE GREATEST(COALESCE(p.stock, 0), 0)
         END::int AS stock,
+        COALESCE(p.cost_price, 0) AS cost_price,
+        COALESCE(p.purchase_price, 0) AS purchase_price,
+        p.last_purchase_cost AS last_purchase_cost,
+        COALESCE(p.average_cost, 0) AS average_cost,
         COALESCE(p.selling_price, p.regular_price, p.price, 0) AS selling_price,
         COALESCE(p.regular_price, p.price, p.selling_price, 0) AS regular_price,
         COALESCE(p.sale_price, 0) AS sale_price,

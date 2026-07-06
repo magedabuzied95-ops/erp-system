@@ -598,13 +598,12 @@ const getCatalogPriceDisplay = (row = {}) => {
 
   const costValues = useVariants
     ? variants.map((variant) => positivePrice(
-        variant.average_cost,
-        variant.last_purchase_price,
-        variant.last_purchase_cost,
         variant.cost_price,
-        variant.purchase_price
+        variant.purchase_price,
+        variant.last_purchase_cost,
+        variant.average_cost
       ))
-    : [positivePrice(row.average_cost, row.last_purchase_price, row.last_purchase_cost, row.cost_price, row.purchase_price)];
+    : [positivePrice(row.cost_price, row.purchase_price, row.last_purchase_cost, row.average_cost)];
 
   const sellValues = useVariants
     ? variants.map((variant) => positivePrice(variant.selling_price, variant.regular_price, variant.price, variant.variant_sale_price))
