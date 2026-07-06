@@ -901,17 +901,45 @@ const normalizeSqlTimestampInput = (value) => {
   return Number.isFinite(parsed.getTime()) ? parsed.toISOString() : null;
 };
 
+const cleanImageValue = (value) => String(value || "").trim();
+
+const resolveProductLevelCoverImage = (row = {}) =>
+  [
+    row.cover_image_url,
+    row.image_url,
+    row.main_image_url,
+    row.featured_image_url,
+    row.product_image_url,
+    row.main_image,
+    row.featured_image,
+    row.image,
+    row.photo_url,
+    row.thumbnail_url,
+  ].map(cleanImageValue).find(Boolean) || "";
+
+const logProductListImageResolution = ({ productId, productImageUrl, coverImageUrl, firstVariantImageUrl, finalThumbnailUrl }) => {
+  if (process.env.NODE_ENV === "production" && String(process.env.PRODUCT_LIST_IMAGE_DEBUG || "").toLowerCase() !== "true") return;
+  console.log("PRODUCT_LIST_IMAGE_RESOLUTION", {
+    product_id: productId,
+    product_image_url: productImageUrl || "",
+    cover_image_url: coverImageUrl || "",
+    first_variant_image_url: firstVariantImageUrl || "",
+    final_thumbnail_url: finalThumbnailUrl || "",
+  });
+};
+
 const normalizeProductRow = (row = {}) => {
   const regularPrice = firstPositiveNumber(row.selling_price, row.regular_price, row.price, row.sale_price);
   const audiences = normalizeProductAudiences(row.audiences, row.product_audiences, row.gender);
-  const imageUrl = row.image_url || "";
-  const thumbnailUrl = row.thumbnail_url || "";
-  const photoUrl = row.photo_url || "";
+  const productLevelCoverImage = resolveProductLevelCoverImage(row);
+  const imageUrl = cleanImageValue(row.image_url || productLevelCoverImage);
+  const thumbnailUrl = cleanImageValue(row.thumbnail_url || "");
+  const photoUrl = cleanImageValue(row.photo_url || "");
   const thermalImageUrl = row.thermal_image_url || "";
   const thermalImageStatus = normalizeThermalImageStatus(row.thermal_image_status, thermalImageUrl);
   const thermalImageGeneratedAt = normalizeThermalTimestamp(row.thermal_image_generated_at);
   const thermalImageError = normalizeThermalError(row.thermal_image_error);
-  const image = row.image || "";
+  const image = cleanImageValue(row.image || "");
   const galleryImages = normalizeGalleryImages(row.gallery_images);
   const variantColorThermalImageUrl = row.variant_color_thermal_image_url || row.color_thermal_image_url || row.thermal_image_url || "";
   return ({
@@ -990,7 +1018,10 @@ const normalizeProductRow = (row = {}) => {
   unit_id: row.unit_id ?? "",
   unit_name: row.unit_name || row.unit || row.unit_abbreviation || "",
   unit_abbreviation: row.unit_abbreviation || "",
-  image_url: imageUrl,
+  image_url: productLevelCoverImage || imageUrl,
+  cover_image_url: productLevelCoverImage || imageUrl,
+  main_image_url: cleanImageValue(row.main_image_url || row.main_image || productLevelCoverImage || imageUrl),
+  featured_image_url: cleanImageValue(row.featured_image_url || row.featured_image || productLevelCoverImage || imageUrl),
   thumbnail_url: thumbnailUrl,
   photo_url: photoUrl,
   thermal_image_url: thermalImageUrl,
@@ -1001,7 +1032,7 @@ const normalizeProductRow = (row = {}) => {
   color_thermal_image_url: row.color_thermal_image_url || variantColorThermalImageUrl,
   product_thermal_image_url: row.product_thermal_image_url || thermalImageUrl,
   image,
-  product_image_url: row.product_image_url || thumbnailUrl || imageUrl || photoUrl || image || "",
+  product_image_url: productLevelCoverImage || row.product_image_url || thumbnailUrl || imageUrl || photoUrl || image || "",
   gallery_images: galleryImages,
   category: row.category || "Uncategorized",
   brand: row.brand || "Unbranded",
@@ -1361,6 +1392,11 @@ const normalizeRoleValue = (value = "") => String(value || "").trim().toLowerCas
 
 const isAdminLikeUser = (user = {}) =>
   isSuperAdminUser(user) || ["admin", "super admin", "superadmin"].includes(normalizeRoleValue(user?.role || user?.role_name));
+
+const shouldScheduleAutoAiShoeCoverJobs = () => {
+  // Auto AI Shoe Cover jobs disabled temporarily. Manual regeneration only.
+  return false;
+};
 
 const attachAiShoeCoverStateToProducts = async (clientOrPool, products = []) => {
   const rows = Array.isArray(products) ? products : [];
@@ -1912,6 +1948,198 @@ const makeUniqueSku = async (client, { tenantId, sku, productId = null, variantI
   return candidate;
 };
 
+const buildProductCreatePerfLogger = (startedAt) => (label, details = {}) => {
+  console.log(label, {
+    duration_ms: Date.now() - startedAt,
+    ...details,
+  });
+};
+
+const loadTenantSkuBarcodeSets = async (client, { tenantId }) => {
+  const [productResult, variantResult] = await Promise.all([
+    client.query(
+      `
+      SELECT LOWER(TRIM(COALESCE(sku, ''))) AS sku, LOWER(TRIM(COALESCE(barcode, ''))) AS barcode
+      FROM products
+      WHERE ($1::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $1::bigint)
+      `,
+      [tenantId]
+    ),
+    client.query(
+      `
+      SELECT LOWER(TRIM(COALESCE(sku, ''))) AS sku, LOWER(TRIM(COALESCE(barcode, ''))) AS barcode
+      FROM product_variants
+      WHERE ($1::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $1::bigint)
+        AND is_active IS DISTINCT FROM FALSE
+        AND deleted_at IS NULL
+      `,
+      [tenantId]
+    ),
+  ]);
+
+  const skuSet = new Set();
+  const barcodeSet = new Set();
+  for (const row of [...(productResult.rows || []), ...(variantResult.rows || [])]) {
+    const sku = String(row?.sku || "").trim();
+    const barcode = String(row?.barcode || "").trim();
+    if (sku) skuSet.add(sku);
+    if (barcode) barcodeSet.add(barcode);
+  }
+  return { skuSet, barcodeSet };
+};
+
+const makeUniqueSkuFromSet = ({ sku, existingSkus = new Set(), reservedSkus = new Set() }) => {
+  const base = normalizeSku(sku) || "PRD";
+  let candidate = base;
+  let sequence = 2;
+  while (existingSkus.has(candidate.toLowerCase()) || reservedSkus.has(candidate.toLowerCase())) {
+    candidate = `${base}-${sequence}`.slice(0, 60);
+    sequence += 1;
+  }
+  reservedSkus.add(candidate.toLowerCase());
+  existingSkus.add(candidate.toLowerCase());
+  return candidate;
+};
+
+const prepareVariantsForCreate = async (client, {
+  productId,
+  tenantId,
+  variants = [],
+  skuPrefix = "",
+  reservedSkus = new Set(),
+}) => {
+  if (!tenantId) {
+    throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
+  }
+
+  const { skuSet: existingSkus, barcodeSet: existingBarcodes } = await loadTenantSkuBarcodeSets(client, { tenantId });
+  const reservedBarcodes = new Set();
+
+  return (Array.isArray(variants) ? variants : []).map((variant) => {
+    const nextSku = makeUniqueSkuFromSet({
+      sku: variant.sku || buildVariantSku({ prefix: skuPrefix, color: variant.color, size: variant.size }),
+      existingSkus,
+      reservedSkus,
+    });
+    const nextBarcode = String(variant.barcode || "").trim();
+    if (nextBarcode) {
+      const normalizedBarcode = nextBarcode.toLowerCase();
+      if (existingBarcodes.has(normalizedBarcode) || reservedBarcodes.has(normalizedBarcode)) {
+        throw duplicateConflictError("Variant barcode is already used by another product variant", {
+          field: "barcode",
+          product_id: productId,
+        });
+      }
+      reservedBarcodes.add(normalizedBarcode);
+      existingBarcodes.add(normalizedBarcode);
+    }
+
+    const normalizedVariantImageUrl = String(
+      variant.image_url || variant.variant_image_url || variant.color_image_url || variant.image || ""
+    ).trim();
+    const normalizedThermalImageUrl = String(
+      variant.thermal_image_url || variant.variant_thermal_image_url || variant.color_thermal_image_url || ""
+    ).trim();
+
+    return {
+      manufacturer_id: variant.manufacturer_id,
+      supplier_id: variant.supplier_id,
+      warehouse_id: variant.warehouse_id,
+      branch_id: variant.branch_id,
+      color: variant.color,
+      size: variant.size,
+      sku: nextSku,
+      barcode: nextBarcode,
+      article_code: variant.article_code || "",
+      image_url: normalizedVariantImageUrl,
+      thermal_image_url: normalizedVariantImageUrl ? "" : normalizedThermalImageUrl,
+      thermal_image_status: normalizedVariantImageUrl ? "pending" : normalizedThermalImageUrl ? "ready" : "pending",
+      thermal_image_generated_at: normalizedVariantImageUrl ? null : normalizedThermalImageUrl ? new Date().toISOString() : null,
+      thermal_image_error: "",
+      cost_price: variant.purchase_price,
+      price: variant.price,
+      sale_price: variant.sale_price,
+      edition_name: variant.edition_name || null,
+      edition_slug: variant.edition_slug || slugifyEdition(variant.edition_name) || null,
+      default_purchase_qty: Math.max(0, Number(variant.default_purchase_qty || 0)),
+    };
+  });
+};
+
+const bulkInsertProductVariants = async (client, { tenantId, productId, variants = [] }) => {
+  if (!Array.isArray(variants) || variants.length === 0) return [];
+
+  const values = [];
+  const placeholders = variants.map((variant, index) => {
+    const offset = index * 23;
+    values.push(
+      tenantId,
+      productId,
+      variant.manufacturer_id ?? null,
+      variant.supplier_id ?? null,
+      variant.warehouse_id ?? null,
+      variant.branch_id ?? null,
+      variant.color || "",
+      variant.size || "",
+      variant.sku || "",
+      variant.barcode || "",
+      variant.article_code || "",
+      variant.image_url || "",
+      variant.thermal_image_url || "",
+      variant.thermal_image_status || "pending",
+      variant.thermal_image_generated_at || null,
+      variant.thermal_image_error || "",
+      variant.cost_price ?? 0,
+      variant.price ?? 0,
+      variant.sale_price ?? 0,
+      variant.edition_name || null,
+      variant.edition_slug || null,
+      variant.default_purchase_qty ?? 0,
+      true
+    );
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, NULLIF($${offset + 11}, ''), $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, NULL)`;
+  });
+
+  const result = await client.query(
+    `
+    INSERT INTO product_variants (
+      tenant_id,
+      product_id,
+      manufacturer_id,
+      supplier_id,
+      warehouse_id,
+      branch_id,
+      color,
+      size,
+      sku,
+      barcode,
+      article_code,
+      image_url,
+      thermal_image_url,
+      thermal_image_status,
+      thermal_image_generated_at,
+      thermal_image_error,
+      cost_price,
+      price,
+      sale_price,
+      edition_name,
+      edition_slug,
+      default_purchase_qty,
+      is_active,
+      deleted_at
+    )
+    VALUES ${placeholders.join(", ")}
+    RETURNING *
+    `,
+    values
+  );
+
+  return (result.rows || []).map((row) => ({
+    ...row,
+    thermal_image_generation_needed: Boolean(String(row.image_url || "").trim()),
+  }));
+};
+
 const insertProductVariant = async (client, { productId, tenantId, variant, skuPrefix = "", reservedSkus = new Set() }) => {
   if (!tenantId) {
     throw Object.assign(new Error("Tenant context missing"), { status: 400, code: "TENANT_CONTEXT_MISSING" });
@@ -2458,26 +2686,36 @@ export const getProductsWithVariants = async (req, res) => {
     const productIds = Array.from(grouped.keys()).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0);
     const imageBundleMap = productIds.length ? await loadProductVariantImages(db, productIds).catch(() => new Map()) : new Map();
 
-    const normalizedProducts = await withProductAudiences(db, Array.from(grouped.values()).map((product) => ({
+    const normalizedProducts = await withProductAudiences(db, Array.from(grouped.values()).map((product) => {
+      const imageBundle = imageBundleMap.get(String(product.id ?? product.product_id ?? "")) || null;
+      const variants = attachVariantImages(Array.isArray(product.variants) ? product.variants : [], imageBundle);
+      const colorImages = attachGroupedColorImages(
+        deriveColorGroupsFromVariants(variants),
+        imageBundle
+      );
+      const explicitProductCover = resolveProductLevelCoverImage(product);
+      const firstVariantImageUrl = cleanImageValue(variants[0]?.variant_image_url || variants[0]?.image_url || "");
+      const finalThumbnailUrl = explicitProductCover || firstVariantImageUrl || "";
+
+      logProductListImageResolution({
+        productId: product.id ?? product.product_id ?? null,
+        productImageUrl: product.product_image_url || product.image_url || "",
+        coverImageUrl: explicitProductCover,
+        firstVariantImageUrl,
+        finalThumbnailUrl,
+      });
+
+      return {
         ...product,
-        variants: attachVariantImages(Array.isArray(product.variants) ? product.variants : [], imageBundleMap.get(String(product.id ?? product.product_id ?? "")) || null),
-        color_images: attachGroupedColorImages(
-          deriveColorGroupsFromVariants(Array.isArray(product.variants) ? product.variants : []),
-          imageBundleMap.get(String(product.id ?? product.product_id ?? "")) || null
-        ),
-        image_url:
-          product.image_url ||
-          product.product_image_url ||
-          product.variants?.[0]?.image_url ||
-          product.variants?.[0]?.variant_image_url ||
-          "",
-        product_image_url:
-          product.product_image_url ||
-          product.image_url ||
-          product.variants?.[0]?.image_url ||
-          product.variants?.[0]?.variant_image_url ||
-          "",
-      })));
+        variants,
+        color_images: colorImages,
+        image_url: explicitProductCover || firstVariantImageUrl || "",
+        cover_image_url: explicitProductCover || firstVariantImageUrl || "",
+        product_image_url: explicitProductCover || firstVariantImageUrl || "",
+        main_image_url: cleanImageValue(product.main_image_url || explicitProductCover || firstVariantImageUrl || ""),
+        featured_image_url: cleanImageValue(product.featured_image_url || explicitProductCover || firstVariantImageUrl || ""),
+      };
+    }));
     const aiEnrichedProducts = isAiShoeCoverGenerationEnabled()
       ? await attachAiShoeCoverStateToProducts(db, normalizedProducts)
       : normalizedProducts;
@@ -2773,6 +3011,8 @@ export const getProductByQrToken = async (req, res) => {
 export const createProduct = async (req, res) => {
   const client = await db.connect();
   let transactionStarted = false;
+  const perfStartedAt = Date.now();
+  const logCreatePerf = buildProductCreatePerfLogger(perfStartedAt);
 
   try {
     await ensureProductSchema();
@@ -3138,27 +3378,36 @@ export const createProduct = async (req, res) => {
     );
     const productId = created.rows[0].id;
     await replaceProductAudiences(client, productId, normalizedAudiences);
-    const insertedVariants = [];
+    logCreatePerf("PRODUCT_CREATE_PERF_START", {
+      variants_count: normalizedVariants.length,
+      color_groups_count: Array.isArray(colorImages) ? colorImages.length : 0,
+      gallery_images_count: normalizedGalleryImages.length,
+    });
 
-    for (const variant of normalizedVariants) {
-      insertedVariants.push(
-        await insertProductVariant(client, {
-          productId,
-          tenantId,
-          variant,
-          skuPrefix: finalProductSku,
-          reservedSkus: reservedVariantSkus,
-          userId: req.user?.id || null,
-          referenceType: "product",
-        })
-      );
-    }
+    const preparedVariants = await prepareVariantsForCreate(client, {
+      productId,
+      tenantId,
+      variants: normalizedVariants,
+      skuPrefix: finalProductSku,
+      reservedSkus: reservedVariantSkus,
+    });
+    const insertedVariants = await bulkInsertProductVariants(client, {
+      tenantId,
+      productId,
+      variants: preparedVariants,
+    });
+    logCreatePerf("PRODUCT_CREATE_PERF_VARIANTS_DONE", {
+      variants_count: insertedVariants.length,
+    });
 
     const persistedVariantImageRows = await replaceProductVariantImages(client, {
       tenantId,
       productId,
       variants: Array.isArray(variants) ? variants : [],
       colorImages: Array.isArray(colorImages) ? colorImages : [],
+    });
+    logCreatePerf("PRODUCT_CREATE_PERF_IMAGES_DONE", {
+      image_rows_count: Array.isArray(persistedVariantImageRows) ? persistedVariantImageRows.length : 0,
     });
 
     const imageBundleMap = await loadProductVariantImages(client, [productId]).catch(() => new Map());
@@ -3169,25 +3418,22 @@ export const createProduct = async (req, res) => {
       imageBundle
     );
 
-    console.log("[product:create] inserted variants", hydratedVariants);
-    console.log("[create-product] inserted variants count", insertedVariants.length);
-
     const persistedVariantCountResult = await client.query(
       "SELECT COUNT(*)::int AS count FROM product_variants WHERE product_id = $1",
       [productId]
     );
     const persistedVariantCount = Number(persistedVariantCountResult.rows[0]?.count || 0);
-    console.log("[create-product] persisted variants db count", {
-      productId,
-      count: persistedVariantCount,
-    });
-
     if (normalizedVariants.length > 0 && persistedVariantCount === 0) {
       throw new Error("No variants inserted for product");
     }
 
     await client.query("COMMIT");
     transactionStarted = false;
+    logCreatePerf("PRODUCT_CREATE_PERF_COMMIT_DONE", {
+      product_id: productId,
+      variants_count: insertedVariants.length,
+      image_rows_count: Array.isArray(persistedVariantImageRows) ? persistedVariantImageRows.length : 0,
+    });
     const createdProduct = normalizeProductRow(created.rows[0]);
     const thermalColorJobs = buildThermalColorJobGroups({
       productId,
@@ -3203,20 +3449,22 @@ export const createProduct = async (req, res) => {
       groups: thermalColorJobs,
       previousThermalUrlMap: new Map(),
     });
-    void scheduleAiShoeCoverJobs({
-      tenantId,
-      productId,
-      productType: createdProduct.product_type || normalizedProductType || "",
-      productImageUrl: createdProduct.image_url || createdProduct.product_image_url || "",
-      galleryImages: createdProduct.gallery_images || [],
-      colorGroups: colorImagesPayload,
-    }).catch((error) => {
-      console.error("[ai-shoe-cover] schedule failed after product create", {
-        productId,
+    if (shouldScheduleAutoAiShoeCoverJobs()) {
+      void scheduleAiShoeCoverJobs({
         tenantId,
-        message: error?.message || String(error),
+        productId,
+        productType: createdProduct.product_type || normalizedProductType || "",
+        productImageUrl: createdProduct.image_url || createdProduct.product_image_url || "",
+        galleryImages: createdProduct.gallery_images || [],
+        colorGroups: colorImagesPayload,
+      }).catch((error) => {
+        console.error("[ai-shoe-cover] schedule failed after product create", {
+          productId,
+          tenantId,
+          message: error?.message || String(error),
+        });
       });
-    });
+    }
 
     return res.status(201).json({
       success: true,
@@ -3858,20 +4106,22 @@ export const updateProduct = async (req, res) => {
       groups: thermalColorJobs,
       previousThermalUrlMap,
     });
-    void scheduleAiShoeCoverJobs({
-      tenantId,
-      productId,
-      productType: updatedProduct.product_type || normalizedProductType || "",
-      productImageUrl: updatedProduct.image_url || updatedProduct.product_image_url || "",
-      galleryImages: updatedProduct.gallery_images || [],
-      colorGroups: colorImagesPayload,
-    }).catch((error) => {
-      console.error("[ai-shoe-cover] schedule failed after product update", {
-        productId,
+    if (shouldScheduleAutoAiShoeCoverJobs()) {
+      void scheduleAiShoeCoverJobs({
         tenantId,
-        message: error?.message || String(error),
+        productId,
+        productType: updatedProduct.product_type || normalizedProductType || "",
+        productImageUrl: updatedProduct.image_url || updatedProduct.product_image_url || "",
+        galleryImages: updatedProduct.gallery_images || [],
+        colorGroups: colorImagesPayload,
+      }).catch((error) => {
+        console.error("[ai-shoe-cover] schedule failed after product update", {
+          productId,
+          tenantId,
+          message: error?.message || String(error),
+        });
       });
-    });
+    }
 
     return res.json({
       success: true,
@@ -4553,19 +4803,21 @@ export const createVariant = async (req, res) => {
       groups: thermalColorJobs,
       previousThermalUrlMap,
     });
-    void scheduleAiShoeCoverJobs({
-      tenantId,
-      productId: req.params.id,
-      productType: productForSku.product_type || "",
-      productImageUrl: productForSku.image_url || productForSku.product_image_url || "",
-      colorGroups: colorImagesPayload,
-    }).catch((error) => {
-      console.error("[ai-shoe-cover] schedule failed after variant create", {
-        productId: req.params.id,
+    if (shouldScheduleAutoAiShoeCoverJobs()) {
+      void scheduleAiShoeCoverJobs({
         tenantId,
-        message: error?.message || String(error),
+        productId: req.params.id,
+        productType: productForSku.product_type || "",
+        productImageUrl: productForSku.image_url || productForSku.product_image_url || "",
+        colorGroups: colorImagesPayload,
+      }).catch((error) => {
+        console.error("[ai-shoe-cover] schedule failed after variant create", {
+          productId: req.params.id,
+          tenantId,
+          message: error?.message || String(error),
+        });
       });
-    });
+    }
 
     return res.status(201).json({
       success: true,
@@ -4743,19 +4995,21 @@ export const updateVariant = async (req, res) => {
       groups: thermalColorJobs,
       previousThermalUrlMap,
     });
-    void scheduleAiShoeCoverJobs({
-      tenantId,
-      productId: currentVariant.product_id,
-      productType: productForSku.product_type || "",
-      productImageUrl: productForSku.image_url || productForSku.product_image_url || "",
-      colorGroups: colorImagesPayload,
-    }).catch((error) => {
-      console.error("[ai-shoe-cover] schedule failed after variant update", {
-        productId: currentVariant.product_id,
+    if (shouldScheduleAutoAiShoeCoverJobs()) {
+      void scheduleAiShoeCoverJobs({
         tenantId,
-        message: error?.message || String(error),
+        productId: currentVariant.product_id,
+        productType: productForSku.product_type || "",
+        productImageUrl: productForSku.image_url || productForSku.product_image_url || "",
+        colorGroups: colorImagesPayload,
+      }).catch((error) => {
+        console.error("[ai-shoe-cover] schedule failed after variant update", {
+          productId: currentVariant.product_id,
+          tenantId,
+          message: error?.message || String(error),
+        });
       });
-    });
+    }
 
     return res.json({
       success: true,

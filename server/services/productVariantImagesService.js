@@ -354,11 +354,51 @@ export const collectProductVariantImagesFromPayload = ({ productId = null, varia
     );
   }
 
-  return dedupeImages(records.filter(Boolean)).map((record, index) => ({
-    ...record,
-    sort_order: Number.isFinite(Number(record.sort_order)) ? Number(record.sort_order) : index,
-    is_primary: Boolean(record.is_primary),
-  }));
+  const dedupedRecords = dedupeImages(records.filter(Boolean));
+  const collapsedByColorUrl = new Map();
+
+  for (const record of dedupedRecords) {
+    const colorKey = toText(record.color_name || record.color_value).toLowerCase();
+    const imageKey = toText(record.image_url).toLowerCase();
+    const groupingKey = colorKey
+      ? `${toText(record.product_id)}:${colorKey}:${imageKey}`
+      : `${toText(record.product_id)}:variant:${toText(record.variant_id)}:${imageKey}`;
+    const existing = collapsedByColorUrl.get(groupingKey);
+    if (!existing) {
+      collapsedByColorUrl.set(groupingKey, {
+        ...record,
+        variantIds: record.variant_id ? new Set([String(record.variant_id)]) : new Set(),
+        hasColorLevelRecord: record.variant_id === null || record.variant_id === undefined || record.variant_id === "",
+      });
+      continue;
+    }
+
+    if (record.variant_id) existing.variantIds.add(String(record.variant_id));
+    existing.hasColorLevelRecord =
+      existing.hasColorLevelRecord ||
+      record.variant_id === null ||
+      record.variant_id === undefined ||
+      record.variant_id === "";
+    existing.sort_order = Math.min(
+      Number(existing.sort_order ?? Number.MAX_SAFE_INTEGER),
+      Number(record.sort_order ?? Number.MAX_SAFE_INTEGER)
+    );
+    existing.is_primary = Boolean(existing.is_primary || record.is_primary);
+    existing.generated_by_ai = Boolean(existing.generated_by_ai || record.generated_by_ai);
+  }
+
+  return Array.from(collapsedByColorUrl.values()).map((record, index) => {
+    const { variantIds, hasColorLevelRecord, ...persistedRecord } = record;
+    return {
+      ...persistedRecord,
+      variant_id:
+        hasColorLevelRecord || variantIds.size !== 1
+          ? null
+          : Number(Array.from(variantIds)[0]) || null,
+      sort_order: Number.isFinite(Number(persistedRecord.sort_order)) ? Number(persistedRecord.sort_order) : index,
+      is_primary: Boolean(persistedRecord.is_primary),
+    };
+  });
 };
 
 export const replaceProductVariantImages = async (clientOrPool, { tenantId = null, productId, variants = [], colorImages = [] } = {}) => {
@@ -389,11 +429,42 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
       });
       return [];
     }
+    const insertableRecords = records
+      .map((record, index) => {
+        const normalizedImageUrl = extractNormalizedImageUrl(record.image_url, record);
+        if (!normalizedImageUrl) return null;
+        return {
+          tenant_id: effectiveTenantId,
+          product_id: productId,
+          variant_id: record.variant_id ?? null,
+          color_name: record.color_name || "",
+          color_value: record.color_value || "",
+          image_url: normalizedImageUrl,
+          sort_order: Number(record.sort_order ?? index ?? 0),
+          is_primary: Boolean(record.is_primary),
+          generated_by_ai: Boolean(record.generated_by_ai),
+        };
+      })
+      .filter(Boolean);
+
     const rows = [];
-    let order = 0;
-    for (const record of records) {
-      const normalizedImageUrl = extractNormalizedImageUrl(record.image_url, record);
-      if (!normalizedImageUrl) continue;
+    if (insertableRecords.length > 0) {
+      const values = [];
+      const placeholders = insertableRecords.map((record, recordIndex) => {
+        const offset = recordIndex * 9;
+        values.push(
+          record.tenant_id,
+          record.product_id,
+          record.variant_id,
+          record.color_name,
+          record.color_value,
+          record.image_url,
+          record.sort_order,
+          record.is_primary,
+          record.generated_by_ai
+        );
+        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9})`;
+      });
       const result = await client.query(
         `
         INSERT INTO product_variant_images (
@@ -407,23 +478,12 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
           is_primary,
           generated_by_ai
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        VALUES ${placeholders.join(", ")}
         RETURNING *
         `,
-        [
-          effectiveTenantId,
-          productId,
-          record.variant_id ?? null,
-          record.color_name || "",
-          record.color_value || "",
-          normalizedImageUrl,
-          Number(record.sort_order ?? order ?? 0),
-          Boolean(record.is_primary),
-          Boolean(record.generated_by_ai),
-        ]
+        values
       );
-      rows.push(result.rows[0]);
-      order += 1;
+      rows.push(...(result.rows || []));
     }
     await indexProductImagesForProduct(client, { productId }).catch((error) => {
       console.warn("[ai-visual-index] product image indexing skipped", {

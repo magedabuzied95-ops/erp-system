@@ -1,6 +1,7 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 
 import { Link, useNavigate } from "react-router-dom";
+import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -69,19 +70,10 @@ import {
   normalizeVariantPayload,
   suggestMirrorEditionName,
   uploadProductImageValue,
-  uploadProductImage,
 } from "../services/productsApi";
 import { isMirrorProduct, slugifyEdition } from "../../../shared/lib/mirrorProduct";
 import { isInvalidEditionName } from "../../../shared/lib/editionNameGenerator";
 import { safeGenerateProductDescriptions } from "../../../shared/lib/generateProductDescriptions";
-
-const readFileAsDataUrl = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
 
 const resolveAssetUrl = (url) => {
   const value = String(url || "").trim();
@@ -124,37 +116,72 @@ const getAiImagePayload = (image = "") => {
 
 const isDataImageUrl = (value) => typeof value === "string" && value.trim().startsWith("data:image/");
 
-const resolvePersistedProductImages = async ({ coverImage = "", gallery = [] } = {}) => {
-  const uploadedByPreview = new Map();
-  const galleryPayload = [];
+const MAX_IMAGE_UPLOAD_CONCURRENCY = 4;
 
-  for (const item of dedupeImages(gallery)) {
+const isBlobPreviewUrl = (value = "") => typeof value === "string" && value.startsWith("blob:");
+
+const createObjectPreviewUrl = (file) => {
+  if (!file || typeof URL === "undefined" || typeof URL.createObjectURL !== "function") return "";
+  return URL.createObjectURL(file);
+};
+
+const revokeObjectPreviewUrl = (value = "") => {
+  if (!isBlobPreviewUrl(value) || typeof URL === "undefined" || typeof URL.revokeObjectURL !== "function") return;
+  URL.revokeObjectURL(value);
+};
+
+const mapWithConcurrency = async (items = [], limit = MAX_IMAGE_UPLOAD_CONCURRENCY, worker) => {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return [];
+
+  const results = new Array(list.length);
+  let cursor = 0;
+  const runNext = async () => {
+    while (cursor < list.length) {
+      const currentIndex = cursor;
+      cursor += 1;
+      results[currentIndex] = await worker(list[currentIndex], currentIndex);
+    }
+  };
+
+  const workerCount = Math.max(1, Math.min(limit, list.length));
+  await Promise.all(Array.from({ length: workerCount }, runNext));
+  return results;
+};
+
+const resolvePersistedProductImages = async ({ coverImage = "", coverImageFile = null, gallery = [] } = {}) => {
+  const uploadedByPreview = new Map();
+  const galleryPayload = await mapWithConcurrency(dedupeImages(gallery), MAX_IMAGE_UPLOAD_CONCURRENCY, async (item) => {
     const preview = item.preview || "";
     const source = item.image_url || item.url || preview || "";
+    const file = item.file || null;
     const shouldUpload =
-      isDataImageUrl(source) ||
-      (typeof File !== "undefined" && item.file instanceof File) ||
-      (typeof Blob !== "undefined" && item.file instanceof Blob);
+      (typeof File !== "undefined" && file instanceof File) ||
+      (typeof Blob !== "undefined" && file instanceof Blob) ||
+      isDataImageUrl(source);
     const imageUrl = shouldUpload
-      ? await uploadProductImageValue(item.file || source, { filename: item.name || "product-gallery.png" })
+      ? await uploadProductImageValue(file || source, { filename: item.name || "product-gallery.png" })
       : String(source || "").trim();
 
     if (preview && imageUrl) uploadedByPreview.set(preview, imageUrl);
     if (source && imageUrl) uploadedByPreview.set(source, imageUrl);
 
-    galleryPayload.push({
+    return {
       ...item,
+      file: undefined,
       image_url: imageUrl,
       preview: imageUrl || preview,
-    });
-  }
+    };
+  });
 
   const coverSource = coverImage || "";
   const coverImageUrl =
     uploadedByPreview.get(coverSource) ||
-    (isDataImageUrl(coverSource)
-      ? await uploadProductImageValue(coverSource, { filename: "product-cover.png" })
-      : String(coverSource || "").trim());
+    (coverImageFile && (((typeof File !== "undefined" && coverImageFile instanceof File) || (typeof Blob !== "undefined" && coverImageFile instanceof Blob)))
+      ? await uploadProductImageValue(coverImageFile, { filename: coverImageFile?.name || "product-cover.png" })
+      : isDataImageUrl(coverSource)
+        ? await uploadProductImageValue(coverSource, { filename: "product-cover.png" })
+        : String(coverSource || "").trim());
 
   return { coverImageUrl, galleryPayload };
 };
@@ -339,10 +366,12 @@ function CreateProduct() {
   const [active, setActive] = useState(true);
   const [trackStock, setTrackStock] = useState(true);
   const [coverImage, setCoverImage] = useState("");
+  const [coverImageFile, setCoverImageFile] = useState(null);
   const [thermalImageUrl, setThermalImageUrl] = useState("");
   const [thermalImageGenerating, setThermalImageGenerating] = useState(false);
   const [gallery, setGallery] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [savingStep, setSavingStep] = useState("");
   const [defaultManufacturerId, setDefaultManufacturerId] = useState("");
   const [colorGroups, setColorGroups] = useState([createEmptyColorGroup()]);
   const [bulkSizesInput, setBulkSizesInput] = useState("");
@@ -363,6 +392,29 @@ function CreateProduct() {
   const [colorPickTarget, setColorPickTarget] = useState(null);
   const pendingColorUploadsRef = useRef(new Map());
   const colorImageUrlsRef = useRef(new Map());
+  const coverObjectUrlRef = useRef("");
+  const galleryObjectUrlsRef = useRef(new Set());
+
+  const trackGalleryObjectUrl = useCallback((url) => {
+    if (isBlobPreviewUrl(url)) galleryObjectUrlsRef.current.add(url);
+  }, []);
+
+  const releaseGalleryObjectUrl = useCallback((url) => {
+    if (!isBlobPreviewUrl(url)) return;
+    galleryObjectUrlsRef.current.delete(url);
+    revokeObjectPreviewUrl(url);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (coverObjectUrlRef.current) {
+        revokeObjectPreviewUrl(coverObjectUrlRef.current);
+        coverObjectUrlRef.current = "";
+      }
+      for (const url of galleryObjectUrlsRef.current) revokeObjectPreviewUrl(url);
+      galleryObjectUrlsRef.current.clear();
+    };
+  }, []);
 
   const isFullVariationMode = variationMode === "full_variations";
   const isColorOnlyMode = variationMode === "color_only";
@@ -1192,42 +1244,35 @@ function CreateProduct() {
     if (!String(targetGroup?.color || "").trim()) {
       void detectColorNameForGroup(colorGroupId, list[0], { overwrite: false });
     }
-    const uploads = list.map(async (file, index) => {
-      const preview = await readFileAsDataUrl(file);
-      const uploadPromise = uploadProductImage(file)
-        .then((response) => {
-          const uploadedUrl =
-            response?.url ||
-            response?.imageUrl ||
-            response?.data?.url ||
-            response?.data?.imageUrl ||
-            "";
-          if (uploadedUrl) {
-            colorImageUrlsRef.current.set(colorGroupId, uploadedUrl);
-          }
-          return { preview, image_url: uploadedUrl || "", name: file?.name || `Color image ${index + 1}` };
+    const uploads = await mapWithConcurrency(list, MAX_IMAGE_UPLOAD_CONCURRENCY, async (file, index) => {
+      const uploadKey = `${colorGroupId}:${index}:${file?.name || "file"}`;
+      const uploadPromise = uploadProductImageValue(file, { filename: file?.name || `color-image-${index + 1}.png` })
+        .then((uploadedUrl) => {
+          if (uploadedUrl) colorImageUrlsRef.current.set(colorGroupId, uploadedUrl);
+          return { preview: uploadedUrl || "", image_url: uploadedUrl || "", name: file?.name || `Color image ${index + 1}` };
         })
         .catch((error) => {
-          console.warn("[products:add] color image upload failed, keeping preview only:", {
+          console.warn("[products:add] color image upload failed:", {
             colorGroupId,
             message: error?.message,
             status: error?.status,
             responseBody: error?.responseBody,
           });
           toast.error(t("products.editor.colorImageUploadFailed"));
-          return { preview, image_url: "", name: file?.name || `Color image ${index + 1}` };
+          return { preview: "", image_url: "", name: file?.name || `Color image ${index + 1}` };
         });
-      pendingColorUploadsRef.current.set(`${colorGroupId}:${index}`, uploadPromise);
+      pendingColorUploadsRef.current.set(uploadKey, uploadPromise);
       try {
         return await uploadPromise;
       } finally {
-        pendingColorUploadsRef.current.delete(`${colorGroupId}:${index}`);
+        pendingColorUploadsRef.current.delete(uploadKey);
       }
     });
-
-    const items = await Promise.all(uploads);
     updateColorGroupImages(colorGroupId, (images) => {
-      const normalized = dedupeImages([...images, ...items.map((item, index) => createColorImageItem({ ...item, is_primary: images.length === 0 && index === 0 }, index + images.length)).filter(Boolean)]);
+      const normalized = dedupeImages([
+        ...images,
+        ...uploads.map((item, index) => createColorImageItem({ ...item, is_primary: images.length === 0 && index === 0 }, index + images.length)).filter(Boolean),
+      ]);
       if (!normalized.some((item) => item.is_primary) && normalized.length > 0) {
         normalized[0] = { ...normalized[0], is_primary: true };
       }
@@ -1448,8 +1493,14 @@ function CreateProduct() {
   const handleCover = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const preview = await readFileAsDataUrl(file);
+    if (coverObjectUrlRef.current) {
+      revokeObjectPreviewUrl(coverObjectUrlRef.current);
+      coverObjectUrlRef.current = "";
+    }
+    const preview = createObjectPreviewUrl(file);
+    coverObjectUrlRef.current = preview;
     setCoverImage(preview);
+    setCoverImageFile(file);
     setCoverLabel(file.name);
     setThermalImageUrl("");
   };
@@ -1664,14 +1715,17 @@ function CreateProduct() {
   const handleGallery = async (event) => {
     const files = Array.from(event.target.files || []);
     if (files.length === 0) return;
-    const items = await Promise.all(
-      files.map(async (file) => ({
+    const items = files.map((file) => {
+      const preview = createObjectPreviewUrl(file);
+      trackGalleryObjectUrl(preview);
+      return {
         id: makeId(),
         name: file.name,
         size: file.size,
-        preview: await readFileAsDataUrl(file),
-      }))
-    );
+        file,
+        preview,
+      };
+    });
     setGallery((prev) => dedupeImages([...prev, ...items]));
     event.target.value = "";
   };
@@ -1681,12 +1735,18 @@ function CreateProduct() {
     const next = gallery.filter((item) => String(item.id || item.name) !== String(galleryId));
     const targetSrc = target?.preview || target?.image_url || target?.url || "";
     const removedPrimary = targetSrc && coverImage && targetSrc === coverImage;
+    if (target?.preview) releaseGalleryObjectUrl(target.preview);
     setGallery(next);
     if (removedPrimary) {
       const nextPrimary = next[0] || null;
       setCoverImage(nextPrimary?.preview || nextPrimary?.image_url || nextPrimary?.url || "");
+      setCoverImageFile(nextPrimary?.file || null);
       setCoverLabel(nextPrimary?.name || "");
       setThermalImageUrl("");
+      if (!nextPrimary && coverObjectUrlRef.current) {
+        revokeObjectPreviewUrl(coverObjectUrlRef.current);
+        coverObjectUrlRef.current = "";
+      }
     }
     toast.success(t("products.images.removed"));
   };
@@ -1695,6 +1755,7 @@ function CreateProduct() {
     const src = item?.preview || item?.image_url || item?.url || "";
     if (!src) return;
     setCoverImage(src);
+    setCoverImageFile(item?.file || null);
     setCoverLabel(item?.name || "Gallery image");
     setThermalImageUrl("");
     toast.success(t("products.editor.primaryProductImageUpdated"));
@@ -1708,6 +1769,7 @@ function CreateProduct() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (saving) return;
     setVariantNotice("");
 
     if (!name.trim()) {
@@ -1758,6 +1820,8 @@ function CreateProduct() {
 
     try {
       setSaving(true);
+      setSavingStep("Uploading images...");
+      const perfStartedAt = Date.now();
 
       const pendingUploads = Array.from(pendingColorUploadsRef.current.values());
       if (pendingUploads.length > 0) {
@@ -1879,9 +1943,6 @@ function CreateProduct() {
         })
         .filter(Boolean);
 
-      console.log("[create-product] generated variants", generatedVariants);
-      console.log("[create-product] outgoing variants payload", generatedVariants);
-
       if (!isSimpleMode && filledGroups.length > 0 && generatedVariants.length === 0) {
         const message = "No variants provided";
         setVariantNotice(message);
@@ -1891,9 +1952,16 @@ function CreateProduct() {
 
       const { coverImageUrl, galleryPayload } = await resolvePersistedProductImages({
         coverImage,
+        coverImageFile,
         gallery,
       });
+      console.log("PRODUCT_CREATE_PERF_UPLOADS_DONE", {
+        duration_ms: Date.now() - perfStartedAt,
+        gallery_images_count: galleryPayload.length,
+        color_groups_count: colorImagesPayload.length,
+      });
 
+      setSavingStep("Saving variants...");
       const productPayload = normalizeProductRelationIds({
         name: name.trim(),
         description: descriptionEn || descriptionAr || description,
@@ -1945,32 +2013,16 @@ function CreateProduct() {
         colorImages: colorImagesPayload,
         ...getManufacturerPayload(defaultManufacturerId),
       });
-      console.log("[create-product] final payload", productPayload);
-      console.log("[create-product] save category/brand payload", {
-        category: productPayload.category,
-        category_id: productPayload.category_id,
-        brand: productPayload.brand,
-        brand_id: productPayload.brand_id,
-        unit: productPayload.unit,
-        unit_id: productPayload.unit_id,
-      });
-
-      console.log(
-        "[product-save] variant image payload",
-        productPayload.variants.map((variant) => ({
-          color: variant.color,
-          size: variant.size,
-          image_url: variant.image_url,
-          variant_image_url: variant.variant_image_url,
-          color_image_url: variant.color_image_url,
-        }))
-      );
-      console.log("[product:create] payload variants", productPayload.variants);
-      console.log("[products:add] POST /api/products payload:", productPayload);
-
+      setSavingStep("Saving images...");
       const product = await createProduct(productPayload);
-
-      console.log("[products:add] POST /api/products response:", product);
+      console.log("PRODUCT_CREATE_PERF_VARIANTS_DONE", {
+        duration_ms: Date.now() - perfStartedAt,
+        variants_count: productPayload.variants.length,
+      });
+      console.log("PRODUCT_CREATE_PERF_IMAGES_DONE", {
+        duration_ms: Date.now() - perfStartedAt,
+        image_rows_count: colorImagesPayload.reduce((sum, group) => sum + (Array.isArray(group.images) ? group.images.length : 0), 0),
+      });
 
       const productSku = product.sku || skuPrefix || uniqueSmartSkuPrefix || generateSku(name, product.id).split("-")[0];
       const meta = {
@@ -2030,7 +2082,13 @@ function CreateProduct() {
         setVariantNotice("Product saved without variants");
       }
 
+      setSavingStep("Finalizing...");
       toast.success(createdCount > 0 ? `Product created with ${createdCount} variant(s)` : "Product created");
+      console.log("PRODUCT_CREATE_PERF_COMMIT_DONE", {
+        duration_ms: Date.now() - perfStartedAt,
+        variants_count: createdCount,
+        image_rows_count: colorImagesPayload.reduce((sum, group) => sum + (Array.isArray(group.images) ? group.images.length : 0), 0),
+      });
       navigate("/products");
     } catch (err) {
       console.log(err);
@@ -2040,6 +2098,7 @@ function CreateProduct() {
       });
       toast.error(err?.message || "فشل إنشاء المنتج");
     } finally {
+      setSavingStep("");
       setSaving(false);
     }
   };
@@ -2267,6 +2326,7 @@ function CreateProduct() {
         <ProductActionBar
           mode="create"
           saving={saving}
+          savingStep={savingStep}
           hasUnsavedChanges={hasUnsavedChanges}
           formId="create-product-form"
         />
@@ -2294,7 +2354,7 @@ function CreateProduct() {
                   className={buttonClasses("primary", "h-9 rounded-[12px] px-4")}
                 >
                   <Plus size={16} strokeWidth={2} />
-                  {saving ? t("products.shared.saving") : t("products.editor.saveProduct")}
+                  {saving ? savingStep || t("products.shared.saving") : t("products.editor.saveProduct")}
                 </button>
               </div>
             </div>
@@ -3797,7 +3857,7 @@ function SectionCard({ children, hidden = false, className = "", id }) {
   );
 }
 
-function ProductActionBar({ mode = "create", saving = false, hasUnsavedChanges = false, formId }) {
+function ProductActionBar({ mode = "create", saving = false, savingStep = "", hasUnsavedChanges = false, formId }) {
   const { t } = useTranslation();
   const label =
     mode === "create"
@@ -3810,7 +3870,9 @@ function ProductActionBar({ mode = "create", saving = false, hasUnsavedChanges =
         <div className="min-w-0">
           <p className="text-xs font-semibold text-zinc-500">{t("products.editor.productEditor", "محرر المنتج")}</p>
           <p className={`mt-1 text-sm font-semibold ${hasUnsavedChanges ? "text-amber-200" : "text-emerald-200"}`}>
-            {hasUnsavedChanges
+            {saving && savingStep
+              ? savingStep
+              : hasUnsavedChanges
               ? t("products.editor.unsavedChanges", "توجد تغييرات غير محفوظة")
               : t("products.editor.noChangesYet", "لا توجد تغييرات بعد")}
           </p>
@@ -3822,7 +3884,7 @@ function ProductActionBar({ mode = "create", saving = false, hasUnsavedChanges =
           className={buttonClasses("primary", "h-11 w-full rounded-[14px] px-5 sm:w-auto")}
         >
           {saving ? <Loader2 size={16} strokeWidth={2} className="animate-spin" /> : <Save size={16} strokeWidth={2} />}
-          {saving ? t("common.saving", "جارٍ الحفظ...") : label}
+          {saving ? savingStep || t("common.saving", "جارٍ الحفظ...") : label}
         </button>
       </div>
     </div>
