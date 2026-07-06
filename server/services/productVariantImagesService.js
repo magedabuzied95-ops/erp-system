@@ -11,6 +11,93 @@ const toBool = (value) => value === true || value === 1 || value === "1" || Stri
 let productVariantImagesSchemaPromise = null;
 let productVariantImagesSchemaEnsured = false;
 const tableColumnsCache = new Map();
+const MAX_IMAGE_URL_LENGTH = Number(process.env.PRODUCT_VARIANT_IMAGE_URL_MAX_LENGTH || 4096);
+const IMAGE_LOG_PREFIX_LENGTH = 96;
+
+const summarizeImageValue = (value) => {
+  const text = typeof value === "string" ? value : JSON.stringify(value);
+  const normalized = String(text || "");
+  return {
+    length: normalized.length,
+    preview: normalized.slice(0, IMAGE_LOG_PREFIX_LENGTH),
+  };
+};
+
+const isLikelyUrlString = (value = "") => /^(https?:\/\/|\/\/|\/)/i.test(String(value || "").trim());
+
+const logInvalidImageCandidate = (reason, value, extra = {}) => {
+  const summary = summarizeImageValue(value);
+  console.warn("PRODUCT_VARIANT_IMAGE_INVALID", {
+    reason,
+    image_length: summary.length,
+    image_start: summary.preview,
+    ...extra,
+  });
+};
+
+const extractNormalizedImageUrl = (image, fallback = {}) => {
+  const candidates = [];
+  if (typeof image === "string") {
+    candidates.push(image);
+  } else if (image && typeof image === "object") {
+    candidates.push(
+      image.secure_url,
+      image.url,
+      image.image_url,
+      image.imageUrl,
+      image.preview,
+      image.path,
+      image.file_path,
+      image.image,
+      image.photo_url,
+      image.thumbnail_url
+    );
+  }
+  candidates.push(
+    fallback.secure_url,
+    fallback.url,
+    fallback.image_url,
+    fallback.imageUrl,
+    fallback.preview,
+    fallback.path,
+    fallback.file_path,
+    fallback.image,
+    fallback.photo_url,
+    fallback.thumbnail_url
+  );
+
+  for (const candidate of candidates) {
+    const imageUrl = toText(candidate);
+    if (!imageUrl) continue;
+    if (/^data:image\//i.test(imageUrl)) {
+      logInvalidImageCandidate("data_image_url", imageUrl, {
+        product_id: fallback.product_id ?? image?.product_id ?? null,
+        variant_id: fallback.variant_id ?? image?.variant_id ?? null,
+        color_name: toText(fallback.color_name || image?.color_name || image?.color || ""),
+      });
+      return null;
+    }
+    if (imageUrl.length > MAX_IMAGE_URL_LENGTH) {
+      logInvalidImageCandidate("image_url_too_long", imageUrl, {
+        product_id: fallback.product_id ?? image?.product_id ?? null,
+        variant_id: fallback.variant_id ?? image?.variant_id ?? null,
+        color_name: toText(fallback.color_name || image?.color_name || image?.color || ""),
+      });
+      return null;
+    }
+    if (!isLikelyUrlString(imageUrl)) {
+      logInvalidImageCandidate("non_url_image_value", imageUrl, {
+        product_id: fallback.product_id ?? image?.product_id ?? null,
+        variant_id: fallback.variant_id ?? image?.variant_id ?? null,
+        color_name: toText(fallback.color_name || image?.color_name || image?.color || ""),
+      });
+      return null;
+    }
+    return imageUrl;
+  }
+
+  return null;
+};
 
 const imageRecordKeys = (record = {}) => {
   const keys = [];
@@ -77,7 +164,7 @@ const getTableColumns = async (client, tableName) => {
 
 const normalizeImageInput = (image = {}, fallback = {}) => {
   if (typeof image === "string") {
-    const imageUrl = toText(image);
+    const imageUrl = extractNormalizedImageUrl(image, fallback);
     if (!imageUrl) return null;
     return {
       id: null,
@@ -91,17 +178,7 @@ const normalizeImageInput = (image = {}, fallback = {}) => {
     };
   }
 
-  const imageUrl = toText(
-    image.image_url ||
-      image.imageUrl ||
-      image.url ||
-      image.preview ||
-      image.path ||
-      image.file_path ||
-      image.image ||
-      image.photo_url ||
-      image.thumbnail_url
-  );
+  const imageUrl = extractNormalizedImageUrl(image, fallback);
   if (!imageUrl) return null;
 
   return {
@@ -257,7 +334,12 @@ export const collectProductVariantImagesFromPayload = ({ productId = null, varia
       continue;
     }
 
-    const imageUrl = toText(variant.image_url || variant.variant_image_url || variant.color_image_url);
+    const imageUrl = extractNormalizedImageUrl(variant, {
+      product_id: productId,
+      variant_id: variant.variant_id ?? variant.id ?? null,
+      color_name: variant.color || "",
+      color_value: variant.color || "",
+    });
     if (!imageUrl) continue;
 
     records.push(
@@ -310,6 +392,8 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
     const rows = [];
     let order = 0;
     for (const record of records) {
+      const normalizedImageUrl = extractNormalizedImageUrl(record.image_url, record);
+      if (!normalizedImageUrl) continue;
       const result = await client.query(
         `
         INSERT INTO product_variant_images (
@@ -332,7 +416,7 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
           record.variant_id ?? null,
           record.color_name || "",
           record.color_value || "",
-          record.image_url || "",
+          normalizedImageUrl,
           Number(record.sort_order ?? order ?? 0),
           Boolean(record.is_primary),
           Boolean(record.generated_by_ai),
