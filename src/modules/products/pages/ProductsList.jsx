@@ -29,7 +29,6 @@ import {
 
 import toast from "react-hot-toast";
 
-import { api } from "../../../shared/api/api";
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
 import { hasPermission } from "../../permissions/lib/rbacStore";
 
@@ -1270,22 +1269,6 @@ function ProductsList() {
         setLoading(true);
         setError("");
 
-        try {
-          await api.get("/health", { timeoutMs: REQUEST_TIMEOUT_MS });
-        } catch (healthError) {
-          const message = t("common.noData");
-          console.error("[products:list] backend health check failed", {
-            url: healthError?.url || "/api/health",
-            method: "GET",
-            message: healthError?.message,
-          });
-          if (!cancelled && latestProductsRequestRef.current === requestId) {
-            setError(message);
-            toast.error(message);
-          }
-          return;
-        }
-
         const refreshToken = Date.now();
         const productsResult = await getProductsAdminList({
           timeoutMs: REQUEST_TIMEOUT_MS,
@@ -1420,6 +1403,12 @@ function ProductsList() {
   const currentPage = Math.min(page, totalPages);
   const start = Number(pagination.offset || 0) || 0;
   const visibleRows = rows;
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
 
   const selectedCount = selectedIds.length;
   const selectedRows = useMemo(
@@ -1923,7 +1912,7 @@ function ProductsList() {
       }
       toast.success(t("common.update"));
       setMarketingEditorOpen(false);
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       toast.error(err?.message || t("common.noData"));
     } finally {
@@ -1949,7 +1938,7 @@ function ProductsList() {
       }
       toast.success(t("common.update"));
       setMarketingEditorOpen(false);
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       toast.error(err?.message || t("common.noData"));
     } finally {
@@ -1971,7 +1960,7 @@ function ProductsList() {
       await scheduleMarketingPost(saved.id, { scheduled_at: scheduledAt });
       toast.success(t("common.update"));
       setMarketingEditorOpen(false);
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       toast.error(err?.message || t("common.noData"));
     } finally {
@@ -1996,11 +1985,11 @@ function ProductsList() {
             : t("products.actionsMenu.delete", "حذف")
       );
       setSelectedIds([]);
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       console.log(err);
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.deleteFailed", "Failed to delete product"));
-      await loadProducts();
+      refreshProducts();
     }
   };
 
@@ -2020,7 +2009,7 @@ function ProductsList() {
           ? t("products.toasts.productsActivated", "Products activated")
           : t("products.toasts.productsDeactivated", "Products deactivated")
       );
-      await loadProducts();
+      refreshProducts();
     } catch (err) {
       console.error("[products:list] bulk status failed", err);
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.statusUpdateFailed", "Failed to update product status"));
@@ -3074,7 +3063,7 @@ function BarcodeQueueBulkModal({
   );
 }
 
-function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, priceDisplay, displaySku, actions, t }) {
+const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, priceDisplay, displaySku, actions, t }) {
   const visibleActions = (actions || []).slice(0, 4);
 
   return (
@@ -3171,7 +3160,7 @@ function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey,
       </div>
     </article>
   );
-}
+});
 
 function QuickRowAction({ icon: Icon, label, onClick, disabled = false, className = "" }) {
   return (
