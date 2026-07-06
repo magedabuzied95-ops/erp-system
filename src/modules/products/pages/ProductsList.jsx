@@ -2352,7 +2352,9 @@ function ProductsList() {
             ) : (
               visibleRows.map((row) => {
                 const { totalStock, lowStockAlert, isLowStock, isOutOfStock } = getProductStockState(row);
-                const priceDisplay = getCatalogPriceDisplay(row);
+                const displayCost = formatCardPrice(row.display_cost ?? 0);
+                const sellingPrice = formatCardPrice(row.selling_price ?? 0);
+                const salePrice = row.sale_price != null ? formatCardPrice(row.sale_price) : "غير متاح";
                 const displaySku = cleanSkuDisplay(row.sku);
                 const inactiveProduct = isInactiveProduct(row);
                 const storefrontVisible = isStorefrontVisibleValue(row);
@@ -2387,7 +2389,9 @@ function ProductsList() {
                     status={status}
                     totalStock={totalStock}
                     lowStockAlert={lowStockAlert}
-                    priceDisplay={priceDisplay}
+                    displayCost={displayCost}
+                    sellingPrice={sellingPrice}
+                    salePrice={salePrice}
                     displaySku={displaySku}
                     storefrontVisible={storefrontVisible}
                     actions={dropdownActions}
@@ -2448,7 +2452,9 @@ function ProductsList() {
                 ) : (
                   visibleRows.map((row) => {
                     const { totalStock, lowStockAlert, isLowStock, isOutOfStock } = getProductStockState(row);
-                    const priceDisplay = getCatalogPriceDisplay(row);
+                    const displayCost = formatCardPrice(row.display_cost ?? 0);
+                    const sellingPrice = formatCardPrice(row.selling_price ?? 0);
+                    const salePrice = row.sale_price != null ? formatCardPrice(row.sale_price) : "غير متاح";
                     const displaySku = cleanSkuDisplay(row.sku);
                     const barcodeTitle = cleanSkuDisplay(row.barcode) ? `${displaySku ? `${displaySku} / ` : ""}${row.barcode}` : displaySku;
                     const inactiveProduct = isInactiveProduct(row);
@@ -2529,9 +2535,9 @@ function ProductsList() {
                         </td>
                         <td className="px-4 py-4 align-middle">
                           <div className="grid gap-1.5 text-xs leading-5">
-                            <PriceLine label={t("products.priceLabels.cost", "Cost")} value={priceDisplay.cost} varies={priceDisplay.costVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="muted" />
-                            <PriceLine label={t("products.priceLabels.sell", "Sell")} value={priceDisplay.sell} varies={priceDisplay.sellVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="sell" />
-                            <PriceLine label={t("products.priceLabels.sale", "Sale")} value={priceDisplay.sale} varies={priceDisplay.saleVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="sale" />
+                            <PriceLine label={t("products.priceLabels.cost", "Cost")} value={displayCost} tone="muted" />
+                            <PriceLine label={t("products.priceLabels.sell", "Sell")} value={sellingPrice} tone="sell" />
+                            <PriceLine label={t("products.priceLabels.sale", "Sale")} value={salePrice} tone="sale" />
                           </div>
                         </td>
                         <td className="px-4 py-4 align-middle">
@@ -3062,7 +3068,7 @@ function BarcodeQueueBulkModal({
   );
 }
 
-const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, priceDisplay, displaySku, actions, t }) {
+const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, displayCost, sellingPrice, salePrice, displaySku, actions, t }) {
   const visibleActions = (actions || []).slice(0, 4);
 
   return (
@@ -3130,9 +3136,9 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
 
       <div className="mt-3 rounded-xl border border-white/8 bg-black/15 p-2">
         <div className="grid grid-cols-3 gap-2 text-xs">
-          <PriceLine label={t("products.priceLabels.cost", "Cost")} value={priceDisplay.cost} varies={priceDisplay.costVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="muted" />
-          <PriceLine label={t("products.priceLabels.sell", "Sell")} value={priceDisplay.sell} varies={priceDisplay.sellVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="sell" />
-          <PriceLine label={t("products.priceLabels.sale", "Sale")} value={priceDisplay.sale} varies={priceDisplay.saleVaries} variesLabel={t("products.priceLabels.varies", "Varies")} tone="sale" />
+          <PriceLine label={t("products.priceLabels.cost", "Cost")} value={displayCost} tone="muted" />
+          <PriceLine label={t("products.priceLabels.sell", "Sell")} value={sellingPrice} tone="sell" />
+          <PriceLine label={t("products.priceLabels.sale", "Sale")} value={salePrice} tone="sale" />
         </div>
       </div>
 

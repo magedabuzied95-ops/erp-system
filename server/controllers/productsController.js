@@ -2779,9 +2779,19 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(p.purchase_price, 0) AS purchase_price,
         p.last_purchase_cost AS last_purchase_cost,
         COALESCE(p.average_cost, 0) AS average_cost,
+        COALESCE(
+          NULLIF(p.last_purchase_cost, 0),
+          NULLIF(p.average_cost, 0),
+          NULLIF(p.cost_price, 0),
+          0
+        ) AS display_cost,
         COALESCE(p.selling_price, p.regular_price, p.price, 0) AS selling_price,
         COALESCE(p.regular_price, p.price, p.selling_price, 0) AS regular_price,
-        COALESCE(p.sale_price, 0) AS sale_price,
+        CASE
+          WHEN COALESCE(p.sale_price_enabled, FALSE) = TRUE AND COALESCE(p.sale_price, 0) > 0 THEN p.sale_price
+          ELSE NULL
+        END AS sale_price,
+        COALESCE(p.sale_price_enabled, FALSE) AS sale_price_enabled,
         COALESCE(p.price, p.regular_price, p.selling_price, 0) AS price,
         COALESCE(NULLIF(TRIM(p.status), ''), 'active') AS status,
         CASE
