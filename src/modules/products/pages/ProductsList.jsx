@@ -2768,7 +2768,7 @@ function ProductsList() {
         </div>
       ) : null}
 
-      {!loading && !error && products.length === 0 ? (
+      {!loading && !error && rows.length === 0 ? (
         <div className="rounded-[34px] border border-white/8 bg-zinc-950/80 p-12 text-center">
           <AlertTriangle className="mx-auto text-amber-400" size={40} />
           <h3 className="mt-4 text-2xl font-black text-white">{t("products.empty.catalogTitle")}</h3>
