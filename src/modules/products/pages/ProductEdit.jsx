@@ -407,6 +407,37 @@ const normalizeProductForm = (row = {}) => ({
   low_stock_alert: String(row.low_stock_alert ?? row.low_stock_threshold ?? ""),
 });
 
+const normalizePricingFieldValue = (value) => {
+  if (value === null || value === undefined) return "";
+  return String(value).trim();
+};
+
+const buildProductPricingSnapshot = (source = {}) => ({
+  regular_price: normalizePricingFieldValue(source.regular_price ?? source.price ?? ""),
+  price: normalizePricingFieldValue(source.price ?? source.regular_price ?? ""),
+  sale_price: normalizePricingFieldValue(source.sale_price ?? ""),
+  sale_price_enabled: source.sale_price_enabled === true || String(source.sale_price_enabled || "").toLowerCase() === "true",
+  wholesale_price: normalizePricingFieldValue(source.wholesale_price ?? ""),
+  cost_price: normalizePricingFieldValue(source.cost_price ?? source.purchase_price ?? ""),
+  use_custom_compare_price:
+    source.use_custom_compare_price === true || String(source.use_custom_compare_price || "").toLowerCase() === "true",
+  custom_compare_price: normalizePricingFieldValue(source.custom_compare_price ?? ""),
+  sale_reason: normalizePricingFieldValue(source.sale_reason ?? ""),
+  sale_start_at: normalizePricingFieldValue(source.sale_start_at ? String(source.sale_start_at).slice(0, 16) : ""),
+  sale_end_at: normalizePricingFieldValue(source.sale_end_at ? String(source.sale_end_at).slice(0, 16) : ""),
+});
+
+const buildVariantPricingSnapshot = (source = {}) => ({
+  price: normalizePricingFieldValue(source.price ?? source.regular_price ?? source.selling_price ?? ""),
+  sale_price: normalizePricingFieldValue(source.sale_price ?? ""),
+  sale_price_enabled: source.sale_price_enabled === true || String(source.sale_price_enabled || "").toLowerCase() === "true",
+  wholesale_price: normalizePricingFieldValue(source.wholesale_price ?? ""),
+  cost_price: normalizePricingFieldValue(source.cost_price ?? source.purchase_price ?? ""),
+});
+
+const pricingSnapshotsEqual = (left = {}, right = {}) =>
+  JSON.stringify(left || {}) === JSON.stringify(right || {});
+
 const normalizeGalleryImages = (value) => {
   let source = value;
 
@@ -490,11 +521,11 @@ const normalizeVariantForm = (row = {}) => ({
       ""
   ),
   available_stock: String(row.stock ?? row.variant_stock ?? 0),
-  price: String(row.price ?? row.sale_price ?? row.variant_sale_price ?? 0),
-  sale_price: String(row.sale_price ?? row.variant_sale_price ?? 0),
+  price: String(row.price ?? row.sale_price ?? row.variant_sale_price ?? ""),
+  sale_price: String(row.sale_price ?? row.variant_sale_price ?? ""),
   sale_price_enabled: row.sale_price_enabled === true || String(row.sale_price_enabled || "").toLowerCase() === "true",
-  wholesale_price: String(row.wholesale_price ?? row.variant_wholesale_price ?? 0),
-  cost_price: String(row.cost_price ?? row.purchase_price ?? row.last_purchase_cost ?? 0),
+  wholesale_price: String(row.wholesale_price ?? row.variant_wholesale_price ?? ""),
+  cost_price: String(row.cost_price ?? row.purchase_price ?? row.last_purchase_cost ?? ""),
   sku: row.sku || row.variant_sku || "",
   article_code: row.article_code || row.variant_article_code || "",
   barcode: row.barcode || row.variant_barcode || "",
@@ -703,6 +734,8 @@ function ProductEdit() {
   const units = useMemo(() => seedUnits(), []);
   const pendingColorUploadsRef = useRef(new Map());
   const colorImageUrlsRef = useRef(new Map());
+  const initialProductPricingRef = useRef(buildProductPricingSnapshot(emptyProduct));
+  const initialVariantPricingRef = useRef(new Map());
   const [manufacturers, setManufacturers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1164,6 +1197,8 @@ function ProductEdit() {
         if (!firstRow) {
           setError(t("products.editor.productNotFound"));
           setProduct(emptyProduct);
+          initialProductPricingRef.current = buildProductPricingSnapshot(emptyProduct);
+          initialVariantPricingRef.current = new Map();
           setMainCategory("");
           setSubCategory("");
           setChildCategory("");
@@ -1211,6 +1246,10 @@ function ProductEdit() {
         normalizedProduct.sku = loadedProductSku || loadedUniqueSkuPrefix;
         const loadedVariantRows = rawSavedVariants;
         const variantRows = loadedVariantRows.map(normalizeVariantForm).filter((row) => row.variantId);
+        initialProductPricingRef.current = buildProductPricingSnapshot(normalizedProduct);
+        initialVariantPricingRef.current = new Map(
+          variantRows.map((row) => [String(row.variantId), buildVariantPricingSnapshot(row)])
+        );
         setSavedVariantsCount(variantRows.length);
 
         if (normalizedProduct.variation_mode === "simple") {
@@ -2260,6 +2299,101 @@ function ProductEdit() {
     }
   };
 
+  const parseOptionalNumericField = (value) => {
+    const text = normalizePricingFieldValue(value);
+    if (!text) return "";
+    const parsed = Number(text);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+
+  const getChangedProductPricingPayload = () => {
+    const currentSnapshot = buildProductPricingSnapshot(product);
+    const initialSnapshot = initialProductPricingRef.current || buildProductPricingSnapshot(emptyProduct);
+    if (pricingSnapshotsEqual(currentSnapshot, initialSnapshot)) {
+      return {};
+    }
+
+    const payload = {};
+    if (
+      currentSnapshot.regular_price !== initialSnapshot.regular_price ||
+      currentSnapshot.price !== initialSnapshot.price
+    ) {
+      const nextBasePrice = parseOptionalNumericField(currentSnapshot.price || currentSnapshot.regular_price);
+      payload.regular_price = nextBasePrice;
+      payload.price = nextBasePrice;
+    }
+    if (currentSnapshot.sale_price !== initialSnapshot.sale_price) {
+      payload.sale_price = currentSnapshot.sale_price === "" ? "" : parseOptionalNumericField(currentSnapshot.sale_price);
+    }
+    if (currentSnapshot.sale_price_enabled !== initialSnapshot.sale_price_enabled) {
+      payload.sale_price_enabled = currentSnapshot.sale_price_enabled;
+    }
+    if (currentSnapshot.wholesale_price !== initialSnapshot.wholesale_price) {
+      payload.wholesale_price = currentSnapshot.wholesale_price === "" ? "" : parseOptionalNumericField(currentSnapshot.wholesale_price);
+    }
+    if (currentSnapshot.cost_price !== initialSnapshot.cost_price) {
+      payload.cost_price = currentSnapshot.cost_price === "" ? "" : parseOptionalNumericField(currentSnapshot.cost_price);
+    }
+    if (currentSnapshot.use_custom_compare_price !== initialSnapshot.use_custom_compare_price) {
+      payload.use_custom_compare_price = currentSnapshot.use_custom_compare_price;
+    }
+    if (currentSnapshot.custom_compare_price !== initialSnapshot.custom_compare_price) {
+      payload.custom_compare_price = currentSnapshot.custom_compare_price === "" ? "" : parseOptionalNumericField(currentSnapshot.custom_compare_price);
+    }
+    if (currentSnapshot.sale_reason !== initialSnapshot.sale_reason) {
+      payload.sale_reason = currentSnapshot.sale_reason;
+    }
+    if (currentSnapshot.sale_start_at !== initialSnapshot.sale_start_at) {
+      payload.sale_start_at = currentSnapshot.sale_start_at || null;
+    }
+    if (currentSnapshot.sale_end_at !== initialSnapshot.sale_end_at) {
+      payload.sale_end_at = currentSnapshot.sale_end_at || null;
+    }
+
+    return payload;
+  };
+
+  const getChangedVariantPricingPayload = (row) => {
+    const currentSnapshot = buildVariantPricingSnapshot(row);
+    const variantId = String(row.variantId || "");
+    const initialSnapshot = variantId ? initialVariantPricingRef.current.get(variantId) || null : null;
+    const isNewVariant = !variantId;
+    if (!isNewVariant && initialSnapshot && pricingSnapshotsEqual(currentSnapshot, initialSnapshot)) {
+      return {};
+    }
+
+    const hasAnyPricingValue =
+      currentSnapshot.price !== "" ||
+      currentSnapshot.sale_price !== "" ||
+      currentSnapshot.wholesale_price !== "" ||
+      currentSnapshot.cost_price !== "" ||
+      currentSnapshot.sale_price_enabled;
+    if (isNewVariant && !hasAnyPricingValue) {
+      return {};
+    }
+
+    const payload = {};
+    if (isNewVariant || !initialSnapshot || currentSnapshot.cost_price !== initialSnapshot.cost_price) {
+      payload.purchase_price = currentSnapshot.cost_price === "" ? "" : parseOptionalNumericField(currentSnapshot.cost_price);
+    }
+    if (isNewVariant || !initialSnapshot || currentSnapshot.price !== initialSnapshot.price) {
+      const nextBasePrice = currentSnapshot.price === "" ? "" : parseOptionalNumericField(currentSnapshot.price);
+      payload.regular_price = nextBasePrice;
+      payload.price = nextBasePrice;
+    }
+    if (isNewVariant || !initialSnapshot || currentSnapshot.sale_price !== initialSnapshot.sale_price) {
+      payload.sale_price = currentSnapshot.sale_price === "" ? "" : parseOptionalNumericField(currentSnapshot.sale_price);
+    }
+    if (isNewVariant || !initialSnapshot || currentSnapshot.sale_price_enabled !== initialSnapshot.sale_price_enabled) {
+      payload.sale_price_enabled = currentSnapshot.sale_price_enabled;
+    }
+    if (isNewVariant || !initialSnapshot || currentSnapshot.wholesale_price !== initialSnapshot.wholesale_price) {
+      payload.wholesale_price = currentSnapshot.wholesale_price === "" ? "" : parseOptionalNumericField(currentSnapshot.wholesale_price);
+    }
+
+    return payload;
+  };
+
   const handleSave = async () => {
     console.log("[edit-product] save diagnostics", {
       savedVariantsCount,
@@ -2421,14 +2555,7 @@ function ProductEdit() {
           }),
           barcode: String(sourceRow.barcode || "").trim(),
           article_code: groupArticleCode,
-          ...(sourceRow.variantId ? {
-            purchase_price: Number(sourceRow.cost_price || 0),
-            regular_price: Number(sourceRow.price || 0),
-            price: Number(sourceRow.price || 0),
-            sale_price: Number(sourceRow.sale_price || 0),
-            sale_price_enabled: Boolean(sourceRow.sale_price_enabled),
-            wholesale_price: Number(sourceRow.wholesale_price || 0),
-          } : {}),
+          ...getChangedVariantPricingPayload(sourceRow),
           image_url: sourceRow.image_url || groupImageUrl || "",
           variant_image_url: sourceRow.image_url || groupImageUrl || "",
           color_image_url: groupImageUrl,
@@ -2479,14 +2606,7 @@ function ProductEdit() {
           }),
           barcode: String(row.barcode || "").trim(),
           article_code: groupArticleCode,
-          ...(row.variantId ? {
-            purchase_price: Number(row.cost_price || 0),
-            regular_price: Number(row.price || 0),
-            price: Number(row.price || 0),
-            sale_price: Number(row.sale_price || 0),
-            sale_price_enabled: Boolean(row.sale_price_enabled),
-            wholesale_price: Number(row.wholesale_price || 0),
-          } : {}),
+          ...getChangedVariantPricingPayload(row),
           image_url: row.image_url || groupImageUrl || "",
           variant_image_url: row.image_url || groupImageUrl || "",
           color_image_url: groupImageUrl,
@@ -2591,7 +2711,8 @@ function ProductEdit() {
         gallery,
       });
 
-      const savedProduct = await updateProduct(productId, {
+      const pricingPayload = getChangedProductPricingPayload();
+      const updatePayload = {
         name: product.name,
         ...categoryPayload,
         ...brandPayload,
@@ -2603,8 +2724,7 @@ function ProductEdit() {
         seo_description: product.seo_description || product.description_en || product.description_ar || product.description,
         seo_keywords: product.seo_keywords,
         canonical_slug: product.canonical_slug,
-        use_custom_compare_price: Boolean(product.use_custom_compare_price),
-        custom_compare_price: Number(product.custom_compare_price || 0),
+        ...pricingPayload,
         gender: product.audiences?.[0] || product.gender || "",
         audiences: product.audiences || [],
         product_audiences: product.audiences || [],
@@ -2637,7 +2757,10 @@ function ProductEdit() {
         })),
         ...getManufacturerPayload(defaultManufacturerId),
         deleted_variant_ids: removedVariantIds,
-      });
+      };
+      console.log("[edit-product] outgoing updateProduct payload", updatePayload);
+      console.log("[edit-product] outgoing updateProduct payload json", JSON.stringify(updatePayload, null, 2));
+      const savedProduct = await updateProduct(productId, updatePayload);
       console.log("[edit-product] backend variant sync result", {
         product_id: productId,
         variant_sync: savedProduct?.variant_sync,
