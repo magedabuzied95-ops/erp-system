@@ -6,6 +6,7 @@ import {
   createVariant,
   deleteProduct,
   deleteVariant,
+  getProductsAdminList,
   getProductByQrToken,
   getProducts,
   getProductsWithVariants,
@@ -35,6 +36,7 @@ router.use((req, res, next) => {
   next();
 });
 
+router.get("/admin-list", protect, getProductsAdminList);
 router.get("/", protect, getProducts);
 router.get("/with-variants", protect, getProductsWithVariants);
 router.get("/qr/:token", protect, getProductByQrToken);

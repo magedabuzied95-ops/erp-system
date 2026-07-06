@@ -40,7 +40,6 @@ import {
   cleanupProductCache,
   generateBarcode,
   generateSku,
-  mergeProductRecord,
   removeProductMeta,
   upsertProductMeta,
 } from "../lib/catalog";
@@ -52,7 +51,7 @@ import {
   bulkAddBarcodePrintQueue,
   createProduct,
   deleteProduct,
-  getProducts,
+  getProductsAdminList,
   getProductsWithVariants,
   updateProductPrices,
   updateProductStatus,
@@ -492,30 +491,6 @@ const isSimpleCatalogProduct = (row = {}) => {
 };
 const getProductId = (row = {}) =>
   row?.product_id ?? row?.productId ?? row?.product?.id ?? row?.id ?? null;
-
-const normalizeVariantRows = (rows = []) =>
-  rows.flatMap((row) => {
-    const productId = getProductId(row);
-
-    if (Array.isArray(row?.variants) && row.variants.length > 0) {
-      return row.variants.map((variant) => ({
-        ...variant,
-        product_id: productId,
-        product: row.product || row,
-      }));
-    }
-
-    if (row?.variant_id || row?.variantId || row?.size || row?.color) {
-      return [
-        {
-          ...row,
-          product_id: productId,
-        },
-      ];
-    }
-
-    return [];
-  });
 
 const getProductTotalStock = (product) => {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
@@ -1157,7 +1132,6 @@ function ProductsList() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
 
-  const [products, setProducts] = useState([]);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -1189,10 +1163,12 @@ function ProductsList() {
   const [barcodeQueueDialogRegenerateExisting, setBarcodeQueueDialogRegenerateExisting] = useState(false);
   const [barcodeQueueDialogSelection, setBarcodeQueueDialogSelection] = useState({});
   const [barcodeQueueSubmitting, setBarcodeQueueSubmitting] = useState(false);
+  const [barcodeQueueRows, setBarcodeQueueRows] = useState([]);
   const actionMenuRef = useRef(null);
   const actionMenuTriggerRef = useRef(null);
   const filtersRef = useRef(null);
   const filtersTriggerRef = useRef(null);
+  const productDetailsCacheRef = useRef(new Map());
   const canCreateMarketingPost = hasPermission("marketing.create");
   const canUpdateMarketingPost = hasPermission("marketing.update");
   const canPublishMarketingPost = hasPermission("marketing.publish");
@@ -1236,9 +1212,6 @@ function ProductsList() {
   });
 
   const loadProducts = async () => {
-    let baseProducts;
-    let variantRows = [];
-
     try {
       setLoading(true);
       setError("");
@@ -1258,55 +1231,10 @@ function ProductsList() {
       }
 
       const refreshToken = Date.now();
-      const [productsResult, variantsResult] = await Promise.allSettled([
-        getProducts({ timeoutMs: REQUEST_TIMEOUT_MS, params: { refresh: refreshToken } }),
-        getProductsWithVariants({ timeoutMs: REQUEST_TIMEOUT_MS, params: { refresh: refreshToken } }),
-      ]);
-
-      if (productsResult.status === "rejected") {
-        if (Number(productsResult.reason?.status || productsResult.reason?.responseBody?.status) === 401) {
-          throw new Error("Session expired. Please login again.");
-        }
-        throw productsResult.reason;
-      }
-
-      baseProducts = Array.isArray(productsResult.value) ? productsResult.value : [];
-      console.log("[products:list] products response", baseProducts);
-
-      if (variantsResult.status === "rejected") {
-        if (Number(variantsResult.reason?.status || variantsResult.reason?.responseBody?.status) === 401) {
-          throw new Error("Session expired. Please login again.");
-        }
-        console.warn("[products:list] with variants response failed", variantsResult.reason);
-        toast("Variants failed to load. Showing products only.");
-      } else {
-        variantRows = Array.isArray(variantsResult.value) ? variantsResult.value : [];
-        console.log("[products:list] with variants response", variantRows);
-      }
-
-      const flattenedVariants = normalizeVariantRows(variantRows);
-      const groupedVariants = flattenedVariants.reduce((acc, item) => {
-        const productId = String(getProductId(item));
-        if (!productId || productId === "null" || productId === "undefined") return acc;
-        if (!acc[productId]) acc[productId] = [];
-        acc[productId].push(item);
-        return acc;
-      }, {});
-
-      const merged = baseProducts.map((product) => {
-        const variants = groupedVariants[String(product.id)] || [];
-        const isSimpleProduct = isSimpleCatalogProduct(product);
-        return {
-          ...mergeProductRecord(product, isSimpleProduct ? null : variants[0] || null),
-          product_image_url: product.image_url || "",
-          gallery_images: product.gallery_images || product.gallery || [],
-          gallery: product.gallery || product.gallery_images || [],
-          variants: isSimpleProduct ? [] : variants,
-        };
-      });
-
-      setProducts(baseProducts);
-      setRows(merged);
+      const productsResult = await getProductsAdminList({ timeoutMs: REQUEST_TIMEOUT_MS, params: { refresh: refreshToken } });
+      const baseProducts = Array.isArray(productsResult?.products) ? productsResult.products : [];
+      productDetailsCacheRef.current.clear();
+      setRows(baseProducts);
     } catch (err) {
       console.error("[products:list] load error", err);
       const message =
@@ -1322,6 +1250,27 @@ function ProductsList() {
     }
   };
 
+  const loadProductDetails = async (productId) => {
+    const key = String(productId || "");
+    if (!key) return null;
+    if (productDetailsCacheRef.current.has(key)) return productDetailsCacheRef.current.get(key);
+
+    const result = await getProductsWithVariants({
+      timeoutMs: REQUEST_TIMEOUT_MS,
+      params: { productId, refresh: Date.now() },
+    });
+    const product = Array.isArray(result) ? result[0] || null : null;
+    if (product) productDetailsCacheRef.current.set(key, product);
+    return product;
+  };
+
+  const loadMultipleProductDetails = async (productIds = []) => {
+    const ids = [...new Set((Array.isArray(productIds) ? productIds : []).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0))];
+    if (!ids.length) return [];
+    const results = await Promise.all(ids.map((productId) => loadProductDetails(productId)));
+    return results.filter(Boolean);
+  };
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
       loadProducts();
@@ -1331,7 +1280,6 @@ function ProductsList() {
 
   useEffect(() => {
     const refetchProducts = () => {
-      setProducts([]);
       setRows([]);
       loadProducts();
     };
@@ -1602,7 +1550,9 @@ function ProductsList() {
   const handleDuplicate = async (row) => {
     setOpenActionId(null);
     try {
-      const product = await createProduct(duplicateProductPayload(row));
+      const detailedRow = await loadProductDetails(row.id);
+      const sourceRow = detailedRow || row;
+      const product = await createProduct(duplicateProductPayload(sourceRow));
 
       if (product?.id) {
         upsertProductMeta({
@@ -1632,10 +1582,24 @@ function ProductsList() {
     }
   };
 
-  const handleOpenPriceEditor = (row) => {
-    setPriceEditorProduct(row);
+  const handleOpenPriceEditor = async (row) => {
     setOpenActionId(null);
     setActionMenuPosition(null);
+    try {
+      const detailedRow = await loadProductDetails(row.id);
+      setPriceEditorProduct(detailedRow || row);
+    } catch (err) {
+      toast.error(err?.message || t("products.priceEditor.loadFailed", "Failed to load product pricing details"));
+    }
+  };
+
+  const handleOpenSelectedProduct = async (row) => {
+    try {
+      const detailedRow = await loadProductDetails(row.id);
+      setSelectedProduct(detailedRow || row);
+    } catch (err) {
+      toast.error(err?.message || t("products.details.loadFailed", "Failed to load product details"));
+    }
   };
 
   const handleOpenStock = (row) => {
@@ -2048,12 +2012,15 @@ function ProductsList() {
     }
   };
 
-  const openBarcodeQueueDialog = () => {
+  const openBarcodeQueueDialog = async () => {
     if (!selectedRows.length) return;
+    const detailedRows = await loadMultipleProductDetails(selectedRows.map((row) => row.id));
+    const resolvedRows = detailedRows.length ? detailedRows : selectedRows;
     const initialSelection = {};
-    selectedRows.forEach((row) => {
+    resolvedRows.forEach((row) => {
       initialSelection[String(row.id)] = getProductQueueColorGroups(row).map((group) => group.colorKey || normalizeQueueColorKey(group.primaryImageUrl)).filter(Boolean);
     });
+    setBarcodeQueueRows(resolvedRows);
     setBarcodeQueueDialogMode("all");
     setBarcodeQueueDialogRegenerateExisting(false);
     setBarcodeQueueDialogSelection(initialSelection);
@@ -2063,17 +2030,18 @@ function ProductsList() {
   const closeBarcodeQueueDialog = () => {
     setBarcodeQueueDialogOpen(false);
     setBarcodeQueueSubmitting(false);
+    setBarcodeQueueRows([]);
   };
 
   const handleConfirmBarcodeQueueAdd = async () => {
-    if (!selectedRows.length || barcodeQueueSubmitting) return;
+    if (!barcodeQueueRows.length || barcodeQueueSubmitting) return;
 
     try {
       setBarcodeQueueSubmitting(true);
       const payload = {
         regenerateExisting: barcodeQueueDialogRegenerateExisting,
         colorMode: barcodeQueueDialogMode,
-        products: selectedRows.map((row) => {
+        products: barcodeQueueRows.map((row) => {
           const colorGroups = getProductQueueColorGroups(row);
           const selectedColorKeys =
             barcodeQueueDialogMode === "selected"
@@ -2410,7 +2378,7 @@ function ProductsList() {
                     row={row}
                     selected={selectedIds.includes(row.id)}
                     onToggleSelected={() => toggleSelected(row.id)}
-                    onOpen={() => setSelectedProduct(row)}
+                    onOpen={() => handleOpenSelectedProduct(row)}
                     statusKey={statusKey}
                     status={status}
                     totalStock={totalStock}
@@ -2516,7 +2484,7 @@ function ProductsList() {
                         <td className="px-4 py-3 align-middle">
                           <button
                             type="button"
-                            onClick={() => setSelectedProduct(row)}
+                            onClick={() => handleOpenSelectedProduct(row)}
                             className="flex w-full min-w-0 items-center gap-3 text-left"
                           >
                             <ProductThumbnail row={row} />
@@ -2837,7 +2805,7 @@ function ProductsList() {
       ) : null}
       <BarcodeQueueBulkModal
         open={barcodeQueueDialogOpen}
-        selectedRows={selectedRows}
+        selectedRows={barcodeQueueRows}
         mode={barcodeQueueDialogMode}
         regenerateExisting={barcodeQueueDialogRegenerateExisting}
         selection={barcodeQueueDialogSelection}

@@ -942,6 +942,8 @@ const normalizeProductRow = (row = {}) => {
   const image = cleanImageValue(row.image || "");
   const galleryImages = normalizeGalleryImages(row.gallery_images);
   const variantColorThermalImageUrl = row.variant_color_thermal_image_url || row.color_thermal_image_url || row.thermal_image_url || "";
+  const activeVariantCount = Number(row.active_variant_count || 0);
+  const totalVariantStock = Number(row.total_variant_stock || 0);
   return ({
   ...row,
   selling_price: regularPrice,
@@ -966,7 +968,9 @@ const normalizeProductRow = (row = {}) => {
     Number.isFinite(Number(row.suggested_purchase_cartons)) && Number(row.suggested_purchase_cartons) >= 1
       ? Math.floor(Number(row.suggested_purchase_cartons))
       : 1,
-  stock: Number(row.stock ?? row.quantity ?? row.qty ?? row.available_quantity ?? row.inventory_quantity ?? row.current_stock ?? 0),
+  stock: activeVariantCount > 0
+    ? totalVariantStock
+    : Number(row.stock ?? row.quantity ?? row.qty ?? row.available_quantity ?? row.inventory_quantity ?? row.current_stock ?? 0),
   low_stock_threshold: Number(row.low_stock_threshold || 10),
   low_stock_alert: Number(row.low_stock_alert ?? row.low_stock_threshold ?? 0),
   low_stock_tracking_mode: normalizeLowStockTrackingMode(row.low_stock_tracking_mode),
@@ -1815,6 +1819,57 @@ const normalizeVariantsForMode = ({ variationMode, variants = [], fixedSizeLabel
   return normalizedVariants;
 };
 
+const syncProductStockFromVariants = async (client, { productId, tenantId, variationMode }) => {
+  const normalizedVariationMode = normalizeVariationMode(variationMode);
+  if (normalizedVariationMode === "simple") {
+    return {
+      stockSynced: false,
+      activeVariantCount: 0,
+      totalVariantStock: null,
+    };
+  }
+
+  const aggregateResult = await client.query(
+    `
+    SELECT
+      COUNT(*)::int AS active_variant_count,
+      COALESCE(SUM(GREATEST(COALESCE(stock, 0), 0)), 0)::int AS total_variant_stock
+    FROM product_variants
+    WHERE product_id = $1
+      AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
+      AND is_active IS DISTINCT FROM FALSE
+      AND deleted_at IS NULL
+    `,
+    [productId, tenantId]
+  );
+  const activeVariantCount = Number(aggregateResult.rows[0]?.active_variant_count || 0);
+  const totalVariantStock = Number(aggregateResult.rows[0]?.total_variant_stock || 0);
+
+  if (activeVariantCount <= 0) {
+    return {
+      stockSynced: false,
+      activeVariantCount,
+      totalVariantStock,
+    };
+  }
+
+  await client.query(
+    `
+    UPDATE products
+    SET stock = $1
+    WHERE id = $2
+      AND ($3::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $3::bigint)
+    `,
+    [totalVariantStock, productId, tenantId]
+  );
+
+  return {
+    stockSynced: true,
+    activeVariantCount,
+    totalVariantStock,
+  };
+};
+
 const resolveExistingVariantId = async (client, { productId, tenantId, variant }) => {
   if (variant.id) return variant.id;
   const color = String(variant.color || "").trim();
@@ -1948,11 +2003,28 @@ const makeUniqueSku = async (client, { tenantId, sku, productId = null, variantI
   return candidate;
 };
 
-const buildProductCreatePerfLogger = (startedAt) => (label, details = {}) => {
-  console.log(label, {
-    duration_ms: Date.now() - startedAt,
-    ...details,
-  });
+const createProductSavePerformanceLogger = () => {
+  const requestStartedAt = process.hrtime.bigint();
+  let lastStageAt = requestStartedAt;
+
+  const toMilliseconds = (duration) => Number(duration) / 1e6;
+
+  return {
+    markStage(stage) {
+      const currentAt = process.hrtime.bigint();
+      console.log("[product-save-performance]", {
+        stage,
+        duration_ms: Number(toMilliseconds(currentAt - lastStageAt).toFixed(3)),
+      });
+      lastStageAt = currentAt;
+    },
+    markTotal() {
+      const currentAt = process.hrtime.bigint();
+      console.log("[product-save-total]", {
+        total_ms: Number(toMilliseconds(currentAt - requestStartedAt).toFixed(3)),
+      });
+    },
+  };
 };
 
 const loadTenantSkuBarcodeSets = async (client, { tenantId }) => {
@@ -2460,6 +2532,205 @@ const loadActiveProductVariantSnapshot = async (client, { productId, tenantId })
   return result.rows || [];
 };
 
+let productAdminListIndexesReadyPromise = null;
+
+const ensureProductAdminListIndexes = async () => {
+  if (!productAdminListIndexesReadyPromise) {
+    productAdminListIndexesReadyPromise = (async () => {
+      await ensureProductSchema();
+      await ensureProductVariantSchema();
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_products_category_id ON products (category_id)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_products_brand_id ON products (brand_id)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants (product_id)`);
+      if (await tableExists(db, "warehouse_inventory")) {
+        await db.query(`CREATE INDEX IF NOT EXISTS idx_warehouse_inventory_variant_id ON warehouse_inventory (variant_id)`);
+      }
+    })().catch((error) => {
+      productAdminListIndexesReadyPromise = null;
+      throw error;
+    });
+  }
+  return productAdminListIndexesReadyPromise;
+};
+
+export const getProductsAdminList = async (req, res) => {
+  const startedAt = Date.now();
+  const scope = resolveProductRequestScope(req);
+
+  try {
+    await ensureProductAdminListIndexes();
+    const columns = await getProductColumns();
+    const scopeClause = buildProductScopeClause({ columns, scope });
+    const hasWarehouseInventory = await tableExists(db, "warehouse_inventory");
+    const hasProductVariantImages = await tableExists(db, "product_variant_images");
+    const hasProductAudiences = await tableExists(db, "product_audiences");
+
+    const values = [...scopeClause.values];
+    const searchClause = buildProductSearchClause({
+      values,
+      search: req.query.search ?? req.query.q ?? "",
+    });
+    const whereSql = [
+      scopeClause.whereSql,
+      searchClause ? `${scopeClause.whereSql ? "AND" : "WHERE"} ${searchClause}` : "",
+    ].filter(Boolean).join("\n");
+
+    const page = Math.max(1, Number(req.query.page || 1) || 1);
+    const requestedLimit = Number(req.query.limit || 0) || 0;
+    const limit = requestedLimit > 0 ? Math.min(requestedLimit, 500) : null;
+    const offset = limit ? (page - 1) * limit : 0;
+    const limitSql = limit ? `LIMIT $${values.length + 1} OFFSET $${values.length + 2}` : "";
+    if (limit) {
+      values.push(limit, offset);
+    }
+
+    const variantStockSql = hasWarehouseInventory
+      ? `
+        COALESCE(SUM(GREATEST(COALESCE(wi.total_stock, v.stock, 0), 0)), 0)::int AS total_stock
+      `
+      : `
+        COALESCE(SUM(GREATEST(COALESCE(v.stock, 0), 0)), 0)::int AS total_stock
+      `;
+
+    const variantStockJoinSql = hasWarehouseInventory
+      ? `
+        LEFT JOIN (
+          SELECT variant_id, COALESCE(SUM(stock), 0) AS total_stock
+          FROM warehouse_inventory
+          GROUP BY variant_id
+        ) wi ON wi.variant_id = v.id
+      `
+      : "";
+
+    const coverImageJoinSql = hasProductVariantImages
+      ? `
+        LEFT JOIN (
+          SELECT DISTINCT ON (product_id)
+            product_id,
+            image_url
+          FROM product_variant_images
+          WHERE TRIM(COALESCE(image_url, '')) <> ''
+          ORDER BY product_id, is_primary DESC, sort_order ASC, id ASC
+        ) pvi_cover ON pvi_cover.product_id = p.id
+      `
+      : "";
+
+    const audienceJoinSql = hasProductAudiences
+      ? `
+        LEFT JOIN (
+          SELECT product_id, jsonb_agg(audience ORDER BY audience) AS audiences
+          FROM product_audiences
+          GROUP BY product_id
+        ) pa ON pa.product_id = p.id
+      `
+      : "";
+
+    const result = await db.query(
+      `
+      WITH variant_totals AS (
+        SELECT
+          v.product_id,
+          COUNT(*)::int AS active_variant_count,
+          ${variantStockSql}
+        FROM product_variants v
+        ${variantStockJoinSql}
+        WHERE v.is_active IS DISTINCT FROM FALSE
+          AND v.deleted_at IS NULL
+        GROUP BY v.product_id
+      )
+      SELECT
+        p.id,
+        COALESCE(NULLIF(TRIM(p.name), ''), 'Product') AS name,
+        COALESCE(p.sku, '') AS sku,
+        COALESCE(p.barcode, '') AS barcode,
+        COALESCE(NULLIF(TRIM(c.name), ''), NULLIF(TRIM(p.category), ''), '') AS category,
+        COALESCE(NULLIF(TRIM(b.name), ''), NULLIF(TRIM(p.brand), ''), '') AS brand,
+        COALESCE(
+          NULLIF(TRIM(p.image_url), ''),
+          NULLIF(TRIM(p.thumbnail_url), ''),
+          NULLIF(TRIM(p.photo_url), ''),
+          NULLIF(TRIM(p.image), ''),
+          ${hasProductVariantImages ? "NULLIF(TRIM(pvi_cover.image_url), '')" : "NULL"},
+          ''
+        ) AS cover_image_url,
+        COALESCE(vt.total_stock, GREATEST(COALESCE(p.stock, 0), 0))::int AS total_stock,
+        COALESCE(p.selling_price, p.regular_price, p.price, 0) AS selling_price,
+        COALESCE(p.regular_price, p.price, p.selling_price, 0) AS regular_price,
+        COALESCE(p.sale_price, 0) AS sale_price,
+        COALESCE(p.price, p.regular_price, p.selling_price, 0) AS price,
+        COALESCE(NULLIF(TRIM(p.status), ''), 'active') AS status,
+        CASE
+          WHEN COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') IN ('inactive', 'archived', 'deleted') THEN FALSE
+          ELSE TRUE
+        END AS active,
+        CASE
+          WHEN p.is_storefront_visible IS NULL THEN TRUE
+          ELSE p.is_storefront_visible
+        END AS is_storefront_visible,
+        COALESCE(p.is_offer_story, FALSE) AS is_offer_story,
+        COALESCE(p.variation_mode, '') AS variation_mode,
+        COALESCE(p.low_stock_alert, 0) AS low_stock_alert,
+        COALESCE(p.gender, '') AS gender,
+        COALESCE(p.product_type, '') AS product_type,
+        COALESCE(p.grade, '') AS grade,
+        COALESCE(vt.active_variant_count, 0) AS active_variant_count,
+        ${hasProductAudiences ? "COALESCE(pa.audiences, '[]'::jsonb)" : "'[]'::jsonb"} AS product_audiences,
+        COUNT(*) OVER()::int AS total_count
+      FROM products p
+      LEFT JOIN categories c ON c.id = p.category_id
+      LEFT JOIN brands b ON b.id = p.brand_id
+      LEFT JOIN variant_totals vt ON vt.product_id = p.id
+      ${coverImageJoinSql}
+      ${audienceJoinSql}
+      ${whereSql}
+      ORDER BY p.id DESC
+      ${limitSql}
+      `,
+      values
+    );
+
+    const rows = (result.rows || []).map((row) => ({
+      ...row,
+      image_url: row.cover_image_url || "",
+      product_image_url: row.cover_image_url || "",
+      thumbnail_url: row.cover_image_url || "",
+      photo_url: row.cover_image_url || "",
+      variants: [],
+      color_images: [],
+      product_audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
+      audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
+    }));
+    const total = Number(result.rows?.[0]?.total_count || 0);
+
+    console.log("PRODUCT_ADMIN_LIST_TIMING", {
+      durationMs: Date.now() - startedAt,
+      productsCount: rows.length,
+    });
+
+    return res.json({
+      success: true,
+      data: rows,
+      products: rows,
+      pagination: {
+        page,
+        limit: limit || rows.length,
+        total,
+        totalPages: limit ? Math.max(1, Math.ceil(total / limit)) : 1,
+      },
+    });
+  } catch (error) {
+    console.error("[products/admin-list] request error", {
+      message: error?.message,
+      stack: error?.stack,
+    });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch admin product list",
+      error: error?.message,
+    });
+  }
+};
+
 export const getProducts = async (req, res) => {
   const scope = resolveProductRequestScope(req);
 
@@ -2498,6 +2769,20 @@ export const getProducts = async (req, res) => {
       text: `
         SELECT
           p.*,
+          (
+            SELECT COUNT(*)::int
+            FROM product_variants sv
+            WHERE sv.product_id = p.id
+              AND sv.is_active IS DISTINCT FROM FALSE
+              AND sv.deleted_at IS NULL
+          ) AS active_variant_count,
+          (
+            SELECT COALESCE(SUM(GREATEST(COALESCE(sv.stock, 0), 0)), 0)::int
+            FROM product_variants sv
+            WHERE sv.product_id = p.id
+              AND sv.is_active IS DISTINCT FROM FALSE
+              AND sv.deleted_at IS NULL
+          ) AS total_variant_stock,
           COALESCE(p.image_url, '') AS image_url,
           COALESCE(p.thumbnail_url, '') AS thumbnail_url,
           COALESCE(p.photo_url, '') AS photo_url,
@@ -2609,6 +2894,20 @@ export const getProductsWithVariants = async (req, res) => {
       text: `
         SELECT
           p.*,
+          (
+            SELECT COUNT(*)::int
+            FROM product_variants sv
+            WHERE sv.product_id = p.id
+              AND sv.is_active IS DISTINCT FROM FALSE
+              AND sv.deleted_at IS NULL
+          ) AS active_variant_count,
+          (
+            SELECT COALESCE(SUM(GREATEST(COALESCE(sv.stock, 0), 0)), 0)::int
+            FROM product_variants sv
+            WHERE sv.product_id = p.id
+              AND sv.is_active IS DISTINCT FROM FALSE
+              AND sv.deleted_at IS NULL
+          ) AS total_variant_stock,
           COALESCE(p.image_url, '') AS image_url,
           COALESCE(p.thumbnail_url, '') AS thumbnail_url,
           COALESCE(p.photo_url, '') AS photo_url,
@@ -3011,8 +3310,7 @@ export const getProductByQrToken = async (req, res) => {
 export const createProduct = async (req, res) => {
   const client = await db.connect();
   let transactionStarted = false;
-  const perfStartedAt = Date.now();
-  const logCreatePerf = buildProductCreatePerfLogger(perfStartedAt);
+  const performanceLogger = createProductSavePerformanceLogger();
 
   try {
     await ensureProductSchema();
@@ -3161,6 +3459,7 @@ export const createProduct = async (req, res) => {
     if (!tenantId) {
       return tenantContextMissingResponse(res);
     }
+    performanceLogger.markStage("Validate request");
 
     await client.query("BEGIN");
     transactionStarted = true;
@@ -3234,6 +3533,7 @@ export const createProduct = async (req, res) => {
     const nextThermalImageUrl = normalizedProductImageUrl ? "" : normalizedThermalImageUrl;
     const nextThermalImageGeneratedAt = normalizedProductImageUrl ? null : normalizedThermalImageUrl ? new Date().toISOString() : null;
     const nextThermalImageError = "";
+    performanceLogger.markStage("Upload images");
     const insertColumns = [
       "tenant_id",
       "name",
@@ -3377,12 +3677,9 @@ export const createProduct = async (req, res) => {
       insertParams
     );
     const productId = created.rows[0].id;
+    performanceLogger.markStage("Save product");
     await replaceProductAudiences(client, productId, normalizedAudiences);
-    logCreatePerf("PRODUCT_CREATE_PERF_START", {
-      variants_count: normalizedVariants.length,
-      color_groups_count: Array.isArray(colorImages) ? colorImages.length : 0,
-      gallery_images_count: normalizedGalleryImages.length,
-    });
+    performanceLogger.markStage("Save attributes");
 
     const preparedVariants = await prepareVariantsForCreate(client, {
       productId,
@@ -3396,9 +3693,7 @@ export const createProduct = async (req, res) => {
       productId,
       variants: preparedVariants,
     });
-    logCreatePerf("PRODUCT_CREATE_PERF_VARIANTS_DONE", {
-      variants_count: insertedVariants.length,
-    });
+    performanceLogger.markStage("Save variants");
 
     const persistedVariantImageRows = await replaceProductVariantImages(client, {
       tenantId,
@@ -3406,9 +3701,7 @@ export const createProduct = async (req, res) => {
       variants: Array.isArray(variants) ? variants : [],
       colorImages: Array.isArray(colorImages) ? colorImages : [],
     });
-    logCreatePerf("PRODUCT_CREATE_PERF_IMAGES_DONE", {
-      image_rows_count: Array.isArray(persistedVariantImageRows) ? persistedVariantImageRows.length : 0,
-    });
+    performanceLogger.markStage("Save variant images");
 
     const imageBundleMap = await loadProductVariantImages(client, [productId]).catch(() => new Map());
     const imageBundle = imageBundleMap.get(String(productId)) || null;
@@ -3426,14 +3719,20 @@ export const createProduct = async (req, res) => {
     if (normalizedVariants.length > 0 && persistedVariantCount === 0) {
       throw new Error("No variants inserted for product");
     }
+    const stockSyncResult = await syncProductStockFromVariants(client, {
+      productId,
+      tenantId,
+      variationMode: normalizedVariationMode,
+    });
+    if (stockSyncResult.stockSynced) {
+      created.rows[0].stock = stockSyncResult.totalVariantStock;
+      created.rows[0].active_variant_count = stockSyncResult.activeVariantCount;
+      created.rows[0].total_variant_stock = stockSyncResult.totalVariantStock;
+    }
+    performanceLogger.markStage("Save stock");
 
     await client.query("COMMIT");
     transactionStarted = false;
-    logCreatePerf("PRODUCT_CREATE_PERF_COMMIT_DONE", {
-      product_id: productId,
-      variants_count: insertedVariants.length,
-      image_rows_count: Array.isArray(persistedVariantImageRows) ? persistedVariantImageRows.length : 0,
-    });
     const createdProduct = normalizeProductRow(created.rows[0]);
     const thermalColorJobs = buildThermalColorJobGroups({
       productId,
@@ -3465,6 +3764,8 @@ export const createProduct = async (req, res) => {
         });
       });
     }
+    performanceLogger.markStage("Any post-save hooks");
+    performanceLogger.markTotal();
 
     return res.status(201).json({
       success: true,
@@ -3502,6 +3803,7 @@ export const createProduct = async (req, res) => {
 export const updateProduct = async (req, res) => {
   const client = await db.connect();
   let transactionStarted = false;
+  const performanceLogger = createProductSavePerformanceLogger();
 
   try {
     const bootstrapSteps = [
@@ -3593,6 +3895,17 @@ export const updateProduct = async (req, res) => {
       variant_image_payload,
       deleted_variant_ids,
     } = req.body || {};
+    const variantsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "variants");
+    const deletedVariantIdsProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "deleted_variant_ids");
+    const colorImagesProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "colorImages");
+    const variantImagesProvided = [
+      "variantImages",
+      "variant_images",
+      "variantImagePayload",
+      "variant_image_payload",
+    ].some((key) => Object.prototype.hasOwnProperty.call(req.body || {}, key));
+    const shouldSyncVariants = variantsProvided || deletedVariantIdsProvided;
+    const shouldPersistVariantImages = shouldSyncVariants || colorImagesProvided || variantImagesProvided;
     const normalizedForeignKeys = {
       category_id: normalizeOptionalForeignKey(category_id),
       brand_id: normalizeOptionalForeignKey(brand_id),
@@ -3658,26 +3971,107 @@ export const updateProduct = async (req, res) => {
     const normalizedCanonicalSlug = String(canonical_slug || "").trim();
     const normalizedSaleStartAt = normalizeSqlTimestampInput(sale_start_at);
     const normalizedSaleEndAt = normalizeSqlTimestampInput(sale_end_at);
+    const basePriceProvided = ["selling_price", "sellingPrice", "regular_price", "price"].some((key) =>
+      Object.prototype.hasOwnProperty.call(req.body || {}, key)
+    );
+    const salePriceProvided = ["sale_price", "offer_price"].some((key) =>
+      Object.prototype.hasOwnProperty.call(req.body || {}, key)
+    );
+    const salePriceEnabledProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "sale_price_enabled");
+    const saleReasonProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "sale_reason");
+    const saleStartAtProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "sale_start_at");
+    const saleEndAtProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "sale_end_at");
+    const useCustomComparePriceProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "use_custom_compare_price");
+    const customComparePriceProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "custom_compare_price");
+    const costPriceProvided = ["cost_price", "purchase_price"].some((key) =>
+      Object.prototype.hasOwnProperty.call(req.body || {}, key)
+    );
+    const wholesalePriceProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "wholesale_price");
     const productPricingProvided = [
-      "regular_price",
-      "price",
-      "sale_price",
-      "offer_price",
-      "sale_price_enabled",
-      "sale_reason",
-      "sale_start_at",
-      "sale_end_at",
-      "cost_price",
-      "purchase_price",
-      "wholesale_price",
-    ].some((key) => Object.prototype.hasOwnProperty.call(req.body || {}, key));
-    const normalizedRegularPrice = Number(regular_price || price || cost_price || purchase_price || wholesale_price || 0);
-    const normalizedSalePrice = Number(sale_price || offer_price || 0);
-    const normalizedSaleEnabled =
-      (sale_price_enabled === true || String(sale_price_enabled || "").toLowerCase() === "true") &&
-      normalizedSalePrice > 0 &&
-      normalizedRegularPrice > 0 &&
-      normalizedSalePrice < normalizedRegularPrice;
+      basePriceProvided,
+      salePriceProvided,
+      salePriceEnabledProvided,
+      saleReasonProvided,
+      saleStartAtProvided,
+      saleEndAtProvided,
+      useCustomComparePriceProvided,
+      customComparePriceProvided,
+      costPriceProvided,
+      wholesalePriceProvided,
+    ].some(Boolean);
+    const normalizedRegularPrice = basePriceProvided
+      ? toPriceValue(selling_price ?? req.body?.sellingPrice ?? regular_price ?? price)
+      : null;
+    const rawSalePrice = sale_price ?? offer_price;
+    const salePriceClearRequested =
+      salePriceProvided &&
+      (rawSalePrice === "" || rawSalePrice === null || rawSalePrice === undefined) &&
+      salePriceEnabledProvided &&
+      ["false", "0", "no", "off"].includes(String(sale_price_enabled ?? "").trim().toLowerCase());
+    const shouldUpdateSalePrice = salePriceProvided && (!(rawSalePrice === "" || rawSalePrice === null || rawSalePrice === undefined) || salePriceClearRequested);
+    const normalizedSalePrice = shouldUpdateSalePrice && !salePriceClearRequested ? toPriceValue(rawSalePrice) : 0;
+    const normalizedSaleEnabled = salePriceEnabledProvided
+      ? sale_price_enabled === true || String(sale_price_enabled || "").toLowerCase() === "true"
+      : null;
+    const normalizedUseCustomComparePrice = useCustomComparePriceProvided
+      ? use_custom_compare_price === true || String(use_custom_compare_price || "").toLowerCase() === "true"
+      : null;
+    const normalizedCustomComparePrice = customComparePriceProvided
+      ? toPriceValue(custom_compare_price)
+      : null;
+    const normalizedCostPrice = costPriceProvided
+      ? toPriceValue(cost_price ?? purchase_price)
+      : null;
+    const normalizedWholesalePrice = wholesalePriceProvided
+      ? toPriceValue(wholesale_price)
+      : null;
+    console.log("[products:update] incoming pricing payload", {
+      productId: req.params.id,
+      top_level: {
+        regular_price,
+        price,
+        selling_price: req.body?.selling_price ?? req.body?.sellingPrice,
+        sale_price,
+        offer_price,
+        sale_price_enabled,
+        sale_reason,
+        sale_start_at,
+        sale_end_at,
+        use_custom_compare_price,
+        custom_compare_price,
+        cost_price,
+        purchase_price,
+        wholesale_price,
+      },
+      presence: {
+        basePriceProvided,
+        salePriceProvided,
+        salePriceEnabledProvided,
+        saleReasonProvided,
+        saleStartAtProvided,
+        saleEndAtProvided,
+        useCustomComparePriceProvided,
+        customComparePriceProvided,
+        costPriceProvided,
+        wholesalePriceProvided,
+      },
+      variants_pricing_preview: Array.isArray(variants)
+        ? variants.slice(0, 5).map((variant = {}) => ({
+            id: variant?.id ?? variant?.variant_id ?? variant?.variantId ?? null,
+            color: variant?.color || "",
+            size: variant?.size || "",
+            price: variant?.price,
+            regular_price: variant?.regular_price,
+            selling_price: variant?.selling_price,
+            sale_price: variant?.sale_price,
+            sale_price_enabled: variant?.sale_price_enabled,
+            purchase_price: variant?.purchase_price,
+            cost_price: variant?.cost_price,
+            wholesale_price: variant?.wholesale_price,
+          }))
+        : [],
+    });
+    performanceLogger.markStage("Validate request");
     const imageUrlProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "image_url");
     const thermalImageUrlProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "thermal_image_url");
     const normalizedProductImageUrl = String(image_url || "").trim();
@@ -3709,18 +4103,37 @@ export const updateProduct = async (req, res) => {
       ...(Array.isArray(variantImagePayload) ? variantImagePayload : []),
       ...(Array.isArray(variant_image_payload) ? variant_image_payload : []),
     ];
+    performanceLogger.markStage("Upload images");
 
     const tenantId = getTenantId(req, req.user?.tenant_id);
     if (!tenantId) {
       return tenantContextMissingResponse(res);
     }
-
     await client.query("BEGIN");
     transactionStarted = true;
     const productId = req.params.id;
     const currentProductResult = await client.query(
       `
-      SELECT id, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error
+      SELECT
+        id,
+        image_url,
+        thermal_image_url,
+        thermal_image_status,
+        thermal_image_generated_at,
+        thermal_image_error,
+        price,
+        selling_price,
+        regular_price,
+        sale_price,
+        sale_price_enabled,
+        sale_reason,
+        sale_start_at,
+        sale_end_at,
+        use_custom_compare_price,
+        custom_compare_price,
+        cost_price,
+        purchase_price,
+        wholesale_price
       FROM products
       WHERE id = $1
         AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
@@ -3737,6 +4150,33 @@ export const updateProduct = async (req, res) => {
       });
     }
     const currentProductRow = currentProductResult.rows[0] || {};
+    console.log("[products:update] sql pricing before update", {
+      productId,
+      current_db: {
+        price: currentProductRow.price,
+        selling_price: currentProductRow.selling_price,
+        regular_price: currentProductRow.regular_price,
+        sale_price: currentProductRow.sale_price,
+        sale_price_enabled: currentProductRow.sale_price_enabled,
+        sale_reason: currentProductRow.sale_reason,
+        sale_start_at: currentProductRow.sale_start_at,
+        sale_end_at: currentProductRow.sale_end_at,
+        use_custom_compare_price: currentProductRow.use_custom_compare_price,
+        custom_compare_price: currentProductRow.custom_compare_price,
+        cost_price: currentProductRow.cost_price ?? currentProductRow.purchase_price,
+        wholesale_price: currentProductRow.wholesale_price,
+      },
+      next_values: {
+        normalizedRegularPrice,
+        normalizedSalePrice,
+        normalizedSaleEnabled,
+        normalizedUseCustomComparePrice,
+        normalizedCustomComparePrice,
+        normalizedCostPrice,
+        normalizedWholesalePrice,
+        shouldUpdateSalePrice,
+      },
+    });
     const currentProductImageUrl = String(currentProductRow.image_url || "").trim();
     const productImageChanged = Boolean(imageUrlProvided && normalizedProductImageUrl && normalizedProductImageUrl !== currentProductImageUrl);
     const thermalImageMetadataResetNeeded = false;
@@ -3793,17 +4233,18 @@ export const updateProduct = async (req, res) => {
       `seo_description = ${addUpdateValue(normalizedSeoDescription)}`,
       `seo_keywords = ${addUpdateValue(normalizedSeoKeywords)}`,
       `canonical_slug = ${addUpdateValue(normalizedCanonicalSlug)}`,
-      `regular_price = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE regular_price END`,
-      `price = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE price END`,
-      `sale_price = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled ? normalizedSalePrice : 0)} ELSE sale_price END`,
-      `sale_price_enabled = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled)} ELSE sale_price_enabled END`,
-      `sale_reason = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled ? String(sale_reason || "").trim() : "")} ELSE sale_reason END`,
-      `sale_start_at = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled ? normalizedSaleStartAt : null)} ELSE sale_start_at END`,
-      `sale_end_at = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(normalizedSaleEnabled ? normalizedSaleEndAt : null)} ELSE sale_end_at END`,
-      `use_custom_compare_price = ${addUpdateValue(use_custom_compare_price === true || String(use_custom_compare_price || "").toLowerCase() === "true")}`,
-      `custom_compare_price = ${addUpdateValue(Math.max(0, Number(custom_compare_price || 0)))}`,
-      `cost_price = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(Number(cost_price || purchase_price || 0))} ELSE cost_price END`,
-      `wholesale_price = CASE WHEN ${addUpdateValue(productPricingProvided)} THEN ${addUpdateValue(Number(wholesale_price || 0))} ELSE wholesale_price END`,
+      `regular_price = CASE WHEN ${addUpdateValue(basePriceProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE regular_price END`,
+      `price = CASE WHEN ${addUpdateValue(basePriceProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE price END`,
+      `selling_price = CASE WHEN ${addUpdateValue(basePriceProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE selling_price END`,
+      `sale_price = CASE WHEN ${addUpdateValue(shouldUpdateSalePrice)} THEN ${addUpdateValue(normalizedSalePrice)} ELSE sale_price END`,
+      `sale_price_enabled = CASE WHEN ${addUpdateValue(salePriceEnabledProvided)} THEN ${addUpdateValue(normalizedSaleEnabled)} ELSE sale_price_enabled END`,
+      `sale_reason = CASE WHEN ${addUpdateValue(saleReasonProvided)} THEN ${addUpdateValue(String(sale_reason || "").trim())} ELSE sale_reason END`,
+      `sale_start_at = CASE WHEN ${addUpdateValue(saleStartAtProvided)} THEN ${addUpdateValue(normalizedSaleStartAt)} ELSE sale_start_at END`,
+      `sale_end_at = CASE WHEN ${addUpdateValue(saleEndAtProvided)} THEN ${addUpdateValue(normalizedSaleEndAt)} ELSE sale_end_at END`,
+      `use_custom_compare_price = CASE WHEN ${addUpdateValue(useCustomComparePriceProvided)} THEN ${addUpdateValue(normalizedUseCustomComparePrice)} ELSE use_custom_compare_price END`,
+      `custom_compare_price = CASE WHEN ${addUpdateValue(customComparePriceProvided)} THEN ${addUpdateValue(normalizedCustomComparePrice)} ELSE custom_compare_price END`,
+      `cost_price = CASE WHEN ${addUpdateValue(costPriceProvided)} THEN ${addUpdateValue(normalizedCostPrice)} ELSE cost_price END`,
+      `wholesale_price = CASE WHEN ${addUpdateValue(wholesalePriceProvided)} THEN ${addUpdateValue(normalizedWholesalePrice)} ELSE wholesale_price END`,
       `brand = ${addUpdateValue(brand || "")}`,
       `category = ${addUpdateValue(category || "")}`,
       `main_category = ${addUpdateValue(main_category || "")}`,
@@ -3883,6 +4324,35 @@ export const updateProduct = async (req, res) => {
       imageUrlProvided,
       thermalImageUrlProvided,
     });
+    console.log("[products:update] sql update payload pricing", {
+      productId,
+      update_presence: {
+        basePriceProvided,
+        salePriceProvided,
+        salePriceEnabledProvided,
+        saleReasonProvided,
+        saleStartAtProvided,
+        saleEndAtProvided,
+        useCustomComparePriceProvided,
+        customComparePriceProvided,
+        costPriceProvided,
+        wholesalePriceProvided,
+      },
+      update_values: {
+        regular_price: normalizedRegularPrice,
+        price: normalizedRegularPrice,
+        selling_price: normalizedRegularPrice,
+        sale_price: normalizedSalePrice,
+        sale_price_enabled: normalizedSaleEnabled,
+        sale_reason: saleReasonProvided ? String(sale_reason || "").trim() : undefined,
+        sale_start_at: normalizedSaleStartAt,
+        sale_end_at: normalizedSaleEndAt,
+        use_custom_compare_price: normalizedUseCustomComparePrice,
+        custom_compare_price: normalizedCustomComparePrice,
+        cost_price: normalizedCostPrice,
+        wholesale_price: normalizedWholesalePrice,
+      },
+    });
 
     const updated = await client.query(
       `
@@ -3895,6 +4365,7 @@ export const updateProduct = async (req, res) => {
       `,
       updateValues
     );
+    performanceLogger.markStage("Save product");
     if (updated.rows.length === 0) {
       await client.query("ROLLBACK");
       transactionStarted = false;
@@ -3903,7 +4374,25 @@ export const updateProduct = async (req, res) => {
         message: "Product not found",
       });
     }
+    console.log("[products:update] sql pricing after update", {
+      productId,
+      updated_db: {
+        price: updated.rows[0]?.price,
+        selling_price: updated.rows[0]?.selling_price,
+        regular_price: updated.rows[0]?.regular_price,
+        sale_price: updated.rows[0]?.sale_price,
+        sale_price_enabled: updated.rows[0]?.sale_price_enabled,
+        sale_reason: updated.rows[0]?.sale_reason,
+        sale_start_at: updated.rows[0]?.sale_start_at,
+        sale_end_at: updated.rows[0]?.sale_end_at,
+        use_custom_compare_price: updated.rows[0]?.use_custom_compare_price,
+        custom_compare_price: updated.rows[0]?.custom_compare_price,
+        cost_price: updated.rows[0]?.cost_price ?? updated.rows[0]?.purchase_price,
+        wholesale_price: updated.rows[0]?.wholesale_price,
+      },
+    });
     await replaceProductAudiences(client, productId, normalizedAudiences);
+    performanceLogger.markStage("Save attributes");
     const deletedIds = Array.isArray(deleted_variant_ids) ? deleted_variant_ids : [];
     const deletedVariantIdSet = new Set(
       deletedIds
@@ -3931,36 +4420,57 @@ export const updateProduct = async (req, res) => {
     console.log("[products:update] incoming variants count", normalizedVariants.length);
     console.log("[products:update] variants queued for save after explicit deletion filter", {
       productId,
+      shouldSyncVariants,
+      shouldPersistVariantImages,
       variantsToSaveCount: variantsToSave.length,
       variantsToSaveIds: variantsToSave.map((variant) => variant.id || variant.variant_id || null).filter(Boolean),
       requestedDeletedVariantIds: deletedIds,
     });
 
-    const savedVariants = [];
-    for (const variant of variantsToSave) {
-      savedVariants.push(
-        await updateProductVariant(client, {
-          productId,
-          tenantId,
-          variant,
-          skuPrefix: finalProductSku,
-          reservedSkus: reservedVariantSkus,
-          userId: req.user?.id || null,
-        })
-      );
+    let savedVariants = activeVariantsBeforeSave;
+    let explicitlyArchivedVariants = [];
+    let missingArchivedVariants = [];
+    let archivedVariants = [];
+    let activeVariantsAfterSave = activeVariantsBeforeSave;
+    if (shouldSyncVariants) {
+      savedVariants = [];
+      for (const variant of variantsToSave) {
+        savedVariants.push(
+          await updateProductVariant(client, {
+            productId,
+            tenantId,
+            variant,
+            skuPrefix: finalProductSku,
+            reservedSkus: reservedVariantSkus,
+            userId: req.user?.id || null,
+          })
+        );
+      }
+      explicitlyArchivedVariants = await archiveProductVariantsByIds(client, {
+        productId,
+        tenantId,
+        variantIds: deletedIds,
+      });
+      missingArchivedVariants = await archiveMissingProductVariants(client, {
+        productId,
+        tenantId,
+        savedVariantIds: savedVariants.map((variant) => variant.id),
+      });
+      archivedVariants = [...explicitlyArchivedVariants, ...missingArchivedVariants];
+      activeVariantsAfterSave = await loadActiveProductVariantSnapshot(client, { productId, tenantId });
     }
-    const explicitlyArchivedVariants = await archiveProductVariantsByIds(client, {
+    performanceLogger.markStage("Save variants");
+    const stockSyncResult = await syncProductStockFromVariants(client, {
       productId,
       tenantId,
-      variantIds: deletedIds,
+      variationMode: normalizedVariationMode,
     });
-    const missingArchivedVariants = await archiveMissingProductVariants(client, {
-      productId,
-      tenantId,
-      savedVariantIds: savedVariants.map((variant) => variant.id),
-    });
-    const archivedVariants = [...explicitlyArchivedVariants, ...missingArchivedVariants];
-    const activeVariantsAfterSave = await loadActiveProductVariantSnapshot(client, { productId, tenantId });
+    if (stockSyncResult.stockSynced) {
+      updated.rows[0].stock = stockSyncResult.totalVariantStock;
+      updated.rows[0].active_variant_count = stockSyncResult.activeVariantCount;
+      updated.rows[0].total_variant_stock = stockSyncResult.totalVariantStock;
+    }
+    performanceLogger.markStage("Save stock");
 
     console.log("[products:update] variant sync complete", {
       productId,
@@ -3989,7 +4499,7 @@ export const updateProduct = async (req, res) => {
     });
 
     const activeColorKeys = new Set(
-      variantsToSave
+      activeVariantsAfterSave
         .map((variant) => String(variant.color || "").trim().toLowerCase())
         .filter(Boolean)
     );
@@ -4030,16 +4540,19 @@ export const updateProduct = async (req, res) => {
       return safeEntry;
     });
 
-    const persistedVariantImageRows = await replaceProductVariantImages(client, {
-      tenantId,
-      productId,
-      variants: [...variantsToSave, ...persistedVariantImagePayloads],
-      colorImages: persistedColorImages,
-    });
+    const persistedVariantImageRows = shouldPersistVariantImages
+      ? await replaceProductVariantImages(client, {
+          tenantId,
+          productId,
+          variants: [...activeVariantsAfterSave, ...persistedVariantImagePayloads],
+          colorImages: persistedColorImages,
+        })
+      : [];
+    performanceLogger.markStage("Save variant images");
 
     const imageBundleMap = await loadProductVariantImages(client, [productId]).catch(() => new Map());
     const imageBundle = imageBundleMap.get(String(productId)) || null;
-    const hydratedVariants = attachVariantImages(savedVariants.map(normalizeVariantRow), imageBundle);
+    const hydratedVariants = attachVariantImages(activeVariantsAfterSave.map(normalizeVariantRow), imageBundle);
     const colorImagesPayload = attachGroupedColorImages(
       deriveColorGroupsFromVariants(hydratedVariants),
       imageBundle
@@ -4122,6 +4635,8 @@ export const updateProduct = async (req, res) => {
         });
       });
     }
+    performanceLogger.markStage("Any post-save hooks");
+    performanceLogger.markTotal();
 
     return res.json({
       success: true,

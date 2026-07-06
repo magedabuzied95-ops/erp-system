@@ -306,6 +306,16 @@ export const getProducts = async (options = {}) => {
   return unwrapArray(await api.get("/products", options));
 };
 
+export const getProductsAdminList = async (options = {}) => {
+  const response = await api.get("/products/admin-list", options);
+  const products = unwrapArray(response);
+  return {
+    products,
+    pagination: response?.pagination || response?.meta || null,
+    raw: response,
+  };
+};
+
 export const getProductsWithVariants = async (options = {}) => {
   const response = await api.get("/products/with-variants", options);
   return unwrapArray(response);
@@ -319,7 +329,29 @@ export const createProduct = async (body) => {
   return unwrapItem(await api.post("/products", body));
 };
 
-export const updateProduct = async (id, body) => unwrapItem(await api.put(`/products/${id}`, body));
+export const updateProduct = async (id, body) => {
+  console.log("[productsApi.updateProduct] request payload", {
+    id,
+    pricing_fields: {
+      regular_price: body?.regular_price,
+      price: body?.price,
+      selling_price: body?.selling_price,
+      sale_price: body?.sale_price,
+      sale_price_enabled: body?.sale_price_enabled,
+      sale_reason: body?.sale_reason,
+      sale_start_at: body?.sale_start_at,
+      sale_end_at: body?.sale_end_at,
+      use_custom_compare_price: body?.use_custom_compare_price,
+      custom_compare_price: body?.custom_compare_price,
+      cost_price: body?.cost_price,
+      purchase_price: body?.purchase_price,
+      wholesale_price: body?.wholesale_price,
+    },
+    variants_count: Array.isArray(body?.variants) ? body.variants.length : 0,
+  });
+  console.log("[productsApi.updateProduct] request payload json", JSON.stringify(body, null, 2));
+  return unwrapItem(await api.put(`/products/${id}`, body));
+};
 
 export const updateProductStatus = async (id, body) => unwrapItem(await api.patch(`/products/${id}/status`, body));
 
