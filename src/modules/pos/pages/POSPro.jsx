@@ -178,14 +178,14 @@ const readUseSalePrices = () => {
   return true;
 };
 
-const parseSaleModeEnabled = (value) => {
-  if (value === undefined || value === null || value === "") return undefined;
+const parseSaleModeEnabled = (value, fallback = undefined) => {
+  if (value === undefined || value === null || value === "") return fallback;
   if (value === true || value === 1) return true;
   if (value === false || value === 0) return false;
   const normalized = String(value).trim().toLowerCase();
   if (["true", "1", "yes", "on"].includes(normalized)) return true;
   if (["false", "0", "no", "off"].includes(normalized)) return false;
-  return undefined;
+  return fallback;
 };
 
 const writeUseSalePrices = (value) => {
@@ -1843,10 +1843,10 @@ function POSPro() {
         headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       }).catch(() => null);
       const refreshedRaw = refreshed?.settings?.sale_mode_enabled;
-      const parsedFromResponse = parseSaleModeEnabled(response?.settings?.sale_mode_enabled, payload.sale_mode_enabled);
+      const parsedSaleModeEnabled = parseSaleModeEnabled(refreshedRaw, true);
       const saved = normalizeSaleModeSettings({
-        ...(response?.settings || payload),
-        sale_mode_enabled: parseSaleModeEnabled(refreshedRaw, parsedFromResponse),
+        ...(response?.settings || {}),
+        sale_mode_enabled: parsedSaleModeEnabled,
       });
       console.debug("POS_SALE_MODE_AFTER_SAVE_GET", {
         response_sale_mode_enabled: response?.settings?.sale_mode_enabled,
