@@ -1827,6 +1827,7 @@ function POSPro() {
       const response = await api.put("/website/settings", normalized);
       const saved = normalizeSaleModeSettings(response?.settings || normalized);
       setSaleModeSettings(saved);
+      writeUseSalePrices(Boolean(saved.sale_mode_enabled));
       const refreshedCatalog = await refreshCatalogProducts({
         setProducts,
         setLoading,
@@ -1845,8 +1846,10 @@ function POSPro() {
         return reconcileCartWithCatalog(current, refreshedCatalog).nextCart;
       });
       toast.success(saved.sale_mode_enabled ? "Existing sale prices enabled" : "Existing sale prices disabled");
+      return saved;
     } catch (error) {
       toast.error(error.message || "Failed to save existing sale prices setting");
+      return null;
     } finally {
       setSaleModeSaving(false);
     }
@@ -5856,9 +5859,8 @@ function POSPro() {
 
   const saleMode = useMemo(() => normalizeSaleModeSettings(saleModeSettings), [saleModeSettings]);
   const salePricesEnabled = Boolean(saleMode.sale_mode_enabled);
-  const handleToggleSaleMode = useCallback(() => {
-    writeUseSalePrices(!salePricesEnabled);
-    saveSaleModeSettings({
+  const handleToggleSaleMode = useCallback(async () => {
+    await saveSaleModeSettings({
       ...saleMode,
       sale_mode_enabled: !salePricesEnabled,
       sale_mode_type: "use_existing_sale_prices_only",
