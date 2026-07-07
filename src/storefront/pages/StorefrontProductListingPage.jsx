@@ -23,6 +23,7 @@ import {
   truthyFlag,
   uniqueClassificationOptions,
   classificationLabel,
+  displayComparePrice,
   displaySellingPrice,
   firstDisplayVariant,
   filterOptionCount,

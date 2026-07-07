@@ -1,9 +1,27 @@
 const normalizeText = (value = "") => String(value ?? "").trim();
+const storefrontPriceDebugSeen = new Set();
 
 export const parseStorefrontPriceValue = (value) => {
   if (value === null || value === undefined || value === "") return 0;
   const normalized = Number(String(value).replace(/,/g, "").replace(/[^\d.-]/g, ""));
   return Number.isFinite(normalized) ? normalized : 0;
+};
+
+const shouldLogStorefrontPriceDebug = () => {
+  if (typeof window === "undefined") return false;
+  try {
+    return import.meta.env.DEV || window.localStorage.getItem("PRODUCT_PRICE_DEBUG") === "1";
+  } catch {
+    return Boolean(import.meta.env.DEV);
+  }
+};
+
+const logStorefrontPriceDebug = (payload = {}) => {
+  if (!shouldLogStorefrontPriceDebug()) return;
+  const key = `${payload.productId ?? "unknown"}:${payload.variantId ?? "none"}:${payload.saleModeEnabled ? "1" : "0"}:${payload.chosenPrice ?? 0}:${payload.isOnSale ? "1" : "0"}`;
+  if (storefrontPriceDebugSeen.has(key)) return;
+  storefrontPriceDebugSeen.add(key);
+  console.debug("PRODUCT_PRICE_DEBUG", payload);
 };
 
 export const truthyStorefrontFlag = (value) =>
@@ -66,33 +84,68 @@ export const storefrontOriginalPrice = (product = {}, variant = {}) => {
   return candidates.find((value) => value > activePrice) || candidates[0] || 0;
 };
 
-export const displaySellingPrice = (product = {}, variant = {}) => {
-  if (storefrontSaleModeOn(product, variant)) {
-    const sale = parseStorefrontPriceValue(variant?.sale_price ?? product?.sale_price ?? 0);
-    if (sale > 0) return sale;
+export const getDisplayPricing = (product = {}, saleModeEnabled = true, variant = null) => {
+  const resolvedVariant = variant || pickPrimaryStorefrontVariant(product?.variants || []);
+  const sellingPrice = storefrontSellingPrice(product, resolvedVariant || {});
+  const salePrice = parseStorefrontPriceValue(resolvedVariant?.sale_price ?? product?.sale_price ?? resolvedVariant?.offer_price ?? product?.offer_price ?? 0);
+  const enabled = saleModeEnabled !== false;
+  let price = sellingPrice;
+  let comparePrice = null;
+  let isOnSale = false;
+
+  if (enabled && salePrice > 0 && sellingPrice > 0 && salePrice < sellingPrice) {
+    price = salePrice;
+    const compareCandidate =
+      storefrontOriginalPriceCandidates(product, resolvedVariant || {}).find((value) => value > price) ||
+      (sellingPrice > price ? sellingPrice : 0);
+    comparePrice = compareCandidate > price ? compareCandidate : null;
+    isOnSale = Boolean(comparePrice && comparePrice > price);
   }
-  return storefrontSellingPrice(product, variant);
+
+  const discountPercent =
+    isOnSale && comparePrice && comparePrice > price
+      ? Math.max(1, Math.round(((comparePrice - price) / comparePrice) * 100))
+      : null;
+
+  const productId = product?.id ?? product?.product_id ?? resolvedVariant?.product_id ?? null;
+  const variantId = resolvedVariant?.id ?? resolvedVariant?.variant_id ?? null;
+  logStorefrontPriceDebug({
+    productId,
+    variantId,
+    saleModeEnabled: enabled,
+    sellingPrice,
+    salePrice,
+    chosenPrice: price,
+    isOnSale,
+  });
+
+  return {
+    price,
+    comparePrice,
+    discountPercent,
+    isOnSale,
+    sellingPrice,
+    salePrice,
+    chosenPrice: price,
+    productId,
+    variantId,
+  };
+};
+
+export const displaySellingPrice = (product = {}, variant = {}) => {
+  return getDisplayPricing(product, true, variant).price;
 };
 
 export const resolveStorefrontPrice = (product = {}, variant = {}) => {
-  const basePrice = storefrontSellingPrice(product, variant);
-  const salePrice = parseStorefrontPriceValue(variant?.sale_price ?? product?.sale_price ?? 0);
-  const saleModeOn = storefrontSaleModeOn(product, variant);
-  const currentPrice = saleModeOn && salePrice > 0 ? salePrice : basePrice;
-  const oldCrossedPrice = storefrontOriginalPrice(product, variant);
-  const crossedPrice = oldCrossedPrice > currentPrice ? oldCrossedPrice : 0;
-  const discountPercent =
-    crossedPrice > 0 && currentPrice > 0 && crossedPrice > currentPrice
-      ? `${Math.max(1, Math.round(((crossedPrice - currentPrice) / crossedPrice) * 100))}%`
-      : "";
+  const pricing = getDisplayPricing(product, true, variant);
   return {
-    base_price: basePrice,
-    sale_price: saleModeOn && salePrice > 0 ? salePrice : 0,
-    current_price: currentPrice,
-    old_crossed_price: crossedPrice,
-    discount_percent: discountPercent,
-    sale_active: Boolean(saleModeOn && salePrice > 0),
-    source: saleModeOn && salePrice > 0 ? "sale_price" : "selling_price",
+    base_price: pricing.sellingPrice,
+    sale_price: pricing.isOnSale ? pricing.salePrice : 0,
+    current_price: pricing.price,
+    old_crossed_price: pricing.comparePrice || 0,
+    discount_percent: pricing.discountPercent ? `${pricing.discountPercent}%` : "",
+    sale_active: Boolean(pricing.isOnSale),
+    source: pricing.isOnSale ? "sale_price" : "selling_price",
   };
 };
 

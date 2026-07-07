@@ -93,6 +93,7 @@ import {
   storefrontPathFromLink,
 } from "./lib/paths";
 import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
+import { getDisplayPricing } from "../shared/lib/storefrontPricing";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import instaPayLogo from "../assets/payments/instapay.png";
 import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
@@ -640,15 +641,7 @@ const useStorefrontGenderClassifications = () => {
   return state;
 };
 const storefrontSaleModeOn = (product = {}, variant = {}) => {
-  if (!storefrontSalePricesEnabled) return false;
-  return (
-    truthyFlag(variant?.global_sale_enabled) ||
-    truthyFlag(variant?.sale_prices_enabled) ||
-    truthyFlag(variant?.sale_mode_enabled) ||
-    truthyFlag(product?.global_sale_enabled) ||
-    truthyFlag(product?.sale_prices_enabled) ||
-    truthyFlag(product?.sale_mode_enabled)
-  );
+  return getDisplayPricing(product, storefrontSalePricesEnabled, variant).isOnSale;
 };
 const storefrontOriginalPriceCandidates = (product = {}, variant = {}) =>
   [
@@ -668,31 +661,16 @@ const storefrontOriginalPriceCandidates = (product = {}, variant = {}) =>
     product?.compare_at_price,
   ].map(Number).filter((value) => Number.isFinite(value) && value > 0);
 const storefrontOriginalPrice = (product = {}, variant = {}) => {
-  if (!storefrontSaleModeOn(product, variant)) return 0;
-  const activePrice = storefrontSaleModeOn(product, variant) && Number(variant?.sale_price ?? product?.sale_price ?? 0) > 0
-    ? Number(variant?.sale_price ?? product?.sale_price ?? 0)
-    : storefrontSellingPrice(product, variant);
-  const candidates = storefrontOriginalPriceCandidates(product, variant);
-  return candidates.find((value) => value > activePrice) || candidates[0] || 0;
+  const pricing = getDisplayPricing(product, storefrontSalePricesEnabled, variant);
+  return pricing.comparePrice || storefrontSellingPrice(product, variant) || 0;
 };
 const storefrontSellingPrice = (product = {}, variant = {}) =>
   Number(variant?.selling_price || variant?.price || product?.selling_price || product?.price || product?.regular_price || 0);
 const saleActive = (product = {}, variant = {}) => {
-  const source = variant && Object.keys(variant || {}).length ? variant : product;
-  const sale = Number(source?.sale_price ?? source?.offer_price ?? 0);
-  return storefrontSaleModeOn(product, variant) && sale > 0;
+  return getDisplayPricing(product, storefrontSalePricesEnabled, variant).isOnSale;
 };
 const displaySellingPrice = (product = {}, variant = {}) => {
-  const activeSale = saleActive(product, variant);
-  const price = activeSale ? Number((variant?.sale_price ?? product?.sale_price) || 0) : storefrontSellingPrice(product, variant);
-  const comparePrice = activeSale ? storefrontOriginalPrice(product, variant) : 0;
-  logStorefrontSaleResolver(product, variant, {
-    chosenPrice: price,
-    comparePrice,
-    activeSale,
-    source: activeSale ? "sale_price" : "selling_price",
-  });
-  return price;
+  return getDisplayPricing(product, storefrontSalePricesEnabled, variant).price;
 };
 const displayLastPieceSellingPrice = (product = {}, variant = {}) => {
   const purchaseSalePrice = Number(
@@ -706,29 +684,14 @@ const displayLastPieceSellingPrice = (product = {}, variant = {}) => {
   return displaySellingPrice(product, variant);
 };
 const resolveStorefrontPrice = (product = {}, variant = {}) => {
-  const num = (value) => {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  };
-  const productOriginal =
-    num(product?.custom_compare_price) ||
-    num(product?.compare_base_price) ||
-    num(product?.original_price) ||
-    num(product?.base_price) ||
-    num(product?.list_price);
-  const variantOriginal =
-    num(variant?.custom_compare_price) ||
-    num(variant?.compare_base_price) ||
-    num(variant?.original_price) ||
-    num(variant?.base_price) ||
-    num(variant?.list_price);
-  const activePrice = displaySellingPrice(product, variant);
-  const saleModeOn = storefrontSaleModeOn(product, variant);
-  const original = [variantOriginal, productOriginal].find((value) => value > activePrice) || 0;
+  const pricing = getDisplayPricing(product, storefrontSalePricesEnabled, variant);
   return {
-    sellingPrice: activePrice,
-    originalPrice: original,
-    saleModeOn,
+    activePrice: pricing.price,
+    comparePrice: pricing.comparePrice || 0,
+    sellingPrice: pricing.price,
+    originalPrice: pricing.comparePrice || 0,
+    saleModeOn: pricing.isOnSale,
+    discountPercent: pricing.discountPercent || 0,
   };
 };
 const fallbackProductImage = (event) => {
@@ -955,9 +918,7 @@ const popularScore = (product = {}) => {
     Math.min(stockScore(product), 100);
 };
 const hasSale = (product = {}) => {
-  const sale = Number(product?.sale_price ?? product?.offer_price ?? 0);
-  const regular = storefrontSellingPrice(product);
-  return storefrontSaleModeOn(product) && sale > 0 && regular > 0 && sale < regular;
+  return getDisplayPricing(product, storefrontSalePricesEnabled).isOnSale;
 };
 const isOfferStory = (product = {}) =>
   product?.is_offer_story === true ||
@@ -2418,31 +2379,20 @@ const productSearchText = (product = {}) => {
 const featuredSlideProduct = (product = {}) => {
   const variant = firstDisplayVariant(product.variants || []);
   const image = displayImageForProduct(product, variant);
-  const price = displaySellingPrice(product, variant);
-  const comparePrice = displayComparePrice(product, variant);
-  return { product, variant, image, price, comparePrice };
+  const pricing = getDisplayPricing(product, storefrontSalePricesEnabled, variant);
+  return { product, variant, image, price: pricing.price, comparePrice: pricing.comparePrice || 0 };
 };
 
 const displayCartItemPrice = (item = {}) => {
-  const regular = Number(item.selling_price || item.price || 0);
-  const sale = Number(item.sale_price || 0);
-  const saleModeOn =
-    storefrontSalePricesEnabled &&
-    (truthyFlag(item.global_sale_enabled) || truthyFlag(item.sale_prices_enabled) || truthyFlag(item.sale_mode_enabled));
-  return saleModeOn && sale > 0 ? sale : regular;
+  return getDisplayPricing(item, storefrontSalePricesEnabled).price;
 };
 
 const displayCartItemComparePrice = (item = {}) => {
-  if (!storefrontSalePricesEnabled) return 0;
-  const activePrice = displayCartItemPrice(item);
-  const original = Number(item.original_price || item.base_price || item.list_price || item.compare_at_price || item.regular_price || 0);
-  return original > activePrice ? original : 0;
+  return getDisplayPricing(item, storefrontSalePricesEnabled).comparePrice || 0;
 };
 
 const displayDiscountPercent = (product = {}, variant = {}) => {
-  const sellingPrice = displaySellingPrice(product, variant);
-  const comparePrice = displayComparePrice(product, variant);
-  return comparePrice > sellingPrice ? Math.max(1, Math.round(((comparePrice - sellingPrice) / comparePrice) * 100)) : 0;
+  return getDisplayPricing(product, storefrontSalePricesEnabled, variant).discountPercent || 0;
 };
 
 const getVisibleCartActionElement = () => {
@@ -2517,10 +2467,7 @@ const resolveProductImage = (item = {}, product = {}, variant = {}) => {
 };
 
 const displayComparePrice = (product = {}, variant = {}) => {
-  if (!storefrontSaleModeOn(product, variant)) return 0;
-  const activePrice = displaySellingPrice(product, variant);
-  const comparePrice = storefrontOriginalPrice(product, variant);
-  return comparePrice > activePrice ? comparePrice : 0;
+  return getDisplayPricing(product, storefrontSalePricesEnabled, variant).comparePrice || 0;
 };
 const parseStorefrontPriceValue = (value) => {
   if (value === null || value === undefined || value === "") return 0;
@@ -2528,25 +2475,21 @@ const parseStorefrontPriceValue = (value) => {
   return Number.isFinite(normalized) ? normalized : 0;
 };
 const offerStoryPriceInfo = (product = {}) => {
-  const num = (value) => parseStorefrontPriceValue(value);
-  const saleEnabled = storefrontSalePricesEnabled;
-  const offerSalePrice = num(product?.sale_price || product?.salePrice || product?.discounted_price || product?.discountedPrice);
-  const regularPrice = num(product?.selling_price || product?.sellingPrice || product?.price);
-  const comparePrice = num(
-    product?.compare_at_price ||
-      product?.compareAtPrice ||
-      product?.original_price ||
-      product?.originalPrice ||
-      regularPrice
+  const pricing = getDisplayPricing(
+    {
+      ...product,
+      sale_price: product?.sale_price || product?.salePrice || product?.discounted_price || product?.discountedPrice,
+      selling_price: product?.selling_price || product?.sellingPrice || product?.price,
+      compare_at_price: product?.compare_at_price || product?.compareAtPrice || product?.original_price || product?.originalPrice,
+    },
+    storefrontSalePricesEnabled
   );
-  const displayPrice = saleEnabled && offerSalePrice > 0 ? offerSalePrice : regularPrice;
-  const crossedPrice = saleEnabled && offerSalePrice > 0 ? (comparePrice > offerSalePrice ? comparePrice : regularPrice) : 0;
   return {
-    offerSalePrice: saleEnabled ? offerSalePrice : 0,
-    regularPrice,
-    comparePrice: saleEnabled ? comparePrice : 0,
-    displayPrice,
-    crossedPrice,
+    offerSalePrice: storefrontSalePricesEnabled && pricing.isOnSale ? pricing.salePrice : 0,
+    regularPrice: pricing.sellingPrice,
+    comparePrice: storefrontSalePricesEnabled && pricing.isOnSale ? pricing.comparePrice || 0 : 0,
+    displayPrice: pricing.price,
+    crossedPrice: storefrontSalePricesEnabled && pricing.isOnSale ? pricing.comparePrice || 0 : 0,
   };
 };
 
@@ -4355,7 +4298,7 @@ function SimpleHomeProductGrid({ title, subtitle, viewAllTo = "/products", produ
           {visibleProducts.map((product, index) => {
             const slide = featuredSlideProduct(product);
             const price = Number(slide.price || product.price || product.final_price || product.selling_price || product.regular_price || 0) || 0;
-            const comparePrice = Number(slide.comparePrice || product.compare_price || product.compare_at_price || 0) || 0;
+            const comparePrice = Number(slide.comparePrice || 0) || 0;
             const image = slide.image || product.image_url || product.product_image_url || product.gallery_images?.[0] || "";
             return (
             <Link
@@ -11247,7 +11190,7 @@ const normalizeStorefrontItem = (item = {}) => ({
 const normalizeCartLine = (product = {}, variant = {}, quantity = 1) => {
   const image = variantImage(variant) || displayImageForProduct(product, variant) || product.image_url || product.product_image_url || "";
   const price = displaySellingPrice(product, variant);
-  const compareAtPrice = Number(variant.compare_at_price ?? product.compare_at_price ?? product.original_price ?? 0) || 0;
+  const compareAtPrice = displayComparePrice(product, variant);
   return {
     lineId: [
       product.id || product.slug || product.name || "product",
@@ -12008,6 +11951,7 @@ export {
   filterOptionCount,
   getProductTypeLabel,
   getSessionId,
+  getDisplayPricing,
   imageFor,
   isLastPieceProduct,
   isMirrorProduct,
