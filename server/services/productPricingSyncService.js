@@ -22,6 +22,21 @@ const toBoolean = (value, fallback = false) => {
 };
 
 const pickMoney = (...values) => toNumber(firstDefined(...values), 0);
+const pickPositiveMoney = (...values) => {
+  for (const value of values) {
+    const numeric = toNumber(value, 0);
+    if (numeric > 0) return numeric;
+  }
+  return 0;
+};
+
+const pricingSignalScoreSql = `
+  (
+    (CASE WHEN COALESCE(NULLIF(last_purchase_cost, 0), NULLIF(average_cost, 0), NULLIF(cost_price, 0), NULLIF(purchase_price, 0)) IS NOT NULL THEN 1 ELSE 0 END) +
+    (CASE WHEN COALESCE(NULLIF(selling_price, 0), NULLIF(price, 0), NULLIF(regular_price, 0)) IS NOT NULL THEN 1 ELSE 0 END) +
+    (CASE WHEN COALESCE(NULLIF(sale_price, 0), NULLIF(sale_price_enabled::int, 0)) IS NOT NULL THEN 1 ELSE 0 END)
+  )
+`;
 
 export const syncProductPricingFromVariants = async (client, { productId, tenantId = null, variantId = null } = {}) => {
   const numericProductId = Number(productId || 0);
@@ -84,7 +99,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       last_purchase_pricing_at
     FROM product_variants
     WHERE ${variantFilters.join("\n      ")}
-    ORDER BY COALESCE(updated_at, last_purchase_pricing_at) DESC, id DESC
+    ORDER BY ${pricingSignalScoreSql} DESC, COALESCE(updated_at, last_purchase_pricing_at) DESC, id DESC
     LIMIT 1
     `,
     variantValues
@@ -92,7 +107,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
   const variantRow = variantResult.rows?.[0] || null;
   if (!variantRow) return 0;
 
-  const nextLastPurchaseCost = pickMoney(
+  const nextLastPurchaseCost = pickPositiveMoney(
     variantRow.last_purchase_cost,
     variantRow.last_purchase_price,
     variantRow.purchase_price,
@@ -103,7 +118,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.cost_price,
     productRow.average_cost
   );
-  const nextAverageCost = pickMoney(
+  const nextAverageCost = pickPositiveMoney(
     variantRow.average_cost,
     variantRow.cost_price,
     variantRow.purchase_price,
@@ -112,7 +127,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.cost_price,
     productRow.purchase_price
   );
-  const nextCostPrice = pickMoney(
+  const nextCostPrice = pickPositiveMoney(
     variantRow.cost_price,
     variantRow.average_cost,
     variantRow.purchase_price,
@@ -121,7 +136,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.average_cost,
     productRow.purchase_price
   );
-  const nextPurchasePrice = pickMoney(
+  const nextPurchasePrice = pickPositiveMoney(
     variantRow.purchase_price,
     variantRow.last_purchase_price,
     variantRow.cost_price,
@@ -130,7 +145,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.cost_price,
     productRow.average_cost
   );
-  const nextSellingPrice = pickMoney(
+  const nextSellingPrice = pickPositiveMoney(
     variantRow.selling_price,
     variantRow.regular_price,
     variantRow.price,
@@ -138,7 +153,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.regular_price,
     productRow.price
   );
-  const nextRegularPrice = pickMoney(
+  const nextRegularPrice = pickPositiveMoney(
     variantRow.regular_price,
     variantRow.price,
     variantRow.selling_price,
@@ -146,7 +161,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.price,
     productRow.selling_price
   );
-  const nextPrice = pickMoney(
+  const nextPrice = pickPositiveMoney(
     variantRow.price,
     variantRow.regular_price,
     variantRow.selling_price,
@@ -155,7 +170,37 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.selling_price
   );
   const nextSalePrice = pickMoney(variantRow.sale_price, productRow.sale_price);
-  const nextSalePriceEnabled = toBoolean(variantRow.sale_price_enabled, toBoolean(productRow.sale_price_enabled, false));
+  const nextSalePriceEnabled = (toBoolean(variantRow.sale_price_enabled, toBoolean(productRow.sale_price_enabled, false)) || nextSalePrice > 0) && nextSalePrice > 0;
+
+  console.log("[product-pricing-sync] selected source variant", {
+    productId: numericProductId,
+    tenantId: tenantId ?? null,
+    requestedVariantId: Number.isInteger(Number(variantId)) && Number(variantId) > 0 ? Number(variantId) : null,
+    selectedVariantId: variantRow.id,
+    selectedVariantPricing: {
+      last_purchase_cost: variantRow.last_purchase_cost ?? null,
+      last_purchase_price: variantRow.last_purchase_price ?? null,
+      average_cost: variantRow.average_cost ?? null,
+      cost_price: variantRow.cost_price ?? null,
+      purchase_price: variantRow.purchase_price ?? null,
+      selling_price: variantRow.selling_price ?? null,
+      regular_price: variantRow.regular_price ?? null,
+      price: variantRow.price ?? null,
+      sale_price: variantRow.sale_price ?? null,
+      sale_price_enabled: variantRow.sale_price_enabled ?? null,
+    },
+    copiedPricing: {
+      last_purchase_cost: nextLastPurchaseCost,
+      average_cost: nextAverageCost,
+      cost_price: nextCostPrice,
+      purchase_price: nextPurchasePrice,
+      selling_price: nextSellingPrice,
+      regular_price: nextRegularPrice,
+      price: nextPrice,
+      sale_price: nextSalePrice,
+      sale_price_enabled: nextSalePriceEnabled,
+    },
+  });
 
   const updateResult = await client.query(
     `
@@ -188,6 +233,23 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       tenantId,
     ]
   );
+
+  console.log("[product-pricing-sync] updated product pricing", {
+    productId: numericProductId,
+    tenantId: tenantId ?? null,
+    rowCount: updateResult.rowCount || 0,
+    copiedPricing: {
+      last_purchase_cost: nextLastPurchaseCost,
+      average_cost: nextAverageCost,
+      cost_price: nextCostPrice,
+      purchase_price: nextPurchasePrice,
+      selling_price: nextSellingPrice,
+      regular_price: nextRegularPrice,
+      price: nextPrice,
+      sale_price: nextSalePrice,
+      sale_price_enabled: nextSalePriceEnabled,
+    },
+  });
 
   return updateResult.rowCount || 0;
 };
