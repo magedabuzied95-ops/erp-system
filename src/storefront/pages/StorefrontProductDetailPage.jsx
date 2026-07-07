@@ -32,7 +32,6 @@ import {
   variantColorName,
   variantHasStock,
   variantImage,
-  variantImages,
 } from "../Storefront";
 import { api } from "../../shared/api/api";
 import { applyProductSocialMeta } from "../../shared/lib/socialMeta";
@@ -40,6 +39,55 @@ import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/st
 import { Check, Heart, Ruler, Share2, ShoppingCart } from "lucide-react";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
+
+const galleryImageValue = (value = "") => {
+  if (!value) return "";
+  if (typeof value === "string") return String(value).trim();
+  if (typeof value === "object") {
+    return String(
+      value.image_url ||
+        value.preview ||
+        value.url ||
+        value.src ||
+        value.image ||
+        value.photo_url ||
+        value.thumbnail_url ||
+        ""
+    ).trim();
+  }
+  return "";
+};
+
+const buildProductGalleryImages = (product = {}, selectedVariant = null) => {
+  const images = [];
+  const pushImage = (value) => {
+    const image = galleryImageValue(value);
+    if (!image || images.includes(image)) return;
+    images.push(image);
+  };
+
+  const variantImageSources = [
+    ...(Array.isArray(selectedVariant?.images) ? selectedVariant.images : []),
+    ...(Array.isArray(selectedVariant?.color_images) ? selectedVariant.color_images : []),
+    ...(Array.isArray(selectedVariant?.gallery_images) ? selectedVariant.gallery_images : []),
+    selectedVariant?.image_url,
+    selectedVariant?.image,
+  ];
+
+  const productImageSources = [
+    ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
+    ...(Array.isArray(product?.images) ? product.images : []),
+    ...(Array.isArray(product?.image_urls) ? product.image_urls : []),
+    product?.image_url,
+    product?.product_image_url,
+    product?.image,
+  ];
+
+  variantImageSources.forEach(pushImage);
+  productImageSources.forEach(pushImage);
+
+  return images;
+};
 
 function StorefrontProductDetailSkeleton() {
   return (
@@ -163,6 +211,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const [state, setState] = useState({ loading: true, product: null, error: "" });
   const [reloadToken, setReloadToken] = useState(0);
   const [selected, setSelected] = useState({ variantId: "", size: "", colorKey: "", colorName: "", image: "" });
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [qty, setQty] = useState(1);
   const [variantSheetAction, setVariantSheetAction] = useState("");
   const [touchedOptions, setTouchedOptions] = useState({ color: false, size: false });
@@ -249,6 +298,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               colorName: first ? variantColorName(first) : "",
               image: variantImage(first) || displayImageForProduct(product, first) || product?.image_url || product?.gallery_images?.[0] || "",
             });
+            setActiveImageIndex(0);
             setTouchedOptions({ color: false, size: false });
             try {
               rememberProduct(product);
@@ -369,23 +419,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     || variants.find((item) => item.size === selected.size && (!selectedColorKey || variantColorKey(item) === selectedColorKey) && variantHasStock(item))
     || firstDisplayVariant(variants);
   const safeActiveVariant = activeVariant || {};
-  const colorGalleryImages = (selectedColorGroup?.images || []).filter(Boolean);
-  const thumbnailVariants = [...new Map(
-    variants
-      .filter((item) => variantImage(item))
-      .sort((a, b) => Number(variantHasStock(b)) - Number(variantHasStock(a)))
-      .map((item) => [`${variantImage(item)}:${item.color || ""}`, item])
-  ).values()];
-  const fallbackGalleryImages = !thumbnailVariants.length && product?.image_url ? [product.image_url] : [];
-  const mainImage = selected.image || variantImage(safeActiveVariant) || selectedColorGroup?.primaryImage?.image_url || selectedColorGroup?.primaryImage?.preview || firstVariantImage(variants) || product?.image_url || "";
-  const galleryItems = [
-    ...colorGalleryImages.map((image) => ({
-      image: imageFor(image?.image_url || image?.preview || ""),
-      variant: selectedColorGroup?.variants?.find((item) => variantImages(item).includes(String(image?.image_url || image?.preview || ""))) || null,
-    })),
-    ...thumbnailVariants.flatMap((item) => variantImages(item).map((image) => ({ image, variant: item }))),
-    ...fallbackGalleryImages.map((image) => ({ image, variant: null })),
-  ].filter((item) => item.image).reduce((acc, item) => (acc.some((entry) => entry.image === item.image) ? acc : [...acc, item]), []);
+  const galleryImages = useMemo(() => buildProductGalleryImages(product, selectedVariant), [product, selectedVariant]);
+  const activeImage = galleryImages[activeImageIndex] || galleryImages[0] || selected.image || variantImage(safeActiveVariant) || selectedColorGroup?.primaryImage?.image_url || selectedColorGroup?.primaryImage?.preview || firstVariantImage(variants) || product?.image_url || "";
+  const galleryItems = useMemo(() => galleryImages.map((image) => ({ image })), [galleryImages]);
   const mirrorProduct = product ? isMirrorProduct(product) : false;
   const displayTitle = cleanDisplayText(product ? mirrorProductTitle(product, safeActiveVariant) || product.name : "");
   const selectedPrice = resolveStorefrontPrice(product, safeActiveVariant);
@@ -420,6 +456,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       colorName: variantColorName(nextVariant),
       image: nextImage,
     });
+    setActiveImageIndex(0);
   };
   const selectColor = (group) => {
     const colorKey = group?.key || "";
@@ -437,12 +474,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     setTouchedOptions((prev) => ({ ...prev, size: true }));
     selectVariant(candidate);
   };
-  const selectGalleryImage = (item) => {
-    if (item?.variant) {
-      selectVariant(item.variant, { image: item.image });
-      return;
-    }
-    setSelected((prev) => ({ ...prev, image: item?.image || "" }));
+  const selectGalleryImage = (item, imageIndex) => {
+    if (!item?.image) return;
+    if (Number.isInteger(imageIndex)) setActiveImageIndex(imageIndex);
+    setSelected((prev) => ({ ...prev, image: item.image || "" }));
   };
   const submitVariant = (candidate = safeActiveVariant, quantity = qty, action = "cart") => {
     if (!product || !candidate || Number(candidate.stock || 0) <= 0) return;
@@ -504,10 +539,11 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
         <div className="overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.12),transparent_34%),linear-gradient(180deg,#090909_0%,#111111_100%)] p-2 shadow-[0_28px_80px_rgba(0,0,0,0.32)] md:rounded-[2rem] md:p-3">
         <Suspense fallback={<ProductGalleryFallback />}>
           <LazyStorefrontProductGallery
-            mainImage={mainImage}
+            mainImage={activeImage}
             displayTitle={displayTitle}
             galleryItems={galleryItems}
-            selectedImage={selected.image}
+            selectedImage={activeImage}
+            activeImageIndex={activeImageIndex}
             onSelectImage={selectGalleryImage}
             imageFor={imageFor}
             fallbackProductImage={fallbackProductImage}

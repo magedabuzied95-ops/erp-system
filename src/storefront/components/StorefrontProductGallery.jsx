@@ -5,6 +5,7 @@ export default function StorefrontProductGallery({
   displayTitle,
   galleryItems = [],
   selectedImage = "",
+  activeImageIndex = 0,
   onSelectImage,
   imageFor,
   fallbackProductImage,
@@ -20,12 +21,12 @@ export default function StorefrontProductGallery({
         <div className="sf-product-thumbnails sf-scroll mt-1.5 flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-1 md:mt-3 md:gap-2">
           {galleryItems.map((item, imageIndex) => {
             const image = item.image;
-            const active = mainImage === image || selectedImage === image;
+            const active = Number.isInteger(activeImageIndex) ? imageIndex === activeImageIndex : mainImage === image || selectedImage === image;
             return (
               <button
                 key={`${image}-${imageIndex}`}
                 type="button"
-                onClick={() => onSelectImage(item)}
+                onClick={() => onSelectImage?.(item, imageIndex)}
                 className={`sf-product-thumb h-12 w-12 shrink-0 snap-start overflow-hidden rounded-xl border bg-white p-1 transition-[background-color,border-color,box-shadow,opacity,transform] duration-200 hover:border-stone-900 hover:shadow-[0_10px_24px_rgba(39,20,75,0.10)] md:h-20 md:w-20 md:rounded-2xl md:p-1.5 ${active ? "border-stone-950 shadow-[0_12px_28px_rgba(39,20,75,0.14)]" : "border-stone-200"}`}
               >
                 <img src={imageFor(image)} {...getStorefrontResponsiveImageProps(imageFor(image), "thumbnail")} onError={fallbackProductImage} alt="" className="h-full w-full object-contain" loading="lazy" decoding="async" width="80" height="80" />
