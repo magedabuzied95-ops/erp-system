@@ -57,11 +57,18 @@ export const getWebsiteSettings = async ({ tenantId = null } = {}) => {
     [tenantId]
     ),
   ]);
-  return {
+  const settings = {
     ...DEFAULT_SETTINGS,
     default_shipping_price: defaultShippingPrice,
     shipping_zones: Array.isArray(shippingZones) ? shippingZones : [],
     ...(result.rows[0]?.settings || {}),
+  };
+  console.debug("[website-settings:get]", {
+    tenant_id: tenantId,
+    sale_mode_enabled: settings.sale_mode_enabled,
+  });
+  return {
+    ...settings,
   };
 };
 
@@ -106,7 +113,12 @@ export const updateWebsiteSettings = async ({ tenantId = null, settings = {} } =
   if (tenantId !== null && tenantId !== undefined) {
     invalidateCachePattern(buildCacheKey("storefront", `tenant:public`, "*")).catch(() => {});
   }
-  return { ...DEFAULT_SETTINGS, ...(result.rows[0]?.settings || next) };
+  const saved = { ...DEFAULT_SETTINGS, ...(result.rows[0]?.settings || next) };
+  console.debug("[website-settings:save]", {
+    tenant_id: tenantId,
+    sale_mode_enabled: saved.sale_mode_enabled,
+  });
+  return saved;
 };
 
 export { DEFAULT_SETTINGS as DEFAULT_WEBSITE_SETTINGS };

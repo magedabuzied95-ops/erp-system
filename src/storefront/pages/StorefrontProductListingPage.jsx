@@ -368,9 +368,9 @@ const applyCatalogFilters = (products = [], filters = {}, ignore = []) => {
       return false;
     }
     if (saleOnly) {
-      const price = productFacetPrice(product);
-      const salePrice = Number(product.sale_price || product.offer_price || 0) || 0;
-      if (!(salePrice > 0 && salePrice < price)) {
+      const price = Number(displaySellingPrice(product) || productFacetPrice(product) || 0) || 0;
+      const comparePrice = Number(displayComparePrice(product) || 0) || 0;
+      if (!(comparePrice > price)) {
         return false;
       }
     }
@@ -609,9 +609,9 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
     for (const product of Array.isArray(items) ? items : []) {
       if (!product?.id || !product?.name) continue;
       if (saleOnlyActive) {
-        const price = productFacetPrice(product);
-        const salePrice = Number(product.sale_price || product.offer_price || 0) || 0;
-        if (!(salePrice > 0 && salePrice < price)) continue;
+        const price = Number(displaySellingPrice(product) || productFacetPrice(product) || 0) || 0;
+        const comparePrice = Number(displayComparePrice(product) || 0) || 0;
+        if (!(comparePrice > price)) continue;
       }
       if (lastSizesOnlyActive && !isLastPieceProduct(product)) continue;
       if (inStockOnlyActive && productFacetStock(product) <= 0) continue;

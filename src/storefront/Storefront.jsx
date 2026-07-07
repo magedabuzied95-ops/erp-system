@@ -668,6 +668,7 @@ const storefrontOriginalPriceCandidates = (product = {}, variant = {}) =>
     product?.compare_at_price,
   ].map(Number).filter((value) => Number.isFinite(value) && value > 0);
 const storefrontOriginalPrice = (product = {}, variant = {}) => {
+  if (!storefrontSaleModeOn(product, variant)) return 0;
   const activePrice = storefrontSaleModeOn(product, variant) && Number(variant?.sale_price ?? product?.sale_price ?? 0) > 0
     ? Number(variant?.sale_price ?? product?.sale_price ?? 0)
     : storefrontSellingPrice(product, variant);
@@ -682,8 +683,16 @@ const saleActive = (product = {}, variant = {}) => {
   return storefrontSaleModeOn(product, variant) && sale > 0;
 };
 const displaySellingPrice = (product = {}, variant = {}) => {
-  if (saleActive(product, variant)) return Number((variant?.sale_price ?? product?.sale_price) || 0);
-  return storefrontSellingPrice(product, variant);
+  const activeSale = saleActive(product, variant);
+  const price = activeSale ? Number((variant?.sale_price ?? product?.sale_price) || 0) : storefrontSellingPrice(product, variant);
+  const comparePrice = activeSale ? storefrontOriginalPrice(product, variant) : 0;
+  logStorefrontSaleResolver(product, variant, {
+    chosenPrice: price,
+    comparePrice,
+    activeSale,
+    source: activeSale ? "sale_price" : "selling_price",
+  });
+  return price;
 };
 const displayLastPieceSellingPrice = (product = {}, variant = {}) => {
   const purchaseSalePrice = Number(
@@ -1649,6 +1658,31 @@ const storefrontDebugLog = (label, payload = {}) => {
   if (!import.meta.env.DEV) return;
   console.log(label, payload);
 };
+const storefrontSaleDebugEnabled = () =>
+  import.meta.env.DEV ||
+  (typeof window !== "undefined" && ["1", "true", "yes", "on"].includes(String(window.localStorage?.getItem("STOREFRONT_SALE_DEBUG") || "").trim().toLowerCase()));
+const storefrontSaleDebugSeen = new Set();
+const logStorefrontSaleResolver = (product = {}, variant = {}, details = {}) => {
+  if (!storefrontSaleDebugEnabled()) return;
+  const key = [
+    product?.id || product?.product_id || product?.slug || "",
+    variant?.id || variant?.variant_id || variant?.sku || "",
+    details?.source || "",
+  ].join(":");
+  if (storefrontSaleDebugSeen.has(key)) return;
+  storefrontSaleDebugSeen.add(key);
+  console.debug("[storefront:sale-price-resolver]", {
+    product_id: product?.id || product?.product_id || null,
+    variant_id: variant?.id || variant?.variant_id || null,
+    sale_mode_enabled: storefrontSalePricesEnabled,
+    sale_price: Number(variant?.sale_price ?? product?.sale_price ?? 0) || 0,
+    selling_price: Number(variant?.selling_price ?? variant?.price ?? product?.selling_price ?? product?.price ?? product?.regular_price ?? 0) || 0,
+    chosen_price: Number(details?.chosenPrice ?? 0) || 0,
+    compare_price: Number(details?.comparePrice ?? 0) || 0,
+    active_sale: Boolean(details?.activeSale),
+    source: details?.source || "",
+  });
+};
 const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) => {
   if (ttlMs <= 0) {
     storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: "no-store" });
@@ -2392,11 +2426,14 @@ const featuredSlideProduct = (product = {}) => {
 const displayCartItemPrice = (item = {}) => {
   const regular = Number(item.selling_price || item.price || 0);
   const sale = Number(item.sale_price || 0);
-  const saleModeOn = truthyFlag(item.global_sale_enabled) || truthyFlag(item.sale_prices_enabled) || truthyFlag(item.sale_mode_enabled);
+  const saleModeOn =
+    storefrontSalePricesEnabled &&
+    (truthyFlag(item.global_sale_enabled) || truthyFlag(item.sale_prices_enabled) || truthyFlag(item.sale_mode_enabled));
   return saleModeOn && sale > 0 ? sale : regular;
 };
 
 const displayCartItemComparePrice = (item = {}) => {
+  if (!storefrontSalePricesEnabled) return 0;
   const activePrice = displayCartItemPrice(item);
   const original = Number(item.original_price || item.base_price || item.list_price || item.compare_at_price || item.regular_price || 0);
   return original > activePrice ? original : 0;
@@ -2480,6 +2517,7 @@ const resolveProductImage = (item = {}, product = {}, variant = {}) => {
 };
 
 const displayComparePrice = (product = {}, variant = {}) => {
+  if (!storefrontSaleModeOn(product, variant)) return 0;
   const activePrice = displaySellingPrice(product, variant);
   const comparePrice = storefrontOriginalPrice(product, variant);
   return comparePrice > activePrice ? comparePrice : 0;
@@ -2491,6 +2529,7 @@ const parseStorefrontPriceValue = (value) => {
 };
 const offerStoryPriceInfo = (product = {}) => {
   const num = (value) => parseStorefrontPriceValue(value);
+  const saleEnabled = storefrontSalePricesEnabled;
   const offerSalePrice = num(product?.sale_price || product?.salePrice || product?.discounted_price || product?.discountedPrice);
   const regularPrice = num(product?.selling_price || product?.sellingPrice || product?.price);
   const comparePrice = num(
@@ -2500,12 +2539,12 @@ const offerStoryPriceInfo = (product = {}) => {
       product?.originalPrice ||
       regularPrice
   );
-  const displayPrice = offerSalePrice > 0 ? offerSalePrice : regularPrice;
-  const crossedPrice = offerSalePrice > 0 ? (comparePrice > offerSalePrice ? comparePrice : regularPrice) : comparePrice;
+  const displayPrice = saleEnabled && offerSalePrice > 0 ? offerSalePrice : regularPrice;
+  const crossedPrice = saleEnabled && offerSalePrice > 0 ? (comparePrice > offerSalePrice ? comparePrice : regularPrice) : 0;
   return {
-    offerSalePrice,
+    offerSalePrice: saleEnabled ? offerSalePrice : 0,
     regularPrice,
-    comparePrice,
+    comparePrice: saleEnabled ? comparePrice : 0,
     displayPrice,
     crossedPrice,
   };
@@ -6771,7 +6810,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
           {[product.category, product.brand, product.style, product.grade].filter(Boolean).join(" / ") || product.sizes?.slice(0, 4).join(" / ") || "Browse items"}
         </div>
       </div>
-      <div className="rounded-full border border-stone-200/80 bg-white px-3 py-1 text-xs font-black text-stone-950 shadow-[0_8px_18px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.08] dark:text-white dark:shadow-none">{money(product.sale_price || product.price)}</div>
+      <div className="rounded-full border border-stone-200/80 bg-white px-3 py-1 text-xs font-black text-stone-950 shadow-[0_8px_18px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-white/[0.08] dark:text-white dark:shadow-none">{money(displaySellingPrice(product))}</div>
     </button>
   );
 }
@@ -7759,12 +7798,19 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
   useEffect(() => {
     let cancelled = false;
-    api.get("/settings/public", { suppressErrorStatuses: [404, 500] })
+    api.get("/settings/public", {
+      suppressErrorStatuses: [404, 500],
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
       .then((data) => {
         if (cancelled) return;
         const settings = data?.settings || {};
         setShippingLocations(normalizeCheckoutLocations(settings["storefront.shipping_locations"]));
         setPublicStoreSettings(settings);
+        console.debug("[storefront:public-settings-loaded]", {
+          sale_mode_enabled: settings.sale_mode_enabled ?? settings.global_sale_enabled ?? settings.sale_prices_enabled,
+        });
         console.debug("[payment-settings:loaded]", {
           instapay_enabled: Boolean(settings["storefront.payment_methods.instapay_enabled"] ?? settings["payments.instapay_enabled"]),
           vodafone_cash_enabled: Boolean(settings["storefront.payment_methods.vodafone_cash_enabled"] ?? settings["payments.vodafone_cash_enabled"]),
@@ -11346,10 +11392,18 @@ function Storefront() {
 
   useEffect(() => {
     let cancelled = false;
-    api.get("/settings/public", { suppressErrorStatuses: [404, 500] })
+    api.get("/settings/public", {
+      suppressErrorStatuses: [404, 500],
+      cache: "no-store",
+      headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+    })
       .then((data) => {
         if (cancelled) return;
-        setPublicStoreSettings(data?.settings || {});
+        const settings = data?.settings || {};
+        setPublicStoreSettings(settings);
+        console.debug("[storefront:public-settings-loaded]", {
+          sale_mode_enabled: settings.sale_mode_enabled ?? settings.global_sale_enabled ?? settings.sale_prices_enabled,
+        });
       })
       .catch(() => undefined);
     return () => {

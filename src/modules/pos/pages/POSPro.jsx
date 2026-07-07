@@ -1824,8 +1824,13 @@ function POSPro() {
     const normalized = normalizeSaleModeSettings(nextSettings);
     setSaleModeSaving(true);
     try {
+      console.debug("[pos:sale-mode-save:payload]", normalized);
       const response = await api.put("/website/settings", normalized);
       const saved = normalizeSaleModeSettings(response?.settings || normalized);
+      console.debug("[pos:sale-mode-save:response]", {
+        sale_mode_enabled: saved.sale_mode_enabled,
+        response_sale_mode_enabled: response?.settings?.sale_mode_enabled,
+      });
       setSaleModeSettings(saved);
       writeUseSalePrices(Boolean(saved.sale_mode_enabled));
       const refreshedCatalog = await refreshCatalogProducts({
@@ -1863,10 +1868,21 @@ function POSPro() {
         setLoading(true);
         setError("");
 
-        const websiteSettings = await api.get("/website/settings", { signal: controller.signal }).catch(() => ({ settings: {} }));
+        const websiteSettings = await api.get("/website/settings", {
+          signal: controller.signal,
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+        }).catch(() => ({ settings: {} }));
         const normalizedSaleMode = normalizeSaleModeSettings({
           ...(websiteSettings?.settings || {}),
-          sale_mode_enabled: readUseSalePrices(),
+          sale_mode_enabled:
+            websiteSettings?.settings?.sale_mode_enabled !== undefined && websiteSettings?.settings?.sale_mode_enabled !== null
+              ? websiteSettings?.settings?.sale_mode_enabled
+              : readUseSalePrices(),
+        });
+        console.debug("[pos:sale-mode-loaded]", {
+          backend_sale_mode_enabled: websiteSettings?.settings?.sale_mode_enabled,
+          local_sale_mode_enabled: readUseSalePrices(),
         });
         setSaleModeSettings(normalizedSaleMode);
         const catalog = await refreshCatalogProducts({

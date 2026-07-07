@@ -257,10 +257,13 @@ function WebsiteSettings() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    api.get("/website/settings")
+    api.get("/website/settings", { cache: "no-store", headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } })
       .then((response) => {
         if (cancelled) return;
         const settings = response.settings || {};
+        console.debug("[website-settings:loaded]", {
+          sale_mode_enabled: settings.sale_mode_enabled,
+        });
         setPricing({ ...PRICING_DEFAULTS, ...normalizeSaleModeSettings(settings), ...settings });
         setDefaultShippingPrice(Number(settings.default_shipping_price ?? 60) || 0);
         setZones((Array.isArray(settings.shipping_zones) ? settings.shipping_zones : []).map(normalizeZone));
@@ -328,8 +331,14 @@ function WebsiteSettings() {
         default_shipping_price: Math.max(0, Number(defaultShippingPrice || 0)),
         shipping_zones: zones.map(normalizeZone),
       };
+      console.debug("[website-settings:save-payload]", {
+        sale_mode_enabled: payload.sale_mode_enabled,
+      });
       const response = await api.put("/website/settings", payload);
       const settings = response.settings || payload;
+      console.debug("[website-settings:save-response]", {
+        sale_mode_enabled: settings.sale_mode_enabled,
+      });
       setPricing({ ...PRICING_DEFAULTS, ...normalizeSaleModeSettings(settings), ...settings });
       setDefaultShippingPrice(Number(settings.default_shipping_price ?? payload.default_shipping_price) || 0);
       setZones((Array.isArray(settings.shipping_zones) ? settings.shipping_zones : payload.shipping_zones).map(normalizeZone));

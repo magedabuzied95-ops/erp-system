@@ -211,6 +211,12 @@ const getPublicStorefrontSettings = async (req, res) => {
     const tenantId = publicTenantId(req);
     const settings = await getWebsiteSettings({ tenantId });
     const home = await resolveStorefrontHome({ tenantId, settings });
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    console.debug("[storefront:public-settings-response]", {
+      tenant_id: tenantId,
+      sale_mode_enabled: settings.sale_mode_enabled,
+    });
     return res.json({ success: true, settings, home });
   } catch (error) {
     console.error("[storefront] settings", {
@@ -227,6 +233,12 @@ const getPublicStorefrontHome = async (req, res) => {
     const tenantId = publicTenantId(req);
     const settings = await getWebsiteSettings({ tenantId });
     const home = await resolveStorefrontHome({ tenantId, settings });
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    console.debug("[storefront:public-home-response]", {
+      tenant_id: tenantId,
+      sale_mode_enabled: settings.sale_mode_enabled,
+    });
     return res.json({
       success: true,
       settings,
