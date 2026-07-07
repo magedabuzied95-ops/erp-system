@@ -170,8 +170,8 @@ const writeLastSalespersonId = (salespersonId) => {
 const readUseSalePrices = () => {
   try {
     const saved = window.localStorage.getItem(POS_USE_SALE_PRICES_KEY);
-    if (saved === "false") return false;
-    if (saved === "true") return true;
+    if (saved === "false" || saved === "0") return false;
+    if (saved === "true" || saved === "1") return true;
   } catch {
     // Persisted POS preferences are best-effort only.
   }
@@ -1365,10 +1365,7 @@ function POSPro() {
   }, []);
 
   const [products, setProducts] = useState([]);
-  const [saleModeSettings, setSaleModeSettings] = useState(() =>
-    normalizeSaleModeSettings({ sale_mode_enabled: readUseSalePrices() })
-  );
-  const [saleModeHydrated, setSaleModeHydrated] = useState(false);
+  const [saleModeSettings, setSaleModeSettings] = useState(() => normalizeSaleModeSettings({}));
   const [saleModeSaving, setSaleModeSaving] = useState(false);
   const [manufacturers, setManufacturers] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -1456,10 +1453,6 @@ function POSPro() {
   const [shiftCloseNotes, setShiftCloseNotes] = useState("");
   const [shiftVarianceReason, setShiftVarianceReason] = useState("");
 
-  useEffect(() => {
-    if (!saleModeHydrated) return;
-    writeUseSalePrices(Boolean(saleModeSettings?.sale_mode_enabled));
-  }, [saleModeHydrated, saleModeSettings?.sale_mode_enabled]);
   const [barcodeShopProduct, setBarcodeShopProduct] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -1836,16 +1829,24 @@ function POSPro() {
     const normalized = normalizeSaleModeSettings(nextSettings);
     setSaleModeSaving(true);
     try {
-      console.debug("[pos:sale-mode-save:payload]", normalized);
+      console.debug("POS_SALE_MODE_PUT_PAYLOAD", normalized);
       const response = await api.put("/website/settings", normalized);
-      const saved = normalizeSaleModeSettings(response?.settings || normalized);
-      console.debug("[pos:sale-mode-save:response]", {
-        sale_mode_enabled: saved.sale_mode_enabled,
+      const refreshed = await api.get("/website/settings", {
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      }).catch(() => null);
+      const refreshedRaw = refreshed?.settings?.sale_mode_enabled;
+      const parsedFromResponse = parseSaleModeEnabled(response?.settings?.sale_mode_enabled, normalized.sale_mode_enabled);
+      const saved = normalizeSaleModeSettings({
+        ...(response?.settings || normalized),
+        sale_mode_enabled: parseSaleModeEnabled(refreshedRaw, parsedFromResponse),
+      });
+      console.debug("POS_SALE_MODE_AFTER_SAVE_GET", {
         response_sale_mode_enabled: response?.settings?.sale_mode_enabled,
+        refreshed_sale_mode_enabled: refreshedRaw,
+        parsed_sale_mode_enabled: saved.sale_mode_enabled,
       });
       setSaleModeSettings(saved);
-      setSaleModeHydrated(true);
-      writeUseSalePrices(Boolean(saved.sale_mode_enabled));
       const refreshedCatalog = await refreshCatalogProducts({
         setProducts,
         setLoading,
@@ -1881,34 +1882,58 @@ function POSPro() {
         setLoading(true);
         setError("");
 
-        const websiteSettings = await api.get("/website/settings", {
-          signal: controller.signal,
-          cache: "no-store",
-          headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
-        }).catch(() => ({ settings: {} }));
-        const backendSaleModeEnabledRaw = websiteSettings?.settings?.sale_mode_enabled;
-        const backendSaleModeEnabled = parseSaleModeEnabled(backendSaleModeEnabledRaw);
-        const localSaleModeEnabled = readUseSalePrices();
-        const hydratedSaleModeEnabled = backendSaleModeEnabled ?? localSaleModeEnabled;
-        const normalizedSaleMode = normalizeSaleModeSettings({
-          ...(websiteSettings?.settings || {}),
-          sale_mode_enabled: hydratedSaleModeEnabled,
-        });
-        console.debug("POS_SALE_MODE_HYDRATE_BACKEND_RAW", {
-          sale_mode_enabled: backendSaleModeEnabledRaw,
-        });
-        console.debug("POS_SALE_MODE_HYDRATE_PARSED", {
-          backend_sale_mode_enabled: backendSaleModeEnabled,
-          local_sale_mode_enabled: localSaleModeEnabled,
-        });
-        console.debug("POS_SALE_MODE_FINAL_STATE", {
-          sale_mode_enabled: normalizedSaleMode.sale_mode_enabled,
-          backend_sale_mode_enabled: backendSaleModeEnabledRaw,
-          parsed_backend_sale_mode_enabled: backendSaleModeEnabled,
-          local_sale_mode_enabled: localSaleModeEnabled,
-        });
-        setSaleModeSettings(normalizedSaleMode);
-        setSaleModeHydrated(true);
+        let websiteSettings = null;
+        try {
+          websiteSettings = await api.get("/website/settings", {
+            signal: controller.signal,
+            cache: "no-store",
+            headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+          });
+        } catch {
+          websiteSettings = null;
+        }
+        if (websiteSettings) {
+          const backendSaleModeEnabledRaw = websiteSettings?.settings?.sale_mode_enabled;
+          const backendSaleModeEnabled = parseSaleModeEnabled(backendSaleModeEnabledRaw, true);
+          const normalizedSaleMode = normalizeSaleModeSettings({
+            ...(websiteSettings?.settings || {}),
+            sale_mode_enabled: backendSaleModeEnabled,
+          });
+          console.debug("POS_SALE_MODE_HYDRATE_BACKEND_RAW", {
+            sale_mode_enabled: backendSaleModeEnabledRaw,
+          });
+          console.debug("POS_SALE_MODE_HYDRATE_PARSED", {
+            backend_sale_mode_enabled: backendSaleModeEnabled,
+            source: "backend",
+          });
+          console.debug("POS_SALE_MODE_FINAL_STATE", {
+            sale_mode_enabled: normalizedSaleMode.sale_mode_enabled,
+            backend_sale_mode_enabled: backendSaleModeEnabledRaw,
+            parsed_backend_sale_mode_enabled: backendSaleModeEnabled,
+            source: "backend",
+          });
+          setSaleModeSettings(normalizedSaleMode);
+        } else {
+          const fallbackSaleModeEnabled = parseSaleModeEnabled(readUseSalePrices(), true);
+          const fallbackSaleMode = normalizeSaleModeSettings({ sale_mode_enabled: fallbackSaleModeEnabled });
+          console.debug("POS_SALE_MODE_HYDRATE_BACKEND_RAW", {
+            sale_mode_enabled: null,
+            fallback: true,
+          });
+          console.debug("POS_SALE_MODE_HYDRATE_PARSED", {
+            backend_sale_mode_enabled: undefined,
+            local_sale_mode_enabled: fallbackSaleModeEnabled,
+            source: "localStorage_fallback",
+          });
+          console.debug("POS_SALE_MODE_FINAL_STATE", {
+            sale_mode_enabled: fallbackSaleMode.sale_mode_enabled,
+            backend_sale_mode_enabled: null,
+            parsed_backend_sale_mode_enabled: undefined,
+            local_sale_mode_enabled: fallbackSaleModeEnabled,
+            source: "localStorage_fallback",
+          });
+          setSaleModeSettings(fallbackSaleMode);
+        }
         const catalog = await refreshCatalogProducts({
           setProducts,
           setLoading,

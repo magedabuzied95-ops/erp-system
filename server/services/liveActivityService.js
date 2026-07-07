@@ -3,6 +3,16 @@ import { SALE_MODE_DEFAULTS } from "./saleModeService.js";
 import { buildCacheKey, invalidateCachePattern } from "./cacheService.js";
 import { getSetting, setSetting } from "./settingsService.js";
 
+const parseSaleModeEnabled = (value, fallback = undefined) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (value === true || value === 1 || value === "1") return true;
+  if (value === false || value === 0 || value === "0") return false;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "yes", "on"].includes(normalized)) return true;
+  if (["false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
+
 const DEFAULT_SETTINGS = {
   enable_fake_compare_price: true,
   fake_compare_percent: 20,
@@ -63,6 +73,7 @@ export const getWebsiteSettings = async ({ tenantId = null } = {}) => {
     shipping_zones: Array.isArray(shippingZones) ? shippingZones : [],
     ...(result.rows[0]?.settings || {}),
   };
+  settings.sale_mode_enabled = parseSaleModeEnabled(settings.sale_mode_enabled, DEFAULT_SETTINGS.sale_mode_enabled);
   console.debug("[website-settings:get]", {
     tenant_id: tenantId,
     sale_mode_enabled: settings.sale_mode_enabled,
@@ -82,6 +93,10 @@ export const updateWebsiteSettings = async ({ tenantId = null, settings = {} } =
   }
   const current = await getWebsiteSettings({ tenantId });
   const next = { ...current, ...(settings || {}) };
+  next.sale_mode_enabled = parseSaleModeEnabled(
+    Object.prototype.hasOwnProperty.call(settings || {}, "sale_mode_enabled") ? settings.sale_mode_enabled : current.sale_mode_enabled,
+    current.sale_mode_enabled ?? DEFAULT_SETTINGS.sale_mode_enabled
+  );
   if (tenantId === null || tenantId === undefined) {
     const existing = await db.query(`SELECT id FROM website_settings WHERE tenant_id IS NULL ORDER BY id ASC LIMIT 1`);
     if (existing.rows[0]) {

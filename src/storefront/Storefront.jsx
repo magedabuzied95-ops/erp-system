@@ -308,10 +308,17 @@ const couponErrorText = (reason = "") => {
 };
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
 let storefrontSalePricesEnabled = true;
+const parseStorefrontSaleModeEnabled = (value, fallback = undefined) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (value === true || value === 1 || value === "1") return true;
+  if (value === false || value === 0 || value === "0") return false;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "yes", "on"].includes(normalized)) return true;
+  if (["false", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
 const normalizeStorefrontSalePricesEnabled = (settings = {}) => {
-  const flag = settings?.sale_mode_enabled ?? settings?.global_sale_enabled ?? settings?.sale_prices_enabled;
-  if (flag === undefined || flag === null || flag === "") return true;
-  return truthyFlag(flag);
+  return Boolean(parseStorefrontSaleModeEnabled(settings?.sale_mode_enabled, true));
 };
 const setStorefrontSalePricesEnabled = (settings = {}) => {
   storefrontSalePricesEnabled = normalizeStorefrontSalePricesEnabled(settings);
@@ -7751,8 +7758,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         const settings = data?.settings || {};
         setShippingLocations(normalizeCheckoutLocations(settings["storefront.shipping_locations"]));
         setPublicStoreSettings(settings);
-        console.debug("[storefront:public-settings-loaded]", {
-          sale_mode_enabled: settings.sale_mode_enabled ?? settings.global_sale_enabled ?? settings.sale_prices_enabled,
+        console.debug("STOREFRONT_PUBLIC_SALE_MODE", {
+          sale_mode_enabled: settings.sale_mode_enabled,
+          parsed_sale_mode_enabled: parseStorefrontSaleModeEnabled(settings.sale_mode_enabled, true),
         });
         console.debug("[payment-settings:loaded]", {
           instapay_enabled: Boolean(settings["storefront.payment_methods.instapay_enabled"] ?? settings["payments.instapay_enabled"]),
@@ -11046,7 +11054,7 @@ function SmallProductGrid({ items, action, onAddToCart }) {
               <div className="mt-4 line-clamp-2 min-h-12 break-words text-start text-[15px] font-black leading-6 text-white">{item.name || sfText("storefront.products.savedProduct")}</div>
               <div className="mt-2 flex min-h-7 flex-wrap items-center gap-2 text-start text-sm font-black text-white">
                 {item.price ? <span className="text-[1.05rem] text-[#f3d77a]">{money(item.price)}</span> : <span className="text-sm font-bold text-white/50">{sfText("storefront.products.openForDetails")}</span>}
-                {item.compare_at_price && item.compare_at_price > item.price ? <span className="text-xs font-bold text-white/40 line-through">{money(item.compare_at_price)}</span> : null}
+                {displayComparePrice(item) > Number(item.price || 0) ? <span className="text-xs font-bold text-white/40 line-through">{money(displayComparePrice(item))}</span> : null}
               </div>
             </Link>
           )}
@@ -11344,8 +11352,9 @@ function Storefront() {
         if (cancelled) return;
         const settings = data?.settings || {};
         setPublicStoreSettings(settings);
-        console.debug("[storefront:public-settings-loaded]", {
-          sale_mode_enabled: settings.sale_mode_enabled ?? settings.global_sale_enabled ?? settings.sale_prices_enabled,
+        console.debug("STOREFRONT_PUBLIC_SALE_MODE", {
+          sale_mode_enabled: settings.sale_mode_enabled,
+          parsed_sale_mode_enabled: parseStorefrontSaleModeEnabled(settings.sale_mode_enabled, true),
         });
       })
       .catch(() => undefined);

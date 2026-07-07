@@ -15,12 +15,12 @@ const publicTenantId = (req) => {
   return Number.isFinite(tenantId) && tenantId > 0 ? tenantId : null;
 };
 
-router.get("/settings", async (req, res) => {
+router.get("/settings", protect, permit("website", "settings"), async (req, res) => {
   try {
     const settings = await getWebsiteSettings({ tenantId: publicTenantId(req) });
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.set("Pragma", "no-cache");
-    console.debug("[website-settings:public-get]", {
+    console.debug("WEBSITE_SETTINGS_GET_SALE_MODE", {
       tenant_id: publicTenantId(req),
       sale_mode_enabled: settings.sale_mode_enabled,
     });
@@ -33,7 +33,7 @@ router.get("/settings", async (req, res) => {
 router.put("/settings", protect, permit("website", "settings"), async (req, res) => {
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    console.debug("[website-settings:put]", {
+    console.debug("WEBSITE_SETTINGS_PUT_SALE_MODE", {
       tenant_id: tenantId,
       sale_mode_enabled: req.body?.sale_mode_enabled,
       body_keys: Object.keys(req.body || {}),

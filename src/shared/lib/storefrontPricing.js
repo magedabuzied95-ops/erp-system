@@ -22,6 +22,7 @@ const logStorefrontPriceDebug = (payload = {}) => {
   if (storefrontPriceDebugSeen.has(key)) return;
   storefrontPriceDebugSeen.add(key);
   console.debug("PRODUCT_PRICE_DEBUG", payload);
+  console.debug("STOREFRONT_PRICE_DECISION", payload);
 };
 
 export const truthyStorefrontFlag = (value) =>
