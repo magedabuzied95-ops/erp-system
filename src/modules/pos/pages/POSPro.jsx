@@ -1825,20 +1825,27 @@ function POSPro() {
     }
   };
 
-  const saveSaleModeSettings = useCallback(async (nextSettings) => {
-    const normalized = normalizeSaleModeSettings(nextSettings);
+  const saveSaleModeSettings = useCallback(async (nextSaleModeEnabled, previousSaleMode = null) => {
+    const payload = {
+      sale_mode_enabled: Boolean(nextSaleModeEnabled),
+    };
     setSaleModeSaving(true);
     try {
-      console.debug("POS_SALE_MODE_PUT_PAYLOAD", normalized);
-      const response = await api.put("/website/settings", normalized);
+      console.debug("POS_SALE_MODE_CLICK_TARGET", {
+        previous: previousSaleMode,
+        next: Boolean(nextSaleModeEnabled),
+        payload,
+      });
+      console.debug("POS_SALE_MODE_PUT_PAYLOAD", payload);
+      const response = await api.put("/website/settings", payload);
       const refreshed = await api.get("/website/settings", {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       }).catch(() => null);
       const refreshedRaw = refreshed?.settings?.sale_mode_enabled;
-      const parsedFromResponse = parseSaleModeEnabled(response?.settings?.sale_mode_enabled, normalized.sale_mode_enabled);
+      const parsedFromResponse = parseSaleModeEnabled(response?.settings?.sale_mode_enabled, payload.sale_mode_enabled);
       const saved = normalizeSaleModeSettings({
-        ...(response?.settings || normalized),
+        ...(response?.settings || payload),
         sale_mode_enabled: parseSaleModeEnabled(refreshedRaw, parsedFromResponse),
       });
       console.debug("POS_SALE_MODE_AFTER_SAVE_GET", {
@@ -1872,7 +1879,7 @@ function POSPro() {
     } finally {
       setSaleModeSaving(false);
     }
-  }, []);
+  }, [editingOrder?.id]);
 
   useEffect(() => {
     let active = true;
@@ -5926,13 +5933,14 @@ function POSPro() {
   const saleMode = useMemo(() => normalizeSaleModeSettings(saleModeSettings), [saleModeSettings]);
   const salePricesEnabled = Boolean(saleMode.sale_mode_enabled);
   const handleToggleSaleMode = useCallback(async () => {
-    await saveSaleModeSettings({
-      ...saleMode,
-      sale_mode_enabled: !salePricesEnabled,
-      sale_mode_type: "use_existing_sale_prices_only",
-      sale_mode_value: 0,
-    });
-  }, [saleMode, salePricesEnabled, saveSaleModeSettings]);
+    const previousSaleMode = Boolean(saleModeSettings?.sale_mode_enabled);
+    const nextSaleMode = !previousSaleMode;
+    setSaleModeSettings((current) => normalizeSaleModeSettings({ ...current, sale_mode_enabled: nextSaleMode }));
+    const saved = await saveSaleModeSettings(nextSaleMode, previousSaleMode);
+    if (!saved) {
+      setSaleModeSettings((current) => normalizeSaleModeSettings({ ...current, sale_mode_enabled: previousSaleMode }));
+    }
+  }, [saleModeSettings, saveSaleModeSettings]);
 
   const handleToggleFullscreen = useCallback(async () => {
     const getFullscreenElement = () =>
