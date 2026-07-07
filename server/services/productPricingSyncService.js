@@ -44,8 +44,8 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     FROM products
     WHERE id = $1
       AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
-    LIMIT 1
     FOR UPDATE
+    LIMIT 1
     `,
     [numericProductId, tenantId]
   );
