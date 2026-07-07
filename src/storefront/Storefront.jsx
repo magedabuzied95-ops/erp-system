@@ -93,7 +93,7 @@ import {
   storefrontPathFromLink,
 } from "./lib/paths";
 import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
-import { getDisplayPricing } from "../shared/lib/storefrontPricing";
+import { getDisplayPricing, parseSaleModeEnabled } from "../shared/lib/storefrontPricing";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import instaPayLogo from "../assets/payments/instapay.png";
 import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
@@ -6918,7 +6918,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     [activeColorVariant, firstAvailableVariant, selectedVariant, selectedVariantIsAvailable]
   );
   const inWishlist = useMemo(() => wishlist.some((item) => String(item.id) === String(product.id)), [product.id, wishlist]);
-  const resolvedSaleModeEnabled = saleModeEnabled !== false;
+  const resolvedSaleModeEnabled = parseSaleModeEnabled(saleModeEnabled, true);
   const pricing = useMemo(
     () => getDisplayPricing(product, resolvedSaleModeEnabled, availableVariant),
     [availableVariant, product, resolvedSaleModeEnabled]

@@ -2,6 +2,7 @@ import { Component, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { PackageSearch } from "lucide-react";
+import { parseSaleModeEnabled } from "../../shared/lib/storefrontPricing";
 
 class VisualSearchCardBoundary extends Component {
   constructor(props) {
@@ -49,7 +50,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
   const stock = productTotalStock(safeProduct);
   const variantStock = safeStockNumber(variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock);
   const isAvailable = stock > 0 && (!variant || variantStock > 0);
-  const resolvedSaleModeEnabled = saleModeEnabled !== false;
+  const resolvedSaleModeEnabled = parseSaleModeEnabled(saleModeEnabled, true);
   const pricing = getDisplayPricing(safeProduct, resolvedSaleModeEnabled, variant);
   const activePrice = pricing.price;
   const comparePrice = resolvedSaleModeEnabled && pricing.comparePrice && pricing.comparePrice > activePrice ? pricing.comparePrice : 0;

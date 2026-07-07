@@ -7,6 +7,16 @@ export const parseStorefrontPriceValue = (value) => {
   return Number.isFinite(normalized) ? normalized : 0;
 };
 
+export const parseSaleModeEnabled = (value, fallback = true) => {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value !== 0;
+  const normalized = String(value).trim().toLowerCase();
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  return fallback;
+};
+
 const shouldLogStorefrontPriceDebug = () => {
   if (typeof window === "undefined") return false;
   try {
@@ -89,7 +99,7 @@ export const getDisplayPricing = (product = {}, saleModeEnabled = true, variant 
   const resolvedVariant = variant || pickPrimaryStorefrontVariant(product?.variants || []);
   const sellingPrice = storefrontSellingPrice(product, resolvedVariant || {});
   const salePrice = parseStorefrontPriceValue(resolvedVariant?.sale_price ?? product?.sale_price ?? resolvedVariant?.offer_price ?? product?.offer_price ?? 0);
-  const enabled = saleModeEnabled !== false;
+  const enabled = parseSaleModeEnabled(saleModeEnabled, true);
   let price = sellingPrice;
   let comparePrice = null;
   let isOnSale = false;
