@@ -7,7 +7,19 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import Can from "../components/Can";
 import PermissionsShell from "../components/PermissionsShell";
-import { getRoleCatalog, normalizeRole } from "../lib/rbacStore";
+import { getRoleCatalog } from "../lib/rbacStore";
+
+const normalizeRoleOption = (role = {}) => {
+  const numericId = Number(role.id ?? role.role_id);
+  const hasNumericId = Number.isInteger(numericId) && numericId > 0;
+  return {
+    ...role,
+    id: hasNumericId ? numericId : null,
+    role_id: role.role_id != null ? Number(role.role_id) : null,
+    name: role.name || role.role_name || "Role",
+    permissions: Array.isArray(role.permissions) ? role.permissions.map(String) : [],
+  };
+};
 
 const normalizeUser = (user = {}, roles = []) => {
   const roleMap = new Map(roles.map((role) => [String(role.id), role]));
@@ -41,7 +53,21 @@ function UsersPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const roleOptions = useMemo(() => roles.filter((role) => String(role?.id ?? "").trim()), [roles]);
+  const roleOptions = useMemo(() => {
+    const nextOptions = roles
+      .map(normalizeRoleOption)
+      .filter((role) => {
+        const hasNumericId = Number.isInteger(Number(role?.id)) && Number(role.id) > 0;
+        if (!hasNumericId && import.meta.env?.DEV) {
+          console.warn("USERS_INVALID_ROLE_OPTION", role);
+        }
+        return hasNumericId;
+      });
+    if (import.meta.env?.DEV) {
+      console.log("USERS_ROLE_OPTIONS", nextOptions.map((role) => ({ id: role.id, name: role.name, role_id: role.role_id ?? null })));
+    }
+    return nextOptions;
+  }, [roles]);
   const [selectedRoleId, setSelectedRoleId] = useState("");
 
   useEffect(() => {
@@ -57,12 +83,9 @@ function UsersPage() {
         let nextRoles = getRoleCatalog();
         if (rolesRes.status === "fulfilled") {
           const rows = Array.isArray(rolesRes.value) ? rolesRes.value : rolesRes.value?.roles || [];
-          nextRoles = rows.length ? rows.map(normalizeRole) : getRoleCatalog();
+          nextRoles = rows.length ? rows.map(normalizeRoleOption) : getRoleCatalog().map(normalizeRoleOption);
         }
         setRoles(nextRoles);
-        if (import.meta.env?.DEV) {
-          console.log("USERS_ROLE_OPTIONS", nextRoles.map((role) => ({ id: role.id, name: role.name })));
-        }
 
         if (usersRes.status === "fulfilled") {
           const rows = Array.isArray(usersRes.value) ? usersRes.value : usersRes.value?.users || [];
@@ -114,7 +137,13 @@ function UsersPage() {
     }
 
     const selectedRole = roleOptions.find((item) => String(item.id) === String(selectedRoleId));
-    if (!selectedRole) {
+    const numericSelectedRoleId = Number(selectedRoleId);
+    if (!selectedRole || !Number.isInteger(numericSelectedRoleId) || numericSelectedRoleId <= 0) {
+      console.log("USERS_INVALID_ROLE_OPTION", {
+        selectedRoleId,
+        selectedRole,
+        roleOptions,
+      });
       toast.error("Please select a valid role");
       return;
     }
@@ -124,7 +153,7 @@ function UsersPage() {
       name: name.trim(),
       email: email.trim(),
       role: selectedRole.name || selectedRole.slug || "",
-      role_id: String(Number(selectedRoleId)),
+      role_id: String(numericSelectedRoleId),
       status: "Active",
       permissions: selectedRole?.permissions || [],
     }, roles);
@@ -135,13 +164,9 @@ function UsersPage() {
         name: record.name,
         email: record.email,
         password,
-        role_id: Number(selectedRoleId),
+        role_id: numericSelectedRoleId,
       };
       console.log("USERS_CREATE_PAYLOAD", payload);
-      if (payload.role_id == null || Number.isNaN(payload.role_id)) {
-        toast.error("Please select a valid role");
-        return;
-      }
       await api.post("/users", payload);
       setUsers(next);
       toast.success("User created");
@@ -241,7 +266,7 @@ function UsersPage() {
                 <button
                   type="button"
                   onClick={createUser}
-                  disabled={!selectedRoleId}
+                  disabled={!Number.isInteger(Number(selectedRoleId)) || Number(selectedRoleId) <= 0 || roleOptions.length === 0}
                   className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black"
                 >
                   <BadgePlus className="h-4 w-4" />
@@ -349,7 +374,7 @@ function Select({ label, value, onChange, options }) {
       <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
       <select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white outline-none">
         {options.map((option) => (
-          <option key={option.id} value={option.id} className="bg-zinc-950 text-white">
+          <option key={option.id} value={String(option.id)} className="bg-zinc-950 text-white">
             {option.name}
           </option>
         ))}
