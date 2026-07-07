@@ -11,8 +11,8 @@ const toPositiveNumber = (value) => {
   return Number.isFinite(numeric) && numeric > 0 ? numeric : 0;
 };
 const pricingSignalScore = (item = {}) => {
-  const costSignal = [item.last_purchase_cost, item.average_cost, item.cost_price, item.purchase_price].some((value) => toPositiveNumber(value) > 0) ? 1 : 0;
-  const sellingSignal = [item.selling_price, item.price, item.regular_price].some((value) => toPositiveNumber(value) > 0) ? 1 : 0;
+  const costSignal = [item.last_purchase_cost, item.average_cost, item.cost_price, item.purchase_price].some((value) => toPositiveNumber(value) > 0) ? 4 : 0;
+  const sellingSignal = [item.selling_price, item.price, item.regular_price].some((value) => toPositiveNumber(value) > 0) ? 2 : 0;
   const saleSignal = [item.sale_price, item.sale_price_enabled ? 1 : 0].some((value) => toPositiveNumber(value) > 0) ? 1 : 0;
   return costSignal + sellingSignal + saleSignal;
 };
@@ -47,7 +47,7 @@ const makeFakeClient = ({ products, variants }) => ({
       return { rows: rows.length ? [clone(rows[0])] : [], rowCount: rows.length ? 1 : 0 };
     }
     if (text.startsWith("UPDATE products")) {
-      const [lastPurchaseCost, averageCost, costPrice, purchasePrice, sellingPrice, regularPrice, price, salePrice, salePriceEnabled, productId, tenantId] = params;
+      const [lastPurchaseCost, lastPurchasePrice, averageCost, costPrice, purchasePrice, sellingPrice, regularPrice, price, salePrice, salePriceEnabled, productId, tenantId] = params;
       const row = products.find((item) =>
         Number(item.id) === Number(productId) &&
         (tenantId === null || tenantId === undefined || Number(item.tenant_id ?? null) === Number(tenantId) || item.tenant_id == null)
@@ -55,6 +55,7 @@ const makeFakeClient = ({ products, variants }) => ({
       if (!row) return { rows: [], rowCount: 0 };
       Object.assign(row, {
         last_purchase_cost: lastPurchaseCost,
+        last_purchase_price: lastPurchasePrice,
         average_cost: averageCost,
         cost_price: costPrice,
         purchase_price: purchasePrice,
@@ -76,6 +77,7 @@ test("syncProductPricingFromVariants copies variant prices onto the product row"
       id: 41,
       tenant_id: 7,
       last_purchase_cost: 0,
+      last_purchase_price: 0,
       average_cost: 0,
       cost_price: 0,
       purchase_price: 0,
@@ -88,13 +90,14 @@ test("syncProductPricingFromVariants copies variant prices onto the product row"
   ];
   const variants = [
     {
-      id: 71,
-      product_id: 41,
-      tenant_id: 7,
-      last_purchase_cost: 1520,
-      average_cost: 1495,
-      cost_price: 1500,
-      purchase_price: 1510,
+    id: 71,
+    product_id: 41,
+    tenant_id: 7,
+    last_purchase_cost: 1520,
+    last_purchase_price: 1520,
+    average_cost: 1495,
+    cost_price: 1500,
+    purchase_price: 1510,
       selling_price: 1999,
       regular_price: 1999,
       price: 1999,
@@ -109,6 +112,7 @@ test("syncProductPricingFromVariants copies variant prices onto the product row"
       product_id: 41,
       tenant_id: 7,
       last_purchase_cost: 0,
+      last_purchase_price: 0,
       average_cost: 0,
       cost_price: 0,
       purchase_price: 0,
@@ -127,6 +131,7 @@ test("syncProductPricingFromVariants copies variant prices onto the product row"
   const updatedRows = await syncProductPricingFromVariants(client, { productId: 41, tenantId: 7, variantId: 71 });
   assert.equal(updatedRows, 1);
   assert.equal(products[0].last_purchase_cost, 1520);
+  assert.equal(products[0].last_purchase_price, 1520);
   assert.equal(products[0].average_cost, 1495);
   assert.equal(products[0].cost_price, 1500);
   assert.equal(products[0].purchase_price, 1510);
@@ -138,6 +143,7 @@ test("syncProductPricingFromVariants copies variant prices onto the product row"
 
   await syncProductPricingFromVariants(client, { productId: 41, tenantId: 7 });
   assert.equal(products[0].last_purchase_cost, 1520);
+  assert.equal(products[0].last_purchase_price, 1520);
   assert.equal(products[0].average_cost, 1495);
   assert.equal(products[0].cost_price, 1500);
   assert.equal(products[0].purchase_price, 1510);
@@ -164,6 +170,59 @@ test("syncProductPricingFromVariants copies variant prices onto the product row"
   assert.equal(products[0].sale_price_enabled, false);
 });
 
+test("syncProductPricingFromVariants copies cost=775 selling=1100 sale=950 for a direct product fixture", async () => {
+  const products = [
+    {
+      id: 4,
+      tenant_id: 1,
+      last_purchase_cost: 0,
+      last_purchase_price: 0,
+      average_cost: 0,
+      cost_price: 0,
+      purchase_price: 0,
+      selling_price: 0,
+      price: 0,
+      regular_price: 0,
+      sale_price: 0,
+      sale_price_enabled: false,
+    },
+  ];
+  const variants = [
+    {
+      id: 44,
+      product_id: 4,
+      tenant_id: 1,
+      last_purchase_cost: 775,
+      last_purchase_price: 775,
+      average_cost: 775,
+      cost_price: 775,
+      purchase_price: 775,
+      selling_price: 1100,
+      regular_price: 1100,
+      price: 1100,
+      sale_price: 950,
+      sale_price_enabled: true,
+      updated_at: "2026-07-04T10:00:00.000Z",
+      is_active: true,
+      deleted_at: null,
+    },
+  ];
+  const client = makeFakeClient({ products, variants });
+
+  const updatedRows = await syncProductPricingFromVariants(client, { productId: 4, tenantId: 1, variantId: 44 });
+  assert.equal(updatedRows, 1);
+  assert.equal(products[0].last_purchase_cost, 775);
+  assert.equal(products[0].last_purchase_price, 775);
+  assert.equal(products[0].average_cost, 775);
+  assert.equal(products[0].cost_price, 775);
+  assert.equal(products[0].purchase_price, 775);
+  assert.equal(products[0].selling_price, 1100);
+  assert.equal(products[0].regular_price, 1100);
+  assert.equal(products[0].price, 1100);
+  assert.equal(products[0].sale_price, 950);
+  assert.equal(products[0].sale_price_enabled, true);
+});
+
 test("syncProductPricingFromVariants copies all pricing fields for a real product with variants", async (t) => {
   const client = await db.connect();
   try {
@@ -175,6 +234,7 @@ test("syncProductPricingFromVariants copies all pricing fields for a real produc
         p.id AS product_id,
         p.tenant_id AS product_tenant_id,
         p.last_purchase_cost AS product_last_purchase_cost,
+        p.last_purchase_price AS product_last_purchase_price,
         p.average_cost AS product_average_cost,
         p.cost_price AS product_cost_price,
         p.purchase_price AS product_purchase_price,
@@ -230,6 +290,7 @@ test("syncProductPricingFromVariants copies all pricing fields for a real produc
       SELECT
         id,
         last_purchase_cost,
+        last_purchase_price,
         average_cost,
         cost_price,
         purchase_price,
@@ -254,6 +315,7 @@ test("syncProductPricingFromVariants copies all pricing fields for a real produc
       candidate.cost_price,
       candidate.average_cost,
       candidate.product_last_purchase_cost,
+      candidate.product_last_purchase_price,
       candidate.product_purchase_price,
       candidate.product_cost_price,
       candidate.product_average_cost,
@@ -281,6 +343,19 @@ test("syncProductPricingFromVariants copies all pricing fields for a real produc
       candidate.last_purchase_price,
       candidate.cost_price,
       candidate.last_purchase_cost,
+      candidate.product_purchase_price,
+      candidate.product_last_purchase_price,
+      candidate.product_cost_price,
+      candidate.product_average_cost,
+    ].find((value) => toPositiveNumber(value) > 0) || 0;
+    const expectedLastPurchasePrice = [
+      candidate.last_purchase_price,
+      candidate.last_purchase_cost,
+      candidate.purchase_price,
+      candidate.cost_price,
+      candidate.average_cost,
+      candidate.product_last_purchase_price,
+      candidate.product_last_purchase_cost,
       candidate.product_purchase_price,
       candidate.product_cost_price,
       candidate.product_average_cost,
@@ -314,6 +389,7 @@ test("syncProductPricingFromVariants copies all pricing fields for a real produc
 
     const expected = {
       last_purchase_cost: Number(expectedLastPurchaseCost || 0),
+      last_purchase_price: Number(expectedLastPurchasePrice || 0),
       average_cost: Number(expectedAverageCost || 0),
       cost_price: Number(expectedCostPrice || 0),
       purchase_price: Number(expectedPurchasePrice || 0),
@@ -325,6 +401,7 @@ test("syncProductPricingFromVariants copies all pricing fields for a real produc
     };
 
     assert.equal(Number(refreshed.last_purchase_cost || 0), expected.last_purchase_cost);
+    assert.equal(Number(refreshed.last_purchase_price || 0), expected.last_purchase_price);
     assert.equal(Number(refreshed.average_cost || 0), expected.average_cost);
     assert.equal(Number(refreshed.cost_price || 0), expected.cost_price);
     assert.equal(Number(refreshed.purchase_price || 0), expected.purchase_price);

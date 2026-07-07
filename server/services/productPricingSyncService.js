@@ -32,8 +32,8 @@ const pickPositiveMoney = (...values) => {
 
 const pricingSignalScoreSql = `
   (
-    (CASE WHEN COALESCE(NULLIF(last_purchase_cost, 0), NULLIF(average_cost, 0), NULLIF(cost_price, 0), NULLIF(purchase_price, 0)) IS NOT NULL THEN 1 ELSE 0 END) +
-    (CASE WHEN COALESCE(NULLIF(selling_price, 0), NULLIF(price, 0), NULLIF(regular_price, 0)) IS NOT NULL THEN 1 ELSE 0 END) +
+    (CASE WHEN COALESCE(NULLIF(last_purchase_cost, 0), NULLIF(average_cost, 0), NULLIF(cost_price, 0), NULLIF(purchase_price, 0)) IS NOT NULL THEN 4 ELSE 0 END) +
+    (CASE WHEN COALESCE(NULLIF(selling_price, 0), NULLIF(price, 0), NULLIF(regular_price, 0)) IS NOT NULL THEN 2 ELSE 0 END) +
     (CASE WHEN COALESCE(NULLIF(sale_price, 0), NULLIF(sale_price_enabled::int, 0)) IS NOT NULL THEN 1 ELSE 0 END)
   )
 `;
@@ -48,6 +48,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       id,
       tenant_id,
       last_purchase_cost,
+      last_purchase_price,
       average_cost,
       cost_price,
       purchase_price,
@@ -99,7 +100,13 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       last_purchase_pricing_at
     FROM product_variants
     WHERE ${variantFilters.join("\n      ")}
-    ORDER BY ${pricingSignalScoreSql} DESC, COALESCE(updated_at, last_purchase_pricing_at) DESC, id DESC
+    ORDER BY
+      ${pricingSignalScoreSql} DESC,
+      COALESCE(NULLIF(last_purchase_cost, 0), NULLIF(average_cost, 0), NULLIF(cost_price, 0), NULLIF(purchase_price, 0)) DESC,
+      COALESCE(NULLIF(selling_price, 0), NULLIF(price, 0), NULLIF(regular_price, 0)) DESC,
+      COALESCE(NULLIF(sale_price, 0), NULLIF(sale_price_enabled::int, 0)) DESC,
+      COALESCE(updated_at, last_purchase_pricing_at) DESC,
+      id DESC
     LIMIT 1
     `,
     variantValues
@@ -171,6 +178,24 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
   );
   const nextSalePrice = pickMoney(variantRow.sale_price, productRow.sale_price);
   const nextSalePriceEnabled = (toBoolean(variantRow.sale_price_enabled, toBoolean(productRow.sale_price_enabled, false)) || nextSalePrice > 0) && nextSalePrice > 0;
+  const copiedCostFields = {
+    last_purchase_cost: nextLastPurchaseCost,
+    last_purchase_price: pickPositiveMoney(
+      variantRow.last_purchase_price,
+      variantRow.last_purchase_cost,
+      variantRow.purchase_price,
+      variantRow.cost_price,
+      variantRow.average_cost,
+      productRow.last_purchase_price,
+      productRow.last_purchase_cost,
+      productRow.purchase_price,
+      productRow.cost_price,
+      productRow.average_cost
+    ),
+    average_cost: nextAverageCost,
+    cost_price: nextCostPrice,
+    purchase_price: nextPurchasePrice,
+  };
 
   console.log("[product-pricing-sync] selected source variant", {
     productId: numericProductId,
@@ -201,26 +226,33 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       sale_price_enabled: nextSalePriceEnabled,
     },
   });
+  console.log("[product-pricing-sync] copiedCostFields", {
+    productId: numericProductId,
+    tenantId: tenantId ?? null,
+    copiedCostFields,
+  });
 
   const updateResult = await client.query(
     `
     UPDATE products
     SET
       last_purchase_cost = $1,
-      average_cost = $2,
-      cost_price = $3,
-      purchase_price = $4,
-      selling_price = $5,
-      regular_price = $6,
-      price = $7,
-      sale_price = $8,
-      sale_price_enabled = $9,
+      last_purchase_price = $2,
+      average_cost = $3,
+      cost_price = $4,
+      purchase_price = $5,
+      selling_price = $6,
+      regular_price = $7,
+      price = $8,
+      sale_price = $9,
+      sale_price_enabled = $10,
       updated_at = CURRENT_TIMESTAMP
-    WHERE id = $10
-      AND ($11::bigint IS NULL OR tenant_id = $11::bigint OR tenant_id IS NULL)
+    WHERE id = $11
+      AND ($12::bigint IS NULL OR tenant_id = $12::bigint OR tenant_id IS NULL)
     `,
     [
       nextLastPurchaseCost,
+      copiedCostFields.last_purchase_price,
       nextAverageCost,
       nextCostPrice,
       nextPurchasePrice,
@@ -240,6 +272,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     rowCount: updateResult.rowCount || 0,
     copiedPricing: {
       last_purchase_cost: nextLastPurchaseCost,
+      last_purchase_price: copiedCostFields.last_purchase_price,
       average_cost: nextAverageCost,
       cost_price: nextCostPrice,
       purchase_price: nextPurchasePrice,
