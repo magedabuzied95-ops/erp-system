@@ -346,6 +346,7 @@ function CartSidebar({
   onPaymobTerminal,
   paymobTerminalLoading = false,
   checkoutLoading,
+  offlineSyncPendingCount = 0,
   checkoutLabel = "Create order",
   canUsePaymobTerminal = false,
   onItemDiscountChange,
@@ -966,6 +967,11 @@ function CartSidebar({
           ) : null}
         </div>
 
+        {offlineSyncPendingCount > 0 ? (
+          <div className="mb-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-[10px] font-bold text-amber-100">
+            فواتير بانتظار المزامنة: {offlineSyncPendingCount}
+          </div>
+        ) : null}
         <div className="sticky bottom-0 -mx-2.5 -mb-2.5 mt-2 grid grid-cols-1 gap-1.5 border-t border-white/10 bg-zinc-950/95 p-2.5 backdrop-blur sm:grid-cols-3">
           <button
             type="button"
@@ -1369,52 +1375,19 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
     []
   );
   const premiumSeller = getSellerName(customer);
-  const premiumPayment = getLocalizedPaymentLabel(paymentMode, paymentSummary, personalSettlementTypeValue);
-  const premiumSocialLinks = useMemo(() => getLocalizedInvoiceSocialLinks(premiumStore), [premiumStore]);
+  const premiumPayment = getPaymentLabel(paymentMode, paymentSummary);
+  const premiumSocialLinks = useMemo(() => getInvoiceSocialLinks(premiumStore), [premiumStore]);
   const premiumDiscount = Number(totals.itemDiscountTotal || 0) + Number(totals.invoiceDiscount || 0) + Number(totals.loyaltyDiscount || 0) + Number(totals.couponDiscount || 0);
   const premiumService = Number(totals.serviceFee || 0);
   const premiumTotalQuantity = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const exchangeMode = Boolean(paymentSummary?.exchangeMode || paymentSummary?.exchangeCreditAmount > 0);
-  const exchangeInvoiceNumber = paymentSummary?.exchangeInvoiceNumber || "";
-  const exchangeCreditAmount = Math.max(0, Number(paymentSummary?.exchangeCreditAmount || 0));
-  const exchangeCustomerCredit = Math.max(0, Number(paymentSummary?.remainingExchangeCustomerCredit || 0));
-  const amountPaidNow = Number(paymentSummary?.paidAmount ?? paymentSummary?.amountDueNow ?? 0);
-  const walletPaid = Number(paymentSummary?.customerWalletAmount || 0);
+  const walletPaid = Number(paymentSummary?.walletAmount || 0);
   const walletBalanceAfter = Number(
     paymentSummary?.walletBalanceAfter ??
       (Number(customer?.wallet_balance ?? customer?.balance ?? loyaltyProfile?.wallet_balance ?? 0) - walletPaid)
   );
   const premiumCustomerName = customer?.name || customer?.customer_name || "Walk-in Customer";
   const premiumCustomerPhone = customer?.phone || customer?.mobile || customer?.customer_phone || "";
-  const store = useMemo(() => getStoreProfile(), []);
-  const receiptDate = useMemo(() => getReceiptDate(), []);
-  const receiptTime = useMemo(() => formatArabicTime(), []);
-  const receiptNumber = String(invoiceNumber || "DRAFT");
-  const barcodeValue = receiptNumber || invoiceNumber || "RECEIPT";
-  const barcodeSvg = useMemo(
-    () =>
-      getBarcodeSvg(barcodeValue, {
-        width: compact ? 190 : 260,
-        height: compact ? 32 : 38,
-        displayText: barcodeValue,
-      }),
-    [barcodeValue, compact]
-  );
-  const earnedPoints = Number(Math.floor(Number(totals.total || 0) / 100) * 10);
-  const redeemedPoints = Number(loyaltyValidation?.applied_points || 0);
-  const remainingPoints = Number(loyaltyValidation?.available_points ?? loyaltyProfile?.available_points ?? 0);
-  const tier = loyaltyProfile?.tier || customer?.loyalty_tier || customer?.tier || "Bronze";
-  const walletCashback = Number(walletCashbackToEarn || 0);
-  const showLoyaltyStrip = [earnedPoints, redeemedPoints, remainingPoints, walletCashback].some((value) => Number(value || 0) > 0);
-  const sellerName =
-    customer?.sales_name ||
-    customer?.seller_name ||
-    customer?.cashier_name ||
-    customer?.salesName ||
-    customer?.sellerName ||
-    customer?.cashierName ||
-    "ط¹ظ…ظٹظ„";
-  const receiptLabel = (_key, fallback) => fallback;
+
   return (
     <div
       dir="rtl"
@@ -1426,37 +1399,36 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-600">
           <ShoppingBag className="h-6 w-6" />
         </div>
-        <div className="mt-2 text-xl font-black tracking-wide text-zinc-950">{store.name}</div>
+        <div className="mt-2 text-xl font-black tracking-wide text-zinc-950">{premiumStore.name}</div>
         <div className="mt-1 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">
-          {receiptLabel("thankYou", POS_ARABIC_TEXT.thankYou)}
+          {receiptLabel("thankYou", "شكراً لثقتكم بنا")}
         </div>
         <div className="mt-3 h-px bg-emerald-500" />
       </div>
 
       <div className={`mt-3 grid gap-x-4 gap-y-1.5 text-[12px] ${compact ? "grid-cols-1" : "grid-cols-2"}`}>
         <div className="space-y-1.5">
-          <ReceiptInfo icon={FileText} label={receiptLabel("invoice", POS_ARABIC_TEXT.invoice)} value={invoiceNumber} />
-          <ReceiptInfo icon={User} label={receiptLabel("seller", POS_ARABIC_TEXT.seller)} value={sellerName} />
-          <ReceiptInfo icon={User} label={receiptLabel("customer", "العميل")} value={customer?.name || receiptLabel("walkIn", "Walk-in Customer")} />
+          <ReceiptInfo icon={FileText} label={receiptLabel("invoice", "رقم الفاتورة")} value={invoiceNumber} />
+          <ReceiptInfo icon={User} label={receiptLabel("seller", "البائع")} value={premiumSeller} />
+          <ReceiptInfo icon={User} label={receiptLabel("customer", "العميل")} value={premiumCustomerName} />
         </div>
         <div className="space-y-1.5">
-          <ReceiptInfo icon={Star} label={receiptLabel("tier", "العضوية")} value={tier} />
-          <ReceiptInfo icon={CreditCard} label={receiptLabel("payment", POS_ARABIC_TEXT.paymentMethod)} value={paymentSummary.paymentStatus} />
-          <ReceiptInfo icon={CalendarDays} label={receiptLabel("date", "التاريخ")} value={receiptDate} />
-          <ReceiptInfo icon={Clock3} label={receiptLabel("time", "الوقت")} value={receiptTime} />
+          <ReceiptInfo icon={Star} label={receiptLabel("tier", "العضوية")} value={loyaltyProfile?.tier || customer?.loyalty_tier || customer?.tier || "Bronze"} />
+          <ReceiptInfo icon={CreditCard} label={receiptLabel("payment", "طريقة الدفع")} value={paymentSummary.paymentStatus} />
+          <ReceiptInfo icon={CalendarDays} label={receiptLabel("date", "التاريخ")} value={premiumDate} />
         </div>
       </div>
 
       <div className="mt-3 border-y border-dashed border-emerald-300 py-2.5">
         <div className="grid grid-cols-[1fr_38px_66px_72px] gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
-          <div>{receiptLabel("item", POS_ARABIC_TEXT.item)}</div>
-          <div className="text-center">{receiptLabel("qty", POS_ARABIC_TEXT.quantity)}</div>
+          <div>{receiptLabel("item", "المنتج")}</div>
+          <div className="text-center">{receiptLabel("qty", "الكمية")}</div>
           <div className="text-right">{receiptLabel("price", "السعر")}</div>
-          <div className="text-right">{receiptLabel("total", POS_ARABIC_TEXT.total)}</div>
+          <div className="text-right">{receiptLabel("total", "الإجمالي")}</div>
         </div>
         <div className="mt-1.5 space-y-1.5">
         {cart.length === 0 ? (
-          <div className="text-sm text-zinc-500">{receiptLabel("noItems", POS_ARABIC_TEXT.noItems)}</div>
+          <div className="text-sm text-zinc-500">{receiptLabel("noItems", "لا توجد منتجات.")}</div>
         ) : (
           cart.map((item) => {
             const unitPrice = getReceiptItemUnitPrice(item);
@@ -1474,9 +1446,9 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
                     )}
                   </div>
                   <div className="min-w-0 flex-1 text-right">
-                    <div className="truncate font-black leading-tight text-zinc-950">{item.name}</div>
+                    <div className="truncate font-black leading-tight text-zinc-950">{item.name || "منتج"}</div>
                     <div className="mt-0.5 text-[11px] leading-tight text-zinc-500">
-                      {item.color || receiptLabel("default", POS_ARABIC_TEXT.defaultVariant)} / {getCartSizeDisplayLabel(item, item.size) || receiptLabel("oneSize", POS_ARABIC_TEXT.oneSize)}
+                      {item.color || receiptLabel("default", "افتراضي")} / {item.size || receiptLabel("oneSize", "مقاس واحد")}
                     </div>
                   </div>
                 </div>
@@ -1490,48 +1462,48 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         </div>
       </div>
 
-      {showLoyaltyStrip ? (
+      {premiumTotalQuantity > 0 ? (
         <div className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-xl border border-emerald-100 bg-emerald-50/60 px-2 py-1 text-[10px] font-bold text-zinc-700">
-          <span>{POS_ARABIC_TEXT.earnedPoints}: {earnedPoints.toLocaleString()}</span>
+          <span>النقاط المكتسبة: {Number(Math.floor(Number(totals.total || 0) / 100) * 10).toLocaleString()}</span>
           <span className="text-emerald-600">|</span>
-          <span>{POS_ARABIC_TEXT.usedPoints}: {redeemedPoints.toLocaleString()}</span>
+          <span>المستخدمة: {Number(loyaltyValidation?.applied_points || 0).toLocaleString()}</span>
           <span className="text-emerald-600">|</span>
-          <span>{POS_ARABIC_TEXT.remainingPoints}: {remainingPoints.toLocaleString()}</span>
+          <span>المتبقية: {Number(loyaltyValidation?.available_points ?? loyaltyProfile?.available_points ?? 0).toLocaleString()}</span>
           <span className="text-emerald-600">|</span>
-          <span>{POS_ARABIC_TEXT.wallet}: {formatCurrency(walletCashback)}</span>
+          <span>المحفظة: {formatCurrency(Number(walletCashbackToEarn || 0))}</span>
         </div>
       ) : null}
 
       <div className="mt-3 space-y-1.5 text-[13px]">
-        <ReceiptTotalRow label={receiptLabel("subtotal", POS_ARABIC_TEXT.subtotal)} value={formatCurrency(totals.subtotal)} />
-        <ReceiptTotalRow label={receiptLabel("discounts", POS_ARABIC_TEXT.discounts)} value={`- ${formatCurrency(totals.itemDiscountTotal + totals.invoiceDiscount)}`} />
+        <ReceiptTotalRow label={receiptLabel("subtotal", "الإجمالي الفرعي")} value={formatCurrency(totals.subtotal)} />
+        <ReceiptTotalRow label={receiptLabel("discounts", "الخصومات")} value={`- ${formatCurrency(totals.itemDiscountTotal + totals.invoiceDiscount)}`} />
         <ReceiptTotalRow label={receiptLabel("loyaltyDiscount", "خصم الولاء")} value={`- ${formatCurrency(totals.loyaltyDiscount || 0)}`} />
-        {Number(totals.couponDiscount || 0) > 0 ? <ReceiptTotalRow label="خصم الكوبون" value={`- ${formatCurrency(totals.couponDiscount || 0)}`} /> : null}
-        <ReceiptTotalRow label={receiptLabel("serviceFee", POS_ARABIC_TEXT.serviceFee)} value={formatCurrency(totals.serviceFee)} />
+        {Number(totals.couponDiscount || 0) > 0 ? <ReceiptTotalRow label="Coupon Discount" value={`- ${formatCurrency(totals.couponDiscount || 0)}`} /> : null}
+        <ReceiptTotalRow label={receiptLabel("serviceFee", "رسوم الخدمة")} value={formatCurrency(totals.serviceFee)} />
         <div className="h-px bg-emerald-500" />
         <div className="flex items-end justify-between gap-4 pt-1">
-          <span className="text-sm font-black tracking-[0.08em] text-zinc-950">{receiptLabel("total", POS_ARABIC_TEXT.total)}</span>
+          <span className="text-sm font-black tracking-[0.08em] text-zinc-950">{receiptLabel("total", "الإجمالي")}</span>
           <span className="text-xl font-black text-emerald-600">{formatCurrency(totals.total)}</span>
         </div>
       </div>
 
       <div className="mt-2.5 border-t border-dashed border-emerald-300 pt-2 text-center">
-        <div className="text-[11px] font-bold text-zinc-500">{receiptLabel("scanToView", POS_ARABIC_TEXT.scanToView)}</div>
+        <div className="text-[11px] font-bold text-zinc-500">{receiptLabel("scanToView", "امسح لعرض الفاتورة")}</div>
         <div className={`pos-receipt-barcode mx-auto mt-1 max-w-full rounded-lg bg-white px-1 py-0 ${compact ? "w-[190px]" : "w-[260px]"}`}>
           <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
         </div>
-        <div className="mt-0.5 text-[10px] font-black tracking-[0.12em] text-emerald-700">{receiptNumber}</div>
+        <div className="mt-0.5 text-[10px] font-black tracking-[0.12em] text-emerald-700">{premiumReceiptNumber}</div>
         <div className="mx-auto mt-1 h-px w-full max-w-[260px] bg-emerald-500" />
         <div className="mx-auto mt-1 flex max-w-[340px] items-center justify-center gap-2 text-[10px] font-bold text-zinc-600">
           <span className="inline-flex items-center gap-1">
             <Globe className="h-3 w-3 text-emerald-600" />
-            {store.website}
+            {premiumStore.website}
           </span>
           <span className="text-emerald-600">|</span>
           <span className="inline-flex items-center gap-1">
             <Smartphone className="h-3 w-3 text-emerald-600" />
-            <span>{POS_ARABIC_TEXT.customerService}</span>
-            <span>{store.phone}</span>
+            <span>{receiptLabel("customerService", "خدمة العملاء")}</span>
+            <span>{premiumStore.phone}</span>
           </span>
         </div>
       </div>
