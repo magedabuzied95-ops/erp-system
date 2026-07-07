@@ -33,11 +33,27 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
   const isColorOnlyMode = variationMode === "color_only";
   const isSimpleMode = variationMode === "simple";
   const colors = Array.isArray(product?.colors) ? product.colors : [];
+  const matchedColor = String(product?.matched_color || product?.matchedColor || "").trim();
+  const matchedVariantId = String(product?.matched_variant_id || product?.matchedVariantId || "").trim();
+  const matchedColorLower = matchedColor.toLowerCase();
+  const matchedColorGroup =
+    (matchedColorLower
+      ? colors.find((color) => String(color.color || "").trim().toLowerCase() === matchedColorLower)
+      : null) ||
+    null;
+  const matchedSize = (() => {
+    if (!matchedVariantId) return "";
+    for (const color of colors) {
+      const size = (Array.isArray(color.sizes) ? color.sizes : []).find((item) => String(item.variant_id) === matchedVariantId);
+      if (size) return String(size.size || "").trim();
+    }
+    return "";
+  })();
   const firstAvailableColor =
     colors.find((color) => color.sizes?.some((size) => size.available)) ||
     colors[0] ||
     null;
-  const [selectedColor, setSelectedColor] = useState(() => firstAvailableColor?.color || "");
+  const [selectedColor, setSelectedColor] = useState(() => matchedColor || matchedColorGroup?.color || firstAvailableColor?.color || "");
   const activeColor =
     colors.find((color) => String(color.color || "") === String(selectedColor || "")) ||
     firstAvailableColor;
@@ -45,7 +61,16 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
     activeColor?.sizes?.find((size) => size.available) ||
     activeColor?.sizes?.[0] ||
     null;
-  const [selectedVariantId, setSelectedVariantId] = useState(() => firstAvailableSize?.variant_id || null);
+  const initialVariantId = (() => {
+    if (matchedVariantId) {
+      for (const color of colors) {
+        const size = (Array.isArray(color.sizes) ? color.sizes : []).find((item) => String(item.variant_id) === matchedVariantId);
+        if (size) return size.variant_id || null;
+      }
+    }
+    return firstAvailableSize?.variant_id || null;
+  })();
+  const [selectedVariantId, setSelectedVariantId] = useState(() => initialVariantId);
   const [imageFailed, setImageFailed] = useState(false);
 
   const selectedSize = useMemo(
@@ -54,6 +79,18 @@ function ProductAvailabilityModal({ product, onClose, onAddVariant }) {
       null,
     [activeColor, selectedVariantId]
   );
+
+  useEffect(() => {
+    if (matchedColor && String(selectedColor || "") !== matchedColor) {
+      setSelectedColor(matchedColorGroup?.color || matchedColor || firstAvailableColor?.color || "");
+    }
+    if (matchedSize && !selectedVariantId) {
+      const nextVariant = (activeColor?.sizes || []).find((size) => String(size.variant_id) === String(matchedVariantId)) || null;
+      if (nextVariant) setSelectedVariantId(nextVariant.variant_id || null);
+    }
+    // This effect is only for initializing selection from search metadata.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchedColor, matchedSize, matchedVariantId, matchedColorGroup, firstAvailableColor, activeColor]);
 
   const simpleVariant = useMemo(
     () => ({

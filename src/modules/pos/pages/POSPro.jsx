@@ -857,6 +857,30 @@ const getCatalogVariantById = (product, variantId, color, size) => {
   return variants[0] || null;
 };
 
+const getProductSelectionMatch = (product = {}) => {
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  const matchedVariantId = String(product?.matched_variant_id ?? product?.matchedVariantId ?? "").trim();
+  const matchedColor = String(product?.matched_color ?? product?.matchedColor ?? "").trim();
+  const matchedColorLower = matchedColor.toLowerCase();
+
+  const matchedVariant =
+    (matchedVariantId && variants.find((variant) => String(getCatalogVariantId(variant)) === matchedVariantId)) ||
+    (matchedColorLower
+      ? variants.find((variant) => String(variant?.color || "").trim().toLowerCase() === matchedColorLower)
+      : null) ||
+    variants.find((variant) => Number(normalizeStockQuantity(variant.stock_quantity ?? variant.stock)) > 0) ||
+    variants[0] ||
+    null;
+
+  const matchedColorValue = String(matchedVariant?.color || matchedColor || "").trim();
+  return {
+    matchedVariant,
+    matchedColor: matchedColorValue,
+    matchedVariantId: matchedVariant?.variant_id ?? matchedVariant?.variantId ?? matchedVariant?.id ?? (matchedVariantId || null),
+    matchedSize: String(matchedVariant?.size || "").trim(),
+  };
+};
+
 const getCatalogItemStock = (products = [], item = {}) => {
   const productId = item.product_id ?? item.productId ?? null;
   const variantId = resolveCheckoutVariantId(item);
@@ -1421,6 +1445,7 @@ function POSPro() {
   const previousTotalRef = useRef(0);
   const lastBarcodeSubmitRef = useRef({ value: "", timer: null });
   const globalBarcodeBufferRef = useRef({ value: "", startedAt: 0, lastAt: 0 });
+  const posSearchMatchLogRef = useRef({ query: "", keys: new Set() });
   const shiftSessionRecoveredRef = useRef(false);
   const loadedRouteEditOrderIdRef = useRef("");
   const paymobPollingRef = useRef({ timer: null, cancelled: false });
@@ -2695,6 +2720,32 @@ function POSPro() {
     setMobileProductQuantity((current) => Math.min(Math.max(1, Number(current || 1)), mobileProductStock));
   }, [mobileProductStock, selectedProduct]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV && !String(import.meta.env.VITE_DEBUG_POS_SEARCH || "").trim()) return;
+    const query = String(deferredSearch || "").trim();
+    if (!query) return;
+    const normalizedQuery = query.toLowerCase();
+    if (posSearchMatchLogRef.current.query !== normalizedQuery) {
+      posSearchMatchLogRef.current = { query: normalizedQuery, keys: new Set() };
+    }
+    const seen = posSearchMatchLogRef.current.keys;
+    visibleProducts.forEach((product) => {
+      const matchType = String(product?.search_match_type || product?.searchMatchType || "").trim().toLowerCase();
+      if (!["variant_article", "sku", "barcode"].includes(matchType)) return;
+      const productId = String(product?.product_id || product?.id || "");
+      const key = [normalizedQuery, productId, matchType].join(":");
+      if (seen.has(key)) return;
+      seen.add(key);
+      console.info("POS_SEARCH_VARIANT_ARTICLE_MATCH", {
+        query,
+        product_id: product?.product_id || product?.id || null,
+        matched_variant_id: product?.matched_variant_id || product?.matchedVariantId || null,
+        matched_color: product?.matched_color || product?.matchedColor || "",
+        matched_article: product?.matched_article || product?.matchedArticle || "",
+      });
+    });
+  }, [deferredSearch, visibleProducts]);
+
   const handleAddSelectedProductToCart = useCallback(() => {
     if (!activeProduct || !activeVariant) return;
     const quantity = Math.min(mobileProductStock, Math.max(1, Math.trunc(Number(mobileProductQuantity || 1) || 1)));
@@ -3360,16 +3411,24 @@ function POSPro() {
 
   const openProductVariantPicker = useCallback((product) => {
     const variants = Array.isArray(product.variants) ? product.variants : [];
+    const selectionMatch = getProductSelectionMatch(product);
+    const initialColor = selectionMatch.matchedColor || selectionMatch.matchedVariant?.color || "";
+    const initialSize = selectionMatch.matchedVariant?.size || "";
+
     if (viewportIsMobile) {
-      const firstVariant = variants.find((variant) => normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0) || variants[0] || null;
-      setSelectedColor(firstVariant?.color || "");
+      const firstVariant =
+        selectionMatch.matchedVariant ||
+        variants.find((variant) => normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0) ||
+        variants[0] ||
+        null;
+      setSelectedColor(initialColor || firstVariant?.color || "");
       const firstInStockForColor =
         variants.find(
           (variant) =>
-            String(variant.color || "") === String(firstVariant?.color || "") &&
+            String(variant.color || "") === String((initialColor || firstVariant?.color || "")) &&
             normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0
         ) || firstVariant;
-      setSelectedSize(firstInStockForColor?.size || "");
+      setSelectedSize(initialSize || firstInStockForColor?.size || "");
       setMobileProductQuantity(1);
       setSelectedProduct(product);
       return true;
@@ -3377,15 +3436,19 @@ function POSPro() {
 
     if (variants.length <= 1) return false;
 
-    const firstVariant = variants.find((variant) => normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0) || variants[0] || null;
-    setSelectedColor(firstVariant?.color || "");
+    const firstVariant =
+      selectionMatch.matchedVariant ||
+      variants.find((variant) => normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0) ||
+      variants[0] ||
+      null;
+    setSelectedColor(initialColor || firstVariant?.color || "");
     const firstInStockForColor =
       variants.find(
         (variant) =>
-          String(variant.color || "") === String(firstVariant?.color || "") &&
+          String(variant.color || "") === String((initialColor || firstVariant?.color || "")) &&
           normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0
       ) || firstVariant;
-    setSelectedSize(firstInStockForColor?.size || "");
+    setSelectedSize(initialSize || firstInStockForColor?.size || "");
     setMobileProductQuantity(1);
     setSelectedProduct(product);
     return true;

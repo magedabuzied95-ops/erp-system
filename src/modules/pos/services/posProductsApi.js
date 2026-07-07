@@ -239,6 +239,12 @@ const buildProductFromVariants = (productSeed, variants) => {
     normalizeText(productSeed.manufacturer ?? productSeed.manufacturer_name) ||
     variants.find((variant) => variant.manufacturer)?.manufacturer ||
     "";
+  const matchedVariantId = productSeed.matched_variant_id ?? productSeed.matchedVariantId ?? null;
+  const matchedColor = normalizeText(productSeed.matched_color ?? productSeed.matchedColor ?? "");
+  const matchedColorId = productSeed.matched_color_id ?? productSeed.matchedColorId ?? null;
+  const matchedArticle = normalizeText(productSeed.matched_article ?? productSeed.matchedArticle ?? "");
+  const matchedSku = normalizeText(productSeed.matched_sku ?? productSeed.matchedSku ?? "");
+  const searchMatchType = normalizeText(productSeed.search_match_type ?? productSeed.searchMatchType ?? "");
 
   return {
     id: productId,
@@ -293,6 +299,18 @@ const buildProductFromVariants = (productSeed, variants) => {
     barcode: variants.find((variant) => variant.barcode)?.barcode || normalizeText(productSeed.barcode ?? productSeed.product_barcode),
     qr_token: normalizeText(productSeed.qr_token ?? productSeed.qrToken ?? productSeed.product_qr_token ?? productSeed.productQrToken),
     low_stock_threshold: normalizeNumber(productSeed.low_stock_threshold ?? productSeed.low_stock_alert ?? 10),
+    matched_variant_id: matchedVariantId,
+    matchedVariantId,
+    matched_color: matchedColor,
+    matchedColor,
+    matched_color_id: matchedColorId,
+    matchedColorId,
+    matched_article: matchedArticle,
+    matchedArticle,
+    matched_sku: matchedSku,
+    matchedSku,
+    search_match_type: searchMatchType,
+    searchMatchType,
     variants,
   };
 };
@@ -401,6 +419,18 @@ export const normalizePosCatalogProduct = (product = {}) => {
     variants,
     total_stock: stock,
     stock,
+    matched_variant_id: product.matched_variant_id ?? product.matchedVariantId ?? null,
+    matchedVariantId: product.matchedVariantId ?? product.matched_variant_id ?? null,
+    matched_color: product.matched_color ?? product.matchedColor ?? null,
+    matchedColor: product.matchedColor ?? product.matched_color ?? null,
+    matched_color_id: product.matched_color_id ?? product.matchedColorId ?? null,
+    matchedColorId: product.matchedColorId ?? product.matched_color_id ?? null,
+    matched_article: product.matched_article ?? product.matchedArticle ?? null,
+    matchedArticle: product.matchedArticle ?? product.matched_article ?? null,
+    matched_sku: product.matched_sku ?? product.matchedSku ?? null,
+    matchedSku: product.matchedSku ?? product.matched_sku ?? null,
+    search_match_type: product.search_match_type ?? product.searchMatchType ?? null,
+    searchMatchType: product.searchMatchType ?? product.search_match_type ?? null,
   };
 };
 

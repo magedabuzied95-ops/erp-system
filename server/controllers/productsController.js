@@ -1536,6 +1536,114 @@ const buildProductSearchClause = ({ values, search }) => {
   `;
 };
 
+const normalizeSearchToken = (value = "") => String(value ?? "").trim().toLowerCase();
+
+const pickFirstNonEmptyText = (...values) => {
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text) return text;
+  }
+  return "";
+};
+
+const getVariantDirectSearchMatch = (product = {}, search = "") => {
+  const query = normalizeSearchToken(search);
+  if (!query) return null;
+
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const directFields = [
+    {
+      type: "barcode",
+      fields: ["barcode"],
+    },
+    {
+      type: "sku",
+      fields: ["sku"],
+    },
+    {
+      type: "variant_article",
+      fields: ["article_code", "articleCode", "color_article_code", "colorArticleCode"],
+    },
+  ];
+
+  let match = null;
+  for (const variant of variants) {
+    const candidate = {
+      variant_id: variant?.variant_id ?? variant?.id ?? null,
+      color: pickFirstNonEmptyText(variant?.color, variant?.color_name),
+      color_id: variant?.color_id ?? variant?.variant_color_id ?? variant?.colorId ?? variant?.variantColorId ?? null,
+      sku: pickFirstNonEmptyText(variant?.sku),
+      barcode: pickFirstNonEmptyText(variant?.barcode),
+      article_code: pickFirstNonEmptyText(
+        variant?.article_code,
+        variant?.articleCode,
+        variant?.color_article_code,
+        variant?.colorArticleCode
+      ),
+    };
+
+    for (const field of directFields) {
+      const value = pickFirstNonEmptyText(...field.fields.map((key) => variant?.[key]));
+      if (!value || normalizeSearchToken(value) !== query) continue;
+      match = {
+        search_match_type: field.type,
+        matched_variant_id: candidate.variant_id,
+        matched_color: candidate.color,
+        matched_color_id: candidate.color_id,
+        matched_article: candidate.article_code,
+        matched_sku: candidate.sku,
+      };
+      break;
+    }
+
+    if (match) break;
+  }
+
+  if (!match) return null;
+
+  const matchedColor = normalizeSearchToken(match.matched_color);
+  if (matchedColor) {
+    const matchedVariants = variants.filter((variant) => normalizeSearchToken(pickFirstNonEmptyText(variant?.color, variant?.color_name)) === matchedColor);
+    if (matchedVariants.length > 0) {
+      return {
+        ...match,
+        variants: matchedVariants,
+      };
+    }
+  }
+
+  return {
+    ...match,
+    variants: variants.filter((variant) => String(variant?.variant_id ?? variant?.id ?? "") === String(match.matched_variant_id ?? "")),
+  };
+};
+
+const attachVariantSearchMetadata = (product = {}, search = "") => {
+  const match = getVariantDirectSearchMatch(product, search);
+  if (!match) {
+    return {
+      ...product,
+      matched_variant_id: null,
+      matched_color: null,
+      matched_color_id: null,
+      matched_article: null,
+      matched_sku: null,
+      search_match_type: null,
+    };
+  }
+
+  return {
+    ...product,
+    ...match,
+    matched_variant_id: match.matched_variant_id ?? null,
+    matched_color: match.matched_color || null,
+    matched_color_id: match.matched_color_id ?? null,
+    matched_article: match.matched_article || null,
+    matched_sku: match.matched_sku || null,
+    search_match_type: match.search_match_type || null,
+  };
+};
+
 const normalizeAdminListFilterValue = (value = "") => String(value ?? "").trim();
 
 const buildProductsAdminListFiltersClause = async ({ values, filters = {} }) => {
@@ -3192,7 +3300,10 @@ export const getProductsWithVariants = async (req, res) => {
     if (Number.isFinite(requestedProductId) && requestedProductId > 0) {
       aiEnrichedProducts.forEach(logProductDetailsPriceDebug);
     }
-    const payload = normalizeResponse(aiEnrichedProducts);
+    const searchTerm = req.query.search ?? req.query.q ?? "";
+    const payload = normalizeResponse(
+      aiEnrichedProducts.map((product) => attachVariantSearchMetadata(product, searchTerm))
+    );
 
     res.json(payload);
     console.log("[products] response sent", {
