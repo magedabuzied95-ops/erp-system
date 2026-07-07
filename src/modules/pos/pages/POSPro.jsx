@@ -122,6 +122,7 @@ const isStandaloneDisplayMode = () =>
   isBrowser() && (window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator?.standalone === true);
 
 const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
+const POS_USE_SALE_PRICES_KEY = "pos.useSalePrices";
 const POS_MANIFEST_HREF = "/pos-manifest.webmanifest";
 const POS_APP_TITLE = buildPageTitle("POS");
 const POS_APP_SHORT_TITLE = "POS";
@@ -163,6 +164,25 @@ const writeLastSalespersonId = (salespersonId) => {
     else window.localStorage.removeItem(POS_LAST_SALESPERSON_KEY);
   } catch {
     // This is a cashier convenience only; checkout must continue.
+  }
+};
+
+const readUseSalePrices = () => {
+  try {
+    const saved = window.localStorage.getItem(POS_USE_SALE_PRICES_KEY);
+    if (saved === "false") return false;
+    if (saved === "true") return true;
+  } catch {
+    // Persisted POS preferences are best-effort only.
+  }
+  return true;
+};
+
+const writeUseSalePrices = (value) => {
+  try {
+    window.localStorage.setItem(POS_USE_SALE_PRICES_KEY, String(Boolean(value)));
+  } catch {
+    // Persisted POS preferences are best-effort only.
   }
 };
 
@@ -1335,7 +1355,9 @@ function POSPro() {
   }, []);
 
   const [products, setProducts] = useState([]);
-  const [saleModeSettings, setSaleModeSettings] = useState(() => normalizeSaleModeSettings());
+  const [saleModeSettings, setSaleModeSettings] = useState(() =>
+    normalizeSaleModeSettings({ sale_mode_enabled: readUseSalePrices() })
+  );
   const [saleModeSaving, setSaleModeSaving] = useState(false);
   const [manufacturers, setManufacturers] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -1422,6 +1444,10 @@ function POSPro() {
   const [actualDrawerAmount, setActualDrawerAmount] = useState("");
   const [shiftCloseNotes, setShiftCloseNotes] = useState("");
   const [shiftVarianceReason, setShiftVarianceReason] = useState("");
+
+  useEffect(() => {
+    writeUseSalePrices(Boolean(saleModeSettings?.sale_mode_enabled));
+  }, [saleModeSettings?.sale_mode_enabled]);
   const [barcodeShopProduct, setBarcodeShopProduct] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -1835,7 +1861,10 @@ function POSPro() {
         setError("");
 
         const websiteSettings = await api.get("/website/settings", { signal: controller.signal }).catch(() => ({ settings: {} }));
-        const normalizedSaleMode = normalizeSaleModeSettings(websiteSettings?.settings || {});
+        const normalizedSaleMode = normalizeSaleModeSettings({
+          ...(websiteSettings?.settings || {}),
+          sale_mode_enabled: readUseSalePrices(),
+        });
         setSaleModeSettings(normalizedSaleMode);
         const catalog = await refreshCatalogProducts({
           setProducts,
@@ -5828,6 +5857,7 @@ function POSPro() {
   const saleMode = useMemo(() => normalizeSaleModeSettings(saleModeSettings), [saleModeSettings]);
   const salePricesEnabled = Boolean(saleMode.sale_mode_enabled);
   const handleToggleSaleMode = useCallback(() => {
+    writeUseSalePrices(!salePricesEnabled);
     saveSaleModeSettings({
       ...saleMode,
       sale_mode_enabled: !salePricesEnabled,
