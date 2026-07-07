@@ -7,37 +7,12 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import Can from "../components/Can";
 import PermissionsShell from "../components/PermissionsShell";
-
-const formatRoleLabel = (value = "") => {
-  const normalized = String(value || "")
-    .trim()
-    .replace(/[_-]+/g, " ")
-    .replace(/\s+/g, " ");
-
-  if (!normalized) return "Custom Role";
-
-  return normalized
-    .split(" ")
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-};
-
-const normalizeRole = (role = {}) => ({
-  ...role,
-  id: String(role.id ?? ""),
-  name: formatRoleLabel(role.name || role.role_name || role.slug || role.id),
-  slug: String(role.slug || role.name || role.id || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "-"),
-  permissions: Array.isArray(role.permissions) ? role.permissions.map(String) : [],
-});
+import { getRoleCatalog, normalizeRole } from "../lib/rbacStore";
 
 const normalizeUser = (user = {}, roles = []) => {
   const roleMap = new Map(roles.map((role) => [String(role.id), role]));
   const role = roleMap.get(String(user.role_id ?? "")) || null;
-  const roleName = formatRoleLabel(user.role || user.role_name || role?.name || role?.slug || user.role_id || "Custom Role");
+  const roleName = user.role || user.role_name || role?.name || role?.slug || "Custom Role";
   const permissions = Array.isArray(user.permissions) && user.permissions.length
     ? user.permissions.map(String)
     : Array.isArray(role?.permissions)
@@ -58,7 +33,7 @@ const normalizeUser = (user = {}, roles = []) => {
 
 function UsersPage() {
   const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState([]);
+  const [roles, setRoles] = useState(getRoleCatalog());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -78,10 +53,10 @@ function UsersPage() {
 
         if (!active) return;
 
-        let nextRoles = [];
+        let nextRoles = getRoleCatalog();
         if (rolesRes.status === "fulfilled") {
           const rows = Array.isArray(rolesRes.value) ? rolesRes.value : rolesRes.value?.roles || [];
-          nextRoles = rows.length ? rows.map(normalizeRole) : [];
+          nextRoles = rows.length ? rows.map(normalizeRole) : getRoleCatalog();
         }
         setRoles(nextRoles);
         setRoleId((current) => {
