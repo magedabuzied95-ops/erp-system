@@ -30,7 +30,7 @@ test("server mounts /api/users and users routes expose PATCH aliases", () => {
   assert.match(routesSource, /router\.patch\("\/:\id\/status"/);
 });
 
-test("createUser resolves role slugs to numeric role_id and hashes passwords", async () => {
+test("createUser accepts the exact Users.jsx payload and hashes passwords", async () => {
   const originalQuery = db.query.bind(db);
   const queries = [];
   db.query = async (sql, params = []) => {
@@ -79,7 +79,8 @@ test("createUser resolves role slugs to numeric role_id and hashes passwords", a
         name: "Test User",
         email: "test.user@example.com",
         password: "Secret123!",
-        role: "cashier",
+        role_id: "cashier",
+        role: "Cashier",
       },
       user: {
         id: 1,

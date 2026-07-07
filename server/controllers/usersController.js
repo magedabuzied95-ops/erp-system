@@ -10,6 +10,56 @@ const normalizeRoleValue = (value = "") =>
     .toLowerCase()
     .replace(/[_-]+/g, " ");
 
+const normalizeRoleLookupKey = (value = "") =>
+  normalizeRoleValue(value);
+
+const extractRoleCandidateValue = (value) => {
+  if (value == null) return null;
+  if (typeof value !== "object" || Array.isArray(value)) return value;
+
+  return (
+    value.role_id ??
+    value.roleId ??
+    value.role_slug ??
+    value.roleSlug ??
+    value.role_name ??
+    value.roleName ??
+    value.slug ??
+    value.name ??
+    value.id ??
+    value.value ??
+    value.label ??
+    null
+  );
+};
+
+const getRoleLookupCandidates = (body = {}) => {
+  const rawCandidates = [
+    body?.role_id,
+    body?.roleId,
+    body?.role_slug,
+    body?.roleSlug,
+    body?.role_name,
+    body?.roleName,
+    body?.role,
+    body?.id,
+    body?.value,
+  ];
+
+  const candidates = [];
+  const seen = new Set();
+
+  for (const rawCandidate of rawCandidates) {
+    const extracted = extractRoleCandidateValue(rawCandidate);
+    const normalized = normalizeRoleLookupKey(extracted);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    candidates.push(normalized);
+  }
+
+  return candidates;
+};
+
 const isAdminActor = (user = {}) => {
   const normalized = normalizeRoleValue(user?.role || user?.role_name || "");
   return normalized === "admin" || normalized === "super admin" || normalized === "superadmin" || isSuperAdminUser(user);
@@ -52,41 +102,68 @@ const getWritablePasswordColumns = (userColumns) =>
 const normalizeRoleStorageValue = (role = {}) =>
   String(role?.slug || role?.name || "").trim();
 
-const resolveUserRole = async ({ value, tenantId, action, req }) => {
-  const roleValue = String(value ?? "").trim();
-  if (!roleValue) {
+const resolveUserRole = async ({ body, value, tenantId, action, req }) => {
+  const roleCandidates = getRoleLookupCandidates(body ?? { role_id: value });
+
+  if (roleCandidates.length === 0) {
     return null;
   }
 
-  const role = await resolveRole(db, { roleId: roleValue, tenantId });
-  if (!role) {
-    console.warn("[users] role resolution failed", {
-      action,
-      userId: req.user?.id ?? null,
-      role: req.user?.role || req.user?.role_name || null,
-      tenantId: req.user?.tenant_id ?? null,
-      inputRole: roleValue,
-    });
-    return null;
+  const lookupTenantIds = Array.from(new Set([tenantId, 1, null].filter((value) => value !== undefined)));
+
+  for (const roleValue of roleCandidates) {
+    for (const roleTenantId of lookupTenantIds) {
+      const role = await resolveRole(db, { roleId: roleValue, tenantId: roleTenantId });
+      if (!role) continue;
+
+      const roleId = Number(role.id);
+      if (!Number.isFinite(roleId)) {
+        console.warn("[users] role resolution returned invalid id", {
+          action,
+          userId: req.user?.id ?? null,
+          role: req.user?.role || req.user?.role_name || null,
+          tenantId: req.user?.tenant_id ?? null,
+          inputRole: roleValue,
+          lookupTenantId: roleTenantId,
+          resolvedRoleId: role.id,
+        });
+        return null;
+      }
+
+      console.log("[users] resolved role lookup", {
+        action,
+        userId: req.user?.id ?? null,
+        inputRole: roleValue,
+        lookupTenantId: roleTenantId,
+        resolvedRoleId: roleId,
+        resolvedRoleName: role.name,
+        resolvedRoleSlug: role.slug || null,
+      });
+
+      return {
+        id: roleId,
+        legacyRole: normalizeRoleStorageValue(role) || roleValue,
+      };
+    }
   }
 
-  const roleId = Number(role.id);
-  if (!Number.isFinite(roleId)) {
-    console.warn("[users] role resolution returned invalid id", {
-      action,
-      userId: req.user?.id ?? null,
-      role: req.user?.role || req.user?.role_name || null,
-      tenantId: req.user?.tenant_id ?? null,
-      inputRole: roleValue,
-      resolvedRoleId: role.id,
-    });
-    return null;
-  }
+  console.warn("[users] role resolution failed", {
+    action,
+    userId: req.user?.id ?? null,
+    role: req.user?.role || req.user?.role_name || null,
+    tenantId: req.user?.tenant_id ?? null,
+    attemptedRoles: roleCandidates,
+    lookupTenantIds,
+  });
 
-  return {
-    id: roleId,
-    legacyRole: normalizeRoleStorageValue(role) || roleValue,
-  };
+  return null;
+};
+
+const sanitizeUserBody = (body = {}) => {
+  if (!body || typeof body !== "object") return body;
+  return Object.fromEntries(
+    Object.entries(body).map(([key, value]) => [key, key.toLowerCase() === "password" && value ? "[redacted]" : value])
+  );
 };
 
 const logUsersValidationFailure = (action, req, message, meta = {}) => {
@@ -181,8 +258,33 @@ async (req, res) => {
   try {
 
     const { name, email, password } = req.body;
-    const requestedRole = req.body?.role_id ?? req.body?.role ?? req.body?.role_name ?? "";
     const tenantId = getTenantId(req, req.user?.tenant_id);
+    console.log("[users] create incoming body", {
+      tenantId,
+      actorId: req.user?.id ?? null,
+      body: sanitizeUserBody(req.body),
+    });
+    console.log("[users] create role lookup candidates", {
+      tenantId,
+      actorId: req.user?.id ?? null,
+      ...(() => {
+        const sourceFields = {
+          role_id: req.body?.role_id ?? null,
+          roleId: req.body?.roleId ?? null,
+          role_slug: req.body?.role_slug ?? null,
+          roleSlug: req.body?.roleSlug ?? null,
+          role_name: req.body?.role_name ?? null,
+          roleName: req.body?.roleName ?? null,
+          role: req.body?.role ?? null,
+          id: req.body?.id ?? null,
+          value: req.body?.value ?? null,
+        };
+        return {
+          sourceFields,
+          candidates: getRoleLookupCandidates(req.body),
+        };
+      })(),
+    });
 
     if (
       !name ||
@@ -243,7 +345,7 @@ async (req, res) => {
       );
 
     const resolvedRole = await resolveUserRole({
-      value: requestedRole,
+      body: req.body,
       tenantId,
       action: "create",
       req,
@@ -255,6 +357,13 @@ async (req, res) => {
         message: "Invalid role",
       });
     }
+
+    console.log("[users] create resolved role", {
+      tenantId,
+      actorId: req.user?.id ?? null,
+      roleId: resolvedRole.id,
+      roleLabel: resolvedRole.legacyRole,
+    });
 
     const userColumns = await getUsersColumnNames();
     const hasLegacyRoleColumn = userColumns.has("role");
@@ -349,10 +458,9 @@ async (req, res) => {
     const { id } =
       req.params;
 
-    const requestedRole = req.body?.role_id ?? req.body?.role ?? req.body?.role_name ?? "";
     const tenantId = getTenantId(req, req.user?.tenant_id);
     const resolvedRole = await resolveUserRole({
-      value: requestedRole,
+      body: req.body,
       tenantId,
       action: "update_role",
       req,
