@@ -102,24 +102,25 @@ const resolveLoginTenantId = async (req) => {
 };
 
 const buildLoginUserSelect = (passwordColumns = []) => {
-  const passwordSelect = passwordColumns.length > 0
-    ? `, ${passwordColumns.map((column) => `u.${column} AS ${column}`).join(", ")}`
-    : "";
+  const selectColumns = [
+    "u.id",
+    "u.tenant_id",
+    "u.role_id",
+    "u.name",
+    "u.email",
+    "u.phone",
+    "u.is_active",
+    "u.is_super_admin",
+    "u.last_login_at",
+    "u.created_at",
+    "u.updated_at",
+    ...passwordColumns.map((column) => `u.${column} AS ${column}`),
+    "r.name AS role_name",
+  ];
 
   return `
       SELECT
-        u.id,
-        u.tenant_id,
-        u.role_id,
-        u.name,
-        u.email,
-        u.phone,
-        u.is_active,
-        u.is_super_admin,
-        u.last_login_at,
-        u.created_at,
-        u.updated_at${passwordSelect},
-        r.name AS role_name,
+        ${selectColumns.join(",\n        ")}
       FROM users u
       LEFT JOIN roles r ON u.role_id = r.id
       LEFT JOIN tenants t ON t.id = u.tenant_id
@@ -291,14 +292,16 @@ export const login = async (req, res) => {
     let result = { rows: [] };
 
     if (tenantId !== null) {
-      result = await db.query(
-        `
+      const exactTenantSql = `
         ${loginSelect}
           AND u.tenant_id = $2
         ORDER BY
           CASE WHEN u.tenant_id = $2 THEN 0 ELSE 1 END,
           u.id ASC
-        `,
+        `;
+      console.log("[auth] login exact tenant SQL", exactTenantSql);
+      result = await db.query(
+        exactTenantSql,
         [email.trim(), tenantId]
       );
       console.log("[auth] login exact tenant lookup", {
@@ -314,8 +317,7 @@ export const login = async (req, res) => {
         tenantId,
         reason: tenantId !== null ? "exact_tenant_miss" : "no_tenant_provided",
       });
-      result = await db.query(
-        `
+      const fallbackSql = `
         ${loginSelect}
           AND u.is_active IS DISTINCT FROM FALSE
           AND (
@@ -325,7 +327,10 @@ export const login = async (req, res) => {
         ORDER BY
           CASE WHEN u.tenant_id IS NULL THEN 1 ELSE 0 END,
           u.id ASC
-        `,
+        `;
+      console.log("[auth] login fallback SQL", fallbackSql);
+      result = await db.query(
+        fallbackSql,
         [email.trim()]
       );
     }

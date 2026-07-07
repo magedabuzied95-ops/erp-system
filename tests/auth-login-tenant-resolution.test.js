@@ -20,7 +20,7 @@ const makeResponse = () => ({
 
 const normalizeSql = (sql = "") => String(sql || "").replace(/\s+/g, " ").trim();
 
-const makeLoginDbStub = ({ tenants = [], users = [] } = {}) => {
+const makeLoginDbStub = ({ tenants = [], users = [], queries = [] } = {}) => {
   const state = {
     tenants,
     users,
@@ -28,6 +28,7 @@ const makeLoginDbStub = ({ tenants = [], users = [] } = {}) => {
 
   const query = async (sql, params = []) => {
     const text = normalizeSql(sql);
+    queries.push(text);
 
     if (text.includes("information_schema.columns") && text.includes("table_name = 'users'") && text.includes("column_name = 'last_login_at'")) {
       return { rows: [{ column_name: "last_login_at", data_type: "timestamp without time zone", is_nullable: "YES" }] };
@@ -158,13 +159,14 @@ const makeLoginDbStub = ({ tenants = [], users = [] } = {}) => {
     throw new Error(`Unexpected query in auth login tenant test: ${text.slice(0, 180)}`);
   };
 
-  return { query };
+  return { query, queries };
 };
 
-const runLogin = async ({ tenants, users, body }) => {
+const runLogin = async ({ tenants, users, body, captureQueries = false }) => {
   const originalQuery = db.query.bind(db);
   const originalConnect = db.connect?.bind(db);
-  const stub = makeLoginDbStub({ tenants, users });
+  const queries = [];
+  const stub = makeLoginDbStub({ tenants, users, queries });
   db.query = stub.query;
   db.connect = async () => ({
     query: stub.query,
@@ -182,7 +184,7 @@ const runLogin = async ({ tenants, users, body }) => {
     };
     const res = makeResponse();
     await login(req, res);
-    return res;
+    return captureQueries ? { res, queries } : res;
   } finally {
     db.query = originalQuery;
     if (originalConnect) {
@@ -230,6 +232,29 @@ test("login without tenant succeeds when email exists in one active tenant", asy
   assert.equal(res.payload?.success, true);
   assert.equal(res.payload?.user?.email, "cashier@gmail.com");
   assert.equal(res.payload?.user?.tenant_id, 1);
+});
+
+test("login without tenant generates a valid SELECT without trailing commas", async () => {
+  const password = "Secret123!";
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const { res, queries } = await runLogin({
+    tenants: [{ id: 1, slug: "acme", status: "active", name: "Acme" }],
+    users: [{ id: 11, tenant_id: 1, email: "cashier@gmail.com", password: hashedPassword, is_active: true, role_name: "cashier" }],
+    body: {
+      email: "cashier@gmail.com",
+      password,
+      workspace: "",
+    },
+    captureQueries: true,
+  });
+
+  assert.equal(res.statusCode, 200);
+  const loginQuery = queries.find((sql) => sql.includes("SELECT"));
+  assert.ok(loginQuery, "expected login SELECT query to execute");
+  assert.doesNotMatch(loginQuery, /SELECT\s+FROM\s+users/i);
+  assert.doesNotMatch(loginQuery, /,\s*FROM\s+users/i);
+  assert.doesNotMatch(loginQuery, /SELECT\s+.*,\s*FROM\s+users/i);
 });
 
 test("login without tenant returns workspace required when email exists in multiple tenants", async () => {
