@@ -67,6 +67,7 @@ export const getWebsiteSettings = async ({ tenantId = null } = {}) => {
     [tenantId]
     ),
   ]);
+  const rawSaleModeEnabled = result.rows[0]?.settings?.sale_mode_enabled;
   const settings = {
     ...DEFAULT_SETTINGS,
     default_shipping_price: defaultShippingPrice,
@@ -74,7 +75,11 @@ export const getWebsiteSettings = async ({ tenantId = null } = {}) => {
     ...(result.rows[0]?.settings || {}),
   };
   settings.sale_mode_enabled = parseSaleModeEnabled(settings.sale_mode_enabled, DEFAULT_SETTINGS.sale_mode_enabled);
-  console.debug("[website-settings:get]", {
+  console.debug("WEBSITE_SETTINGS_GET_RAW_SALE_MODE", {
+    tenant_id: tenantId,
+    sale_mode_enabled: rawSaleModeEnabled,
+  });
+  console.debug("WEBSITE_SETTINGS_GET_RETURNED_SALE_MODE", {
     tenant_id: tenantId,
     sale_mode_enabled: settings.sale_mode_enabled,
   });
@@ -92,11 +97,14 @@ export const updateWebsiteSettings = async ({ tenantId = null, settings = {} } =
     await setSetting("storefront.shipping_zones", Array.isArray(settings.shipping_zones) ? settings.shipping_zones : [], "shipping");
   }
   const current = await getWebsiteSettings({ tenantId });
-  const next = { ...current, ...(settings || {}) };
-  next.sale_mode_enabled = parseSaleModeEnabled(
-    Object.prototype.hasOwnProperty.call(settings || {}, "sale_mode_enabled") ? settings.sale_mode_enabled : current.sale_mode_enabled,
+  const incomingSaleModeEnabled = Object.prototype.hasOwnProperty.call(settings || {}, "sale_mode_enabled")
+    ? settings.sale_mode_enabled
+    : undefined;
+  const resolvedSaleModeEnabled = parseSaleModeEnabled(
+    incomingSaleModeEnabled ?? current.sale_mode_enabled ?? DEFAULT_SETTINGS.sale_mode_enabled,
     current.sale_mode_enabled ?? DEFAULT_SETTINGS.sale_mode_enabled
   );
+  const next = { ...current, ...(settings || {}), sale_mode_enabled: resolvedSaleModeEnabled };
   if (tenantId === null || tenantId === undefined) {
     const existing = await db.query(`SELECT id FROM website_settings WHERE tenant_id IS NULL ORDER BY id ASC LIMIT 1`);
     if (existing.rows[0]) {
@@ -129,7 +137,7 @@ export const updateWebsiteSettings = async ({ tenantId = null, settings = {} } =
     invalidateCachePattern(buildCacheKey("storefront", `tenant:public`, "*")).catch(() => {});
   }
   const saved = { ...DEFAULT_SETTINGS, ...(result.rows[0]?.settings || next) };
-  console.debug("[website-settings:save]", {
+  console.debug("WEBSITE_SETTINGS_PUT_SAVED_SALE_MODE", {
     tenant_id: tenantId,
     sale_mode_enabled: saved.sale_mode_enabled,
   });

@@ -9,19 +9,14 @@ import {
 
 const router = express.Router();
 
-const publicTenantId = (req) => {
-  const raw = req.headers?.["x-tenant-id"] || req.query?.tenant_id || req.query?.tenantId || null;
-  const tenantId = Number(raw);
-  return Number.isFinite(tenantId) && tenantId > 0 ? tenantId : null;
-};
-
 router.get("/settings", protect, permit("website", "settings"), async (req, res) => {
   try {
-    const settings = await getWebsiteSettings({ tenantId: publicTenantId(req) });
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const settings = await getWebsiteSettings({ tenantId });
     res.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.set("Pragma", "no-cache");
     console.debug("WEBSITE_SETTINGS_GET_SALE_MODE", {
-      tenant_id: publicTenantId(req),
+      tenant_id: tenantId,
       sale_mode_enabled: settings.sale_mode_enabled,
     });
     res.json({ success: true, settings });
@@ -33,12 +28,16 @@ router.get("/settings", protect, permit("website", "settings"), async (req, res)
 router.put("/settings", protect, permit("website", "settings"), async (req, res) => {
   try {
     const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
-    console.debug("WEBSITE_SETTINGS_PUT_SALE_MODE", {
+    console.debug("WEBSITE_SETTINGS_PUT_BODY_SALE_MODE", {
       tenant_id: tenantId,
       sale_mode_enabled: req.body?.sale_mode_enabled,
       body_keys: Object.keys(req.body || {}),
     });
     const settings = await updateWebsiteSettings({ tenantId, settings: req.body || {} });
+    console.debug("WEBSITE_SETTINGS_PUT_SAVED_SALE_MODE", {
+      tenant_id: tenantId,
+      sale_mode_enabled: settings?.sale_mode_enabled,
+    });
     res.json({ success: true, settings });
   } catch {
     res.status(500).json({ success: false, message: "Failed to save website settings" });
