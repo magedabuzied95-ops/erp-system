@@ -214,11 +214,88 @@ const safeText = (value, fallback = "") => {
   return fallback;
 };
 
+const firstTextValue = (...values) => values.map((value) => safeText(value, "")).find(Boolean) || "";
+
 const normalizeSearchText = (value = "") =>
   String(value || "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
+
+const resolveLabelArticleText = (item = {}, product = null, variant = null) =>
+  safeText(
+    firstTextValue(
+      item?.article_code,
+      item?.variant_article_code,
+      item?.articleCode,
+      variant?.article_code,
+      variant?.variant_article_code,
+      variant?.articleCode,
+      product?.article_code,
+      product?.articleCode
+    )
+  );
+
+const getVariantArticleSearchText = (variant = {}) =>
+  normalizeSearchText(firstTextValue(variant?.article_code, variant?.variant_article_code, variant?.articleCode));
+
+const getProductSearchText = (product = {}) =>
+  normalizeSearchText(
+    [
+      product.name,
+      product.article_code,
+      product.articleCode,
+      product.sku,
+      product.barcode,
+      product.brand,
+      product.category,
+      ...(Array.isArray(product.variants)
+        ? product.variants.flatMap((variant) => [
+            variant.color,
+            variant.size,
+            variant.article_code,
+            variant.articleCode,
+            variant.variant_article_code,
+            variant.sku,
+            variant.barcode,
+          ])
+        : []),
+    ]
+      .filter(Boolean)
+      .join(" ")
+  );
+
+const filterProductVariantsByArticleSearch = (product = {}, query = "") => {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return null;
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const matchingVariants = variants.filter((variant) => {
+    if (Number(variant?.stock || 0) <= 0) return false;
+    return getVariantArticleSearchText(variant) === normalizedQuery;
+  });
+  if (!matchingVariants.length) return null;
+  return {
+    ...product,
+    variants: matchingVariants,
+  };
+};
+
+const hasProductVariantArticleSearchMatch = (product = {}, query = "") => {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) return false;
+  return Array.isArray(product.variants) && product.variants.some((variant) => getVariantArticleSearchText(variant) === normalizedQuery);
+};
+
+const attachArticleCodeToItem = (item = {}, product = null, variant = null) => {
+  const articleCode = resolveLabelArticleText(item, product, variant);
+  if (!articleCode) return item;
+  return {
+    ...item,
+    article_code: articleCode,
+    articleCode,
+    variant_article_code: articleCode,
+  };
+};
 
 const formatLabelCurrency = (value) =>
   formatCurrency(Math.round(Number(value || 0))).replace(/([.,٫]\d{2})(?=\s|$)/g, "");
@@ -386,29 +463,7 @@ const enrichLabelWithSmartQr = (item, enabled) => {
   };
 };
 
-const toSearchText = (row) =>
-  normalizeSearchText([
-    row.name,
-    row.article_code,
-    row.articleCode,
-    row.sku,
-    row.barcode,
-    row.brand,
-    row.category,
-    ...(Array.isArray(row.variants)
-      ? row.variants.flatMap((variant) => [
-          variant.color,
-          variant.size,
-          variant.article_code,
-          variant.articleCode,
-          variant.variant_article_code,
-          variant.sku,
-          variant.barcode,
-        ])
-      : []),
-  ]
-    .filter(Boolean)
-    .join(" "));
+const toSearchText = (row) => getProductSearchText(row);
 
 const flattenVariantRows = (rows = []) =>
   rows.flatMap((row) => {
@@ -499,6 +554,21 @@ function BarcodeLabels() {
       variants: routeProductVariants,
     };
   }, [activeProduct, routeLocked, routeProductVariants]);
+  const normalizedSearch = useMemo(() => normalizeSearchText(search), [search]);
+  const catalogLookup = useMemo(() => {
+    const byId = new Map();
+    const byVariantId = new Map();
+    catalog.forEach((product) => {
+      byId.set(String(product?.id ?? ""), product);
+      Array.isArray(product?.variants)
+        ? product.variants.forEach((variant) => {
+            const variantId = String(variant?.variant_id ?? variant?.id ?? "");
+            if (variantId) byVariantId.set(variantId, { product, variant });
+          })
+        : null;
+    });
+    return { byId, byVariantId };
+  }, [catalog]);
   const sheetModes = useMemo(
     () => [
       { value: "a4", label: t("products.barcodeLabels.a4Sheet") },
@@ -616,15 +686,31 @@ function BarcodeLabels() {
   }, [productId, availableOnly, isBarcodeShopMode]);
 
   const visibleCatalog = useMemo(() => {
-    const query = normalizeSearchText(search);
     if (routeLocked && routeActiveProduct) {
       if (hasRoutePrintFilter && routeProductVariants.length === 0) return [];
       return [routeActiveProduct];
     }
     if (routeLocked && !activeProduct) return [];
-    if (!query) return catalog;
-    return catalog.filter((product) => toSearchText(product).includes(query));
-  }, [catalog, search, routeLocked, activeProduct, routeActiveProduct, routeProductVariants.length, hasRoutePrintFilter]);
+    if (!normalizedSearch) return catalog;
+
+    return catalog
+      .map((product) => {
+        const articleFilteredProduct = filterProductVariantsByArticleSearch(product, normalizedSearch);
+        if (articleFilteredProduct) {
+          return {
+            ...product,
+            variants: articleFilteredProduct.variants.map((variant) => preserveVariantImageFields(product, variant)),
+          };
+        }
+
+        if (hasProductVariantArticleSearchMatch(product, normalizedSearch)) {
+          return null;
+        }
+
+        return toSearchText(product).includes(normalizedSearch) ? product : null;
+      })
+      .filter(Boolean);
+  }, [catalog, normalizedSearch, routeLocked, activeProduct, routeActiveProduct, routeProductVariants.length, hasRoutePrintFilter]);
 
   const selectedProduct = useMemo(
     () => {
@@ -666,15 +752,29 @@ function BarcodeLabels() {
   const selectedItems = useMemo(
     () => {
       if (isBarcodeShopMode && routeActiveProduct) {
-        return [buildBarcodeShopLabelItem(routeActiveProduct, barcodeShopQuantity, selectedProductPriceFallbackVariant)].filter(Boolean);
+        return [
+          attachArticleCodeToItem(
+            buildBarcodeShopLabelItem(routeActiveProduct, barcodeShopQuantity, selectedProductPriceFallbackVariant),
+            routeActiveProduct,
+            selectedProductPriceFallbackVariant
+          ),
+        ].filter(Boolean);
       }
       if (routeLocked && routeActiveProduct) {
         if (hasRoutePrintFilter && routeProductVariants.length === 0) return [];
-        return buildProductLabelItems({ product: routeActiveProduct, availableOnly });
+        return buildProductLabelItems({ product: routeActiveProduct, availableOnly }).map((item) => {
+          const product = catalogLookup.byId.get(String(item?.productId ?? item?.product_id ?? routeActiveProduct.id)) || routeActiveProduct;
+          const variantEntry = catalogLookup.byVariantId.get(String(item?.variantId ?? item?.variant_id ?? ""));
+          return attachArticleCodeToItem(item, product, variantEntry?.variant || null);
+        });
       }
-      return buildSelectedLabelItems(catalog, selectedQuantities);
+      return buildSelectedLabelItems(visibleCatalog, selectedQuantities).map((item) => {
+        const product = catalogLookup.byId.get(String(item?.productId ?? item?.product_id ?? ""));
+        const variantEntry = catalogLookup.byVariantId.get(String(item?.variantId ?? item?.variant_id ?? ""));
+        return attachArticleCodeToItem(item, product || null, variantEntry?.variant || null);
+      });
     },
-    [catalog, selectedQuantities, routeLocked, routeActiveProduct, availableOnly, isBarcodeShopMode, barcodeShopQuantity, selectedProductPriceFallbackVariant, routeProductVariants.length, hasRoutePrintFilter]
+    [visibleCatalog, selectedQuantities, routeLocked, routeActiveProduct, availableOnly, isBarcodeShopMode, barcodeShopQuantity, selectedProductPriceFallbackVariant, routeProductVariants.length, hasRoutePrintFilter, catalogLookup]
   );
 
   const qrReadyItems = useMemo(
@@ -1293,7 +1393,9 @@ function LabelCard({ item, printSettings, template = LABEL_TEMPLATE_STANDARD, pr
   const imageUrl = resolveBarcodeLabelImage(item);
   const safeImage = getSafeLabelImage(imageUrl, item);
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
+  const articleCode = resolveLabelArticleCode(item);
   const metaItems = [
+    articleCode ? { label: "ART", value: articleCode } : null,
     printSettings.showSizeColor ? { label: t("products.barcodeLabels.color"), value: item.color } : null,
     printSettings.showSizeColor ? { label: t("products.barcodeLabels.size"), value: item.size } : null,
     printSettings.showSkuArticle ? { label: t("products.barcodeLabels.sku"), value: item.sku } : null,
@@ -1346,6 +1448,7 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
   const sizeValue = safeText(item.size, t("products.barcodeLabels.oneSize"));
   const colorValue = safeText(item.color, t("products.barcodeLabels.default"));
+  const articleCode = resolveLabelArticleCode(item);
   const barcodeSvg = getBarcodeSvg(item.barcodeValue, {
     width: Math.round(PREMIUM_RETAIL_BARCODE_WIDTH * (Number(printSettings.barcodeWidthScale || 100) / 100)),
     height: PREMIUM_RETAIL_BARCODE_HEIGHT,
@@ -1394,7 +1497,7 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
           <div className="w-[95%] max-w-full" dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
       </div>
       <div className="min-h-0 overflow-hidden px-[0.5mm] pt-0 text-center text-[8px] font-black leading-none text-zinc-800" data-premium-label-part="sku">
-          {item.sku}
+          {articleCode}
       </div>
       {item?.showSmartProductQr ? (
         <div className="absolute bottom-[8mm] right-[1mm] z-[2] w-[16mm] overflow-hidden rounded-[2.2mm] border border-zinc-200 bg-white p-[1mm]">
@@ -1754,7 +1857,9 @@ function PrintLabel({ item, printSettings, template = LABEL_TEMPLATE_STANDARD })
   const imageUrl = resolveBarcodeLabelImage(item);
   const safeImage = getSafeLabelImage(imageUrl, item);
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
+  const articleCode = resolveLabelArticleCode(item);
   const metaItems = [
+    articleCode ? { label: "ART", value: articleCode } : null,
     printSettings.showSizeColor ? { label: t("products.barcodeLabels.color"), value: item.color } : null,
     printSettings.showSizeColor ? { label: t("products.barcodeLabels.size"), value: item.size } : null,
     printSettings.showSkuArticle ? { label: t("products.barcodeLabels.sku"), value: item.sku } : null,
@@ -1797,6 +1902,7 @@ function PrintLabel({ item, printSettings, template = LABEL_TEMPLATE_STANDARD })
 function BarcodeShopLabel({ item, print = false }) {
   const { t } = useTranslation();
   const productName = safeText(item.productName, t("products.barcodeLabels.product"));
+  const articleCode = resolveLabelArticleCode(item);
   const qrToken = safeText(item.qrToken);
   const qrValue = safeText(item.qrValue, qrToken);
   const effectivePrice = Number(item.effectivePrice ?? item.displayPrice ?? item.salePrice ?? 0);
@@ -1811,6 +1917,11 @@ function BarcodeShopLabel({ item, print = false }) {
       <div className="mt-6">
         <p className="text-3xl font-black leading-none tracking-tight text-zinc-950">{price}</p>
       </div>
+      {articleCode ? (
+        <div className="mt-2 truncate text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">
+          ART {articleCode}
+        </div>
+      ) : null}
       <div className="mt-3 truncate rounded-full bg-zinc-100 px-3 py-2 text-[10px] font-bold uppercase tracking-[0.16em] text-zinc-500">
         {qrToken}
       </div>
