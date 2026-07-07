@@ -63,6 +63,7 @@ import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from
 import {
   generateProductDescription,
   generateAiProductData,
+  getBrands,
   regenerateAiShoeCover,
   generateThermalArtwork,
   getManufacturers,
@@ -812,7 +813,6 @@ function ProductEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const categories = useMemo(() => seedCategories(), []);
-  const brands = useMemo(() => seedBrands(), []);
   const units = useMemo(() => seedUnits(), []);
   const pendingColorUploadsRef = useRef(new Map());
   const colorImageUrlsRef = useRef(new Map());
@@ -820,6 +820,8 @@ function ProductEdit() {
   const initialVariantPricingRef = useRef(new Map());
   const initialProductCoreSnapshotRef = useRef("");
   const initialVariantContentSnapshotRef = useRef("");
+  const [brands, setBrands] = useState([]);
+  const [brandsReady, setBrandsReady] = useState(false);
   const [manufacturers, setManufacturers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1220,6 +1222,39 @@ function ProductEdit() {
   useEffect(() => {
     let active = true;
 
+    const loadBrands = async () => {
+      try {
+        const rows = await getBrands();
+        if (!active) return;
+        const normalizedRows = Array.isArray(rows)
+          ? rows
+              .map((item) => ({
+                ...item,
+                id: item?.id ?? item?.brand_id ?? "",
+                name: String(item?.name || "").trim(),
+              }))
+              .filter((item) => String(item.name || "").trim())
+          : [];
+        setBrands(normalizedRows.length > 0 ? normalizedRows : seedBrands());
+      } catch (error) {
+        if (!active) return;
+        console.log(error);
+        setBrands(seedBrands());
+      } finally {
+        if (active) setBrandsReady(true);
+      }
+    };
+
+    loadBrands();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
     const loadManufacturers = async () => {
       try {
         const rows = await getManufacturers();
@@ -1239,6 +1274,7 @@ function ProductEdit() {
   }, []);
 
   useEffect(() => {
+    if (!brandsReady) return;
     let active = true;
 
     const loadProduct = async () => {
@@ -1313,7 +1349,7 @@ function ProductEdit() {
         const normalizedProduct = normalizeProductForm(firstRow);
         const loadedSmartSkuPrefix = buildSmartSkuPrefix({
           name: normalizedProduct.name,
-          brand: hydratedBrand.brand || firstRow.brand,
+          brand: hydratedBrand.brand || firstRow.brand_name || firstRow.brand,
           productType: normalizedProduct.product_type,
           category: hydratedCategory.childCategory || hydratedCategory.subCategory || hydratedCategory.mainCategory || normalizedProduct.category,
           gender: normalizedProduct.audiences?.[0] || normalizedProduct.gender,
@@ -1341,8 +1377,8 @@ function ProductEdit() {
           setProduct({
             ...normalizedProduct,
             category: hydratedCategory.childCategory || hydratedCategory.subCategory || hydratedCategory.mainCategory || firstRow.category || "",
-            brand: hydratedBrand.brand || firstRow.brand || "",
-            unit: hydratedUnit.unit || firstRow.unit || "",
+            brand: hydratedBrand.brand || firstRow.brand_name || firstRow.brand || "",
+            unit: hydratedUnit.unit || firstRow.unit_name || firstRow.unit || "",
           });
           setCoverImage(resolveMainPreviewImageUrl(firstRow));
           setThermalImageUrl(resolveAssetUrl(getResolvedThermalImageUrl({ product: firstRow, variants: variantRows }) || firstRow.thermal_image_url || ""));
@@ -1354,8 +1390,8 @@ function ProductEdit() {
             product: {
               ...normalizedProduct,
               category: hydratedCategory.childCategory || hydratedCategory.subCategory || hydratedCategory.mainCategory || firstRow.category || "",
-              brand: hydratedBrand.brand || firstRow.brand || "",
-              unit: hydratedUnit.unit || firstRow.unit || "",
+              brand: hydratedBrand.brand || firstRow.brand_name || firstRow.brand || "",
+              unit: hydratedUnit.unit || firstRow.unit_name || firstRow.unit || "",
             },
             mainCategory: hydratedCategory.mainCategory || "",
             subCategory: hydratedCategory.subCategory || "",
@@ -1371,7 +1407,12 @@ function ProductEdit() {
         if (rawSavedVariants.length === 0 || variantRows.length === 0) {
           setVariantsHydrationFailed(true);
           setError(t("products.editor.variantsFailed"));
-          setProduct(normalizedProduct);
+          setProduct({
+            ...normalizedProduct,
+            category: hydratedCategory.childCategory || hydratedCategory.subCategory || hydratedCategory.mainCategory || firstRow.category || "",
+            brand: hydratedBrand.brand || firstRow.brand_name || firstRow.brand || "",
+            unit: hydratedUnit.unit || firstRow.unit_name || firstRow.unit || "",
+          });
           setCoverImage(resolveMainPreviewImageUrl(firstRow));
           setThermalImageUrl(resolveAssetUrl(getResolvedThermalImageUrl({ product: firstRow, variants: variantRows }) || firstRow.thermal_image_url || ""));
           setCoverLabel(resolveMainPreviewImageValue(firstRow) ? t("products.editor.currentProductImage") : "");
@@ -1464,8 +1505,8 @@ function ProductEdit() {
         setProduct({
           ...normalizedProduct,
           category: hydratedCategory.childCategory || hydratedCategory.subCategory || hydratedCategory.mainCategory || firstRow.category || "",
-          brand: hydratedBrand.brand || firstRow.brand || "",
-          unit: hydratedUnit.unit || firstRow.unit || "",
+          brand: hydratedBrand.brand || firstRow.brand_name || firstRow.brand || "",
+          unit: hydratedUnit.unit || firstRow.unit_name || firstRow.unit || "",
         });
         setCoverImage(resolveMainPreviewImageUrl(firstRow));
         setThermalImageUrl(resolveAssetUrl(hydratedThermalImageUrl || firstRow.thermal_image_url || ""));
@@ -1479,14 +1520,14 @@ function ProductEdit() {
           product: {
             ...normalizedProduct,
             category: hydratedCategory.childCategory || hydratedCategory.subCategory || hydratedCategory.mainCategory || firstRow.category || "",
-            brand: hydratedBrand.brand || firstRow.brand || "",
-            unit: hydratedUnit.unit || firstRow.unit || "",
+            brand: hydratedBrand.brand || firstRow.brand_name || firstRow.brand || "",
+            unit: hydratedUnit.unit || firstRow.unit_name || firstRow.unit || "",
           },
           mainCategory: hydratedCategory.mainCategory || "",
           subCategory: hydratedCategory.subCategory || "",
           childCategory: hydratedCategory.childCategory || "",
-          brand: hydratedBrand.brand || "",
-          unit: hydratedUnit.unit || "",
+          brand: hydratedBrand.brand || firstRow.brand_name || firstRow.brand || "",
+          unit: hydratedUnit.unit || firstRow.unit_name || firstRow.unit || "",
           defaultManufacturerId: resolvedDefaultManufacturerId,
         });
         initialVariantContentSnapshotRef.current = buildProductEditVariantContentSnapshot(skuAwareColorGroups);
@@ -1507,7 +1548,7 @@ function ProductEdit() {
     return () => {
       active = false;
     };
-  }, [productId]);
+  }, [productId, brandsReady, brands, categories, units]);
 
   const summary = useMemo(() => {
     const realRows = colorGroups.flatMap((group) =>

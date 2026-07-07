@@ -642,7 +642,8 @@ export const resolveBrandSelection = (brands = [], record = {}) => {
     };
   }
 
-  const byName = brands.find((item) => String(item.name || "").trim() === String(record.brand || "").trim()) || null;
+  const brandName = String(record.brand || record.brand_name || "").trim();
+  const byName = brands.find((item) => String(item.name || "").trim() === brandName) || null;
   if (byName) {
     return {
       brandId: String(byName.id),
@@ -652,14 +653,18 @@ export const resolveBrandSelection = (brands = [], record = {}) => {
 
   return {
     brandId: record.brand_id ? String(record.brand_id) : "",
-    brand: String(record.brand || "").trim(),
+    brand: brandName,
   };
 };
 
 export const resolveBrandPayload = (brands = [], record = {}) => {
-  const selectedBrand = brands.find((item) => String(item.name || "").trim() === String(record.brand || "").trim()) || null;
+  const brandName = String(record.brand || record.brand_name || "").trim();
+  const selectedBrand =
+    brands.find((item) => String(item.id) === String(record.brand_id)) ||
+    brands.find((item) => String(item.name || "").trim() === brandName) ||
+    null;
   return {
-    brand: String(record.brand || "").trim(),
+    brand: brandName,
     brand_id: normalizePersistedId(selectedBrand ? selectedBrand.id : record.fallbackBrandId),
   };
 };
@@ -673,7 +678,8 @@ export const resolveUnitSelection = (units = [], record = {}) => {
     };
   }
 
-  const byName = units.find((item) => String(item.name || "").trim() === String(record.unit || "").trim()) || null;
+  const unitName = String(record.unit || record.unit_name || "").trim();
+  const byName = units.find((item) => String(item.name || "").trim() === unitName) || null;
   if (byName) {
     return {
       unitId: String(byName.id),
@@ -683,14 +689,18 @@ export const resolveUnitSelection = (units = [], record = {}) => {
 
   return {
     unitId: record.unit_id ? String(record.unit_id) : "",
-    unit: String(record.unit || "").trim(),
+    unit: unitName,
   };
 };
 
 export const resolveUnitPayload = (units = [], record = {}) => {
-  const selectedUnit = units.find((item) => String(item.name || "").trim() === String(record.unit || "").trim()) || null;
+  const unitName = String(record.unit || record.unit_name || "").trim();
+  const selectedUnit =
+    units.find((item) => String(item.id) === String(record.unit_id)) ||
+    units.find((item) => String(item.name || "").trim() === unitName) ||
+    null;
   return {
-    unit: String(record.unit || "").trim(),
+    unit: unitName,
     unit_id: normalizePersistedId(selectedUnit ? selectedUnit.id : record.fallbackUnitId),
   };
 };
