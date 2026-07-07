@@ -9,14 +9,12 @@ import Can from "../components/Can";
 import PermissionsShell from "../components/PermissionsShell";
 import {
   getRoleCatalog,
-  getUserCatalog,
   normalizeRole,
   normalizeUser,
-  saveUserCatalog,
 } from "../lib/rbacStore";
 
 function UsersPage() {
-  const [users, setUsers] = useState(getUserCatalog());
+  const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState(getRoleCatalog());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -46,17 +44,17 @@ function UsersPage() {
 
         if (usersRes.status === "fulfilled") {
           const rows = Array.isArray(usersRes.value) ? usersRes.value : usersRes.value?.users || [];
-          setUsers(rows.length ? rows.map(normalizeUser) : getUserCatalog());
+          setUsers(rows.length ? rows.map(normalizeUser) : []);
         } else {
-          setUsers(getUserCatalog());
+          setUsers([]);
         }
       } catch (err) {
         if (!active) return;
         console.log(err);
-        setUsers(getUserCatalog());
+        setUsers([]);
         setRoles(getRoleCatalog());
-        setError("Users endpoint unavailable. Using local user-role assignment fallback.");
-        toast.error("Using local users fallback");
+        setError("Users endpoint unavailable.");
+        toast.error("Users endpoint unavailable.");
       } finally {
         if (active) setLoading(false);
       }
@@ -93,14 +91,11 @@ function UsersPage() {
     const next = [record, ...users];
     try {
       await api.post("/users", { name: record.name, email: record.email, password, role_id: record.role_id, role: record.role });
-      const persisted = saveUserCatalog(next);
-      setUsers(persisted);
+      setUsers(next);
       toast.success("User created");
     } catch (err) {
       console.log(err);
-      const persisted = saveUserCatalog(next);
-      setUsers(persisted);
-      toast.error("Backend users endpoint unavailable. Saved locally.");
+      toast.error("Backend users endpoint unavailable.");
     } finally {
       setName("");
       setEmail("");
@@ -125,14 +120,11 @@ function UsersPage() {
     setSavingId(userId);
     try {
       await api.put(`/users/${userId}/role`, { role_id: nextRoleId, role: role?.name });
-      const persisted = saveUserCatalog(nextUsers);
-      setUsers(persisted);
+      setUsers(nextUsers);
       toast.success("Role updated");
     } catch (err) {
       console.log(err);
-      const persisted = saveUserCatalog(nextUsers);
-      setUsers(persisted);
-      toast.error("Backend role update unavailable. Saved locally.");
+      toast.error("Backend role update unavailable.");
     } finally {
       setSavingId(null);
     }

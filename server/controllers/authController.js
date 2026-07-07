@@ -283,6 +283,7 @@ export const login = async (req, res) => {
     const userColumns = await getUsersColumnNames();
     const passwordColumns = getReadablePasswordColumns(userColumns);
     console.log("[auth] login lookup", {
+      source: "users",
       email: String(email || "").trim().toLowerCase(),
       tenantId,
       passwordColumns,

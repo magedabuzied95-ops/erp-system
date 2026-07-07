@@ -109,6 +109,11 @@ async (req, res) => {
 
   try {
     const tenantId = getTenantId(req, req.user?.tenant_id);
+    console.log("[users] GET /api/users source", {
+      table: "users",
+      tenantId,
+      actorId: req.user?.id ?? null,
+    });
 
     const tenantFilter = isSuperAdminUser(req.user) || tenantId === null
       ? ""
@@ -294,6 +299,13 @@ async (req, res) => {
 
         insertValues
       );
+
+    console.log("[users] create destination", {
+      table: "users",
+      createdUserId: user.rows[0]?.id ?? null,
+      tenantId,
+      email: String(email || "").trim().toLowerCase(),
+    });
 
     res.status(201).json({
 
