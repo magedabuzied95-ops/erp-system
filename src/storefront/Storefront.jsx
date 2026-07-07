@@ -324,6 +324,24 @@ const normalizeStorefrontSalePricesEnabled = (settings = {}) => {
 const setStorefrontSalePricesEnabled = (settings = {}) => {
   storefrontSalePricesEnabled = normalizeStorefrontSalePricesEnabled(settings);
 };
+const extractPublicStorefrontSettings = (response = {}) => {
+  const directSettings = response?.settings && typeof response.settings === "object" ? response.settings : null;
+  const nestedSettings = response?.data?.settings && typeof response.data.settings === "object" ? response.data.settings : null;
+  const dataObject = response?.data && typeof response.data === "object" ? response.data : null;
+  const settings =
+    directSettings ||
+    nestedSettings ||
+    (dataObject && !Array.isArray(dataObject) ? dataObject : null) ||
+    (response && typeof response === "object" && !Array.isArray(response) ? response : {});
+  const rawSaleModeEnabled =
+    settings?.sale_mode_enabled ??
+    settings?.storefront?.sale_mode_enabled ??
+    response?.sale_mode_enabled ??
+    response?.data?.sale_mode_enabled ??
+    response?.data?.settings?.sale_mode_enabled ??
+    response?.data?.settings?.storefront?.sale_mode_enabled;
+  return { settings, rawSaleModeEnabled };
+};
 const logStorefrontCardPriceDebug = (payload = {}) => {
   if (typeof window === "undefined") return;
   const key = [
@@ -7803,18 +7821,23 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     })
       .then((data) => {
         if (cancelled) return;
-        const settings = data?.settings || {};
-        setShippingLocations(normalizeCheckoutLocations(settings["storefront.shipping_locations"]));
-        setPublicStoreSettings(settings);
-        storefrontPublicSaleModeEnabledRaw = settings.sale_mode_enabled;
+        const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
+        const parsedSaleModeEnabled = parseStorefrontSaleModeEnabled(rawSaleModeEnabled, true);
+        const normalizedSettings = {
+          ...settings,
+          sale_mode_enabled: parsedSaleModeEnabled,
+        };
+        setShippingLocations(normalizeCheckoutLocations(normalizedSettings["storefront.shipping_locations"]));
+        setPublicStoreSettings(normalizedSettings);
+        storefrontPublicSaleModeEnabledRaw = rawSaleModeEnabled;
         console.debug("STOREFRONT_PUBLIC_SALE_MODE", {
-          sale_mode_enabled: settings.sale_mode_enabled,
-          parsed_sale_mode_enabled: parseStorefrontSaleModeEnabled(settings.sale_mode_enabled, true),
+          sale_mode_enabled: rawSaleModeEnabled,
+          parsed_sale_mode_enabled: parsedSaleModeEnabled,
         });
         console.debug("[payment-settings:loaded]", {
-          instapay_enabled: Boolean(settings["storefront.payment_methods.instapay_enabled"] ?? settings["payments.instapay_enabled"]),
-          vodafone_cash_enabled: Boolean(settings["storefront.payment_methods.vodafone_cash_enabled"] ?? settings["payments.vodafone_cash_enabled"]),
-          shipping_confirmation_enabled: Boolean(settings["storefront.payment_methods.shipping_confirmation_enabled"] ?? true),
+          instapay_enabled: Boolean(normalizedSettings["storefront.payment_methods.instapay_enabled"] ?? normalizedSettings["payments.instapay_enabled"]),
+          vodafone_cash_enabled: Boolean(normalizedSettings["storefront.payment_methods.vodafone_cash_enabled"] ?? normalizedSettings["payments.vodafone_cash_enabled"]),
+          shipping_confirmation_enabled: Boolean(normalizedSettings["storefront.payment_methods.shipping_confirmation_enabled"] ?? true),
         });
       })
       .catch(() => undefined);
@@ -11399,12 +11422,17 @@ function Storefront() {
     })
       .then((data) => {
         if (cancelled) return;
-        const settings = data?.settings || {};
-        setPublicStoreSettings(settings);
-        storefrontPublicSaleModeEnabledRaw = settings.sale_mode_enabled;
+        const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
+        const parsedSaleModeEnabled = parseStorefrontSaleModeEnabled(rawSaleModeEnabled, true);
+        const normalizedSettings = {
+          ...settings,
+          sale_mode_enabled: parsedSaleModeEnabled,
+        };
+        setPublicStoreSettings(normalizedSettings);
+        storefrontPublicSaleModeEnabledRaw = rawSaleModeEnabled;
         console.debug("STOREFRONT_PUBLIC_SALE_MODE", {
-          sale_mode_enabled: settings.sale_mode_enabled,
-          parsed_sale_mode_enabled: parseStorefrontSaleModeEnabled(settings.sale_mode_enabled, true),
+          sale_mode_enabled: rawSaleModeEnabled,
+          parsed_sale_mode_enabled: parsedSaleModeEnabled,
         });
       })
       .catch(() => undefined);
