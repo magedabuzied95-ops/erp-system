@@ -69,6 +69,15 @@ import {
 import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
 import { normalizePhone } from "../lib/phoneSearch";
 import { normalizePosCatalogProduct, normalizePosSellableProducts, resolvePosImageUrl } from "../services/posProductsApi";
+import {
+  createOfflineOrderIdempotencyKey,
+  listOfflineOrders,
+  markOfflineOrderFailed,
+  markOfflineOrderSynced,
+  retryPendingOfflineOrders,
+  saveOfflineOrderDraft,
+  shouldStoreOfflineOrderDraft,
+} from "../lib/posOfflineOrders";
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
@@ -1466,6 +1475,7 @@ function POSPro() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [offlinePendingSyncCount, setOfflinePendingSyncCount] = useState(0);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
@@ -1513,6 +1523,7 @@ function POSPro() {
   const shiftSessionRecoveredRef = useRef(false);
   const loadedRouteEditOrderIdRef = useRef("");
   const paymobPollingRef = useRef({ timer: null, cancelled: false });
+  const offlineSyncInFlightRef = useRef(false);
   const deferredSearch = useDeferredValue(search);
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
   const currentTenant = useMemo(() => getCurrentTenant() || {}, []);
@@ -1576,6 +1587,60 @@ function POSPro() {
     if (!currentUserId) return true;
     return !salesEmployees.some((employee) => String(employee.user_id || "") === currentUserId);
   }, [canOverrideSeller, currentUser?.id, salesEmployees]);
+
+  useEffect(() => {
+    let active = true;
+
+    const refreshOfflinePendingCount = async () => {
+      try {
+        const orders = await listOfflineOrders();
+        if (!active) return;
+        const pendingCount = orders.filter((order) => ["pending_sync", "failed_sync"].includes(String(order.status || ""))).length;
+        setOfflinePendingSyncCount(pendingCount);
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.debug("[pos-offline-orders] count refresh failed", error?.message || error);
+        }
+      }
+    };
+
+    const syncPendingOfflineOrders = async () => {
+      if (offlineSyncInFlightRef.current) return;
+      if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+      offlineSyncInFlightRef.current = true;
+      try {
+        const result = await retryPendingOfflineOrders();
+        if (!active) return;
+        const orders = await listOfflineOrders();
+        if (!active) return;
+        const pendingCount = orders.filter((order) => ["pending_sync", "failed_sync"].includes(String(order.status || ""))).length;
+        setOfflinePendingSyncCount(pendingCount);
+        if (import.meta.env.DEV && (result.synced?.length || 0) > 0) {
+          console.debug("[pos-offline-orders] sync complete", result);
+        }
+      } catch (error) {
+        if (import.meta.env.DEV) {
+          console.debug("[pos-offline-orders] sync failed", error?.message || error);
+        }
+      } finally {
+        offlineSyncInFlightRef.current = false;
+      }
+    };
+
+    refreshOfflinePendingCount();
+    syncPendingOfflineOrders();
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("online", syncPendingOfflineOrders);
+    }
+
+    return () => {
+      active = false;
+      if (typeof window !== "undefined") {
+        window.removeEventListener("online", syncPendingOfflineOrders);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isBrowser() || !location.pathname.startsWith("/pos")) return undefined;
@@ -4921,6 +4986,11 @@ function POSPro() {
           };
         }),
       };
+      const idempotencyKey = createOfflineOrderIdempotencyKey();
+      const checkoutPayload = {
+        ...payload,
+        idempotency_key: idempotencyKey,
+      };
 
       console.log("[pos-checkout:payload-built]", {
         editing_order_id: editingOrder?.id || null,
@@ -5061,7 +5131,13 @@ function POSPro() {
       }
 
       apiStartedAt = performance.now();
-      const response = await api.post("/orders", payload, { timeoutMs: 30000 });
+      const response = await api.post("/orders", checkoutPayload, {
+        timeoutMs: 30000,
+        headers: {
+          "Idempotency-Key": idempotencyKey,
+          "X-Idempotency-Key": idempotencyKey,
+        },
+      });
       const apiResponseAt = performance.now();
       const normalizedResponse = normalizeCheckoutOrderResponse(response);
       const loyaltyResult = normalizedResponse.loyalty || {};
@@ -5243,6 +5319,55 @@ function POSPro() {
         error: err,
       });
       const message = safeArabicText(getErrorMessage(err, t("pos.toasts.checkoutFailed")), t("pos.toasts.checkoutFailed"));
+      if (!editingOrder?.id && shouldStoreOfflineOrderDraft(err)) {
+        try {
+          const offlineDraft = await saveOfflineOrderDraft({
+            local_id: `offline-${idempotencyKey}`,
+            idempotency_key: idempotencyKey,
+            created_at: new Date().toISOString(),
+            cashier: {
+              id: currentUser?.id || null,
+              name: currentUser?.name || currentUser?.full_name || currentUser?.email || "",
+              role: currentUser?.role || currentUser?.role_name || "",
+              tenant_id: currentUser?.tenant_id || null,
+            },
+            user: currentUser || null,
+            cart_items: cart,
+            customer: {
+              id: customer?.id || customer?.customer_id || null,
+              name: invoiceCustomer.name || "",
+              phone: customer?.phone || "",
+              email: customer?.email || "",
+            },
+            payment_method: payload.payment_method,
+            totals: {
+              subtotal: cartTotals.subtotal,
+              discount_amount: cartTotals.itemDiscountTotal + cartTotals.invoiceDiscount,
+              service_fee: cartTotals.serviceFee,
+              total: cartTotals.total,
+              paid_amount: checkoutPaymentSummary.paidAmount,
+              change_amount: checkoutPaymentSummary.changeAmount,
+              amount_due_now: amountDueNow,
+            },
+            checkout_payload: checkoutPayload,
+            sync_endpoint: "/orders",
+            status: "pending_sync",
+          });
+          const pendingOrders = await listOfflineOrders();
+          setOfflinePendingSyncCount(
+            pendingOrders.filter((order) => ["pending_sync", "failed_sync"].includes(String(order.status || ""))).length
+          );
+          toast.success(
+            t(
+              "pos.toasts.savedOfflineInvoice",
+              "Saved offline invoice. It will sync automatically when the connection returns."
+            )
+          );
+          return offlineDraft;
+        } catch (offlineSaveError) {
+          console.error("[pos-offline-orders] failed to save draft", offlineSaveError?.message || offlineSaveError);
+        }
+      }
       if (String(message).toLowerCase().includes("not enough stock")) {
         toast.error(message);
         try {
@@ -6592,6 +6717,7 @@ function POSPro() {
             onPaymobTerminal={handlePaymobTerminalPayment}
             paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}
+            offlineSyncPendingCount={offlinePendingSyncCount}
             checkoutLabel={editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
             canUsePaymobTerminal={canUsePaymobTerminal}
             marketingAttribution={marketingAttribution}
@@ -6735,6 +6861,7 @@ function POSPro() {
             onPaymobTerminal={handlePaymobTerminalPayment}
             paymobTerminalLoading={paymobTerminalLoading}
             checkoutLoading={checkoutLoading}
+            offlineSyncPendingCount={offlinePendingSyncCount}
             checkoutLabel={editingOrder ? t("pos.cart.saveInvoiceEdit") : t("pos.cart.createOrder")}
             canUsePaymobTerminal={canUsePaymobTerminal}
             marketingAttribution={marketingAttribution}

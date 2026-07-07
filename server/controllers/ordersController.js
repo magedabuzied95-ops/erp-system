@@ -425,6 +425,7 @@ const ensurePosShiftOrderColumnsNow = async (client, tenantId = null) => {
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS amount_due_now NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS exchange_difference NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS exchange_invoice_number VARCHAR(100)`);
+  await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS idempotency_key TEXT`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS edit_original_paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS edit_additional_paid_amount NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await client.query(`ALTER TABLE IF EXISTS orders ADD COLUMN IF NOT EXISTS edit_refund_or_credit_due NUMERIC(12,2) NOT NULL DEFAULT 0`);
@@ -970,6 +971,57 @@ const normalizeCreateOrderPayload = (body = {}) => {
     items: rawItems.map(normalizeOrderItemPayload),
   };
 };
+
+const normalizeIdempotencyKey = (req = {}, body = {}) =>
+  String(
+    req.get?.("Idempotency-Key") ||
+      req.get?.("X-Idempotency-Key") ||
+      body.idempotency_key ||
+      body.idempotencyKey ||
+      body.client_request_id ||
+      body.clientRequestId ||
+      ""
+  )
+    .trim()
+    .slice(0, 120);
+
+const buildCreateOrderDuplicateResponse = (order = {}, extras = {}) => ({
+  success: true,
+  message: "Order created successfully",
+  order,
+  order_id: order.id,
+  invoice_number: order.invoice_number,
+  total: Number(order.total_amount || order.total || extras.computedTotal || 0),
+  customer: {
+    id: order.customer_id || null,
+    name: order.customer_name || extras.resolvedCustomerName || "",
+    phone: order.customer_phone || "",
+  },
+  payment_status: order.payment_status || extras.payment_status || "unpaid",
+  tax_amount: Number(order.tax_amount || 0),
+  tax_rate: Number(order.tax_rate || 0),
+  public_token: order.public_token,
+  public_invoice_url: order.public_invoice_url || "",
+  public_invoice_short_url: order.public_invoice_short_url || "",
+  invoice_public_url: order.public_invoice_url || "",
+  short_invoice_url: order.public_invoice_short_url || "",
+  marketing_source: order.marketing_source || null,
+  marketing_platform: order.marketing_platform || null,
+  marketing_post_id: order.marketing_post_id || null,
+  marketing_campaign: order.marketing_campaign || null,
+  attribution_type: order.attribution_type || null,
+  loyalty: {},
+  coupon: null,
+  wallet: {
+    cashbackAmount: 0,
+    redeemedAmount: 0,
+    balance: 0,
+    exchangeCreditAmount: 0,
+  },
+  activity: [],
+  employeeTracking: null,
+  timings: undefined,
+});
 
 const normalizePersonalSettlementType = (value = "") => {
   const normalized = String(value || "").trim().toUpperCase();
@@ -2506,6 +2558,7 @@ export const createOrder = async (req, res) => {
     await ensureAccountingSchema();
     tenantId = getTenantId(req, req.body?.tenant_id || req.body?.tenantId || req.query?.tenant_id || req.query?.tenantId || req.user?.tenant_id || req.user?.tenantId);
     const normalizedPayload = normalizeCreateOrderPayload(req.body || {});
+    const idempotencyKey = normalizeIdempotencyKey(req, normalizedPayload);
     const {
       customer_name,
       customer_id,
@@ -2706,6 +2759,33 @@ export const createOrder = async (req, res) => {
     markOrderStep("transaction started");
     await client.query("SET LOCAL lock_timeout = '5000ms'");
     await client.query("SET LOCAL statement_timeout = '20000ms'");
+
+    if (idempotencyKey) {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [`orders:${tenantId}:${idempotencyKey}`]);
+      const existingOrderResult = await client.query(
+        `
+        SELECT *
+        FROM orders
+        WHERE tenant_id = $1
+          AND idempotency_key = $2
+        LIMIT 1
+        `,
+        [tenantId, idempotencyKey]
+      );
+      const existingOrder = existingOrderResult.rows[0] || null;
+      if (existingOrder) {
+        await client.query("ROLLBACK");
+        transactionStarted = false;
+        logCheckoutTiming(checkoutTiming.summary({ order_id: existingOrder.id, items_count: itemsCount, idempotency_key: idempotencyKey, duplicate: true }));
+        return res.status(200).json(
+          buildCreateOrderDuplicateResponse(existingOrder, {
+            computedTotal: Number(existingOrder.total || existingOrder.total_amount || 0),
+            payment_status: existingOrder.payment_status || "unpaid",
+            resolvedCustomerName: existingOrder.customer_name || normalizedPayload.customer_name || "",
+          })
+        );
+      }
+    }
 
     markOrderStep("load sales settings");
     const settings = await getSalesSettings(client, tenantId);
@@ -3078,7 +3158,8 @@ export const createOrder = async (req, res) => {
         invoice_discount_reason,
         is_personal_transaction,
         personal_settlement_type,
-        personal_note
+        personal_note,
+        idempotency_key
       )
       VALUES (
         $1,
@@ -3137,7 +3218,8 @@ export const createOrder = async (req, res) => {
         $54,
         COALESCE($55::boolean, FALSE),
         $56,
-        $57
+        $57,
+        $58
       )
       RETURNING *
       `,
@@ -3199,6 +3281,7 @@ export const createOrder = async (req, res) => {
         Boolean(isPersonalTransaction),
         isPersonalTransaction ? resolvedPersonalSettlementType : null,
         isPersonalTransaction ? resolvedPersonalNote : null,
+        idempotencyKey || null,
       ]
     ));
     if (POS_CHECKOUT_DEBUG) console.log("[orders][seller-debug] order save row seller fields", {
