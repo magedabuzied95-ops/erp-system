@@ -327,10 +327,18 @@ const setStorefrontSalePricesEnabled = (settings = {}) => {
 const extractPublicStorefrontSettings = (response = {}) => {
   const directSettings = response?.settings && typeof response.settings === "object" ? response.settings : null;
   const nestedSettings = response?.data?.settings && typeof response.data.settings === "object" ? response.data.settings : null;
+  const responseBodySettings = response?.responseBody?.settings && typeof response.responseBody.settings === "object" ? response.responseBody.settings : null;
+  const payloadSettings = response?.payload?.settings && typeof response.payload.settings === "object" ? response.payload.settings : null;
+  const resultSettings = response?.result?.settings && typeof response.result.settings === "object" ? response.result.settings : null;
+  const bodySettings = response?.body?.settings && typeof response.body.settings === "object" ? response.body.settings : null;
   const dataObject = response?.data && typeof response.data === "object" ? response.data : null;
   const settings =
     directSettings ||
     nestedSettings ||
+    responseBodySettings ||
+    payloadSettings ||
+    resultSettings ||
+    bodySettings ||
     (dataObject && !Array.isArray(dataObject) ? dataObject : null) ||
     (response && typeof response === "object" && !Array.isArray(response) ? response : {});
   const rawSaleModeEnabled =
@@ -339,7 +347,19 @@ const extractPublicStorefrontSettings = (response = {}) => {
     response?.sale_mode_enabled ??
     response?.data?.sale_mode_enabled ??
     response?.data?.settings?.sale_mode_enabled ??
-    response?.data?.settings?.storefront?.sale_mode_enabled;
+    response?.data?.settings?.storefront?.sale_mode_enabled ??
+    response?.responseBody?.sale_mode_enabled ??
+    response?.responseBody?.settings?.sale_mode_enabled ??
+    response?.responseBody?.settings?.storefront?.sale_mode_enabled ??
+    response?.payload?.sale_mode_enabled ??
+    response?.payload?.settings?.sale_mode_enabled ??
+    response?.payload?.settings?.storefront?.sale_mode_enabled ??
+    response?.result?.sale_mode_enabled ??
+    response?.result?.settings?.sale_mode_enabled ??
+    response?.result?.settings?.storefront?.sale_mode_enabled ??
+    response?.body?.sale_mode_enabled ??
+    response?.body?.settings?.sale_mode_enabled ??
+    response?.body?.settings?.storefront?.sale_mode_enabled;
   return { settings, rawSaleModeEnabled };
 };
 const logStorefrontCardPriceDebug = (payload = {}) => {
@@ -7814,6 +7834,10 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
   useEffect(() => {
     let cancelled = false;
+    const publicSettingsRequestUrl = "/settings/public";
+    console.log("STOREFRONT_PUBLIC_SETTINGS_REQUEST_URL", {
+      url: publicSettingsRequestUrl,
+    });
     api.get("/settings/public", {
       suppressErrorStatuses: [404, 500],
       cache: "no-store",
@@ -7821,6 +7845,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     })
       .then((data) => {
         if (cancelled) return;
+        console.log("STOREFRONT_PUBLIC_SETTINGS_SHAPE", {
+          keys: Object.keys(data || {}),
+          response: data,
+          settingsKeys: Object.keys(data?.settings || {}),
+          dataKeys: Object.keys(data?.data || {}),
+          dataSettingsKeys: Object.keys(data?.data?.settings || {}),
+        });
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
         const parsedSaleModeEnabled = parseStorefrontSaleModeEnabled(rawSaleModeEnabled, true);
         const normalizedSettings = {
@@ -11415,6 +11446,10 @@ function Storefront() {
 
   useEffect(() => {
     let cancelled = false;
+    const publicSettingsRequestUrl = "/settings/public";
+    console.log("STOREFRONT_PUBLIC_SETTINGS_REQUEST_URL", {
+      url: publicSettingsRequestUrl,
+    });
     api.get("/settings/public", {
       suppressErrorStatuses: [404, 500],
       cache: "no-store",
@@ -11422,6 +11457,13 @@ function Storefront() {
     })
       .then((data) => {
         if (cancelled) return;
+        console.log("STOREFRONT_PUBLIC_SETTINGS_SHAPE", {
+          keys: Object.keys(data || {}),
+          response: data,
+          settingsKeys: Object.keys(data?.settings || {}),
+          dataKeys: Object.keys(data?.data || {}),
+          dataSettingsKeys: Object.keys(data?.data?.settings || {}),
+        });
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
         const parsedSaleModeEnabled = parseStorefrontSaleModeEnabled(rawSaleModeEnabled, true);
         const normalizedSettings = {
