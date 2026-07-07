@@ -498,7 +498,7 @@ export const normalizeRole = (role) => ({
   slug: role.slug || String(role.name || role.id || "").toLowerCase().replace(/\s+/g, "-"),
   description: role.description || "",
   permissions: Array.isArray(role.permissions) ? role.permissions.map(String) : [],
-  builtIn: Boolean(role.builtIn),
+  builtIn: Boolean(role.builtIn || role.is_system || role.isSystem),
 });
 
 export const normalizeUser = (user) => {

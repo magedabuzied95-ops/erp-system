@@ -7,7 +7,7 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import Can from "../components/Can";
 import PermissionsShell from "../components/PermissionsShell";
-import { getRoleCatalog, normalizeRole } from "../lib/rbacStore";
+import { normalizeRole } from "../lib/rbacStore";
 
 const normalizeRoleText = (value = "") => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -131,14 +131,14 @@ function UsersPage() {
 
         if (!active) return;
 
-        let nextRoles = getRoleCatalog();
+        let nextRoles = [];
         let nextRoleRows = [];
         if (rolesRes.status === "fulfilled") {
           console.log("USERS_ROLES_API_RESPONSE", rolesRes.value);
           const rows = Array.isArray(rolesRes.value) ? rolesRes.value : rolesRes.value?.roles || [];
           console.log("USERS_RAW_ROLES", rows);
           nextRoleRows = rows;
-          nextRoles = rows.length ? rows.map(normalizeRole) : getRoleCatalog().map(normalizeRole);
+          nextRoles = rows.length ? rows.map(normalizeRole) : [];
         } else {
           console.log("USERS_ROLES_API_RESPONSE", null);
           console.log("USERS_RAW_ROLES", []);

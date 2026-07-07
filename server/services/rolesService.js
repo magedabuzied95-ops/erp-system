@@ -1,3 +1,5 @@
+import db from "../database/db.js";
+
 const PERMISSION_SEPARATOR = /[.:]/;
 
 const normalizeRoleLookup = (value = "") =>
@@ -85,6 +87,398 @@ const roleSelect = `
   LEFT JOIN permissions p ON p.id = rp.permission_id
 `;
 
+const ROLE_SEED_MODULES = [
+  "dashboard",
+  "products",
+  "pos",
+  "orders",
+  "purchases",
+  "suppliers",
+  "customers",
+  "inventory",
+  "warehouses",
+  "branches",
+  "accounting",
+  "loyalty",
+  "employees",
+  "reports",
+  "settings",
+  "marketing",
+  "website",
+  "roles",
+  "users",
+  "attendance",
+];
+
+const ROLE_SEED_ACTIONS = ["view", "create", "edit", "update", "delete", "approve", "export", "print", "transfer", "redeem"];
+const ROLE_SEED_MARKETING_ACTIONS = ["view", "create", "update", "delete", "publish", "settings"];
+const ROLE_SEED_WEBSITE_ACTIONS = ["view", "orders", "settings"];
+const ROLE_SEED_ATTENDANCE_PERMISSIONS = [
+  "attendance.view",
+  "attendance.create",
+  "attendance.edit",
+  "attendance.update",
+  "attendance.delete",
+];
+const ROLE_SEED_MARKETING_PERMISSIONS = [
+  "marketing.view",
+  "marketing.create",
+  "marketing.update",
+  "marketing.delete",
+  "marketing.publish",
+  "marketing.settings",
+];
+const ROLE_SEED_WEBSITE_PERMISSIONS = ["website.view", "website.orders", "website.settings"];
+const ROLE_SEED_EXTRA_PERMISSIONS = [
+  { module: "products", action: "barcode_shop", description: "print product Barcode Shop QR labels" },
+  { module: "pos", action: "scan_product_qr", description: "scan Barcode Shop product QR labels in POS" },
+  { module: "pos", action: "sell", description: "sell through POS" },
+  { module: "inventory", action: "movements:view", description: "view inventory movement history" },
+  { module: "inventory", action: "movements:undo", description: "undo manual inventory stock adjustments" },
+  { module: "inventory", action: "alerts:view", description: "view low stock alerts" },
+];
+const ROLE_SEED_DEFINITIONS = [
+  {
+    key: "super_admin",
+    name: "Super Admin",
+    slug: "super_admin",
+    description: "System-wide access across every module and action.",
+    is_system: true,
+    permissions: [
+      ...ROLE_SEED_MODULES.flatMap((moduleName) =>
+        (moduleName === "marketing"
+          ? ROLE_SEED_MARKETING_ACTIONS
+          : moduleName === "website"
+            ? ROLE_SEED_WEBSITE_ACTIONS
+            : ROLE_SEED_ACTIONS
+        ).map((action) => `${moduleName}.${action}`)
+      ),
+      ...ROLE_SEED_ATTENDANCE_PERMISSIONS,
+      ...ROLE_SEED_MARKETING_PERMISSIONS,
+      ...ROLE_SEED_WEBSITE_PERMISSIONS,
+      ...ROLE_SEED_EXTRA_PERMISSIONS.map((permission) => `${permission.module}.${permission.action}`),
+    ],
+  },
+  {
+    key: "admin",
+    name: "Admin",
+    slug: "admin",
+    description: "Full access to every module and action.",
+    is_system: true,
+    permissions: [
+      ...ROLE_SEED_MODULES.flatMap((moduleName) =>
+        (moduleName === "marketing"
+          ? ROLE_SEED_MARKETING_ACTIONS
+          : moduleName === "website"
+            ? ROLE_SEED_WEBSITE_ACTIONS
+            : ROLE_SEED_ACTIONS
+        ).map((action) => `${moduleName}.${action}`)
+      ),
+      ...ROLE_SEED_ATTENDANCE_PERMISSIONS,
+      ...ROLE_SEED_MARKETING_PERMISSIONS,
+      ...ROLE_SEED_WEBSITE_PERMISSIONS,
+      ...ROLE_SEED_EXTRA_PERMISSIONS.map((permission) => `${permission.module}.${permission.action}`),
+    ],
+  },
+  {
+    key: "manager",
+    name: "Manager",
+    slug: "manager",
+    description: "Broad operational access with approval and reporting controls.",
+    is_system: true,
+    permissions: [
+      "dashboard.view",
+      "products.view",
+      "products.create",
+      "products.edit",
+      "products.export",
+      "products.print",
+      "pos.view",
+      "pos.create",
+      "orders.view",
+      "orders.create",
+      "purchases.view",
+      "purchases.create",
+      "suppliers.view",
+      "inventory.view",
+      "warehouses.view",
+      "branches.view",
+      "accounting.view",
+      "loyalty.view",
+      "loyalty.create",
+      "loyalty.edit",
+      "loyalty.export",
+      "attendance.view",
+      "attendance.create",
+      "attendance.edit",
+      "attendance.export",
+      "attendance.print",
+      ...ROLE_SEED_MARKETING_PERMISSIONS,
+      ...ROLE_SEED_WEBSITE_PERMISSIONS,
+      "notifications.view",
+      "staff_tasks.view",
+      "staff_tasks.update",
+      "expenses.view",
+      "expenses.create",
+      "expenses.edit",
+      "expenses.delete",
+      "expenses.approve",
+      "expenses.pay",
+      "expenses.reports",
+      "expenses.advances.view",
+      "expenses.advances.create",
+      "expenses.advances.deduct",
+      "pos.expenses.view",
+      "pos.expenses.create",
+      "pos.expenses.edit",
+      "pos.expenses.delete",
+      "pos.expenses.approve",
+      "pos.expenses.pay",
+      "treasury.dashboard.view",
+      "employees.view",
+      "employees.export",
+      "employees.print",
+      "settings.view",
+      "users.view",
+      "roles.view",
+    ],
+  },
+  {
+    key: "accountant",
+    name: "Accountant",
+    slug: "accountant",
+    description: "Financial access for ledgers, cashbox, journal entries, and reports.",
+    is_system: true,
+    permissions: [
+      "dashboard.view",
+      "accounting.view",
+      "accounting.create",
+      "accounting.edit",
+      "accounting.approve",
+      "reports.view",
+      "suppliers.view",
+      "suppliers.export",
+      "suppliers.print",
+      "expenses.view",
+      "expenses.create",
+      "expenses.edit",
+      "expenses.delete",
+      "expenses.approve",
+      "expenses.pay",
+      "expenses.reports",
+      "expenses.advances.view",
+      "expenses.advances.create",
+      "expenses.advances.deduct",
+      "treasury.dashboard.view",
+      "purchases.view",
+      "orders.view",
+      "loyalty.view",
+      "attendance.view",
+      "employees.view",
+      "users.view",
+      "marketing.view",
+      "website.orders",
+      "notifications.view",
+      "staff_tasks.view",
+    ],
+  },
+  {
+    key: "cashier",
+    name: "Cashier",
+    slug: "cashier",
+    description: "POS and order-taking access with print and cashbox actions.",
+    is_system: true,
+    permissions: [
+      "dashboard.view",
+      "products.view",
+      "pos.view",
+      "pos.create",
+      "pos.sell",
+      "orders.view",
+      "orders.create",
+      "customers.view",
+      "customers.create",
+      "loyalty.view",
+      "loyalty.create",
+      "loyalty.redeem",
+      "attendance.view",
+      "attendance.create",
+      "accounting.view",
+      "employees.view",
+      "settings.view",
+      "notifications.view",
+      "staff_tasks.view",
+      "staff_tasks.update",
+      "pos.expenses.view",
+      "pos.expenses.create",
+      "pos.expenses.edit",
+      "pos.expenses.delete",
+      "pos.expenses.approve",
+      "pos.expenses.pay",
+    ],
+  },
+  {
+    key: "warehouse_staff",
+    name: "Warehouse Staff",
+    slug: "warehouse_staff",
+    description: "Inventory, warehouse, receiving, and transfer support.",
+    is_system: true,
+    permissions: [
+      "dashboard.view",
+      "products.view",
+      "inventory.view",
+      "inventory.edit",
+      "inventory.export",
+      "inventory.print",
+      "warehouses.view",
+      "warehouses.create",
+      "warehouses.edit",
+      "warehouses.approve",
+      "warehouses.transfer",
+      "branches.view",
+      "branches.create",
+      "branches.export",
+      "branches.print",
+      "purchases.view",
+      "purchases.create",
+      "suppliers.view",
+      "attendance.view",
+      "employees.view",
+      "notifications.view",
+      "staff_tasks.view",
+      "staff_tasks.update",
+    ],
+  },
+  {
+    key: "sales_agent",
+    name: "Sales Agent",
+    slug: "sales_agent",
+    description: "Sales-facing access for customers, orders, POS, and product lookup.",
+    is_system: true,
+    permissions: [
+      "dashboard.view",
+      "products.view",
+      "pos.view",
+      "pos.create",
+      "pos.sell",
+      "orders.view",
+      "orders.create",
+      "orders.edit",
+      "orders.print",
+      "customers.view",
+      "customers.create",
+      "loyalty.view",
+      "attendance.view",
+      "attendance.create",
+      "reports.view",
+      "employees.view",
+      "settings.view",
+      "marketing.view",
+      "marketing.create",
+      "marketing.update",
+      "website.view",
+      "website.orders",
+      "notifications.view",
+      "staff_tasks.view",
+      "staff_tasks.update",
+      "pos.scan_product_qr",
+    ],
+  },
+  {
+    key: "custom_role",
+    name: "Custom Role",
+    slug: "custom_role",
+    description: "Start with a blank permission set and assign only what is needed.",
+    is_system: true,
+    permissions: [],
+  },
+];
+
+let builtinRolesSeedPromise = null;
+let builtinRolesSeeded = false;
+
+const ensureBuiltInRolePermissions = async (client, role, permissionKeys = []) => {
+  const roleResult = await client.query(
+    `
+    INSERT INTO roles (tenant_id, name, slug, description, is_system)
+    VALUES (1, $1, $2, $3, true)
+    ON CONFLICT (tenant_id, name) DO UPDATE SET
+      slug = EXCLUDED.slug,
+      description = EXCLUDED.description,
+      is_system = true,
+      updated_at = CURRENT_TIMESTAMP
+    RETURNING id, tenant_id, name, slug, description, is_system
+    `,
+    [role.name, role.slug, role.description || ""]
+  );
+  const roleRow = roleResult.rows[0];
+  const roleId = roleRow?.id;
+  if (!roleId) return null;
+
+  await client.query(`DELETE FROM role_permissions WHERE role_id = $1`, [roleId]);
+
+  for (const permissionKey of permissionKeys) {
+    const [moduleName, action] = String(permissionKey || "").split(".");
+    if (!moduleName || !action) continue;
+    const permissionResult = await client.query(
+      `
+      INSERT INTO permissions (module, action, description)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (module, action) DO UPDATE SET
+        description = COALESCE(permissions.description, EXCLUDED.description)
+      RETURNING id
+      `,
+      [moduleName, action, `${action} ${moduleName}`]
+    );
+    const permissionId = permissionResult.rows[0]?.id;
+    if (!permissionId) continue;
+    await client.query(
+      `
+      INSERT INTO role_permissions (role_id, permission_id)
+      VALUES ($1, $2)
+      ON CONFLICT DO NOTHING
+      `,
+      [roleId, permissionId]
+    );
+  }
+
+  return roleRow;
+};
+
+export const ensureBuiltinRoles = async (client = db) => {
+  const runEnsure = async () => {
+    await ensureRolesSchema(client);
+    const existing = await client.query(
+      `
+      SELECT COUNT(*)::int AS count
+      FROM roles
+      WHERE is_system = TRUE
+      `
+    );
+    const existingCount = Number(existing.rows[0]?.count || 0);
+    if (existingCount >= ROLE_SEED_DEFINITIONS.length) return true;
+
+    for (const role of ROLE_SEED_DEFINITIONS) {
+      await ensureBuiltInRolePermissions(client, role, role.permissions);
+    }
+    return true;
+  };
+
+  if (client !== db) return runEnsure();
+  if (builtinRolesSeeded) return true;
+  if (!builtinRolesSeedPromise) {
+    builtinRolesSeedPromise = runEnsure()
+      .then(() => {
+        builtinRolesSeeded = true;
+      })
+      .catch((error) => {
+        builtinRolesSeedPromise = null;
+        throw error;
+      });
+  }
+  return builtinRolesSeedPromise;
+};
+
 export const ensureRolesSchema = async (client) => {
   await client.query(`
     CREATE TABLE IF NOT EXISTS roles (
@@ -130,13 +524,14 @@ export const ensureRolesSchema = async (client) => {
 
 export const getRolesWithPermissions = async ({ db, tenantId = null }) => {
   await ensureRolesSchema(db);
+  await ensureBuiltinRoles(db);
 
   const result = await db.query(
     `
     ${roleSelect}
-    WHERE ($1::bigint IS NULL OR r.tenant_id = $1::bigint OR r.tenant_id IS NULL)
+    WHERE ($1::bigint IS NULL OR r.tenant_id = $1::bigint OR r.tenant_id IS NULL OR r.is_system = TRUE)
     GROUP BY r.id
-    ORDER BY r.id DESC
+    ORDER BY r.is_system DESC, r.id ASC
     `,
     [tenantId]
   );
@@ -145,6 +540,7 @@ export const getRolesWithPermissions = async ({ db, tenantId = null }) => {
 };
 
 export const resolveRole = async (client, { roleId, tenantId = null }) => {
+  await ensureBuiltinRoles(client);
   const lookup = normalizeRoleLookup(roleId);
   const lookupSlug = normalizeSlug(roleId);
 
@@ -152,7 +548,7 @@ export const resolveRole = async (client, { roleId, tenantId = null }) => {
     `
     SELECT *
     FROM roles
-    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint OR tenant_id IS NULL)
+    WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint OR tenant_id IS NULL OR is_system = TRUE)
       AND (
         id::text = $2
         OR LOWER(COALESCE(slug, '')) = $3
@@ -172,6 +568,7 @@ export const resolveRole = async (client, { roleId, tenantId = null }) => {
 
 export const getRolePermissions = async ({ db, roleId, tenantId = null }) => {
   await ensureRolesSchema(db);
+  await ensureBuiltinRoles(db);
   const role = await resolveRole(db, { roleId, tenantId });
   if (!role) return null;
 
@@ -189,6 +586,7 @@ export const getRolePermissions = async ({ db, roleId, tenantId = null }) => {
 
 export const replaceRolePermissions = async ({ client, roleId, tenantId = null, body = {} }) => {
   await ensureRolesSchema(client);
+  await ensureBuiltinRoles(client);
 
   const role = await resolveRole(client, { roleId, tenantId });
   if (!role) return null;

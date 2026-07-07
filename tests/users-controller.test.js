@@ -41,6 +41,9 @@ test("createUser accepts the exact Users.jsx payload and hashes passwords", asyn
         rows: [{ column_name: "role_id" }, { column_name: "role" }, { column_name: "password" }, { column_name: "is_active" }],
       };
     }
+    if (text.includes("SELECT COUNT(*)::int AS count") && text.includes("FROM roles") && text.includes("is_system = TRUE")) {
+      return { rows: [{ count: 1 }] };
+    }
     if (/SELECT\s+id\s+FROM\s+roles/i.test(text) && text.includes("LIMIT 1")) {
       assert.match(text.replace(/\s+/g, " "), /SELECT id\s+FROM roles\s+WHERE id = \$1\s+LIMIT 1/i);
       assert.doesNotMatch(text.replace(/\s+/g, " "), /WHERE[^]*tenant_id\s*=/i);
@@ -133,6 +136,9 @@ test("createUser resolves a global role by numeric id for tenant-scoped requests
       return {
         rows: [{ column_name: "role_id" }, { column_name: "password" }, { column_name: "is_active" }],
       };
+    }
+    if (text.includes("SELECT COUNT(*)::int AS count") && text.includes("FROM roles") && text.includes("is_system = TRUE")) {
+      return { rows: [{ count: 1 }] };
     }
     if (/SELECT\s+id\s+FROM\s+roles/i.test(text) && text.includes("LIMIT 1")) {
       assert.match(text.replace(/\s+/g, " "), /SELECT id\s+FROM roles\s+WHERE id = \$1\s+LIMIT 1/i);
@@ -264,6 +270,9 @@ test("updateUserRole resolves role slugs to numeric role_id for PATCH and PUT al
         rows: [{ column_name: "role_id" }, { column_name: "role" }],
       };
     }
+    if (text.includes("SELECT COUNT(*)::int AS count") && text.includes("FROM roles") && text.includes("is_system = TRUE")) {
+      return { rows: [{ count: 1 }] };
+    }
     if (/SELECT\s+id\s+FROM\s+roles/i.test(text) && text.includes("LIMIT 1")) {
       assert.match(text.replace(/\s+/g, " "), /SELECT id\s+FROM roles\s+WHERE id = \$1\s+LIMIT 1/i);
       return {
@@ -386,6 +395,119 @@ test("updateUserStatus persists the active flag and returns updated user", async
     const updateQuery = queries.find((entry) => String(entry.sql).includes("UPDATE users"));
     assert.ok(updateQuery, "expected status update query to run");
     assert.equal(updateQuery.params[0], false);
+  } finally {
+    db.query = originalQuery;
+  }
+});
+
+test("GET /api/roles seeds built-ins and exposes numeric Admin/Cashier roles", async () => {
+  const originalQuery = db.query.bind(db);
+  const state = {
+    roles: [],
+    permissions: [],
+    rolePermissions: [],
+    nextRoleId: 1,
+    nextPermissionId: 1,
+  };
+
+  const normalizeSql = (sql = "") => String(sql || "").replace(/\s+/g, " ").trim();
+
+  db.query = async (sql, params = []) => {
+    const text = normalizeSql(sql);
+
+    if (text.startsWith("CREATE TABLE") || text.startsWith("ALTER TABLE") || text.startsWith("CREATE INDEX") || text.startsWith("CREATE UNIQUE INDEX")) {
+      return { rows: [] };
+    }
+
+    if (text.includes("SELECT COUNT(*)::int AS count") && text.includes("FROM roles") && text.includes("is_system = TRUE")) {
+      return { rows: [{ count: state.roles.filter((role) => role.is_system).length }] };
+    }
+
+    if (text.startsWith("INSERT INTO roles")) {
+      const [name, slug, description] = params;
+      const existingIndex = state.roles.findIndex((role) => String(role.name).toLowerCase() === String(name).toLowerCase());
+      const roleRow = {
+        id: existingIndex >= 0 ? state.roles[existingIndex].id : state.nextRoleId++,
+        tenant_id: 1,
+        name,
+        slug,
+        description,
+        is_system: true,
+      };
+      if (existingIndex >= 0) state.roles[existingIndex] = roleRow;
+      else state.roles.push(roleRow);
+      return { rows: [roleRow] };
+    }
+
+    if (text.startsWith("DELETE FROM role_permissions")) {
+      const roleId = Number(params[0]);
+      state.rolePermissions = state.rolePermissions.filter((row) => Number(row.role_id) !== roleId);
+      return { rows: [] };
+    }
+
+    if (text.startsWith("INSERT INTO permissions")) {
+      const [moduleName, action, description] = params;
+      const existing = state.permissions.find((permission) => permission.module === moduleName && permission.action === action);
+      const permission = existing || {
+        id: state.nextPermissionId++,
+        module: moduleName,
+        action,
+        description,
+      };
+      if (!existing) state.permissions.push(permission);
+      return { rows: [{ id: permission.id }] };
+    }
+
+    if (text.startsWith("INSERT INTO role_permissions")) {
+      const [roleId, permissionId] = params;
+      if (!state.rolePermissions.some((row) => Number(row.role_id) === Number(roleId) && Number(row.permission_id) === Number(permissionId))) {
+        state.rolePermissions.push({ role_id: Number(roleId), permission_id: Number(permissionId) });
+      }
+      return { rows: [] };
+    }
+
+    if (text.includes("FROM roles r") && text.includes("LEFT JOIN role_permissions") && text.includes("LEFT JOIN permissions")) {
+      return {
+        rows: state.roles.map((role) => {
+          const permissions = state.rolePermissions
+            .filter((row) => Number(row.role_id) === Number(role.id))
+            .map((row) => state.permissions.find((permission) => Number(permission.id) === Number(row.permission_id)))
+            .filter(Boolean)
+            .map((permission) => `${permission.module}.${permission.action}`);
+          return { ...role, permissions };
+        }),
+      };
+    }
+
+    throw new Error(`Unexpected query in roles seed regression test: ${text.slice(0, 160)}`);
+  };
+
+  try {
+    const { getRoles } = await import("../server/controllers/rolesController.js");
+    const req = {
+      user: {
+        id: 1,
+        role: "admin",
+        tenant_id: 7,
+      },
+      params: {},
+      query: {},
+      originalUrl: "/api/roles",
+      method: "GET",
+    };
+    const res = makeResponse();
+
+    await getRoles(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.payload?.success, true);
+    const roles = Array.isArray(res.payload?.roles) ? res.payload.roles : [];
+    const admin = roles.find((role) => String(role.name).toLowerCase() === "admin");
+    const cashier = roles.find((role) => String(role.name).toLowerCase() === "cashier");
+    assert.ok(admin, "expected admin role");
+    assert.ok(cashier, "expected cashier role");
+    assert.equal(Number.isInteger(Number(admin.id)) && Number(admin.id) > 0, true);
+    assert.equal(Number.isInteger(Number(cashier.id)) && Number(cashier.id) > 0, true);
   } finally {
     db.query = originalQuery;
   }

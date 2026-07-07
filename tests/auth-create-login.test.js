@@ -53,6 +53,10 @@ test("created user can log in immediately with the same email and password", asy
       };
     }
 
+    if (text.includes("SELECT COUNT(*)::int AS count") && text.includes("FROM roles") && text.includes("is_system = TRUE")) {
+      return { rows: [{ count: 1 }] };
+    }
+
     if (text.includes("WITH inserted AS") && text.includes("FROM tenants")) {
       return { rows: [{ id: state.tenants[0].id }] };
     }
@@ -355,6 +359,10 @@ test("create user persists to users table, GET /api/users returns it, and login 
           { column_name: "role" },
         ],
       };
+    }
+
+    if (text.includes("SELECT COUNT(*)::int AS count") && text.includes("FROM roles") && text.includes("is_system = TRUE")) {
+      return { rows: [{ count: 1 }] };
     }
 
     if (text.includes("WITH inserted AS") && text.includes("FROM tenants")) {

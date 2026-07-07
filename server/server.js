@@ -531,6 +531,7 @@ const { warmDashboardMetadataCache } = await import("./services/dashboardAnalyti
 const { ensureAttendanceSchema } = await import("./utils/attendanceSchema.js");
 const { ensureNotificationsSchema } = await import("./services/notificationsService.js");
 const { ensureWebsiteSettingsSchema } = await import("./services/liveActivityService.js");
+const { ensureBuiltinRoles } = await import("./services/rolesService.js");
 const { runDueStoryPublishes, registerMarketingJobHandlers, startAiMarketingAutomationRunner } = await import("./controllers/marketingController.js");
 const { registerBackgroundJobHandlers } = await import("./services/backgroundJobs.js");
 const { startAiShoeCoverWorker, stopAiShoeCoverWorker } = await import("./services/aiShoeCoverService.js");
@@ -2136,6 +2137,7 @@ const bootstrapStartup = async () => {
     await ensureNotificationsSchema(db);
     await ensureWebsiteSettingsSchema(db);
     await ensureSystemSettingsSchema(db);
+    await ensureBuiltinRoles(db);
     console.log("[server] database connected");
     await ensureDefaultTenantAndBackfillUsers();
     console.log("[server] default tenant bootstrap ensured");
