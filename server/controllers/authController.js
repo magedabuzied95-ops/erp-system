@@ -35,6 +35,82 @@ export const ensureUsersLoginSchema = async () => {
   });
 };
 
+let usersColumnNamesPromise = null;
+
+const getUsersColumnNames = async () => {
+  if (!usersColumnNamesPromise) {
+    usersColumnNamesPromise = db
+      .query(
+        `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'users'
+        `
+      )
+      .then((result) => new Set(result.rows.map((row) => String(row.column_name || "").toLowerCase())))
+      .catch((error) => {
+        usersColumnNamesPromise = null;
+        throw error;
+      });
+  }
+  return usersColumnNamesPromise;
+};
+
+const getReadablePasswordColumns = (userColumns) =>
+  ["password", "password_hash", "hashed_password", "password_digest"].filter((column) => userColumns.has(column));
+
+const resolveLoginTenantId = async (req) => {
+  const rawTenant =
+    req?.tenantId ??
+    req?.tenant?.id ??
+    req?.user?.tenant_id ??
+    req?.user?.tenantId ??
+    req?.headers?.["x-tenant-id"] ??
+    req?.query?.tenant_id ??
+    req?.query?.tenantId ??
+    req?.body?.tenant_id ??
+    req?.body?.tenantId;
+
+  if (rawTenant !== null && rawTenant !== undefined && String(rawTenant).trim() !== "") {
+    const numericTenant = Number(rawTenant);
+    if (Number.isFinite(numericTenant) && numericTenant > 0) {
+      return numericTenant;
+    }
+  }
+
+  const workspaceHint =
+    String(req?.body?.tenant_slug || req?.body?.workspace || req?.body?.tenant || "").trim();
+
+  if (!workspaceHint) {
+    return null;
+  }
+
+  const tenantResult = await db.query(
+    `
+    SELECT id
+    FROM tenants
+    WHERE LOWER(slug) = LOWER($1)
+       OR LOWER(name) = LOWER($1)
+    ORDER BY id ASC
+    LIMIT 1
+    `,
+    [workspaceHint]
+  );
+
+  return tenantResult.rows[0]?.id ? Number(tenantResult.rows[0].id) : null;
+};
+
+const resolveUserPasswordValue = (user, passwordColumns = []) => {
+  for (const column of passwordColumns) {
+    const value = user?.[column];
+    if (typeof value === "string" && value.trim()) {
+      return { column, value };
+    }
+  }
+  return { column: null, value: null };
+};
+
 const generateToken = (user) =>
   jwt.sign(
     {
@@ -176,31 +252,90 @@ export const login = async (req, res) => {
       });
     }
 
+    const tenantId = await resolveLoginTenantId(req);
+    const userColumns = await getUsersColumnNames();
+    const passwordColumns = getReadablePasswordColumns(userColumns);
+    console.log("[auth] login lookup", {
+      email: String(email || "").trim().toLowerCase(),
+      tenantId,
+      passwordColumns,
+    });
+
+    const tenantFilter = tenantId !== null
+      ? "AND (u.tenant_id = $2 OR u.tenant_id IS NULL)"
+      : "";
+    const tenantOrder = tenantId !== null
+      ? "CASE WHEN u.tenant_id = $2 THEN 0 WHEN u.tenant_id IS NULL THEN 1 ELSE 2 END"
+      : "CASE WHEN u.tenant_id IS NULL THEN 1 ELSE 0 END";
+    const passwordSelect = passwordColumns.length > 0
+      ? `, ${passwordColumns.map((column) => `u.${column} AS ${column}`).join(", ")}`
+      : "";
+
     const result = await db.query(
       `
       SELECT
-        u.*,
+        u.id,
+        u.tenant_id,
+        u.role_id,
+        u.name,
+        u.email,
+        u.phone,
+        u.is_active,
+        u.is_super_admin,
+        u.last_login_at,
+        u.created_at,
+        u.updated_at${passwordSelect},
         r.name AS role_name
       FROM users u
       LEFT JOIN roles r ON u.role_id = r.id
       WHERE LOWER(u.email) = LOWER($1)
+      ${tenantFilter}
       ORDER BY
-        CASE WHEN u.tenant_id IS NULL THEN 1 ELSE 0 END,
+        ${tenantOrder},
         u.id ASC
       `,
-      [email.trim()]
+      tenantId !== null ? [email.trim(), tenantId] : [email.trim()]
     );
 
     if (result.rows.length === 0) {
+      console.log("[auth] login user not found", {
+        email: String(email || "").trim().toLowerCase(),
+        tenantId,
+      });
       return res.status(400).json({
         success: false,
         message: "Invalid Email Or Password",
       });
     }
 
+    console.log("[auth] login user candidates found", {
+      email: String(email || "").trim().toLowerCase(),
+      tenantId,
+      candidates: result.rows.map((candidate) => ({
+        id: candidate.id,
+        tenant_id: candidate.tenant_id,
+        is_active: candidate.is_active,
+      })),
+    });
+
     let user = null;
     for (const candidate of result.rows) {
-      const isCandidateMatch = await bcrypt.compare(password, candidate.password);
+      const { column: passwordColumn, value: passwordValue } = resolveUserPasswordValue(candidate, passwordColumns);
+      if (!passwordColumn || !passwordValue) {
+        console.warn("[auth] login password column missing", {
+          userId: candidate.id,
+          tenantId: candidate.tenant_id ?? null,
+          availableColumns: passwordColumns,
+        });
+        continue;
+      }
+      const isCandidateMatch = await bcrypt.compare(password, passwordValue);
+      console.log("[auth] login password compare", {
+        userId: candidate.id,
+        tenantId: candidate.tenant_id ?? null,
+        passwordColumn,
+        compareResult: isCandidateMatch,
+      });
       if (isCandidateMatch) {
         user = candidate;
         break;
@@ -208,6 +343,10 @@ export const login = async (req, res) => {
     }
 
     if (!user) {
+      console.log("[auth] login password mismatch", {
+        email: String(email || "").trim().toLowerCase(),
+        tenantId,
+      });
       return res.status(400).json({
         success: false,
         message: "Invalid Email Or Password",
@@ -215,6 +354,11 @@ export const login = async (req, res) => {
     }
 
     if (user.is_active === false) {
+      console.warn("[auth] login rejected inactive user", {
+        userId: user.id,
+        tenantId: user.tenant_id ?? null,
+        reason: "is_active_false",
+      });
       return res.status(403).json({
         success: false,
         message: "Account Disabled",

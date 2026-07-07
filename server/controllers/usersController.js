@@ -46,6 +46,9 @@ const getUsersColumnNames = async () => {
   return usersColumnNamesPromise;
 };
 
+const getWritablePasswordColumns = (userColumns) =>
+  ["password", "password_hash", "hashed_password"].filter((column) => userColumns.has(column));
+
 const normalizeRoleStorageValue = (role = {}) =>
   String(role?.slug || role?.name || "").trim();
 
@@ -250,8 +253,18 @@ async (req, res) => {
 
     const userColumns = await getUsersColumnNames();
     const hasLegacyRoleColumn = userColumns.has("role");
-    const insertColumns = ["tenant_id", "name", "email", "password", "role_id"];
-    const insertValues = [tenantId, name, email, hashedPassword, resolvedRole.id];
+    const insertColumns = ["tenant_id", "name", "email", "role_id"];
+    const insertValues = [tenantId, name, email, resolvedRole.id];
+
+    for (const passwordColumn of getWritablePasswordColumns(userColumns)) {
+      insertColumns.push(passwordColumn);
+      insertValues.push(hashedPassword);
+    }
+
+    if (userColumns.has("is_active")) {
+      insertColumns.push("is_active");
+      insertValues.push(true);
+    }
 
     if (hasLegacyRoleColumn) {
       insertColumns.push("role");

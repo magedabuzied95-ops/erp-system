@@ -38,7 +38,7 @@ test("createUser resolves role slugs to numeric role_id and hashes passwords", a
     queries.push({ sql: text, params });
     if (text.includes("information_schema.columns") && text.includes("FROM information_schema.columns")) {
       return {
-        rows: [{ column_name: "role_id" }, { column_name: "role" }],
+        rows: [{ column_name: "role_id" }, { column_name: "role" }, { column_name: "password" }, { column_name: "is_active" }],
       };
     }
     if (text.includes("FROM roles") && text.includes("LIMIT 1")) {
@@ -63,9 +63,9 @@ test("createUser resolves role slugs to numeric role_id and hashes passwords", a
             tenant_id: 7,
             name: params[1],
             email: params[2],
+            role_id: params[3],
             is_active: true,
-            role_id: params[4],
-            role: params[5],
+            role: params[6],
           },
         ],
       };
@@ -100,10 +100,10 @@ test("createUser resolves role slugs to numeric role_id and hashes passwords", a
     assert.equal(res.payload?.user?.name, "Test User");
     const insertQuery = queries.find((entry) => String(entry.sql).includes("INSERT INTO users"));
     assert.ok(insertQuery, "expected insert query to run");
-    assert.equal(insertQuery.params[4], 12);
-    assert.equal(insertQuery.params[5], "cashier");
-    assert.notEqual(insertQuery.params[3], "Secret123!");
-    assert.match(String(insertQuery.params[3] || ""), /^\$2[aby]\$/);
+    assert.equal(insertQuery.params[3], 12);
+    assert.equal(insertQuery.params[6], "cashier");
+    assert.match(String(insertQuery.params[4] || ""), /^\$2[aby]\$/);
+    assert.notEqual(insertQuery.params[4], "Secret123!");
   } finally {
     db.query = originalQuery;
   }
