@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 
 import db from "../database/db.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { resolveRole } from "../services/rolesService.js";
 
 const normalizeRoleValue = (value = "") =>
   String(value || "")
@@ -21,6 +22,68 @@ const parseBooleanValue = (value) => {
   if (["true", "1", "yes", "on", "active", "enabled"].includes(normalized)) return true;
   if (["false", "0", "no", "off", "inactive", "disabled"].includes(normalized)) return false;
   return null;
+};
+
+let usersColumnNamesPromise = null;
+
+const getUsersColumnNames = async () => {
+  if (!usersColumnNamesPromise) {
+    usersColumnNamesPromise = db
+      .query(
+        `
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_schema = current_schema()
+          AND table_name = 'users'
+        `
+      )
+      .then((result) => new Set(result.rows.map((row) => String(row.column_name || "").toLowerCase())))
+      .catch((error) => {
+        usersColumnNamesPromise = null;
+        throw error;
+      });
+  }
+  return usersColumnNamesPromise;
+};
+
+const normalizeRoleStorageValue = (role = {}) =>
+  String(role?.slug || role?.name || "").trim();
+
+const resolveUserRole = async ({ value, tenantId, action, req }) => {
+  const roleValue = String(value ?? "").trim();
+  if (!roleValue) {
+    return null;
+  }
+
+  const role = await resolveRole(db, { roleId: roleValue, tenantId });
+  if (!role) {
+    console.warn("[users] role resolution failed", {
+      action,
+      userId: req.user?.id ?? null,
+      role: req.user?.role || req.user?.role_name || null,
+      tenantId: req.user?.tenant_id ?? null,
+      inputRole: roleValue,
+    });
+    return null;
+  }
+
+  const roleId = Number(role.id);
+  if (!Number.isFinite(roleId)) {
+    console.warn("[users] role resolution returned invalid id", {
+      action,
+      userId: req.user?.id ?? null,
+      role: req.user?.role || req.user?.role_name || null,
+      tenantId: req.user?.tenant_id ?? null,
+      inputRole: roleValue,
+      resolvedRoleId: role.id,
+    });
+    return null;
+  }
+
+  return {
+    id: roleId,
+    legacyRole: normalizeRoleStorageValue(role) || roleValue,
+  };
 };
 
 const logUsersValidationFailure = (action, req, message, meta = {}) => {
@@ -109,14 +172,8 @@ async (req, res) => {
 
   try {
 
-    const {
-
-      name,
-      email,
-      password,
-      role_id
-
-    } = req.body;
+    const { name, email, password } = req.body;
+    const requestedRole = req.body?.role_id ?? req.body?.role ?? req.body?.role_name ?? "";
     const tenantId = getTenantId(req, req.user?.tenant_id);
 
     if (
@@ -177,6 +234,30 @@ async (req, res) => {
         10
       );
 
+    const resolvedRole = await resolveUserRole({
+      value: requestedRole,
+      tenantId,
+      action: "create",
+      req,
+    });
+
+    if (!resolvedRole) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role",
+      });
+    }
+
+    const userColumns = await getUsersColumnNames();
+    const hasLegacyRoleColumn = userColumns.has("role");
+    const insertColumns = ["tenant_id", "name", "email", "password", "role_id"];
+    const insertValues = [tenantId, name, email, hashedPassword, resolvedRole.id];
+
+    if (hasLegacyRoleColumn) {
+      insertColumns.push("role");
+      insertValues.push(resolvedRole.legacyRole);
+    }
+
     const user =
       await db.query(
 
@@ -184,30 +265,21 @@ async (req, res) => {
         INSERT INTO users
 
         (
-          tenant_id,
-          name,
-          email,
-          password,
-          role_id
+          ${insertColumns.join(", ")}
         )
 
         VALUES
-        ($1,$2,$3,$4,$5)
+        (${insertColumns.map((_, index) => `$${index + 1}`).join(",")})
 
         RETURNING
         id,
         tenant_id,
         name,
-        email
+        email,
+        role_id${hasLegacyRoleColumn ? ", role" : ""}
         `,
 
-        [
-          tenantId,
-          name,
-          email,
-          hashedPassword,
-        role_id
-        ]
+        insertValues
       );
 
     res.status(201).json({
@@ -252,16 +324,38 @@ async (req, res) => {
     const { id } =
       req.params;
 
-    const { role_id } =
-      req.body;
+    const requestedRole = req.body?.role_id ?? req.body?.role ?? req.body?.role_name ?? "";
     const tenantId = getTenantId(req, req.user?.tenant_id);
+    const resolvedRole = await resolveUserRole({
+      value: requestedRole,
+      tenantId,
+      action: "update_role",
+      req,
+    });
+
+    if (!resolvedRole) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid role",
+      });
+    }
+
+    const userColumns = await getUsersColumnNames();
+    const hasLegacyRoleColumn = userColumns.has("role");
 
     const whereClause = isSuperAdminUser(req.user) || tenantId === null
-      ? "WHERE id = $2"
-      : "WHERE id = $2 AND tenant_id = $3";
+      ? `WHERE id = $${hasLegacyRoleColumn ? 3 : 2}`
+      : `WHERE id = $${hasLegacyRoleColumn ? 3 : 2} AND tenant_id = $${hasLegacyRoleColumn ? 4 : 3}`;
     const params = isSuperAdminUser(req.user) || tenantId === null
-      ? [role_id, id]
-      : [role_id, id, tenantId];
+      ? hasLegacyRoleColumn
+        ? [resolvedRole.id, resolvedRole.legacyRole, id]
+        : [resolvedRole.id, id]
+      : hasLegacyRoleColumn
+        ? [resolvedRole.id, resolvedRole.legacyRole, id, tenantId]
+        : [resolvedRole.id, id, tenantId];
+    const setClause = hasLegacyRoleColumn
+      ? "role_id = $1, role = $2"
+      : "role_id = $1";
 
     const updated =
       await db.query(
@@ -269,7 +363,7 @@ async (req, res) => {
         `
         UPDATE users
 
-        SET role_id = $1
+        SET ${setClause}
 
         ${whereClause}
 
