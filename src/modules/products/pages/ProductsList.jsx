@@ -30,7 +30,7 @@ import {
 import toast from "react-hot-toast";
 
 import useDismissableLayer from "../../../shared/hooks/useDismissableLayer";
-import { hasPermission } from "../../permissions/lib/rbacStore";
+import { canViewCostPrices, hasPermission } from "../../permissions/lib/rbacStore";
 
 import ProductsShell from "../components/ProductsShell";
 
@@ -1139,6 +1139,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
 
 function ProductsList() {
   const { t, i18n } = useTranslation();
+  const canViewCostPrice = canViewCostPrices();
   const navigate = useNavigate();
 
   const [rows, setRows] = useState([]);
@@ -2352,7 +2353,7 @@ function ProductsList() {
             ) : (
               visibleRows.map((row) => {
                 const { totalStock, lowStockAlert, isLowStock, isOutOfStock } = getProductStockState(row);
-                const displayCost = formatCardPrice(row.display_cost ?? 0);
+                const displayCost = canViewCostPrice ? formatCardPrice(row.display_cost ?? 0) : "—";
                 const sellingPrice = formatCardPrice(row.selling_price ?? 0);
                 const salePrice = row.sale_price != null ? formatCardPrice(row.sale_price) : "غير متاح";
                 const displaySku = cleanSkuDisplay(row.sku);
@@ -2452,7 +2453,7 @@ function ProductsList() {
                 ) : (
                   visibleRows.map((row) => {
                     const { totalStock, lowStockAlert, isLowStock, isOutOfStock } = getProductStockState(row);
-                    const displayCost = formatCardPrice(row.display_cost ?? 0);
+                    const displayCost = canViewCostPrice ? formatCardPrice(row.display_cost ?? 0) : "—";
                     const sellingPrice = formatCardPrice(row.selling_price ?? 0);
                     const salePrice = row.sale_price != null ? formatCardPrice(row.sale_price) : "غير متاح";
                     const displaySku = cleanSkuDisplay(row.sku);

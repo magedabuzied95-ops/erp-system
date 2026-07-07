@@ -503,10 +503,15 @@ test("GET /api/roles seeds built-ins and exposes numeric Admin/Cashier roles", a
     assert.equal(res.payload?.success, true);
     const roles = Array.isArray(res.payload?.roles) ? res.payload.roles : [];
     const admin = roles.find((role) => String(role.name).toLowerCase() === "admin");
+    const accountant = roles.find((role) => String(role.name).toLowerCase() === "accountant");
     const cashier = roles.find((role) => String(role.name).toLowerCase() === "cashier");
     assert.ok(admin, "expected admin role");
+    assert.ok(accountant, "expected accountant role");
     assert.ok(cashier, "expected cashier role");
     assert.equal(Number.isInteger(Number(admin.id)) && Number(admin.id) > 0, true);
+    assert.equal(Array.isArray(admin.permissions) && admin.permissions.includes("products.view_cost"), true);
+    assert.equal(Array.isArray(accountant.permissions) && accountant.permissions.includes("products.view_cost"), true);
+    assert.equal(Array.isArray(cashier.permissions) && cashier.permissions.includes("products.view_cost"), false);
     assert.equal(Number.isInteger(Number(cashier.id)) && Number(cashier.id) > 0, true);
   } finally {
     db.query = originalQuery;

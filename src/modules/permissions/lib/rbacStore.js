@@ -28,8 +28,8 @@ import {
   TicketPercent,
 } from "lucide-react";
 
-import { getCurrentUser, getUserPermissions, isAdminUser } from "../../../shared/auth/authStorage";
-import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
+import { getCurrentUser, getUserPermissions, isAdminUser } from "../../../shared/auth/authStorage.js";
+import { publicStorefrontUrl } from "../../../shared/lib/publicStorefront.js";
 
 const safeWindow = () => (typeof window !== "undefined" ? window : null);
 const SHOW_DEV_TOOLS = String(import.meta.env?.VITE_SHOW_DEV_TOOLS || "").toLowerCase() === "true";
@@ -217,7 +217,7 @@ export const DEFAULT_ROLES = [
     slug: "admin",
     description: "Full access to every module and action.",
     builtIn: true,
-    permissions: ["*", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions, ...staffTaskPermissions, ...expensesPermissions, ...posExpensePermissions, ...treasuryPermissions],
+    permissions: ["*", "products.view_cost", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions, ...staffTaskPermissions, ...expensesPermissions, ...posExpensePermissions, ...treasuryPermissions],
   },
   {
     id: "super_admin",
@@ -225,7 +225,7 @@ export const DEFAULT_ROLES = [
     slug: "super_admin",
     description: "System-wide access across every module and action.",
     builtIn: true,
-    permissions: ["*", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions, ...staffTaskPermissions, ...expensesPermissions, ...posExpensePermissions, ...treasuryPermissions],
+    permissions: ["*", "products.view_cost", ...attendancePermissions, ...marketingPermissions, ...websitePermissions, ...notificationsPermissions, ...staffTaskPermissions, ...expensesPermissions, ...posExpensePermissions, ...treasuryPermissions],
   },
   {
     id: "manager",
@@ -263,6 +263,7 @@ export const DEFAULT_ROLES = [
       ...allow(["accounting"], ["create", "edit", "approve"]),
       ...expensesPermissions,
       ...treasuryPermissions,
+      "products.view_cost",
       "purchases.view",
       "orders.view",
       "loyalty.view",
@@ -574,6 +575,8 @@ export const hasPermission = (permission, user = getCurrentUser()) => {
   const effective = new Set(getEffectivePermissions(user).flatMap(permissionAliases));
   return permissionAliases(permission).some((alias) => effective.has(alias));
 };
+
+export const canViewCostPrices = (user = getCurrentUser()) => hasPermission("products.view_cost", user);
 
 export const hasAnyPermission = (permissions = [], user = getCurrentUser()) => {
   if (!permissions.length) return true;

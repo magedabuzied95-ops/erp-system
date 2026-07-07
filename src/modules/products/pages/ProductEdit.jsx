@@ -80,6 +80,7 @@ import { safeGenerateProductDescriptions } from "../../../shared/lib/generatePro
 import { formatCurrency } from "../../../shared/lib/currency";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 import { isAdminUser } from "../../../shared/auth/authStorage";
+import { canViewCostPrices } from "../../permissions/lib/rbacStore";
 
 const emptyProduct = {
   name: "",
@@ -886,6 +887,7 @@ function ProductEdit() {
   );
   const mirrorEditionEnabled = isMirrorProduct(product);
   const canRegenerateAiCover = isAdminUser();
+  const canViewCostPrice = canViewCostPrices();
   const descriptionContext = useMemo(
     () => ({
       name: product.name,
@@ -3184,7 +3186,7 @@ function ProductEdit() {
                   </div>
                   <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.currentCost", "Current cost")}</p>
-                    <p className="mt-2 text-sm font-black text-zinc-100">{Number(product.cost_price || 0) > 0 ? formatCurrency(product.cost_price) : "Not set"}</p>
+                    <p className="mt-2 text-sm font-black text-zinc-100">{canViewCostPrice ? (Number(product.cost_price || 0) > 0 ? formatCurrency(product.cost_price) : "Not set") : "—"}</p>
                   </div>
                   <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.lastUpdatedFromPurchase", "Last updated from purchase invoice")}</p>

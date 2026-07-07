@@ -157,6 +157,7 @@ const ROLE_SEED_DEFINITIONS = [
       ...ROLE_SEED_MARKETING_PERMISSIONS,
       ...ROLE_SEED_WEBSITE_PERMISSIONS,
       ...ROLE_SEED_EXTRA_PERMISSIONS.map((permission) => `${permission.module}.${permission.action}`),
+      "products.view_cost",
     ],
   },
   {
@@ -177,6 +178,7 @@ const ROLE_SEED_DEFINITIONS = [
       ...ROLE_SEED_ATTENDANCE_PERMISSIONS,
       ...ROLE_SEED_MARKETING_PERMISSIONS,
       ...ROLE_SEED_WEBSITE_PERMISSIONS,
+      "products.view_cost",
       ...ROLE_SEED_EXTRA_PERMISSIONS.map((permission) => `${permission.module}.${permission.action}`),
     ],
   },
@@ -275,6 +277,7 @@ const ROLE_SEED_DEFINITIONS = [
       "loyalty.view",
       "attendance.view",
       "employees.view",
+      "products.view_cost",
       "users.view",
       "marketing.view",
       "website.orders",

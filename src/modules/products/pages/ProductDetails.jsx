@@ -20,6 +20,7 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import { hasPermission } from "../../../shared/auth/authStorage";
 import ProductsShell from "../components/ProductsShell";
+import { canViewCostPrices } from "../../permissions/lib/rbacStore";
 import { createProduct, getProductsWithVariants, normalizeVariantPayload } from "../services/productsApi";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { cleanupProductCache } from "../lib/catalog";
@@ -488,6 +489,7 @@ function ProductDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const canViewCostPrice = canViewCostPrices();
   const notAvailableText = t("products.records.notAvailable", isArabic ? "غير متاح" : "n/a");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -838,8 +840,8 @@ function ProductDetails() {
                   <InfoCard label={t("products.fields.regularPrice", "Regular price")} value={displayMoneyOrEmpty(product.resolved_regular_price, notAvailableText)} />
                   <InfoCard label={t("products.fields.comparePrice", "Compare price")} value={displayMoneyOrEmpty(product.resolved_compare_price, notAvailableText)} />
                   <InfoCard label={t("products.fields.salePrice", "Sale price")} value={product.sale_display_enabled && product.resolved_sale_price !== null ? formatCurrency(product.resolved_sale_price) : t("products.status.disabled", "Disabled")} />
-                  <InfoCard label={t("products.fields.costPrice", "Cost price")} value={displayMoneyOrEmpty(product.resolved_cost_price, notAvailableText)} />
-                  <InfoCard label={t("products.fields.wholesalePrice", "Wholesale price")} value={displayMoneyOrEmpty(product.resolved_wholesale_price, notAvailableText)} />
+                  <InfoCard label={t("products.fields.costPrice", "Cost price")} value={canViewCostPrice ? displayMoneyOrEmpty(product.resolved_cost_price, notAvailableText) : "—"} />
+                  <InfoCard label={t("products.fields.wholesalePrice", "Wholesale price")} value={canViewCostPrice ? displayMoneyOrEmpty(product.resolved_wholesale_price, notAvailableText) : "—"} />
                   <InfoCard label={t("products.fields.lastPurchasePriceUpdate", "Last purchase price update")} value={product.last_purchase_pricing_at ? String(product.last_purchase_pricing_at).slice(0, 16).replace("T", " ") : t("products.records.notYet", "Not yet")} />
                   <InfoCard label={t("products.fields.totalStock", "Total stock")} value={Number(displayTotalStock || totalStock || 0).toLocaleString()} />
                 </div>
