@@ -309,17 +309,8 @@ const couponErrorText = (reason = "") => {
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
 let storefrontSalePricesEnabled = true;
 let storefrontPublicSaleModeEnabledRaw = undefined;
-const parseStorefrontSaleModeEnabled = (value, fallback = undefined) => {
-  if (value === undefined || value === null || value === "") return fallback;
-  if (value === true || value === 1 || value === "1") return true;
-  if (value === false || value === 0 || value === "0") return false;
-  const normalized = String(value).trim().toLowerCase();
-  if (["true", "yes", "on"].includes(normalized)) return true;
-  if (["false", "no", "off"].includes(normalized)) return false;
-  return fallback;
-};
 const normalizeStorefrontSalePricesEnabled = (settings = {}) => {
-  return Boolean(parseStorefrontSaleModeEnabled(settings?.sale_mode_enabled, true));
+  return Boolean(parseSaleModeEnabled(settings?.sale_mode_enabled, true));
 };
 const setStorefrontSalePricesEnabled = (settings = {}) => {
   storefrontSalePricesEnabled = normalizeStorefrontSalePricesEnabled(settings);
@@ -6918,14 +6909,14 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     [activeColorVariant, firstAvailableVariant, selectedVariant, selectedVariantIsAvailable]
   );
   const inWishlist = useMemo(() => wishlist.some((item) => String(item.id) === String(product.id)), [product.id, wishlist]);
-  const resolvedSaleModeEnabled = parseSaleModeEnabled(saleModeEnabled, true);
+  const parsedSaleModeEnabled = parseSaleModeEnabled(saleModeEnabled, true);
   const pricing = useMemo(
-    () => getDisplayPricing(product, resolvedSaleModeEnabled, availableVariant),
-    [availableVariant, product, resolvedSaleModeEnabled]
+    () => getDisplayPricing(product, parsedSaleModeEnabled, availableVariant),
+    [availableVariant, product, parsedSaleModeEnabled]
   );
   const sellingPrice = pricing.price;
-  const comparePrice = resolvedSaleModeEnabled && pricing.comparePrice && pricing.comparePrice > sellingPrice ? pricing.comparePrice : 0;
-  const discountPercent = resolvedSaleModeEnabled ? pricing.discountPercent || 0 : 0;
+  const comparePrice = parsedSaleModeEnabled && pricing.comparePrice && pricing.comparePrice > sellingPrice ? pricing.comparePrice : 0;
+  const discountPercent = parsedSaleModeEnabled ? pricing.discountPercent || 0 : 0;
   const activeSizes = useMemo(
     () => providedAvailableSizes || getSizesForColorGroup(activeColorGroup),
     [activeColorGroup, providedAvailableSizes]
@@ -7033,12 +7024,12 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       productId: product?.id || product?.product_id || null,
       title: product?.name || product?.title || "",
       rawSaleModeEnabled: storefrontPublicSaleModeEnabledRaw,
-      parsedSaleModeEnabled: resolvedSaleModeEnabled,
+      parsedSaleModeEnabled,
       sellingPrice: pricing.sellingPrice,
       salePrice: pricing.salePrice,
       comparePrice,
       chosenPrice: pricing.chosenPrice,
-      isOnSale: Boolean(resolvedSaleModeEnabled && pricing.isOnSale && comparePrice > sellingPrice),
+      isOnSale: Boolean(parsedSaleModeEnabled && pricing.isOnSale && comparePrice > sellingPrice),
       discountPercent,
     });
   }, [
@@ -7049,7 +7040,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     product?.name,
     product?.product_id,
     product?.title,
-    resolvedSaleModeEnabled,
+    parsedSaleModeEnabled,
     sellingPrice,
   ]);
 
@@ -7188,7 +7179,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const brandLabel = productCardBrandLabel(product);
   const brandFilterUrl = useMemo(() => productCardBrandFilterUrl(product), [product]);
     const cardBadge = useMemo(() => {
-    if (resolvedSaleModeEnabled && discountPercent) {
+    if (parsedSaleModeEnabled && discountPercent) {
       return { key: "sale", label: "Sale" };
     }
     const soldCount = Number(product.total_sold ?? product.sold_count ?? product.sales_count ?? product.order_count ?? product.orders_count ?? product.units_sold ?? 0);
@@ -7199,7 +7190,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       return { key: "new", label: "✨ New Arrival" };
     }
     return null;
-  }, [discountPercent, product, resolvedSaleModeEnabled]);
+  }, [discountPercent, product, parsedSaleModeEnabled]);
 
   return (
     <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.45rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ring-1 ring-white/[0.045] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#d4af37]/30 hover:shadow-[0_18px_42px_rgba(15,23,42,0.12)] active:translate-y-[1px] active:scale-[0.995] touch-manipulation md:rounded-[1.7rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#d4af37]/22 dark:hover:shadow-[0_20px_34px_rgba(0,0,0,0.26)] ${featured ? "md:shadow-[0_16px_38px_rgba(212,175,55,0.08)]" : ""}`}>
@@ -7916,7 +7907,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           responseSettingsKeys: Object.keys(data?.settings || {}).filter((key) => String(key).toLowerCase().includes("sale")),
         });
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
-        const parsedSaleModeEnabled = parseStorefrontSaleModeEnabled(rawSaleModeEnabled, true);
+        const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, true);
         const normalizedSettings = {
           ...settings,
           sale_mode_enabled: parsedSaleModeEnabled,
@@ -11535,7 +11526,7 @@ function Storefront() {
           responseSettingsKeys: Object.keys(data?.settings || {}).filter((key) => String(key).toLowerCase().includes("sale")),
         });
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
-        const parsedSaleModeEnabled = parseStorefrontSaleModeEnabled(rawSaleModeEnabled, true);
+        const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, true);
         const normalizedSettings = {
           ...settings,
           sale_mode_enabled: parsedSaleModeEnabled,

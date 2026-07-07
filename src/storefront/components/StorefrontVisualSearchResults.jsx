@@ -50,10 +50,10 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
   const stock = productTotalStock(safeProduct);
   const variantStock = safeStockNumber(variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock);
   const isAvailable = stock > 0 && (!variant || variantStock > 0);
-  const resolvedSaleModeEnabled = parseSaleModeEnabled(saleModeEnabled, true);
-  const pricing = getDisplayPricing(safeProduct, resolvedSaleModeEnabled, variant);
+  const parsedSaleModeEnabled = parseSaleModeEnabled(saleModeEnabled, true);
+  const pricing = getDisplayPricing(safeProduct, parsedSaleModeEnabled, variant);
   const activePrice = pricing.price;
-  const comparePrice = resolvedSaleModeEnabled && pricing.comparePrice && pricing.comparePrice > activePrice ? pricing.comparePrice : 0;
+  const comparePrice = parsedSaleModeEnabled && pricing.comparePrice && pricing.comparePrice > activePrice ? pricing.comparePrice : 0;
   const meta = [safeProduct?.brand, safeProduct?.category, safeProduct?.gender, safeProduct?.grade].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "منتج من المتجر");
 
   useEffect(() => {
@@ -63,15 +63,15 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
       productId: safeProduct?.id || safeProduct?.product_id || null,
       title: safeProduct?.name || safeProduct?.title || "",
       rawSaleModeEnabled,
-      parsedSaleModeEnabled: resolvedSaleModeEnabled,
+      parsedSaleModeEnabled,
       sellingPrice: pricing.sellingPrice,
       salePrice: pricing.salePrice,
       comparePrice,
       chosenPrice: pricing.chosenPrice,
-      isOnSale: Boolean(resolvedSaleModeEnabled && pricing.isOnSale && comparePrice > activePrice),
+      isOnSale: Boolean(parsedSaleModeEnabled && pricing.isOnSale && comparePrice > activePrice),
       discountPercent: pricing.discountPercent || 0,
     });
-  }, [activePrice, comparePrice, pricing, rawSaleModeEnabled, resolvedSaleModeEnabled, safeProduct?.id, safeProduct?.name, safeProduct?.product_id, safeProduct?.title]);
+  }, [activePrice, comparePrice, pricing, rawSaleModeEnabled, parsedSaleModeEnabled, safeProduct?.id, safeProduct?.name, safeProduct?.product_id, safeProduct?.title]);
 
   const viewProduct = (event) => {
     event.stopPropagation();

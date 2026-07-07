@@ -123,6 +123,7 @@ export const getDisplayPricing = (product = {}, saleModeEnabled = true, variant 
   logStorefrontPriceDebug({
     productId,
     variantId,
+    parsedSaleModeEnabled: enabled,
     saleModeEnabled: enabled,
     sellingPrice,
     salePrice,
