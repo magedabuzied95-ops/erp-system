@@ -214,6 +214,12 @@ const safeText = (value, fallback = "") => {
   return fallback;
 };
 
+const normalizeSearchText = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+
 const formatLabelCurrency = (value) =>
   formatCurrency(Math.round(Number(value || 0))).replace(/([.,٫]\d{2})(?=\s|$)/g, "");
 
@@ -381,19 +387,28 @@ const enrichLabelWithSmartQr = (item, enabled) => {
 };
 
 const toSearchText = (row) =>
-  [
+  normalizeSearchText([
     row.name,
+    row.article_code,
+    row.articleCode,
     row.sku,
     row.barcode,
     row.brand,
     row.category,
     ...(Array.isArray(row.variants)
-      ? row.variants.flatMap((variant) => [variant.color, variant.size, variant.sku, variant.barcode])
+      ? row.variants.flatMap((variant) => [
+          variant.color,
+          variant.size,
+          variant.article_code,
+          variant.articleCode,
+          variant.variant_article_code,
+          variant.sku,
+          variant.barcode,
+        ])
       : []),
   ]
     .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
+    .join(" "));
 
 const flattenVariantRows = (rows = []) =>
   rows.flatMap((row) => {
@@ -601,7 +616,7 @@ function BarcodeLabels() {
   }, [productId, availableOnly, isBarcodeShopMode]);
 
   const visibleCatalog = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query = normalizeSearchText(search);
     if (routeLocked && routeActiveProduct) {
       if (hasRoutePrintFilter && routeProductVariants.length === 0) return [];
       return [routeActiveProduct];
@@ -706,7 +721,18 @@ function BarcodeLabels() {
     });
   };
 
-  const clearSelections = () => setSelectedQuantities({});
+  const resetLabelState = () => {
+    setSelectedQuantities({});
+    setActiveProduct(null);
+    setActiveProductNotice("");
+    setRouteLocked(false);
+    setBarcodeShopQuantity(1);
+    setIncludeSmartProductQr(false);
+    setSearch("");
+  };
+  const clearSelections = () => {
+    resetLabelState();
+  };
   const clearRouteFilter = () => {
     setActiveProduct(null);
     setActiveProductNotice("");
