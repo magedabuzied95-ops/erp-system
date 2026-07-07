@@ -4444,26 +4444,7 @@ export const updateProduct = async (req, res) => {
     const productId = req.params.id;
     const currentProductResult = await client.query(
       `
-      SELECT
-        id,
-        image_url,
-        thermal_image_url,
-        thermal_image_status,
-        thermal_image_generated_at,
-        thermal_image_error,
-        price,
-        selling_price,
-        regular_price,
-        sale_price,
-        sale_price_enabled,
-        sale_reason,
-        sale_start_at,
-        sale_end_at,
-        use_custom_compare_price,
-        custom_compare_price,
-        cost_price,
-        purchase_price,
-        wholesale_price
+      SELECT *
       FROM products
       WHERE id = $1
         AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
@@ -4480,6 +4461,73 @@ export const updateProduct = async (req, res) => {
       });
     }
     const currentProductRow = currentProductResult.rows[0] || {};
+    const bodyHas = (key) => Object.prototype.hasOwnProperty.call(req.body || {}, key);
+    const nextName = bodyHas("name") ? String(name || "").trim() : String(currentProductRow.name || "").trim();
+    const nextDescription = bodyHas("description") ? String(description || "").trim() : String(currentProductRow.description || "").trim();
+    const nextDescriptionAr = bodyHas("description_ar") ? String(description_ar || "").trim() : String(currentProductRow.description_ar || "").trim();
+    const nextDescriptionEn = bodyHas("description_en") ? String(description_en || "").trim() : String(currentProductRow.description_en || "").trim();
+    const nextMetaTitle = bodyHas("meta_title") ? String(meta_title || "").trim() : String(currentProductRow.meta_title || "").trim();
+    const nextSeoDescription = bodyHas("seo_description")
+      ? String(seo_description || "").trim()
+      : String(currentProductRow.seo_description || "").trim();
+    const nextSeoKeywords = bodyHas("seo_keywords") ? String(seo_keywords || "").trim() : String(currentProductRow.seo_keywords || "").trim();
+    const nextCanonicalSlug = bodyHas("canonical_slug")
+      ? String(canonical_slug || "").trim()
+      : String(currentProductRow.canonical_slug || currentProductRow.slug || "").trim();
+    const nextBrandValue = bodyHas("brand") ? String(brand || "") : String(currentProductRow.brand || "");
+    const nextCategoryValue = bodyHas("category") ? String(category || "") : String(currentProductRow.category || "");
+    const nextMainCategoryValue = bodyHas("main_category") ? String(main_category || "") : String(currentProductRow.main_category || "");
+    const nextSubCategoryValue = bodyHas("sub_category") ? String(sub_category || "") : String(currentProductRow.sub_category || "");
+    const nextChildCategoryValue = bodyHas("child_category") ? String(child_category || "") : String(currentProductRow.child_category || "");
+    const nextGenderValue = bodyHas("gender")
+      ? normalizedGender
+      : String(currentProductRow.gender || normalizedAudiences[0] || "").trim();
+    const nextProductTypeValue = bodyHas("product_type")
+      ? normalizedProductType
+      : String(currentProductRow.product_type || "").trim();
+    const nextStyleValue = bodyHas("style") ? normalizedStyle : String(currentProductRow.style || "").trim();
+    const nextGradeValue = bodyHas("grade") ? normalizedGrade : String(currentProductRow.grade || "").trim();
+    const nextStatusValue = bodyHas("status") ? String(status || "active") : String(currentProductRow.status || "active");
+    const nextSkuValue = bodyHas("sku") ? String(sku || "").trim() : String(currentProductRow.sku || "").trim();
+    const nextBarcodeValue = bodyHas("barcode") ? String(barcode || "") : String(currentProductRow.barcode || "");
+    const nextForeignKeys = {
+      category_id: bodyHas("category_id") ? normalizedForeignKeys.category_id : currentProductRow.category_id ?? null,
+      brand_id: bodyHas("brand_id") ? normalizedForeignKeys.brand_id : currentProductRow.brand_id ?? null,
+      unit_id: bodyHas("unit_id") ? normalizedForeignKeys.unit_id : currentProductRow.unit_id ?? null,
+      manufacturer_id: bodyHas("manufacturer_id") ? normalizedForeignKeys.manufacturer_id : currentProductRow.manufacturer_id ?? null,
+      supplier_id: bodyHas("supplier_id") ? normalizedForeignKeys.supplier_id : currentProductRow.supplier_id ?? null,
+      warehouse_id: bodyHas("warehouse_id") ? normalizedForeignKeys.warehouse_id : currentProductRow.warehouse_id ?? null,
+    };
+    const nextOfferStoryValue = bodyHas("is_offer_story")
+      ? normalizedOfferStory
+      : currentProductRow.is_offer_story === true || String(currentProductRow.is_offer_story || "").toLowerCase() === "true";
+    const nextVariationMode = bodyHas("variation_mode") ? normalizedVariationMode : String(currentProductRow.variation_mode || "full_variations");
+    const nextFixedSizeLabel = bodyHas("fixed_size_label") ? normalizedFixedSizeLabel : String(currentProductRow.fixed_size_label || "");
+    const nextPurchaseAlertsEnabled = purchaseAlertsEnabledProvided
+      ? normalizedPurchaseAlertsEnabled
+      : currentProductRow.purchase_alerts_enabled === true || String(currentProductRow.purchase_alerts_enabled || "").toLowerCase() === "true";
+    const nextPurchaseAlertByColor = purchaseAlertByColorProvided
+      ? normalizedPurchaseAlertByColor
+      : currentProductRow.purchase_alert_by_color === true || String(currentProductRow.purchase_alert_by_color || "").toLowerCase() === "true";
+    const nextCartonSize = cartonSizeProvided ? normalizedCartonSize : currentProductRow.carton_size ?? null;
+    const nextSuggestedPurchaseCartons = suggestedPurchaseCartonsProvided
+      ? normalizedSuggestedPurchaseCartons
+      : Number(currentProductRow.suggested_purchase_cartons || 1);
+    const nextLowStockAlert = bodyHas("low_stock_alert") || bodyHas("low_stock_threshold")
+      ? Number(low_stock_alert ?? low_stock_threshold ?? 0)
+      : Number(currentProductRow.low_stock_alert ?? currentProductRow.low_stock_threshold ?? 0);
+    const nextTaxRate = bodyHas("tax_rate")
+      ? (tax_rate === undefined || tax_rate === null || tax_rate === "" ? null : Number(tax_rate))
+      : Number(currentProductRow.tax_rate ?? 0);
+    const nextLowStockTrackingMode = bodyHas("low_stock_tracking_mode")
+      ? normalizedLowStockTrackingMode
+      : String(currentProductRow.low_stock_tracking_mode || "");
+    const nextProductLowStockThreshold = bodyHas("product_low_stock_threshold")
+      ? normalizedProductLowStockThreshold
+      : Number(currentProductRow.product_low_stock_threshold || 0);
+    const nextMinimumDistinctSizesRequired = bodyHas("minimum_distinct_sizes_required")
+      ? normalizedMinimumDistinctSizesRequired
+      : Number(currentProductRow.minimum_distinct_sizes_required || 0);
     console.log("[products:update] sql pricing before update", {
       productId,
       current_db: {
@@ -4513,15 +4561,15 @@ export const updateProduct = async (req, res) => {
     const finalProductSku = await makeUniqueSku(client, {
       tenantId,
       productId,
-      sku: sku || buildSmartSkuPrefix({
-        name,
-        brand,
-        category,
-        product_type: normalizedProductType,
-        gender: normalizedGender,
-        grade: normalizedGrade,
-        meta_title: normalizedMetaTitle,
-        seo_keywords: normalizedSeoKeywords,
+      sku: nextSkuValue || buildSmartSkuPrefix({
+        name: nextName,
+        brand: nextBrandValue,
+        category: nextCategoryValue,
+        product_type: nextProductTypeValue,
+        gender: nextGenderValue,
+        grade: nextGradeValue,
+        meta_title: nextMetaTitle,
+        seo_keywords: nextSeoKeywords,
       }),
     });
     const reservedVariantSkus = new Set([finalProductSku.toLowerCase()]);
@@ -4555,14 +4603,14 @@ export const updateProduct = async (req, res) => {
       return `$${updateValues.length}`;
     };
     const updateFields = [
-      `name = ${addUpdateValue(name)}`,
-      `description = ${addUpdateValue(normalizedDescription)}`,
-      `description_ar = ${addUpdateValue(normalizedDescriptionAr)}`,
-      `description_en = ${addUpdateValue(normalizedDescriptionEn)}`,
-      `meta_title = ${addUpdateValue(normalizedMetaTitle)}`,
-      `seo_description = ${addUpdateValue(normalizedSeoDescription)}`,
-      `seo_keywords = ${addUpdateValue(normalizedSeoKeywords)}`,
-      `canonical_slug = ${addUpdateValue(normalizedCanonicalSlug)}`,
+      `name = ${addUpdateValue(nextName)}`,
+      `description = ${addUpdateValue(nextDescription)}`,
+      `description_ar = ${addUpdateValue(nextDescriptionAr)}`,
+      `description_en = ${addUpdateValue(nextDescriptionEn)}`,
+      `meta_title = ${addUpdateValue(nextMetaTitle)}`,
+      `seo_description = ${addUpdateValue(nextSeoDescription)}`,
+      `seo_keywords = ${addUpdateValue(nextSeoKeywords)}`,
+      `canonical_slug = ${addUpdateValue(nextCanonicalSlug)}`,
       `regular_price = CASE WHEN ${addUpdateValue(basePriceProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE regular_price END`,
       `price = CASE WHEN ${addUpdateValue(basePriceProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE price END`,
       `selling_price = CASE WHEN ${addUpdateValue(basePriceProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE selling_price END`,
@@ -4575,42 +4623,42 @@ export const updateProduct = async (req, res) => {
       `custom_compare_price = CASE WHEN ${addUpdateValue(customComparePriceProvided)} THEN ${addUpdateValue(normalizedCustomComparePrice)} ELSE custom_compare_price END`,
       `cost_price = CASE WHEN ${addUpdateValue(costPriceProvided)} THEN ${addUpdateValue(normalizedCostPrice)} ELSE cost_price END`,
       `wholesale_price = CASE WHEN ${addUpdateValue(wholesalePriceProvided)} THEN ${addUpdateValue(normalizedWholesalePrice)} ELSE wholesale_price END`,
-      `brand = ${addUpdateValue(brand || "")}`,
-      `category = ${addUpdateValue(category || "")}`,
-      `main_category = ${addUpdateValue(main_category || "")}`,
-      `sub_category = ${addUpdateValue(sub_category || "")}`,
-      `child_category = ${addUpdateValue(child_category || "")}`,
-      `gender = ${addUpdateValue(normalizedGender)}`,
-      `product_type = ${addUpdateValue(normalizedProductType)}`,
-      `style = ${addUpdateValue(normalizedStyle)}`,
-      `grade = ${addUpdateValue(normalizedGrade)}`,
+      `brand = ${addUpdateValue(nextBrandValue)}`,
+      `category = ${addUpdateValue(nextCategoryValue)}`,
+      `main_category = ${addUpdateValue(nextMainCategoryValue)}`,
+      `sub_category = ${addUpdateValue(nextSubCategoryValue)}`,
+      `child_category = ${addUpdateValue(nextChildCategoryValue)}`,
+      `gender = ${addUpdateValue(nextGenderValue)}`,
+      `product_type = ${addUpdateValue(nextProductTypeValue)}`,
+      `style = ${addUpdateValue(nextStyleValue)}`,
+      `grade = ${addUpdateValue(nextGradeValue)}`,
       `is_storefront_visible = COALESCE(${addUpdateValue(normalizedStorefrontVisible)}, is_storefront_visible)`,
-      `is_offer_story = ${addUpdateValue(normalizedOfferStory)}`,
-      `category_id = ${addUpdateValue(normalizedForeignKeys.category_id)}`,
-      `brand_id = ${addUpdateValue(normalizedForeignKeys.brand_id)}`,
-      `unit_id = ${addUpdateValue(normalizedForeignKeys.unit_id)}`,
-      `manufacturer_id = ${addUpdateValue(normalizedForeignKeys.manufacturer_id)}`,
-      `supplier_id = ${addUpdateValue(normalizedForeignKeys.supplier_id)}`,
-      `warehouse_id = ${addUpdateValue(normalizedForeignKeys.warehouse_id)}`,
-      `status = ${addUpdateValue(status || "active")}`,
+      `is_offer_story = ${addUpdateValue(nextOfferStoryValue)}`,
+      `category_id = ${addUpdateValue(nextForeignKeys.category_id)}`,
+      `brand_id = ${addUpdateValue(nextForeignKeys.brand_id)}`,
+      `unit_id = ${addUpdateValue(nextForeignKeys.unit_id)}`,
+      `manufacturer_id = ${addUpdateValue(nextForeignKeys.manufacturer_id)}`,
+      `supplier_id = ${addUpdateValue(nextForeignKeys.supplier_id)}`,
+      `warehouse_id = ${addUpdateValue(nextForeignKeys.warehouse_id)}`,
+      `status = ${addUpdateValue(nextStatusValue)}`,
       `sku = ${addUpdateValue(finalProductSku)}`,
-      `barcode = ${addUpdateValue(barcode || "")}`,
+      `barcode = ${addUpdateValue(nextBarcodeValue)}`,
       `image_url = COALESCE(${addUpdateValue(imageUrlProvided ? image_url || "" : null)}, image_url)`,
       `thermal_image_status = COALESCE(${addUpdateValue(nextThermalImageStatus)}, thermal_image_status)`,
       `thermal_image_generated_at = COALESCE(${addUpdateValue(nextThermalImageGeneratedAt)}, thermal_image_generated_at)`,
       `thermal_image_error = COALESCE(${addUpdateValue(nextThermalImageError)}, thermal_image_error)`,
       `gallery_images = COALESCE(${addUpdateValue(galleryImagesProvided ? JSON.stringify(normalizedGalleryImages) : null)}::jsonb, gallery_images)`,
-      `variation_mode = ${addUpdateValue(normalizedVariationMode)}`,
-      `fixed_size_label = ${addUpdateValue(normalizedFixedSizeLabel)}`,
-      `purchase_alerts_enabled = CASE WHEN ${addUpdateValue(purchaseAlertsEnabledProvided)} THEN ${addUpdateValue(normalizedPurchaseAlertsEnabled)} ELSE purchase_alerts_enabled END`,
-      `purchase_alert_by_color = CASE WHEN ${addUpdateValue(purchaseAlertByColorProvided)} THEN ${addUpdateValue(normalizedPurchaseAlertByColor)} ELSE purchase_alert_by_color END`,
-      `carton_size = CASE WHEN ${addUpdateValue(cartonSizeProvided)} THEN ${addUpdateValue(normalizedCartonSize)} ELSE carton_size END`,
-      `suggested_purchase_cartons = CASE WHEN ${addUpdateValue(suggestedPurchaseCartonsProvided)} THEN ${addUpdateValue(normalizedSuggestedPurchaseCartons)} ELSE suggested_purchase_cartons END`,
-      `low_stock_alert = COALESCE(${addUpdateValue((low_stock_alert ?? low_stock_threshold) === undefined || (low_stock_alert ?? low_stock_threshold) === null || (low_stock_alert ?? low_stock_threshold) === "" ? null : Number(low_stock_alert ?? low_stock_threshold))}, low_stock_alert)`,
-      `tax_rate = COALESCE(${addUpdateValue(tax_rate === undefined || tax_rate === null || tax_rate === "" ? null : Number(tax_rate))}, 0)`,
-      `low_stock_tracking_mode = COALESCE(${addUpdateValue(normalizedLowStockTrackingMode)}, low_stock_tracking_mode)`,
-      `product_low_stock_threshold = COALESCE(${addUpdateValue(normalizedProductLowStockThreshold)}, product_low_stock_threshold)`,
-      `minimum_distinct_sizes_required = COALESCE(${addUpdateValue(normalizedMinimumDistinctSizesRequired)}, minimum_distinct_sizes_required)`,
+      `variation_mode = ${addUpdateValue(nextVariationMode)}`,
+      `fixed_size_label = ${addUpdateValue(nextFixedSizeLabel)}`,
+      `purchase_alerts_enabled = CASE WHEN ${addUpdateValue(purchaseAlertsEnabledProvided)} THEN ${addUpdateValue(nextPurchaseAlertsEnabled)} ELSE purchase_alerts_enabled END`,
+      `purchase_alert_by_color = CASE WHEN ${addUpdateValue(purchaseAlertByColorProvided)} THEN ${addUpdateValue(nextPurchaseAlertByColor)} ELSE purchase_alert_by_color END`,
+      `carton_size = CASE WHEN ${addUpdateValue(cartonSizeProvided)} THEN ${addUpdateValue(nextCartonSize)} ELSE carton_size END`,
+      `suggested_purchase_cartons = CASE WHEN ${addUpdateValue(suggestedPurchaseCartonsProvided)} THEN ${addUpdateValue(nextSuggestedPurchaseCartons)} ELSE suggested_purchase_cartons END`,
+      `low_stock_alert = COALESCE(${addUpdateValue(nextLowStockAlert)}, low_stock_alert)`,
+      `tax_rate = COALESCE(${addUpdateValue(nextTaxRate)}::numeric, 0::numeric)`,
+      `low_stock_tracking_mode = COALESCE(${addUpdateValue(nextLowStockTrackingMode)}, low_stock_tracking_mode)`,
+      `product_low_stock_threshold = COALESCE(${addUpdateValue(nextProductLowStockThreshold)}, product_low_stock_threshold)`,
+      `minimum_distinct_sizes_required = COALESCE(${addUpdateValue(nextMinimumDistinctSizesRequired)}, minimum_distinct_sizes_required)`,
     ];
 
     if (supportsThermalImageUrl) {
