@@ -1387,7 +1387,8 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
   const premiumCustomerName = customer?.name || customer?.customer_name || "Walk-in Customer";
   const premiumCustomerPhone = customer?.phone || customer?.mobile || customer?.customer_phone || "";
 
-  return (
+  if (false) {
+    return (
     <div
       dir="rtl"
       className={`pos-receipt mx-auto bg-white text-right text-zinc-950 shadow-2xl shadow-black/20 ${
@@ -1559,8 +1560,10 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
       </section>
     </div>
   );
+  }
   const store = useMemo(() => getStoreProfile(), []);
   const receiptDate = useMemo(() => getReceiptDate(), []);
+  const receiptTime = useMemo(() => formatArabicTime(), []);
   const receiptNumber = String(invoiceNumber || "DRAFT");
   const barcodeValue = receiptNumber || invoiceNumber || "RECEIPT";
   const barcodeSvg = useMemo(
@@ -1615,6 +1618,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
           <ReceiptInfo icon={Star} label={receiptLabel("tier", "العضوية")} value={tier} />
           <ReceiptInfo icon={CreditCard} label={receiptLabel("payment", POS_ARABIC_TEXT.paymentMethod)} value={paymentSummary.paymentStatus} />
           <ReceiptInfo icon={CalendarDays} label={receiptLabel("date", "التاريخ")} value={receiptDate} />
+          <ReceiptInfo icon={Clock3} label={receiptLabel("time", "الوقت")} value={receiptTime} />
         </div>
       </div>
 
