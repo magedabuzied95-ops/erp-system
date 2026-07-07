@@ -178,6 +178,16 @@ const readUseSalePrices = () => {
   return true;
 };
 
+const parseSaleModeEnabled = (value) => {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0) return false;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  return undefined;
+};
+
 const writeUseSalePrices = (value) => {
   try {
     window.localStorage.setItem(POS_USE_SALE_PRICES_KEY, String(Boolean(value)));
@@ -1358,6 +1368,7 @@ function POSPro() {
   const [saleModeSettings, setSaleModeSettings] = useState(() =>
     normalizeSaleModeSettings({ sale_mode_enabled: readUseSalePrices() })
   );
+  const [saleModeHydrated, setSaleModeHydrated] = useState(false);
   const [saleModeSaving, setSaleModeSaving] = useState(false);
   const [manufacturers, setManufacturers] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -1446,8 +1457,9 @@ function POSPro() {
   const [shiftVarianceReason, setShiftVarianceReason] = useState("");
 
   useEffect(() => {
+    if (!saleModeHydrated) return;
     writeUseSalePrices(Boolean(saleModeSettings?.sale_mode_enabled));
-  }, [saleModeSettings?.sale_mode_enabled]);
+  }, [saleModeHydrated, saleModeSettings?.sale_mode_enabled]);
   const [barcodeShopProduct, setBarcodeShopProduct] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [mobileCartOpen, setMobileCartOpen] = useState(false);
@@ -1832,6 +1844,7 @@ function POSPro() {
         response_sale_mode_enabled: response?.settings?.sale_mode_enabled,
       });
       setSaleModeSettings(saved);
+      setSaleModeHydrated(true);
       writeUseSalePrices(Boolean(saved.sale_mode_enabled));
       const refreshedCatalog = await refreshCatalogProducts({
         setProducts,
@@ -1873,18 +1886,29 @@ function POSPro() {
           cache: "no-store",
           headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
         }).catch(() => ({ settings: {} }));
+        const backendSaleModeEnabledRaw = websiteSettings?.settings?.sale_mode_enabled;
+        const backendSaleModeEnabled = parseSaleModeEnabled(backendSaleModeEnabledRaw);
+        const localSaleModeEnabled = readUseSalePrices();
+        const hydratedSaleModeEnabled = backendSaleModeEnabled ?? localSaleModeEnabled;
         const normalizedSaleMode = normalizeSaleModeSettings({
           ...(websiteSettings?.settings || {}),
-          sale_mode_enabled:
-            websiteSettings?.settings?.sale_mode_enabled !== undefined && websiteSettings?.settings?.sale_mode_enabled !== null
-              ? websiteSettings?.settings?.sale_mode_enabled
-              : readUseSalePrices(),
+          sale_mode_enabled: hydratedSaleModeEnabled,
         });
-        console.debug("[pos:sale-mode-loaded]", {
-          backend_sale_mode_enabled: websiteSettings?.settings?.sale_mode_enabled,
-          local_sale_mode_enabled: readUseSalePrices(),
+        console.debug("POS_SALE_MODE_HYDRATE_BACKEND_RAW", {
+          sale_mode_enabled: backendSaleModeEnabledRaw,
+        });
+        console.debug("POS_SALE_MODE_HYDRATE_PARSED", {
+          backend_sale_mode_enabled: backendSaleModeEnabled,
+          local_sale_mode_enabled: localSaleModeEnabled,
+        });
+        console.debug("POS_SALE_MODE_FINAL_STATE", {
+          sale_mode_enabled: normalizedSaleMode.sale_mode_enabled,
+          backend_sale_mode_enabled: backendSaleModeEnabledRaw,
+          parsed_backend_sale_mode_enabled: backendSaleModeEnabled,
+          local_sale_mode_enabled: localSaleModeEnabled,
         });
         setSaleModeSettings(normalizedSaleMode);
+        setSaleModeHydrated(true);
         const catalog = await refreshCatalogProducts({
           setProducts,
           setLoading,

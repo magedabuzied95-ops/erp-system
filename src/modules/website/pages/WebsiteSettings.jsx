@@ -264,7 +264,13 @@ function WebsiteSettings() {
         console.debug("[website-settings:loaded]", {
           sale_mode_enabled: settings.sale_mode_enabled,
         });
-        setPricing({ ...PRICING_DEFAULTS, ...normalizeSaleModeSettings(settings), ...settings });
+        const normalizedSaleMode = normalizeSaleModeSettings(settings);
+        setPricing({
+          ...PRICING_DEFAULTS,
+          ...normalizedSaleMode,
+          ...settings,
+          sale_mode_enabled: settings.sale_mode_enabled ?? normalizedSaleMode.sale_mode_enabled,
+        });
         setDefaultShippingPrice(Number(settings.default_shipping_price ?? 60) || 0);
         setZones((Array.isArray(settings.shipping_zones) ? settings.shipping_zones : []).map(normalizeZone));
         setError("");
@@ -339,7 +345,13 @@ function WebsiteSettings() {
       console.debug("[website-settings:save-response]", {
         sale_mode_enabled: settings.sale_mode_enabled,
       });
-      setPricing({ ...PRICING_DEFAULTS, ...normalizeSaleModeSettings(settings), ...settings });
+      const normalizedSaleMode = normalizeSaleModeSettings(settings);
+      setPricing({
+        ...PRICING_DEFAULTS,
+        ...normalizedSaleMode,
+        ...settings,
+        sale_mode_enabled: settings.sale_mode_enabled ?? normalizedSaleMode.sale_mode_enabled,
+      });
       setDefaultShippingPrice(Number(settings.default_shipping_price ?? payload.default_shipping_price) || 0);
       setZones((Array.isArray(settings.shipping_zones) ? settings.shipping_zones : payload.shipping_zones).map(normalizeZone));
       setDirty(false);
