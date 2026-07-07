@@ -4015,6 +4015,10 @@ export const createProduct = async (req, res) => {
       productId,
       variants: preparedVariants,
     });
+    console.log("[pricing-sync] calling from product create", {
+      productId,
+      tenantId,
+    });
     await syncProductPricingFromVariants(client, {
       productId,
       tenantId,
@@ -4772,6 +4776,10 @@ export const updateProduct = async (req, res) => {
           })
         );
       }
+      console.log("[pricing-sync] calling from product update", {
+        productId,
+        tenantId,
+      });
       await syncProductPricingFromVariants(client, {
         productId,
         tenantId,
@@ -5333,6 +5341,10 @@ export const updateProductPrices = async (req, res) => {
         changes: auditChanges,
       },
     });
+    console.log("[pricing-sync] calling from product price update", {
+      productId,
+      tenantId,
+    });
     await syncProductPricingFromVariants(client, {
       productId,
       tenantId,
@@ -5622,6 +5634,11 @@ export const createVariant = async (req, res) => {
       userId: req.user?.id || null,
       referenceType: "product",
     });
+    console.log("[pricing-sync] calling from variant create", {
+      productId: req.params.id,
+      tenantId,
+      variantId: createdVariant.id,
+    });
     await syncProductPricingFromVariants(client, {
       productId: req.params.id,
       tenantId,
@@ -5824,6 +5841,11 @@ export const updateVariant = async (req, res) => {
         req.params.id,
       ]
     );
+    console.log("[pricing-sync] calling from variant update", {
+      productId: currentVariant.product_id,
+      tenantId,
+      variantId: updated.rows[0]?.id || currentVariant.id,
+    });
     await syncProductPricingFromVariants(client, {
       productId: currentVariant.product_id,
       tenantId,
@@ -5938,6 +5960,10 @@ export const deleteVariant = async (req, res) => {
       `,
       [req.params.id]
     );
+    console.log("[pricing-sync] calling from variant delete", {
+      productId: variant.product_id,
+      tenantId,
+    });
     await syncProductPricingFromVariants(client, {
       productId: variant.product_id,
       tenantId,

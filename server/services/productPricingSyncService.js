@@ -39,8 +39,21 @@ const pricingSignalScoreSql = `
 `;
 
 export const syncProductPricingFromVariants = async (client, { productId, tenantId = null, variantId = null } = {}) => {
+  console.log(`[pricing-sync] entered productId=${productId}`, {
+    productId: productId ?? null,
+    tenantId: tenantId ?? null,
+    variantId: variantId ?? null,
+  });
   const numericProductId = Number(productId || 0);
-  if (!Number.isInteger(numericProductId) || numericProductId <= 0) return 0;
+  if (!Number.isInteger(numericProductId) || numericProductId <= 0) {
+    console.log("[pricing-sync] early return", {
+      reason: "invalid_product_id",
+      productId: productId ?? null,
+      tenantId: tenantId ?? null,
+      variantId: variantId ?? null,
+    });
+    return 0;
+  }
 
   const productResult = await client.query(
     `
@@ -66,7 +79,15 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     [numericProductId, tenantId]
   );
   const productRow = productResult.rows?.[0] || null;
-  if (!productRow) return 0;
+  if (!productRow) {
+    console.log("[pricing-sync] early return", {
+      reason: "product_not_found",
+      productId: numericProductId,
+      tenantId: tenantId ?? null,
+      variantId: variantId ?? null,
+    });
+    return 0;
+  }
 
   const variantValues = [numericProductId, tenantId];
   const variantFilters = [
@@ -112,7 +133,15 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     variantValues
   );
   const variantRow = variantResult.rows?.[0] || null;
-  if (!variantRow) return 0;
+  if (!variantRow) {
+    console.log("[pricing-sync] early return", {
+      reason: "variant_not_found",
+      productId: numericProductId,
+      tenantId: tenantId ?? null,
+      variantId: Number.isInteger(Number(variantId)) && Number(variantId) > 0 ? Number(variantId) : null,
+    });
+    return 0;
+  }
 
   const nextLastPurchaseCost = pickPositiveMoney(
     variantRow.last_purchase_cost,

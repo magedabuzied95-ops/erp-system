@@ -1342,6 +1342,10 @@ const batchUpdateVariantPricingAfterPurchase = async (client, { tenantId, suppli
       .filter((value) => Number.isInteger(value) && value > 0)
   )];
   for (const productId of productIdsToSync) {
+    console.log("[pricing-sync] calling from purchase approval", {
+      productId,
+      tenantId,
+    });
     await syncProductPricingFromVariants(client, {
       productId,
       tenantId,
@@ -1614,6 +1618,11 @@ const updateProductVariantAfterPurchase = async (client, { tenantId, productId =
     `,
     values
   );
+  console.log("[pricing-sync] calling from variant update", {
+    productId: snapshot.product_id || productId,
+    tenantId,
+    variantId: numericVariantId,
+  });
   await syncProductPricingFromVariants(client, {
     productId: snapshot.product_id || productId,
     tenantId,

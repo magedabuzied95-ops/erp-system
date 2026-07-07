@@ -45,6 +45,11 @@ export const addVariant = async (req, res) => {
         image_url,
       ]
     );
+    console.log("[pricing-sync] calling from variant create", {
+      productId: product_id,
+      tenantId,
+      variantId: newVariant.rows[0]?.id || null,
+    });
     await syncProductPricingFromVariants(pool, {
       productId: product_id,
       tenantId,
