@@ -1858,6 +1858,8 @@ function InvoiceCustomerPicker({
   );
   const normalizedCustomerSearch = String(customerSearch || "").trim().toLowerCase();
   const customerPhoneSearch = normalizePhone(customerSearch);
+  const normalizedCustomerPhoneDigits = customerPhoneSearch.replace(/\D/g, "");
+  const isFullPhoneNumber = normalizedCustomerPhoneDigits.length >= 10;
   const customerMatches = useMemo(
     () =>
       safeCustomers.filter((item) => {
@@ -1879,6 +1881,15 @@ function InvoiceCustomerPicker({
     customerSearchActive &&
     !selectedCustomer &&
     String(customerSearch || "").trim().length > 0;
+
+  const handleCustomerSearchKeyDown = useCallback((event) => {
+    if (event.key !== "Enter") return;
+    if (customerMatches.length > 0) return;
+    if (!isFullPhoneNumber) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onCreateCustomerClick?.({ phone: customerPhoneSearch });
+  }, [customerMatches.length, customerPhoneSearch, isFullPhoneNumber, onCreateCustomerClick]);
 
   useEffect(() => {
     const handlePointerDown = (event) => {
@@ -1975,6 +1986,7 @@ function InvoiceCustomerPicker({
                   setActiveCustomerIndex(-1);
                   setCustomerSearch?.(event.target.value);
                 }}
+                onKeyDown={handleCustomerSearchKeyDown}
                 onFocus={() => setCustomerSearchActive(true)}
                 placeholder={posLabel("customer.searchPlaceholder", "Search customer by name or phone")}
                 className="h-10 w-full rounded-xl border border-white/10 bg-black/30 px-9 text-xs font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"

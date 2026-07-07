@@ -5886,19 +5886,21 @@ function POSPro() {
     }
   }, [handleCreateCustomer]);
 
-  const openCustomerCreateModal = useCallback(() => {
+  const openCustomerCreateModal = useCallback((initialValues = {}) => {
     const searchText = String(customerSearch || "").trim();
-    const normalizedPhone = normalizeReceiptPhone(searchText);
+    const explicitPhone = String(initialValues?.phone || initialValues?.mobile || "").trim();
+    const normalizedPhone = normalizeReceiptPhone(explicitPhone || searchText);
     console.log("[pos-customer-modal-open]", {
       ...getPosCustomerModalRuntime(),
       hasSearchText: Boolean(searchText),
+      hasInitialPhone: Boolean(explicitPhone),
       normalizedPhonePresent: Boolean(normalizedPhone),
       selectedCustomerId: selectedCustomerId || null,
       portalTarget: getActiveFullscreenElement() ? "fullscreenElement" : "body",
     });
     setQuickCustomer((prev) => ({
       ...prev,
-      name: normalizedPhone ? prev.name : searchText || prev.name,
+      name: explicitPhone ? "" : normalizedPhone ? prev.name : searchText || prev.name,
       phone: normalizedPhone || prev.phone,
       source_key: "",
     }));
