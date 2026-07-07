@@ -101,6 +101,32 @@ const resolveLoginTenantId = async (req) => {
   return tenantResult.rows[0]?.id ? Number(tenantResult.rows[0].id) : null;
 };
 
+const buildLoginUserSelect = (passwordColumns = []) => {
+  const passwordSelect = passwordColumns.length > 0
+    ? `, ${passwordColumns.map((column) => `u.${column} AS ${column}`).join(", ")}`
+    : "";
+
+  return `
+      SELECT
+        u.id,
+        u.tenant_id,
+        u.role_id,
+        u.name,
+        u.email,
+        u.phone,
+        u.is_active,
+        u.is_super_admin,
+        u.last_login_at,
+        u.created_at,
+        u.updated_at${passwordSelect},
+        r.name AS role_name,
+      FROM users u
+      LEFT JOIN roles r ON u.role_id = r.id
+      LEFT JOIN tenants t ON t.id = u.tenant_id
+      WHERE LOWER(u.email) = LOWER($1)
+    `;
+};
+
 const resolveUserPasswordValue = (user, passwordColumns = []) => {
   for (const column of passwordColumns) {
     const value = user?.[column];
@@ -261,41 +287,48 @@ export const login = async (req, res) => {
       passwordColumns,
     });
 
-    const tenantFilter = tenantId !== null
-      ? "AND (u.tenant_id = $2 OR u.tenant_id IS NULL)"
-      : "";
-    const tenantOrder = tenantId !== null
-      ? "CASE WHEN u.tenant_id = $2 THEN 0 WHEN u.tenant_id IS NULL THEN 1 ELSE 2 END"
-      : "CASE WHEN u.tenant_id IS NULL THEN 1 ELSE 0 END";
-    const passwordSelect = passwordColumns.length > 0
-      ? `, ${passwordColumns.map((column) => `u.${column} AS ${column}`).join(", ")}`
-      : "";
+    const loginSelect = buildLoginUserSelect(passwordColumns);
+    let result = { rows: [] };
 
-    const result = await db.query(
-      `
-      SELECT
-        u.id,
-        u.tenant_id,
-        u.role_id,
-        u.name,
-        u.email,
-        u.phone,
-        u.is_active,
-        u.is_super_admin,
-        u.last_login_at,
-        u.created_at,
-        u.updated_at${passwordSelect},
-        r.name AS role_name
-      FROM users u
-      LEFT JOIN roles r ON u.role_id = r.id
-      WHERE LOWER(u.email) = LOWER($1)
-      ${tenantFilter}
-      ORDER BY
-        ${tenantOrder},
-        u.id ASC
-      `,
-      tenantId !== null ? [email.trim(), tenantId] : [email.trim()]
-    );
+    if (tenantId !== null) {
+      result = await db.query(
+        `
+        ${loginSelect}
+          AND u.tenant_id = $2
+        ORDER BY
+          CASE WHEN u.tenant_id = $2 THEN 0 ELSE 1 END,
+          u.id ASC
+        `,
+        [email.trim(), tenantId]
+      );
+      console.log("[auth] login exact tenant lookup", {
+        email: String(email || "").trim().toLowerCase(),
+        tenantId,
+        matchCount: result.rows.length,
+      });
+    }
+
+    if (result.rows.length === 0) {
+      console.log("[auth] login fallback lookup", {
+        email: String(email || "").trim().toLowerCase(),
+        tenantId,
+        reason: tenantId !== null ? "exact_tenant_miss" : "no_tenant_provided",
+      });
+      result = await db.query(
+        `
+        ${loginSelect}
+          AND u.is_active IS DISTINCT FROM FALSE
+          AND (
+            u.tenant_id IS NULL
+            OR LOWER(COALESCE(t.status, 'active')) IN ('active', 'enabled', 'true', '1')
+          )
+        ORDER BY
+          CASE WHEN u.tenant_id IS NULL THEN 1 ELSE 0 END,
+          u.id ASC
+        `,
+        [email.trim()]
+      );
+    }
 
     if (result.rows.length === 0) {
       console.log("[auth] login user not found", {
@@ -311,12 +344,27 @@ export const login = async (req, res) => {
     console.log("[auth] login user candidates found", {
       email: String(email || "").trim().toLowerCase(),
       tenantId,
+      fallbackUsed: tenantId === null,
       candidates: result.rows.map((candidate) => ({
         id: candidate.id,
         tenant_id: candidate.tenant_id,
         is_active: candidate.is_active,
       })),
     });
+
+    if (tenantId === null) {
+      if (result.rows.length > 1) {
+        console.warn("[auth] login workspace required", {
+          email: String(email || "").trim().toLowerCase(),
+          tenantId,
+          candidateTenantIds: result.rows.map((candidate) => candidate.tenant_id ?? null),
+        });
+        return res.status(400).json({
+          success: false,
+          message: "Workspace Required",
+        });
+      }
+    }
 
     let user = null;
     for (const candidate of result.rows) {
