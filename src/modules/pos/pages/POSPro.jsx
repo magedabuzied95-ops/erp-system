@@ -196,6 +196,8 @@ const writeUseSalePrices = (value) => {
   }
 };
 
+const persistPosSaleModeEnabled = (value) => writeUseSalePrices(value);
+
 const getHeadMetaContent = (name) => {
   if (typeof document === "undefined") return "";
   return document.querySelector(`meta[name="${name}"]`)?.getAttribute("content") || "";
@@ -1837,28 +1839,31 @@ function POSPro() {
         payload,
       });
       console.debug("POS_SALE_MODE_PUT_PAYLOAD", payload);
-      const response = await api.put("/website/settings", payload);
+      await api.put("/website/settings", payload);
       const refreshed = await api.get("/website/settings", {
         cache: "no-store",
         headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
       }).catch(() => null);
-      const refreshedRaw = refreshed?.settings?.sale_mode_enabled;
-      const parsedSaleModeEnabled = parseSaleModeEnabled(refreshedRaw, true);
-      const saved = normalizeSaleModeSettings({
-        ...(response?.settings || {}),
-        sale_mode_enabled: parsedSaleModeEnabled,
+      const refreshedRawSaleMode =
+        refreshed?.settings?.sale_mode_enabled ??
+        refreshed?.sale_mode_enabled;
+      const parsedRefreshedSaleMode = parseSaleModeEnabled(refreshedRawSaleMode, true);
+      console.log("POS_SALE_MODE_AFTER_SAVE_GET", {
+        response_sale_mode_enabled: refreshedRawSaleMode,
+        refreshed_sale_mode_enabled: parsedRefreshedSaleMode,
+        parsed_sale_mode_enabled: parsedRefreshedSaleMode,
       });
-      console.debug("POS_SALE_MODE_AFTER_SAVE_GET", {
-        response_sale_mode_enabled: response?.settings?.sale_mode_enabled,
-        refreshed_sale_mode_enabled: refreshedRaw,
-        parsed_sale_mode_enabled: saved.sale_mode_enabled,
-      });
-      setSaleModeSettings(saved);
+      setSaleModeSettings((prev) => ({
+        ...prev,
+        sale_mode_enabled: parsedRefreshedSaleMode,
+      }));
+      persistPosSaleModeEnabled(parsedRefreshedSaleMode);
+      const nextSaleModeSettings = normalizeSaleModeSettings({ sale_mode_enabled: parsedRefreshedSaleMode });
       const refreshedCatalog = await refreshCatalogProducts({
         setProducts,
         setLoading,
         manageLoading: false,
-        saleModeSettings: saved,
+        saleModeSettings: nextSaleModeSettings,
       });
       setCart((current) => {
         if (editingOrder?.id) {
@@ -1871,8 +1876,8 @@ function POSPro() {
         }
         return reconcileCartWithCatalog(current, refreshedCatalog).nextCart;
       });
-      toast.success(saved.sale_mode_enabled ? "Existing sale prices enabled" : "Existing sale prices disabled");
-      return saved;
+      toast.success(parsedRefreshedSaleMode ? "Existing sale prices enabled" : "Existing sale prices disabled");
+      return nextSaleModeSettings;
     } catch (error) {
       toast.error(error.message || "Failed to save existing sale prices setting");
       return null;
