@@ -273,7 +273,7 @@ const getSellerName = (customer = {}) => {
 
 const salespersonAlias = (employee = {}) => {
   const alias = String(employee.pos_alias || employee.posAlias || "").trim();
-  if (alias) return alias.slice(0, 10);
+  if (alias) return alias;
   const name = String(employee.name || employee.full_name || "").trim();
   return name || "?";
 };
@@ -2078,7 +2078,7 @@ function InvoiceCustomerPicker({
               disabled={!canChangeSalesperson}
               title={posLabel("cart.noSalesperson", "No salesperson")}
               className={[
-                "inline-flex h-7 min-w-10 shrink-0 items-center justify-center rounded-lg border px-2 text-[10px] font-black transition",
+                "inline-flex h-7 w-auto min-w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-lg border px-3 text-[11px] font-black transition",
                 !selectedSalespersonId
                   ? "border-white/20 bg-white text-zinc-950 shadow-[0_8px_18px_rgba(255,255,255,0.1)]"
                   : "border-white/10 bg-black/20 text-zinc-300 hover:bg-white/10",
@@ -2091,35 +2091,35 @@ function InvoiceCustomerPicker({
           {salesEmployees.map((employee) => {
             const active = String(selectedSalespersonId || "") === String(employee.id);
             const disabled = employee.is_active === false;
-            const alias = salespersonAlias(employee);
+            const displayName = String(employee.name || employee.full_name || employee.pos_alias || "").trim() || salespersonAlias(employee);
             return (
               <button
                 key={employee.id}
                 type="button"
                 onClick={() => !disabled && canChangeSalesperson && setSelectedSalespersonId?.(String(employee.id))}
                 disabled={disabled || !canChangeSalesperson}
-                title={`${employee.name || alias}${disabled ? ` - ${posLabel("cart.inactive", "Inactive")}` : ""}`}
+                title={`${displayName}${disabled ? ` - ${posLabel("cart.inactive", "Inactive")}` : ""}`}
                 className={[
-                  "inline-flex h-7 min-w-10 shrink-0 items-center justify-center rounded-lg border px-2 text-[11px] font-black transition",
+                  "inline-flex h-7 w-auto min-w-fit shrink-0 items-center justify-center whitespace-nowrap rounded-lg border px-3 text-[12px] font-black transition",
                   disabled || !canChangeSalesperson ? "cursor-not-allowed border-white/5 bg-white/[0.03] text-zinc-500 opacity-45" : salespersonAccent(employee),
                   active
                     ? "border-emerald-200/80 bg-emerald-400 text-zinc-950 shadow-[0_8px_18px_rgba(52,211,153,0.2)]"
                     : "",
                 ].join(" ")}
               >
-                <span dir="auto">{alias || <User className="h-3.5 w-3.5" />}</span>
+                <span dir="auto">{displayName || <User className="h-3.5 w-3.5" />}</span>
               </button>
             );
           })}
           {sellersLoading && salesEmployees.length === 0 ? (
             <>
               {[1, 2, 3].map((item) => (
-                <div key={item} className="h-7 min-w-10 shrink-0 animate-pulse rounded-lg border border-white/5 bg-white/[0.06]" />
+                <div key={item} className="h-7 w-auto min-w-fit shrink-0 animate-pulse rounded-lg border border-white/5 bg-white/[0.06]" />
               ))}
             </>
           ) : null}
           {salesEmployees.length === 0 ? (
-            <div className="h-7 shrink-0 rounded-lg border border-white/10 bg-black/20 px-2 py-1.5 text-[10px] font-semibold text-zinc-500">
+            <div className="h-7 w-auto min-w-fit shrink-0 rounded-lg border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] font-semibold text-zinc-500 whitespace-nowrap">
               {sellersLoading
                 ? posLabel("cart.loadingSellers", "Loading sellers...")
                 : sellerLoadError
