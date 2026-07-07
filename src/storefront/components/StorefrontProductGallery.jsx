@@ -8,12 +8,13 @@ export default function StorefrontProductGallery({
   onSelectImage,
   imageFor,
   fallbackProductImage,
+  mainImageRef = null,
 }) {
   return (
     <div className="min-w-0">
       <div className="sf-product-gallery-frame relative mx-auto h-[clamp(250px,42vh,340px)] w-full max-w-[92vw] overflow-hidden rounded-[24px] border border-stone-200 bg-[linear-gradient(180deg,#fbfaf7_0%,#f1ece4_100%)] p-2 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:max-w-none md:rounded-[1.75rem] md:p-5 md:shadow-[0_20px_55px_rgba(39,20,75,0.10)]">
         <div className="absolute inset-x-10 bottom-5 h-12 rounded-full bg-white/80 blur-2xl md:inset-x-16 md:bottom-8 md:h-16" />
-        <img src={imageFor(mainImage)} {...getStorefrontResponsiveImageProps(imageFor(mainImage), "hero")} onError={fallbackProductImage} alt={displayTitle} className="sf-product-main-image relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_14px_18px_rgba(39,20,75,0.14)] md:max-h-full md:drop-shadow-[0_22px_26px_rgba(39,20,75,0.18)]" loading="eager" decoding="async" fetchPriority="high" width="900" height="675" />
+        <img ref={mainImageRef} src={imageFor(mainImage)} {...getStorefrontResponsiveImageProps(imageFor(mainImage), "hero")} onError={fallbackProductImage} alt={displayTitle} className="sf-product-main-image relative z-10 mx-auto h-full w-full object-contain drop-shadow-[0_14px_18px_rgba(39,20,75,0.14)] md:max-h-full md:drop-shadow-[0_22px_26px_rgba(39,20,75,0.18)]" loading="eager" decoding="async" fetchPriority="high" width="900" height="675" />
       </div>
       {galleryItems.length > 1 ? (
         <div className="sf-product-thumbnails sf-scroll mt-1.5 flex snap-x snap-mandatory gap-1.5 overflow-x-auto pb-1 md:mt-3 md:gap-2">

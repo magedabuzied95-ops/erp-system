@@ -15,6 +15,7 @@ import { recordInventoryMovement } from "../services/inventoryMovementService.js
 import { createJournalEntry, ensureAccountingSchema, postInventoryAdjustment, postMoneyTransaction, postPurchaseEntry, recordFinancialAccountActivity, reverseMoneyTransactionsForReference } from "../services/accountingService.js";
 import { ensureSmartReorderSchema, getSmartReorderSuggestions } from "../services/smartReorderService.js";
 import { createSystemNotification } from "../services/notificationsService.js";
+import { syncProductPricingFromVariants } from "../services/productPricingSyncService.js";
 
 const router = express.Router();
 const currentFilePath = fileURLToPath(import.meta.url);
@@ -1335,6 +1336,17 @@ const batchUpdateVariantPricingAfterPurchase = async (client, { tenantId, suppli
     `,
     values
   );
+  const productIdsToSync = [...new Set(
+    variantItems
+      .map((item) => Number(item.product_id || 0))
+      .filter((value) => Number.isInteger(value) && value > 0)
+  )];
+  for (const productId of productIdsToSync) {
+    await syncProductPricingFromVariants(client, {
+      productId,
+      tenantId,
+    });
+  }
   return result.rowCount || 0;
 };
 
@@ -1602,6 +1614,11 @@ const updateProductVariantAfterPurchase = async (client, { tenantId, productId =
     `,
     values
   );
+  await syncProductPricingFromVariants(client, {
+    productId: snapshot.product_id || productId,
+    tenantId,
+    variantId: numericVariantId,
+  });
   logPurchaseSalePriceSync({
     invoice_id: invoiceId,
     product_id: snapshot.product_id || productId,

@@ -1,5 +1,6 @@
 import pool from "../database/db.js";
 import { getTenantId, tenantContextMissingResponse } from "../utils/requestScope.js";
+import { syncProductPricingFromVariants } from "../services/productPricingSyncService.js";
 
 export const addVariant = async (req, res) => {
 
@@ -44,6 +45,11 @@ export const addVariant = async (req, res) => {
         image_url,
       ]
     );
+    await syncProductPricingFromVariants(pool, {
+      productId: product_id,
+      tenantId,
+      variantId: newVariant.rows[0]?.id || null,
+    });
 
     res.status(201).json(
       newVariant.rows[0]

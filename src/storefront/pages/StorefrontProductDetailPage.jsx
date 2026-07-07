@@ -168,6 +168,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const [touchedOptions, setTouchedOptions] = useState({ color: false, size: false });
   const recentlyViewedSentRef = useRef("");
   const productTopRef = useRef(null);
+  const mainImageRef = useRef(null);
   const normalizeQueryValue = (value = "") => String(value || "").trim();
 
   useEffect(() => {
@@ -445,7 +446,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   };
   const submitVariant = (candidate = safeActiveVariant, quantity = qty, action = "cart") => {
     if (!product || !candidate || Number(candidate.stock || 0) <= 0) return;
-    const result = onAddToCart(product, candidate, quantity, action === "buy" ? { intent: "buy" } : undefined);
+    const result = onAddToCart(product, candidate, quantity, {
+      intent: action === "buy" ? "buy" : "cart",
+      sourceEl: mainImageRef.current,
+    });
     if (result === "capture_required") return;
     setVariantSheetAction("");
     if (action === "buy") navigate("/checkout");
@@ -507,6 +511,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             onSelectImage={selectGalleryImage}
             imageFor={imageFor}
             fallbackProductImage={fallbackProductImage}
+            mainImageRef={mainImageRef}
           />
         </Suspense>
         </div>
@@ -634,7 +639,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty)}
+              onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty, { sourceEl: mainImageRef.current })}
               disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
               className="sf-product-cta flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
             >
@@ -669,7 +674,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           onQuantityChange={setQty}
           onSubmit={(candidate, quantity, action) => {
             if (!candidate || !variantHasStock(candidate)) return;
-            const result = onAddToCart(product, candidate, quantity, action === "buy" ? { intent: "buy" } : undefined);
+            const result = onAddToCart(product, candidate, quantity, {
+              intent: action === "buy" ? "buy" : "cart",
+              sourceEl: mainImageRef.current,
+            });
             if (result === "capture_required") return;
             setVariantSheetAction("");
             if (action === "buy") navigate("/checkout");
@@ -723,7 +731,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 <div className="truncate text-sm font-black text-white">{displayTitle}</div>
                 <div className="mt-1 text-lg font-black text-[#f3d77a]">{money(selectedSellingPrice)}</div>
               </div>
-              <button type="button" onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty)} disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-black text-stone-950 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35">
+              <button type="button" onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty, { sourceEl: mainImageRef.current })} disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)} className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full bg-white px-4 py-3 text-sm font-black text-stone-950 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35">
                 <ShoppingCart className="h-4 w-4" />
                 {sfText("storefront.cart.addToCart", "Add to cart")}
               </button>

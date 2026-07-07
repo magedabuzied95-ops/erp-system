@@ -74,6 +74,7 @@ import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocatio
 import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
+import { animateFlyToCart } from "./lib/flyToCart";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
 import {
   isStorefrontCheckoutFlowPath,
@@ -2392,6 +2393,20 @@ const displayDiscountPercent = (product = {}, variant = {}) => {
   const sellingPrice = displaySellingPrice(product, variant);
   const comparePrice = displayComparePrice(product, variant);
   return comparePrice > sellingPrice ? Math.max(1, Math.round(((comparePrice - sellingPrice) / comparePrice) * 100)) : 0;
+};
+
+const getVisibleCartActionElement = () => {
+  if (typeof document === "undefined") return null;
+  const candidates = Array.from(document.querySelectorAll(".sf-cart-action"));
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate.getBoundingClientRect !== "function") continue;
+    const rect = candidate.getBoundingClientRect();
+    if (!rect.width || !rect.height) continue;
+    const style = typeof window !== "undefined" && typeof window.getComputedStyle === "function" ? window.getComputedStyle(candidate) : null;
+    if (style && (style.display === "none" || style.visibility === "hidden" || Number.parseFloat(style.opacity || "1") === 0)) continue;
+    return candidate;
+  }
+  return null;
 };
 
 const firstArrayItem = (value) => (Array.isArray(value) && value.length ? value[0] : null);
@@ -6753,6 +6768,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const navigate = useNavigate();
   const product = groupedProduct || rawProduct || {};
   const cardRef = useRef(null);
+  const primaryImageRef = useRef(null);
   const variants = useMemo(() => {
     const allVariants = Array.isArray(product.variants) ? product.variants : [];
     const colorKey = String(product.color_key || product.display_color_key || "").trim().toLowerCase();
@@ -6925,7 +6941,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     setQuickAddQty(1);
   }, []);
   const handleVariantSheetAdd = useCallback(async (variant, quantity) => {
-    await Promise.resolve(onAddToCart(product, variant, quantity));
+    await Promise.resolve(onAddToCart(product, variant, quantity, { sourceEl: primaryImageRef.current }));
     closeVariantSheet();
   }, [closeVariantSheet, onAddToCart, product]);
   const handleQuickAddColorChange = useCallback((colorKey) => {
@@ -7059,6 +7075,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 />
               ) : null}
               <img
+                ref={primaryImageRef}
                 src={imageFor(displayImage)}
                 {...responsiveImageProps(displayImage, imagePreset)}
                 alt={product.name}
@@ -11370,8 +11387,16 @@ function Storefront() {
     setCart((prev) => prev.filter((item) => item.lineId !== lineId));
   }, []);
 
-  const onAddToCart = useCallback((product, variant, quantity = 1) => {
+  const onAddToCart = useCallback((product, variant, quantity = 1, options = {}) => {
     if (!product || !variant) return;
+    const sourceEl = options && typeof options === "object" ? options.sourceEl : null;
+    if (sourceEl) {
+      try {
+        animateFlyToCart({ imageEl: sourceEl, cartEl: getVisibleCartActionElement() });
+      } catch {
+        // Keep cart updates working even if the animation path fails.
+      }
+    }
     const nextLine = normalizeCartLine(product, variant, quantity);
     setCart((prev) => {
       const existingIndex = prev.findIndex((item) => String(item.product_id) === String(nextLine.product_id) && String(item.variant_id) === String(nextLine.variant_id));

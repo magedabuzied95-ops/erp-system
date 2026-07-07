@@ -1,4 +1,4 @@
-import { Component, useState } from "react";
+import { Component, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { PackageSearch } from "lucide-react";
@@ -40,6 +40,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
   } = helpers;
   const safeProduct = product && typeof product === "object" ? product : {};
   const variants = Array.isArray(safeProduct?.variants) ? safeProduct.variants : [];
+  const imageRef = useRef(null);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [showSizes, setShowSizes] = useState(false);
   const variant = variants.find((item) => String(item.id) === String(selectedVariantId)) || firstDisplayVariant(variants);
@@ -62,14 +63,14 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
       toast.error(sfText("storefront.toasts.variantUnavailable", "هذا المقاس أو اللون غير متاح حاليًا."));
       return;
     }
-    onQuickAdd(safeProduct, variant, 1);
+    onQuickAdd(safeProduct, variant, 1, { sourceEl: imageRef.current });
   };
 
   return (
     <article className="sf-visual-card" style={{ animationDelay: `${index * 45}ms` }}>
       <button type="button" onClick={viewProduct} className="sf-visual-card-main">
         <span className="sf-visual-card-image-wrap">
-          <img src={imageFor(displayImageForProduct(safeProduct, variant))} onError={fallbackProductImage} alt={safeProduct?.name || ""} className="sf-visual-card-image" loading="lazy" decoding="async" />
+          <img ref={imageRef} src={imageFor(displayImageForProduct(safeProduct, variant))} onError={fallbackProductImage} alt={safeProduct?.name || ""} className="sf-visual-card-image" loading="lazy" decoding="async" />
         </span>
         <span className="min-w-0 flex-1 text-right">
           <span className="sf-visual-card-name">{safeProduct?.name}</span>

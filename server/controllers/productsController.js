@@ -7,6 +7,7 @@ import {
   loadProductVariantImages,
   replaceProductVariantImages,
 } from "../services/productVariantImagesService.js";
+import { syncProductPricingFromVariants } from "../services/productPricingSyncService.js";
 import {
   ensureAiShoeCoverSchema,
   isAiShoeCoverGenerationEnabled,
@@ -3903,6 +3904,10 @@ export const createProduct = async (req, res) => {
       productId,
       variants: preparedVariants,
     });
+    await syncProductPricingFromVariants(client, {
+      productId,
+      tenantId,
+    });
     performanceLogger.markStage("Save variants");
 
     const persistedVariantImageRows = await replaceProductVariantImages(client, {
@@ -4656,6 +4661,10 @@ export const updateProduct = async (req, res) => {
           })
         );
       }
+      await syncProductPricingFromVariants(client, {
+        productId,
+        tenantId,
+      });
       explicitlyArchivedVariants = await archiveProductVariantsByIds(client, {
         productId,
         tenantId,
@@ -5213,6 +5222,10 @@ export const updateProductPrices = async (req, res) => {
         changes: auditChanges,
       },
     });
+    await syncProductPricingFromVariants(client, {
+      productId,
+      tenantId,
+    });
     await client.query("COMMIT");
     console.log("[products:price-update]", { product_id: productId, tenant_id: tenantId, changed_rows: auditChanges.length });
     return res.json({ success: true, message: "Product prices updated", product_id: productId });
@@ -5498,6 +5511,11 @@ export const createVariant = async (req, res) => {
       userId: req.user?.id || null,
       referenceType: "product",
     });
+    await syncProductPricingFromVariants(client, {
+      productId: req.params.id,
+      tenantId,
+      variantId: createdVariant.id,
+    });
 
     console.log("CREATE VARIANT INSERTED:", {
       productId: req.params.id,
@@ -5695,6 +5713,11 @@ export const updateVariant = async (req, res) => {
         req.params.id,
       ]
     );
+    await syncProductPricingFromVariants(client, {
+      productId: currentVariant.product_id,
+      tenantId,
+      variantId: updated.rows[0]?.id || currentVariant.id,
+    });
 
     await client.query("COMMIT");
     const updatedVariantRow = normalizeVariantRow(updated.rows[0]);
@@ -5804,6 +5827,10 @@ export const deleteVariant = async (req, res) => {
       `,
       [req.params.id]
     );
+    await syncProductPricingFromVariants(client, {
+      productId: variant.product_id,
+      tenantId,
+    });
 
     await client.query("COMMIT");
 
