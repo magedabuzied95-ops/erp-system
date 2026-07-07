@@ -1507,6 +1507,7 @@ function POSPro() {
   const lastBarcodeSubmitRef = useRef({ value: "", timer: null });
   const globalBarcodeBufferRef = useRef({ value: "", startedAt: 0, lastAt: 0 });
   const posSearchMatchLogRef = useRef({ query: "", keys: new Set() });
+  const customerSearchRequestSeqRef = useRef(0);
   const shiftSessionRecoveredRef = useRef(false);
   const loadedRouteEditOrderIdRef = useRef("");
   const paymobPollingRef = useRef({ timer: null, cancelled: false });
@@ -2113,6 +2114,8 @@ function POSPro() {
     if (!searchValue || selectedCustomerId) return undefined;
 
     const controller = new AbortController();
+    const requestSeq = customerSearchRequestSeqRef.current + 1;
+    customerSearchRequestSeqRef.current = requestSeq;
     const timeoutId = window.setTimeout(async () => {
       try {
         const response = await api.get("/customers", {
@@ -2133,12 +2136,17 @@ function POSPro() {
             const key = String(item?.id || item?.customer_id || "");
             if (key) merged.set(key, item);
           });
+          if (controller.signal.aborted || customerSearchRequestSeqRef.current !== requestSeq) return existing;
           return Array.from(merged.values());
         });
       } catch (err) {
-        if (err?.name !== "AbortError") {
-          console.error("[pos] failed to search customers:", err);
-        }
+        const aborted =
+          err?.name === "AbortError" ||
+          err?.code === "ERR_CANCELED" ||
+          String(err?.message || "").toLowerCase().includes("aborted") ||
+          String(err?.message || "").toLowerCase().includes("canceled");
+        if (aborted) return;
+        console.error("[pos] failed to search customers:", err);
       }
     }, 180);
 

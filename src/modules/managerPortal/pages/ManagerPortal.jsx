@@ -1144,7 +1144,7 @@ export default function ManagerPortal() {
   useEffect(() => {
     if (!isBrowser()) return undefined;
     const socket = createSocket(SOCKET_URL, {
-      transports: ["websocket"],
+      transports: ["websocket", "polling"],
       auth: { managerPortalToken: token },
     });
     socketRef.current = socket;
