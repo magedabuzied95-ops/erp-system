@@ -5007,6 +5007,8 @@ export const updateProduct = async (req, res) => {
     });
   } catch (error) {
     console.error("PRODUCT_UPDATE_FAILED", {
+      productId: req.params.id,
+      payloadKeys: Object.keys(req.body || {}),
       message: error?.message,
       stack: error?.stack,
       code: error?.code,

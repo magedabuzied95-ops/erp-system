@@ -6,6 +6,10 @@ const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 };
+const toNullableForeignKey = (value) => {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : null;
+};
 
 const toBool = (value) => value === true || value === 1 || value === "1" || String(value || "").toLowerCase() === "true";
 let productVariantImagesSchemaPromise = null;
@@ -168,8 +172,8 @@ const normalizeImageInput = (image = {}, fallback = {}) => {
     if (!imageUrl) return null;
     return {
       id: null,
-      product_id: fallback.product_id || null,
-      variant_id: fallback.variant_id ?? null,
+      product_id: toNullableForeignKey(fallback.product_id),
+      variant_id: toNullableForeignKey(fallback.variant_id),
       color_name: toText(fallback.color_name || fallback.color || ""),
       color_value: toText(fallback.color_value || fallback.color || ""),
       image_url: imageUrl,
@@ -183,8 +187,8 @@ const normalizeImageInput = (image = {}, fallback = {}) => {
 
   return {
     id: image.id ?? null,
-    product_id: image.product_id ?? fallback.product_id ?? null,
-    variant_id: image.variant_id ?? fallback.variant_id ?? null,
+    product_id: toNullableForeignKey(image.product_id ?? fallback.product_id),
+    variant_id: toNullableForeignKey(image.variant_id ?? fallback.variant_id),
     color_name: toText(image.color_name || image.colorName || image.color || fallback.color_name || fallback.color || ""),
     color_value: toText(image.color_value || image.colorValue || image.color || fallback.color_value || fallback.color || ""),
     image_url: imageUrl,
@@ -436,7 +440,7 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
         return {
           tenant_id: effectiveTenantId,
           product_id: productId,
-          variant_id: record.variant_id ?? null,
+          variant_id: toNullableForeignKey(record.variant_id),
           color_name: record.color_name || "",
           color_value: record.color_value || "",
           image_url: normalizedImageUrl,
