@@ -12,15 +12,39 @@ import {
   getSiteSettings,
   updateSiteSettings,
 } from "../services/siteSettingsService.js";
+import { getWebsiteSettings } from "../services/liveActivityService.js";
 import { getTenantId } from "../utils/requestScope.js";
 import { normalizeSettingsCategory, settingsByCategory } from "../../shared/settingsRegistry.js";
 
 const router = express.Router();
 
+const publicTenantId = (req) => {
+  const raw = req.headers?.["x-tenant-id"] || req.body?.tenant_id || req.query?.tenant_id || req.body?.tenantId || req.query?.tenantId || 1;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : 1;
+};
+
 router.get("/public", async (req, res) => {
   try {
-    const settings = await getPublicSettings();
-    res.json({ success: true, settings });
+    const tenantId = publicTenantId(req);
+    const [settings, websiteSettings] = await Promise.all([
+      getPublicSettings(),
+      getWebsiteSettings({ tenantId }).catch(() => ({})),
+    ]);
+    const saleModeEnabled = websiteSettings?.sale_mode_enabled;
+    const mergedSettings = {
+      ...settings,
+      sale_mode_enabled: saleModeEnabled ?? settings?.sale_mode_enabled,
+      global_sale_enabled: websiteSettings?.global_sale_enabled ?? saleModeEnabled ?? settings?.global_sale_enabled,
+      sale_prices_enabled: websiteSettings?.sale_prices_enabled ?? saleModeEnabled ?? settings?.sale_prices_enabled,
+      storefront: {
+        ...(settings?.storefront || {}),
+        sale_mode_enabled: saleModeEnabled ?? settings?.storefront?.sale_mode_enabled,
+        global_sale_enabled: websiteSettings?.global_sale_enabled ?? saleModeEnabled ?? settings?.storefront?.global_sale_enabled,
+        sale_prices_enabled: websiteSettings?.sale_prices_enabled ?? saleModeEnabled ?? settings?.storefront?.sale_prices_enabled,
+      },
+    };
+    res.json({ success: true, settings: mergedSettings });
   } catch (error) {
     console.error("[settings] public settings error", error);
     res.status(500).json({ success: false, message: "Failed to load public settings" });

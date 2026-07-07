@@ -341,25 +341,81 @@ const extractPublicStorefrontSettings = (response = {}) => {
     bodySettings ||
     (dataObject && !Array.isArray(dataObject) ? dataObject : null) ||
     (response && typeof response === "object" && !Array.isArray(response) ? response : {});
-  const rawSaleModeEnabled =
+  const saleModeEnabledCandidate =
     settings?.sale_mode_enabled ??
+    settings?.saleModeEnabled ??
+    settings?.global_sale_enabled ??
+    settings?.sale_prices_enabled ??
     settings?.storefront?.sale_mode_enabled ??
+    settings?.storefront?.saleModeEnabled ??
+    settings?.storefront?.global_sale_enabled ??
+    settings?.storefront?.sale_prices_enabled ??
     response?.sale_mode_enabled ??
+    response?.saleModeEnabled ??
+    response?.global_sale_enabled ??
+    response?.sale_prices_enabled ??
     response?.data?.sale_mode_enabled ??
+    response?.data?.saleModeEnabled ??
+    response?.data?.global_sale_enabled ??
+    response?.data?.sale_prices_enabled ??
     response?.data?.settings?.sale_mode_enabled ??
+    response?.data?.settings?.saleModeEnabled ??
+    response?.data?.settings?.global_sale_enabled ??
+    response?.data?.settings?.sale_prices_enabled ??
     response?.data?.settings?.storefront?.sale_mode_enabled ??
+    response?.data?.settings?.storefront?.saleModeEnabled ??
+    response?.data?.settings?.storefront?.global_sale_enabled ??
+    response?.data?.settings?.storefront?.sale_prices_enabled ??
     response?.responseBody?.sale_mode_enabled ??
+    response?.responseBody?.saleModeEnabled ??
+    response?.responseBody?.global_sale_enabled ??
+    response?.responseBody?.sale_prices_enabled ??
     response?.responseBody?.settings?.sale_mode_enabled ??
+    response?.responseBody?.settings?.saleModeEnabled ??
+    response?.responseBody?.settings?.global_sale_enabled ??
+    response?.responseBody?.settings?.sale_prices_enabled ??
     response?.responseBody?.settings?.storefront?.sale_mode_enabled ??
+    response?.responseBody?.settings?.storefront?.saleModeEnabled ??
+    response?.responseBody?.settings?.storefront?.global_sale_enabled ??
+    response?.responseBody?.settings?.storefront?.sale_prices_enabled ??
     response?.payload?.sale_mode_enabled ??
+    response?.payload?.saleModeEnabled ??
+    response?.payload?.global_sale_enabled ??
+    response?.payload?.sale_prices_enabled ??
     response?.payload?.settings?.sale_mode_enabled ??
+    response?.payload?.settings?.saleModeEnabled ??
+    response?.payload?.settings?.global_sale_enabled ??
+    response?.payload?.settings?.sale_prices_enabled ??
     response?.payload?.settings?.storefront?.sale_mode_enabled ??
+    response?.payload?.settings?.storefront?.saleModeEnabled ??
+    response?.payload?.settings?.storefront?.global_sale_enabled ??
+    response?.payload?.settings?.storefront?.sale_prices_enabled ??
     response?.result?.sale_mode_enabled ??
+    response?.result?.saleModeEnabled ??
+    response?.result?.global_sale_enabled ??
+    response?.result?.sale_prices_enabled ??
     response?.result?.settings?.sale_mode_enabled ??
+    response?.result?.settings?.saleModeEnabled ??
+    response?.result?.settings?.global_sale_enabled ??
+    response?.result?.settings?.sale_prices_enabled ??
     response?.result?.settings?.storefront?.sale_mode_enabled ??
+    response?.result?.settings?.storefront?.saleModeEnabled ??
+    response?.result?.settings?.storefront?.global_sale_enabled ??
+    response?.result?.settings?.storefront?.sale_prices_enabled ??
     response?.body?.sale_mode_enabled ??
+    response?.body?.saleModeEnabled ??
+    response?.body?.global_sale_enabled ??
+    response?.body?.sale_prices_enabled ??
     response?.body?.settings?.sale_mode_enabled ??
-    response?.body?.settings?.storefront?.sale_mode_enabled;
+    response?.body?.settings?.saleModeEnabled ??
+    response?.body?.settings?.global_sale_enabled ??
+    response?.body?.settings?.sale_prices_enabled ??
+    response?.body?.settings?.storefront?.sale_mode_enabled ??
+    response?.body?.settings?.storefront?.saleModeEnabled ??
+    response?.body?.settings?.storefront?.global_sale_enabled ??
+    response?.body?.settings?.storefront?.sale_prices_enabled;
+  const rawSaleModeEnabled =
+    saleModeEnabledCandidate;
   return { settings, rawSaleModeEnabled };
 };
 const logStorefrontCardPriceDebug = (payload = {}) => {
@@ -7852,6 +7908,13 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
           dataKeys: Object.keys(data?.data || {}),
           dataSettingsKeys: Object.keys(data?.data?.settings || {}),
         });
+        console.log("STOREFRONT_PUBLIC_SETTINGS_SALE_KEYS", {
+          responseSettingsSaleMode: data?.settings?.sale_mode_enabled,
+          responseSettingsSaleModeAlt: data?.settings?.saleModeEnabled,
+          responseSettingsGlobalSale: data?.settings?.global_sale_enabled,
+          responseSettingsSalePrices: data?.settings?.sale_prices_enabled,
+          responseSettingsKeys: Object.keys(data?.settings || {}).filter((key) => String(key).toLowerCase().includes("sale")),
+        });
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
         const parsedSaleModeEnabled = parseStorefrontSaleModeEnabled(rawSaleModeEnabled, true);
         const normalizedSettings = {
@@ -7862,7 +7925,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         setPublicStoreSettings(normalizedSettings);
         storefrontPublicSaleModeEnabledRaw = rawSaleModeEnabled;
         console.debug("STOREFRONT_PUBLIC_SALE_MODE", {
-          sale_mode_enabled: rawSaleModeEnabled,
+          sale_mode_enabled: parsedSaleModeEnabled,
           parsed_sale_mode_enabled: parsedSaleModeEnabled,
         });
         console.debug("[payment-settings:loaded]", {
@@ -11464,6 +11527,13 @@ function Storefront() {
           dataKeys: Object.keys(data?.data || {}),
           dataSettingsKeys: Object.keys(data?.data?.settings || {}),
         });
+        console.log("STOREFRONT_PUBLIC_SETTINGS_SALE_KEYS", {
+          responseSettingsSaleMode: data?.settings?.sale_mode_enabled,
+          responseSettingsSaleModeAlt: data?.settings?.saleModeEnabled,
+          responseSettingsGlobalSale: data?.settings?.global_sale_enabled,
+          responseSettingsSalePrices: data?.settings?.sale_prices_enabled,
+          responseSettingsKeys: Object.keys(data?.settings || {}).filter((key) => String(key).toLowerCase().includes("sale")),
+        });
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
         const parsedSaleModeEnabled = parseStorefrontSaleModeEnabled(rawSaleModeEnabled, true);
         const normalizedSettings = {
@@ -11473,7 +11543,7 @@ function Storefront() {
         setPublicStoreSettings(normalizedSettings);
         storefrontPublicSaleModeEnabledRaw = rawSaleModeEnabled;
         console.debug("STOREFRONT_PUBLIC_SALE_MODE", {
-          sale_mode_enabled: rawSaleModeEnabled,
+          sale_mode_enabled: parsedSaleModeEnabled,
           parsed_sale_mode_enabled: parsedSaleModeEnabled,
         });
       })
