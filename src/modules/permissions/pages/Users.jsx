@@ -7,23 +7,91 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import Can from "../components/Can";
 import PermissionsShell from "../components/PermissionsShell";
-import { getRoleCatalog } from "../lib/rbacStore";
 
-const normalizeRoleOption = (role = {}) => {
-  const numericId = Number(role.id ?? role.role_id);
-  const hasNumericId = Number.isInteger(numericId) && numericId > 0;
+const normalizeRoleText = (value = "") => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+
+const extractRolesRows = (response) => {
+  if (Array.isArray(response)) return response;
+  if (Array.isArray(response?.roles)) return response.roles;
+  if (Array.isArray(response?.data)) return response.data;
+  if (Array.isArray(response?.data?.roles)) return response.data.roles;
+  if (Array.isArray(response?.items)) return response.items;
+  if (Array.isArray(response?.data?.items)) return response.data.items;
+  return [];
+};
+
+const resolveRoleNumericId = (role = {}, backendRoles = []) => {
+  const numericCandidates = [role.id, role.role_id, role.value, role.key]
+    .map((value) => Number(value))
+    .find((value) => Number.isInteger(value) && value > 0);
+  if (numericCandidates) return numericCandidates;
+
+  const roleAliases = [
+    role.slug,
+    role.name,
+    role.role_name,
+    role.display_name,
+    role.label,
+    role.title,
+    role.value,
+    role.key,
+  ].map(normalizeRoleText).filter(Boolean);
+  if (!roleAliases.length) return null;
+
+  for (const backendRole of backendRoles) {
+    const backendNumeric = [backendRole.id, backendRole.role_id, backendRole.value, backendRole.key]
+      .map((value) => Number(value))
+      .find((value) => Number.isInteger(value) && value > 0);
+    if (!backendNumeric) continue;
+
+    const backendAliases = [
+      backendRole.id,
+      backendRole.role_id,
+      backendRole.value,
+      backendRole.key,
+      backendRole.slug,
+      backendRole.name,
+      backendRole.role_name,
+      backendRole.display_name,
+      backendRole.label,
+      backendRole.title,
+    ].map(normalizeRoleText).filter(Boolean);
+
+    if (backendAliases.some((alias) => roleAliases.includes(alias))) return backendNumeric;
+  }
+
+  return null;
+};
+
+const normalizeRoleOption = (role = {}, backendRoles = []) => {
+  const numericId = resolveRoleNumericId(role, backendRoles);
+  if (!numericId) {
+    console.log("USERS_INVALID_ROLE_OPTION", role);
+    return null;
+  }
+
   return {
     ...role,
-    id: hasNumericId ? numericId : null,
-    role_id: role.role_id != null ? Number(role.role_id) : null,
-    name: role.name || role.role_name || "Role",
+    id: numericId,
+    role_id: numericId,
+    value: numericId,
+    key: numericId,
+    name: role.name || role.role_name || role.display_name || role.label || role.title || "Role",
+    slug: role.slug || String(role.name || role.role_name || role.display_name || role.label || role.title || numericId).toLowerCase().replace(/\s+/g, "-"),
     permissions: Array.isArray(role.permissions) ? role.permissions.map(String) : [],
   };
 };
 
 const normalizeUser = (user = {}, roles = []) => {
-  const roleMap = new Map(roles.map((role) => [String(role.id), role]));
-  const role = roleMap.get(String(user.role_id ?? "")) || null;
+  const roleMap = new Map(
+    roles.flatMap((role) => [
+      [String(role.id), role],
+      [String(role.role_id), role],
+      [normalizeRoleText(role.name), role],
+      [normalizeRoleText(role.slug), role],
+    ])
+  );
+  const role = roleMap.get(String(user.role_id ?? "")) || roleMap.get(normalizeRoleText(user.role)) || roleMap.get(normalizeRoleText(user.role_name)) || null;
   const roleName = user.role || user.role_name || role?.name || role?.slug || "Custom Role";
   const permissions = Array.isArray(user.permissions) && user.permissions.length
     ? user.permissions.map(String)
@@ -45,7 +113,7 @@ const normalizeUser = (user = {}, roles = []) => {
 
 function UsersPage() {
   const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState(getRoleCatalog());
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -54,18 +122,8 @@ function UsersPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const roleOptions = useMemo(() => {
-    const nextOptions = roles
-      .map(normalizeRoleOption)
-      .filter((role) => {
-        const hasNumericId = Number.isInteger(Number(role?.id)) && Number(role.id) > 0;
-        if (!hasNumericId && import.meta.env?.DEV) {
-          console.warn("USERS_INVALID_ROLE_OPTION", role);
-        }
-        return hasNumericId;
-      });
-    if (import.meta.env?.DEV) {
-      console.log("USERS_ROLE_OPTIONS", nextOptions.map((role) => ({ id: role.id, name: role.name, role_id: role.role_id ?? null })));
-    }
+    const nextOptions = roles.map((role) => normalizeRoleOption(role, roles)).filter(Boolean);
+    console.log("USERS_ROLE_OPTIONS", nextOptions.map((role) => ({ id: role.id, name: role.name, role_id: role.role_id ?? null, slug: role.slug ?? null })));
     return nextOptions;
   }, [roles]);
   const [selectedRoleId, setSelectedRoleId] = useState("");
@@ -80,10 +138,13 @@ function UsersPage() {
 
         if (!active) return;
 
-        let nextRoles = getRoleCatalog();
+        let nextRoles = [];
         if (rolesRes.status === "fulfilled") {
-          const rows = Array.isArray(rolesRes.value) ? rolesRes.value : rolesRes.value?.roles || [];
-          nextRoles = rows.length ? rows.map(normalizeRoleOption) : getRoleCatalog().map(normalizeRoleOption);
+          const rows = extractRolesRows(rolesRes.value);
+          console.log("USERS_RAW_ROLES", rows);
+          nextRoles = rows.map((role) => normalizeRoleOption(role, rows)).filter(Boolean);
+        } else {
+          console.log("USERS_RAW_ROLES", []);
         }
         setRoles(nextRoles);
 
