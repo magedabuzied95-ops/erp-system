@@ -93,7 +93,7 @@ import {
   storefrontPathFromLink,
 } from "./lib/paths";
 import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
-import { getDisplayPricing, parseSaleModeEnabled } from "../shared/lib/storefrontPricing";
+import { getDisplayPricing, parseSaleModeEnabled as importedParseSaleModeEnabled } from "../shared/lib/storefrontPricing";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import instaPayLogo from "../assets/payments/instapay.png";
 import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
@@ -113,6 +113,7 @@ const productBaseUrl = (product = {}) => {
   const identifier = productRouteIdentifier(product);
   return identifier ? productPath(identifier) : productsPath();
 };
+const parseSaleModeEnabled = importedParseSaleModeEnabled;
 const appendProductUrlParams = (url = "", entries = []) => {
   const [path, query = ""] = String(url || "").split("?");
   const params = new URLSearchParams(query);
@@ -6909,7 +6910,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     [activeColorVariant, firstAvailableVariant, selectedVariant, selectedVariantIsAvailable]
   );
   const inWishlist = useMemo(() => wishlist.some((item) => String(item.id) === String(product.id)), [product.id, wishlist]);
-  const parsedSaleModeEnabled = parseSaleModeEnabled(saleModeEnabled, true);
+  const rawSaleModeEnabled = saleModeEnabled;
+  const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, true);
   const pricing = useMemo(
     () => getDisplayPricing(product, parsedSaleModeEnabled, availableVariant),
     [availableVariant, product, parsedSaleModeEnabled]
@@ -7019,11 +7021,16 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     if (nextVariant?.id) setSelectedVariantId(nextVariant.id);
   }, [activeSizes, selectedVariant?.size, selectedVariantId]);
   useEffect(() => {
+    console.log("PRODUCT_CARD_PARSER", {
+      rawSaleModeEnabled: saleModeEnabled,
+      parsedSaleModeEnabled,
+      parserReference: parseSaleModeEnabled === importedParseSaleModeEnabled,
+    });
     logStorefrontCardPriceDebug({
       componentName: "ProductCard",
       productId: product?.id || product?.product_id || null,
       title: product?.name || product?.title || "",
-      rawSaleModeEnabled: storefrontPublicSaleModeEnabledRaw,
+      rawSaleModeEnabled,
       parsedSaleModeEnabled,
       sellingPrice: pricing.sellingPrice,
       salePrice: pricing.salePrice,
@@ -7038,11 +7045,11 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     pricing,
     product?.id,
     product?.name,
-    product?.product_id,
-    product?.title,
-    parsedSaleModeEnabled,
-    sellingPrice,
-  ]);
+      product?.product_id,
+      product?.title,
+      parsedSaleModeEnabled,
+      sellingPrice,
+    ]);
 
   const quickAddActiveGroup = useMemo(
     () => colorGroups.find((group) => String(group.key) === String(quickAddColorKey)) || (colorGroups.length === 1 ? colorGroups[0] : null),

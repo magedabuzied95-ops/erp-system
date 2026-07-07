@@ -100,6 +100,10 @@ export const getDisplayPricing = (product = {}, saleModeEnabled = true, variant 
   const sellingPrice = storefrontSellingPrice(product, resolvedVariant || {});
   const salePrice = parseStorefrontPriceValue(resolvedVariant?.sale_price ?? product?.sale_price ?? resolvedVariant?.offer_price ?? product?.offer_price ?? 0);
   const enabled = parseSaleModeEnabled(saleModeEnabled, true);
+  console.log("GET_DISPLAY_PRICING_INPUT", {
+    saleModeEnabled,
+    parsed: enabled,
+  });
   let price = sellingPrice;
   let comparePrice = null;
   let isOnSale = false;
