@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import db from "../server/database/db.js";
-import { createUser, updateUserRole, updateUserStatus } from "../server/controllers/usersController.js";
+import { createUser, getUsers, updateUserRole, updateUserStatus } from "../server/controllers/usersController.js";
 
 const makeResponse = () => {
   const response = {
@@ -79,8 +79,7 @@ test("createUser accepts the exact Users.jsx payload and hashes passwords", asyn
         name: "Test User",
         email: "test.user@example.com",
         password: "Secret123!",
-        role_id: "cashier",
-        role: "Cashier",
+        role_id: 12,
       },
       user: {
         id: 1,
@@ -102,9 +101,48 @@ test("createUser accepts the exact Users.jsx payload and hashes passwords", asyn
     const insertQuery = queries.find((entry) => String(entry.sql).includes("INSERT INTO users"));
     assert.ok(insertQuery, "expected insert query to run");
     assert.equal(insertQuery.params[3], 12);
-    assert.equal(insertQuery.params[6], "cashier");
     assert.match(String(insertQuery.params[4] || ""), /^\$2[aby]\$/);
     assert.notEqual(insertQuery.params[4], "Secret123!");
+  } finally {
+    db.query = originalQuery;
+  }
+});
+
+test("getUsers hides QA demo and debug users by default", async () => {
+  const originalQuery = db.query.bind(db);
+  db.query = async (sql, params = []) => {
+    const text = String(sql || "");
+    if (text.includes("FROM users u") && text.includes("LEFT JOIN roles r")) {
+      return {
+        rows: [
+          { id: 1, tenant_id: 7, name: "QA User A", email: "qa@example.com", role_id: 12, is_active: true, role: "cashier" },
+          { id: 2, tenant_id: 7, name: "Real User", email: "real@example.com", role_id: 12, is_active: true, role: "cashier" },
+        ],
+      };
+    }
+    throw new Error(`Unexpected query in getUsers filter test: ${text.slice(0, 120)}`);
+  };
+
+  try {
+    const req = {
+      user: {
+        id: 1,
+        role: "admin",
+        tenant_id: 7,
+      },
+      params: {},
+      query: {},
+      originalUrl: "/api/users",
+      method: "GET",
+    };
+    const res = makeResponse();
+
+    await getUsers(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.payload?.success, true);
+    assert.equal(res.payload?.users?.length, 1);
+    assert.equal(res.payload?.users?.[0]?.email, "real@example.com");
   } finally {
     db.query = originalQuery;
   }
@@ -152,7 +190,7 @@ test("updateUserRole resolves role slugs to numeric role_id for PATCH and PUT al
   try {
     const req = {
       body: {
-        role: "cashier",
+        role_id: 12,
       },
       user: {
         id: 1,

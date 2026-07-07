@@ -112,7 +112,6 @@ export const ALL_PERMISSIONS = MODULES.flatMap((module) =>
 
 const STORAGE_KEYS = {
   roles: "erp.permissions.roles",
-  users: "erp.permissions.users",
 };
 
 const normalizePermissionKey = (permission) => {
@@ -354,31 +353,6 @@ export const DEFAULT_ROLES = [
   },
 ];
 
-export const DEFAULT_USERS = [
-  {
-    id: "usr-1",
-    name: "System Admin",
-    email: "admin@erp.local",
-    role: "Admin",
-    status: "Active",
-    permissions: ["*"],
-  },
-  {
-    id: "usr-2",
-    name: "Finance Lead",
-    email: "finance@erp.local",
-    role: "Accountant",
-    status: "Active",
-  },
-  {
-    id: "usr-3",
-    name: "Cash Desk",
-    email: "cashier@erp.local",
-    role: "Cashier",
-    status: "Active",
-  },
-];
-
 const RAW_SIDEBAR_SECTIONS = [
   {
     title: "Main",
@@ -514,23 +488,6 @@ export const saveRoleCatalog = (roles) => {
     permissions: Array.isArray(role.permissions) ? role.permissions.map(normalizePermissionKey) : [],
   }));
   writeJson(STORAGE_KEYS.roles, normalized);
-  return normalized;
-};
-
-export const getUserCatalog = () => {
-  const localUsers = readJson(STORAGE_KEYS.users, []);
-  const map = new Map();
-  [...DEFAULT_USERS, ...localUsers].forEach((user) => {
-    if (!user) return;
-    const id = String(user.id || user.email || user.name);
-    map.set(id, normalizeUser(user));
-  });
-  return Array.from(map.values());
-};
-
-export const saveUserCatalog = (users) => {
-  const normalized = users.map(normalizeUser);
-  writeJson(STORAGE_KEYS.users, normalized);
   return normalized;
 };
 

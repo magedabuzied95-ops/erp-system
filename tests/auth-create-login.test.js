@@ -254,7 +254,7 @@ test("created user can log in immediately with the same email and password", asy
         name: "New User",
         email: "new.user@example.com",
         password: "Secret123!",
-        role: "cashier",
+        role_id: 12,
       },
       user: {
         id: 1,
@@ -554,7 +554,7 @@ test("create user persists to users table, GET /api/users returns it, and login 
         name: "New User",
         email: "new.user@example.com",
         password: "Secret123!",
-        role: "cashier",
+        role_id: 12,
       },
       user: {
         id: 1,

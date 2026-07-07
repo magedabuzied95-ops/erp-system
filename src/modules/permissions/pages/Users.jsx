@@ -7,15 +7,58 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import Can from "../components/Can";
 import PermissionsShell from "../components/PermissionsShell";
-import {
-  getRoleCatalog,
-  normalizeRole,
-  normalizeUser,
-} from "../lib/rbacStore";
+
+const formatRoleLabel = (value = "") => {
+  const normalized = String(value || "")
+    .trim()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  if (!normalized) return "Custom Role";
+
+  return normalized
+    .split(" ")
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
+
+const normalizeRole = (role = {}) => ({
+  ...role,
+  id: String(role.id ?? ""),
+  name: formatRoleLabel(role.name || role.role_name || role.slug || role.id),
+  slug: String(role.slug || role.name || role.id || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-"),
+  permissions: Array.isArray(role.permissions) ? role.permissions.map(String) : [],
+});
+
+const normalizeUser = (user = {}, roles = []) => {
+  const roleMap = new Map(roles.map((role) => [String(role.id), role]));
+  const role = roleMap.get(String(user.role_id ?? "")) || null;
+  const roleName = formatRoleLabel(user.role || user.role_name || role?.name || role?.slug || user.role_id || "Custom Role");
+  const permissions = Array.isArray(user.permissions) && user.permissions.length
+    ? user.permissions.map(String)
+    : Array.isArray(role?.permissions)
+      ? role.permissions.map(String)
+      : [];
+
+  return {
+    ...user,
+    id: String(user.id || user.email || user.name),
+    name: user.name || "User",
+    email: user.email || "",
+    role: roleName,
+    role_id: user.role_id != null ? String(user.role_id) : role?.id || "",
+    status: user.is_active === false ? "Disabled" : user.status || "Active",
+    permissions,
+  };
+};
 
 function UsersPage() {
   const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState(getRoleCatalog());
+  const [roles, setRoles] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -23,7 +66,7 @@ function UsersPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [roleId, setRoleId] = useState(roles[0]?.id || "admin");
+  const [roleId, setRoleId] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -35,16 +78,20 @@ function UsersPage() {
 
         if (!active) return;
 
+        let nextRoles = [];
         if (rolesRes.status === "fulfilled") {
           const rows = Array.isArray(rolesRes.value) ? rolesRes.value : rolesRes.value?.roles || [];
-          setRoles(rows.length ? rows.map(normalizeRole) : getRoleCatalog());
-        } else {
-          setRoles(getRoleCatalog());
+          nextRoles = rows.length ? rows.map(normalizeRole) : [];
         }
+        setRoles(nextRoles);
+        setRoleId((current) => {
+          const currentValue = String(current || "");
+          return currentValue && nextRoles.some((role) => String(role.id) === currentValue) ? currentValue : String(nextRoles[0]?.id || "");
+        });
 
         if (usersRes.status === "fulfilled") {
           const rows = Array.isArray(usersRes.value) ? usersRes.value : usersRes.value?.users || [];
-          setUsers(rows.length ? rows.map(normalizeUser) : []);
+          setUsers(rows.length ? rows.map((user) => normalizeUser(user, nextRoles)) : []);
         } else {
           setUsers([]);
         }
@@ -52,7 +99,8 @@ function UsersPage() {
         if (!active) return;
         console.log(err);
         setUsers([]);
-        setRoles(getRoleCatalog());
+        setRoles([]);
+        setRoleId("");
         setError("Users endpoint unavailable.");
         toast.error("Users endpoint unavailable.");
       } finally {
@@ -77,20 +125,26 @@ function UsersPage() {
       return;
     }
 
-    const role = roles.find((item) => item.id === roleId) || roles[0];
+    const selectedRole = roles.find((item) => String(item.id) === String(roleId));
+    const numericRoleId = Number(selectedRole?.id ?? roleId);
+    if (!Number.isInteger(numericRoleId) || numericRoleId <= 0) {
+      toast.error("Please select a valid role");
+      return;
+    }
+
     const record = normalizeUser({
       id: `usr-${Date.now()}`,
       name: name.trim(),
       email: email.trim(),
-      role: role?.name || "Custom Role",
-      role_id: role?.id || "",
+      role: selectedRole?.name || selectedRole?.slug || "",
+      role_id: String(numericRoleId),
       status: "Active",
-      permissions: role?.permissions || [],
-    });
+      permissions: selectedRole?.permissions || [],
+    }, roles);
 
     const next = [record, ...users];
     try {
-      await api.post("/users", { name: record.name, email: record.email, password, role_id: record.role_id, role: record.role });
+      await api.post("/users", { name: record.name, email: record.email, password, role_id: numericRoleId });
       setUsers(next);
       toast.success("User created");
     } catch (err) {
@@ -100,26 +154,31 @@ function UsersPage() {
       setName("");
       setEmail("");
       setPassword("");
-      setRoleId(roles[0]?.id || "admin");
+      setRoleId(String(roles[0]?.id || ""));
     }
   };
 
   const updateUserRole = async (userId, nextRoleId) => {
-    const role = roles.find((item) => item.id === nextRoleId);
+    const numericRoleId = Number(nextRoleId);
+    if (!Number.isInteger(numericRoleId) || numericRoleId <= 0) {
+      toast.error("Please select a valid role");
+      return;
+    }
+    const role = roles.find((item) => String(item.id) === String(nextRoleId));
     const nextUsers = users.map((user) =>
       user.id === userId
         ? normalizeUser({
             ...user,
             role: role?.name || user.role,
-            role_id: role?.id || "",
+            role_id: role?.id || String(numericRoleId || ""),
             permissions: role?.permissions || user.permissions,
-          })
+          }, roles)
         : user
     );
 
     setSavingId(userId);
     try {
-      await api.put(`/users/${userId}/role`, { role_id: nextRoleId, role: role?.name });
+      await api.put(`/users/${userId}/role`, { role_id: numericRoleId });
       setUsers(nextUsers);
       toast.success("Role updated");
     } catch (err) {
@@ -218,7 +277,7 @@ function UsersPage() {
                     <div>
                       <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Role</div>
                       <select
-                        value={roles.find((role) => role.name === user.role || role.id === user.role_id)?.id || roleId}
+                        value={String(roles.find((role) => String(role.id) === String(user.role_id))?.id || roleId || "")}
                         onChange={(e) => updateUserRole(user.id, e.target.value)}
                         disabled={savingId === user.id}
                         className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none disabled:opacity-50"
