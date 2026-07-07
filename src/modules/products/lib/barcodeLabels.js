@@ -523,6 +523,38 @@ export const getLabelQuantity = (selectedQuantity) => {
   return Number.isFinite(value) ? clamp(Math.floor(value), 0, 999) : 0;
 };
 
+const getVariantStockQuantity = (variant = {}, product = {}) => {
+  const candidates = [
+    variant?.stock_quantity,
+    variant?.stockQuantity,
+    variant?.quantity,
+    variant?.on_hand,
+    variant?.onHand,
+    variant?.stock,
+    variant?.available_stock,
+    variant?.availableStock,
+    variant?.inventory_stock,
+    variant?.inventoryStock,
+    product?.stock_quantity,
+    product?.stockQuantity,
+    product?.quantity,
+    product?.on_hand,
+    product?.onHand,
+    product?.stock,
+    product?.available_stock,
+    product?.availableStock,
+    product?.inventory_stock,
+    product?.inventoryStock,
+  ];
+
+  for (const candidate of candidates) {
+    const quantity = Number(candidate);
+    if (Number.isFinite(quantity)) return Math.floor(quantity);
+  }
+
+  return 0;
+};
+
 export const buildSmartProductQrPath = ({ productId, variantId = null, colorId = null } = {}) => {
   const normalizedProductId = String(productId || "").trim();
   if (!normalizedProductId) return "";
@@ -701,8 +733,8 @@ export const buildProductLabelItems = ({
   });
 
   const labelItems = filteredVariants.flatMap((variant) => {
-    const availableQty = variant ? Number(variant.stock || 0) : Number(product?.stock || 0);
-    const quantity = availableOnly ? availableQty : 1;
+    const availableQty = getVariantStockQuantity(variant || {}, product || {});
+    const quantity = availableQty;
 
     if (quantity <= 0) return [];
 
