@@ -1881,6 +1881,7 @@ function POSPro() {
       try {
         setLoading(true);
         setError("");
+        let saleModeForLoad = normalizeSaleModeSettings({ sale_mode_enabled: parseSaleModeEnabled(readUseSalePrices(), true) });
 
         let websiteSettings = null;
         try {
@@ -1895,7 +1896,7 @@ function POSPro() {
         if (websiteSettings) {
           const backendSaleModeEnabledRaw = websiteSettings?.settings?.sale_mode_enabled;
           const backendSaleModeEnabled = parseSaleModeEnabled(backendSaleModeEnabledRaw, true);
-          const normalizedSaleMode = normalizeSaleModeSettings({
+          saleModeForLoad = normalizeSaleModeSettings({
             ...(websiteSettings?.settings || {}),
             sale_mode_enabled: backendSaleModeEnabled,
           });
@@ -1907,15 +1908,15 @@ function POSPro() {
             source: "backend",
           });
           console.debug("POS_SALE_MODE_FINAL_STATE", {
-            sale_mode_enabled: normalizedSaleMode.sale_mode_enabled,
+            sale_mode_enabled: saleModeForLoad.sale_mode_enabled,
             backend_sale_mode_enabled: backendSaleModeEnabledRaw,
             parsed_backend_sale_mode_enabled: backendSaleModeEnabled,
             source: "backend",
           });
-          setSaleModeSettings(normalizedSaleMode);
+          setSaleModeSettings(saleModeForLoad);
         } else {
           const fallbackSaleModeEnabled = parseSaleModeEnabled(readUseSalePrices(), true);
-          const fallbackSaleMode = normalizeSaleModeSettings({ sale_mode_enabled: fallbackSaleModeEnabled });
+          saleModeForLoad = normalizeSaleModeSettings({ sale_mode_enabled: fallbackSaleModeEnabled });
           console.debug("POS_SALE_MODE_HYDRATE_BACKEND_RAW", {
             sale_mode_enabled: null,
             fallback: true,
@@ -1926,13 +1927,13 @@ function POSPro() {
             source: "localStorage_fallback",
           });
           console.debug("POS_SALE_MODE_FINAL_STATE", {
-            sale_mode_enabled: fallbackSaleMode.sale_mode_enabled,
+            sale_mode_enabled: saleModeForLoad.sale_mode_enabled,
             backend_sale_mode_enabled: null,
             parsed_backend_sale_mode_enabled: undefined,
             local_sale_mode_enabled: fallbackSaleModeEnabled,
             source: "localStorage_fallback",
           });
-          setSaleModeSettings(fallbackSaleMode);
+          setSaleModeSettings(saleModeForLoad);
         }
         const catalog = await refreshCatalogProducts({
           setProducts,
@@ -1940,7 +1941,7 @@ function POSPro() {
           manageLoading: false,
           isActive: () => active,
           signal: controller.signal,
-          saleModeSettings: normalizedSaleMode,
+          saleModeSettings: saleModeForLoad,
         });
         void catalog;
 
