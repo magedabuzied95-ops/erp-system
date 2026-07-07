@@ -1,7 +1,7 @@
 import express from "express";
 import { protect } from "../middleware/authMiddleware.js";
 import permit from "../middleware/permissionMiddleware.js";
-import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
+import { getTenantId } from "../utils/requestScope.js";
 import {
   getWebsiteSettings,
   updateWebsiteSettings,
@@ -27,7 +27,7 @@ router.get("/settings", protect, permit("website", "settings"), async (req, res)
 
 router.put("/settings", protect, permit("website", "settings"), async (req, res) => {
   try {
-    const tenantId = isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id);
+    const tenantId = getTenantId(req, req.user?.tenant_id);
     console.debug("WEBSITE_SETTINGS_PUT_BODY_SALE_MODE", {
       tenant_id: tenantId,
       sale_mode_enabled: req.body?.sale_mode_enabled,
