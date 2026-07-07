@@ -420,6 +420,14 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     || firstDisplayVariant(variants);
   const safeActiveVariant = activeVariant || {};
   const galleryImages = useMemo(() => buildProductGalleryImages(product, selectedVariant), [product, selectedVariant]);
+  useEffect(() => {
+    galleryImages.forEach((img) => {
+      const src = img?.url || img?.src || img;
+      if (!src) return;
+      const image = new Image();
+      image.src = src;
+    });
+  }, [galleryImages]);
   const activeImage = galleryImages[activeImageIndex] || galleryImages[0] || selected.image || variantImage(safeActiveVariant) || selectedColorGroup?.primaryImage?.image_url || selectedColorGroup?.primaryImage?.preview || firstVariantImage(variants) || product?.image_url || "";
   const galleryItems = useMemo(() => galleryImages.map((image) => ({ image })), [galleryImages]);
   const mirrorProduct = product ? isMirrorProduct(product) : false;
