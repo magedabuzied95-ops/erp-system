@@ -42,23 +42,64 @@ const isDebugLikeUser = (user = {}) => {
   return /(^|[^a-z0-9])(qa|test|debug|demo|sample|dummy|sandbox)([^a-z0-9]|$)/i.test(haystack);
 };
 
-const resolveRoleById = async (roleId) => {
+const resolveRoleById = async (roleId, { action = "create" } = {}) => {
   const numericRoleId = Number(roleId);
   if (!Number.isInteger(numericRoleId) || numericRoleId <= 0) {
     return null;
   }
 
-  const result = await db.query(
-    `
-    SELECT id, name, slug
+  const existenceSql = `
+    SELECT id
     FROM roles
     WHERE id = $1
     LIMIT 1
-    `,
-    [numericRoleId]
-  );
+  `;
+  const params = [numericRoleId];
 
-  return result.rows[0] || null;
+  console.log("[users] role lookup sql", {
+    action,
+    role_id: roleId ?? null,
+    parsedRoleId: numericRoleId,
+    sql: existenceSql.replace(/\s+/g, " ").trim(),
+    params,
+  });
+
+  const result = await db.query(existenceSql, params);
+
+  console.log("[users] role lookup candidates", {
+    action,
+    role_id: roleId ?? null,
+    parsedRoleId: numericRoleId,
+    rows: result.rows.map((row) => ({
+      id: row.id,
+    })),
+  });
+
+  if (!result.rows[0]) {
+    return null;
+  }
+
+  const detailsSql = `
+    SELECT id, tenant_id, name, slug
+    FROM roles
+    WHERE id = $1
+    LIMIT 1
+  `;
+  const detailsResult = await db.query(detailsSql, params);
+
+  console.log("[users] role lookup candidates", {
+    action,
+    role_id: roleId ?? null,
+    parsedRoleId: numericRoleId,
+    rows: detailsResult.rows.map((row) => ({
+      id: row.id,
+      tenant_id: row.tenant_id ?? null,
+      name: row.name || null,
+      slug: row.slug || null,
+    })),
+  });
+
+  return detailsResult.rows[0] || result.rows[0] || null;
 };
 
 const sanitizeUserBody = (body = {}) => {
@@ -241,7 +282,7 @@ async (req, res) => {
         10
       );
 
-    const resolvedRole = await resolveRoleById(roleId);
+    const resolvedRole = await resolveRoleById(roleId, { action: "create" });
 
     if (!resolvedRole) {
       console.warn("[users] role resolution failed", {
@@ -365,7 +406,7 @@ async (req, res) => {
       parsedRoleId: Number.isInteger(roleId) ? roleId : null,
     });
 
-    const resolvedRole = await resolveRoleById(roleId);
+    const resolvedRole = await resolveRoleById(roleId, { action: "update_role" });
 
     if (!resolvedRole) {
       console.warn("[users] role resolution failed", {

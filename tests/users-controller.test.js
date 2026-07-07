@@ -41,11 +41,26 @@ test("createUser accepts the exact Users.jsx payload and hashes passwords", asyn
         rows: [{ column_name: "role_id" }, { column_name: "role" }, { column_name: "password" }, { column_name: "is_active" }],
       };
     }
-    if (text.includes("FROM roles") && text.includes("LIMIT 1")) {
+    if (/SELECT\s+id\s+FROM\s+roles/i.test(text) && text.includes("LIMIT 1")) {
+      assert.match(text.replace(/\s+/g, " "), /SELECT id\s+FROM roles\s+WHERE id = \$1\s+LIMIT 1/i);
+      assert.doesNotMatch(text.replace(/\s+/g, " "), /WHERE[^]*tenant_id\s*=/i);
       return {
         rows: [
           {
             id: 12,
+            name: "cashier",
+            slug: "cashier",
+          },
+        ],
+      };
+    }
+    if (/SELECT\s+id,\s*tenant_id,\s*name,\s*slug\s+FROM\s+roles/i.test(text)) {
+      assert.match(text.replace(/\s+/g, " "), /SELECT id,\s*tenant_id,\s*name,\s*slug\s+FROM roles\s+WHERE id = \$1\s+LIMIT 1/i);
+      return {
+        rows: [
+          {
+            id: 12,
+            tenant_id: null,
             name: "cashier",
             slug: "cashier",
           },
@@ -108,6 +123,96 @@ test("createUser accepts the exact Users.jsx payload and hashes passwords", asyn
   }
 });
 
+test("createUser resolves a global role by numeric id for tenant-scoped requests", async () => {
+  const originalQuery = db.query.bind(db);
+  const queries = [];
+  db.query = async (sql, params = []) => {
+    const text = String(sql || "");
+    queries.push({ sql: text, params });
+    if (text.includes("information_schema.columns") && text.includes("FROM information_schema.columns")) {
+      return {
+        rows: [{ column_name: "role_id" }, { column_name: "password" }, { column_name: "is_active" }],
+      };
+    }
+    if (/SELECT\s+id\s+FROM\s+roles/i.test(text) && text.includes("LIMIT 1")) {
+      assert.match(text.replace(/\s+/g, " "), /SELECT id\s+FROM roles\s+WHERE id = \$1\s+LIMIT 1/i);
+      assert.doesNotMatch(text.replace(/\s+/g, " "), /WHERE[^]*tenant_id\s*=/i);
+      assert.equal(params[0], 1);
+      return {
+        rows: [
+          {
+            id: 1,
+            tenant_id: null,
+            name: "Admin",
+            slug: null,
+          },
+        ],
+      };
+    }
+    if (/SELECT\s+id,\s*tenant_id,\s*name,\s*slug\s+FROM\s+roles/i.test(text)) {
+      assert.match(text.replace(/\s+/g, " "), /SELECT id,\s*tenant_id,\s*name,\s*slug\s+FROM roles\s+WHERE id = \$1\s+LIMIT 1/i);
+      return {
+        rows: [
+          {
+            id: 1,
+            tenant_id: null,
+            name: "Admin",
+            slug: null,
+          },
+        ],
+      };
+    }
+    if (text.includes("SELECT id") && text.includes("FROM users") && text.includes("LOWER(email)")) {
+      return { rows: [] };
+    }
+    if (text.includes("INSERT INTO users")) {
+      return {
+        rows: [
+          {
+            id: 92,
+            tenant_id: 1,
+            name: params[1],
+            email: params[2],
+            role_id: params[3],
+            is_active: true,
+          },
+        ],
+      };
+    }
+    throw new Error(`Unexpected query in tenant role lookup test: ${text.slice(0, 120)}`);
+  };
+
+  try {
+    const req = {
+      body: {
+        name: "Tenant User",
+        email: "tenant.user@example.com",
+        password: "Secret123!",
+        role_id: 1,
+      },
+      user: {
+        id: 1,
+        role: "admin",
+        tenant_id: 1,
+      },
+      params: {},
+      originalUrl: "/api/users",
+      method: "POST",
+    };
+    const res = makeResponse();
+
+    await createUser(req, res);
+
+    assert.equal(res.statusCode, 201);
+    assert.equal(res.payload?.user?.role_id, 1);
+    const roleQuery = queries.find((entry) => String(entry.sql).includes("FROM roles"));
+    assert.ok(roleQuery, "expected role lookup query to run");
+    assert.equal(roleQuery.params[0], 1);
+  } finally {
+    db.query = originalQuery;
+  }
+});
+
 test("getUsers hides QA demo and debug users by default", async () => {
   const originalQuery = db.query.bind(db);
   db.query = async (sql, params = []) => {
@@ -159,7 +264,20 @@ test("updateUserRole resolves role slugs to numeric role_id for PATCH and PUT al
         rows: [{ column_name: "role_id" }, { column_name: "role" }],
       };
     }
-    if (text.includes("FROM roles") && text.includes("LIMIT 1")) {
+    if (/SELECT\s+id\s+FROM\s+roles/i.test(text) && text.includes("LIMIT 1")) {
+      assert.match(text.replace(/\s+/g, " "), /SELECT id\s+FROM roles\s+WHERE id = \$1\s+LIMIT 1/i);
+      return {
+        rows: [
+          {
+            id: 12,
+            name: "cashier",
+            slug: "cashier",
+          },
+        ],
+      };
+    }
+    if (/SELECT\s+id,\s*tenant_id,\s*name,\s*slug\s+FROM\s+roles/i.test(text)) {
+      assert.match(text.replace(/\s+/g, " "), /SELECT id,\s*tenant_id,\s*name,\s*slug\s+FROM roles\s+WHERE id = \$1\s+LIMIT 1/i);
       return {
         rows: [
           {
