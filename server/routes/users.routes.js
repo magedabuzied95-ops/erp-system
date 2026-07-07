@@ -1,70 +1,59 @@
 import express from "express";
 
 import { protect } from "../middleware/authMiddleware.js";
-
-import permit from "../middleware/permissionMiddleware.js";
-
 import {
-
-  getUsers,
   createUser,
+  deleteUser,
+  getUsers,
   updateUserRole,
-  deleteUser
-
+  updateUserStatus,
 } from "../controllers/usersController.js";
 
 const router = express.Router();
 
-/* ======================================================
-   GET USERS
-====================================================== */
+const normalizeRoleValue = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
 
-router.get(
-  "/",
+const requireAdminOnly = (req, res, next) => {
+  const normalizedRole = normalizeRoleValue(req.user?.role || req.user?.role_name || "");
+  const allowed =
+    normalizedRole === "admin" ||
+    normalizedRole === "super admin" ||
+    normalizedRole === "superadmin" ||
+    req.user?.is_super_admin === true;
 
-  protect,
-  permit("users", "view"),
+  if (!allowed) {
+    console.warn("[users] access denied", {
+      route: `${req.method} ${req.originalUrl}`,
+      userId: req.user?.id ?? null,
+      role: req.user?.role || req.user?.role_name || null,
+      tenantId: req.user?.tenant_id ?? null,
+    });
+    return res.status(403).json({
+      success: false,
+      message: "Admin access required",
+    });
+  }
 
-  getUsers
-);
+  return next();
+};
 
-/* ======================================================
-   CREATE USER
-====================================================== */
+router.use((req, _res, next) => {
+  console.log("[users] route hit", {
+    method: req.method,
+    url: req.originalUrl,
+  });
+  next();
+});
 
-router.post(
-  "/",
-
-  protect,
-  permit("users", "create"),
-
-  createUser
-);
-
-/* ======================================================
-   UPDATE USER ROLE
-====================================================== */
-
-router.put(
-  "/:id/role",
-
-  protect,
-  permit("users", "edit"),
-
-  updateUserRole
-);
-
-/* ======================================================
-   DELETE USER
-====================================================== */
-
-router.delete(
-  "/:id",
-
-  protect,
-  permit("users", "delete"),
-
-  deleteUser
-);
+router.get("/", protect, requireAdminOnly, getUsers);
+router.post("/", protect, requireAdminOnly, createUser);
+router.put("/:id/role", protect, requireAdminOnly, updateUserRole);
+router.patch("/:id/role", protect, requireAdminOnly, updateUserRole);
+router.patch("/:id/status", protect, requireAdminOnly, updateUserStatus);
+router.delete("/:id", protect, requireAdminOnly, deleteUser);
 
 export default router;
