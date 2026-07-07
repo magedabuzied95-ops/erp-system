@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
   fake_compare_percent: 20,
   fake_compare_rounding_mode: "none",
   ...SALE_MODE_DEFAULTS,
+  sale_mode_enabled: true,
 };
 let websiteSettingsSchemaPromise = null;
 let websiteSettingsSchemaEnsured = false;

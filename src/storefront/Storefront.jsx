@@ -306,6 +306,15 @@ const couponErrorText = (reason = "") => {
   return sfText(key, String(reason || "").trim() || "تعذر تطبيق العملية");
 };
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
+let storefrontSalePricesEnabled = true;
+const normalizeStorefrontSalePricesEnabled = (settings = {}) => {
+  const flag = settings?.sale_mode_enabled ?? settings?.global_sale_enabled ?? settings?.sale_prices_enabled;
+  if (flag === undefined || flag === null || flag === "") return true;
+  return truthyFlag(flag);
+};
+const setStorefrontSalePricesEnabled = (settings = {}) => {
+  storefrontSalePricesEnabled = normalizeStorefrontSalePricesEnabled(settings);
+};
 const BODY_SCROLL_LOCK_ATTR = "data-storefront-scroll-lock-count";
 const BODY_SCROLL_LOCK_Y_ATTR = "data-storefront-scroll-lock-y";
 const lockBodyScroll = () => {
@@ -630,13 +639,17 @@ const useStorefrontGenderClassifications = () => {
 
   return state;
 };
-const storefrontSaleModeOn = (product = {}, variant = {}) =>
-  truthyFlag(variant?.global_sale_enabled) ||
-  truthyFlag(variant?.sale_prices_enabled) ||
-  truthyFlag(variant?.sale_mode_enabled) ||
-  truthyFlag(product?.global_sale_enabled) ||
-  truthyFlag(product?.sale_prices_enabled) ||
-  truthyFlag(product?.sale_mode_enabled);
+const storefrontSaleModeOn = (product = {}, variant = {}) => {
+  if (!storefrontSalePricesEnabled) return false;
+  return (
+    truthyFlag(variant?.global_sale_enabled) ||
+    truthyFlag(variant?.sale_prices_enabled) ||
+    truthyFlag(variant?.sale_mode_enabled) ||
+    truthyFlag(product?.global_sale_enabled) ||
+    truthyFlag(product?.sale_prices_enabled) ||
+    truthyFlag(product?.sale_mode_enabled)
+  );
+};
 const storefrontOriginalPriceCandidates = (product = {}, variant = {}) =>
   [
     product?.custom_compare_price,
@@ -7650,6 +7663,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const latestAddressLookupsRef = useRef(new Set());
   const latestAddressRestoreTokenRef = useRef(0);
   const couponValidationKeyRef = useRef("");
+  useEffect(() => {
+    setStorefrontSalePricesEnabled(publicStoreSettings);
+  }, [publicStoreSettings]);
   const pricedCart = useMemo(() => cart.map((item) => ({ ...item, price: displayCartItemPrice(item) })), [cart]);
   const subtotal = pricedCart.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const couponDiscount = couponValidation?.valid ? Math.max(0, Number(couponValidation.discount_amount || 0)) : 0;
@@ -11278,6 +11294,10 @@ function Storefront() {
   const toggleThemeMode = useCallback(() => {
     setThemeMode((current) => (current === "dark" ? "light" : "dark"));
   }, []);
+
+  useEffect(() => {
+    setStorefrontSalePricesEnabled(publicStoreSettings);
+  }, [publicStoreSettings]);
 
   useEffect(() => {
     setRouteReady(true);
