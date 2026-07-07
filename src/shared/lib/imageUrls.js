@@ -1,4 +1,4 @@
-import { API_ORIGIN } from "../constants/app";
+import { API_ORIGIN } from "../constants/app.js";
 
 const trimSlashes = (value = "") => String(value).replace(/^\/+|\/+$/g, "");
 

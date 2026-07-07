@@ -9,7 +9,7 @@ const browserOrigin = () =>
 const LOCAL_API_ORIGIN = "http://localhost:8000";
 const PRODUCTION_API_ORIGIN = "https://api.m1store-egy.com";
 const PRODUCTION_API_BASE_URL = `${PRODUCTION_API_ORIGIN}/api`;
-const IS_PRODUCTION = import.meta.env.PROD;
+const IS_PRODUCTION = Boolean(import.meta?.env?.PROD);
 
 const defaultApiOrigin = () =>
   IS_PRODUCTION ? PRODUCTION_API_ORIGIN : LOCAL_API_ORIGIN;
@@ -42,10 +42,10 @@ const normalizeApiBaseUrl = (value) => {
 };
 
 const API_BASE_URL_ENV =
-  devEnvValue(import.meta.env.VITE_API_BASE_URL);
+  devEnvValue(import.meta?.env?.VITE_API_BASE_URL);
 
 const API_ORIGIN_ENV =
-  devEnvValue(import.meta.env.VITE_API_URL);
+  devEnvValue(import.meta?.env?.VITE_API_URL);
 
 const resolveApiBaseUrl = () => {
   if (IS_PRODUCTION) {

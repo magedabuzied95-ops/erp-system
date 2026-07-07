@@ -74,6 +74,12 @@ import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
+import {
+  getPosCatalogCacheMeta,
+  getPosCatalogSnapshot,
+  preloadPosCatalogThumbnails,
+  savePosCatalogSnapshot,
+} from "../lib/posCatalogCache";
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import ProductGrid from "../components/ProductGrid";
 import CartSidebar, { ReceiptPreview } from "../components/CartSidebar";
@@ -136,6 +142,7 @@ const POS_CHECKOUT_DEBUG = Boolean(
   String(import.meta.env?.VITE_POS_CHECKOUT_DEBUG || "").trim().toLowerCase() === "true" ||
   String(import.meta.env?.VITE_POS_DEBUG || "").trim().toLowerCase() === "true"
 );
+const POS_OFFLINE_DEBUG = String(import.meta.env?.VITE_POS_OFFLINE_DEBUG || "").trim().toLowerCase() === "true";
 const quickExpenseDefaults = { category: "delivery", employee_id: "", amount: "", payment_method: "cash", notes: "" };
 const quickExpenseEmployeeAdvanceOption = { value: "employee_advance", label: "سلفة موظف / Employee Advance" };
 const quickExpenseCategories = [
@@ -1057,7 +1064,16 @@ const extractOrderItemsFromResponse = (response = {}, fallbackOrder = {}) => {
   return candidates.find((items) => Array.isArray(items)) || [];
 };
 
-const refreshCatalogProducts = async ({ setProducts, setLoading, manageLoading = true, isActive = () => true, signal, saleModeSettings = {}, search } = {}) => {
+const refreshCatalogProducts = async ({
+  setProducts,
+  setLoading,
+  manageLoading = true,
+  isActive = () => true,
+  signal,
+  saleModeSettings = {},
+  search,
+  persistSnapshot = search === undefined,
+} = {}) => {
   if (manageLoading && setLoading) {
     setLoading(true);
   }
@@ -1069,6 +1085,17 @@ const refreshCatalogProducts = async ({ setProducts, setLoading, manageLoading =
     const catalog = normalizePosSellableProducts(rawProducts, saleModeSettings).map((product) => normalizePosCatalogProduct(product));
     if (isActive()) {
       setProducts(catalog);
+    }
+    if (persistSnapshot) {
+      void savePosCatalogSnapshot(catalog)
+        .then((snapshot) => {
+          void preloadPosCatalogThumbnails(snapshot?.products || catalog);
+        })
+        .catch((error) => {
+          if (POS_OFFLINE_DEBUG) {
+            console.debug("POS_OFFLINE_CATALOG_SNAPSHOT_SAVE_ERROR", error?.message || error);
+          }
+        });
     }
     return catalog;
   } finally {
@@ -1343,6 +1370,7 @@ function POSPro() {
   const pageStartedAtRef = useRef(performance.now());
   const firstDataLoggedRef = useRef(false);
   const renderLoggedRef = useRef(false);
+  const catalogFallbackActiveRef = useRef(false);
   const location = useLocation();
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
@@ -1865,6 +1893,7 @@ function POSPro() {
         manageLoading: false,
         saleModeSettings: nextSaleModeSettings,
       });
+      catalogFallbackActiveRef.current = false;
       setCart((current) => {
         if (editingOrder?.id) {
           console.log("[cart-reset-blocked-edit-mode]", {
@@ -1955,6 +1984,7 @@ function POSPro() {
           signal: controller.signal,
           saleModeSettings: saleModeForLoad,
         });
+        catalogFallbackActiveRef.current = false;
         void catalog;
 
         if (!active) return;
@@ -2021,8 +2051,25 @@ function POSPro() {
           url: err?.url,
         });
         if (!active) return;
-        setError(message);
-        toast.error(message);
+        const cachedSnapshot = await getPosCatalogSnapshot();
+        if (cachedSnapshot?.products?.length) {
+          console.warn("POS_OFFLINE_CATALOG_FALLBACK", {
+            cached_at: cachedSnapshot.cached_at || "",
+            schema_version: cachedSnapshot.schema_version || null,
+            product_count: cachedSnapshot.products.length,
+            image_url_count: cachedSnapshot.meta?.image_url_count ?? 0,
+          });
+          catalogFallbackActiveRef.current = true;
+          if (POS_OFFLINE_DEBUG) {
+            console.debug("POS_OFFLINE_CATALOG_FALLBACK_META", cachedSnapshot.meta || null);
+            console.debug("POS_OFFLINE_CATALOG_CACHE_META", await getPosCatalogCacheMeta());
+          }
+          setProducts(cachedSnapshot.products);
+          setError("");
+        } else {
+          setError(message);
+          toast.error(message);
+        }
       } finally {
         if (active) setLoading(false);
       }
@@ -2102,6 +2149,9 @@ function POSPro() {
   }, [activePosShift?.branch_id, customerSearch, posShiftBranch?.id, selectedCustomerId]);
 
   useEffect(() => {
+    if (catalogFallbackActiveRef.current) {
+      return;
+    }
     if (!Array.isArray(products) || products.length === 0 || !Array.isArray(cart) || cart.length === 0) {
       return;
     }
@@ -4947,6 +4997,7 @@ function POSPro() {
         handleClearSelectedCustomer();
         clearEditMode();
         await refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings });
+        catalogFallbackActiveRef.current = false;
         emitFeedback("payment_success", {
           title: t("pos.toasts.invoiceUpdated"),
           message: updatedOrder.invoice_number || editingOrder.invoice_number || "",
@@ -5118,7 +5169,9 @@ function POSPro() {
       setServiceFee(0);
       setLoyaltyRedeemPoints(0);
       handleClearSelectedCustomer();
-      refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings }).catch((refreshError) => {
+      refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings }).then(() => {
+        catalogFallbackActiveRef.current = false;
+      }).catch((refreshError) => {
         if (POS_CHECKOUT_DEBUG) console.warn("[pos] background catalog refresh failed", refreshError?.message || refreshError);
       });
       return normalizedOrder;
@@ -5139,6 +5192,7 @@ function POSPro() {
         toast.error(message);
         try {
           const refreshedCatalog = await refreshCatalogProducts({ setProducts, setLoading, manageLoading: false, saleModeSettings });
+          catalogFallbackActiveRef.current = false;
           const reconciliation = reconcileCartWithCatalog(cart, refreshedCatalog);
           if (reconciliation.changed) {
             setCart(reconciliation.nextCart);
