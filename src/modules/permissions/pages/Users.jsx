@@ -41,7 +41,8 @@ function UsersPage() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [roleId, setRoleId] = useState("");
+  const [roleId, setRoleId] = useState(String(getRoleCatalog()[0]?.id || ""));
+  const roleOptions = useMemo(() => roles.filter((role) => String(role?.id ?? "").trim()), [roles]);
 
   useEffect(() => {
     let active = true;
@@ -59,9 +60,13 @@ function UsersPage() {
           nextRoles = rows.length ? rows.map(normalizeRole) : getRoleCatalog();
         }
         setRoles(nextRoles);
+        if (import.meta.env?.DEV) {
+          console.log("USERS_ROLE_OPTIONS", nextRoles.map((role) => ({ id: role.id, name: role.name })));
+        }
         setRoleId((current) => {
           const currentValue = String(current || "");
-          return currentValue && nextRoles.some((role) => String(role.id) === currentValue) ? currentValue : String(nextRoles[0]?.id || "");
+          const currentExists = nextRoles.some((role) => String(role.id) === currentValue);
+          return currentExists ? currentValue : String(nextRoles[0]?.id || "");
         });
 
         if (usersRes.status === "fulfilled") {
@@ -100,18 +105,22 @@ function UsersPage() {
       return;
     }
 
-    const selectedRole = roles.find((item) => String(item.id) === String(roleId));
-    const numericRoleId = Number(selectedRole?.id ?? roleId);
-    if (!Number.isInteger(numericRoleId) || numericRoleId <= 0) {
+    const selectedRoleId = String(roleId || "");
+    const selectedRole = roleOptions.find((item) => String(item.id) === selectedRoleId);
+    if (import.meta.env?.DEV) {
+      console.log("USERS_SELECTED_ROLE_ID", selectedRoleId);
+    }
+    if (!selectedRole) {
       toast.error("Please select a valid role");
       return;
     }
+    const numericRoleId = Number(selectedRoleId);
 
     const record = normalizeUser({
       id: `usr-${Date.now()}`,
       name: name.trim(),
       email: email.trim(),
-      role: selectedRole?.name || selectedRole?.slug || "",
+      role: selectedRole.name || selectedRole.slug || "",
       role_id: String(numericRoleId),
       status: "Active",
       permissions: selectedRole?.permissions || [],
@@ -119,7 +128,11 @@ function UsersPage() {
 
     const next = [record, ...users];
     try {
-      await api.post("/users", { name: record.name, email: record.email, password, role_id: numericRoleId });
+      const payload = { name: record.name, email: record.email, password, role_id: Number(selectedRoleId) };
+      if (import.meta.env?.DEV) {
+        console.log("USERS_CREATE_PAYLOAD", payload);
+      }
+      await api.post("/users", payload);
       setUsers(next);
       toast.success("User created");
     } catch (err) {
@@ -129,7 +142,7 @@ function UsersPage() {
       setName("");
       setEmail("");
       setPassword("");
-      setRoleId(String(roles[0]?.id || ""));
+      setRoleId(String(roleOptions[0]?.id || ""));
     }
   };
 
@@ -197,7 +210,7 @@ function UsersPage() {
               <Field label="Name" value={name} onChange={setName} placeholder="Full name" />
               <Field label="Email" value={email} onChange={setEmail} placeholder="user@company.com" />
               <Field label="Password" value={password} onChange={setPassword} placeholder="Initial password" type="password" />
-              <Select label="Role" value={roleId} onChange={setRoleId} options={roles} />
+              <Select label="Role" value={roleId} onChange={setRoleId} options={roleOptions} />
               <Can permission="users.create">
                 <button type="button" onClick={createUser} className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-black text-black">
                   <BadgePlus className="h-4 w-4" />
@@ -252,12 +265,12 @@ function UsersPage() {
                     <div>
                       <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">Role</div>
                       <select
-                        value={String(roles.find((role) => String(role.id) === String(user.role_id))?.id || roleId || "")}
+                        value={String(roleOptions.find((role) => String(role.id) === String(user.role_id))?.id || roleId || "")}
                         onChange={(e) => updateUserRole(user.id, e.target.value)}
                         disabled={savingId === user.id}
                         className="w-full rounded-2xl border border-white/10 bg-zinc-950 px-4 py-3 text-sm text-white outline-none disabled:opacity-50"
                       >
-                        {roles.map((role) => (
+                        {roleOptions.map((role) => (
                           <option key={role.id} value={role.id} className="bg-zinc-950 text-white">
                             {role.name}
                           </option>
