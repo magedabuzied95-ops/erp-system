@@ -130,6 +130,8 @@ const isStandaloneDisplayMode = () =>
 const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
 const POS_USE_SALE_PRICES_KEY = "pos.useSalePrices";
 const POS_MANIFEST_HREF = "/pos-manifest.webmanifest";
+const POS_SERVICE_WORKER_HREF = "/pos/pos-sw.js";
+const POS_SERVICE_WORKER_VERSION = 1;
 const POS_APP_TITLE = buildPageTitle("POS");
 const POS_APP_SHORT_TITLE = "POS";
 const POS_THEME_COLOR = "#07111f";
@@ -1560,6 +1562,10 @@ function POSPro() {
     () => sellerOverrideAllowed || isAdminUser(currentUser) || hasPermission("pos.override_seller", currentUser) || hasPermission("orders.edit", currentUser),
     [currentUser, sellerOverrideAllowed]
   );
+  const canManagePersonalCustomerFlag = useMemo(
+    () => isAdminUser(currentUser) || hasPermission("customers.update", currentUser),
+    [currentUser]
+  );
   const canCreatePosExpense = useMemo(() => {
     const role = String(currentUser?.role || currentUser?.role_name || "").toLowerCase().replace(/[_-]+/g, " ");
     return hasPermission("pos.expenses.create", currentUser) || ["cashier", "pos", "pos cashier", "sales", "sales agent"].includes(role);
@@ -1631,6 +1637,47 @@ function POSPro() {
         document.querySelector('link[rel="apple-touch-icon"]')?.remove();
       }
       document.title = previousTitle || POS_APP_TITLE;
+    };
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!isBrowser() || !location.pathname.startsWith("/pos") || !navigator.serviceWorker) return undefined;
+
+    const debugQuery = POS_OFFLINE_DEBUG ? "&debug=1" : "";
+    const scriptUrl = `${POS_SERVICE_WORKER_HREF}?v=${POS_SERVICE_WORKER_VERSION}${debugQuery}`;
+    let cancelled = false;
+
+    const register = async () => {
+      try {
+        const registration = await navigator.serviceWorker.register(scriptUrl, { scope: "/pos/" });
+        if (cancelled) return;
+        if (POS_OFFLINE_DEBUG) {
+          console.info("POS_SW_REGISTERED", {
+            scope: registration.scope,
+            scriptURL: scriptUrl,
+            active: Boolean(registration.active),
+            waiting: Boolean(registration.waiting),
+          });
+        }
+        registration.update().catch(() => null);
+      } catch (error) {
+        if (POS_OFFLINE_DEBUG) {
+          console.info("POS_SW_REGISTER_FAILED", error?.message || error);
+        }
+      }
+    };
+
+    register();
+    const updateTimer = window.setInterval(() => {
+      navigator.serviceWorker.getRegistration("/pos/").then((registration) => {
+        if (!registration) return;
+        registration.update().catch(() => null);
+      }).catch(() => null);
+    }, 30 * 60 * 1000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(updateTimer);
     };
   }, [location.pathname]);
 
@@ -6287,15 +6334,17 @@ function POSPro() {
                     </label>
                   ) : null}
 
-                  <label className="flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-50">
-                    <input
-                      type="checkbox"
-                      checked={Boolean(quickCustomer.allow_personal_transactions)}
-                      onChange={(e) => setQuickCustomer((prev) => ({ ...prev, allow_personal_transactions: e.target.checked }))}
-                      className="h-4 w-4 rounded border-emerald-300/40 bg-slate-950 text-emerald-400 focus:ring-emerald-300/40"
-                    />
-                    <span>السماح بالعمليات الشخصية</span>
-                  </label>
+                  {canManagePersonalCustomerFlag ? (
+                    <label className="flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-50">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(quickCustomer.allow_personal_transactions)}
+                        onChange={(e) => setQuickCustomer((prev) => ({ ...prev, allow_personal_transactions: e.target.checked }))}
+                        className="h-4 w-4 rounded border-emerald-300/40 bg-slate-950 text-emerald-400 focus:ring-emerald-300/40"
+                      />
+                      <span>السماح بالعمليات الشخصية</span>
+                    </label>
+                  ) : null}
 
                   <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:items-center sm:justify-end">
                     <button
