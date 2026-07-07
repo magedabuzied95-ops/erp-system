@@ -7,18 +7,9 @@ import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import Can from "../components/Can";
 import PermissionsShell from "../components/PermissionsShell";
+import { getRoleCatalog, normalizeRole } from "../lib/rbacStore";
 
 const normalizeRoleText = (value = "") => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-
-const extractRolesRows = (response) => {
-  if (Array.isArray(response)) return response;
-  if (Array.isArray(response?.roles)) return response.roles;
-  if (Array.isArray(response?.data)) return response.data;
-  if (Array.isArray(response?.data?.roles)) return response.data.roles;
-  if (Array.isArray(response?.items)) return response.items;
-  if (Array.isArray(response?.data?.items)) return response.data.items;
-  return [];
-};
 
 const resolveRoleNumericId = (role = {}, backendRoles = []) => {
   const numericCandidates = [role.id, role.role_id, role.value, role.key]
@@ -114,6 +105,7 @@ const normalizeUser = (user = {}, roles = []) => {
 function UsersPage() {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [roleRows, setRoleRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -122,10 +114,11 @@ function UsersPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const roleOptions = useMemo(() => {
-    const nextOptions = roles.map((role) => normalizeRoleOption(role, roles)).filter(Boolean);
+    const sourceRows = roleRows.length ? roleRows : roles;
+    const nextOptions = sourceRows.map((role) => normalizeRoleOption(role, sourceRows)).filter(Boolean);
     console.log("USERS_ROLE_OPTIONS", nextOptions.map((role) => ({ id: role.id, name: role.name, role_id: role.role_id ?? null, slug: role.slug ?? null })));
     return nextOptions;
-  }, [roles]);
+  }, [roleRows, roles]);
   const [selectedRoleId, setSelectedRoleId] = useState("");
 
   useEffect(() => {
@@ -138,15 +131,20 @@ function UsersPage() {
 
         if (!active) return;
 
-        let nextRoles = [];
+        let nextRoles = getRoleCatalog();
+        let nextRoleRows = [];
         if (rolesRes.status === "fulfilled") {
-          const rows = extractRolesRows(rolesRes.value);
+          console.log("USERS_ROLES_API_RESPONSE", rolesRes.value);
+          const rows = Array.isArray(rolesRes.value) ? rolesRes.value : rolesRes.value?.roles || [];
           console.log("USERS_RAW_ROLES", rows);
-          nextRoles = rows.map((role) => normalizeRoleOption(role, rows)).filter(Boolean);
+          nextRoleRows = rows;
+          nextRoles = rows.length ? rows.map(normalizeRole) : getRoleCatalog().map(normalizeRole);
         } else {
+          console.log("USERS_ROLES_API_RESPONSE", null);
           console.log("USERS_RAW_ROLES", []);
         }
         setRoles(nextRoles);
+        setRoleRows(nextRoleRows);
 
         if (usersRes.status === "fulfilled") {
           const rows = Array.isArray(usersRes.value) ? usersRes.value : usersRes.value?.users || [];
