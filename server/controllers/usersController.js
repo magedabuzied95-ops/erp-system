@@ -109,6 +109,173 @@ const sanitizeUserBody = (body = {}) => {
   );
 };
 
+const normalizeRoleName = (value = "") =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+const isSuperAdminRole = (role = {}) => {
+  const candidates = [role.name, role.slug, role.role, role.role_name, role.display_name, role.label, role.title]
+    .map(normalizeRoleName)
+    .filter(Boolean);
+  return candidates.some((value) => value === "super admin" || value === "superadmin");
+};
+
+const getUserById = async (id, tenantId, { includeRole = true } = {}) => {
+  const hasTenantFilter = tenantId !== null && tenantId !== undefined;
+  const params = hasTenantFilter ? [id, tenantId] : [id];
+  const whereClause = hasTenantFilter ? "WHERE u.id = $1 AND u.tenant_id = $2" : "WHERE u.id = $1";
+  const roleSelect = includeRole
+    ? `,
+        r.id AS role_row_id,
+        r.name AS role_name,
+        r.slug AS role_slug`
+    : "";
+  const roleJoin = includeRole ? "LEFT JOIN roles r ON u.role_id = r.id" : "";
+
+  const result = await db.query(
+    `
+    SELECT
+      u.id,
+      u.tenant_id,
+      u.name,
+      u.email,
+      u.role_id,
+      u.role,
+      u.is_active
+      ${roleSelect}
+    FROM users u
+    ${roleJoin}
+    ${whereClause}
+    LIMIT 1
+    `,
+    params
+  );
+
+  return result.rows[0] || null;
+};
+
+const countSuperAdmins = async (tenantId, { excludeUserId = null } = {}) => {
+  const hasTenantFilter = tenantId !== null && tenantId !== undefined;
+  const params = [];
+  const clauses = [
+    "LOWER(COALESCE(u.role, r.name, r.slug, '')) IN ('super admin', 'superadmin')",
+  ];
+
+  if (hasTenantFilter) {
+    params.push(tenantId);
+    clauses.push(`u.tenant_id = $${params.length}`);
+  }
+
+  if (excludeUserId !== null && excludeUserId !== undefined) {
+    params.push(excludeUserId);
+    clauses.push(`u.id <> $${params.length}`);
+  }
+
+  const result = await db.query(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
+    WHERE ${clauses.join(" AND ")}
+    `,
+    params
+  );
+
+  return Number(result.rows[0]?.count || 0);
+};
+
+const resolveRoleUpdateSafety = async ({ tenantId, currentUserId, currentUserRoleId, nextRoleId }) => {
+  const resolvedNextRole = await resolveRoleById(nextRoleId, { action: "update_role" });
+  if (!resolvedNextRole) {
+    return { ok: false, message: "Invalid role" };
+  }
+
+  const currentUser = await getUserById(currentUserId, tenantId, { includeRole: true });
+  if (!currentUser) {
+    return { ok: false, message: "User not found" };
+  }
+
+  const currentRoleName = normalizeRoleName(currentUser.role_name || currentUser.role || "");
+  const currentIsSuperAdmin = currentUser.is_super_admin === true || currentRoleName === "super admin" || currentRoleName === "superadmin";
+  const nextIsSuperAdmin = isSuperAdminRole(resolvedNextRole);
+  const superAdminCount = await countSuperAdmins(tenantId, { excludeUserId: currentUserId });
+
+  if (currentIsSuperAdmin && !nextIsSuperAdmin && superAdminCount <= 0) {
+    return {
+      ok: false,
+      message: "Cannot remove the last Super Admin",
+    };
+  }
+
+  return {
+    ok: true,
+    resolvedNextRole,
+    currentUser,
+  };
+};
+
+const buildUserUpdatePayload = async ({ req, res, userId, tenantId, roleId, name, email }) => {
+  const currentUser = await getUserById(userId, tenantId, { includeRole: true });
+  if (!currentUser) {
+    return { ok: false, response: res.status(404).json({ success: false, message: "User not found" }) };
+  }
+
+  const nextName = String(name ?? currentUser.name ?? "").trim();
+  const nextEmail = String(email ?? currentUser.email ?? "").trim();
+  if (!nextName || !nextEmail) {
+    logUsersValidationFailure("update", req, "missing_required_fields", {
+      targetUserId: userId,
+      hasName: Boolean(nextName),
+      hasEmail: Boolean(nextEmail),
+    });
+    return { ok: false, response: res.status(400).json({ success: false, message: "Name and email are required" }) };
+  }
+
+  const userColumns = await getUsersColumnNames();
+  const hasLegacyRoleColumn = userColumns.has("role");
+  const updates = [];
+  const params = [];
+
+  params.push(nextName);
+  updates.push(`name = $${params.length}`);
+  params.push(nextEmail);
+  updates.push(`email = $${params.length}`);
+
+  let resolvedNextRole = null;
+  if (roleId !== undefined && roleId !== null && String(roleId).trim() !== "") {
+    const roleSafety = await resolveRoleUpdateSafety({
+      tenantId,
+      currentUserId: userId,
+      currentUserRoleId: currentUser.role_id,
+      nextRoleId: roleId,
+    });
+
+    if (!roleSafety.ok) {
+      return { ok: false, response: res.status(400).json({ success: false, message: roleSafety.message }) };
+    }
+
+    resolvedNextRole = roleSafety.resolvedNextRole;
+    params.push(resolvedNextRole.id);
+    updates.push(`role_id = $${params.length}`);
+    if (hasLegacyRoleColumn) {
+      params.push(resolvedNextRole.slug || resolvedNextRole.name || null);
+      updates.push(`role = $${params.length}`);
+    }
+  }
+
+  return {
+    ok: true,
+    currentUser,
+    hasLegacyRoleColumn,
+    updates,
+    params,
+    resolvedNextRole,
+  };
+};
+
 const logUsersValidationFailure = (action, req, message, meta = {}) => {
   console.warn("[users] validation failure", {
     action,
@@ -406,18 +573,24 @@ async (req, res) => {
       parsedRoleId: Number.isInteger(roleId) ? roleId : null,
     });
 
-    const resolvedRole = await resolveRoleById(roleId, { action: "update_role" });
+    const roleSafety = await resolveRoleUpdateSafety({
+      tenantId,
+      currentUserId: id,
+      currentUserRoleId: null,
+      nextRoleId: roleId,
+    });
 
-    if (!resolvedRole) {
+    if (!roleSafety.ok) {
       console.warn("[users] role resolution failed", {
         action: "update_role",
         userId: req.user?.id ?? null,
         role_id: req.body?.role_id ?? null,
         targetUserId: id,
+        message: roleSafety.message,
       });
       return res.status(400).json({
         success: false,
-        message: "Invalid role",
+        message: roleSafety.message,
       });
     }
 
@@ -429,30 +602,24 @@ async (req, res) => {
       : `WHERE id = $${hasLegacyRoleColumn ? 3 : 2} AND tenant_id = $${hasLegacyRoleColumn ? 4 : 3}`;
     const params = isSuperAdminUser(req.user) || tenantId === null
       ? hasLegacyRoleColumn
-        ? [resolvedRole.id, resolvedRole.slug || resolvedRole.name || null, id]
-        : [resolvedRole.id, id]
+        ? [roleSafety.resolvedNextRole.id, roleSafety.resolvedNextRole.slug || roleSafety.resolvedNextRole.name || null, id]
+        : [roleSafety.resolvedNextRole.id, id]
       : hasLegacyRoleColumn
-        ? [resolvedRole.id, resolvedRole.slug || resolvedRole.name || null, id, tenantId]
-        : [resolvedRole.id, id, tenantId];
+        ? [roleSafety.resolvedNextRole.id, roleSafety.resolvedNextRole.slug || roleSafety.resolvedNextRole.name || null, id, tenantId]
+        : [roleSafety.resolvedNextRole.id, id, tenantId];
     const setClause = hasLegacyRoleColumn
       ? "role_id = $1, role = $2"
       : "role_id = $1";
 
-    const updated =
-      await db.query(
-
-        `
-        UPDATE users
-
-        SET ${setClause}
-
-        ${whereClause}
-
-        RETURNING *
-        `,
-
-        params
-      );
+    const updated = await db.query(
+      `
+      UPDATE users
+      SET ${setClause}
+      ${whereClause}
+      RETURNING *
+      `,
+      params
+    );
 
     res.status(200).json({
 
@@ -481,6 +648,134 @@ async (req, res) => {
 
       message:
         "Failed To Update Role"
+    });
+  }
+};
+
+/* ======================================================
+   UPDATE USER
+====================================================== */
+
+export const updateUser =
+async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const { name, email, role_id: roleId } = req.body || {};
+
+    const payload = await buildUserUpdatePayload({
+      req,
+      res,
+      userId: id,
+      tenantId,
+      roleId,
+      name,
+      email,
+    });
+
+    if (!payload.ok) {
+      return payload.response;
+    }
+
+    const whereClause = isSuperAdminUser(req.user) || tenantId === null
+      ? `WHERE id = $${payload.params.length + 1}`
+      : `WHERE id = $${payload.params.length + 1} AND tenant_id = $${payload.params.length + 2}`;
+    const params = isSuperAdminUser(req.user) || tenantId === null
+      ? [...payload.params, id]
+      : [...payload.params, id, tenantId];
+
+    const updated = await db.query(
+      `
+      UPDATE users
+      SET ${payload.updates.join(", ")}
+      ${whereClause}
+      RETURNING *
+      `,
+      params
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "User Updated Successfully",
+      user: updated.rows[0] || null,
+    });
+  } catch (error) {
+    console.error("[users] update failed", {
+      userId: req.user?.id ?? null,
+      role: req.user?.role || req.user?.role_name || null,
+      tenantId: req.user?.tenant_id ?? null,
+      targetUserId: req.params.id,
+      message: error?.message || String(error),
+    });
+    res.status(500).json({
+      success: false,
+      message: "Failed To Update User",
+    });
+  }
+};
+
+/* ======================================================
+   UPDATE USER PASSWORD
+====================================================== */
+
+export const updateUserPassword =
+async (req, res) => {
+  try {
+    const { id } = req.params;
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const nextPassword = String(req.body?.password || req.body?.new_password || "").trim();
+
+    if (!nextPassword) {
+      logUsersValidationFailure("password", req, "missing_password", { targetUserId: id });
+      return res.status(400).json({
+        success: false,
+        message: "Password is required",
+      });
+    }
+
+    const userColumns = await getUsersColumnNames();
+    const passwordColumns = getWritablePasswordColumns(userColumns);
+    if (!passwordColumns.length) {
+      return res.status(500).json({
+        success: false,
+        message: "Password column unavailable",
+      });
+    }
+
+    const hashedPassword = await bcrypt.hash(nextPassword, 10);
+    const setClause = passwordColumns.map((column, index) => `${column} = $${index + 1}`).join(", ");
+    const whereClause = isSuperAdminUser(req.user) || tenantId === null
+      ? `WHERE id = $${passwordColumns.length + 1}`
+      : `WHERE id = $${passwordColumns.length + 1} AND tenant_id = $${passwordColumns.length + 2}`;
+    const params = [...passwordColumns.map(() => hashedPassword), id];
+    if (!(isSuperAdminUser(req.user) || tenantId === null)) {
+      params.push(tenantId);
+    }
+
+    await db.query(
+      `
+      UPDATE users
+      SET ${setClause}
+      ${whereClause}
+      `,
+      params
+    );
+
+    res.status(200).json({
+      success: true,
+      message: "Password Updated Successfully",
+    });
+  } catch (error) {
+    console.error("[users] update password failed", {
+      userId: req.user?.id ?? null,
+      role: req.user?.role || req.user?.role_name || null,
+      tenantId: req.user?.tenant_id ?? null,
+      targetUserId: req.params.id,
+      message: error?.message || String(error),
+    });
+    res.status(500).json({
+      success: false,
+      message: "Failed To Update Password",
     });
   }
 };
@@ -553,7 +848,35 @@ async (req, res) => {
 
   try {
     const tenantId = getTenantId(req, req.user?.tenant_id);
-    const params = isSuperAdminUser(req.user) || tenantId === null ? [req.params.id] : [req.params.id, tenantId];
+    const targetUserId = req.params.id;
+
+    if (String(targetUserId) === String(req.user?.id ?? "")) {
+      return res.status(400).json({
+        success: false,
+        message: "You cannot delete your own account",
+      });
+    }
+
+    const targetUser = await getUserById(targetUserId, tenantId, { includeRole: true });
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    const targetIsSuperAdmin = targetUser.is_super_admin === true || isSuperAdminRole(targetUser);
+    if (targetIsSuperAdmin) {
+      const remainingSuperAdmins = await countSuperAdmins(tenantId, { excludeUserId: targetUserId });
+      if (remainingSuperAdmins <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "Cannot delete the last Super Admin",
+        });
+      }
+    }
+
+    const params = isSuperAdminUser(req.user) || tenantId === null ? [targetUserId] : [targetUserId, tenantId];
     const whereClause = isSuperAdminUser(req.user) || tenantId === null ? "WHERE id = $1" : "WHERE id = $1 AND tenant_id = $2";
 
     await db.query(

@@ -5,6 +5,8 @@ import {
   createUser,
   deleteUser,
   getUsers,
+  updateUser,
+  updateUserPassword,
   updateUserRole,
   updateUserStatus,
 } from "../controllers/usersController.js";
@@ -51,6 +53,8 @@ router.use((req, _res, next) => {
 
 router.get("/", protect, requireAdminOnly, getUsers);
 router.post("/", protect, requireAdminOnly, createUser);
+router.put("/:id", protect, requireAdminOnly, updateUser);
+router.put("/:id/password", protect, requireAdminOnly, updateUserPassword);
 router.put("/:id/role", protect, requireAdminOnly, updateUserRole);
 router.patch("/:id/role", protect, requireAdminOnly, updateUserRole);
 router.patch("/:id/status", protect, requireAdminOnly, updateUserStatus);

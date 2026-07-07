@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { AlertTriangle, BadgePlus, RefreshCw, ShieldCheck, UsersRound } from "lucide-react";
+import { AlertTriangle, BadgePlus, CircleX, PencilLine, RefreshCw, ShieldCheck, ShieldAlert, Trash2, UsersRound } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
@@ -10,6 +10,7 @@ import PermissionsShell from "../components/PermissionsShell";
 import { normalizeRole } from "../lib/rbacStore";
 
 const normalizeRoleText = (value = "") => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+const normalizeSearchText = (value = "") => String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 
 const resolveRoleNumericId = (role = {}, backendRoles = []) => {
   const numericCandidates = [role.id, role.role_id, role.value, role.key]
@@ -120,6 +121,14 @@ function UsersPage() {
     return nextOptions;
   }, [roleRows, roles]);
   const [selectedRoleId, setSelectedRoleId] = useState("");
+  const [editingUser, setEditingUser] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editRoleId, setEditRoleId] = useState("");
+  const [passwordUser, setPasswordUser] = useState(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [actionBusyId, setActionBusyId] = useState(null);
 
   useEffect(() => {
     let active = true;
@@ -185,9 +194,127 @@ function UsersPage() {
   }, [roleOptions]);
 
   const filteredUsers = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return users.filter((user) => `${user.name} ${user.email} ${user.role}`.toLowerCase().includes(q));
+    const q = normalizeSearchText(search);
+    return users.filter((user) =>
+      normalizeSearchText(`${user.name} ${user.email} ${user.role} ${user.role_id}`).includes(q)
+    );
   }, [search, users]);
+
+  const openEditUser = (user) => {
+    setEditingUser(user);
+    setEditName(user?.name || "");
+    setEditEmail(user?.email || "");
+    setEditRoleId(String(user?.role_id || ""));
+  };
+
+  const closeEditUser = () => {
+    setEditingUser(null);
+    setEditName("");
+    setEditEmail("");
+    setEditRoleId("");
+  };
+
+  const saveEditUser = async () => {
+    if (!editingUser) return;
+    const numericRoleId = Number(editRoleId);
+    if (!editName.trim() || !editEmail.trim()) {
+      toast.error("Name and email are required");
+      return;
+    }
+    if (!Number.isInteger(numericRoleId) || numericRoleId <= 0) {
+      toast.error("Please select a valid role");
+      return;
+    }
+
+    setActionBusyId(editingUser.id);
+    try {
+      const payload = {
+        name: editName.trim(),
+        email: editEmail.trim(),
+        role_id: numericRoleId,
+      };
+      const response = await api.put(`/users/${editingUser.id}`, payload);
+      const updatedUser = response?.user || response?.data?.user || null;
+      setUsers((currentUsers) =>
+        currentUsers.map((user) =>
+          String(user.id) === String(editingUser.id)
+            ? normalizeUser(
+                updatedUser
+                  ? updatedUser
+                  : {
+                      ...user,
+                      name: payload.name,
+                      email: payload.email,
+                      role_id: String(payload.role_id),
+                    },
+                roles
+              )
+            : user
+        )
+      );
+      closeEditUser();
+      toast.success("User updated");
+    } catch (err) {
+      console.log(err);
+      toast.error("Backend users update unavailable.");
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const openPasswordModal = (user) => {
+    setPasswordUser(user);
+    setNewPassword("");
+    setConfirmPassword("");
+  };
+
+  const closePasswordModal = () => {
+    setPasswordUser(null);
+    setNewPassword("");
+    setConfirmPassword("");
+  };
+
+  const savePassword = async () => {
+    if (!passwordUser) return;
+    if (!newPassword.trim() || !confirmPassword.trim()) {
+      toast.error("Password fields are required");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match");
+      return;
+    }
+
+    setActionBusyId(passwordUser.id);
+    try {
+      await api.put(`/users/${passwordUser.id}/password`, { password: newPassword });
+      closePasswordModal();
+      toast.success("Password updated");
+    } catch (err) {
+      console.log(err);
+      toast.error("Backend password update unavailable.");
+    } finally {
+      setActionBusyId(null);
+    }
+  };
+
+  const deleteUser = async (user) => {
+    if (!user) return;
+    const confirmed = window.confirm(`Delete ${user.name || "this user"}?`);
+    if (!confirmed) return;
+
+    setActionBusyId(user.id);
+    try {
+      await api.delete(`/users/${user.id}`);
+      setUsers((currentUsers) => currentUsers.filter((item) => String(item.id) !== String(user.id)));
+      toast.success("User deleted");
+    } catch (err) {
+      console.log(err);
+      toast.error("Backend delete unavailable.");
+    } finally {
+      setActionBusyId(null);
+    }
+  };
 
   const createUser = async () => {
     if (!name.trim() || !email.trim()) {
@@ -371,7 +498,7 @@ function UsersPage() {
             ) : (
               filteredUsers.map((user) => (
                 <div key={user.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <div className="grid gap-3 xl:grid-cols-[1.3fr_1fr_0.8fr] xl:items-center">
+                  <div className="grid gap-3 xl:grid-cols-[1.3fr_1fr_0.8fr_auto] xl:items-center">
                     <div>
                       <div className="font-semibold text-white">{user.name}</div>
                       <div className="mt-1 text-xs text-zinc-500">{user.email}</div>
@@ -401,6 +528,34 @@ function UsersPage() {
                         {user.permissions?.length || 0} permissions
                       </span>
                     </div>
+
+                    <div className="flex flex-wrap gap-2 xl:justify-end">
+                      <button
+                        type="button"
+                        onClick={() => openEditUser(user)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
+                      >
+                        <PencilLine className="h-4 w-4" />
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openPasswordModal(user)}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white"
+                      >
+                        <ShieldAlert className="h-4 w-4" />
+                        Change Password
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => deleteUser(user)}
+                        disabled={actionBusyId === user.id}
+                        className="inline-flex items-center gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs font-semibold text-rose-200 disabled:opacity-50"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
@@ -408,7 +563,75 @@ function UsersPage() {
           </div>
         </div>
       </div>
+
+      {editingUser ? (
+        <Modal title="Edit user" onClose={closeEditUser}>
+          <div className="space-y-3">
+            <Field label="Name" value={editName} onChange={setEditName} placeholder="Full name" />
+            <Field label="Email" value={editEmail} onChange={setEditEmail} placeholder="user@company.com" />
+            <Select label="Role" value={editRoleId} onChange={setEditRoleId} options={roleOptions} />
+          </div>
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button type="button" onClick={closeEditUser} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={saveEditUser}
+              disabled={actionBusyId === editingUser.id}
+              className="rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+
+      {passwordUser ? (
+        <Modal title="Change password" onClose={closePasswordModal}>
+          <div className="space-y-3">
+            <Field label="New password" value={newPassword} onChange={setNewPassword} placeholder="New password" type="password" />
+            <Field label="Confirm password" value={confirmPassword} onChange={setConfirmPassword} placeholder="Confirm password" type="password" />
+          </div>
+          <div className="mt-5 flex items-center justify-end gap-2">
+            <button type="button" onClick={closePasswordModal} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-semibold text-white">
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={savePassword}
+              disabled={actionBusyId === passwordUser.id}
+              className="rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black disabled:opacity-50"
+            >
+              Save
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </PermissionsShell>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-6" role="dialog" aria-modal="true">
+      <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-zinc-950 p-5 shadow-2xl shadow-black/40">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="text-lg font-black text-white">{title}</h3>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-2xl border border-white/10 bg-white/5 p-2 text-white"
+            aria-label="Close modal"
+          >
+            <CircleX className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="mt-4">{children}</div>
+      </div>
+    </div>
   );
 }
 

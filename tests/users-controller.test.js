@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import db from "../server/database/db.js";
-import { createUser, getUsers, updateUserRole, updateUserStatus } from "../server/controllers/usersController.js";
+import { createUser, deleteUser, getUsers, updateUser, updateUserPassword, updateUserRole, updateUserStatus } from "../server/controllers/usersController.js";
 
 const makeResponse = () => {
   const response = {
@@ -26,8 +26,10 @@ test("server mounts /api/users and users routes expose PATCH aliases", () => {
   const routesSource = readFileSync(new URL("../server/routes/users.routes.js", import.meta.url), "utf8");
 
   assert.match(serverSource, /app\.use\("\/api\/users",\s*usersRoutes\)/);
-  assert.match(routesSource, /router\.patch\("\/:\id\/role"/);
-  assert.match(routesSource, /router\.patch\("\/:\id\/status"/);
+  assert.ok(routesSource.includes('router.put("/:id", protect, requireAdminOnly, updateUser);'));
+  assert.ok(routesSource.includes('router.put("/:id/password", protect, requireAdminOnly, updateUserPassword);'));
+  assert.ok(routesSource.includes('router.patch("/:id/role", protect, requireAdminOnly, updateUserRole);'));
+  assert.ok(routesSource.includes('router.patch("/:id/status", protect, requireAdminOnly, updateUserStatus);'));
 });
 
 test("createUser accepts the exact Users.jsx payload and hashes passwords", async () => {
@@ -297,6 +299,26 @@ test("updateUserRole resolves role slugs to numeric role_id for PATCH and PUT al
         ],
       };
     }
+    if (text.includes("SELECT COUNT(*)::int AS count") && text.includes("FROM users u") && text.includes("LEFT JOIN roles r")) {
+      return { rows: [{ count: 1 }] };
+    }
+    if (text.includes("FROM users u") && text.includes("LEFT JOIN roles r") && text.includes("WHERE u.id = $1 AND u.tenant_id = $2")) {
+      return {
+        rows: [
+          {
+            id: 91,
+            tenant_id: 7,
+            name: "Test User",
+            email: "test.user@example.com",
+            role_id: 3,
+            role: "cashier",
+            is_active: true,
+            role_name: "Cashier",
+            role_slug: "cashier",
+          },
+        ],
+      };
+    }
     if (text.includes("UPDATE users") && text.includes("SET role_id = $1, role = $2")) {
       return {
         rows: [
@@ -395,6 +417,235 @@ test("updateUserStatus persists the active flag and returns updated user", async
     const updateQuery = queries.find((entry) => String(entry.sql).includes("UPDATE users"));
     assert.ok(updateQuery, "expected status update query to run");
     assert.equal(updateQuery.params[0], false);
+  } finally {
+    db.query = originalQuery;
+  }
+});
+
+test("updateUser updates name, email, and role safely", async () => {
+  const originalQuery = db.query.bind(db);
+  const queries = [];
+  db.query = async (sql, params = []) => {
+    const text = String(sql || "");
+    queries.push({ sql: text, params });
+    if (text.includes("information_schema.columns") && text.includes("FROM information_schema.columns")) {
+      return {
+        rows: [{ column_name: "role_id" }, { column_name: "role" }],
+      };
+    }
+    if (/SELECT\s+id\s+FROM\s+roles/i.test(text) && text.includes("LIMIT 1")) {
+      return {
+        rows: [
+          {
+            id: 12,
+            name: "cashier",
+            slug: "cashier",
+          },
+        ],
+      };
+    }
+    if (/SELECT\s+id,\s*tenant_id,\s*name,\s*slug\s+FROM\s+roles/i.test(text)) {
+      return {
+        rows: [
+          {
+            id: 12,
+            tenant_id: null,
+            name: "cashier",
+            slug: "cashier",
+          },
+        ],
+      };
+    }
+    if (text.includes("FROM users u") && text.includes("LEFT JOIN roles r") && text.includes("u.id = $1 AND u.tenant_id = $2")) {
+      return {
+        rows: [
+          {
+            id: 91,
+            tenant_id: 7,
+            name: "Old Name",
+            email: "old@example.com",
+            role_id: 2,
+            role: "manager",
+            is_active: true,
+            role_name: "Manager",
+            role_slug: "manager",
+          },
+        ],
+      };
+    }
+    if (text.includes("SELECT COUNT(*)::int AS count") && text.includes("FROM users u") && text.includes("LEFT JOIN roles r")) {
+      return { rows: [{ count: 2 }] };
+    }
+    if (text.includes("UPDATE users") && text.includes("SET name = $1, email = $2, role_id = $3, role = $4")) {
+      return {
+        rows: [
+          {
+            id: 91,
+            tenant_id: 7,
+            name: params[0],
+            email: params[1],
+            role_id: params[2],
+            role: params[3],
+          },
+        ],
+      };
+    }
+    throw new Error(`Unexpected query in updateUser test: ${text.slice(0, 160)}`);
+  };
+
+  try {
+    const req = {
+      body: {
+        name: "Updated Name",
+        email: "updated@example.com",
+        role_id: 12,
+      },
+      user: {
+        id: 1,
+        role: "admin",
+        tenant_id: 7,
+      },
+      params: {
+        id: 91,
+      },
+      originalUrl: "/api/users/91",
+      method: "PUT",
+    };
+    const res = makeResponse();
+
+    await updateUser(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.payload?.success, true);
+    assert.equal(res.payload?.user?.name, "Updated Name");
+    assert.equal(res.payload?.user?.email, "updated@example.com");
+    const updateQuery = queries.find((entry) => String(entry.sql).includes("UPDATE users"));
+    assert.ok(updateQuery, "expected update query to run");
+    assert.equal(updateQuery.params[0], "Updated Name");
+    assert.equal(updateQuery.params[1], "updated@example.com");
+    assert.equal(updateQuery.params[2], 12);
+  } finally {
+    db.query = originalQuery;
+  }
+});
+
+test("updateUserPassword hashes the new password and does not log plaintext", async () => {
+  const originalQuery = db.query.bind(db);
+  const queries = [];
+  db.query = async (sql, params = []) => {
+    const text = String(sql || "");
+    queries.push({ sql: text, params });
+    if (text.includes("information_schema.columns") && text.includes("FROM information_schema.columns")) {
+      return {
+        rows: [{ column_name: "password" }],
+      };
+    }
+    if (text.includes("UPDATE users") && text.includes("SET password = $1")) {
+      return { rows: [] };
+    }
+    throw new Error(`Unexpected query in updateUserPassword test: ${text.slice(0, 160)}`);
+  };
+
+  try {
+    const req = {
+      body: {
+        password: "NewSecret123!",
+      },
+      user: {
+        id: 1,
+        role: "admin",
+        tenant_id: 7,
+      },
+      params: {
+        id: 91,
+      },
+      originalUrl: "/api/users/91/password",
+      method: "PUT",
+    };
+    const res = makeResponse();
+
+    await updateUserPassword(req, res);
+
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.payload?.success, true);
+    const updateQuery = queries.find((entry) => String(entry.sql).includes("UPDATE users"));
+    assert.ok(updateQuery, "expected password update query to run");
+    assert.match(String(updateQuery.params[0] || ""), /^\$2[aby]\$/);
+    assert.notEqual(updateQuery.params[0], "NewSecret123!");
+  } finally {
+    db.query = originalQuery;
+  }
+});
+
+test("deleteUser blocks deleting self and the last Super Admin", async () => {
+  const originalQuery = db.query.bind(db);
+  let queryCount = 0;
+  db.query = async (sql, params = []) => {
+    queryCount += 1;
+    const text = String(sql || "");
+    if (text.includes("FROM users u") && text.includes("LEFT JOIN roles r") && text.includes("u.id = $1 AND u.tenant_id = $2")) {
+      return {
+        rows: [
+          {
+            id: 91,
+            tenant_id: 7,
+            name: "Super Admin User",
+            email: "super@example.com",
+            role_id: 1,
+            role: "super_admin",
+            is_active: true,
+            role_name: "Super Admin",
+            role_slug: "super_admin",
+          },
+        ],
+      };
+    }
+    if (text.includes("SELECT COUNT(*)::int AS count") && text.includes("FROM users u") && text.includes("LEFT JOIN roles r")) {
+      return { rows: [{ count: 0 }] };
+    }
+    if (text.includes("DELETE FROM users")) {
+      return { rows: [] };
+    }
+    throw new Error(`Unexpected query in deleteUser test: ${text.slice(0, 160)}`);
+  };
+
+  try {
+    const selfReq = {
+      user: {
+        id: 91,
+        role: "admin",
+        tenant_id: 7,
+      },
+      params: {
+        id: 91,
+      },
+      originalUrl: "/api/users/91",
+      method: "DELETE",
+    };
+    const selfRes = makeResponse();
+    await deleteUser(selfReq, selfRes);
+    assert.equal(selfRes.statusCode, 400);
+    assert.equal(selfRes.payload?.message, "You cannot delete your own account");
+    assert.equal(queryCount, 0);
+
+    queryCount = 0;
+    const lastSuperReq = {
+      user: {
+        id: 1,
+        role: "admin",
+        tenant_id: 7,
+      },
+      params: {
+        id: 91,
+      },
+      originalUrl: "/api/users/91",
+      method: "DELETE",
+    };
+    const lastSuperRes = makeResponse();
+    await deleteUser(lastSuperReq, lastSuperRes);
+    assert.equal(lastSuperRes.statusCode, 400);
+    assert.equal(lastSuperRes.payload?.message, "Cannot delete the last Super Admin");
+    assert.equal(queryCount, 2);
   } finally {
     db.query = originalQuery;
   }
