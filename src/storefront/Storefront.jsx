@@ -308,6 +308,7 @@ const couponErrorText = (reason = "") => {
 };
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
 let storefrontSalePricesEnabled = true;
+let storefrontPublicSaleModeEnabledRaw = undefined;
 const parseStorefrontSaleModeEnabled = (value, fallback = undefined) => {
   if (value === undefined || value === null || value === "") return fallback;
   if (value === true || value === 1 || value === "1") return true;
@@ -322,6 +323,22 @@ const normalizeStorefrontSalePricesEnabled = (settings = {}) => {
 };
 const setStorefrontSalePricesEnabled = (settings = {}) => {
   storefrontSalePricesEnabled = normalizeStorefrontSalePricesEnabled(settings);
+};
+const logStorefrontCardPriceDebug = (payload = {}) => {
+  if (typeof window === "undefined") return;
+  const key = [
+    payload.componentName || "unknown",
+    payload.productId || "unknown",
+    payload.variantId || "none",
+    String(payload.parsedSaleModeEnabled ?? ""),
+    String(payload.chosenPrice ?? 0),
+    String(payload.isOnSale ?? false),
+  ].join(":");
+  if (!window.__STOREFRONT_CARD_PRICE_DEBUG_SEEN__) window.__STOREFRONT_CARD_PRICE_DEBUG_SEEN__ = new Set();
+  const seen = window.__STOREFRONT_CARD_PRICE_DEBUG_SEEN__;
+  if (seen.has(key)) return;
+  seen.add(key);
+  console.debug("STOREFRONT_CARD_PRICE_DEBUG", payload);
 };
 const BODY_SCROLL_LOCK_ATTR = "data-storefront-scroll-lock-count";
 const BODY_SCROLL_LOCK_Y_ATTR = "data-storefront-scroll-lock-y";
@@ -5176,7 +5193,7 @@ function useStorefrontProductGridColumns() {
   return width >= 768 ? 4 : 2;
 }
 
-const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart }) {
+const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled = storefrontSalePricesEnabled }) {
   const columns = useStorefrontProductGridColumns();
   const shouldVirtualize = columns >= 4 && products.length > 40;
   const renderProduct = useCallback((product, index, key) => (
@@ -5186,9 +5203,10 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
       wishlist={wishlist}
       toggleWishlist={toggleWishlist}
       onAddToCart={onAddToCart}
+      saleModeEnabled={saleModeEnabled}
       sizeLimit={4}
     />
-  ), [onAddToCart, toggleWishlist, wishlist]);
+  ), [onAddToCart, saleModeEnabled, toggleWishlist, wishlist]);
 
   if (loading) return <ProductSkeleton count={8} />;
 
@@ -6765,7 +6783,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
   );
 }
 
-const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, imagePreset = "grid" }) {
+const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, saleModeEnabled = storefrontSalePricesEnabled, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, imagePreset = "grid" }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const product = groupedProduct || rawProduct || {};
@@ -6806,9 +6824,14 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     [activeColorVariant, firstAvailableVariant, selectedVariant, selectedVariantIsAvailable]
   );
   const inWishlist = useMemo(() => wishlist.some((item) => String(item.id) === String(product.id)), [product.id, wishlist]);
-  const sellingPrice = displaySellingPrice(product, availableVariant);
-  const comparePrice = displayComparePrice(product, availableVariant);
-  const discountPercent = displayDiscountPercent(product, availableVariant);
+  const resolvedSaleModeEnabled = saleModeEnabled !== false;
+  const pricing = useMemo(
+    () => getDisplayPricing(product, resolvedSaleModeEnabled, availableVariant),
+    [availableVariant, product, resolvedSaleModeEnabled]
+  );
+  const sellingPrice = pricing.price;
+  const comparePrice = resolvedSaleModeEnabled && pricing.comparePrice && pricing.comparePrice > sellingPrice ? pricing.comparePrice : 0;
+  const discountPercent = resolvedSaleModeEnabled ? pricing.discountPercent || 0 : 0;
   const activeSizes = useMemo(
     () => providedAvailableSizes || getSizesForColorGroup(activeColorGroup),
     [activeColorGroup, providedAvailableSizes]
@@ -6910,6 +6933,31 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     const nextVariant = activeSizes.find((item) => String(item.size) === String(selectedVariant?.size))?.variant || activeSizes[0]?.variant;
     if (nextVariant?.id) setSelectedVariantId(nextVariant.id);
   }, [activeSizes, selectedVariant?.size, selectedVariantId]);
+  useEffect(() => {
+    logStorefrontCardPriceDebug({
+      componentName: "ProductCard",
+      productId: product?.id || product?.product_id || null,
+      title: product?.name || product?.title || "",
+      rawSaleModeEnabled: storefrontPublicSaleModeEnabledRaw,
+      parsedSaleModeEnabled: resolvedSaleModeEnabled,
+      sellingPrice: pricing.sellingPrice,
+      salePrice: pricing.salePrice,
+      comparePrice,
+      chosenPrice: pricing.chosenPrice,
+      isOnSale: Boolean(resolvedSaleModeEnabled && pricing.isOnSale && comparePrice > sellingPrice),
+      discountPercent,
+    });
+  }, [
+    comparePrice,
+    discountPercent,
+    pricing,
+    product?.id,
+    product?.name,
+    product?.product_id,
+    product?.title,
+    resolvedSaleModeEnabled,
+    sellingPrice,
+  ]);
 
   const quickAddActiveGroup = useMemo(
     () => colorGroups.find((group) => String(group.key) === String(quickAddColorKey)) || (colorGroups.length === 1 ? colorGroups[0] : null),
@@ -7046,7 +7094,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const brandLabel = productCardBrandLabel(product);
   const brandFilterUrl = useMemo(() => productCardBrandFilterUrl(product), [product]);
     const cardBadge = useMemo(() => {
-    if (discountPercent) {
+    if (resolvedSaleModeEnabled && discountPercent) {
       return { key: "sale", label: "Sale" };
     }
     const soldCount = Number(product.total_sold ?? product.sold_count ?? product.sales_count ?? product.order_count ?? product.orders_count ?? product.units_sold ?? 0);
@@ -7057,7 +7105,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       return { key: "new", label: "✨ New Arrival" };
     }
     return null;
-  }, [discountPercent, product]);
+  }, [discountPercent, product, resolvedSaleModeEnabled]);
 
   return (
     <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.45rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ring-1 ring-white/[0.045] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#d4af37]/30 hover:shadow-[0_18px_42px_rgba(15,23,42,0.12)] active:translate-y-[1px] active:scale-[0.995] touch-manipulation md:rounded-[1.7rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#d4af37]/22 dark:hover:shadow-[0_20px_34px_rgba(0,0,0,0.26)] ${featured ? "md:shadow-[0_16px_38px_rgba(212,175,55,0.08)]" : ""}`}>
@@ -7758,6 +7806,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         const settings = data?.settings || {};
         setShippingLocations(normalizeCheckoutLocations(settings["storefront.shipping_locations"]));
         setPublicStoreSettings(settings);
+        storefrontPublicSaleModeEnabledRaw = settings.sale_mode_enabled;
         console.debug("STOREFRONT_PUBLIC_SALE_MODE", {
           sale_mode_enabled: settings.sale_mode_enabled,
           parsed_sale_mode_enabled: parseStorefrontSaleModeEnabled(settings.sale_mode_enabled, true),
@@ -11352,6 +11401,7 @@ function Storefront() {
         if (cancelled) return;
         const settings = data?.settings || {};
         setPublicStoreSettings(settings);
+        storefrontPublicSaleModeEnabledRaw = settings.sale_mode_enabled;
         console.debug("STOREFRONT_PUBLIC_SALE_MODE", {
           sale_mode_enabled: settings.sale_mode_enabled,
           parsed_sale_mode_enabled: parseStorefrontSaleModeEnabled(settings.sale_mode_enabled, true),
@@ -11628,7 +11678,10 @@ function Storefront() {
     brandName,
     brandLogoUrl,
     brandInitials,
-  }), [brandInitials, brandLogoUrl, brandName]);
+    getDisplayPricing,
+    saleModeEnabled: storefrontSalePricesEnabled,
+    rawSaleModeEnabled: storefrontPublicSaleModeEnabledRaw,
+  }), [brandInitials, brandLogoUrl, brandName, storefrontPublicSaleModeEnabledRaw, storefrontSalePricesEnabled]);
 
   const storefrontBrandSettings = useMemo(() => ({
     brandName,
@@ -11739,6 +11792,7 @@ function Storefront() {
           wishlist={wishlist}
           toggleWishlist={toggleWishlist}
           onAddToCart={onAddToCart}
+          saleModeEnabled={storefrontSalePricesEnabled}
         />
       );
     }

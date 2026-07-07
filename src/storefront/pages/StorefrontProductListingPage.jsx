@@ -442,7 +442,7 @@ const applyCatalogFilters = (products = [], filters = {}, ignore = []) => {
   });
 };
 
-export function StorefrontProductListingPage({ sale = false, wishlist, toggleWishlist, onAddToCart }) {
+export function StorefrontProductListingPage({ sale = false, saleModeEnabled = true, wishlist, toggleWishlist, onAddToCart }) {
   const { i18n, t } = useTranslation();
   const lang = i18n.language || "ar";
   const navigate = useNavigate();
@@ -1050,6 +1050,7 @@ export function StorefrontProductListingPage({ sale = false, wishlist, toggleWis
                 wishlist={wishlist}
                 toggleWishlist={toggleWishlist}
                 onAddToCart={onAddToCart}
+                saleModeEnabled={saleModeEnabled}
               />
             </>
           )}

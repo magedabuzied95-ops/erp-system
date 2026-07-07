@@ -1,4 +1,4 @@
-import { Component, useRef, useState } from "react";
+import { Component, useEffect, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { PackageSearch } from "lucide-react";
@@ -29,14 +29,15 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
     firstDisplayVariant,
     productTotalStock,
     safeStockNumber,
-    displaySellingPrice,
-    displayComparePrice,
     displayImageForProduct,
     variantHasStock,
     money,
     imageFor,
     fallbackProductImage,
     sfText,
+    getDisplayPricing,
+    saleModeEnabled,
+    rawSaleModeEnabled,
   } = helpers;
   const safeProduct = product && typeof product === "object" ? product : {};
   const variants = Array.isArray(safeProduct?.variants) ? safeProduct.variants : [];
@@ -48,9 +49,28 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
   const stock = productTotalStock(safeProduct);
   const variantStock = safeStockNumber(variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock);
   const isAvailable = stock > 0 && (!variant || variantStock > 0);
-  const activePrice = displaySellingPrice(safeProduct, variant);
-  const comparePrice = displayComparePrice(safeProduct, variant);
+  const resolvedSaleModeEnabled = saleModeEnabled !== false;
+  const pricing = getDisplayPricing(safeProduct, resolvedSaleModeEnabled, variant);
+  const activePrice = pricing.price;
+  const comparePrice = resolvedSaleModeEnabled && pricing.comparePrice && pricing.comparePrice > activePrice ? pricing.comparePrice : 0;
   const meta = [safeProduct?.brand, safeProduct?.category, safeProduct?.gender, safeProduct?.grade].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "منتج من المتجر");
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    console.debug("STOREFRONT_CARD_PRICE_DEBUG", {
+      componentName: "VisualSearchProductCard",
+      productId: safeProduct?.id || safeProduct?.product_id || null,
+      title: safeProduct?.name || safeProduct?.title || "",
+      rawSaleModeEnabled,
+      parsedSaleModeEnabled: resolvedSaleModeEnabled,
+      sellingPrice: pricing.sellingPrice,
+      salePrice: pricing.salePrice,
+      comparePrice,
+      chosenPrice: pricing.chosenPrice,
+      isOnSale: Boolean(resolvedSaleModeEnabled && pricing.isOnSale && comparePrice > activePrice),
+      discountPercent: pricing.discountPercent || 0,
+    });
+  }, [activePrice, comparePrice, pricing, rawSaleModeEnabled, resolvedSaleModeEnabled, safeProduct?.id, safeProduct?.name, safeProduct?.product_id, safeProduct?.title]);
 
   const viewProduct = (event) => {
     event.stopPropagation();
