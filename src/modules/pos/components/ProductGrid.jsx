@@ -215,7 +215,7 @@ function ProductGrid({
 }
 
 const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const stock = getProductStock(product);
   const isOutOfStock = stock <= 0;
   const cover =
@@ -240,6 +240,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
   const colors = uniqueTextValues(variants.map((variant) => variant.color), 3);
   const sizes = uniqueTextValues(variants.map((variant) => variant.size), 4);
   const articleCode = getSharedArticleCode(product);
+  const articleLabel = String(i18n.language || "").toLowerCase().startsWith("ar") ? "ارتكل" : "ART";
 
   return (
     <div
@@ -271,9 +272,11 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
             </span>
           </div>
           {articleCode ? (
-            <div className="absolute inset-x-1.5 bottom-1.5 flex justify-center">
-              <div className="max-w-full truncate rounded-full border border-white/15 bg-zinc-950/88 px-2 py-0.5 text-[8px] font-black text-zinc-100 shadow-sm backdrop-blur">
-                {`ارتكل: ${articleCode}`}
+            <div className="absolute inset-x-2 bottom-2 flex justify-center">
+              <div className="inline-flex max-w-[calc(100%-12px)] items-center justify-center rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[9px] font-semibold leading-none text-zinc-200 shadow-sm backdrop-blur-sm">
+                <span className="min-w-0 max-w-full truncate">
+                  {`${articleLabel}: ${articleCode}`}
+                </span>
               </div>
             </div>
           ) : null}
