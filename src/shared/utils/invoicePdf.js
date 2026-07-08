@@ -1,4 +1,3 @@
-import { APP_NAME } from "../constants/app";
 import { formatCurrency } from "../lib/currency";
 import { DEFAULT_PRODUCT_PLACEHOLDER, resolveInvoiceItemImageUrl } from "../lib/invoiceItemImages";
 import {
@@ -8,21 +7,31 @@ import {
   getPrintDirection,
   normalizePrintLanguage,
   openPrintHtml,
-  tPrint,
   wrapPrintableHtml,
 } from "./printLocalization";
 
-const safeWindow = () => (typeof window !== "undefined" ? window : null);
-
 const GREEN = [5, 150, 105];
 const LIGHT_BORDER = [226, 232, 240];
+const M1_STORE_NAME = "M1 Store";
+const M1_STORE_WEBSITE_TEXT = "Www.m1store-egy.com";
+const M1_STORE_WEBSITE_HREF = "https://www.m1store-egy.com";
+const M1_STORE_PHONE = "01000659301";
 const DEFAULT_SOCIAL_LINKS = {
   googleReviewUrl: "https://www.google.com/maps/place//data=!4m3!3m2!1s0x14f9e3498b6a02f9:0xd576a0402361f8c8!12e1?source=g.page.m._&laa=merchant-review-solicitation",
   facebookReviewUrl: "https://www.facebook.com/MONESHOESSTORE/reviews",
   instagramUrl: "https://www.instagram.com/m1store_eg/",
 };
+const ARABIC_RETURN_POLICY_HTML = `
+  <div>يمكنك الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط التالية:</div>
+  <div>• يجب أن تكون المنتجات غير مستخدمة وبحالتها الأصلية.</div>
+  <div>• يجب وجود الفاتورة الأصلية.</div>
+  <div>• في حالة وجود عيب مصنعي، تتحمل M1 Store تكلفة الشحن.</div>
+  <div>• في حالة الاستبدال بسبب رغبة العميل مثل المقاس أو اللون، يتحمل العميل تكلفة الشحن ذهابًا وعودة.</div>
+  <div>للاستفسارات، تواصل مع خدمة العملاء.</div>
+`;
+const ARABIC_RETURN_POLICY_TEXT = "يمكنك الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط التالية: يجب أن تكون المنتجات غير مستخدمة وبحالتها الأصلية. يجب وجود الفاتورة الأصلية. في حالة وجود عيب مصنعي، تتحمل M1 Store تكلفة الشحن. في حالة الاستبدال بسبب رغبة العميل مثل المقاس أو اللون، يتحمل العميل تكلفة الشحن ذهابًا وعودة. للاستفسارات، تواصل مع خدمة العملاء.";
 
-const p = (key, fallback, options) => tPrint(`print.invoice.${key}`, fallback, options);
+const safeWindow = () => (typeof window !== "undefined" ? window : null);
 
 const resolveItemPrice = (item = {}) => {
   const quantity = Math.max(1, Number(item.quantity || 0));
@@ -38,13 +47,13 @@ const resolveItemPrice = (item = {}) => {
   return candidates.map(Number).find((value) => Number.isFinite(value) && value > 0) || 0;
 };
 
-const formatInvoiceItemMoney = (value) => (Number(value || 0) > 0 ? formatCurrency(value) : p("notSpecified", "Not specified"));
+const formatInvoiceItemMoney = (value) => (Number(value || 0) > 0 ? formatCurrency(value) : "غير محدد");
 
 const getInvoiceSupportPhone = (invoice = {}) =>
-  invoice.companyPhone || invoice.storePhone || invoice.supportPhone || invoice.customerServicePhone || "01234567890";
+  invoice.companyPhone || invoice.storePhone || invoice.supportPhone || invoice.customerServicePhone || M1_STORE_PHONE;
 
 const getInvoiceWebsite = (invoice = {}) =>
-  invoice.companyWebsite || invoice.website || invoice.storeWebsite || "www.workspace.com";
+  invoice.companyWebsite || invoice.website || invoice.storeWebsite || M1_STORE_WEBSITE_TEXT;
 
 const getPublicAppUrl = () => {
   const selected = [
@@ -71,15 +80,16 @@ const getPublicInvoiceUrl = (invoice = {}) => {
 const getPaymentLabel = (invoice = {}) => {
   const raw = String(invoice.payment?.method || invoice.payment_method || invoice.totals?.payment_method || "").toLowerCase();
   const labels = {
-    cash: p("cash", "Cash"),
-    card: p("card", "Card"),
-    visa: p("card", "Card"),
-    wallet: p("wallet", "Wallet"),
-    split: p("split", "Split"),
-    transfer: p("transfer", "Transfer"),
-    bank_transfer: p("transfer", "Transfer"),
+    cash: "نقدًا",
+    cod: "الدفع عند الاستلام",
+    card: "بطاقة",
+    visa: "بطاقة",
+    wallet: "محفظة",
+    split: "دفع متعدد",
+    transfer: "تحويل",
+    bank_transfer: "تحويل بنكي",
   };
-  return labels[raw] || (raw ? raw : p("cash", "Cash"));
+  return labels[raw] || (raw ? raw : "نقدًا");
 };
 
 const getSellerName = (invoice = {}) => {
@@ -89,9 +99,9 @@ const getSellerName = (invoice = {}) => {
 };
 
 const getSocialLinks = (invoice = {}) => [
-  { key: "google", label: p("rateGoogle", "Rate us on Google"), url: invoice.google_review_url || invoice.googleReviewUrl || DEFAULT_SOCIAL_LINKS.googleReviewUrl },
-  { key: "facebook", label: p("rateFacebook", "Rate us on Facebook"), url: invoice.facebook_review_url || invoice.facebookReviewUrl || DEFAULT_SOCIAL_LINKS.facebookReviewUrl },
-  { key: "instagram", label: p("followInstagram", "Follow us on Instagram"), url: invoice.instagram_url || invoice.instagramUrl || DEFAULT_SOCIAL_LINKS.instagramUrl },
+  { key: "google", label: "قيّمنا على Google", url: invoice.google_review_url || invoice.googleReviewUrl || DEFAULT_SOCIAL_LINKS.googleReviewUrl },
+  { key: "facebook", label: "قيّمنا على Facebook", url: invoice.facebook_review_url || invoice.facebookReviewUrl || DEFAULT_SOCIAL_LINKS.facebookReviewUrl },
+  { key: "instagram", label: "تابعنا على Instagram", url: invoice.instagram_url || invoice.instagramUrl || DEFAULT_SOCIAL_LINKS.instagramUrl },
 ].filter((link) => link.url && /^https?:\/\//i.test(link.url) && !/localhost|127\.0\.0\.1/i.test(link.url));
 
 const normalizeItems = (items = [], format = "a4") =>
@@ -99,8 +109,11 @@ const normalizeItems = (items = [], format = "a4") =>
     const quantity = Number(item.quantity || 0);
     const price = resolveItemPrice(item);
     const discount = Number(item.discount_amount ?? item.lineDiscount ?? 0);
-    const variant = [item.size, item.color].filter(Boolean).join(" / ") || p("notSpecified", "Not specified");
-    const name = item.product_name || item.name || p("item", "Item {{index}}", { index: index + 1 });
+    const variant = [
+      item.color ? `اللون: ${item.color}` : "",
+      item.size ? `المقاس: ${item.size}` : "",
+    ].filter(Boolean).join(" / ") || "غير محدد";
+    const name = item.product_name || item.name || `منتج ${index + 1}`;
     return {
       name,
       variant,
@@ -120,82 +133,78 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language) => {
   const items = normalizeItems(invoice.items || [], format);
   const invoiceNumber = invoice.barcodeValue || invoice.invoiceNumber || "000000";
   const supportPhone = getInvoiceSupportPhone(invoice);
-  const website = getInvoiceWebsite(invoice);
   const publicUrl = getPublicInvoiceUrl(invoice);
   const social = getSocialLinks(invoice)
     .map((link) => `<a class="pill" href="${escapeHtml(link.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(link.label)}</a>`)
     .join("");
-  const rows = items
-    .map(
-      (item) => `
-        <tr>
-          <td>${!thermal ? `<img src="${escapeHtml(item.image || DEFAULT_PRODUCT_PLACEHOLDER)}" alt="" onerror="this.onerror=null;this.src='${DEFAULT_PRODUCT_PLACEHOLDER}'" style="width:42px;height:42px;object-fit:cover;border-radius:10px;background:#f1f5f9;margin-inline-end:8px;vertical-align:middle" />` : ""}<strong>${escapeHtml(item.name)}</strong><br><small class="muted">${escapeHtml(item.variant)}</small></td>
-          ${thermal ? "" : `<td>${escapeHtml(item.variant)}</td>`}
-          <td class="number">${escapeHtml(item.quantity)}</td>
-          ${thermal ? "" : `<td class="amount">${escapeHtml(formatInvoiceItemMoney(item.price))}</td>`}
-          <td class="amount">${escapeHtml(formatCurrency(item.total))}</td>
-        </tr>
-      `
-    )
-    .join("");
+  const rows = items.map((item) => `
+    <tr>
+      <td>${!thermal ? `<img src="${escapeHtml(item.image || DEFAULT_PRODUCT_PLACEHOLDER)}" alt="" onerror="this.onerror=null;this.src='${DEFAULT_PRODUCT_PLACEHOLDER}'" style="width:42px;height:42px;object-fit:cover;border-radius:10px;background:#f1f5f9;margin-inline-end:8px;vertical-align:middle" />` : ""}<strong>${escapeHtml(item.name)}</strong><br><small class="muted">${escapeHtml(item.variant)}</small></td>
+      ${thermal ? "" : `<td>${escapeHtml(item.variant)}</td>`}
+      <td class="number">${escapeHtml(item.quantity)}</td>
+      ${thermal ? "" : `<td class="amount">${escapeHtml(formatInvoiceItemMoney(item.price))}</td>`}
+      <td class="amount">${escapeHtml(formatCurrency(item.total))}</td>
+    </tr>
+  `).join("");
   const discount =
     Number(invoice.totals?.discount || 0) +
     Number(invoice.totals?.itemDiscountTotal || 0) +
     Number(invoice.totals?.invoiceDiscount || 0) +
     Number(invoice.totals?.loyaltyDiscount || 0);
-  const service = Number(invoice.totals?.service || invoice.totals?.serviceFee || 0);
+  const shipping = Number(invoice.totals?.service || invoice.totals?.serviceFee || invoice.totals?.shipping || 0);
   const seller = getSellerName(invoice);
   const createdAt = invoice.createdAt || Date.now();
   const body = `
     <main class="print-sheet" dir="${dir}">
       <section class="print-header">
         <div>
-          <div class="print-title">${escapeHtml(p("salesInvoice", "Sales invoice"))}</div>
-          <div class="muted">${escapeHtml(p("orderNumber", "Order number"))}: <span class="number">${escapeHtml(invoice.invoiceNumber || "n/a")}</span></div>
-          <div class="muted">${escapeHtml(p("date", "Date"))}: ${escapeHtml(formatPrintDate(createdAt, normalized, { dateStyle: "medium", timeStyle: undefined }))}</div>
-          <div class="muted">${escapeHtml(p("time", "Time"))}: ${escapeHtml(formatPrintDate(createdAt, normalized, { dateStyle: undefined, timeStyle: "short" }))}</div>
+          <div class="print-title">فاتورة طلب</div>
+          <div class="muted">رقم الطلب: <span class="number">${escapeHtml(invoice.invoiceNumber || "n/a")}</span></div>
+          <div class="muted">تاريخ الطلب: ${escapeHtml(formatPrintDate(createdAt, normalized, { dateStyle: "medium", timeStyle: undefined }))}</div>
+          <div class="muted">الوقت: ${escapeHtml(formatPrintDate(createdAt, normalized, { dateStyle: undefined, timeStyle: "short" }))}</div>
         </div>
         <div>
-          <strong>${escapeHtml(invoice.companyName || APP_NAME)}</strong><br>
-          <span class="muted">${escapeHtml(invoice.companyTagline || p("premiumShoes", "Premium Shoes"))}</span>
+          <strong>${escapeHtml(invoice.companyName || M1_STORE_NAME)}</strong><br>
         </div>
       </section>
       <section class="print-card">
-        <strong>${escapeHtml(p("customerDetails", "Customer details"))}</strong><br>
-        ${escapeHtml(p("customer", "Customer"))}: ${escapeHtml(invoice.customerName || p("walkInCustomer", "Walk-in customer"))}<br>
-        ${invoice.customerPhone ? `${escapeHtml(p("phone", "Phone"))}: <span class="number">${escapeHtml(invoice.customerPhone)}</span><br>` : ""}
-        ${seller ? `${escapeHtml(p("seller", "Seller"))}: ${escapeHtml(seller)}<br>` : ""}
-        ${escapeHtml(p("paymentMethod", "Payment method"))}: ${escapeHtml(getPaymentLabel(invoice))}
+        <strong>بيانات العميل</strong><br>
+        العميل: ${escapeHtml(invoice.customerName || "عميلنا العزيز")}<br>
+        ${invoice.customerPhone ? `رقم الهاتف: <span class="number">${escapeHtml(invoice.customerPhone)}</span><br>` : ""}
+        ${seller ? `البائع: ${escapeHtml(seller)}<br>` : ""}
+        طريقة الدفع: ${escapeHtml(getPaymentLabel(invoice))}
       </section>
       <table>
         <thead>
           <tr>
-            <th>${escapeHtml(p("product", "Product"))}</th>
-            ${thermal ? "" : `<th>${escapeHtml(p("variant", "Size / color"))}</th>`}
-            <th class="number">${escapeHtml(p("quantity", "Qty"))}</th>
-            ${thermal ? "" : `<th class="amount">${escapeHtml(p("price", "Price"))}</th>`}
-            <th class="amount">${escapeHtml(p("total", "Total"))}</th>
+            <th>المنتج</th>
+            ${thermal ? "" : `<th>اللون / المقاس</th>`}
+            <th class="number">الكمية</th>
+            ${thermal ? "" : `<th class="amount">السعر</th>`}
+            <th class="amount">الإجمالي</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
       <section class="print-card">
-        <div>${escapeHtml(p("subtotal", "Subtotal"))}: <span class="amount">${escapeHtml(formatCurrency(invoice.totals?.subtotal || 0))}</span></div>
-        ${discount > 0 ? `<div>${escapeHtml(p("discount", "Discount"))}: <span class="amount">- ${escapeHtml(formatCurrency(discount))}</span></div>` : ""}
-        ${service > 0 ? `<div>${escapeHtml(p("service", "Service"))}: <span class="amount">${escapeHtml(formatCurrency(service))}</span></div>` : ""}
-        <div>${escapeHtml(p("itemsCount", "Items count"))}: <span class="number">${items.length}</span></div>
-        <div>${escapeHtml(p("quantityTotal", "Total quantity"))}: <span class="number">${items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</span></div>
-        <div class="total">${escapeHtml(p("finalTotal", "Final total"))}: <span class="amount">${escapeHtml(formatCurrency(invoice.totals?.total || 0))}</span></div>
+        <div>الإجمالي الفرعي: <span class="amount">${escapeHtml(formatCurrency(invoice.totals?.subtotal || 0))}</span></div>
+        ${discount > 0 ? `<div>الخصم: <span class="amount">- ${escapeHtml(formatCurrency(discount))}</span></div>` : ""}
+        ${shipping > 0 ? `<div>الشحن: <span class="amount">${escapeHtml(formatCurrency(shipping))}</span></div>` : ""}
+        <div>عدد المنتجات: <span class="number">${items.length}</span></div>
+        <div>إجمالي الكمية: <span class="number">${items.reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</span></div>
+        <div class="total">الإجمالي الكلي: <span class="amount">${escapeHtml(formatCurrency(invoice.totals?.total || 0))}</span></div>
       </section>
-      <section class="print-card policy">${escapeHtml(p("returnPolicy", "يتم قبول الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط المعتمدة."))}</section>
+      <section class="print-card policy">${ARABIC_RETURN_POLICY_HTML}</section>
       ${social ? `<section class="print-card" style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap">${social}</section>` : ""}
       <footer class="print-footer">
         <div class="barcode">${escapeHtml(invoiceNumber)}</div>
         <div class="green-line"></div>
-        <span class="number">${escapeHtml(website)}</span> | ${escapeHtml(p("customerService", "Customer service"))} - <span class="number">${escapeHtml(supportPhone)}</span> ${publicUrl ? "| QR" : ""}
+        <a class="number" href="${escapeHtml(M1_STORE_WEBSITE_HREF)}" target="_blank" rel="noopener noreferrer">${escapeHtml(M1_STORE_WEBSITE_TEXT)}</a> |
+        <a class="number" href="tel:${escapeHtml(supportPhone)}">${escapeHtml(supportPhone)} - خدمة العملاء</a>
+        ${publicUrl ? "| QR" : ""}
       </footer>
     </main>`;
-  return wrapPrintableHtml({ title: invoice.invoiceNumber || p("salesInvoice", "Sales invoice"), body, language: normalized, thermal });
+  return wrapPrintableHtml({ title: invoice.invoiceNumber || "فاتورة طلب", body, language: normalized, thermal });
 };
 
 const openFallbackWindow = (html, format = "a4") => openPrintHtml(html, { width: format === "thermal" ? 420 : 980, height: 1200 });
@@ -225,22 +234,22 @@ const drawEnglishPdf = async ({ format, invoice, filename }) => {
   const now = new Date(invoice.createdAt || Date.now());
 
   doc.setProperties({
-    title: invoice.invoiceNumber || p("salesInvoice", "Sales invoice"),
-    subject: p("salesInvoice", "Sales invoice"),
-    author: invoice.companyName || APP_NAME,
+    title: invoice.invoiceNumber || "فاتورة طلب",
+    subject: "فاتورة طلب",
+    author: invoice.companyName || M1_STORE_NAME,
   });
 
   doc.setTextColor(15, 23, 42);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(isThermal ? 11 : 18);
-  doc.text(p("salesInvoice", "Sales invoice"), margin, margin + 6);
+  doc.text("فاتورة طلب", margin, margin + 6);
   doc.setFontSize(isThermal ? 7 : 9);
   doc.setFont("helvetica", "normal");
-  doc.text(`${p("orderNumber", "Order number")}: ${invoice.invoiceNumber || "n/a"}`, margin, margin + 12);
-  doc.text(`${p("date", "Date")}: ${formatPrintDate(now, "en")}`, margin, margin + 17);
+  doc.text(`رقم الطلب: ${invoice.invoiceNumber || "n/a"}`, margin, margin + 12);
+  doc.text(`تاريخ الطلب: ${formatPrintDate(now, "ar")}`, margin, margin + 17);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...GREEN);
-  doc.text(invoice.companyName || APP_NAME, pageWidth - margin, margin + 6, { align: "right" });
+  doc.text(invoice.companyName || M1_STORE_NAME, pageWidth - margin, margin + 6, { align: "right" });
   doc.setDrawColor(...GREEN);
   doc.line(margin, margin + 22, pageWidth - margin, margin + 22);
 
@@ -248,8 +257,8 @@ const drawEnglishPdf = async ({ format, invoice, filename }) => {
   autoTable(doc, {
     startY: margin + 28,
     head: isThermal
-      ? [[p("product", "Product"), p("quantity", "Qty"), p("total", "Total")]]
-      : [[p("product", "Product"), p("variant", "Size / color"), p("quantity", "Qty"), p("price", "Price"), p("total", "Total")]],
+      ? [["المنتج", "الكمية", "الإجمالي"]]
+      : [["المنتج", "اللون / المقاس", "الكمية", "السعر", "الإجمالي"]],
     body: isThermal
       ? items.map((item) => [item.label, String(item.quantity), formatCurrency(item.total)])
       : items.map((item) => [item.name, item.variant, String(item.quantity), formatInvoiceItemMoney(item.price), formatCurrency(item.total)]),
@@ -273,11 +282,11 @@ const drawEnglishPdf = async ({ format, invoice, filename }) => {
   const y = (doc.lastAutoTable?.finalY || margin + 40) + 8;
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...GREEN);
-  doc.text(`${p("finalTotal", "Final total")}: ${formatCurrency(invoice.totals?.total || 0)}`, pageWidth - margin, y, { align: "right" });
+  doc.text(`الإجمالي الكلي: ${formatCurrency(invoice.totals?.total || 0)}`, pageWidth - margin, y, { align: "right" });
   doc.setFont("helvetica", "normal");
   doc.setTextColor(71, 85, 105);
   doc.setFontSize(isThermal ? 6 : 8);
-  doc.text(p("returnPolicy", "يتم قبول الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط المعتمدة."), pageWidth / 2, y + 8, {
+  doc.text(ARABIC_RETURN_POLICY_TEXT, pageWidth / 2, y + 8, {
     align: "center",
     maxWidth: pageWidth - margin * 2,
   });

@@ -2,6 +2,10 @@ import { displayPublicOrderNumber } from "./publicOrderNumber";
 import { resolveInvoiceItemImageValue } from "../lib/invoiceItemImages";
 import { formatCurrency } from "../lib/currency";
 
+const M1_STORE_NAME = "M1 Store";
+const M1_STORE_WEBSITE_TEXT = "Www.m1store-egy.com";
+const M1_STORE_PHONE = "01000659301";
+
 const toNumber = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -97,10 +101,48 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
 
   return {
     store: {
-      name: firstText(options.storeName, order.store?.name, order.company_name, order.tenant_name, "MONE"),
-      logoUrl: firstText(options.logoUrl, order.store?.logo_url, order.store?.logoUrl, order.logo_url),
-      phone: firstText(order.store?.phone, order.store_phone),
-      website: firstText(order.store?.website, order.website),
+      name: firstText(
+        options.storeName,
+        order.store?.name,
+        order.company_name,
+        order.companyName,
+        order.tenant_name,
+        order.tenantName,
+        M1_STORE_NAME
+      ),
+      logoUrl: firstText(
+        options.logoUrl,
+        order.store?.logo_url,
+        order.store?.logoUrl,
+        order.logo_url,
+        order.logoUrl,
+        order.company_logo_url,
+        order.companyLogoUrl,
+        order.settings?.logo_url,
+        order.settings?.logoUrl,
+        order.system_settings?.logo_url,
+        order.system_settings?.logoUrl,
+        order.tenant?.logo_url,
+        order.tenant?.logoUrl
+      ),
+      phone: firstText(
+        order.store?.phone,
+        order.store_phone,
+        order.company_phone,
+        order.companyPhone,
+        order.settings?.phone,
+        order.system_settings?.phone,
+        M1_STORE_PHONE
+      ),
+      website: firstText(
+        order.store?.website,
+        order.website,
+        order.company_website,
+        order.companyWebsite,
+        order.settings?.website,
+        order.system_settings?.website,
+        M1_STORE_WEBSITE_TEXT
+      ),
     },
     invoiceNumber: firstText(order.invoice_number, order.invoiceNumber, displayPublicOrderNumber(order), order.id, "DRAFT"),
     source: firstText(order.source, order.channel, options.source, "Website"),
@@ -137,14 +179,13 @@ export const buildOrderInvoiceWhatsappText = (orderOrInvoice = {}, explicitItems
     : normalizeOrderInvoiceData(orderOrInvoice, explicitItems, options);
   const money = (value) => formatCurrency(value, invoice.currency ? { code: invoice.currency } : {});
   const lines = [
-    `*${invoice.store?.name || "MONE"}*`,
+    `*${invoice.store?.name || M1_STORE_NAME}*`,
     "فاتورة طلب",
     `رقم الطلب: ${invoice.invoiceNumber || "n/a"}`,
-    `المصدر: ${invoice.source || "Website"}`,
     `العميل: ${invoice.customer?.name || "عميلنا العزيز"}`,
-    invoice.customer?.phone ? `الموبايل: ${invoice.customer.phone}` : "",
+    invoice.customer?.phone ? `رقم الهاتف: ${invoice.customer.phone}` : "",
     `الحالة: ${invoice.status || "pending"}`,
-    `الدفع: ${invoice.paymentMethod || "cod"}`,
+    `طريقة الدفع: ${invoice.paymentMethod || "cod"}`,
     "",
     "المنتجات:",
     ...invoice.items.map((item) => {
