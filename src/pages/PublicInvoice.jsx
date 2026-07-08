@@ -163,26 +163,13 @@ function PublicInvoice() {
     const settings = tenant.settings || {};
     return {
       storeName: String(
-        tenant.companyName ||
-          tenant.company_name ||
-          tenant.name ||
-          settings["general.company_name"] ||
+        settings["general.company_name"] ||
           settings["storefront.store_name"] ||
-          settings.companyName ||
-          settings.company_name ||
-          settings.store_name ||
-          ""
+          "M1 Store"
       ).trim(),
       logoUrl: String(
-        tenant.companyLogoUrl ||
-          tenant.company_logo_url ||
-          tenant.logoUrl ||
-          tenant.logo_url ||
-          settings["general.company_logo_url"] ||
+        settings["general.company_logo_url"] ||
           settings["storefront.store_logo_url"] ||
-          settings.logoUrl ||
-          settings.logo_url ||
-          settings.store_logo_url ||
           ""
       ).trim(),
     };

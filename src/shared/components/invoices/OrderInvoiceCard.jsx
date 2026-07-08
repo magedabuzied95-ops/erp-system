@@ -43,26 +43,13 @@ const getStoreBranding = () => {
   const settings = tenant.settings || {};
   return {
     name: String(
-      tenant.companyName ||
-        tenant.company_name ||
-        tenant.name ||
-        settings["general.company_name"] ||
+      settings["general.company_name"] ||
         settings["storefront.store_name"] ||
-        settings.companyName ||
-        settings.company_name ||
-        settings.store_name ||
-        ""
+        "M1 Store"
     ).trim(),
     logoUrl: String(
-      tenant.companyLogoUrl ||
-        tenant.company_logo_url ||
-        tenant.logoUrl ||
-        tenant.logo_url ||
-        settings["general.company_logo_url"] ||
+      settings["general.company_logo_url"] ||
         settings["storefront.store_logo_url"] ||
-        settings.logoUrl ||
-        settings.logo_url ||
-        settings.store_logo_url ||
         ""
     ).trim(),
   };
@@ -191,22 +178,20 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
       <div className={`${luxury ? "border-b border-slate-200/75 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_54%,#f1f5f9_100%)] p-5 print:border-slate-200 print:bg-white sm:p-6" : "border-b border-stone-200 bg-stone-50/80 p-5"}`}>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div className="flex items-start gap-3">
-            <div className={`grid h-16 w-16 shrink-0 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.35rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-2xl border-stone-200"}`}>
-              {data.store?.logoUrl ? (
+            {data.store?.logoUrl ? (
+              <div className={`grid h-16 w-16 shrink-0 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.35rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-2xl border-stone-200"}`}>
                 <img
                   src={data.store?.logoUrl}
-                  alt={data.store?.name || "Store"}
+                  alt={data.store?.name || "M1 Store"}
                   className="h-full w-full object-contain p-2"
                   onError={(event) => {
                     event.currentTarget.style.display = "none";
                   }}
                 />
-              ) : (
-                <span className="text-xs font-black tracking-[0.18em] text-stone-700">{getStoreInitials(data.store?.name)}</span>
-              )}
-            </div>
+              </div>
+            ) : null}
             <div>
-              <div className={`${luxury ? "text-2xl font-black tracking-tight text-slate-950 sm:text-[1.7rem]" : "text-2xl font-black"}`}>{data?.store?.name || "M1 Store"}</div>
+              <div className={`${luxury ? "text-2xl font-black tracking-tight text-slate-950 sm:text-[1.7rem]" : "text-2xl font-black"}`}>{data?.store?.name || storeBranding.name || "M1 Store"}</div>
               <div className={`mt-1.5 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${luxury ? "border-violet-200 bg-violet-50 text-violet-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
                 <ShoppingBag className="h-3.5 w-3.5" />
                 {INVOICE_COPY.orderInvoice}
