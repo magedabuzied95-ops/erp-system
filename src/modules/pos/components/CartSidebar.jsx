@@ -1353,10 +1353,9 @@ function DiscountLoyaltyModal({
   );
 }
 
-export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentSummary, paymentMode, loyaltyProfile, loyaltyValidation, walletCashbackToEarn = 0, compact = false }) {
+export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentSummary, paymentMode, loyaltyProfile, loyaltyValidation, walletCashbackToEarn = 0, sellerName = "", compact = false }) {
   const premiumStore = useMemo(() => getStoreProfile(), []);
   const premiumReceiptNumber = String(invoiceNumber || "DRAFT");
-  const premiumPublicUrl = useMemo(() => getReceiptPublicUrl(premiumReceiptNumber), [premiumReceiptNumber]);
   const premiumBarcodeSvg = useMemo(
     () =>
       getBarcodeSvg(premiumReceiptNumber, {
@@ -1366,230 +1365,278 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
       }),
     [premiumReceiptNumber]
   );
-  const premiumDate = useMemo(
-    () => formatArabicDate(),
-    []
-  );
-  const premiumTime = useMemo(
-    () => formatArabicTime(),
-    []
-  );
+  const premiumDate = useMemo(() => formatArabicDate(), []);
+  const premiumTime = useMemo(() => formatArabicTime(), []);
   const premiumSeller = getSellerName(customer);
   const premiumPayment = getLocalizedPaymentLabel(paymentMode, paymentSummary);
-  const premiumSocialLinks = useMemo(() => getLocalizedInvoiceSocialLinks(premiumStore), [premiumStore]);
   const premiumDiscount = Number(totals.itemDiscountTotal || 0) + Number(totals.invoiceDiscount || 0);
   const premiumService = Number(totals.serviceFee || 0);
   const premiumTotalQuantity = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const premiumMembership = loyaltyProfile?.tier || customer?.loyalty_tier || customer?.tier || "";
-  const walletPaid = Number(paymentSummary?.walletAmount || 0);
-  const walletBalanceAfter = Number(
-    paymentSummary?.walletBalanceAfter ??
-      (Number(customer?.wallet_balance ?? customer?.balance ?? loyaltyProfile?.wallet_balance ?? 0) - walletPaid)
-  );
   const premiumCustomerName = customer?.name || customer?.customer_name || "Walk-in Customer";
   const premiumCustomerPhone = customer?.phone || customer?.mobile || customer?.customer_phone || "";
   const paidAmount = Number(paymentSummary?.paidAmount || 0);
   const changeAmount = Number(paymentSummary?.changeAmount || 0);
   const dueAmount = Math.max(0, Number(paymentSummary?.dueAmount || 0));
-  const loyaltyEarnedPoints = Number(Math.floor(Number(totals.total || 0) / 100) * 10);
-  const loyaltyUsedPoints = Number(loyaltyValidation?.applied_points || 0);
-  const loyaltyAvailablePoints = Number(loyaltyValidation?.available_points ?? loyaltyProfile?.available_points ?? 0);
-  const hasLoyaltyMetrics = premiumTotalQuantity > 0 || loyaltyUsedPoints > 0 || loyaltyAvailablePoints > 0 || Number(walletCashbackToEarn || 0) > 0;
   const compactShellClass = compact ? "pos-receipt-thermal max-w-[340px] rounded-[28px] p-3.5" : "pos-receipt-a4 max-w-[720px] rounded-[32px] p-6";
-  const storeMeta = [
-    premiumStore.phone ? { icon: Smartphone, label: receiptPrintLabel("customerService", "خدمة العملاء"), value: premiumStore.phone } : null,
-    premiumStore.address ? { icon: Globe, label: receiptPrintLabel("address", "العنوان"), value: premiumStore.address } : null,
-  ].filter(Boolean);
-  const receiptMeta = [
-    { icon: FileText, label: receiptPrintLabel("invoice", "رقم الفاتورة"), value: premiumReceiptNumber },
-    { icon: User, label: receiptPrintLabel("customer", "العميل"), value: premiumCustomerName },
-    premiumCustomerPhone ? { icon: Smartphone, label: receiptPrintLabel("phone", "الهاتف"), value: premiumCustomerPhone } : null,
-    premiumSeller ? { icon: User, label: receiptPrintLabel("seller", "البائع"), value: premiumSeller } : null,
-    premiumMembership ? { icon: Star, label: receiptPrintLabel("tier", "العضوية"), value: premiumMembership } : null,
-    { icon: CreditCard, label: receiptPrintLabel("payment", "طريقة الدفع"), value: premiumPayment },
-    { icon: CalendarDays, label: receiptPrintLabel("date", "التاريخ"), value: `${premiumDate} - ${premiumTime}` },
-  ].filter(Boolean);
-  const summaryStats = [
-    { label: receiptPrintLabel("qty", "الكمية"), value: Number(premiumTotalQuantity).toLocaleString() },
-    { label: receiptPrintLabel("paid", "المدفوع"), value: formatCurrency(paidAmount) },
-    dueAmount > 0
-      ? { label: receiptPrintLabel("due", "المتبقي"), value: formatCurrency(dueAmount) }
-      : { label: receiptPrintLabel("change", "الباقي"), value: formatCurrency(changeAmount) },
-  ];
-  const returnPolicyText = getReturnPolicyText();
+  const safeReceiptValue = (value) => String(value ?? "").trim() || "-";
+  const safeReceiptMoney = (value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? formatCurrency(numeric) : "-";
+  };
+  const compactPaymentLabel = (() => {
+    const raw = String(paymentMode || paymentSummary?.method || paymentSummary?.payment_method || "").toLowerCase();
+    const labels = {
+      cash: "نقدًا",
+      card: "بطاقة",
+      visa: "بطاقة",
+      wallet: "محفظة",
+      instapay: "إنستاباي",
+      vodafone_cash: "فودافون كاش",
+      split: "متعدد",
+      credit_sale: "آجل",
+      transfer: "تحويل",
+      bank_transfer: "تحويل",
+      customer_wallet: "محفظة العميل",
+      personal: "شخصي",
+    };
+    return labels[raw] || "-";
+  })();
+  const compactDateText = `${premiumDate} ${premiumTime}`.trim();
+  const compactSellerName = safeReceiptValue(sellerName || premiumSeller);
+  const compactCustomerName = safeReceiptValue(premiumCustomerName);
+  const compactDiscounts = Number(totals.itemDiscountTotal || 0) + Number(totals.invoiceDiscount || 0);
+  const compactLoyaltyDiscount = Number(totals.loyaltyDiscount || 0);
+  const compactTotal = Number(totals.total || 0);
+  const compactItemCount = premiumTotalQuantity;
 
   return (
     <div
       dir="rtl"
-      className={`pos-receipt mx-auto overflow-hidden border border-emerald-100 bg-white text-zinc-950 shadow-2xl shadow-black/20 ${compactShellClass}`}
+      className={`pos-receipt mx-auto overflow-hidden bg-white text-zinc-950 ${compact ? "border border-zinc-300 shadow-none" : "border border-emerald-100 shadow-2xl shadow-black/20"} ${compactShellClass}`}
     >
-      <div className="rounded-[22px] border border-emerald-200 bg-[linear-gradient(180deg,#f5fff9_0%,#ffffff_64%)] px-3 py-3 text-center">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 shadow-sm">
-          <ShoppingBag className="h-7 w-7" />
-        </div>
-        <div className="mt-2 text-[22px] font-black tracking-[0.08em] text-zinc-950">{premiumStore.name}</div>
-        {premiumStore.tagline ? (
-          <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-600">
-            {premiumStore.tagline}
+      {compact ? (
+        <div className="space-y-3">
+          <div className="text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-black/15 bg-black text-[11px] font-black text-white">M1</div>
+            <div className="mt-2 text-[20px] font-black leading-none tracking-[0.02em] text-zinc-950">M1 Store</div>
+            <div className="mt-1 text-[11px] font-bold text-zinc-700">شكراً لشرائكم</div>
           </div>
-        ) : null}
-        <div className="mt-1 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">
-          شكراً لشرائكم.
-        </div>
-        {storeMeta.length > 0 ? (
-          <div className="mt-3 grid gap-1 text-right">
-            {storeMeta.map((item) => (
-              <ReceiptInfo key={`${item.label}-${item.value}`} icon={item.icon} label={item.label} value={item.value} />
-            ))}
+
+          <div className="rounded-[18px] border border-dashed border-zinc-300 px-2.5 py-2 text-[11px] leading-5 text-zinc-700">
+            <div className="grid gap-1.5">
+              <div className="flex items-start justify-between gap-2"><span className="shrink-0 font-black text-zinc-950">رقم الفاتورة</span><span className="min-w-0 text-left font-bold text-zinc-700">{safeReceiptValue(premiumReceiptNumber)}</span></div>
+              <div className="flex items-start justify-between gap-2"><span className="shrink-0 font-black text-zinc-950">العميل</span><span className="min-w-0 text-left font-bold text-zinc-700">{compactCustomerName}</span></div>
+              <div className="flex items-start justify-between gap-2"><span className="shrink-0 font-black text-zinc-950">البائع</span><span className="min-w-0 text-left font-bold text-zinc-700">{compactSellerName}</span></div>
+              <div className="flex items-start justify-between gap-2"><span className="shrink-0 font-black text-zinc-950">طريقة الدفع</span><span className="min-w-0 text-left font-bold text-zinc-700">{compactPaymentLabel}</span></div>
+              <div className="flex items-start justify-between gap-2"><span className="shrink-0 font-black text-zinc-950">التاريخ</span><span className="min-w-0 text-left font-bold text-zinc-700">{compactDateText || "-"}</span></div>
+            </div>
           </div>
-        ) : null}
-      </div>
 
-      <div className="mt-3 grid gap-2 rounded-[22px] border border-emerald-100 bg-emerald-50/60 px-3 py-3 text-[12px]">
-        {receiptMeta.map((item) => (
-          <ReceiptInfo key={`${item.label}-${item.value}`} icon={item.icon} label={item.label} value={item.value} />
-        ))}
-      </div>
+          <div className="rounded-[18px] border border-dashed border-zinc-300 px-2 py-2">
+            <div className="grid grid-cols-[1fr_32px_62px_66px] gap-1 border-b border-dashed border-zinc-300 pb-1 text-[10px] font-black text-zinc-700">
+              <div>المنتج</div>
+              <div className="text-center">الكمية</div>
+              <div className="text-right">سعر الوحدة</div>
+              <div className="text-right">الإجمالي</div>
+            </div>
+            <div className="mt-1 space-y-1.5">
+              {cart.length === 0 ? (
+                <div className="py-4 text-center text-[11px] font-semibold text-zinc-500">لا توجد منتجات</div>
+              ) : (
+                cart.map((item, index) => {
+                  const unitPrice = getReceiptItemUnitPrice(item);
+                  const lineTotal = getReceiptItemTotal(item);
+                  const imageSrc = item.image_url || item.product_image_url || item.image || item.photo_url || "";
+                  const colorText = safeReceiptValue(item.color || item.color_name);
+                  const sizeText = safeReceiptValue(item.size || item.size_name);
 
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        {summaryStats.map((item) => (
-          <ReceiptMiniStat key={item.label} label={item.label} value={item.value} />
-        ))}
-      </div>
-
-      <div className="mt-3 rounded-[22px] border border-dashed border-emerald-300 bg-white px-3 py-2.5">
-        <div className="grid grid-cols-[1fr_38px_66px_72px] gap-2 border-b border-dashed border-emerald-200 pb-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
-          <div>{receiptPrintLabel("item", "المنتج")}</div>
-          <div className="text-center">{receiptPrintLabel("qty", "الكمية")}</div>
-          <div className="text-right">{receiptPrintLabel("price", "السعر")}</div>
-          <div className="text-right">{receiptPrintLabel("total", "الإجمالي")}</div>
-        </div>
-        <div className="mt-1.5 space-y-1.5">
-          {cart.length === 0 ? (
-            <div className="py-4 text-center text-sm text-zinc-500">{receiptPrintLabel("noItems", "لا توجد منتجات.")}</div>
-          ) : (
-            cart.map((item, index) => {
-              const unitPrice = getReceiptItemUnitPrice(item);
-              const lineTotal = getReceiptItemTotal(item);
-              const imageSrc = item.image_url || item.product_image_url || item.image || item.photo_url || "";
-
-              return (
-                <div
-                  key={String(item.key || item.id || `${item.name}-${index}`)}
-                  className="grid grid-cols-[1fr_38px_66px_72px] gap-2 border-t border-dashed border-zinc-200 pt-1.5 text-[12px] first:border-t-0 first:pt-0"
-                >
-                  <div className="flex min-w-0 flex-row-reverse items-center gap-2">
-                    <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-zinc-100 bg-zinc-50">
-                      {imageSrc ? (
-                        <CartItemImage src={imageSrc} fallbackSrc={item.product_image_url} alt={item.name} />
-                      ) : (
-                        <ImagePlaceholder />
-                      )}
-                    </div>
-                    <div className="min-w-0 flex-1 text-right">
-                      <div className="truncate font-black leading-tight text-zinc-950">{item.name || "منتج"}</div>
-                      <div className="mt-0.5 text-[11px] leading-tight text-zinc-500">
-                        {item.color || receiptPrintLabel("default", "افتراضي")} / {item.size || receiptPrintLabel("oneSize", "مقاس واحد")}
+                  return (
+                    <div key={String(item.key || item.id || `${item.name}-${index}`)} className="grid grid-cols-[1fr_32px_62px_66px] gap-1 border-t border-dashed border-zinc-200 pt-1.5 first:border-t-0 first:pt-0">
+                      <div className="flex min-w-0 items-start gap-1.5">
+                        {imageSrc ? (
+                          <div className="mt-0.5 h-9 w-9 shrink-0 overflow-hidden rounded-md border border-zinc-200 bg-zinc-50">
+                            <CartItemImage src={imageSrc} fallbackSrc={item.product_image_url} alt={item.name} />
+                          </div>
+                        ) : null}
+                        <div className="min-w-0 flex-1">
+                          <div className="break-words text-[11px] font-black leading-snug text-zinc-950">{safeReceiptValue(item.name) === "-" ? "منتج" : item.name}</div>
+                          <div className="mt-0.5 break-words text-[10px] font-semibold leading-snug text-zinc-600">اللون: {colorText} | المقاس: {sizeText}</div>
+                        </div>
                       </div>
+                      <div className="self-center text-center text-[11px] font-bold text-zinc-700">{safeReceiptValue(item.quantity)}</div>
+                      <div className="self-center text-right text-[11px] font-black text-zinc-950">{safeReceiptMoney(unitPrice)}</div>
+                      <div className="self-center text-right text-[11px] font-black text-zinc-950">{safeReceiptMoney(lineTotal)}</div>
                     </div>
-                  </div>
-                  <div className="self-center text-center font-bold text-zinc-700">{item.quantity}</div>
-                  <div className="self-center text-right font-black text-zinc-950">{formatReceiptPrice(unitPrice)}</div>
-                  <div className="self-center text-right font-black text-emerald-700">{formatReceiptPrice(lineTotal)}</div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      </div>
-
-      {hasLoyaltyMetrics ? (
-        <div className="mt-3 rounded-[22px] border border-emerald-100 bg-emerald-50/70 px-3 py-2 text-[10px] font-bold text-zinc-700">
-          <div className="mb-1 text-center text-[11px] font-black tracking-[0.18em] text-emerald-700">
-            {receiptPrintLabel("loyaltySummary", "ملخص الولاء")}
+                  );
+                })
+              )}
+            </div>
           </div>
-          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-            <span>النقاط المكتسبة: {loyaltyEarnedPoints.toLocaleString()}</span>
-            <span className="text-emerald-600">|</span>
-            <span>المستخدمة: {loyaltyUsedPoints.toLocaleString()}</span>
-            <span className="text-emerald-600">|</span>
-            <span>المتبقية: {loyaltyAvailablePoints.toLocaleString()}</span>
-            <span className="text-emerald-600">|</span>
-            <span>المحفظة: {formatCurrency(Number(walletCashbackToEarn || 0))}</span>
-            {walletPaid > 0 ? (
-              <>
-                <span className="text-emerald-600">|</span>
-                <span>رصيد بعد السداد: {formatCurrency(walletBalanceAfter)}</span>
-              </>
+
+          <div className="rounded-[18px] border border-dashed border-zinc-300 px-2.5 py-2 text-[11px] leading-5 text-zinc-700">
+            <div className="space-y-1.5">
+              <ReceiptTotalRow label="المجموع الفرعي" value={safeReceiptMoney(totals.subtotal)} />
+              <ReceiptTotalRow label="الخصومات" value={`- ${safeReceiptMoney(compactDiscounts)}`} />
+              <ReceiptTotalRow label="خصم الولاء" value={`- ${safeReceiptMoney(compactLoyaltyDiscount)}`} />
+              <div className="h-px bg-zinc-300" />
+              <div className="flex items-end justify-between gap-4">
+                <span className="text-[12px] font-black text-zinc-950">الإجمالي</span>
+                <span className="text-[16px] font-black text-zinc-950">{safeReceiptMoney(compactTotal)}</span>
+              </div>
+              <ReceiptTotalRow label="إجمالي الكمية" value={String(compactItemCount || 0)} />
+            </div>
+          </div>
+
+          <div className="rounded-[18px] border border-dashed border-zinc-300 px-2.5 py-2 text-[10px] leading-5 text-zinc-700">
+            <div className="font-black text-zinc-950">سياسة الاستبدال والاسترجاع</div>
+            <div>يسمح بالاستبدال والاسترجاع خلال 14 يوم بشرط عدم الاستخدام والحفاظ على الحالة الأصلية وتقديم أصل الفاتورة.</div>
+            <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
+          </div>
+
+          <div className="text-center">
+            <div className="text-[10px] font-black tracking-[0.18em] text-zinc-600">BARCODE</div>
+            <div className="pos-receipt-barcode mx-auto mt-1 w-full max-w-[300px] rounded-md bg-white px-1 py-0">
+              <div dangerouslySetInnerHTML={{ __html: premiumBarcodeSvg }} />
+            </div>
+            <div className="mt-1 text-[11px] font-black text-zinc-950">{premiumReceiptNumber}</div>
+          </div>
+
+          <div className="rounded-[18px] border border-dashed border-zinc-300 px-2.5 py-2 text-center text-[10px] font-bold leading-5 text-zinc-700">
+            <div>www.m1store-egy.com</div>
+            <div>01000659301</div>
+          </div>
+        </div>
+      ) : (
+        <>
+          <div className="rounded-[22px] border border-emerald-200 bg-[linear-gradient(180deg,#f5fff9_0%,#ffffff_64%)] px-3 py-3 text-center">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 shadow-sm">
+              <ShoppingBag className="h-7 w-7" />
+            </div>
+            <div className="mt-2 text-[22px] font-black tracking-[0.08em] text-zinc-950">{premiumStore.name}</div>
+            {premiumStore.tagline ? (
+              <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-600">
+                {premiumStore.tagline}
+              </div>
+            ) : null}
+            <div className="mt-1 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">
+              شكراً لشرائكم.
+            </div>
+            {premiumStore.phone || premiumStore.address ? (
+              <div className="mt-3 grid gap-1 text-right">
+                {premiumStore.phone ? <ReceiptInfo icon={Smartphone} label={receiptPrintLabel("customerService", "خدمة العملاء")} value={premiumStore.phone} /> : null}
+                {premiumStore.address ? <ReceiptInfo icon={Globe} label={receiptPrintLabel("address", "العنوان")} value={premiumStore.address} /> : null}
+              </div>
             ) : null}
           </div>
-        </div>
-      ) : null}
 
-      <div className="mt-3 rounded-[22px] border border-emerald-100 bg-white px-3 py-3">
-        <div className="space-y-1.5 text-[13px]">
-          <ReceiptTotalRow label={receiptPrintLabel("subtotal", "الإجمالي الفرعي")} value={formatCurrency(totals.subtotal)} />
-          <ReceiptTotalRow label={receiptPrintLabel("discounts", "الخصومات")} value={`- ${formatCurrency(premiumDiscount)}`} />
-          {Number(totals.couponDiscount || 0) > 0 ? <ReceiptTotalRow label={receiptPrintLabel("couponDiscount", "خصم الكوبون")} value={`- ${formatCurrency(totals.couponDiscount || 0)}`} /> : null}
-          {Number(totals.loyaltyDiscount || 0) > 0 ? <ReceiptTotalRow label={receiptPrintLabel("loyaltyDiscount", "خصم الولاء")} value={`- ${formatCurrency(totals.loyaltyDiscount || 0)}`} /> : null}
-          {premiumService > 0 ? <ReceiptTotalRow label={receiptPrintLabel("serviceFee", "رسوم الخدمة")} value={formatCurrency(premiumService)} /> : null}
-          <ReceiptTotalRow label={receiptPrintLabel("paid", "المدفوع")} value={formatCurrency(paidAmount)} />
-          {changeAmount > 0 ? <ReceiptTotalRow label={receiptPrintLabel("change", "الباقي")} value={formatCurrency(changeAmount)} /> : null}
-          {dueAmount > 0 ? <ReceiptTotalRow label={receiptPrintLabel("due", "المتبقي")} value={formatCurrency(dueAmount)} /> : null}
-          <div className="h-px bg-emerald-500" />
-          <div className="flex items-end justify-between gap-4 pt-1">
-            <span className="text-sm font-black tracking-[0.08em] text-zinc-950">{receiptPrintLabel("total", "الإجمالي")}</span>
-            <span className="text-xl font-black text-emerald-600">{formatCurrency(totals.total)}</span>
+          <div className="mt-3 grid gap-2 rounded-[22px] border border-emerald-100 bg-emerald-50/60 px-3 py-3 text-[12px]">
+            <ReceiptInfo icon={FileText} label={receiptPrintLabel("invoice", "رقم الفاتورة")} value={premiumReceiptNumber} />
+            <ReceiptInfo icon={User} label={receiptPrintLabel("customer", "العميل")} value={premiumCustomerName} />
+            {premiumCustomerPhone ? <ReceiptInfo icon={Smartphone} label={receiptPrintLabel("phone", "الهاتف")} value={premiumCustomerPhone} /> : null}
+            {premiumSeller ? <ReceiptInfo icon={User} label={receiptPrintLabel("seller", "البائع")} value={premiumSeller} /> : null}
+            {premiumPayment ? <ReceiptInfo icon={CreditCard} label={receiptPrintLabel("payment", "طريقة الدفع")} value={premiumPayment} /> : null}
+            <ReceiptInfo icon={CalendarDays} label={receiptPrintLabel("date", "التاريخ")} value={`${premiumDate} - ${premiumTime}`} />
           </div>
-        </div>
-      </div>
 
-      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[10px] leading-5 text-zinc-700">
-        <div className="font-black text-emerald-700">{receiptPrintLabel("returnPolicyTitle", "سياسة الاستبدال والاسترجاع")}</div>
-        <div>{returnPolicyText}</div>
-        <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
-      </div>
-
-      <div className="mt-3 text-center text-[10px] font-black tracking-[0.2em] text-emerald-600">
-        GREEN_THERMAL_RECEIPT_V2
-      </div>
-
-      <div className="mt-2.5 rounded-[22px] border border-dashed border-emerald-300 px-3 py-2 text-center">
-        <div className="text-[11px] font-bold text-zinc-500">{receiptPrintLabel("scanToView", "امسح لعرض الفاتورة")}</div>
-        <div className="pos-receipt-barcode mx-auto mt-1 w-[260px] max-w-full rounded-lg bg-white px-1 py-0">
-          <div dangerouslySetInnerHTML={{ __html: premiumBarcodeSvg }} />
-        </div>
-        <div className="mt-0.5 text-[10px] font-black tracking-[0.12em] text-emerald-700">{premiumReceiptNumber}</div>
-        {premiumPublicUrl ? (
-          <div className="mt-1 break-all text-[9px] font-semibold text-zinc-500">
-            {premiumPublicUrl}
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <ReceiptMiniStat label={receiptPrintLabel("qty", "الكمية")} value={String(premiumTotalQuantity)} />
+            <ReceiptMiniStat label={receiptPrintLabel("paid", "المدفوع")} value={formatCurrency(paidAmount)} />
+            <ReceiptMiniStat label={dueAmount > 0 ? receiptPrintLabel("due", "المتبقي") : receiptPrintLabel("change", "الباقي")} value={formatCurrency(dueAmount > 0 ? dueAmount : changeAmount)} />
           </div>
-        ) : null}
-        {premiumSocialLinks.length > 0 ? (
-          <div className="mt-2 flex flex-wrap items-center justify-center gap-2 text-[10px] font-bold text-zinc-600">
-            {premiumSocialLinks.map((link) => (
-              <ReceiptSocialLink key={link.key} type={link.key} label={link.label} />
-            ))}
+
+          <div className="mt-3 rounded-[22px] border border-dashed border-emerald-300 bg-white px-3 py-2.5">
+            <div className="grid grid-cols-[1fr_38px_66px_72px] gap-2 border-b border-dashed border-emerald-200 pb-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
+              <div>{receiptPrintLabel("item", "المنتج")}</div>
+              <div className="text-center">{receiptPrintLabel("qty", "الكمية")}</div>
+              <div className="text-right">{receiptPrintLabel("price", "السعر")}</div>
+              <div className="text-right">{receiptPrintLabel("total", "الإجمالي")}</div>
+            </div>
+            <div className="mt-1.5 space-y-1.5">
+              {cart.length === 0 ? (
+                <div className="py-4 text-center text-sm text-zinc-500">{receiptPrintLabel("noItems", "لا توجد منتجات.")}</div>
+              ) : (
+                cart.map((item, index) => {
+                  const unitPrice = getReceiptItemUnitPrice(item);
+                  const lineTotal = getReceiptItemTotal(item);
+                  const imageSrc = item.image_url || item.product_image_url || item.image || item.photo_url || "";
+
+                  return (
+                    <div
+                      key={String(item.key || item.id || `${item.name}-${index}`)}
+                      className="grid grid-cols-[1fr_38px_66px_72px] gap-2 border-t border-dashed border-zinc-200 pt-1.5 text-[12px] first:border-t-0 first:pt-0"
+                    >
+                      <div className="flex min-w-0 flex-row-reverse items-center gap-2">
+                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-zinc-100 bg-zinc-50">
+                          {imageSrc ? <CartItemImage src={imageSrc} fallbackSrc={item.product_image_url} alt={item.name} /> : <ImagePlaceholder />}
+                        </div>
+                        <div className="min-w-0 flex-1 text-right">
+                          <div className="truncate font-black leading-tight text-zinc-950">{item.name || "منتج"}</div>
+                          <div className="mt-0.5 text-[11px] leading-tight text-zinc-500">
+                            {item.color || receiptPrintLabel("default", "افتراضي")} / {item.size || receiptPrintLabel("oneSize", "مقاس واحد")}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="self-center text-center font-bold text-zinc-700">{item.quantity}</div>
+                      <div className="self-center text-right font-black text-zinc-950">{formatReceiptPrice(unitPrice)}</div>
+                      <div className="self-center text-right font-black text-emerald-700">{formatReceiptPrice(lineTotal)}</div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
-        ) : null}
-        <div className="mx-auto mt-2 h-px w-full max-w-[260px] bg-emerald-500" />
-        <div className="mx-auto mt-2 flex max-w-[340px] items-center justify-center gap-2 text-[10px] font-bold text-zinc-600">
-          <span className="inline-flex items-center gap-1">
-            <Globe className="h-3 w-3 text-emerald-600" />
-            {premiumStore.website}
-          </span>
-          {premiumStore.phone ? (
-            <>
-              <span className="text-emerald-600">|</span>
+          <div className="mt-3 rounded-[22px] border border-emerald-100 bg-white px-3 py-3">
+            <div className="space-y-1.5 text-[13px]">
+              <ReceiptTotalRow label={receiptPrintLabel("subtotal", "الإجمالي الفرعي")} value={formatCurrency(totals.subtotal)} />
+              <ReceiptTotalRow label={receiptPrintLabel("discounts", "الخصومات")} value={`- ${formatCurrency(premiumDiscount)}`} />
+              {Number(totals.couponDiscount || 0) > 0 ? <ReceiptTotalRow label={receiptPrintLabel("couponDiscount", "خصم الكوبون")} value={`- ${formatCurrency(totals.couponDiscount || 0)}`} /> : null}
+              {Number(totals.loyaltyDiscount || 0) > 0 ? <ReceiptTotalRow label={receiptPrintLabel("loyaltyDiscount", "خصم الولاء")} value={`- ${formatCurrency(totals.loyaltyDiscount || 0)}`} /> : null}
+              {premiumService > 0 ? <ReceiptTotalRow label={receiptPrintLabel("serviceFee", "رسوم الخدمة")} value={formatCurrency(premiumService)} /> : null}
+              <ReceiptTotalRow label={receiptPrintLabel("paid", "المدفوع")} value={formatCurrency(paidAmount)} />
+              {changeAmount > 0 ? <ReceiptTotalRow label={receiptPrintLabel("change", "الباقي")} value={formatCurrency(changeAmount)} /> : null}
+              {dueAmount > 0 ? <ReceiptTotalRow label={receiptPrintLabel("due", "المتبقي")} value={formatCurrency(dueAmount)} /> : null}
+              <div className="h-px bg-emerald-500" />
+              <div className="flex items-end justify-between gap-4 pt-1">
+                <span className="text-sm font-black tracking-[0.08em] text-zinc-950">{receiptPrintLabel("total", "الإجمالي")}</span>
+                <span className="text-xl font-black text-emerald-600">{formatCurrency(totals.total)}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[10px] leading-5 text-zinc-700">
+            <div className="font-black text-emerald-700">{receiptPrintLabel("returnPolicyTitle", "سياسة الاستبدال والاسترجاع")}</div>
+            <div>{getReturnPolicyText()}</div>
+            <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
+          </div>
+
+          <div className="mt-3 text-center text-[10px] font-black tracking-[0.2em] text-emerald-600">GREEN_THERMAL_RECEIPT_V2</div>
+
+          <div className="mt-2.5 rounded-[22px] border border-dashed border-emerald-300 px-3 py-2 text-center">
+            <div className="text-[11px] font-bold text-zinc-500">{receiptPrintLabel("scanToView", "امسح لعرض الفاتورة")}</div>
+            <div className="pos-receipt-barcode mx-auto mt-1 w-[260px] max-w-full rounded-lg bg-white px-1 py-0">
+              <div dangerouslySetInnerHTML={{ __html: premiumBarcodeSvg }} />
+            </div>
+            <div className="mt-0.5 text-[10px] font-black tracking-[0.12em] text-emerald-700">{premiumReceiptNumber}</div>
+            <div className="mx-auto mt-2 h-px w-full max-w-[260px] bg-emerald-500" />
+            <div className="mx-auto mt-2 flex max-w-[340px] items-center justify-center gap-2 text-[10px] font-bold text-zinc-600">
               <span className="inline-flex items-center gap-1">
-                <Smartphone className="h-3 w-3 text-emerald-600" />
-                <span>{receiptPrintLabel("customerService", "خدمة العملاء")}</span>
-                <span>{premiumStore.phone}</span>
+                <Globe className="h-3 w-3 text-emerald-600" />
+                {premiumStore.website}
               </span>
-            </>
-          ) : null}
-        </div>
-      </div>
+              {premiumStore.phone ? (
+                <>
+                  <span className="text-emerald-600">|</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Smartphone className="h-3 w-3 text-emerald-600" />
+                    <span>{receiptPrintLabel("customerService", "خدمة العملاء")}</span>
+                    <span>{premiumStore.phone}</span>
+                  </span>
+                </>
+              ) : null}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

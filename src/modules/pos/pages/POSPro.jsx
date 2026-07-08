@@ -5586,6 +5586,14 @@ function POSPro() {
         ...(customer || {}),
         name: order.customerName || order.customer_name || customer?.name || WALK_IN_CUSTOMER.name,
       },
+      sellerName:
+        activeSalesperson?.full_name ||
+        activeSalesperson?.name ||
+        activeSalesperson?.employee_name ||
+        activeSalesperson?.pos_alias ||
+        activeSalesperson?.user_name ||
+        activeSalesperson?.display_name ||
+        "",
       cart: renderedCart,
       totals: renderedTotals,
       paymentSummary: renderedPaymentSummary,
@@ -5628,7 +5636,7 @@ function POSPro() {
             .pos-receipt { width: 100%; margin: 0 auto; direction: inherit; text-align: start; background: #fff !important; color: #111827 !important; border: 1px solid #bbf7d0 !important; box-shadow: none !important; page-break-inside: avoid; break-inside: avoid; }
             [dir="rtl"] .pos-receipt { text-align: right; }
             [dir="ltr"] .pos-receipt { text-align: left; }
-            .pos-receipt-thermal { width: 80mm !important; max-width: 80mm !important; border-radius: 0 !important; padding: 10px !important; }
+            .pos-receipt-thermal { width: min(80mm, 100%) !important; max-width: 80mm !important; border-radius: 0 !important; padding: 10px !important; }
             .pos-receipt-a4 { max-width: 720px !important; border-radius: 0 !important; padding: 24px !important; }
             .pos-receipt-barcode svg { display: block; width: 100%; max-width: 100%; height: auto; }
             .pos-receipt-barcode svg text { display: none; }
