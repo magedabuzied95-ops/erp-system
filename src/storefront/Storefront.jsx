@@ -3516,17 +3516,21 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/products", products
                 {skeleton ? (
                   <div className="h-56 animate-pulse rounded-[1.35rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)] md:h-72 md:rounded-[1.75rem] dark:bg-white/5" />
                 ) : (
-                  <ProductCard
-                    product={product}
-                    wishlist={wishlist}
-                    toggleWishlist={toggleWishlist}
-                    onAddToCart={onAddToCart}
-                    railType={railType}
-                    rank={index + 1}
-                    density="compact"
-                    eagerImage
-                    imagePreset="small"
-                  />
+                  <>
+                    {console.log("PRODUCT_CARD_PARENT_PROP", { saleModeEnabled })}
+                    <ProductCard
+                      product={product}
+                      wishlist={wishlist}
+                      toggleWishlist={toggleWishlist}
+                      onAddToCart={onAddToCart}
+                      railType={railType}
+                      rank={index + 1}
+                      density="compact"
+                      eagerImage
+                      imagePreset="small"
+                      saleModeEnabled={storefrontSalePricesEnabled}
+                    />
+                  </>
                 )}
               </div>
             ))}
@@ -5244,7 +5248,8 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
           </div>
         )) : visibleProducts.map((product, index) => (
           <div key={productCardKey(product, index)} className={`w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none md:basis-[calc((100%_-_2rem)/3)] xl:basis-[calc((100%_-_4rem)/5)] ${index >= 3 ? "md:hidden xl:block" : ""}`}>
-            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} railType={railType} rank={index + 1} featured={featuredFirst && index === 0} density={cardDensity} imagePreset="grid" />
+            {console.log("PRODUCT_CARD_PARENT_PROP", { saleModeEnabled })}
+            <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} railType={railType} rank={index + 1} featured={featuredFirst && index === 0} density={cardDensity} imagePreset="grid" saleModeEnabled={saleModeEnabled} />
           </div>
         ))}
       </div>
@@ -5282,17 +5287,20 @@ function useStorefrontProductGridColumns() {
 const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled = storefrontSalePricesEnabled }) {
   const columns = useStorefrontProductGridColumns();
   const shouldVirtualize = columns >= 4 && products.length > 40;
-  const renderProduct = useCallback((product, index, key) => (
-    <ProductCard
-      key={key}
-      product={product}
-      wishlist={wishlist}
-      toggleWishlist={toggleWishlist}
-      onAddToCart={onAddToCart}
-      saleModeEnabled={saleModeEnabled}
-      sizeLimit={4}
-    />
-  ), [onAddToCart, saleModeEnabled, toggleWishlist, wishlist]);
+  const renderProduct = useCallback((product, index, key) => {
+    console.log("PRODUCT_CARD_PARENT_PROP", { saleModeEnabled });
+    return (
+      <ProductCard
+        key={key}
+        product={product}
+        wishlist={wishlist}
+        toggleWishlist={toggleWishlist}
+        onAddToCart={onAddToCart}
+        saleModeEnabled={saleModeEnabled}
+        sizeLimit={4}
+      />
+    );
+  }, [onAddToCart, saleModeEnabled, toggleWishlist, wishlist]);
 
   if (loading) return <ProductSkeleton count={8} />;
 
@@ -6869,7 +6877,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
   );
 }
 
-const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, saleModeEnabled = storefrontSalePricesEnabled, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, imagePreset = "grid" }) {
+const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, saleModeEnabled, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, imagePreset = "grid" }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const product = groupedProduct || rawProduct || {};
@@ -6911,6 +6919,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   );
   const inWishlist = useMemo(() => wishlist.some((item) => String(item.id) === String(product.id)), [product.id, wishlist]);
   const rawSaleModeEnabled = saleModeEnabled;
+  console.log("PRODUCT_CARD_CHILD_PROP", { saleModeEnabled });
   const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, true);
   const pricing = useMemo(
     () => getDisplayPricing(product, parsedSaleModeEnabled, availableVariant),
@@ -7689,7 +7698,10 @@ function RelatedProducts({ currentId, ...props }) {
         <Link to="/products" className="rounded-full border border-stone-200 bg-white/70 px-3 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:border-stone-950 dark:border-white/10 dark:bg-white/[0.055] dark:text-white/70 dark:hover:border-white/25 dark:hover:text-white">{sfText("storefront.common.viewAll")}</Link>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {filtered.length ? filtered.map((product, index) => <ProductCard key={productCardKey(product, index)} product={product} railType="similar" {...props} />) : <MiniRailEmpty />}
+        {filtered.length ? filtered.map((product, index) => {
+          console.log("PRODUCT_CARD_PARENT_PROP", { saleModeEnabled: props?.saleModeEnabled });
+          return <ProductCard key={productCardKey(product, index)} product={product} railType="similar" {...props} saleModeEnabled={props?.saleModeEnabled} />;
+        }) : <MiniRailEmpty />}
       </div>
     </div>
   );
@@ -9367,7 +9379,7 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
       </div>
       {products.length ? (
         <div className="mt-6">
-          <ProductRail title={t("storefront.nav.new")} subtitle={t("storefront.success.recommendedProducts")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} />
+          <ProductRail title={t("storefront.nav.new")} subtitle={t("storefront.success.recommendedProducts")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} saleModeEnabled={storefrontSalePricesEnabled} />
         </div>
       ) : null}
     </section>
