@@ -1378,37 +1378,6 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
   const changeAmount = Number(paymentSummary?.changeAmount || 0);
   const dueAmount = Math.max(0, Number(paymentSummary?.dueAmount || 0));
   const compactShellClass = compact ? "pos-receipt-thermal w-full max-w-[360px] rounded-[20px] px-3 py-3" : "pos-receipt-a4 max-w-[720px] rounded-[32px] p-6";
-  const safeReceiptValue = (value) => String(value ?? "").trim() || "-";
-  const safeReceiptMoney = (value) => {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? formatCurrency(numeric) : "-";
-  };
-  const compactPaymentLabel = (() => {
-    const raw = String(paymentMode || paymentSummary?.method || paymentSummary?.payment_method || "").toLowerCase();
-    const labels = {
-      cash: "نقدًا",
-      card: "بطاقة",
-      visa: "بطاقة",
-      wallet: "محفظة",
-      instapay: "إنستاباي",
-      vodafone_cash: "فودافون كاش",
-      split: "متعدد",
-      credit_sale: "آجل",
-      transfer: "تحويل",
-      bank_transfer: "تحويل",
-      customer_wallet: "محفظة العميل",
-      personal: "شخصي",
-    };
-    return labels[raw] || "-";
-  })();
-  const compactDateText = `${premiumDate} ${premiumTime}`.trim();
-  const compactSellerName = safeReceiptValue(sellerName || premiumSeller);
-  const compactCustomerName = safeReceiptValue(premiumCustomerName);
-  const compactDiscounts = Number(totals.itemDiscountTotal || 0) + Number(totals.invoiceDiscount || 0);
-  const compactLoyaltyDiscount = Number(totals.loyaltyDiscount || 0);
-  const compactTotal = Number(totals.total || 0);
-  const compactItemCount = premiumTotalQuantity;
-
   if (compact) {
     return (
       <ThermalReceiptFinal
@@ -1416,9 +1385,6 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         cart={cart}
         totals={totals}
         paymentSummary={paymentSummary}
-        paymentMode={paymentMode}
-        sellerName={compactSellerName}
-        customer={customer}
         barcodeSvg={premiumBarcodeSvg}
         premiumDate={premiumDate}
         premiumTime={premiumTime}
@@ -1431,253 +1397,133 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
       dir="rtl"
       className={`pos-receipt mx-auto overflow-hidden bg-white text-zinc-950 ${compact ? "border border-zinc-300 shadow-none" : "border border-emerald-100 shadow-2xl shadow-black/20"} ${compactShellClass}`}
     >
-      {compact ? (
-        <div className="flex flex-col gap-3">
-          {/* GREEN_THERMAL_RECEIPT_FINAL */}
-          <div className="flex flex-col gap-2 text-center">
-            <div className="text-[22px] font-black leading-none text-zinc-950">M1 Store</div>
-            <div className="text-[12px] font-bold leading-5 text-zinc-700">شكراً لشرائكم</div>
-            <div className="h-px w-full bg-zinc-950" />
+      <div className="rounded-[22px] border border-emerald-200 bg-[linear-gradient(180deg,#f5fff9_0%,#ffffff_64%)] px-3 py-3 text-center">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 shadow-sm">
+          <ShoppingBag className="h-7 w-7" />
+        </div>
+        <div className="mt-2 text-[22px] font-black tracking-[0.08em] text-zinc-950">{premiumStore.name}</div>
+        {premiumStore.tagline ? (
+          <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-600">
+            {premiumStore.tagline}
           </div>
-
-          <div className="flex flex-col gap-2 text-[12px] leading-5 text-zinc-900">
-            <div className="flex flex-col gap-0.5">
-              <div className="font-black">رقم الفاتورة</div>
-              <div className="font-semibold tracking-[0.01em]">{safeReceiptValue(premiumReceiptNumber)}</div>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <div className="font-black">التاريخ</div>
-              <div className="font-semibold">{compactDateText || "-"}</div>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <div className="font-black">البائع</div>
-              <div className="font-semibold">{compactSellerName}</div>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <div className="font-black">العميل</div>
-              <div className="font-semibold">{compactCustomerName}</div>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <div className="font-black">طريقة الدفع</div>
-              <div className="font-semibold">{compactPaymentLabel}</div>
-            </div>
+        ) : null}
+        <div className="mt-1 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">
+          شكراً لشرائكم.
+        </div>
+        {premiumStore.phone || premiumStore.address ? (
+          <div className="mt-3 grid gap-1 text-right">
+            {premiumStore.phone ? <ReceiptInfo icon={Smartphone} label={receiptPrintLabel("customerService", "خدمة العملاء")} value={premiumStore.phone} /> : null}
+            {premiumStore.address ? <ReceiptInfo icon={Globe} label={receiptPrintLabel("address", "العنوان")} value={premiumStore.address} /> : null}
           </div>
+        ) : null}
+      </div>
 
-          <div className="h-px w-full bg-zinc-300" />
+      <div className="mt-3 grid gap-2 rounded-[22px] border border-emerald-100 bg-emerald-50/60 px-3 py-3 text-[12px]">
+        <ReceiptInfo icon={FileText} label={receiptPrintLabel("invoice", "رقم الفاتورة")} value={premiumReceiptNumber} />
+        <ReceiptInfo icon={User} label={receiptPrintLabel("customer", "العميل")} value={premiumCustomerName} />
+        {premiumCustomerPhone ? <ReceiptInfo icon={Smartphone} label={receiptPrintLabel("phone", "الهاتف")} value={premiumCustomerPhone} /> : null}
+        {premiumSeller ? <ReceiptInfo icon={User} label={receiptPrintLabel("seller", "البائع")} value={premiumSeller} /> : null}
+        {premiumPayment ? <ReceiptInfo icon={CreditCard} label={receiptPrintLabel("payment", "طريقة الدفع")} value={premiumPayment} /> : null}
+        <ReceiptInfo icon={CalendarDays} label={receiptPrintLabel("date", "التاريخ")} value={`${premiumDate} - ${premiumTime}`} />
+      </div>
 
-          <div className="flex flex-col gap-3">
-            {cart.length === 0 ? (
-              <div className="py-4 text-center text-[12px] font-semibold text-zinc-500">لا توجد منتجات</div>
-            ) : (
-              cart.map((item, index) => {
-                const unitPrice = getReceiptItemUnitPrice(item);
-                const lineTotal = getReceiptItemTotal(item);
-                const colorText = safeReceiptValue(item.color || item.color_name);
-                const sizeText = safeReceiptValue(item.size || item.size_name);
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <ReceiptMiniStat label={receiptPrintLabel("qty", "الكمية")} value={String(premiumTotalQuantity)} />
+        <ReceiptMiniStat label={receiptPrintLabel("paid", "المدفوع")} value={formatCurrency(paidAmount)} />
+        <ReceiptMiniStat label={dueAmount > 0 ? receiptPrintLabel("due", "المتبقي") : receiptPrintLabel("change", "الباقي")} value={formatCurrency(dueAmount > 0 ? dueAmount : changeAmount)} />
+      </div>
 
-                return (
-                  <div key={String(item.key || item.id || `${item.name}-${index}`)} className="flex flex-col gap-1.5 text-[12px] leading-5 text-zinc-900">
-                    <div className="text-[14px] font-black leading-6 text-zinc-950">{safeReceiptValue(item.name) === "-" ? "منتج" : item.name}</div>
-                    <div className="text-zinc-700">{colorText}</div>
-                    <div className="text-zinc-700">مقاس {sizeText}</div>
-                    <div className="flex flex-col gap-0.5">
-                      <div className="font-black">الكمية</div>
-                      <div className="font-semibold">{safeReceiptValue(item.quantity)}</div>
+      <div className="mt-3 rounded-[22px] border border-dashed border-emerald-300 bg-white px-3 py-2.5">
+        <div className="grid grid-cols-[1fr_38px_66px_72px] gap-2 border-b border-dashed border-emerald-200 pb-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
+          <div>{receiptPrintLabel("item", "المنتج")}</div>
+          <div className="text-center">{receiptPrintLabel("qty", "الكمية")}</div>
+          <div className="text-right">{receiptPrintLabel("price", "السعر")}</div>
+          <div className="text-right">{receiptPrintLabel("total", "الإجمالي")}</div>
+        </div>
+        <div className="mt-1.5 space-y-1.5">
+          {cart.length === 0 ? (
+            <div className="py-4 text-center text-sm text-zinc-500">{receiptPrintLabel("noItems", "لا توجد منتجات.")}</div>
+          ) : (
+            cart.map((item, index) => {
+              const unitPrice = getReceiptItemUnitPrice(item);
+              const lineTotal = getReceiptItemTotal(item);
+              const imageSrc = item.image_url || item.product_image_url || item.image || item.photo_url || "";
+
+              return (
+                <div
+                  key={String(item.key || item.id || `${item.name}-${index}`)}
+                  className="grid grid-cols-[1fr_38px_66px_72px] gap-2 border-t border-dashed border-zinc-200 pt-1.5 text-[12px] first:border-t-0 first:pt-0"
+                >
+                  <div className="flex min-w-0 flex-row-reverse items-center gap-2">
+                    <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-zinc-100 bg-zinc-50">
+                      {imageSrc ? <CartItemImage src={imageSrc} fallbackSrc={item.product_image_url} alt={item.name} /> : <ImagePlaceholder />}
                     </div>
-                    <div className="flex flex-col gap-0.5">
-                      <div className="font-black">سعر الوحدة</div>
-                      <div className="font-semibold">{safeReceiptMoney(unitPrice)}</div>
+                    <div className="min-w-0 flex-1 text-right">
+                      <div className="truncate font-black leading-tight text-zinc-950">{item.name || "منتج"}</div>
+                      <div className="mt-0.5 text-[11px] leading-tight text-zinc-500">
+                        {item.color || receiptPrintLabel("default", "افتراضي")} / {item.size || receiptPrintLabel("oneSize", "مقاس واحد")}
+                      </div>
                     </div>
-                    <div className="flex flex-col gap-0.5">
-                      <div className="font-black">الإجمالي</div>
-                      <div className="font-black">{safeReceiptMoney(lineTotal)}</div>
-                    </div>
-                    {index < cart.length - 1 ? <div className="mt-1 h-px w-full bg-zinc-300" /> : null}
                   </div>
-                );
-              })
-            )}
-          </div>
-
-          <div className="h-px w-full bg-zinc-300" />
-
-          <div className="flex flex-col gap-2 text-[12px] leading-5 text-zinc-900">
-            <div className="flex flex-col gap-0.5">
-              <div className="font-black">المجموع الفرعي</div>
-              <div className="font-semibold">{safeReceiptMoney(totals.subtotal)}</div>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <div className="font-black">الخصومات</div>
-              <div className="font-semibold">- {safeReceiptMoney(compactDiscounts)}</div>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <div className="font-black">خصم الولاء</div>
-              <div className="font-semibold">- {safeReceiptMoney(compactLoyaltyDiscount)}</div>
-            </div>
-            <div className="h-px w-full bg-zinc-300" />
-            <div className="flex flex-col gap-0.5">
-              <div className="text-[18px] font-black leading-6 text-zinc-950">الإجمالي</div>
-              <div className="text-[20px] font-black leading-6 text-zinc-950">{safeReceiptMoney(compactTotal)} EGP</div>
-            </div>
-            <div className="flex flex-col gap-0.5">
-              <div className="font-black">إجمالي الكمية</div>
-              <div className="font-semibold">{String(compactItemCount || 0)}</div>
-            </div>
-          </div>
-
-          <div className="rounded-[14px] border border-zinc-300 px-3 py-2 text-[12px] leading-5 text-zinc-700">
-            <div className="mb-1 font-black text-zinc-950">سياسة الاستبدال والاسترجاع</div>
-            <div>يسمح بالاستبدال والاسترجاع خلال 14 يوم بشرط عدم الاستخدام والحفاظ على الحالة الأصلية وتقديم أصل الفاتورة.</div>
-            <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
-          </div>
-
-          <div className="h-px w-full bg-zinc-300" />
-
-          <div className="flex flex-col items-center gap-1 text-center">
-            <div className="pos-receipt-barcode w-full max-w-[260px] bg-white px-1 py-0">
-              <div dangerouslySetInnerHTML={{ __html: premiumBarcodeSvg }} />
-            </div>
-            <div className="text-[12px] font-black tracking-[0.01em] text-zinc-950">{premiumReceiptNumber}</div>
-          </div>
-
-          <div className="h-px w-full bg-zinc-300" />
-
-          <div className="flex flex-col gap-1 text-center text-[12px] font-bold leading-5 text-zinc-700">
-            <div>www.m1store-egy.com</div>
-            <div>01000659301</div>
+                  <div className="self-center text-center font-bold text-zinc-700">{item.quantity}</div>
+                  <div className="self-center text-right font-black text-zinc-950">{formatReceiptPrice(unitPrice)}</div>
+                  <div className="self-center text-right font-black text-emerald-700">{formatReceiptPrice(lineTotal)}</div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </div>
+      <div className="mt-3 rounded-[22px] border border-emerald-100 bg-white px-3 py-3">
+        <div className="space-y-1.5 text-[13px]">
+          <ReceiptTotalRow label={receiptPrintLabel("subtotal", "الإجمالي الفرعي")} value={formatCurrency(totals.subtotal)} />
+          <ReceiptTotalRow label={receiptPrintLabel("discounts", "الخصومات")} value={`- ${formatCurrency(premiumDiscount)}`} />
+          {Number(totals.couponDiscount || 0) > 0 ? <ReceiptTotalRow label={receiptPrintLabel("couponDiscount", "خصم الكوبون")} value={`- ${formatCurrency(totals.couponDiscount || 0)}`} /> : null}
+          {Number(totals.loyaltyDiscount || 0) > 0 ? <ReceiptTotalRow label={receiptPrintLabel("loyaltyDiscount", "خصم الولاء")} value={`- ${formatCurrency(totals.loyaltyDiscount || 0)}`} /> : null}
+          {premiumService > 0 ? <ReceiptTotalRow label={receiptPrintLabel("serviceFee", "رسوم الخدمة")} value={formatCurrency(premiumService)} /> : null}
+          <ReceiptTotalRow label={receiptPrintLabel("paid", "المدفوع")} value={formatCurrency(paidAmount)} />
+          {changeAmount > 0 ? <ReceiptTotalRow label={receiptPrintLabel("change", "الباقي")} value={formatCurrency(changeAmount)} /> : null}
+          {dueAmount > 0 ? <ReceiptTotalRow label={receiptPrintLabel("due", "المتبقي")} value={formatCurrency(dueAmount)} /> : null}
+          <div className="h-px bg-emerald-500" />
+          <div className="flex items-end justify-between gap-4 pt-1">
+            <span className="text-sm font-black tracking-[0.08em] text-zinc-950">{receiptPrintLabel("total", "الإجمالي")}</span>
+            <span className="text-xl font-black text-emerald-600">{formatCurrency(totals.total)}</span>
           </div>
         </div>
-      ) : (
-        <>
-          <div className="rounded-[22px] border border-emerald-200 bg-[linear-gradient(180deg,#f5fff9_0%,#ffffff_64%)] px-3 py-3 text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-600 shadow-sm">
-              <ShoppingBag className="h-7 w-7" />
-            </div>
-            <div className="mt-2 text-[22px] font-black tracking-[0.08em] text-zinc-950">{premiumStore.name}</div>
-            {premiumStore.tagline ? (
-              <div className="mt-1 text-[10px] font-bold uppercase tracking-[0.24em] text-emerald-600">
-                {premiumStore.tagline}
-              </div>
-            ) : null}
-            <div className="mt-1 text-[11px] font-black uppercase tracking-[0.22em] text-emerald-600">
-              شكراً لشرائكم.
-            </div>
-            {premiumStore.phone || premiumStore.address ? (
-              <div className="mt-3 grid gap-1 text-right">
-                {premiumStore.phone ? <ReceiptInfo icon={Smartphone} label={receiptPrintLabel("customerService", "خدمة العملاء")} value={premiumStore.phone} /> : null}
-                {premiumStore.address ? <ReceiptInfo icon={Globe} label={receiptPrintLabel("address", "العنوان")} value={premiumStore.address} /> : null}
-              </div>
-            ) : null}
-          </div>
+      </div>
 
-          <div className="mt-3 grid gap-2 rounded-[22px] border border-emerald-100 bg-emerald-50/60 px-3 py-3 text-[12px]">
-            <ReceiptInfo icon={FileText} label={receiptPrintLabel("invoice", "رقم الفاتورة")} value={premiumReceiptNumber} />
-            <ReceiptInfo icon={User} label={receiptPrintLabel("customer", "العميل")} value={premiumCustomerName} />
-            {premiumCustomerPhone ? <ReceiptInfo icon={Smartphone} label={receiptPrintLabel("phone", "الهاتف")} value={premiumCustomerPhone} /> : null}
-            {premiumSeller ? <ReceiptInfo icon={User} label={receiptPrintLabel("seller", "البائع")} value={premiumSeller} /> : null}
-            {premiumPayment ? <ReceiptInfo icon={CreditCard} label={receiptPrintLabel("payment", "طريقة الدفع")} value={premiumPayment} /> : null}
-            <ReceiptInfo icon={CalendarDays} label={receiptPrintLabel("date", "التاريخ")} value={`${premiumDate} - ${premiumTime}`} />
-          </div>
+      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[10px] leading-5 text-zinc-700">
+        <div className="font-black text-emerald-700">{receiptPrintLabel("returnPolicyTitle", "سياسة الاستبدال والاسترجاع")}</div>
+        <div>{getReturnPolicyText()}</div>
+        <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
+      </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            <ReceiptMiniStat label={receiptPrintLabel("qty", "الكمية")} value={String(premiumTotalQuantity)} />
-            <ReceiptMiniStat label={receiptPrintLabel("paid", "المدفوع")} value={formatCurrency(paidAmount)} />
-            <ReceiptMiniStat label={dueAmount > 0 ? receiptPrintLabel("due", "المتبقي") : receiptPrintLabel("change", "الباقي")} value={formatCurrency(dueAmount > 0 ? dueAmount : changeAmount)} />
-          </div>
+      <div className="mt-3 text-center text-[10px] font-black tracking-[0.2em] text-emerald-600">GREEN_THERMAL_RECEIPT_V2</div>
 
-          <div className="mt-3 rounded-[22px] border border-dashed border-emerald-300 bg-white px-3 py-2.5">
-            <div className="grid grid-cols-[1fr_38px_66px_72px] gap-2 border-b border-dashed border-emerald-200 pb-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-emerald-700">
-              <div>{receiptPrintLabel("item", "المنتج")}</div>
-              <div className="text-center">{receiptPrintLabel("qty", "الكمية")}</div>
-              <div className="text-right">{receiptPrintLabel("price", "السعر")}</div>
-              <div className="text-right">{receiptPrintLabel("total", "الإجمالي")}</div>
-            </div>
-            <div className="mt-1.5 space-y-1.5">
-              {cart.length === 0 ? (
-                <div className="py-4 text-center text-sm text-zinc-500">{receiptPrintLabel("noItems", "لا توجد منتجات.")}</div>
-              ) : (
-                cart.map((item, index) => {
-                  const unitPrice = getReceiptItemUnitPrice(item);
-                  const lineTotal = getReceiptItemTotal(item);
-                  const imageSrc = item.image_url || item.product_image_url || item.image || item.photo_url || "";
-
-                  return (
-                    <div
-                      key={String(item.key || item.id || `${item.name}-${index}`)}
-                      className="grid grid-cols-[1fr_38px_66px_72px] gap-2 border-t border-dashed border-zinc-200 pt-1.5 text-[12px] first:border-t-0 first:pt-0"
-                    >
-                      <div className="flex min-w-0 flex-row-reverse items-center gap-2">
-                        <div className="h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-zinc-100 bg-zinc-50">
-                          {imageSrc ? <CartItemImage src={imageSrc} fallbackSrc={item.product_image_url} alt={item.name} /> : <ImagePlaceholder />}
-                        </div>
-                        <div className="min-w-0 flex-1 text-right">
-                          <div className="truncate font-black leading-tight text-zinc-950">{item.name || "منتج"}</div>
-                          <div className="mt-0.5 text-[11px] leading-tight text-zinc-500">
-                            {item.color || receiptPrintLabel("default", "افتراضي")} / {item.size || receiptPrintLabel("oneSize", "مقاس واحد")}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="self-center text-center font-bold text-zinc-700">{item.quantity}</div>
-                      <div className="self-center text-right font-black text-zinc-950">{formatReceiptPrice(unitPrice)}</div>
-                      <div className="self-center text-right font-black text-emerald-700">{formatReceiptPrice(lineTotal)}</div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-          <div className="mt-3 rounded-[22px] border border-emerald-100 bg-white px-3 py-3">
-            <div className="space-y-1.5 text-[13px]">
-              <ReceiptTotalRow label={receiptPrintLabel("subtotal", "الإجمالي الفرعي")} value={formatCurrency(totals.subtotal)} />
-              <ReceiptTotalRow label={receiptPrintLabel("discounts", "الخصومات")} value={`- ${formatCurrency(premiumDiscount)}`} />
-              {Number(totals.couponDiscount || 0) > 0 ? <ReceiptTotalRow label={receiptPrintLabel("couponDiscount", "خصم الكوبون")} value={`- ${formatCurrency(totals.couponDiscount || 0)}`} /> : null}
-              {Number(totals.loyaltyDiscount || 0) > 0 ? <ReceiptTotalRow label={receiptPrintLabel("loyaltyDiscount", "خصم الولاء")} value={`- ${formatCurrency(totals.loyaltyDiscount || 0)}`} /> : null}
-              {premiumService > 0 ? <ReceiptTotalRow label={receiptPrintLabel("serviceFee", "رسوم الخدمة")} value={formatCurrency(premiumService)} /> : null}
-              <ReceiptTotalRow label={receiptPrintLabel("paid", "المدفوع")} value={formatCurrency(paidAmount)} />
-              {changeAmount > 0 ? <ReceiptTotalRow label={receiptPrintLabel("change", "الباقي")} value={formatCurrency(changeAmount)} /> : null}
-              {dueAmount > 0 ? <ReceiptTotalRow label={receiptPrintLabel("due", "المتبقي")} value={formatCurrency(dueAmount)} /> : null}
-              <div className="h-px bg-emerald-500" />
-              <div className="flex items-end justify-between gap-4 pt-1">
-                <span className="text-sm font-black tracking-[0.08em] text-zinc-950">{receiptPrintLabel("total", "الإجمالي")}</span>
-                <span className="text-xl font-black text-emerald-600">{formatCurrency(totals.total)}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 px-3 py-2 text-[10px] leading-5 text-zinc-700">
-            <div className="font-black text-emerald-700">{receiptPrintLabel("returnPolicyTitle", "سياسة الاستبدال والاسترجاع")}</div>
-            <div>{getReturnPolicyText()}</div>
-            <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
-          </div>
-
-          <div className="mt-3 text-center text-[10px] font-black tracking-[0.2em] text-emerald-600">GREEN_THERMAL_RECEIPT_V2</div>
-
-          <div className="mt-2.5 rounded-[22px] border border-dashed border-emerald-300 px-3 py-2 text-center">
-            <div className="text-[11px] font-bold text-zinc-500">{receiptPrintLabel("scanToView", "امسح لعرض الفاتورة")}</div>
-            <div className="pos-receipt-barcode mx-auto mt-1 w-[260px] max-w-full rounded-lg bg-white px-1 py-0">
-              <div dangerouslySetInnerHTML={{ __html: premiumBarcodeSvg }} />
-            </div>
-            <div className="mt-0.5 text-[10px] font-black tracking-[0.12em] text-emerald-700">{premiumReceiptNumber}</div>
-            <div className="mx-auto mt-2 h-px w-full max-w-[260px] bg-emerald-500" />
-            <div className="mx-auto mt-2 flex max-w-[340px] items-center justify-center gap-2 text-[10px] font-bold text-zinc-600">
+      <div className="mt-2.5 rounded-[22px] border border-dashed border-emerald-300 px-3 py-2 text-center">
+        <div className="text-[11px] font-bold text-zinc-500">{receiptPrintLabel("scanToView", "امسح لعرض الفاتورة")}</div>
+        <div className="pos-receipt-barcode mx-auto mt-1 w-[260px] max-w-full rounded-lg bg-white px-1 py-0">
+          <div dangerouslySetInnerHTML={{ __html: premiumBarcodeSvg }} />
+        </div>
+        <div className="mt-0.5 text-[10px] font-black tracking-[0.12em] text-emerald-700">{premiumReceiptNumber}</div>
+        <div className="mx-auto mt-2 h-px w-full max-w-[260px] bg-emerald-500" />
+        <div className="mx-auto mt-2 flex max-w-[340px] items-center justify-center gap-2 text-[10px] font-bold text-zinc-600">
+          <span className="inline-flex items-center gap-1">
+            <Globe className="h-3 w-3 text-emerald-600" />
+            {premiumStore.website}
+          </span>
+          {premiumStore.phone ? (
+            <>
+              <span className="text-emerald-600">|</span>
               <span className="inline-flex items-center gap-1">
-                <Globe className="h-3 w-3 text-emerald-600" />
-                {premiumStore.website}
+                <Smartphone className="h-3 w-3 text-emerald-600" />
+                <span>{receiptPrintLabel("customerService", "خدمة العملاء")}</span>
+                <span>{premiumStore.phone}</span>
               </span>
-              {premiumStore.phone ? (
-                <>
-                  <span className="text-emerald-600">|</span>
-                  <span className="inline-flex items-center gap-1">
-                    <Smartphone className="h-3 w-3 text-emerald-600" />
-                    <span>{receiptPrintLabel("customerService", "خدمة العملاء")}</span>
-                    <span>{premiumStore.phone}</span>
-                  </span>
-                </>
-              ) : null}
-            </div>
-          </div>
-        </>
-      )}
+            </>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }
@@ -1788,6 +1634,7 @@ const THERMAL_RECEIPT_FINAL_CSS = `
 .thermal-field {
   margin: 6px 0;
   text-align: right;
+  overflow: hidden;
 }
 
 .thermal-label {
@@ -1802,24 +1649,85 @@ const THERMAL_RECEIPT_FINAL_CSS = `
   word-break: break-word;
 }
 
-.thermal-product-card {
-  border: 1px dashed #000;
-  border-radius: 4px;
-  padding: 7px;
+.thermal-invoice-box {
+  border: 1.5px solid #000;
+  padding: 8px;
   margin: 8px 0;
-  text-align: right;
 }
 
-.thermal-product-title {
-  font-size: 14px;
+.thermal-products-box {
+  border: 1.5px solid #000;
+  margin: 8px 0;
+}
+
+.thermal-products-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.thermal-products-table th,
+.thermal-products-table td {
+  border: 1px solid #000;
+  padding: 5px 4px;
+  text-align: center;
+  vertical-align: middle;
+  overflow: hidden;
+  font-size: 12px;
+}
+
+.thermal-products-table th {
+  font-size: 11px;
   font-weight: 900;
-  line-height: 1.35;
-  margin-bottom: 6px;
+  background: #f4f4f4;
 }
 
-.thermal-product-meta {
-  font-size: 13px;
-  margin: 3px 0;
+.thermal-col-image {
+  width: 16mm;
+}
+
+.thermal-col-qty {
+  width: 10mm;
+}
+
+.thermal-col-price,
+.thermal-col-total {
+  width: 16mm;
+}
+
+.thermal-item-image {
+  width: 12mm;
+  height: 12mm;
+  margin: 0 auto;
+  border: 1px solid #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #fff;
+}
+
+.thermal-item-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.thermal-item-placeholder {
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.thermal-money-text {
+  font-weight: 900;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.thermal-summary {
+  border: 1.5px solid #000;
+  padding: 8px;
+  margin: 8px 0;
 }
 
 .thermal-money-row {
@@ -1835,16 +1743,6 @@ const THERMAL_RECEIPT_FINAL_CSS = `
   font-weight: 900;
   direction: ltr;
   unicode-bidi: embed;
-}
-
-.thermal-line-total {
-  border-top: 1px dashed #000;
-  padding-top: 5px;
-  margin-top: 6px;
-}
-
-.thermal-summary {
-  margin: 8px 0;
 }
 
 .thermal-grand-total {
@@ -1886,6 +1784,21 @@ const THERMAL_RECEIPT_FINAL_CSS = `
 .thermal-barcode {
   text-align: center;
   margin: 10px 0 6px;
+  border: 1.5px solid #000;
+  padding: 8px 6px;
+}
+
+.thermal-barcode svg {
+  width: 100% !important;
+  max-width: 100% !important;
+  height: 24mm !important;
+  display: block;
+}
+
+.thermal-barcode svg rect,
+.thermal-barcode svg path,
+.thermal-barcode svg line {
+  shape-rendering: crispEdges;
 }
 
 .thermal-footer {
@@ -1923,9 +1836,6 @@ function ThermalReceiptFinal({
   cart,
   totals,
   paymentSummary,
-  paymentMode,
-  sellerName = "",
-  customer,
   barcodeSvg,
   premiumDate = "",
   premiumTime = "",
@@ -1935,98 +1845,121 @@ function ThermalReceiptFinal({
     const numeric = Number(value);
     return Number.isFinite(numeric) ? formatCurrency(numeric) : "-";
   };
+  const store = getStoreProfile();
   const receiptNumber = safeText(invoiceNumber || "DRAFT");
-  const customerName = safeText(customer?.name || customer?.customer_name || "Walk-in Customer");
-  const paymentLabel = safeText(getLocalizedPaymentLabel(paymentMode, paymentSummary));
-  const sellerLabel = safeText(sellerName || getSellerName(customer));
   const dateLabel = safeText(`${premiumDate} ${premiumTime}`.trim());
-  const subtotal = Number(totals?.subtotal || 0);
   const itemDiscountTotal = Number(totals?.itemDiscountTotal || 0);
   const invoiceDiscount = Number(totals?.invoiceDiscount || 0);
   const loyaltyDiscount = Number(totals?.loyaltyDiscount || 0);
   const grandTotal = Number(totals?.total || 0);
   const totalDiscounts = itemDiscountTotal + invoiceDiscount;
   const totalQuantity = Array.isArray(cart) ? cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0) : 0;
+  const paidAmount = Number(paymentSummary?.paidAmount || 0);
+  const remainingAmount = Math.max(0, Number(paymentSummary?.dueAmount || 0));
+  const fallbackAddress = "دمياط الجديدة - شارع البشبيشي بجوار الفرنسية جروب";
+  const storeAddress = safeText(store.address || fallbackAddress);
+  const storePhone = "01000659301";
+  const storeWebsite = "m1store-egy.com";
+  const storeLogoUrl = String(store.logoUrl || "").trim();
 
   return (
     <div className="thermal-final" dir="rtl">
       <style>{THERMAL_RECEIPT_FINAL_CSS}</style>
-      {/* GREEN_THERMAL_RECEIPT_FINAL_COMPONENT */}
+      {/* GREEN_THERMAL_RECEIPT_IMAGE_ONLY_NO_QR */}
       <div className="thermal-header">
-        <div className="thermal-store-name">M1 Store</div>
-        <div className="thermal-thanks">شكراً لشرائكم</div>
+        {storeLogoUrl ? (
+          <div className="mx-auto mb-1 flex h-[18mm] w-[18mm] items-center justify-center overflow-hidden">
+            <img src={storeLogoUrl} alt="M1 Store" className="h-full w-full object-contain" />
+          </div>
+        ) : (
+          <div className="thermal-store-name">M1 Store</div>
+        )}
+        <div className="thermal-thanks">M1-Store</div>
       </div>
 
       <div className="thermal-divider" />
 
-      <div className="thermal-field">
-        <div className="thermal-label">رقم الفاتورة</div>
+      <div className="thermal-invoice-box">
+        <div className="thermal-label">فاتورة بيع - رقم الفاتورة</div>
         <div className="thermal-value">{receiptNumber}</div>
-      </div>
-      <div className="thermal-field">
-        <div className="thermal-label">التاريخ</div>
+        <div className="thermal-label" style={{ marginTop: "6px" }}>التاريخ والوقت</div>
         <div className="thermal-value">{dateLabel}</div>
       </div>
-      <div className="thermal-field">
-        <div className="thermal-label">البائع</div>
-        <div className="thermal-value">{sellerLabel}</div>
-      </div>
-      <div className="thermal-field">
-        <div className="thermal-label">العميل</div>
-        <div className="thermal-value">{customerName}</div>
-      </div>
-      <div className="thermal-field">
-        <div className="thermal-label">طريقة الدفع</div>
-        <div className="thermal-value">{paymentLabel}</div>
-      </div>
 
       <div className="thermal-divider" />
 
-      {Array.isArray(cart) && cart.length ? cart.map((item, index) => {
-        const unitPrice = getReceiptItemUnitPrice(item);
-        const lineTotal = getReceiptItemTotal(item);
-        const colorText = safeText(item?.color || item?.color_name || "غير محدد");
-        const sizeText = safeText(item?.size || item?.size_name || "غير محدد");
-        return (
-          <div key={String(item?.key || item?.id || `${item?.name || "item"}-${index}`)} className="thermal-product-card">
-            <div className="thermal-product-title">{safeText(item?.name || "منتج")}</div>
-            <div className="thermal-product-meta">اللون: {colorText}</div>
-            <div className="thermal-product-meta">المقاس: {sizeText}</div>
-            <div className="thermal-money-row">
-              <span>الكمية</span>
-              <strong>{safeText(item?.quantity)}</strong>
-            </div>
-            <div className="thermal-money-row">
-              <span>سعر الوحدة</span>
-              <strong>{money(unitPrice)}</strong>
-            </div>
-            <div className="thermal-money-row thermal-line-total">
-              <span>الإجمالي</span>
-              <strong>{money(lineTotal)}</strong>
-            </div>
-          </div>
-        );
-      }) : (
-        <div className="thermal-field">
-          <div className="thermal-value">لا توجد منتجات</div>
+      <div className="thermal-field">
+        <div className="thermal-label">المنتجات</div>
+        <div className="thermal-products-box">
+          <table className="thermal-products-table">
+            <thead>
+              <tr>
+                <th className="thermal-col-image">صورة</th>
+                <th className="thermal-col-qty">كمية</th>
+                <th className="thermal-col-price">سعر</th>
+                <th className="thermal-col-total">إجمالي</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.isArray(cart) && cart.length ? cart.map((item, index) => {
+                const unitPrice = getReceiptItemUnitPrice(item);
+                const lineTotal = getReceiptItemTotal(item);
+                const imageSrc = resolveInvoiceItemImageValue(item) || item?.image_url || item?.product_image_url || item?.image || item?.photo_url || "";
+                return (
+                  <tr key={String(item?.key || item?.id || `${item?.name || "item"}-${index}`)}>
+                    <td>
+                      <div className="thermal-item-image">
+                        {imageSrc ? (
+                          <img src={imageSrc} alt="" />
+                        ) : (
+                          <span className="thermal-item-placeholder">-</span>
+                        )}
+                      </div>
+                    </td>
+                    <td><span className="thermal-money-text">{safeText(item?.quantity)}</span></td>
+                    <td><span className="thermal-money-text">{money(unitPrice)}</span></td>
+                    <td><span className="thermal-money-text">{money(lineTotal)}</span></td>
+                  </tr>
+                );
+              }) : (
+                <tr>
+                  <td colSpan="4" className="thermal-value">-</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-      )}
+      </div>
 
       <div className="thermal-divider" />
 
       <div className="thermal-summary">
         <div className="thermal-money-row">
-          <span>المجموع الفرعي</span>
-          <strong>{money(subtotal)}</strong>
+          <span>إجمالي الكمية</span>
+          <strong>{safeText(totalQuantity)}</strong>
         </div>
+        {totalDiscounts > 0 ? (
+          <div className="thermal-money-row">
+            <span>الخصومات</span>
+            <strong>{`- ${money(totalDiscounts)}`}</strong>
+          </div>
+        ) : null}
+        {loyaltyDiscount > 0 ? (
+          <div className="thermal-money-row">
+            <span>خصم الولاء</span>
+            <strong>{`- ${money(loyaltyDiscount)}`}</strong>
+          </div>
+        ) : null}
         <div className="thermal-money-row">
-          <span>الخصومات</span>
-          <strong>{`- ${money(totalDiscounts)}`}</strong>
+          <span>المدفوع</span>
+          <strong>{money(paidAmount)}</strong>
         </div>
-        <div className="thermal-money-row">
-          <span>خصم الولاء</span>
-          <strong>{`- ${money(loyaltyDiscount)}`}</strong>
-        </div>
+        {remainingAmount > 0 ? (
+          <div className="thermal-money-row">
+            <span>المتبقي</span>
+            <strong>{money(remainingAmount)}</strong>
+          </div>
+        ) : null}
       </div>
 
       <div className="thermal-grand-total">
@@ -2034,16 +1967,28 @@ function ThermalReceiptFinal({
         <strong>{`${money(grandTotal)} EGP`}</strong>
       </div>
 
+      <div className="thermal-divider" />
+
       <div className="thermal-field">
-        <div className="thermal-label">إجمالي الكمية</div>
-        <div className="thermal-value">{safeText(totalQuantity)}</div>
+        <div className="thermal-label">العنوان</div>
+        <div className="thermal-value">{storeAddress}</div>
+      </div>
+      <div className="thermal-field">
+        <div className="thermal-label">خدمة العملاء</div>
+        <div className="thermal-value">{storePhone}</div>
+      </div>
+      <div className="thermal-field">
+        <div className="thermal-label">الموقع</div>
+        <div className="thermal-value">{storeWebsite}</div>
       </div>
 
       <div className="thermal-policy">
         <div className="thermal-policy-title">سياسة الاستبدال والاسترجاع</div>
-        <div>يسمح بالاستبدال والاسترجاع خلال 14 يوم بشرط عدم الاستخدام والحفاظ على الحالة الأصلية وتقديم أصل الفاتورة.</div>
+        <div>يسمح بالاستبدال أو الاسترجاع خلال 14 يوم بشرط عدم الاستخدام والحفاظ على الحالة الأصلية وتقديم أصل الفاتورة.</div>
         <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
       </div>
+
+      <div className="thermal-divider" />
 
       <div className="thermal-barcode">
         <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
