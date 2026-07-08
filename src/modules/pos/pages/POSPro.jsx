@@ -1714,7 +1714,7 @@ function POSPro() {
 
     const register = async () => {
       try {
-        const registration = await navigator.serviceWorker.register(scriptUrl, { scope: "/pos/" });
+        const registration = await navigator.serviceWorker.register(scriptUrl, { scope: "/pos" });
         if (cancelled) return;
         if (POS_OFFLINE_DEBUG) {
           console.info("POS_SW_REGISTERED", {
@@ -1734,7 +1734,7 @@ function POSPro() {
 
     register();
     const updateTimer = window.setInterval(() => {
-      navigator.serviceWorker.getRegistration("/pos/").then((registration) => {
+      navigator.serviceWorker.getRegistration("/pos").then((registration) => {
         if (!registration) return;
         registration.update().catch(() => null);
       }).catch(() => null);
