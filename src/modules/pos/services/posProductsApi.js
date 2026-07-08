@@ -224,8 +224,12 @@ const buildProductFromVariants = (productSeed, variants) => {
       productSeed.thumbnail_url
   );
   const firstVariantImage = variants.find((variant) => variant.image_url)?.image_url || "";
-  const prices = variants.map((variant) => Number(variant.price || 0)).filter((price) => Number.isFinite(price));
-  const regularPrices = variants.map((variant) => Number(variant.regular_price || variant.original_price || variant.price || 0)).filter((price) => Number.isFinite(price));
+  const prices = variants
+    .map((variant) => Number(variant.price || 0))
+    .filter((price) => Number.isFinite(price) && price > 0);
+  const regularPrices = variants
+    .map((variant) => Number(variant.regular_price || variant.original_price || variant.price || 0))
+    .filter((price) => Number.isFinite(price) && price > 0);
   const minPrice = prices.length ? Math.min(...prices) : 0;
   const maxPrice = prices.length ? Math.max(...prices) : minPrice;
   const minRegularPrice = regularPrices.length ? Math.min(...regularPrices) : minPrice;
