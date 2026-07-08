@@ -1360,11 +1360,11 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
   const premiumBarcodeSvg = useMemo(
     () =>
       getBarcodeSvg(premiumReceiptNumber, {
-        width: compact ? 172 : 224,
-        height: compact ? 23 : 29,
+        width: 224,
+        height: 29,
         displayText: premiumReceiptNumber,
       }),
-    [premiumReceiptNumber, compact]
+    [premiumReceiptNumber]
   );
   const premiumDate = useMemo(
     () => formatArabicDate(),
@@ -1406,7 +1406,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         <div className="mt-3 h-px bg-emerald-500" />
       </div>
 
-      <div className={`mt-3 grid gap-x-4 gap-y-1.5 text-[12px] ${compact ? "grid-cols-1" : "grid-cols-2"}`}>
+      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 text-[12px]">
         <div className="space-y-1.5">
           <ReceiptInfo icon={FileText} label={receiptLabel("invoice", "رقم الفاتورة")} value={invoiceNumber} />
           <ReceiptInfo icon={User} label={receiptLabel("seller", "البائع")} value={premiumSeller} />
@@ -1489,7 +1489,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
 
       <div className="mt-2.5 border-t border-dashed border-emerald-300 pt-2 text-center">
         <div className="text-[11px] font-bold text-zinc-500">{receiptLabel("scanToView", "امسح لعرض الفاتورة")}</div>
-        <div className={`pos-receipt-barcode mx-auto mt-1 max-w-full rounded-lg bg-white px-1 py-0 ${compact ? "w-[190px]" : "w-[260px]"}`}>
+        <div className="pos-receipt-barcode mx-auto mt-1 w-[260px] max-w-full rounded-lg bg-white px-1 py-0">
           <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
         </div>
         <div className="mt-0.5 text-[10px] font-black tracking-[0.12em] text-emerald-700">{premiumReceiptNumber}</div>
