@@ -77,6 +77,28 @@ const getPublicInvoiceUrl = (invoice = {}) => {
   return baseUrl && token ? `${baseUrl}/invoice/${encodeURIComponent(token)}` : "";
 };
 
+const getStoreLogoUrl = (invoice = {}) =>
+  String(
+    invoice.store?.logoUrl ||
+    invoice.store?.logo_url ||
+    invoice.logoUrl ||
+    invoice.logo_url ||
+    invoice.company_logo_url ||
+    invoice.companyLogoUrl ||
+    ""
+  ).trim();
+
+const renderStoreLogoMarkup = (invoice = {}) => {
+  const logoUrl = getStoreLogoUrl(invoice);
+  if (logoUrl) {
+    return `
+      <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(invoice.companyName || M1_STORE_NAME)}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'" style="display:block;width:18mm;height:18mm;object-fit:contain;margin-bottom:4px" />
+      <span style="display:none;align-items:center;justify-content:center;width:18mm;height:18mm;margin-bottom:4px;border:1px solid #d1d5db;border-radius:9999px;font-weight:900;font-size:12px;line-height:1">${escapeHtml(M1_STORE_NAME)}</span>
+    `;
+  }
+  return `<span style="display:inline-flex;align-items:center;justify-content:center;width:18mm;height:18mm;margin-bottom:4px;border:1px solid #d1d5db;border-radius:9999px;font-weight:900;font-size:12px;line-height:1">${escapeHtml(M1_STORE_NAME)}</span>`;
+};
+
 const getPaymentLabel = (invoice = {}) => {
   const raw = String(invoice.payment?.method || invoice.payment_method || invoice.totals?.payment_method || "").toLowerCase();
   const labels = {
@@ -158,6 +180,7 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language) => {
     <main class="print-sheet" dir="${dir}">
       <section class="print-header">
         <div>
+          <div class="store-mark">${renderStoreLogoMarkup(invoice)}</div>
           <div class="print-title">فاتورة طلب</div>
           <div class="muted">رقم الطلب: <span class="number">${escapeHtml(invoice.invoiceNumber || "n/a")}</span></div>
           <div class="muted">تاريخ الطلب: ${escapeHtml(formatPrintDate(createdAt, normalized, { dateStyle: "medium", timeStyle: undefined }))}</div>
@@ -239,10 +262,39 @@ const drawEnglishPdf = async ({ format, invoice, filename }) => {
     author: invoice.companyName || M1_STORE_NAME,
   });
 
+  const logoUrl = getStoreLogoUrl(invoice);
+  if (logoUrl) {
+    try {
+      const response = await fetch(logoUrl);
+      if (response.ok) {
+        const blob = await response.blob();
+        const dataUrl = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(blob);
+        });
+        doc.addImage(dataUrl, "PNG", margin, margin, isThermal ? 16 : 22, isThermal ? 16 : 22, undefined, "FAST");
+      } else {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(isThermal ? 12 : 20);
+        doc.text(M1_STORE_NAME, margin, margin + (isThermal ? 7 : 8));
+      }
+    } catch {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(isThermal ? 12 : 20);
+      doc.text(M1_STORE_NAME, margin, margin + (isThermal ? 7 : 8));
+    }
+  } else {
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(isThermal ? 12 : 20);
+    doc.text(M1_STORE_NAME, margin, margin + (isThermal ? 7 : 8));
+  }
+
   doc.setTextColor(15, 23, 42);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(isThermal ? 11 : 18);
-  doc.text("فاتورة طلب", margin, margin + 6);
+  doc.text("فاتورة طلب", margin + (logoUrl ? (isThermal ? 18 : 24) : 0), margin + 6);
   doc.setFontSize(isThermal ? 7 : 9);
   doc.setFont("helvetica", "normal");
   doc.text(`رقم الطلب: ${invoice.invoiceNumber || "n/a"}`, margin, margin + 12);

@@ -34,11 +34,8 @@ const INVOICE_COPY = {
 const safeLabel = (value, fallback) => (typeof value === "string" ? value : fallback);
 
 const getStoreInitials = (value = "") => {
-  const text = String(value || "").trim();
-  if (!text) return "M1";
-  const parts = text.split(/\s+/).filter(Boolean);
-  const initials = parts.length > 1 ? `${parts[0][0] || ""}${parts[parts.length - 1][0] || ""}` : text.slice(0, 2);
-  return String(initials || "M1").toUpperCase();
+  void value;
+  return "M1";
 };
 
 const getStatusTone = (value = "") => {

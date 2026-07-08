@@ -1,6 +1,7 @@
 import { displayPublicOrderNumber } from "./publicOrderNumber";
 import { resolveInvoiceItemImageValue } from "../lib/invoiceItemImages";
 import { formatCurrency } from "../lib/currency";
+import { getCurrentTenant } from "../auth/authStorage";
 
 const M1_STORE_NAME = "M1 Store";
 const M1_STORE_WEBSITE_TEXT = "Www.m1store-egy.com";
@@ -12,6 +13,32 @@ const toNumber = (value, fallback = 0) => {
 };
 
 const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";
+
+const resolveStoreBrandLogoUrl = (order = {}, options = {}) => {
+  const tenant = getCurrentTenant() || {};
+  const candidates = [
+    options.logoUrl,
+    order.store?.logoUrl,
+    order.store?.logo_url,
+    order.logoUrl,
+    order.logo_url,
+    order.company_logo_url,
+    order.companyLogoUrl,
+    order.settings?.logoUrl,
+    order.settings?.logo_url,
+    order.system_settings?.logoUrl,
+    order.system_settings?.logo_url,
+    order.tenant?.logoUrl,
+    order.tenant?.logo_url,
+    tenant.companyLogoUrl,
+    tenant.company_logo_url,
+    tenant.logoUrl,
+    tenant.logo_url,
+    tenant.settings?.logoUrl,
+    tenant.settings?.logo_url,
+  ];
+  return candidates.map((value) => String(value || "").trim()).find(Boolean) || "";
+};
 
 const resolveOrderTotal = (order = {}) =>
   toNumber(
@@ -111,19 +138,8 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
         M1_STORE_NAME
       ),
       logoUrl: firstText(
-        options.logoUrl,
-        order.store?.logo_url,
-        order.store?.logoUrl,
-        order.logo_url,
-        order.logoUrl,
-        order.company_logo_url,
-        order.companyLogoUrl,
-        order.settings?.logo_url,
-        order.settings?.logoUrl,
-        order.system_settings?.logo_url,
-        order.system_settings?.logoUrl,
-        order.tenant?.logo_url,
-        order.tenant?.logoUrl
+        resolveStoreBrandLogoUrl(order, options),
+        M1_STORE_NAME
       ),
       phone: firstText(
         order.store?.phone,
