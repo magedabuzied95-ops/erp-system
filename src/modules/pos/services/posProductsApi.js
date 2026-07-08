@@ -1,6 +1,6 @@
 import { getProductsWithVariants } from "../../products/services/productsApi";
 import { resolveProductImageUrl as resolvePosImageUrl } from "../../../shared/lib/imageUrls";
-import { resolveSaleModePrice } from "../../../shared/lib/saleMode";
+import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 
 const unwrapArray = (payload) => {
   const value =
@@ -124,23 +124,24 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
       sourceProduct.regular_price ??
       sourceProduct.price
   );
-  const storedSalePrice = normalizeNumber(row.sale_price ?? row.variant_sale_price ?? sourceProduct.sale_price);
-  const resolvedPrice = resolveSaleModePrice(
-    {
+  const resolvedPrice = getPosEffectivePrice({
+    product: {
       ...sourceProduct,
-      ...row,
       id: productId,
       product_id: productId,
-      regular_price: regularPrice,
-      price: regularPrice,
-      sale_price: storedSalePrice,
       sale_price_enabled: row.sale_price_enabled ?? sourceProduct.sale_price_enabled,
       sale_start_at: row.sale_start_at ?? sourceProduct.sale_start_at,
       sale_end_at: row.sale_end_at ?? sourceProduct.sale_end_at,
       cost_price: row.cost_price ?? sourceProduct.cost_price,
     },
-    saleModeSettings
-  );
+    variant: {
+      ...row,
+      regular_price: regularPrice,
+      price: regularPrice,
+      sale_price: row.sale_price ?? row.variant_sale_price ?? sourceProduct.sale_price,
+    },
+    saleModeSettings,
+  });
   const price = resolvedPrice.final_price || regularPrice;
   const stock = normalizeNumber(
     row.stock ??
@@ -174,12 +175,16 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     variant_image_url: variantImageUrl,
     regular_price: regularPrice,
     original_price: regularPrice,
+    selling_price: regularPrice,
     price,
     sale_price: price,
+    stored_sale_price: resolvedPrice.stored_sale_price,
     final_price: price,
     sale_source: resolvedPrice.sale_source,
     sale_badge: resolvedPrice.sale_badge,
     sale_mode_applied: resolvedPrice.sale_mode_applied,
+    is_offer_story: shouldForceSalePriceForPos(sourceProduct) || shouldForceSalePriceForPos(row),
+    isOfferStory: shouldForceSalePriceForPos(sourceProduct) || shouldForceSalePriceForPos(row),
     stock: stockQuantity,
     stock_quantity: stockQuantity,
     available: stockQuantity > 0,
@@ -249,6 +254,10 @@ const buildProductFromVariants = (productSeed, variants) => {
   const matchedArticle = normalizeText(productSeed.matched_article ?? productSeed.matchedArticle ?? "");
   const matchedSku = normalizeText(productSeed.matched_sku ?? productSeed.matchedSku ?? "");
   const searchMatchType = normalizeText(productSeed.search_match_type ?? productSeed.searchMatchType ?? "");
+  const offerFlags = {
+    is_offer_story: shouldForceSalePriceForPos(productSeed) || variants.some((variant) => shouldForceSalePriceForPos(variant)),
+    isOfferStory: shouldForceSalePriceForPos(productSeed) || variants.some((variant) => shouldForceSalePriceForPos(variant)),
+  };
 
   return {
     id: productId,
@@ -286,16 +295,24 @@ const buildProductFromVariants = (productSeed, variants) => {
     image_url: productImageUrl || firstVariantImage,
     regular_price: minRegularPrice,
     original_price: minRegularPrice,
+    selling_price: minRegularPrice,
     base_price: minPrice,
     price: minPrice,
     sale_price: minPrice,
+    stored_sale_price: variants.find((variant) => Number(variant.stored_sale_price || 0) > 0)?.stored_sale_price || 0,
     final_price: minPrice,
     min_price: minPrice,
     max_price: maxPrice,
     min_regular_price: minRegularPrice,
     max_regular_price: maxRegularPrice,
     sale_mode_applied: variants.some((variant) => variant.sale_mode_applied),
-    sale_source: variants.some((variant) => variant.sale_source === "product") ? "product" : variants.some((variant) => variant.sale_source === "global") ? "global" : "regular",
+    sale_source: variants.some((variant) => variant.sale_source === "offer")
+      ? "offer"
+      : variants.some((variant) => variant.sale_source === "product")
+        ? "product"
+        : variants.some((variant) => variant.sale_source === "global")
+          ? "global"
+          : "regular",
     sale_badge: variants.find((variant) => variant.sale_badge)?.sale_badge || "",
     total_stock: variants.reduce((sum, variant) => sum + Number(variant.stock_quantity ?? variant.stock ?? 0), 0),
     stock: variants.reduce((sum, variant) => sum + Number(variant.stock_quantity ?? variant.stock ?? 0), 0),
@@ -315,6 +332,7 @@ const buildProductFromVariants = (productSeed, variants) => {
     matchedSku,
     search_match_type: searchMatchType,
     searchMatchType,
+    ...offerFlags,
     variants,
   };
 };

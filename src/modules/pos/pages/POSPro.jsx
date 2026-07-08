@@ -75,6 +75,7 @@ import {
 } from "../lib/posShiftCache";
 import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
 import { normalizePhone } from "../lib/phoneSearch";
+import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 import { normalizePosCatalogProduct, normalizePosSellableProducts, resolvePosImageUrl } from "../services/posProductsApi";
 import {
   createOfflineOrderIdempotencyKey,
@@ -3482,6 +3483,9 @@ function POSPro() {
 
   const normalizeQrProduct = (product) => ({
     ...product,
+    ...getPosEffectivePrice({ product, saleModeSettings }),
+    is_offer_story: shouldForceSalePriceForPos(product),
+    isOfferStory: shouldForceSalePriceForPos(product),
     image_url: resolvePosImageUrl(product?.image_url || product?.product_image_url || ""),
     product_image_url: resolvePosImageUrl(product?.product_image_url || product?.image_url || ""),
     colors: (Array.isArray(product?.colors) ? product.colors : []).map((color) => {
@@ -3491,8 +3495,10 @@ function POSPro() {
         const stockQuantity = normalizeStockQuantity(size.stock_quantity ?? size.stock);
         const sizeImages = Array.isArray(size.images) ? size.images : [];
         const primarySizeImage = sizeImages.find((image) => image?.is_primary) || sizeImages[0] || null;
+        const effectivePrice = getPosEffectivePrice({ product: { ...product, ...color }, variant: size, saleModeSettings });
         return {
           ...size,
+          ...effectivePrice,
           stock: stockQuantity,
           stock_quantity: stockQuantity,
           available: stockQuantity > 0,
@@ -3504,6 +3510,8 @@ function POSPro() {
 
       return {
         ...color,
+        is_offer_story: shouldForceSalePriceForPos(color) || shouldForceSalePriceForPos(product),
+        isOfferStory: shouldForceSalePriceForPos(color) || shouldForceSalePriceForPos(product),
         image_url: resolvePosImageUrl(color.image_url || primaryColorImage?.image_url),
         primary_image_url: resolvePosImageUrl(primaryColorImage?.image_url || color.image_url),
         images: colorImages,
