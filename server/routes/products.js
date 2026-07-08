@@ -20,7 +20,8 @@ import {
 import { generateAiProductDataController } from "../controllers/aiProductDataController.js";
 import { suggestMirrorEditionName } from "../controllers/editionSuggestionsController.js";
 import { generateProductDescription, generateSocialPublisherCaption } from "../services/openaiProductDescriptionService.js";
-import { generateThermalArtwork } from "../services/thermalArtworkService.js";
+import { getActiveBarcodePrintQueueItem } from "../services/barcodePrintQueueService.js";
+import { scheduleThermalColorArtworkJobs } from "../services/thermalColorJobPlanner.js";
 import { getTenantId, tenantContextMissingResponse } from "../utils/requestScope.js";
 import {
   bulkAddBarcodePrintQueueController,
@@ -31,6 +32,150 @@ import {
 } from "../controllers/barcodePrintQueueController.js";
 
 const router = express.Router();
+
+const normalizeThermalText = (value = "") => String(value || "").trim();
+const normalizeThermalColorKey = (body = {}) =>
+  normalizeThermalText(
+    body?.color_key ||
+      body?.colorKey ||
+      body?.color ||
+      body?.color_name ||
+      body?.colorName ||
+      body?.color_group_id ||
+      body?.colorGroupId ||
+      body?.color_id ||
+      body?.colorId ||
+      body?.group_id ||
+      body?.groupId
+  ).toLowerCase();
+const normalizeThermalVariantIds = (value = []) => {
+  const raw = Array.isArray(value) ? value : typeof value === "string" ? value.split(",") : [];
+  return [...new Set(raw.map((item) => Number(item)).filter((item) => Number.isFinite(item) && item > 0))];
+};
+
+const handleQueuedThermalColorRequest = async ({
+  req,
+  res,
+  tenantId,
+  productId,
+  productRow,
+  route,
+}) => {
+  const regenerate = req.body?.regenerate === true || String(req.body?.regenerate || "").toLowerCase() === "true";
+  const colorImageUrl = normalizeThermalText(req.body?.color_image_url || req.body?.colorImageUrl);
+  const sourceImageUrl = normalizeThermalText(req.body?.image_url || req.body?.source_image_url || req.body?.cover_image_url);
+  const existingThermalImageUrl = normalizeThermalText(
+    req.body?.thermal_image_url || req.body?.ai_thermal_artwork_url || req.body?.aiThermalArtworkUrl
+  );
+  const color = normalizeThermalText(req.body?.color || req.body?.color_name || req.body?.colorName);
+  const colorKey = normalizeThermalColorKey(req.body || {});
+  const variantIds = normalizeThermalVariantIds(req.body?.variant_ids || req.body?.variantIds || []);
+
+  if (!productId || !colorImageUrl || !colorKey) {
+    console.log("AI_THERMAL_BLOCK_PRODUCT_COVER", {
+      route,
+      productId,
+      color,
+      colorKey,
+      sourceImageUrl,
+      colorImageUrl,
+      reason: !productId ? "missing_product_id" : !colorImageUrl ? "missing_color_image" : "missing_color_identifier",
+    });
+    return res.status(400).json({
+      success: false,
+      message: "AI Thermal Artwork requires a saved product color image",
+      status: "blocked_product_cover",
+      thermal_image_url: "",
+    });
+  }
+
+  if (sourceImageUrl && sourceImageUrl !== colorImageUrl) {
+    console.log("AI_THERMAL_BLOCK_PRODUCT_COVER", {
+      route,
+      productId,
+      color,
+      colorKey,
+      sourceImageUrl,
+      colorImageUrl,
+      reason: "non_color_source_image",
+    });
+  }
+
+  if (existingThermalImageUrl && !regenerate) {
+    console.log("AI_THERMAL_SKIP_EXISTING_COLOR", {
+      route,
+      productId,
+      color,
+      colorKey,
+      thermalImageUrl: existingThermalImageUrl,
+    });
+    return res.json({
+      success: true,
+      status: "skipped_existing",
+      queued: false,
+      thermal_image_url: existingThermalImageUrl,
+    });
+  }
+
+  const activeJob = await getActiveBarcodePrintQueueItem({
+    tenantId,
+    productId,
+    colorKey,
+  });
+  if (activeJob) {
+    console.log("AI_THERMAL_SKIP_ACTIVE_JOB", {
+      route,
+      productId,
+      color,
+      colorKey,
+      activeStatus: activeJob.status,
+    });
+    return res.json({
+      success: true,
+      status: "skipped_active_job",
+      queued: false,
+      thermal_image_url: "",
+    });
+  }
+
+  scheduleThermalColorArtworkJobs({
+    productId,
+    tenantId,
+    productName: productRow?.name || normalizeThermalText(req.body?.product_name || req.body?.name),
+    groups: [
+      {
+        productId,
+        color,
+        colorKey,
+        primaryImageUrl: colorImageUrl,
+        existingThermalUrl: existingThermalImageUrl,
+        variantIds,
+        representativeVariantId: variantIds[0] || null,
+        source: "color-group",
+        regenerate,
+        explicitRegenerate: regenerate,
+      },
+    ],
+    previousThermalUrlMap: existingThermalImageUrl ? new Map([[colorImageUrl.toLowerCase(), existingThermalImageUrl]]) : new Map(),
+  });
+
+  console.log("AI_THERMAL_CREATE_COLOR_JOB", {
+    route,
+    productId,
+    color,
+    colorKey,
+    colorImageUrl,
+    variantIds,
+    regenerate,
+  });
+
+  return res.json({
+    success: true,
+    status: "queued",
+    queued: true,
+    thermal_image_url: "",
+  });
+};
 
 router.use((req, res, next) => {
   console.log("[products] route hit:", req.method, req.originalUrl);
@@ -138,20 +283,7 @@ router.post("/generate-ai-thermal-artwork", protect, async (req, res) => {
       return tenantContextMissingResponse(res);
     }
 
-    const sourceImageUrl = String(req.body?.image_url || req.body?.source_image_url || req.body?.cover_image_url || "").trim();
-    const regenerate = req.body?.regenerate === true || String(req.body?.regenerate || "").toLowerCase() === "true";
-    const existingThermalImageUrl = String(req.body?.thermal_image_url || "").trim();
     const productId = req.body?.product_id ?? req.body?.productId ?? null;
-    const variantId = req.body?.variant_id ?? req.body?.variantId ?? null;
-    const colorImageUrl = String(req.body?.color_image_url || req.body?.colorImageUrl || "").trim();
-
-    console.log("THERMAL_ROUTE_REQUEST", {
-      route: "/generate-ai-thermal-artwork",
-      productId,
-      variantId,
-      imageUrl: sourceImageUrl,
-      colorImageUrl,
-    });
 
     let productRow = null;
     if (Number.isFinite(Number(productId)) && Number(productId) > 0) {
@@ -174,46 +306,19 @@ router.post("/generate-ai-thermal-artwork", protect, async (req, res) => {
       }
     }
 
-    console.log("THERMAL_ROUTE_BEFORE_OPENAI", {
-      route: "/generate-ai-thermal-artwork",
-      productId: productRow?.id || productId || null,
-      variantId,
-    });
-    const result = await generateThermalArtwork({
-      sourceImageUrl: sourceImageUrl || productRow?.image_url || productRow?.product_image_url || "",
-      productId: productRow?.id || productId || null,
+    const response = await handleQueuedThermalColorRequest({
+      req,
+      res,
       tenantId,
-      existingThermalImageUrl: existingThermalImageUrl || productRow?.thermal_image_url || "",
-      regenerate,
-      productName: productRow?.name || req.body?.product_name || req.body?.name || "",
-    });
-    console.log("THERMAL_ROUTE_AFTER_OPENAI", {
+      productId: productRow?.id || Number(productId) || null,
+      productRow,
       route: "/generate-ai-thermal-artwork",
-      productId: productRow?.id || productId || null,
-      variantId,
-      source: result.source || "",
-      cached: result.cached === true,
-      storage: result.storage || "",
     });
-
     console.log("[products] generate-ai-thermal-artwork end", {
       durationMs: Date.now() - startedAt,
       productId: productRow?.id || productId || "",
-      source: result.source,
-      cached: result.cached === true,
-      storage: result.storage || "",
     });
-
-    return res.json({
-      success: true,
-      thermal_image_url: result.thermal_image_url || "",
-      source: result.source || "",
-      cached: Boolean(result.cached),
-      storage: result.storage || "",
-      updated: result.updated === true,
-      prompt: result.prompt || "",
-      model: result.model || "",
-    });
+    return response;
   } catch (error) {
     console.error("THERMAL_ROUTE_ERROR", {
       route: "/generate-ai-thermal-artwork",
@@ -281,10 +386,6 @@ router.post("/:id/generate-ai-thermal-artwork", protect, async (req, res) => {
       });
     }
 
-    const regenerate = req.body?.regenerate === true || String(req.body?.regenerate || "").toLowerCase() === "true";
-    const variantId = req.body?.variant_id ?? req.body?.variantId ?? null;
-    const colorImageUrl = String(req.body?.color_image_url || req.body?.colorImageUrl || "").trim();
-    const imageUrl = String(req.body?.image_url || productRow.image_url || productRow.product_image_url || "").trim();
     console.log("THERMAL_PRODUCT_ROUTE_PAYLOAD", {
       route: "/:id/generate-ai-thermal-artwork",
       productId: req.params.id,
@@ -292,54 +393,20 @@ router.post("/:id/generate-ai-thermal-artwork", protect, async (req, res) => {
       bodyKeys: Object.keys(req.body || {}),
     });
 
-    console.log("THERMAL_ROUTE_REQUEST", {
-      route: "/:id/generate-ai-thermal-artwork",
-      productId,
-      variantId,
-      imageUrl,
-      colorImageUrl,
-    });
-
-    console.log("THERMAL_ROUTE_BEFORE_OPENAI", {
-      route: "/:id/generate-ai-thermal-artwork",
-      productId,
-      variantId,
-    });
-    const result = await generateThermalArtwork({
-      sourceImageUrl: imageUrl,
-      productId,
+    const response = await handleQueuedThermalColorRequest({
+      req,
+      res,
       tenantId,
-      existingThermalImageUrl: String(req.body?.thermal_image_url || productRow.thermal_image_url || "").trim(),
-      regenerate,
-      productName: productRow.name || "",
-    });
-    console.log("THERMAL_ROUTE_AFTER_OPENAI", {
-      route: "/:id/generate-ai-thermal-artwork",
       productId,
-      variantId,
-      source: result.source || "",
-      cached: result.cached === true,
-      storage: result.storage || "",
+      productRow,
+      route: "/:id/generate-ai-thermal-artwork",
     });
 
     console.log("[products] product thermal artwork generated", {
       productId,
       durationMs: Date.now() - startedAt,
-      source: result.source,
-      cached: result.cached === true,
-      updated: result.updated === true,
     });
-
-    return res.json({
-      success: true,
-      thermal_image_url: result.thermal_image_url || "",
-      source: result.source || "",
-      cached: Boolean(result.cached),
-      storage: result.storage || "",
-      updated: result.updated === true,
-      prompt: result.prompt || "",
-      model: result.model || "",
-    });
+    return response;
   } catch (error) {
     console.error("THERMAL_ROUTE_ERROR", {
       route: "/:id/generate-ai-thermal-artwork",

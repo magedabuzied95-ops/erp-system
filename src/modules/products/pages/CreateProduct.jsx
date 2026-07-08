@@ -65,7 +65,6 @@ import {
   createProduct,
   generateAiProductData,
   generateProductDescription,
-  generateThermalArtwork,
   getBrands,
   getManufacturers,
   getProductsWithVariants,
@@ -281,11 +280,14 @@ const getPrimaryColorImage = (group = {}) => {
 };
 
 const getThermalArtworkSourceImage = (fallbackImage = "", colorGroup = null, groups = []) => {
-  const selectedGroup = colorGroup || groups.find((group) => String(group?.color || "").trim()) || null;
+  const selectedGroup = colorGroup || groups.find((group) => getPrimaryColorImage(group)) || null;
   const groupImage = selectedGroup ? getPrimaryColorImage(selectedGroup) : "";
   const firstGroupImage = Array.isArray(groups) ? getPrimaryColorImage(groups.find((group) => getPrimaryColorImage(group)) || {}) : "";
-  return String(groupImage || firstGroupImage || fallbackImage || "").trim();
+  return String(groupImage || firstGroupImage || "").trim();
 };
+
+const getColorGroupThermalUrl = (group = {}) => String(group?.thermal_image_url || "").trim();
+const getEligibleThermalColorGroups = (groups = []) => (Array.isArray(groups) ? groups : []).filter((group) => String(getPrimaryColorImage(group) || "").trim());
 
 const OPTIONAL_RELATION_ID_KEYS = [
   "category_id",
@@ -1714,40 +1716,10 @@ function CreateProduct() {
   const handleGenerateThermalImage = async ({ colorGroup = null } = {}) => {
     const thermalSourceImage = getThermalArtworkSourceImage(coverImage, colorGroup, colorGroups);
     if (!thermalSourceImage) {
-      toast.error(t("products.editor.selectProductImageFirst"));
+      toast.error("Add a color image first. Product cover is not used for AI Thermal Artwork.");
       return;
     }
-
-    try {
-      setThermalImageGenerating(true);
-      const result = await generateThermalArtwork({
-        image_url: thermalSourceImage,
-        thermal_image_url: colorGroup?.thermal_image_url || thermalImageUrl,
-        regenerate: Boolean(colorGroup?.thermal_image_url || thermalImageUrl),
-        product_name: name,
-      });
-      const thermalUrl = String(result?.thermal_image_url || "").trim();
-      if (!thermalUrl) throw new Error("Thermal image generation failed");
-      if (colorGroup?.id) {
-        setColorGroups((prev) =>
-          prev.map((group) =>
-            group.id === colorGroup.id
-              ? {
-                  ...group,
-                  thermal_image_url: thermalUrl,
-                }
-              : group
-          )
-        );
-      }
-      setThermalImageUrl(thermalUrl);
-      toast.success("AI thermal artwork generated");
-    } catch (error) {
-      console.warn("[products:add] thermal artwork generation failed", error);
-      toast.error(error?.message || "Thermal artwork generation failed");
-    } finally {
-      setThermalImageGenerating(false);
-    }
+    toast("Save the product first, then generate AI Thermal Artwork per color from Edit Product.");
   };
 
   const applyAiProductSuggestion = (field) => {
@@ -2629,11 +2601,11 @@ function CreateProduct() {
                     <button
                       type="button"
                       onClick={handleGenerateThermalImage}
-                      disabled={thermalImageGenerating || !getThermalArtworkSourceImage(coverImage, null, colorGroups)}
+                      disabled={thermalImageGenerating || !getEligibleThermalColorGroups(colorGroups).length}
                       className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                      {thermalImageUrl ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
+                      {"Generate AI Thermal Artwork"}
                     </button>
                   </div>
 

@@ -259,6 +259,29 @@ export const upsertBarcodePrintQueueItem = async (payload = {}) => {
   return { skipped: false, row };
 };
 
+export const getActiveBarcodePrintQueueItem = async ({ tenantId = null, productId = null, colorKey = "" } = {}) => {
+  await ensureBarcodePrintQueueSchema();
+  const normalizedTenantId = Number(tenantId) || null;
+  const normalizedProductId = Number(productId) || null;
+  const normalizedColorKey = normalizeText(colorKey).toLowerCase();
+  if (!normalizedTenantId || !normalizedProductId || !normalizedColorKey) return null;
+
+  const result = await db.query(
+    `
+    SELECT *
+    FROM barcode_print_queue
+    WHERE tenant_id = $1
+      AND product_id = $2
+      AND color_key = $3
+      AND status IN ('pending', 'processing')
+    ORDER BY updated_at DESC, id DESC
+    LIMIT 1
+    `,
+    [normalizedTenantId, normalizedProductId, normalizedColorKey]
+  );
+  return result.rows[0] ? queueRowFromDb(result.rows[0]) : null;
+};
+
 export const listBarcodePrintQueueItems = async ({
   tenantId = null,
   includePrinted = false,

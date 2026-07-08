@@ -294,11 +294,47 @@ const getResolvedThermalImageUrl = ({ product = {}, groups = [], variants = [] }
 };
 
 const getThermalArtworkSourceImage = (fallbackImage = "", colorGroup = null, groups = []) => {
-  const selectedGroup = colorGroup || groups.find((group) => String(group?.color || "").trim()) || null;
+  const selectedGroup = colorGroup || groups.find((group) => getPrimaryColorImage(group)) || null;
   const groupImage = selectedGroup ? getPrimaryColorImage(selectedGroup) : "";
   const firstGroupImage = Array.isArray(groups) ? getPrimaryColorImage(groups.find((group) => getPrimaryColorImage(group)) || {}) : "";
-  return String(groupImage || firstGroupImage || fallbackImage || "").trim();
+  return String(groupImage || firstGroupImage || "").trim();
 };
+
+const getColorGroupThermalUrl = (group = {}) =>
+  String(
+    group?.thermal_image_url ||
+      group?.color_thermal_image_url ||
+      group?.variant_color_thermal_image_url ||
+      group?.thermalImageUrl ||
+      ""
+  ).trim();
+
+const getColorGroupIdentifier = (group = {}) =>
+  String(
+    group?.color_key ||
+      group?.colorKey ||
+      group?.color ||
+      group?.color_name ||
+      group?.colorName ||
+      group?.color_group_id ||
+      group?.colorGroupId ||
+      group?.color_id ||
+      group?.colorId ||
+      group?.group_id ||
+      group?.groupId ||
+      group?.id ||
+      getPrimaryColorImage(group)
+  ).trim();
+
+const getColorGroupVariantIds = (group = {}) =>
+  [...new Set(
+    (Array.isArray(group?.sizes) ? group.sizes : [])
+      .map((row) => Number(row?.id || row?.variant_id || row?.variantId || row?.product_variant_id || 0))
+      .filter((value) => Number.isFinite(value) && value > 0)
+  )];
+
+const getEligibleThermalColorGroups = (groups = []) =>
+  (Array.isArray(groups) ? groups : []).filter((group) => String(getPrimaryColorImage(group) || "").trim() && String(getColorGroupIdentifier(group) || "").trim());
 
 const getGroupSizeCount = (group) => {
   if (!group) return 0;
@@ -2300,38 +2336,86 @@ function ProductEdit() {
   };
 
   const handleGenerateThermalImage = async ({ colorGroup = null } = {}) => {
-    const thermalSourceImage = getThermalArtworkSourceImage(coverImage, colorGroup, colorGroups);
-    if (!thermalSourceImage) {
-      toast.error(t("products.editor.uploadMainImageFirst"));
+    const queueColorGroup = async (group, { explicitRegenerate = false } = {}) => {
+      const thermalSourceImage = getPrimaryColorImage(group);
+      const colorKey = getColorGroupIdentifier(group);
+      if (!thermalSourceImage || !colorKey) {
+        return { success: false, status: "blocked_product_cover" };
+      }
+      const response = await generateThermalArtwork({
+        productId: product.id,
+        color_image_url: thermalSourceImage,
+        color: String(group?.color || group?.color_name || group?.colorName || "").trim(),
+        color_key: colorKey,
+        variant_ids: getColorGroupVariantIds(group),
+        thermal_image_url: getColorGroupThermalUrl(group),
+        regenerate: explicitRegenerate,
+        product_name: product.name,
+      });
+      const returnedThermalUrl = String(response?.thermal_image_url || "").trim();
+      if (returnedThermalUrl) {
+        setColorGroups((prev) =>
+          prev.map((entry) =>
+            entry.id === group.id
+              ? {
+                  ...entry,
+                  thermal_image_url: returnedThermalUrl,
+                }
+              : entry
+          )
+        );
+        setThermalImageUrl((current) => current || returnedThermalUrl);
+      }
+      return response;
+    };
+
+    if (!product?.id) {
+      toast.error("Save the product first to generate AI Thermal Artwork per color");
       return;
     }
 
     try {
       setThermalImageGenerating(true);
-      const result = await generateThermalArtwork({
-        productId: product.id,
-        image_url: thermalSourceImage,
-        thermal_image_url: colorGroup?.thermal_image_url || thermalImageUrl,
-        regenerate: Boolean(colorGroup?.thermal_image_url || thermalImageUrl),
-        product_name: product.name,
-      });
-      const thermalUrl = String(result?.thermal_image_url || "").trim();
-      if (!thermalUrl) throw new Error("Thermal image generation failed");
       if (colorGroup?.id) {
-        setColorGroups((prev) =>
-          prev.map((group) =>
-            group.id === colorGroup.id
-              ? {
-                  ...group,
-                  thermal_image_url: thermalUrl,
-                }
-              : group
-          )
-        );
+        const result = await queueColorGroup(colorGroup, { explicitRegenerate: Boolean(getColorGroupThermalUrl(colorGroup)) });
+        if (result?.status === "queued") {
+          toast.success("AI thermal artwork queued for this color");
+        } else if (result?.status === "skipped_existing") {
+          toast("This color already has AI Thermal Artwork");
+        } else if (result?.status === "skipped_active_job") {
+          toast("This color already has an active thermal job");
+        } else if (result?.status === "blocked_product_cover") {
+          toast.error("AI Thermal Artwork requires a color image");
+        } else if (!result?.success) {
+          throw new Error(result?.message || "Thermal artwork generation failed");
+        }
+        return;
       }
-      setProduct((current) => ({ ...current, thermal_image_url: thermalUrl }));
-      setThermalImageUrl(thermalUrl);
-      toast.success("AI thermal artwork generated");
+
+      const eligibleGroups = getEligibleThermalColorGroups(colorGroups);
+      if (!eligibleGroups.length) {
+        toast.error("Add color images first. Product cover is not used for AI Thermal Artwork.");
+        return;
+      }
+
+      let queuedCount = 0;
+      let existingCount = 0;
+      let activeCount = 0;
+      let blockedCount = 0;
+      for (const group of eligibleGroups) {
+        const result = await queueColorGroup(group);
+        if (result?.status === "queued") queuedCount += 1;
+        else if (result?.status === "skipped_existing") existingCount += 1;
+        else if (result?.status === "skipped_active_job") activeCount += 1;
+        else if (result?.status === "blocked_product_cover") blockedCount += 1;
+      }
+      if (queuedCount > 0) {
+        toast.success(`Queued AI Thermal Artwork for ${queuedCount} color(s)`);
+      } else if (existingCount > 0 || activeCount > 0 || blockedCount > 0) {
+        toast(`Skipped: existing ${existingCount}, active ${activeCount}, blocked ${blockedCount}`);
+      } else {
+        toast("No eligible colors were queued");
+      }
     } catch (error) {
       console.warn("[products:edit] thermal artwork generation failed", error);
       toast.error(error?.message || "Thermal artwork generation failed");
@@ -3574,11 +3658,11 @@ function ProductEdit() {
                   <button
                     type="button"
                     onClick={handleGenerateThermalImage}
-                    disabled={thermalImageGenerating || !getThermalArtworkSourceImage(coverImage, null, colorGroups)}
+                    disabled={thermalImageGenerating || !product?.id || !getEligibleThermalColorGroups(colorGroups).length}
                     className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[16px] border border-amber-300/25 bg-amber-400/10 px-4 text-sm font-black text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {thermalImageGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                    {thermalImageUrl ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
+                    {"Generate AI Thermal Artwork"}
                   </button>
                 </div>
 
@@ -3994,7 +4078,7 @@ function ProductEdit() {
                       <button
                         type="button"
                         onClick={() => handleGenerateThermalImage({ colorGroup: group })}
-                        disabled={thermalImageGenerating || !getPrimaryColorImage(group)}
+                        disabled={thermalImageGenerating || !product?.id || !getPrimaryColorImage(group)}
                         className="inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-[12px] border border-amber-300/25 bg-amber-400/10 px-3 text-xs font-semibold text-amber-100 transition hover:border-amber-300/45 hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {thermalImageGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}

@@ -1,10 +1,28 @@
 import db from "../database/db.js";
-import { upsertBarcodePrintQueueItem } from "./barcodePrintQueueService.js";
+import { getActiveBarcodePrintQueueItem, upsertBarcodePrintQueueItem } from "./barcodePrintQueueService.js";
 import { regenerateThermalImageForProductImage } from "./thermalArtworkService.js";
 
 const normalizeText = (value = "") => String(value || "").trim();
 const normalizeColorKey = (value = "") => normalizeText(value).toLowerCase();
 const firstText = (...values) => values.map((value) => normalizeText(value)).find(Boolean) || "";
+const colorIdentifierFromSource = (source = {}) =>
+  firstText(
+    source?.color_key,
+    source?.colorKey,
+    source?.color,
+    source?.color_name,
+    source?.colorName,
+    source?.color_value,
+    source?.color_group_id,
+    source?.colorGroupId,
+    source?.color_id,
+    source?.colorId,
+    source?.group_id,
+    source?.groupId,
+    source?.id,
+    source?.image_url,
+    source?.primary_image_url
+  );
 
 const THERMAL_COLOR_JOB_IN_FLIGHT = new Map();
 
@@ -36,10 +54,10 @@ export const buildThermalColorJobGroups = ({
   const groups = new Map();
 
   for (const colorGroup of Array.isArray(colorImages) ? colorImages : []) {
-    const colorKey = normalizeColorKey(colorGroup?.color || colorGroup?.color_name || colorGroup?.color_value);
+    const colorKey = normalizeColorKey(colorIdentifierFromSource(colorGroup));
     const primaryImageUrl = colorImageFromGroup(colorGroup);
     if (!colorKey && !primaryImageUrl) continue;
-    const groupKey = `${productId || "product"}|${colorKey || "default"}|${primaryImageUrl || "no-image"}`;
+    const groupKey = `${productId || "product"}|${colorKey || "default"}`;
     if (!groups.has(groupKey)) {
       groups.set(groupKey, {
         productId,
@@ -51,6 +69,7 @@ export const buildThermalColorJobGroups = ({
         representativeVariantId: null,
         existingThermalUrl: thermalImageFromGroup(colorGroup),
         source: "color-group",
+        regenerate: Boolean(colorGroup?.regenerate || colorGroup?.explicitRegenerate),
       });
     } else if (!groups.get(groupKey).existingThermalUrl) {
       groups.get(groupKey).existingThermalUrl = thermalImageFromGroup(colorGroup);
@@ -58,7 +77,7 @@ export const buildThermalColorJobGroups = ({
   }
 
   for (const variant of Array.isArray(variants) ? variants : []) {
-    const colorKey = normalizeColorKey(variant?.color || variant?.color_name);
+    const colorKey = normalizeColorKey(colorIdentifierFromSource(variant));
     const primaryImageUrl = firstText(
       variant?.primary_image_url,
       variant?.colorPrimaryImageUrl,
@@ -66,7 +85,7 @@ export const buildThermalColorJobGroups = ({
       variant?.color_image_url,
       variant?.image_url
     );
-    const groupKey = `${productId || "product"}|${colorKey || "default"}|${primaryImageUrl || "no-image"}`;
+    const groupKey = `${productId || "product"}|${colorKey || "default"}`;
     if (!groups.has(groupKey)) {
       groups.set(groupKey, {
         productId,
@@ -83,6 +102,7 @@ export const buildThermalColorJobGroups = ({
           variant?.product_thermal_image_url
         ),
         source: "variant",
+        regenerate: Boolean(variant?.regenerate || variant?.explicitRegenerate),
       });
     }
 
@@ -107,16 +127,11 @@ export const buildThermalColorJobGroups = ({
 
   const productImage = normalizeText(productImageUrl);
   if (!groups.size && productImage) {
-    groups.set(`${productId || "product"}|product|${productImage}`, {
+    console.log("AI_THERMAL_BLOCK_PRODUCT_COVER", {
       productId,
       productName: normalizeText(productName),
-      colorKey: "product",
-      color: "",
-      primaryImageUrl: productImage,
-      variantIds: [],
-      representativeVariantId: null,
-      existingThermalUrl: "",
-      source: "product-image",
+      productImageUrl: productImage,
+      reason: "no_color_groups_with_images",
     });
   }
 
@@ -237,6 +252,7 @@ const scheduleColorJob = ({
   const colorKey = normalizeColorKey(group?.colorKey || group?.color);
   const primaryImageUrl = normalizeText(group?.primaryImageUrl);
   const queueColorKey = colorKey || primaryImageUrl.toLowerCase();
+  const explicitRegenerate = Boolean(group?.regenerate || group?.explicitRegenerate);
   const queueLabelCount = Math.max(1, Array.isArray(group?.variantIds) ? group.variantIds.length : 0);
   const queueVariantIds = Array.isArray(group?.variantIds) ? group.variantIds : [];
   const queueSource =
@@ -256,7 +272,7 @@ const scheduleColorJob = ({
     variantIds: queueVariantIds,
   };
   if (!primaryImageUrl) {
-    console.log("THERMAL_COLOR_JOB_SKIPPED_EXISTING", {
+    console.log("AI_THERMAL_BLOCK_PRODUCT_COVER", {
       productId,
       color: group?.color || "",
       colorKey,
@@ -267,8 +283,8 @@ const scheduleColorJob = ({
   }
 
   const existingThermalUrl = previousThermalUrlMap.get(primaryImageUrl.toLowerCase()) || "";
-  const jobKey = `${productId || "product"}|${colorKey || "default"}|${primaryImageUrl.toLowerCase()}`;
-  if (existingThermalUrl) {
+  const jobKey = `${productId || "product"}|${queueColorKey || "default"}`;
+  if (!explicitRegenerate && existingThermalUrl) {
     void upsertBarcodePrintQueueItem({
       ...queuePayloadBase,
       thermalImageUrl: existingThermalUrl,
@@ -280,7 +296,7 @@ const scheduleColorJob = ({
         message: error?.message || String(error),
       });
     });
-    console.log("THERMAL_COLOR_JOB_SKIPPED_EXISTING", {
+    console.log("AI_THERMAL_SKIP_EXISTING_COLOR", {
       productId,
       color: group?.color || "",
       colorKey,
@@ -305,6 +321,12 @@ const scheduleColorJob = ({
     });
   }
 
+  const activeJobPromise = getActiveBarcodePrintQueueItem({
+    tenantId,
+    productId,
+    colorKey: queueColorKey,
+  }).catch(() => null);
+
   if (THERMAL_COLOR_JOB_IN_FLIGHT.has(jobKey)) {
     void upsertBarcodePrintQueueItem({
       ...queuePayloadBase,
@@ -317,7 +339,7 @@ const scheduleColorJob = ({
         message: error?.message || String(error),
       });
     });
-    console.log("THERMAL_COLOR_JOB_SKIPPED_IN_FLIGHT", {
+    console.log("AI_THERMAL_SKIP_ACTIVE_JOB", {
       productId,
       color: group?.color || "",
       colorKey,
@@ -327,27 +349,45 @@ const scheduleColorJob = ({
     return THERMAL_COLOR_JOB_IN_FLIGHT.get(jobKey);
   }
 
-  console.log("THERMAL_COLOR_JOB_QUEUED", {
-    productId,
-    color: group?.color || "",
-    colorKey,
-    sourceImageUrl: primaryImageUrl,
-    variantIds: Array.isArray(group?.variantIds) ? group.variantIds : [],
-    representativeVariantId: group?.representativeVariantId || null,
-  });
-  void upsertBarcodePrintQueueItem({
-    ...queuePayloadBase,
-    thermalImageUrl: normalizeText(group?.existingThermalUrl),
-    status: "pending",
-  }).catch((error) => {
-    console.warn("[barcode-print-queue] queue sync failed", {
+  const job = (async () => {
+    const activeJob = await activeJobPromise;
+    if (activeJob) {
+      console.log("AI_THERMAL_SKIP_ACTIVE_JOB", {
+        productId,
+        color: group?.color || "",
+        colorKey,
+        sourceImageUrl: primaryImageUrl,
+        variantIds: Array.isArray(group?.variantIds) ? group.variantIds : [],
+        status: activeJob.status,
+      });
+      return {
+        success: false,
+        skipped: true,
+        reason: "active_job",
+      };
+    }
+
+    console.log("AI_THERMAL_CREATE_COLOR_JOB", {
       productId,
       color: group?.color || "",
-      message: error?.message || String(error),
+      colorKey,
+      sourceImageUrl: primaryImageUrl,
+      variantIds: Array.isArray(group?.variantIds) ? group.variantIds : [],
+      representativeVariantId: group?.representativeVariantId || null,
+      regenerate: explicitRegenerate,
     });
-  });
+    await upsertBarcodePrintQueueItem({
+      ...queuePayloadBase,
+      thermalImageUrl: normalizeText(group?.existingThermalUrl),
+      status: "pending",
+    }).catch((error) => {
+      console.warn("[barcode-print-queue] queue sync failed", {
+        productId,
+        color: group?.color || "",
+        message: error?.message || String(error),
+      });
+    });
 
-  const job = (async () => {
     const result = await regenerateThermalImageForProductImage({
       entityType: group?.representativeVariantId ? "variant" : "product",
       productId,
