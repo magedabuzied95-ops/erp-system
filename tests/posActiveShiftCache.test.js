@@ -5,6 +5,7 @@ import {
   clearCachedActivePosShift,
   isPosOfflineNetworkError,
   readCachedActivePosShift,
+  validateCachedActivePosShiftForContext,
   writeCachedActivePosShift,
 } from "../src/modules/pos/lib/posShiftCache.js";
 
@@ -81,4 +82,41 @@ test("POS offline network detection ignores server and abort errors", () => {
   assert.equal(isPosOfflineNetworkError({ message: "Failed to fetch" }), true);
   assert.equal(isPosOfflineNetworkError({ status: 404, message: "Not found" }), false);
   assert.equal(isPosOfflineNetworkError({ name: "AbortError", message: "aborted" }), false);
+});
+
+test("POS active shift cache validation rejects mismatched user or branch", () => {
+  const cachedShiftState = {
+    shift: { id: 41, branch_id: 7 },
+    shift_id: 41,
+    branch_id: 7,
+    user_id: 91,
+    tenant_id: 3,
+  };
+
+  assert.equal(
+    validateCachedActivePosShiftForContext(cachedShiftState, {
+      currentUser: { id: 91, tenant_id: 3, branch_id: 7 },
+      currentTenant: { id: 3 },
+      resolvedPosBranchId: "7",
+    }).valid,
+    true
+  );
+
+  assert.equal(
+    validateCachedActivePosShiftForContext(cachedShiftState, {
+      currentUser: { id: 92, tenant_id: 3, branch_id: 7 },
+      currentTenant: { id: 3 },
+      resolvedPosBranchId: "7",
+    }).reason,
+    "user_mismatch"
+  );
+
+  assert.equal(
+    validateCachedActivePosShiftForContext(cachedShiftState, {
+      currentUser: { id: 91, tenant_id: 3, branch_id: 8 },
+      currentTenant: { id: 3 },
+      resolvedPosBranchId: "8",
+    }).reason,
+    "branch_mismatch"
+  );
 });

@@ -410,22 +410,6 @@ const extractPublicStorefrontSettings = (response = {}) => {
     saleModeEnabledCandidate;
   return { settings, rawSaleModeEnabled };
 };
-const logStorefrontCardPriceDebug = (payload = {}) => {
-  if (typeof window === "undefined") return;
-  const key = [
-    payload.componentName || "unknown",
-    payload.productId || "unknown",
-    payload.variantId || "none",
-    String(payload.parsedSaleModeEnabled ?? ""),
-    String(payload.chosenPrice ?? 0),
-    String(payload.isOnSale ?? false),
-  ].join(":");
-  if (!window.__STOREFRONT_CARD_PRICE_DEBUG_SEEN__) window.__STOREFRONT_CARD_PRICE_DEBUG_SEEN__ = new Set();
-  const seen = window.__STOREFRONT_CARD_PRICE_DEBUG_SEEN__;
-  if (seen.has(key)) return;
-  seen.add(key);
-  console.debug("STOREFRONT_CARD_PRICE_DEBUG", payload);
-};
 const BODY_SCROLL_LOCK_ATTR = "data-storefront-scroll-lock-count";
 const BODY_SCROLL_LOCK_Y_ATTR = "data-storefront-scroll-lock-y";
 const lockBodyScroll = () => {
@@ -3517,7 +3501,6 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/products", products
                   <div className="h-56 animate-pulse rounded-[1.35rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)] md:h-72 md:rounded-[1.75rem] dark:bg-white/5" />
                 ) : (
                   <>
-                    {console.log("PRODUCT_CARD_PARENT_PROP", { saleModeEnabled })}
                     <ProductCard
                       product={product}
                       wishlist={wishlist}
@@ -5227,7 +5210,6 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
   const visibleProducts = hasProducts ? orderedProducts.slice(0, 5) : [];
   const skeletonItems = Array.from({ length: 5 });
   const cardDensity = railType === "new" || railType === "similar" ? "compact" : "standard";
-  console.log("RENDER_PATH_NAME", { path: "Storefront->ProductRail", saleModeEnabled });
   if (!loading && !hasProducts) return null;
   return (
     <section className="sf-reveal mx-auto max-w-[1200px] px-4 py-2 md:py-4">
@@ -5249,7 +5231,6 @@ const ProductRail = memo(function ProductRail({ title, subtitle, products, loadi
           </div>
         )) : visibleProducts.map((product, index) => (
           <div key={productCardKey(product, index)} className={`w-[82vw] max-w-[22rem] shrink-0 snap-start sm:w-[43vw] md:w-auto md:max-w-none md:basis-[calc((100%_-_2rem)/3)] xl:basis-[calc((100%_-_4rem)/5)] ${index >= 3 ? "md:hidden xl:block" : ""}`}>
-            {console.log("PRODUCT_CARD_PARENT_PROP", { saleModeEnabled })}
             <ProductCard product={product} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} railType={railType} rank={index + 1} featured={featuredFirst && index === 0} density={cardDensity} imagePreset="grid" saleModeEnabled={saleModeEnabled} />
           </div>
         ))}
@@ -5288,9 +5269,7 @@ function useStorefrontProductGridColumns() {
 const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled }) {
   const columns = useStorefrontProductGridColumns();
   const shouldVirtualize = columns >= 4 && products.length > 40;
-  console.log("RENDER_PATH_NAME", { path: "StorefrontProductListingPage->ProductGrid", saleModeEnabled });
   const renderProduct = useCallback((product, index, key) => {
-    console.log("PRODUCT_CARD_PARENT_PROP", { saleModeEnabled });
     return (
       <ProductCard
         key={key}
@@ -6921,7 +6900,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   );
   const inWishlist = useMemo(() => wishlist.some((item) => String(item.id) === String(product.id)), [product.id, wishlist]);
   const rawSaleModeEnabled = saleModeEnabled;
-  console.log("PRODUCT_CARD_CHILD_PROP", { saleModeEnabled });
   const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, true);
   const pricing = useMemo(
     () => getDisplayPricing(product, parsedSaleModeEnabled, availableVariant),
@@ -7031,37 +7009,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     const nextVariant = activeSizes.find((item) => String(item.size) === String(selectedVariant?.size))?.variant || activeSizes[0]?.variant;
     if (nextVariant?.id) setSelectedVariantId(nextVariant.id);
   }, [activeSizes, selectedVariant?.size, selectedVariantId]);
-  useEffect(() => {
-    console.log("PRODUCT_CARD_PARSER", {
-      rawSaleModeEnabled: saleModeEnabled,
-      parsedSaleModeEnabled,
-      parserReference: parseSaleModeEnabled === importedParseSaleModeEnabled,
-    });
-    logStorefrontCardPriceDebug({
-      componentName: "ProductCard",
-      productId: product?.id || product?.product_id || null,
-      title: product?.name || product?.title || "",
-      rawSaleModeEnabled,
-      parsedSaleModeEnabled,
-      sellingPrice: pricing.sellingPrice,
-      salePrice: pricing.salePrice,
-      comparePrice,
-      chosenPrice: pricing.chosenPrice,
-      isOnSale: Boolean(parsedSaleModeEnabled && pricing.isOnSale && comparePrice > sellingPrice),
-      discountPercent,
-    });
-  }, [
-    comparePrice,
-    discountPercent,
-    pricing,
-    product?.id,
-    product?.name,
-      product?.product_id,
-      product?.title,
-      parsedSaleModeEnabled,
-      sellingPrice,
-    ]);
-
   const quickAddActiveGroup = useMemo(
     () => colorGroups.find((group) => String(group.key) === String(quickAddColorKey)) || (colorGroups.length === 1 ? colorGroups[0] : null),
     [colorGroups, quickAddColorKey]
@@ -7686,10 +7633,6 @@ function ProductDetailsVariantSheet({
 
 function RelatedProducts({ currentId, ...props }) {
   const { products } = useProducts({ limit: 8 });
-  console.log("RENDER_PATH_NAME", {
-    path: "StorefrontProductDetailPage->RelatedProducts",
-    saleModeEnabled: props?.saleModeEnabled,
-  });
   const filtered = useMemo(
     () => sortStorefrontColorCardsByModel(products.filter((product) => String(product.parent_product_id || product.id) !== String(currentId))).slice(0, 4),
     [currentId, products]
@@ -7705,7 +7648,6 @@ function RelatedProducts({ currentId, ...props }) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         {filtered.length ? filtered.map((product, index) => {
-          console.log("PRODUCT_CARD_PARENT_PROP", { saleModeEnabled: props?.saleModeEnabled });
           return <ProductCard key={productCardKey(product, index)} product={product} railType="similar" {...props} saleModeEnabled={props?.saleModeEnabled} />;
         }) : <MiniRailEmpty />}
       </div>
@@ -7906,10 +7848,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
 
   useEffect(() => {
     let cancelled = false;
-    const publicSettingsRequestUrl = "/settings/public";
-    console.log("STOREFRONT_PUBLIC_SETTINGS_REQUEST_URL", {
-      url: publicSettingsRequestUrl,
-    });
     api.get("/settings/public", {
       suppressErrorStatuses: [404, 500],
       cache: "no-store",
@@ -7917,20 +7855,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     })
       .then((data) => {
         if (cancelled) return;
-        console.log("STOREFRONT_PUBLIC_SETTINGS_SHAPE", {
-          keys: Object.keys(data || {}),
-          response: data,
-          settingsKeys: Object.keys(data?.settings || {}),
-          dataKeys: Object.keys(data?.data || {}),
-          dataSettingsKeys: Object.keys(data?.data?.settings || {}),
-        });
-        console.log("STOREFRONT_PUBLIC_SETTINGS_SALE_KEYS", {
-          responseSettingsSaleMode: data?.settings?.sale_mode_enabled,
-          responseSettingsSaleModeAlt: data?.settings?.saleModeEnabled,
-          responseSettingsGlobalSale: data?.settings?.global_sale_enabled,
-          responseSettingsSalePrices: data?.settings?.sale_prices_enabled,
-          responseSettingsKeys: Object.keys(data?.settings || {}).filter((key) => String(key).toLowerCase().includes("sale")),
-        });
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
         const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, true);
         const normalizedSettings = {
@@ -7940,10 +7864,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         setShippingLocations(normalizeCheckoutLocations(normalizedSettings["storefront.shipping_locations"]));
         setPublicStoreSettings(normalizedSettings);
         storefrontPublicSaleModeEnabledRaw = rawSaleModeEnabled;
-        console.debug("STOREFRONT_PUBLIC_SALE_MODE", {
-          sale_mode_enabled: parsedSaleModeEnabled,
-          parsed_sale_mode_enabled: parsedSaleModeEnabled,
-        });
         console.debug("[payment-settings:loaded]", {
           instapay_enabled: Boolean(normalizedSettings["storefront.payment_methods.instapay_enabled"] ?? normalizedSettings["payments.instapay_enabled"]),
           vodafone_cash_enabled: Boolean(normalizedSettings["storefront.payment_methods.vodafone_cash_enabled"] ?? normalizedSettings["payments.vodafone_cash_enabled"]),
@@ -11525,10 +11445,6 @@ function Storefront() {
 
   useEffect(() => {
     let cancelled = false;
-    const publicSettingsRequestUrl = "/settings/public";
-    console.log("STOREFRONT_PUBLIC_SETTINGS_REQUEST_URL", {
-      url: publicSettingsRequestUrl,
-    });
     api.get("/settings/public", {
       suppressErrorStatuses: [404, 500],
       cache: "no-store",
@@ -11536,20 +11452,6 @@ function Storefront() {
     })
       .then((data) => {
         if (cancelled) return;
-        console.log("STOREFRONT_PUBLIC_SETTINGS_SHAPE", {
-          keys: Object.keys(data || {}),
-          response: data,
-          settingsKeys: Object.keys(data?.settings || {}),
-          dataKeys: Object.keys(data?.data || {}),
-          dataSettingsKeys: Object.keys(data?.data?.settings || {}),
-        });
-        console.log("STOREFRONT_PUBLIC_SETTINGS_SALE_KEYS", {
-          responseSettingsSaleMode: data?.settings?.sale_mode_enabled,
-          responseSettingsSaleModeAlt: data?.settings?.saleModeEnabled,
-          responseSettingsGlobalSale: data?.settings?.global_sale_enabled,
-          responseSettingsSalePrices: data?.settings?.sale_prices_enabled,
-          responseSettingsKeys: Object.keys(data?.settings || {}).filter((key) => String(key).toLowerCase().includes("sale")),
-        });
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
         const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, true);
         const normalizedSettings = {
@@ -11558,10 +11460,6 @@ function Storefront() {
         };
         setPublicStoreSettings(normalizedSettings);
         storefrontPublicSaleModeEnabledRaw = rawSaleModeEnabled;
-        console.debug("STOREFRONT_PUBLIC_SALE_MODE", {
-          sale_mode_enabled: parsedSaleModeEnabled,
-          parsed_sale_mode_enabled: parsedSaleModeEnabled,
-        });
       })
       .catch(() => undefined);
     return () => {
@@ -11947,10 +11845,6 @@ function Storefront() {
 
   const storefrontPage = useMemo(() => {
     if (isStorefrontProductsPath(currentStorefrontPath)) {
-      console.log("RENDER_PATH_NAME", {
-        path: "Storefront->StorefrontProductListingPage",
-        saleModeEnabled: publicSaleModeEnabled,
-      });
       return (
         <LazyStorefrontProductListingPage
           wishlist={wishlist}
@@ -11964,10 +11858,6 @@ function Storefront() {
     if (isStorefrontOfferPath(currentStorefrontPath)) return <OfferStoryViewer />;
 
     if (isStorefrontProductPath(currentStorefrontPath)) {
-      console.log("RENDER_PATH_NAME", {
-        path: "Storefront->StorefrontProductDetailPage",
-        saleModeEnabled: publicSaleModeEnabled,
-      });
       return (
         <LazyStorefrontProductDetailPage
           key={storefrontRouteKey}

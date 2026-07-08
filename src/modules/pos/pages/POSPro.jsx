@@ -70,6 +70,7 @@ import {
   clearCachedActivePosShift,
   isPosOfflineNetworkError,
   readCachedActivePosShift,
+  validateCachedActivePosShiftForContext,
   writeCachedActivePosShift,
 } from "../lib/posShiftCache";
 import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
@@ -1411,6 +1412,9 @@ function POSPro() {
     return () => window.cancelAnimationFrame(frame);
   }, []);
 
+  const currentTenant = useMemo(() => getCurrentTenant() || {}, []);
+  const currentUser = useMemo(() => getCurrentUser() || {}, []);
+
   const [products, setProducts] = useState([]);
   const [saleModeSettings, setSaleModeSettings] = useState(() => normalizeSaleModeSettings({}));
   const [saleModeSaving, setSaleModeSaving] = useState(false);
@@ -1444,11 +1448,48 @@ function POSPro() {
   const [selectedGrade, setSelectedGrade] = useState(() => persisted.selectedGrade || defaultState.selectedGrade);
   const [customerSearch, setCustomerSearch] = useState(defaultState.customerSearch);
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
-  const [activePosShift, setActivePosShift] = useState(null);
-  const [posShiftBranch, setPosShiftBranch] = useState(null);
-  const [posShiftSource, setPosShiftSource] = useState("server");
+  const initialCachedActiveShiftState = useMemo(() => {
+    const cachedShiftState = readCachedActivePosShift();
+    if (!cachedShiftState?.shift?.id) return null;
+
+    const validation = validateCachedActivePosShiftForContext(cachedShiftState, {
+      currentUser,
+      currentTenant,
+      resolvedPosBranchId: String(
+        currentUser?.branch_id ||
+          currentUser?.branchId ||
+          currentUser?.default_branch_id ||
+          currentUser?.defaultBranchId ||
+          ""
+      ).trim(),
+    });
+
+    if (!validation.valid) {
+      console.info("POS_SHIFT_CACHE_REJECTED", {
+        reason: validation.reason,
+        shift_id: cachedShiftState.shift_id ?? cachedShiftState.shift?.id ?? null,
+        branch_id: cachedShiftState.branch_id ?? cachedShiftState.shift?.branch_id ?? null,
+        user_id: cachedShiftState.user_id ?? cachedShiftState.cashier_user_id ?? null,
+        tenant_id: cachedShiftState.tenant_id ?? null,
+      });
+      return null;
+    }
+
+    console.info("POS_SHIFT_CACHE_LOAD", {
+      source: "initial",
+      shift_id: cachedShiftState.shift_id ?? cachedShiftState.shift?.id ?? null,
+      branch_id: cachedShiftState.branch_id ?? cachedShiftState.shift?.branch_id ?? null,
+      user_id: cachedShiftState.user_id ?? cachedShiftState.cashier_user_id ?? null,
+      tenant_id: cachedShiftState.tenant_id ?? null,
+      cached_at: cachedShiftState.cached_at || null,
+    });
+    return cachedShiftState;
+  }, [currentTenant, currentUser]);
+  const [activePosShift, setActivePosShift] = useState(() => initialCachedActiveShiftState?.shift || null);
+  const [posShiftBranch, setPosShiftBranch] = useState(() => initialCachedActiveShiftState?.branch || null);
+  const [posShiftSource, setPosShiftSource] = useState(() => (initialCachedActiveShiftState ? "cache" : "server"));
   const [posShiftNetworkUnavailable, setPosShiftNetworkUnavailable] = useState(false);
-  const [posShiftLoading, setPosShiftLoading] = useState(true);
+  const [posShiftLoading, setPosShiftLoading] = useState(() => !initialCachedActiveShiftState);
   const [openingCash, setOpeningCash] = useState("");
   const [closingCash, setClosingCash] = useState("");
   const [sellerOverrideAllowed, setSellerOverrideAllowed] = useState(false);
@@ -1537,8 +1578,6 @@ function POSPro() {
   const offlineSyncInFlightRef = useRef(false);
   const deferredSearch = useDeferredValue(search);
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
-  const currentTenant = useMemo(() => getCurrentTenant() || {}, []);
-  const currentUser = useMemo(() => getCurrentUser() || {}, []);
   const resolvedPosBranchId = useMemo(
     () =>
       String(
@@ -1598,24 +1637,6 @@ function POSPro() {
     if (!currentUserId) return true;
     return !salesEmployees.some((employee) => String(employee.user_id || "") === currentUserId);
   }, [canOverrideSeller, currentUser?.id, salesEmployees]);
-
-  const isCachedActiveShiftValidForCurrentUser = useCallback((cachedShiftState) => {
-    if (!cachedShiftState?.shift?.id) return false;
-
-    const cachedUserId = String(cachedShiftState.user_id ?? cachedShiftState.cashier_user_id ?? "");
-    const currentUserId = String(currentUser?.id ?? "");
-    if (cachedUserId && currentUserId && cachedUserId !== currentUserId) return false;
-
-    const cachedTenantId = String(cachedShiftState.tenant_id ?? "");
-    const currentTenantId = String(currentUser?.tenant_id ?? "");
-    if (cachedTenantId && currentTenantId && cachedTenantId !== currentTenantId) return false;
-
-    const currentBranchId = String(resolvedPosBranchId || "");
-    const cachedBranchId = String(cachedShiftState.branch_id ?? cachedShiftState.shift?.branch_id ?? "");
-    if (currentBranchId && cachedBranchId && currentBranchId !== cachedBranchId) return false;
-
-    return true;
-  }, [currentUser?.id, currentUser?.tenant_id, resolvedPosBranchId]);
 
   const cacheActiveShiftSnapshot = useCallback((shift, branch) => {
     writeCachedActivePosShift({ shift, branch, currentUser });
@@ -2422,32 +2443,48 @@ function POSPro() {
       if (networkUnavailable) {
         setPosShiftNetworkUnavailable(true);
         const cachedShiftState = readCachedActivePosShift();
-        if (cachedShiftState?.shift?.id && isCachedActiveShiftValidForCurrentUser(cachedShiftState)) {
-          const cachedShift = cachedShiftState.shift;
-          const cachedBranch = cachedShiftState.branch || null;
-          const currentShiftId = String(activePosShiftRef.current?.id || "");
-          const cachedShiftId = String(cachedShift.id || cachedShiftState.shift_id || "");
-          if (!currentShiftId) {
-            setActivePosShift(cachedShift);
-            setPosShiftBranch(cachedBranch);
-            setPosShiftSource("cache");
-            console.warn("POS_OFFLINE_SHIFT_FALLBACK", {
-              branch_id: cachedShiftState.branch_id ?? cachedShift.branch_id ?? null,
-              shift_id: cachedShiftId || null,
+        if (cachedShiftState?.shift?.id) {
+          const validation = validateCachedActivePosShiftForContext(cachedShiftState, {
+            currentUser,
+            currentTenant,
+            resolvedPosBranchId,
+          });
+          if (!validation.valid) {
+            console.info("POS_SHIFT_CACHE_REJECTED", {
+              reason: validation.reason,
+              shift_id: cachedShiftState.shift_id ?? cachedShiftState.shift?.id ?? null,
+              branch_id: cachedShiftState.branch_id ?? cachedShiftState.shift?.branch_id ?? null,
               user_id: cachedShiftState.user_id ?? cachedShiftState.cashier_user_id ?? null,
-              opened_at: cachedShiftState.opened_at ?? cachedShift.opened_at ?? null,
-              opening_cash: cachedShiftState.opening_cash ?? cachedShift.opening_cash ?? null,
-              cached_at: cachedShiftState.cached_at || null,
+              tenant_id: cachedShiftState.tenant_id ?? null,
             });
+          } else {
+            const cachedShift = cachedShiftState.shift;
+            const cachedBranch = cachedShiftState.branch || null;
+            const currentShiftId = String(activePosShiftRef.current?.id || "");
+            const cachedShiftId = String(cachedShift.id || cachedShiftState.shift_id || "");
+            if (!currentShiftId) {
+              setActivePosShift(cachedShift);
+              setPosShiftBranch(cachedBranch);
+              setPosShiftSource("cache");
+              console.warn("POS_OFFLINE_SHIFT_FALLBACK", {
+                source: "cache",
+                branch_id: cachedShiftState.branch_id ?? cachedShift.branch_id ?? null,
+                shift_id: cachedShiftId || null,
+                user_id: cachedShiftState.user_id ?? cachedShiftState.cashier_user_id ?? null,
+                opened_at: cachedShiftState.opened_at ?? cachedShift.opened_at ?? null,
+                opening_cash: cachedShiftState.opening_cash ?? cachedShift.opening_cash ?? null,
+                cached_at: cachedShiftState.cached_at || null,
+              });
+            }
+            if (currentShiftId && currentShiftId === cachedShiftId && posShiftSourceRef.current !== "cache") {
+              setPosShiftSource("cache");
+            }
+            return {
+              shift: activePosShiftRef.current?.id ? activePosShiftRef.current : cachedShift,
+              branch: activePosShiftRef.current?.id ? posShiftBranchRef.current || cachedBranch : cachedBranch,
+              source: activePosShiftRef.current?.id ? posShiftSourceRef.current : "cache",
+            };
           }
-          if (currentShiftId && currentShiftId === cachedShiftId && posShiftSourceRef.current !== "cache") {
-            setPosShiftSource("cache");
-          }
-          return {
-            shift: activePosShiftRef.current?.id ? activePosShiftRef.current : cachedShift,
-            branch: activePosShiftRef.current?.id ? posShiftBranchRef.current || cachedBranch : cachedBranch,
-            source: activePosShiftRef.current?.id ? posShiftSourceRef.current : "cache",
-          };
         }
         return activePosShiftRef.current?.id
           ? {
@@ -2469,7 +2506,7 @@ function POSPro() {
     } finally {
       if (!silent) setPosShiftLoading(false);
     }
-  }, [cacheActiveShiftSnapshot, isCachedActiveShiftValidForCurrentUser, resolvedPosBranchId]);
+  }, [cacheActiveShiftSnapshot, currentTenant, currentUser, resolvedPosBranchId]);
 
   useEffect(() => {
     loadActivePosShift();
@@ -6354,6 +6391,20 @@ function POSPro() {
     });
   });
   const fullscreenTooltip = isRtl ? "\u0645\u0644\u0621 \u0627\u0644\u0634\u0627\u0634\u0629" : "Fullscreen";
+
+  if (posShiftLoading && !activePosShift?.id) {
+    return (
+      <div className="min-h-[100dvh] w-full min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white">
+        <div className="flex min-h-[100dvh] items-center justify-center px-4">
+          <div className="flex w-full max-w-md flex-col items-center gap-4 rounded-3xl border border-white/10 bg-zinc-950/90 px-6 py-8 text-center shadow-2xl shadow-black/30">
+            <Loader2 className="h-8 w-8 animate-spin text-emerald-300" />
+            <div className="text-lg font-black text-white">Restoring shift session</div>
+            <div className="text-sm text-zinc-400">Checking the cached active shift before showing the open shift screen.</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!isShiftActive) {
     return (

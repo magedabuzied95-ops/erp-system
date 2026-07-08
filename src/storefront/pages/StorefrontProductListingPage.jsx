@@ -862,11 +862,6 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   };
   const showEmptyResults = !loading && !orderedFilteredProducts.length;
   const showGuidedProducts = Boolean(selectedGender && selectedGrade && selectedProductType);
-  console.log("RENDER_PATH_NAME", {
-    path: "StorefrontProductListingPage->ProductGrid",
-    saleModeEnabled,
-  });
-
   useEffect(() => {
     if (!import.meta.env.DEV || !(saleView || offerStoryQuery)) return;
     console.log("[offer-story-rendered]", {

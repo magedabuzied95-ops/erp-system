@@ -1,4 +1,4 @@
-import { Component, useEffect, useRef, useState } from "react";
+import { Component, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import { useTranslation } from "react-i18next";
 import { PackageSearch } from "lucide-react";
@@ -55,23 +55,6 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
   const activePrice = pricing.price;
   const comparePrice = parsedSaleModeEnabled && pricing.comparePrice && pricing.comparePrice > activePrice ? pricing.comparePrice : 0;
   const meta = [safeProduct?.brand, safeProduct?.category, safeProduct?.gender, safeProduct?.grade].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "منتج من المتجر");
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    console.debug("STOREFRONT_CARD_PRICE_DEBUG", {
-      componentName: "VisualSearchProductCard",
-      productId: safeProduct?.id || safeProduct?.product_id || null,
-      title: safeProduct?.name || safeProduct?.title || "",
-      rawSaleModeEnabled,
-      parsedSaleModeEnabled,
-      sellingPrice: pricing.sellingPrice,
-      salePrice: pricing.salePrice,
-      comparePrice,
-      chosenPrice: pricing.chosenPrice,
-      isOnSale: Boolean(parsedSaleModeEnabled && pricing.isOnSale && comparePrice > activePrice),
-      discountPercent: pricing.discountPercent || 0,
-    });
-  }, [activePrice, comparePrice, pricing, rawSaleModeEnabled, parsedSaleModeEnabled, safeProduct?.id, safeProduct?.name, safeProduct?.product_id, safeProduct?.title]);
 
   const viewProduct = (event) => {
     event.stopPropagation();

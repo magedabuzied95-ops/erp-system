@@ -75,14 +75,6 @@ export const getWebsiteSettings = async ({ tenantId = null } = {}) => {
     ...(result.rows[0]?.settings || {}),
   };
   settings.sale_mode_enabled = parseSaleModeEnabled(settings.sale_mode_enabled, DEFAULT_SETTINGS.sale_mode_enabled);
-  console.debug("WEBSITE_SETTINGS_GET_RAW_SALE_MODE", {
-    tenant_id: tenantId,
-    sale_mode_enabled: rawSaleModeEnabled,
-  });
-  console.debug("WEBSITE_SETTINGS_GET_RETURNED_SALE_MODE", {
-    tenant_id: tenantId,
-    sale_mode_enabled: settings.sale_mode_enabled,
-  });
   return {
     ...settings,
   };
@@ -137,10 +129,6 @@ export const updateWebsiteSettings = async ({ tenantId = null, settings = {} } =
     invalidateCachePattern(buildCacheKey("storefront", `tenant:public`, "*")).catch(() => {});
   }
   const saved = { ...DEFAULT_SETTINGS, ...(result.rows[0]?.settings || next) };
-  console.debug("WEBSITE_SETTINGS_PUT_SAVED_SALE_MODE", {
-    tenant_id: tenantId,
-    sale_mode_enabled: saved.sale_mode_enabled,
-  });
   return saved;
 };
 

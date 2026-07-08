@@ -1,6 +1,17 @@
 import { safeSetLocalStorage, safeSetSessionStorage } from "../../../utils/safeStorage.js";
 
 const ACTIVE_SHIFT_STORAGE_KEY = "erp.pos.active_shift";
+const isPosShiftCacheDebugEnabled = () =>
+  Boolean(
+    import.meta.env?.DEV ||
+    String(import.meta.env?.VITE_POS_DEBUG || "").trim().toLowerCase() === "true" ||
+    String(import.meta.env?.VITE_POS_OFFLINE_DEBUG || "").trim().toLowerCase() === "true"
+  );
+
+const logPosShiftCacheDebug = (event, payload = {}) => {
+  if (!isPosShiftCacheDebugEnabled()) return;
+  console.info(event, payload);
+};
 
 const normalizeCachedActivePosShift = (value = {}) => {
   if (!value || typeof value !== "object") return null;
@@ -53,12 +64,59 @@ export const isPosOfflineNetworkError = (error) => {
   );
 };
 
+export const validateCachedActivePosShiftForContext = (
+  cachedShiftState,
+  { currentUser = {}, resolvedPosBranchId = "", currentTenant = {} } = {}
+) => {
+  const shiftId = cachedShiftState?.shift?.id ?? cachedShiftState?.shift_id ?? null;
+  if (!shiftId) {
+    return { valid: false, reason: "missing_shift_id" };
+  }
+
+  const cachedUserId = String(cachedShiftState?.user_id ?? cachedShiftState?.cashier_user_id ?? "").trim();
+  const currentUserId = String(currentUser?.id ?? "").trim();
+  if (cachedUserId && currentUserId && cachedUserId !== currentUserId) {
+    return { valid: false, reason: "user_mismatch" };
+  }
+
+  const cachedTenantId = String(cachedShiftState?.tenant_id ?? "").trim();
+  const currentTenantId = String(currentTenant?.id ?? currentTenant?.tenant_id ?? "").trim();
+  if (cachedTenantId && currentTenantId && cachedTenantId !== currentTenantId) {
+    return { valid: false, reason: "tenant_mismatch" };
+  }
+
+  const currentBranchId = String(
+    resolvedPosBranchId ||
+      currentUser?.branch_id ||
+      currentUser?.branchId ||
+      currentUser?.default_branch_id ||
+      currentUser?.defaultBranchId ||
+      ""
+  ).trim();
+  const cachedBranchId = String(cachedShiftState?.branch_id ?? cachedShiftState?.shift?.branch_id ?? "").trim();
+  if (currentBranchId && cachedBranchId && currentBranchId !== cachedBranchId) {
+    return { valid: false, reason: "branch_mismatch" };
+  }
+
+  return { valid: true, reason: "ok" };
+};
+
 export const readCachedActivePosShift = () => {
   if (typeof window === "undefined") return null;
   try {
     const raw = window.localStorage.getItem(ACTIVE_SHIFT_STORAGE_KEY) || window.sessionStorage.getItem(ACTIVE_SHIFT_STORAGE_KEY);
     if (!raw) return null;
-    return normalizeCachedActivePosShift(JSON.parse(raw));
+    const parsed = normalizeCachedActivePosShift(JSON.parse(raw));
+    if (parsed?.shift?.id) {
+      logPosShiftCacheDebug("POS_SHIFT_CACHE_LOAD", {
+        shift_id: parsed.shift.id,
+        branch_id: parsed.branch_id ?? parsed.shift?.branch_id ?? null,
+        user_id: parsed.user_id ?? parsed.cashier_user_id ?? null,
+        tenant_id: parsed.tenant_id ?? null,
+        cached_at: parsed.cached_at || null,
+      });
+    }
+    return parsed;
   } catch {
     return null;
   }
@@ -91,8 +149,25 @@ export const writeCachedActivePosShift = ({ shift, branch, currentUser } = {}) =
     cached_at: new Date().toISOString(),
   };
 
-  safeSetLocalStorage(ACTIVE_SHIFT_STORAGE_KEY, record, { maxBytes: 32 * 1024 });
-  safeSetSessionStorage(ACTIVE_SHIFT_STORAGE_KEY, record, { maxBytes: 32 * 1024 });
+  const localStored = safeSetLocalStorage(ACTIVE_SHIFT_STORAGE_KEY, record, { maxBytes: 32 * 1024 });
+  const sessionStored = safeSetSessionStorage(ACTIVE_SHIFT_STORAGE_KEY, record, { maxBytes: 32 * 1024 });
+  const saved = localStored || sessionStored;
+  if (!saved) {
+    logPosShiftCacheDebug("POS_SHIFT_CACHE_SAVE_FAILED", {
+      shift_id: shiftId,
+      branch_id: record.branch_id ?? null,
+      user_id: record.user_id ?? null,
+      tenant_id: record.tenant_id ?? null,
+    });
+    return false;
+  }
+  logPosShiftCacheDebug("POS_SHIFT_CACHE_SAVE", {
+    shift_id: shiftId,
+    branch_id: record.branch_id ?? null,
+    user_id: record.user_id ?? null,
+    tenant_id: record.tenant_id ?? null,
+    cached_at: record.cached_at,
+  });
   return true;
 };
 

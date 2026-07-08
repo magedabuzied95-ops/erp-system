@@ -540,11 +540,6 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     );
   }
 
-  console.log("RENDER_PATH_NAME", {
-    path: "StorefrontProductDetailPage->RelatedProducts",
-    saleModeEnabled,
-  });
-
   return (
     <section dir="rtl" className="sf-product-details-page mx-auto max-w-7xl px-3 pb-28 pt-2 md:px-4 md:pb-36 md:pt-5 lg:pb-8">
       <div ref={productTopRef} aria-hidden="true" className="h-0 w-0 overflow-hidden" />
