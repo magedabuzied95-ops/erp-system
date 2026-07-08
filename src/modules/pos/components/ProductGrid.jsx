@@ -240,7 +240,6 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
   const colors = uniqueTextValues(variants.map((variant) => variant.color), 3);
   const sizes = uniqueTextValues(variants.map((variant) => variant.size), 4);
   const articleCode = getSharedArticleCode(product);
-  const articleLabel = String(i18n.language || "").toLowerCase().startsWith("ar") ? "ارتكل" : "ART";
 
   return (
     <div
@@ -273,9 +272,9 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
           </div>
           {articleCode ? (
             <div className="absolute inset-x-2 bottom-2 flex justify-center">
-              <div className="inline-flex max-w-[calc(100%-12px)] items-center justify-center rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[9px] font-semibold leading-none text-zinc-200 shadow-sm backdrop-blur-sm">
+              <div className="inline-flex max-w-[calc(100%-12px)] items-center justify-center rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[10px] font-black leading-none text-zinc-200 shadow-sm backdrop-blur-sm">
                 <span className="min-w-0 max-w-full truncate">
-                  {`${articleLabel}: ${articleCode}`}
+                  {articleCode}
                 </span>
               </div>
             </div>
