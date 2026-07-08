@@ -1377,7 +1377,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
   const paidAmount = Number(paymentSummary?.paidAmount || 0);
   const changeAmount = Number(paymentSummary?.changeAmount || 0);
   const dueAmount = Math.max(0, Number(paymentSummary?.dueAmount || 0));
-  const compactShellClass = compact ? "pos-receipt-thermal max-w-[340px] rounded-[28px] p-3.5" : "pos-receipt-a4 max-w-[720px] rounded-[32px] p-6";
+  const compactShellClass = compact ? "pos-receipt-thermal w-full max-w-[304px] rounded-[24px] p-3" : "pos-receipt-a4 max-w-[720px] rounded-[32px] p-6";
   const safeReceiptValue = (value) => String(value ?? "").trim() || "-";
   const safeReceiptMoney = (value) => {
     const numeric = Number(value);
@@ -1415,96 +1415,93 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
       className={`pos-receipt mx-auto overflow-hidden bg-white text-zinc-950 ${compact ? "border border-zinc-300 shadow-none" : "border border-emerald-100 shadow-2xl shadow-black/20"} ${compactShellClass}`}
     >
       {compact ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <div className="text-center">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full border border-black/15 bg-black text-[11px] font-black text-white">M1</div>
-            <div className="mt-2 text-[20px] font-black leading-none tracking-[0.02em] text-zinc-950">M1 Store</div>
-            <div className="mt-1 text-[11px] font-bold text-zinc-700">شكراً لشرائكم</div>
+            <div className="text-[20px] font-black leading-none tracking-[0.01em] text-zinc-950">M1 Store</div>
+            <div className="mt-1 text-[12px] font-bold text-zinc-700">شكراً لشرائكم</div>
+            <div className="mt-2 h-px w-full bg-zinc-950" />
           </div>
 
-          <div className="rounded-[18px] border border-dashed border-zinc-300 px-2.5 py-2 text-[11px] leading-5 text-zinc-700">
-            <div className="grid gap-1.5">
-              <div className="flex items-start justify-between gap-2"><span className="shrink-0 font-black text-zinc-950">رقم الفاتورة</span><span className="min-w-0 text-left font-bold text-zinc-700">{safeReceiptValue(premiumReceiptNumber)}</span></div>
-              <div className="flex items-start justify-between gap-2"><span className="shrink-0 font-black text-zinc-950">العميل</span><span className="min-w-0 text-left font-bold text-zinc-700">{compactCustomerName}</span></div>
-              <div className="flex items-start justify-between gap-2"><span className="shrink-0 font-black text-zinc-950">البائع</span><span className="min-w-0 text-left font-bold text-zinc-700">{compactSellerName}</span></div>
-              <div className="flex items-start justify-between gap-2"><span className="shrink-0 font-black text-zinc-950">طريقة الدفع</span><span className="min-w-0 text-left font-bold text-zinc-700">{compactPaymentLabel}</span></div>
-              <div className="flex items-start justify-between gap-2"><span className="shrink-0 font-black text-zinc-950">التاريخ</span><span className="min-w-0 text-left font-bold text-zinc-700">{compactDateText || "-"}</span></div>
-            </div>
+          <div className="space-y-1.5 text-[12px] leading-5 text-zinc-800">
+            <div className="flex items-start justify-between gap-3"><span className="shrink-0 font-black text-zinc-950">رقم الفاتورة:</span><span className="min-w-0 text-left font-bold">{safeReceiptValue(premiumReceiptNumber)}</span></div>
+            <div className="flex items-start justify-between gap-3"><span className="shrink-0 font-black text-zinc-950">التاريخ:</span><span className="min-w-0 text-left font-bold">{compactDateText || "-"}</span></div>
+            <div className="flex items-start justify-between gap-3"><span className="shrink-0 font-black text-zinc-950">البائع:</span><span className="min-w-0 text-left font-bold">{compactSellerName}</span></div>
+            <div className="flex items-start justify-between gap-3"><span className="shrink-0 font-black text-zinc-950">العميل:</span><span className="min-w-0 text-left font-bold">{compactCustomerName}</span></div>
+            <div className="flex items-start justify-between gap-3"><span className="shrink-0 font-black text-zinc-950">طريقة الدفع:</span><span className="min-w-0 text-left font-bold">{compactPaymentLabel}</span></div>
+            <div className="h-px w-full bg-zinc-300" />
           </div>
 
-          <div className="rounded-[18px] border border-dashed border-zinc-300 px-2 py-2">
-            <div className="grid grid-cols-[1fr_32px_62px_66px] gap-1 border-b border-dashed border-zinc-300 pb-1 text-[10px] font-black text-zinc-700">
-              <div>المنتج</div>
-              <div className="text-center">الكمية</div>
-              <div className="text-right">سعر الوحدة</div>
-              <div className="text-right">الإجمالي</div>
-            </div>
-            <div className="mt-1 space-y-1.5">
-              {cart.length === 0 ? (
-                <div className="py-4 text-center text-[11px] font-semibold text-zinc-500">لا توجد منتجات</div>
-              ) : (
-                cart.map((item, index) => {
-                  const unitPrice = getReceiptItemUnitPrice(item);
-                  const lineTotal = getReceiptItemTotal(item);
-                  const imageSrc = item.image_url || item.product_image_url || item.image || item.photo_url || "";
-                  const colorText = safeReceiptValue(item.color || item.color_name);
-                  const sizeText = safeReceiptValue(item.size || item.size_name);
+          <div className="space-y-2">
+            {cart.length === 0 ? (
+              <div className="py-4 text-center text-[12px] font-semibold text-zinc-500">لا توجد منتجات</div>
+            ) : (
+              cart.map((item, index) => {
+                const unitPrice = getReceiptItemUnitPrice(item);
+                const lineTotal = getReceiptItemTotal(item);
+                const colorText = safeReceiptValue(item.color || item.color_name);
+                const sizeText = safeReceiptValue(item.size || item.size_name);
 
-                  return (
-                    <div key={String(item.key || item.id || `${item.name}-${index}`)} className="grid grid-cols-[1fr_32px_62px_66px] gap-1 border-t border-dashed border-zinc-200 pt-1.5 first:border-t-0 first:pt-0">
-                      <div className="flex min-w-0 items-start gap-1.5">
-                        {imageSrc ? (
-                          <div className="mt-0.5 h-9 w-9 shrink-0 overflow-hidden rounded-md border border-zinc-200 bg-zinc-50">
-                            <CartItemImage src={imageSrc} fallbackSrc={item.product_image_url} alt={item.name} />
-                          </div>
-                        ) : null}
-                        <div className="min-w-0 flex-1">
-                          <div className="break-words text-[11px] font-black leading-snug text-zinc-950">{safeReceiptValue(item.name) === "-" ? "منتج" : item.name}</div>
-                          <div className="mt-0.5 break-words text-[10px] font-semibold leading-snug text-zinc-600">اللون: {colorText} | المقاس: {sizeText}</div>
-                        </div>
-                      </div>
-                      <div className="self-center text-center text-[11px] font-bold text-zinc-700">{safeReceiptValue(item.quantity)}</div>
-                      <div className="self-center text-right text-[11px] font-black text-zinc-950">{safeReceiptMoney(unitPrice)}</div>
-                      <div className="self-center text-right text-[11px] font-black text-zinc-950">{safeReceiptMoney(lineTotal)}</div>
+                return (
+                  <div key={String(item.key || item.id || `${item.name}-${index}`)} className="space-y-1.5 pb-2 text-[12px] leading-5 text-zinc-800">
+                    <div className="break-words text-[13px] font-black leading-5 text-zinc-950">{safeReceiptValue(item.name) === "-" ? "منتج" : item.name}</div>
+                    <div className="break-words font-semibold text-zinc-600">{colorText} • {sizeText}</div>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="font-bold text-zinc-700">{safeReceiptValue(item.quantity)} × {safeReceiptMoney(unitPrice)}</span>
+                      <span className="shrink-0 font-black text-zinc-950">{safeReceiptMoney(lineTotal)}</span>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="font-black text-zinc-950">الإجمالي:</span>
+                      <span className="shrink-0 font-black text-zinc-950">{safeReceiptMoney(lineTotal)}</span>
+                    </div>
+                    <div className="h-px w-full bg-zinc-300 last:hidden" />
+                  </div>
+                );
+              })
+            )}
           </div>
 
-          <div className="rounded-[18px] border border-dashed border-zinc-300 px-2.5 py-2 text-[11px] leading-5 text-zinc-700">
-            <div className="space-y-1.5">
-              <ReceiptTotalRow label="المجموع الفرعي" value={safeReceiptMoney(totals.subtotal)} />
-              <ReceiptTotalRow label="الخصومات" value={`- ${safeReceiptMoney(compactDiscounts)}`} />
-              <ReceiptTotalRow label="خصم الولاء" value={`- ${safeReceiptMoney(compactLoyaltyDiscount)}`} />
-              <div className="h-px bg-zinc-300" />
-              <div className="flex items-end justify-between gap-4">
-                <span className="text-[12px] font-black text-zinc-950">الإجمالي</span>
-                <span className="text-[16px] font-black text-zinc-950">{safeReceiptMoney(compactTotal)}</span>
-              </div>
-              <ReceiptTotalRow label="إجمالي الكمية" value={String(compactItemCount || 0)} />
+          <div className="h-px w-full bg-zinc-950" />
+
+          <div className="space-y-1.5 text-[12px] leading-5 text-zinc-800">
+            <ReceiptTotalRow label="المجموع الفرعي" value={safeReceiptMoney(totals.subtotal)} />
+            <ReceiptTotalRow label="الخصومات" value={`- ${safeReceiptMoney(compactDiscounts)}`} />
+            <ReceiptTotalRow label="خصم الولاء" value={`- ${safeReceiptMoney(compactLoyaltyDiscount)}`} />
+            {paidAmount > 0 ? <ReceiptTotalRow label="المدفوع" value={safeReceiptMoney(paidAmount)} /> : null}
+            {changeAmount > 0 ? <ReceiptTotalRow label="الباقي" value={safeReceiptMoney(changeAmount)} /> : null}
+            {dueAmount > 0 ? <ReceiptTotalRow label="المتبقي" value={safeReceiptMoney(dueAmount)} /> : null}
+            <div className="h-px w-full bg-zinc-950" />
+            <div className="flex items-end justify-between gap-4 py-0.5">
+              <span className="text-[16px] font-black text-zinc-950">الإجمالي</span>
+              <span className="text-[20px] font-black leading-none text-zinc-950">{safeReceiptMoney(compactTotal)}</span>
             </div>
+            <div className="h-px w-full bg-zinc-950" />
+            <ReceiptTotalRow label="إجمالي الكمية" value={String(compactItemCount || 0)} />
           </div>
 
-          <div className="rounded-[18px] border border-dashed border-zinc-300 px-2.5 py-2 text-[10px] leading-5 text-zinc-700">
-            <div className="font-black text-zinc-950">سياسة الاستبدال والاسترجاع</div>
+          <div className="h-px w-full bg-zinc-300" />
+
+          <div className="space-y-1 text-[11px] leading-5 text-zinc-700">
             <div>يسمح بالاستبدال والاسترجاع خلال 14 يوم بشرط عدم الاستخدام والحفاظ على الحالة الأصلية وتقديم أصل الفاتورة.</div>
             <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
           </div>
 
+          <div className="h-px w-full bg-zinc-300" />
+
           <div className="text-center">
-            <div className="text-[10px] font-black tracking-[0.18em] text-zinc-600">BARCODE</div>
-            <div className="pos-receipt-barcode mx-auto mt-1 w-full max-w-[300px] rounded-md bg-white px-1 py-0">
+            <div className="pos-receipt-barcode mx-auto w-full max-w-[260px] bg-white px-1 py-0">
               <div dangerouslySetInnerHTML={{ __html: premiumBarcodeSvg }} />
             </div>
-            <div className="mt-1 text-[11px] font-black text-zinc-950">{premiumReceiptNumber}</div>
+            <div className="mt-1 text-[12px] font-black text-zinc-950">{premiumReceiptNumber}</div>
           </div>
 
-          <div className="rounded-[18px] border border-dashed border-zinc-300 px-2.5 py-2 text-center text-[10px] font-bold leading-5 text-zinc-700">
+          <div className="h-px w-full bg-zinc-300" />
+
+          <div className="text-center text-[11px] font-bold leading-5 text-zinc-700">
             <div>www.m1store-egy.com</div>
             <div>01000659301</div>
           </div>
+
+          <div className="text-center text-[10px] font-black tracking-[0.16em] text-emerald-700">GREEN_THERMAL_RECEIPT_V2</div>
         </div>
       ) : (
         <>
