@@ -66,6 +66,12 @@ import {
   writePosPersistedState,
   writePosSession,
 } from "../lib/posUtils";
+import {
+  clearCachedActivePosShift,
+  isPosOfflineNetworkError,
+  readCachedActivePosShift,
+  writeCachedActivePosShift,
+} from "../lib/posShiftCache";
 import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
 import { normalizePhone } from "../lib/phoneSearch";
 import { normalizePosCatalogProduct, normalizePosSellableProducts, resolvePosImageUrl } from "../services/posProductsApi";
@@ -1440,6 +1446,8 @@ function POSPro() {
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
   const [activePosShift, setActivePosShift] = useState(null);
   const [posShiftBranch, setPosShiftBranch] = useState(null);
+  const [posShiftSource, setPosShiftSource] = useState("server");
+  const [posShiftNetworkUnavailable, setPosShiftNetworkUnavailable] = useState(false);
   const [posShiftLoading, setPosShiftLoading] = useState(true);
   const [openingCash, setOpeningCash] = useState("");
   const [closingCash, setClosingCash] = useState("");
@@ -1522,6 +1530,9 @@ function POSPro() {
   const customerSearchRequestSeqRef = useRef(0);
   const shiftSessionRecoveredRef = useRef(false);
   const loadedRouteEditOrderIdRef = useRef("");
+  const activePosShiftRef = useRef(null);
+  const posShiftBranchRef = useRef(null);
+  const posShiftSourceRef = useRef("server");
   const paymobPollingRef = useRef({ timer: null, cancelled: false });
   const offlineSyncInFlightRef = useRef(false);
   const deferredSearch = useDeferredValue(search);
@@ -1587,6 +1598,40 @@ function POSPro() {
     if (!currentUserId) return true;
     return !salesEmployees.some((employee) => String(employee.user_id || "") === currentUserId);
   }, [canOverrideSeller, currentUser?.id, salesEmployees]);
+
+  const isCachedActiveShiftValidForCurrentUser = useCallback((cachedShiftState) => {
+    if (!cachedShiftState?.shift?.id) return false;
+
+    const cachedUserId = String(cachedShiftState.user_id ?? cachedShiftState.cashier_user_id ?? "");
+    const currentUserId = String(currentUser?.id ?? "");
+    if (cachedUserId && currentUserId && cachedUserId !== currentUserId) return false;
+
+    const cachedTenantId = String(cachedShiftState.tenant_id ?? "");
+    const currentTenantId = String(currentUser?.tenant_id ?? "");
+    if (cachedTenantId && currentTenantId && cachedTenantId !== currentTenantId) return false;
+
+    const currentBranchId = String(resolvedPosBranchId || "");
+    const cachedBranchId = String(cachedShiftState.branch_id ?? cachedShiftState.shift?.branch_id ?? "");
+    if (currentBranchId && cachedBranchId && currentBranchId !== cachedBranchId) return false;
+
+    return true;
+  }, [currentUser?.id, currentUser?.tenant_id, resolvedPosBranchId]);
+
+  const cacheActiveShiftSnapshot = useCallback((shift, branch) => {
+    writeCachedActivePosShift({ shift, branch, currentUser });
+  }, [currentUser]);
+
+  useEffect(() => {
+    activePosShiftRef.current = activePosShift;
+  }, [activePosShift]);
+
+  useEffect(() => {
+    posShiftBranchRef.current = posShiftBranch;
+  }, [posShiftBranch]);
+
+  useEffect(() => {
+    posShiftSourceRef.current = posShiftSource;
+  }, [posShiftSource]);
 
   useEffect(() => {
     let active = true;
@@ -2360,17 +2405,71 @@ function POSPro() {
         params: { branch_id: branchId || resolvedPosBranchId || undefined },
         suppressErrorStatuses: [400, 404],
       });
-      setActivePosShift(response?.shift || null);
-      setPosShiftBranch(response?.branch || null);
+      const nextShift = response?.shift || null;
+      const nextBranch = response?.branch || null;
+      setPosShiftNetworkUnavailable(false);
+      setPosShiftSource("server");
+      setActivePosShift(nextShift);
+      setPosShiftBranch(nextBranch);
+      if (nextShift?.id) {
+        cacheActiveShiftSnapshot(nextShift, nextBranch);
+      } else {
+        clearCachedActivePosShift();
+      }
       return response;
     } catch (error) {
+      const networkUnavailable = isPosOfflineNetworkError(error);
+      if (networkUnavailable) {
+        setPosShiftNetworkUnavailable(true);
+        const cachedShiftState = readCachedActivePosShift();
+        if (cachedShiftState?.shift?.id && isCachedActiveShiftValidForCurrentUser(cachedShiftState)) {
+          const cachedShift = cachedShiftState.shift;
+          const cachedBranch = cachedShiftState.branch || null;
+          const currentShiftId = String(activePosShiftRef.current?.id || "");
+          const cachedShiftId = String(cachedShift.id || cachedShiftState.shift_id || "");
+          if (!currentShiftId) {
+            setActivePosShift(cachedShift);
+            setPosShiftBranch(cachedBranch);
+            setPosShiftSource("cache");
+            console.warn("POS_OFFLINE_SHIFT_FALLBACK", {
+              branch_id: cachedShiftState.branch_id ?? cachedShift.branch_id ?? null,
+              shift_id: cachedShiftId || null,
+              user_id: cachedShiftState.user_id ?? cachedShiftState.cashier_user_id ?? null,
+              opened_at: cachedShiftState.opened_at ?? cachedShift.opened_at ?? null,
+              opening_cash: cachedShiftState.opening_cash ?? cachedShift.opening_cash ?? null,
+              cached_at: cachedShiftState.cached_at || null,
+            });
+          }
+          if (currentShiftId && currentShiftId === cachedShiftId && posShiftSourceRef.current !== "cache") {
+            setPosShiftSource("cache");
+          }
+          return {
+            shift: activePosShiftRef.current?.id ? activePosShiftRef.current : cachedShift,
+            branch: activePosShiftRef.current?.id ? posShiftBranchRef.current || cachedBranch : cachedBranch,
+            source: activePosShiftRef.current?.id ? posShiftSourceRef.current : "cache",
+          };
+        }
+        return activePosShiftRef.current?.id
+          ? {
+              shift: activePosShiftRef.current,
+              branch: posShiftBranchRef.current || null,
+              source: posShiftSourceRef.current,
+            }
+          : null;
+      }
       console.error("[pos] failed to load active POS shift:", error);
+      if (error?.status === 404) {
+        clearCachedActivePosShift();
+      }
+      setPosShiftNetworkUnavailable(false);
+      setPosShiftSource("server");
       setActivePosShift(null);
+      setPosShiftBranch(null);
       return null;
     } finally {
       if (!silent) setPosShiftLoading(false);
     }
-  }, []);
+  }, [cacheActiveShiftSnapshot, isCachedActiveShiftValidForCurrentUser, resolvedPosBranchId]);
 
   useEffect(() => {
     loadActivePosShift();
@@ -4402,14 +4501,25 @@ function POSPro() {
   ]);
 
   const handleOpenShift = async () => {
+    if (posShiftNetworkUnavailable) {
+      toast.error("لا يمكن فتح شفت جديد بدون اتصال");
+      return;
+    }
     try {
       setAttendanceLoading(true);
       const response = await api.post("/pos/shifts/open", {
         branch_id: resolvedPosBranchId || null,
         opening_cash: Number(openingCash || 0),
       });
-      setActivePosShift(response?.shift || null);
-      setPosShiftBranch(response?.branch || posShiftBranch || null);
+      const nextShift = response?.shift || null;
+      const nextBranch = response?.branch || posShiftBranch || null;
+      setActivePosShift(nextShift);
+      setPosShiftBranch(nextBranch);
+      setPosShiftSource("server");
+      setPosShiftNetworkUnavailable(false);
+      if (nextShift?.id) {
+        cacheActiveShiftSnapshot(nextShift, nextBranch);
+      }
       setOpeningCash("");
       setSelectedSalespersonId(currentUser?.id ? String(currentUser.id) : "");
       toast.success(t("pos.shift.opened"));
@@ -4428,6 +4538,10 @@ function POSPro() {
   const handleCloseShift = async () => {
     if (!activePosShift?.id) {
       toast.error("لا توجد نردية مفتوحة");
+      return;
+    }
+    if (posShiftSource === "cache" || posShiftNetworkUnavailable) {
+      toast.error("لا يمكن إغلاق الشفت بدون اتصال");
       return;
     }
 
@@ -4502,7 +4616,11 @@ function POSPro() {
       setShiftVarianceReason("");
       setClosingCash("");
       setActivePosShift(null);
+      setPosShiftBranch(null);
+      setPosShiftSource("server");
+      setPosShiftNetworkUnavailable(false);
       clearPosPersistedState();
+      clearCachedActivePosShift();
       await loadActivePosShift({ silent: true });
     } catch (err) {
       console.error("[pos] failed to confirm shift close:", err);
@@ -4987,7 +5105,6 @@ function POSPro() {
           };
         }),
       };
-      const idempotencyKey = createOfflineOrderIdempotencyKey();
       const checkoutPayload = {
         ...payload,
         idempotency_key: idempotencyKey,
@@ -6258,6 +6375,7 @@ function POSPro() {
             branch={posShiftBranch}
             attendanceLoading={attendanceLoading}
             posShiftLoading={posShiftLoading}
+            posShiftNetworkUnavailable={posShiftNetworkUnavailable}
             openingCash={openingCash}
             setOpeningCash={setOpeningCash}
             onOpenShift={handleOpenShift}
@@ -6345,7 +6463,7 @@ function POSPro() {
           <button
             type="button"
             onClick={handleCloseShift}
-            disabled={attendanceLoading}
+            disabled={attendanceLoading || posShiftSource === "cache" || posShiftNetworkUnavailable}
             className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 text-xs font-black text-emerald-100 shadow-[0_0_20px_rgba(16,185,129,0.14)] transition hover:border-emerald-300/50 hover:bg-emerald-500/15 disabled:opacity-50"
           >
             <CheckCircle2 className="h-4 w-4" />
@@ -7508,6 +7626,7 @@ function ShiftGate({
   branch,
   attendanceLoading,
   posShiftLoading,
+  posShiftNetworkUnavailable,
   openingCash,
   setOpeningCash,
   onOpenShift,
@@ -7526,6 +7645,8 @@ function ShiftGate({
   const hasBranch = Boolean(resolvedBranchId);
   const disabledReason = !hasBranch
     ? "missing_branch"
+    : posShiftNetworkUnavailable
+      ? "offline_unavailable"
     : attendanceLoading
       ? "opening_shift"
       : posShiftLoading
@@ -7543,7 +7664,7 @@ function ShiftGate({
       },
       disabledReason: disabledReason || "none",
     });
-  }, [attendanceLoading, currentUser?.email, currentUser?.id, currentUser?.name, disabledReason, posShiftLoading, resolvedBranchId]);
+  }, [attendanceLoading, currentUser?.email, currentUser?.id, currentUser?.name, disabledReason, posShiftLoading, posShiftNetworkUnavailable, resolvedBranchId]);
 
   return (
     <div className="flex flex-1 items-center justify-center px-2 py-8">
@@ -7604,7 +7725,7 @@ function ShiftGate({
           <button
             type="button"
             onClick={onOpenShift}
-            disabled={attendanceLoading || posShiftLoading || !hasBranch}
+            disabled={attendanceLoading || posShiftLoading || posShiftNetworkUnavailable || !hasBranch}
             className="inline-flex h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {attendanceLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Banknote className="h-4 w-4" />}
