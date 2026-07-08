@@ -225,6 +225,19 @@ const isRemovableStarterRow = (row = {}, rows = [], productPrice = 0) => {
   );
 };
 
+const isStrictlyEmptyBulkRow = (row = {}) => {
+  const size = String(row.size || "").trim();
+  const sku = String(row.sku || "").trim();
+  const barcode = String(row.barcode || "").trim();
+  const stock = normalizeNumberValue(row.stock);
+  return !size && !sku && !barcode && stock === 0;
+};
+
+const isReusableBulkEmptyRow = (row = {}, rows = [], productPrice = 0) => {
+  if (isStrictlyEmptyBulkRow(row)) return true;
+  return isRemovableStarterRow(row, rows, productPrice);
+};
+
 export const applyBulkSizesToGroups = ({
   groups = [],
   sizes = [],
@@ -242,12 +255,15 @@ export const applyBulkSizesToGroups = ({
     if (targetGroupId && group.id !== targetGroupId) return group;
 
     const originalRows = Array.isArray(group.sizes) ? group.sizes : [];
-    const preservedRows = originalRows.filter((row) => !isRemovableStarterRow(row, originalRows, price));
-    const removedCount = originalRows.length - preservedRows.length;
-    removedPlaceholderCount += removedCount;
+    const reusableRowIndexes = [];
+    originalRows.forEach((row, index) => {
+      if (isReusableBulkEmptyRow(row, originalRows, price)) {
+        reusableRowIndexes.push(index);
+      }
+    });
 
     const existingSizes = new Set(
-      preservedRows
+      originalRows
         .map((row) => normalizeSizeValue(row.size))
         .filter(Boolean)
     );
@@ -259,31 +275,61 @@ export const applyBulkSizesToGroups = ({
       missingSizeKeys.add(key);
       missingSizes.push(size);
     });
-    const nextRows = [
-      ...preservedRows,
-      ...missingSizes.map((size) =>
-        createVariantRow({
-          variantId: null,
-          isStarter: false,
-          size,
-            stock: 0,
+
+    let consumedReusableRow = false;
+    let nextMissingSizeIndex = 0;
+    const nextRows = originalRows
+      .map((row, index) => {
+        if (!isReusableBulkEmptyRow(row, originalRows, price)) return row;
+
+        if (!consumedReusableRow && nextMissingSizeIndex < missingSizes.length) {
+          const size = missingSizes[nextMissingSizeIndex];
+          nextMissingSizeIndex += 1;
+          consumedReusableRow = true;
+          return {
+            ...row,
+            isStarter: false,
+            size,
+            stock: formatFieldValue(row.stock || 0),
             sku: "",
-            barcode: generateBarcode(),
-            price: 0,
-            image_url: group.image_url || "",
-            manufacturer_id: group.manufacturer_id || "",
-          })
-        ),
-    ];
+            skuManualOverride: false,
+            barcode: String(row.barcode || "").trim() || generateBarcode(),
+            barcodeManualOverride: false,
+            price: formatFieldValue(row.price || 0),
+            image_url: row.image_url || group.image_url || "",
+            manufacturer_id: row.manufacturer_id || group.manufacturer_id || "",
+          };
+        }
+
+        removedPlaceholderCount += 1;
+        return null;
+      })
+      .filter(Boolean);
+
+    const appendedRows = missingSizes.slice(nextMissingSizeIndex).map((size) =>
+      createVariantRow({
+        variantId: null,
+        isStarter: false,
+        size,
+        stock: 0,
+        sku: "",
+        barcode: generateBarcode(),
+        price: 0,
+        image_url: group.image_url || "",
+        manufacturer_id: group.manufacturer_id || "",
+      })
+    );
+
+    nextRows.push(...appendedRows);
 
     groupLogs.push({
       groupId: group.id,
-      removedPlaceholders: removedCount,
+      removedPlaceholders: reusableRowIndexes.length - (consumedReusableRow ? 1 : 0),
       existingNormalizedSizes: Array.from(existingSizes),
       finalSizes: nextRows.map((row) => row.size).filter(Boolean),
     });
 
-    if (missingSizes.length === 0 && removedCount === 0) return group;
+    if (missingSizes.length === 0 && reusableRowIndexes.length === 0) return group;
 
     addedCount += missingSizes.length;
     return {
