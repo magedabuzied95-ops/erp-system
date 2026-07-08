@@ -3888,15 +3888,28 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
   }
 
+  .manufacturer-select-dropdown {
+    color-scheme: dark;
+  }
+
   .manufacturer-select-dropdown option {
     background: #09090b;
     color: #ffffff;
   }
 
+  .manufacturer-select-dropdown option:disabled {
+    color: #a1a1aa;
+  }
+
   .manufacturer-select-dropdown option:hover,
   .manufacturer-select-dropdown option:checked,
   .manufacturer-select-dropdown option:focus {
-    background: var(--primary);
+    background: color-mix(in srgb, var(--primary) 72%, #09090b);
+    color: #ffffff;
+  }
+
+  .manufacturer-select-dropdown option:not(:checked):hover {
+    background: color-mix(in srgb, var(--primary) 48%, #09090b);
     color: #ffffff;
   }
 
