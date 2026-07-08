@@ -1377,7 +1377,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
   const paidAmount = Number(paymentSummary?.paidAmount || 0);
   const changeAmount = Number(paymentSummary?.changeAmount || 0);
   const dueAmount = Math.max(0, Number(paymentSummary?.dueAmount || 0));
-  const compactShellClass = compact ? "pos-receipt-thermal w-full max-w-[304px] rounded-[24px] p-3" : "pos-receipt-a4 max-w-[720px] rounded-[32px] p-6";
+  const compactShellClass = compact ? "pos-receipt-thermal w-full max-w-[360px] rounded-[20px] px-3 py-3" : "pos-receipt-a4 max-w-[720px] rounded-[32px] p-6";
   const safeReceiptValue = (value) => String(value ?? "").trim() || "-";
   const safeReceiptMoney = (value) => {
     const numeric = Number(value);
@@ -1416,6 +1416,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
     >
       {compact ? (
         <div className="space-y-2.5">
+          {/* GREEN_THERMAL_RECEIPT_V3 */}
           <div className="text-center">
             <div className="text-[20px] font-black leading-none tracking-[0.01em] text-zinc-950">M1 Store</div>
             <div className="mt-1 text-[12px] font-bold text-zinc-700">شكراً لشرائكم</div>
@@ -1444,16 +1445,27 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
                 return (
                   <div key={String(item.key || item.id || `${item.name}-${index}`)} className="space-y-1.5 pb-2 text-[12px] leading-5 text-zinc-800">
                     <div className="break-words text-[13px] font-black leading-5 text-zinc-950">{safeReceiptValue(item.name) === "-" ? "منتج" : item.name}</div>
-                    <div className="break-words font-semibold text-zinc-600">{colorText} • {sizeText}</div>
                     <div className="flex items-start justify-between gap-3">
-                      <span className="font-bold text-zinc-700">{safeReceiptValue(item.quantity)} × {safeReceiptMoney(unitPrice)}</span>
-                      <span className="shrink-0 font-black text-zinc-950">{safeReceiptMoney(lineTotal)}</span>
+                      <span className="font-bold text-zinc-700">اللون:</span>
+                      <span className="min-w-0 text-left font-semibold">{colorText}</span>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="font-bold text-zinc-700">المقاس:</span>
+                      <span className="min-w-0 text-left font-semibold">{sizeText}</span>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="font-bold text-zinc-700">الكمية:</span>
+                      <span className="shrink-0 text-left font-semibold">{safeReceiptValue(item.quantity)}</span>
+                    </div>
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="font-bold text-zinc-700">سعر الوحدة:</span>
+                      <span className="shrink-0 text-left font-semibold">{safeReceiptMoney(unitPrice)}</span>
                     </div>
                     <div className="flex items-start justify-between gap-3">
                       <span className="font-black text-zinc-950">الإجمالي:</span>
-                      <span className="shrink-0 font-black text-zinc-950">{safeReceiptMoney(lineTotal)}</span>
+                      <span className="shrink-0 text-left font-black text-zinc-950">{safeReceiptMoney(lineTotal)}</span>
                     </div>
-                    <div className="h-px w-full bg-zinc-300 last:hidden" />
+                    {index < cart.length - 1 ? <div className="h-px w-full bg-zinc-300" /> : null}
                   </div>
                 );
               })
@@ -1480,7 +1492,7 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
 
           <div className="h-px w-full bg-zinc-300" />
 
-          <div className="space-y-1 text-[11px] leading-5 text-zinc-700">
+          <div className="space-y-1 text-[12px] leading-5 text-zinc-700">
             <div>يسمح بالاستبدال والاسترجاع خلال 14 يوم بشرط عدم الاستخدام والحفاظ على الحالة الأصلية وتقديم أصل الفاتورة.</div>
             <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
           </div>
@@ -1496,12 +1508,10 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
 
           <div className="h-px w-full bg-zinc-300" />
 
-          <div className="text-center text-[11px] font-bold leading-5 text-zinc-700">
+          <div className="text-center text-[12px] font-bold leading-5 text-zinc-700">
             <div>www.m1store-egy.com</div>
             <div>01000659301</div>
           </div>
-
-          <div className="text-center text-[10px] font-black tracking-[0.16em] text-emerald-700">GREEN_THERMAL_RECEIPT_V2</div>
         </div>
       ) : (
         <>
