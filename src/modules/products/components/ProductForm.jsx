@@ -237,7 +237,11 @@ function ProductForm({
             value={unit}
             onChange={onUnitChange}
             placeholder={t("products.form.selectUnit")}
-            options={units.map((item) => ({ value: item.name, label: `${item.name} (${item.symbol})`, id: item.id }))}
+            options={units.map((item) => ({
+              value: String(item.id || item.unit_id || item.unitId || ""),
+              label: item.symbol ? `${item.name} (${item.symbol})` : item.name,
+              id: item.id || item.unit_id || item.unitId,
+            }))}
           />
         </div>
       </section>
@@ -549,11 +553,14 @@ function ModeCard({ active, title, subtitle, detail, onClick }) {
 }
 
 function FormSelect({ label, value, onChange, options = [], placeholder, tabIndex }) {
+  const normalizedValue = String(value || "").trim();
+  const hasSelectedOption = !normalizedValue || options.some((item) => String(item.value || "") === normalizedValue);
+
   return (
     <div>
       <label className="text-sm font-semibold text-zinc-300">{label}</label>
       <select
-        value={value || ""}
+        value={hasSelectedOption ? normalizedValue : ""}
         onChange={(event) => onChange?.(event.target.value)}
         tabIndex={tabIndex}
         className="mt-2 h-12 w-full rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-white outline-none transition hover:border-white/16 focus:border-emerald-400/50"

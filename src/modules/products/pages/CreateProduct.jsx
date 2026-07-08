@@ -40,6 +40,7 @@ import {
   makeUniqueSku,
   resolveBrandPayload,
   resolveCategoryPayload,
+  getPreferredUnitId,
   resolveUnitPayload,
   seedBrands,
   seedCategories,
@@ -426,7 +427,7 @@ function CreateProduct() {
   const [fixedSizeLabel, setFixedSizeLabel] = useState("مقاس واحد");
   const [brand, setBrand] = useState("");
   const [brandId, setBrandId] = useState("");
-  const [unit, setUnit] = useState("");
+  const [unit, setUnit] = useState(() => getPreferredUnitId(seedUnits()));
   const [barcode, setBarcode] = useState(generateBarcode());
   const [skuPrefix, setSkuPrefix] = useState("");
   const [skuPrefixTouched, setSkuPrefixTouched] = useState(false);
@@ -2100,7 +2101,7 @@ function CreateProduct() {
           fallbackCategory: "Uncategorized",
         }),
         ...resolveBrandPayload(brands, { brand: selectedBrandName || brand, fallbackBrandId: selectedBrandId || brandId }),
-        ...resolveUnitPayload(units, { unit }),
+        ...resolveUnitPayload(units, { unitId: unit }),
         gender: audiences[0] || gender,
         audiences,
         product_audiences: audiences,

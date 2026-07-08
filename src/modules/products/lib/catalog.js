@@ -670,7 +670,14 @@ export const resolveBrandPayload = (brands = [], record = {}) => {
 };
 
 export const resolveUnitSelection = (units = [], record = {}) => {
-  const byId = units.find((item) => String(item.id) === String(record.unit_id)) || null;
+  const unitId = String(record.unit_id ?? record.unitId ?? "").trim();
+  const unitName = String(record.unit || record.unit_name || record.unitName || "").trim();
+  const unitSymbol = String(record.unit_symbol || record.unitSymbol || "").trim();
+  const byId =
+    units.find((item) => String(item.id) === unitId) ||
+    units.find((item) => String(item.unit_id) === unitId) ||
+    units.find((item) => String(item.value) === unitId) ||
+    null;
   if (byId) {
     return {
       unitId: String(byId.id),
@@ -678,8 +685,13 @@ export const resolveUnitSelection = (units = [], record = {}) => {
     };
   }
 
-  const unitName = String(record.unit || record.unit_name || "").trim();
-  const byName = units.find((item) => String(item.name || "").trim() === unitName) || null;
+  const byName =
+    units.find((item) => String(item.name || "").trim() === unitName) ||
+    units.find((item) => String(item.symbol || "").trim() === unitName) ||
+    units.find((item) => String(item.label || "").trim() === unitName) ||
+    units.find((item) => String(item.name || "").trim() === unitSymbol) ||
+    units.find((item) => String(item.symbol || "").trim() === unitSymbol) ||
+    null;
   if (byName) {
     return {
       unitId: String(byName.id),
@@ -688,19 +700,32 @@ export const resolveUnitSelection = (units = [], record = {}) => {
   }
 
   return {
-    unitId: record.unit_id ? String(record.unit_id) : "",
-    unit: unitName,
+    unitId,
+    unit: unitName || unitSymbol,
   };
 };
 
 export const resolveUnitPayload = (units = [], record = {}) => {
-  const unitName = String(record.unit || record.unit_name || "").trim();
+  const unitId = String(record.unit_id ?? record.unitId ?? "").trim();
+  const unitName = String(record.unit || record.unit_name || record.unitName || "").trim();
+  const unitSymbol = String(record.unit_symbol || record.unitSymbol || "").trim();
   const selectedUnit =
-    units.find((item) => String(item.id) === String(record.unit_id)) ||
+    units.find((item) => String(item.id) === unitId) ||
+    units.find((item) => String(item.unit_id) === unitId) ||
     units.find((item) => String(item.name || "").trim() === unitName) ||
+    units.find((item) => String(item.symbol || "").trim() === unitSymbol) ||
     null;
   return {
-    unit: unitName,
-    unit_id: normalizePersistedId(selectedUnit ? selectedUnit.id : record.fallbackUnitId),
+    unit: selectedUnit ? selectedUnit.name || selectedUnit.label || selectedUnit.symbol || unitName || unitSymbol : unitName || unitSymbol,
+    unit_id: normalizePersistedId(selectedUnit ? selectedUnit.id : unitId || record.fallbackUnitId),
   };
+};
+
+export const getPreferredUnitId = (units = []) => {
+  const piece = units.find((item) => {
+    const name = String(item.name || item.label || "").trim().toLowerCase();
+    const symbol = String(item.symbol || "").trim().toLowerCase();
+    return name === "piece" || symbol === "pcs" || name === "piece (pcs)";
+  });
+  return piece ? String(piece.id || "") : "";
 };

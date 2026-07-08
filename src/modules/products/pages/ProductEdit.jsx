@@ -1392,7 +1392,7 @@ function ProductEdit() {
         setSubCategory(hydratedCategory.subCategory || "");
         setChildCategory(hydratedCategory.childCategory || "");
         setBrand(hydratedBrand.brand || "");
-        setUnit(hydratedUnit.unit || "");
+        setUnit(hydratedUnit.unitId || "");
 
         console.log("[edit-product] raw saved variants count", rawSavedVariants.length);
         const normalizedProduct = normalizeProductForm(firstRow);
@@ -2959,7 +2959,7 @@ function ProductEdit() {
       fallbackBrandId: product.brand_id || "",
     });
     const unitPayload = resolveUnitPayload(units, {
-      unit,
+      unitId: unit,
       fallbackUnitId: product.unit_id || "",
     });
     console.log("[edit-product] save category/brand payload", {
