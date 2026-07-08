@@ -92,8 +92,7 @@ const renderStoreLogoMarkup = (invoice = {}) => {
   const logoUrl = getStoreLogoUrl(invoice);
   if (logoUrl) {
     return `
-      <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(invoice.companyName || M1_STORE_NAME)}" onerror="this.style.display='none';this.nextElementSibling.style.display='inline-flex'" style="display:block;width:18mm;height:18mm;object-fit:contain;margin-bottom:4px" />
-      <span style="display:none;align-items:center;justify-content:center;width:18mm;height:18mm;margin-bottom:4px;border:1px solid #d1d5db;border-radius:9999px;font-weight:900;font-size:12px;line-height:1">${escapeHtml(M1_STORE_NAME)}</span>
+      <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(invoice.store?.name || invoice.companyName || M1_STORE_NAME)}" onerror="this.style.display='none'" style="display:block;width:18mm;height:18mm;object-fit:contain;margin-bottom:4px" />
     `;
   }
   return `<span style="display:inline-flex;align-items:center;justify-content:center;width:18mm;height:18mm;margin-bottom:4px;border:1px solid #d1d5db;border-radius:9999px;font-weight:900;font-size:12px;line-height:1">${escapeHtml(M1_STORE_NAME)}</span>`;
@@ -187,7 +186,7 @@ const buildInvoicePrintHtml = (invoice = {}, format = "a4", language) => {
           <div class="muted">الوقت: ${escapeHtml(formatPrintDate(createdAt, normalized, { dateStyle: undefined, timeStyle: "short" }))}</div>
         </div>
         <div>
-          <strong>${escapeHtml(invoice.companyName || M1_STORE_NAME)}</strong><br>
+          <strong>${escapeHtml(invoice.store?.name || invoice.companyName || M1_STORE_NAME)}</strong><br>
         </div>
       </section>
       <section class="print-card">
@@ -275,15 +274,9 @@ const drawEnglishPdf = async ({ format, invoice, filename }) => {
           reader.readAsDataURL(blob);
         });
         doc.addImage(dataUrl, "PNG", margin, margin, isThermal ? 16 : 22, isThermal ? 16 : 22, undefined, "FAST");
-      } else {
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(isThermal ? 12 : 20);
-        doc.text(M1_STORE_NAME, margin, margin + (isThermal ? 7 : 8));
       }
     } catch {
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(isThermal ? 12 : 20);
-      doc.text(M1_STORE_NAME, margin, margin + (isThermal ? 7 : 8));
+      // Keep the header clean if the logo exists but fails to render.
     }
   } else {
     doc.setFont("helvetica", "bold");
@@ -301,7 +294,7 @@ const drawEnglishPdf = async ({ format, invoice, filename }) => {
   doc.text(`تاريخ الطلب: ${formatPrintDate(now, "ar")}`, margin, margin + 17);
   doc.setFont("helvetica", "bold");
   doc.setTextColor(...GREEN);
-  doc.text(invoice.companyName || M1_STORE_NAME, pageWidth - margin, margin + 6, { align: "right" });
+  doc.text(invoice.store?.name || invoice.companyName || M1_STORE_NAME, pageWidth - margin, margin + 6, { align: "right" });
   doc.setDrawColor(...GREEN);
   doc.line(margin, margin + 22, pageWidth - margin, margin + 22);
 

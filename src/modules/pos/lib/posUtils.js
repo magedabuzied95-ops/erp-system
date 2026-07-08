@@ -2,6 +2,7 @@ import { mergeProductRecord } from "../../products/lib/catalog";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { formatLocalizedNumber } from "../../../shared/lib/locale";
 export { formatCurrency };
+import { getCurrentTenant } from "../../../shared/auth/authStorage";
 import {
   buildInvoiceMessageTemplate,
   buildOrderStatusMessageTemplate,
@@ -21,6 +22,25 @@ const omitCustomerState = (state = {}) =>
   Object.fromEntries(
     Object.entries(state || {}).filter(([key]) => !CUSTOMER_STATE_KEYS.has(key))
   );
+
+const getBrandingName = () => {
+  const tenant = getCurrentTenant() || {};
+  const settings = tenant.settings || {};
+  const name = [
+    tenant.companyName,
+    tenant.company_name,
+    tenant.name,
+    settings["general.company_name"],
+    settings["storefront.store_name"],
+    settings.companyName,
+    settings.company_name,
+    settings.store_name,
+    "M1 Store",
+  ]
+    .map((value) => String(value || "").trim())
+    .find(Boolean);
+  return name || "M1 Store";
+};
 
 export const formatNumber = (value, language = "") => formatLocalizedNumber(value, language);
 
@@ -307,7 +327,7 @@ export const buildWhatsAppInvoiceLink = ({ phone, invoiceNumber, customerName, t
     phone,
     message: buildInvoiceMessageTemplate({
       invoice: {
-        store: { name: companyName || "ERP Store" },
+        store: { name: companyName || getBrandingName() },
         invoiceNumber,
         source: "POS",
         customer: { name: customerName },
@@ -337,7 +357,7 @@ export const buildWhatsAppInvoiceLink = ({ phone, invoiceNumber, customerName, t
       total: formatCurrency(total),
       paymentStatus,
       items: cart,
-      companyName,
+      companyName: companyName || getBrandingName(),
       invoiceUrl,
     }),
   });

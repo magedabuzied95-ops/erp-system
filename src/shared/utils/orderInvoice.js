@@ -14,10 +14,40 @@ const toNumber = (value, fallback = 0) => {
 
 const firstText = (...values) => values.map((value) => String(value || "").trim()).find(Boolean) || "";
 
+const getTenantBranding = () => {
+  const tenant = getCurrentTenant() || {};
+  const settings = tenant.settings || {};
+  return {
+    name: firstText(
+      tenant.companyName,
+      tenant.company_name,
+      tenant.name,
+      settings["general.company_name"],
+      settings["storefront.store_name"],
+      settings.companyName,
+      settings.company_name,
+      settings.store_name
+    ),
+    logoUrl: firstText(
+      tenant.companyLogoUrl,
+      tenant.company_logo_url,
+      tenant.logoUrl,
+      tenant.logo_url,
+      settings["general.company_logo_url"],
+      settings["storefront.store_logo_url"],
+      settings.logoUrl,
+      settings.logo_url,
+      settings.store_logo_url
+    ),
+  };
+};
+
 const resolveStoreBrandLogoUrl = (order = {}, options = {}) => {
   const tenant = getCurrentTenant() || {};
+  const tenantBranding = getTenantBranding();
   const candidates = [
     options.logoUrl,
+    tenantBranding.logoUrl,
     order.store?.logoUrl,
     order.store?.logo_url,
     order.logoUrl,
@@ -38,6 +68,22 @@ const resolveStoreBrandLogoUrl = (order = {}, options = {}) => {
     tenant.settings?.logo_url,
   ];
   return candidates.map((value) => String(value || "").trim()).find(Boolean) || "";
+};
+
+const resolveStoreBrandName = (order = {}, options = {}) => {
+  const tenantBranding = getTenantBranding();
+  const candidates = [
+    options.storeName,
+    tenantBranding.name,
+    order.store?.name,
+    order.company_name,
+    order.tenant_name,
+    order.tenantName,
+    order.companyName,
+    order.storeName,
+    M1_STORE_NAME,
+  ];
+  return candidates.map((value) => String(value || "").trim()).find(Boolean) || M1_STORE_NAME;
 };
 
 const resolveOrderTotal = (order = {}) =>
@@ -128,18 +174,10 @@ export const normalizeOrderInvoiceData = (order = {}, explicitItems = null, opti
 
   return {
     store: {
-      name: firstText(
-        options.storeName,
-        order.store?.name,
-        order.company_name,
-        order.companyName,
-        order.tenant_name,
-        order.tenantName,
-        M1_STORE_NAME
-      ),
+      name: resolveStoreBrandName(order, options),
       logoUrl: firstText(
         resolveStoreBrandLogoUrl(order, options),
-        M1_STORE_NAME
+        ""
       ),
       phone: firstText(
         order.store?.phone,

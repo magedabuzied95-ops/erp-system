@@ -4,9 +4,9 @@ import { useTranslation } from "react-i18next";
 import { formatCurrency } from "../../lib/currency";
 import { DEFAULT_PRODUCT_PLACEHOLDER, resolveInvoiceItemImageUrl } from "../../lib/invoiceItemImages";
 import { useLocale } from "../../lib/locale";
+import { getCurrentTenant } from "../../auth/authStorage";
 import { normalizeOrderInvoiceData } from "../../utils/orderInvoice";
 import { displayPublicOrderNumber } from "../../utils/publicOrderNumber";
-import { SafeImage } from "../SafeRender";
 
 const INVOICE_COPY = {
   orderInvoice: "فاتورة طلب",
@@ -38,13 +38,56 @@ const getStoreInitials = (value = "") => {
   return "M1";
 };
 
+const getStoreBranding = () => {
+  const tenant = getCurrentTenant() || {};
+  const settings = tenant.settings || {};
+  return {
+    name: String(
+      tenant.companyName ||
+        tenant.company_name ||
+        tenant.name ||
+        settings["general.company_name"] ||
+        settings["storefront.store_name"] ||
+        settings.companyName ||
+        settings.company_name ||
+        settings.store_name ||
+        ""
+    ).trim(),
+    logoUrl: String(
+      tenant.companyLogoUrl ||
+        tenant.company_logo_url ||
+        tenant.logoUrl ||
+        tenant.logo_url ||
+        settings["general.company_logo_url"] ||
+        settings["storefront.store_logo_url"] ||
+        settings.logoUrl ||
+        settings.logo_url ||
+        settings.store_logo_url ||
+        ""
+    ).trim(),
+  };
+};
+
+const getStatusLabel = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ");
+  if (["confirmed", "approved", "completed", "complete", "paid", "shipping paid"].includes(normalized)) return "مؤكد";
+  if (["pending", "review", "under review", "pending confirmation", "awaiting verification"].includes(normalized)) return "قيد المراجعة";
+  if (["cancelled", "canceled", "void"].includes(normalized)) return "ملغي";
+  if (["returned", "refunded"].includes(normalized)) return "مسترجع";
+  if (["rejected", "failed"].includes(normalized)) return "مرفوض";
+  return value || "قيد المراجعة";
+};
+
 const getStatusTone = (value = "") => {
   const normalized = String(value || "").toLowerCase().replace(/[_-]+/g, " ").trim();
-  if (["paid", "completed", "complete", "confirmed", "approved", "shipping paid"].includes(normalized)) {
+  if (["paid", "completed", "complete", "confirmed", "approved", "shipping paid", "مؤكد", "مدفوع"].includes(normalized)) {
     return "emerald";
   }
-  if (["cancelled", "canceled", "void", "failed", "refunded", "returned"].includes(normalized)) {
+  if (["cancelled", "canceled", "void", "failed", "refunded", "returned", "ملغي", "مرفوض", "مسترجع"].includes(normalized)) {
     return "red";
+  }
+  if (["pending", "review", "under review", "pending confirmation", "awaiting verification", "قيد المراجعة"].includes(normalized)) {
+    return "amber";
   }
   return "amber";
 };
@@ -113,7 +156,24 @@ const logInvoiceRowImageDebug = (item, index, resolvedImageUrl) => {
 export default function OrderInvoiceCard({ order, items, invoice, className = "", compact = false, luxury = false }) {
   const { t } = useTranslation();
   const { dir, isRtl, formatDate } = useLocale();
-  const data = invoice || normalizeOrderInvoiceData(order, items) || {};
+  const storeBranding = getStoreBranding();
+  const normalizedData = normalizeOrderInvoiceData(order || invoice || {}, items, {
+    storeName: storeBranding.name,
+    logoUrl: storeBranding.logoUrl,
+  }) || {};
+  const data = invoice
+    ? {
+        ...normalizedData,
+        ...invoice,
+        store: {
+          ...normalizedData.store,
+          ...(invoice.store || {}),
+          name: String(invoice.store?.name || normalizedData.store?.name || storeBranding.name || "M1 Store").trim(),
+          logoUrl: String(invoice.store?.logoUrl || normalizedData.store?.logoUrl || storeBranding.logoUrl || "").trim(),
+        },
+        status: invoice.status ?? normalizedData.status,
+      }
+    : normalizedData;
   const invoiceItems = Array.isArray(data?.items) ? data.items.filter(Boolean) : [];
   const totals = data?.totals || {};
   const paymentMethod = String(data?.paymentMethod || "").toLowerCase();
@@ -133,11 +193,13 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
           <div className="flex items-start gap-3">
             <div className={`grid h-16 w-16 shrink-0 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.35rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-2xl border-stone-200"}`}>
               {data.store?.logoUrl ? (
-                <SafeImage
+                <img
                   src={data.store?.logoUrl}
                   alt={data.store?.name || "Store"}
                   className="h-full w-full object-contain p-2"
-                  fallback={<span className="text-xs font-black tracking-[0.18em] text-stone-700">{getStoreInitials(data.store?.name)}</span>}
+                  onError={(event) => {
+                    event.currentTarget.style.display = "none";
+                  }}
                 />
               ) : (
                 <span className="text-xs font-black tracking-[0.18em] text-stone-700">{getStoreInitials(data.store?.name)}</span>
@@ -167,7 +229,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
       <div className={`${luxury ? "grid gap-3 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-4" : "grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4"}`}>
         <Meta luxury={luxury} icon={User} label={INVOICE_COPY.customer} value={data?.customer?.name || INVOICE_COPY.walkInCustomer} unavailable={unavailable} />
         <Meta luxury={luxury} icon={Phone} label={INVOICE_COPY.phone} value={data?.customer?.phone || unavailable} unavailable={unavailable} />
-        <Meta luxury={luxury} label={INVOICE_COPY.status} value={data.status || "pending"} unavailable={unavailable} badge />
+        <Meta luxury={luxury} label={INVOICE_COPY.status} value={getStatusLabel(data.status || "pending")} unavailable={unavailable} badge />
         <Meta luxury={luxury} icon={CreditCard} label={INVOICE_COPY.paymentMethod} value={getPaymentMethodLabel(paymentMethod || data?.paymentMethod)} unavailable={unavailable} />
       </div>
 

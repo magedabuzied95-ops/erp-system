@@ -18,6 +18,7 @@ import { QRCodeSVG } from "qrcode.react";
 import toast from "react-hot-toast";
 
 import { api } from "../shared/api/api";
+import { getCurrentTenant } from "../shared/auth/authStorage";
 import { buildWhatsappDeepLink } from "../shared/utils/whatsapp.js";
 import OrderInvoiceCard from "../shared/components/invoices/OrderInvoiceCard";
 import { buildOrderInvoiceWhatsappText, normalizeOrderInvoiceData } from "../shared/utils/orderInvoice";
@@ -157,9 +158,38 @@ function PublicInvoice() {
     () => normalizePublicUrl(invoice?.public_invoice_url || `/invoice/${encodeURIComponent(resolvedToken || "")}`),
     [invoice, resolvedToken]
   );
+  const tenantBranding = useMemo(() => {
+    const tenant = getCurrentTenant() || {};
+    const settings = tenant.settings || {};
+    return {
+      storeName: String(
+        tenant.companyName ||
+          tenant.company_name ||
+          tenant.name ||
+          settings["general.company_name"] ||
+          settings["storefront.store_name"] ||
+          settings.companyName ||
+          settings.company_name ||
+          settings.store_name ||
+          ""
+      ).trim(),
+      logoUrl: String(
+        tenant.companyLogoUrl ||
+          tenant.company_logo_url ||
+          tenant.logoUrl ||
+          tenant.logo_url ||
+          settings["general.company_logo_url"] ||
+          settings["storefront.store_logo_url"] ||
+          settings.logoUrl ||
+          settings.logo_url ||
+          settings.store_logo_url ||
+          ""
+      ).trim(),
+    };
+  }, []);
   const normalizedInvoice = useMemo(
-    () => normalizeOrderInvoiceData({ ...(invoice || {}), public_invoice_url: publicUrl }),
-    [invoice, publicUrl]
+    () => normalizeOrderInvoiceData({ ...(invoice || {}), public_invoice_url: publicUrl }, null, tenantBranding),
+    [invoice, publicUrl, tenantBranding]
   );
   const socialLinks = useMemo(() => getSocialLinks(invoice), [invoice]);
 

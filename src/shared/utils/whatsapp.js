@@ -1,6 +1,7 @@
 import { buildOrderInvoiceWhatsappText, normalizeOrderInvoiceData } from "./orderInvoice.js";
 import { displayPublicOrderNumber } from "./publicOrderNumber.js";
 import { formatCurrency } from "../lib/currency";
+import { getCurrentTenant } from "../auth/authStorage";
 
 const DEFAULT_COUNTRY_CODE = "20";
 const DEFAULT_MESSAGE_LANGUAGE = "ar";
@@ -71,22 +72,43 @@ export const isValidWhatsappPhone = (value) => {
 
 export const formatWhatsappPhone = (value) => normalizePhoneNumber(value).replace(/[^\d]/g, "");
 
+const getMessagingBranding = () => {
+  const tenant = getCurrentTenant() || {};
+  const settings = tenant.settings || {};
+  const name = [
+    tenant.companyName,
+    tenant.company_name,
+    tenant.name,
+    settings["general.company_name"],
+    settings["storefront.store_name"],
+    settings.companyName,
+    settings.company_name,
+    settings.store_name,
+    "M1 Store",
+  ]
+    .map((value) => String(value || "").trim())
+    .find(Boolean) || "M1 Store";
+  return { name };
+};
+
 export const buildInvoiceMessageTemplate = ({
   invoiceNumber,
   customerName,
   total,
   paymentStatus,
   items = [],
-  companyName = "ERP Store",
+  companyName = "M1 Store",
   invoiceUrl = "",
   language = DEFAULT_MESSAGE_LANGUAGE,
   order = null,
   invoice = null,
 }) => {
+  const branding = getMessagingBranding();
+  const resolvedCompanyName = String(companyName || branding.name || "M1 Store").trim() || "M1 Store";
   const publicNumber = displayPublicOrderNumber(invoiceNumber) || invoiceNumber;
   if (order || invoice) {
     const normalized = invoice || normalizeOrderInvoiceData(order, items, {
-      storeName: companyName,
+      storeName: resolvedCompanyName,
       publicUrl: invoiceUrl,
     });
     return buildOrderInvoiceWhatsappText(normalized);
@@ -95,14 +117,14 @@ export const buildInvoiceMessageTemplate = ({
   const isArabic = resolveMessageLanguage(language) === "ar";
   const lines = isArabic
     ? [
-        `فاتورة شراء من ${companyName}`,
+        `فاتورة شراء من ${resolvedCompanyName}`,
         `رقم الطلب: ${publicNumber || "n/a"}`,
         `العميل: ${customerName || "عميل بدون اسم"}`,
         `الإجمالي المدفوع: ${formatMessageCurrency(total, "ar")}`,
         `الحالة: ${resolvePaymentStatusLabel(paymentStatus, "ar")}`,
       ]
     : [
-        `Purchase invoice from ${companyName}`,
+        `Purchase invoice from ${resolvedCompanyName}`,
         `Order number: ${publicNumber || "n/a"}`,
         `Customer: ${customerName || "Walk-in Customer"}`,
         `Paid total: ${formatMessageCurrency(total, "en")}`,
@@ -148,10 +170,12 @@ export const buildOrderStatusMessageTemplate = ({
   trackingNumber,
   deliveryStatus,
   total,
-  companyName = "ERP Store",
+  companyName = "M1 Store",
 }) => {
+  const branding = getMessagingBranding();
+  const resolvedCompanyName = String(companyName || branding.name || "M1 Store").trim() || "M1 Store";
   const lines = [
-    `*${companyName}*`,
+    `*${resolvedCompanyName}*`,
     "Order update",
     `Order: ${displayPublicOrderNumber(invoiceNumber) || invoiceNumber || "n/a"}`,
     `Customer: ${customerName || "Walk-in Customer"}`,
