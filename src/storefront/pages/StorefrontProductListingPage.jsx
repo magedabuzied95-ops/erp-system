@@ -442,7 +442,7 @@ const applyCatalogFilters = (products = [], filters = {}, ignore = []) => {
   });
 };
 
-export function StorefrontProductListingPage({ sale = false, saleModeEnabled = true, wishlist, toggleWishlist, onAddToCart }) {
+export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wishlist, toggleWishlist, onAddToCart }) {
   const { i18n, t } = useTranslation();
   const lang = i18n.language || "ar";
   const navigate = useNavigate();
@@ -862,6 +862,10 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled = t
   };
   const showEmptyResults = !loading && !orderedFilteredProducts.length;
   const showGuidedProducts = Boolean(selectedGender && selectedGrade && selectedProductType);
+  console.log("RENDER_PATH_NAME", {
+    path: "StorefrontProductListingPage->ProductGrid",
+    saleModeEnabled,
+  });
 
   useEffect(() => {
     if (!import.meta.env.DEV || !(saleView || offerStoryQuery)) return;

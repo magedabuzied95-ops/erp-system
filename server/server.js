@@ -198,6 +198,7 @@ const corsAllowedHeaderNames = [
   "Expires",
   "X-Requested-With",
   "Idempotency-Key",
+  "X-Idempotency-Key",
   "X-Tenant-Id",
   "X-Branch-Id",
   "X-Device-Id",

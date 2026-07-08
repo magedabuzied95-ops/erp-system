@@ -3528,7 +3528,7 @@ function HomeProductSection({ title, subtitle, viewAllTo = "/products", products
                       density="compact"
                       eagerImage
                       imagePreset="small"
-                      saleModeEnabled={storefrontSalePricesEnabled}
+                      saleModeEnabled={publicSaleModeEnabled}
                     />
                   </>
                 )}
@@ -5220,13 +5220,14 @@ function OfferStoryViewer() {
   );
 }
 
-const ProductRail = memo(function ProductRail({ title, subtitle, products, loading, wishlist, toggleWishlist, onAddToCart, railType = "default", featuredFirst = false }) {
+const ProductRail = memo(function ProductRail({ title, subtitle, products, loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled, railType = "default", featuredFirst = false }) {
   const { t } = useTranslation();
   const orderedProducts = useMemo(() => sortStorefrontColorCardsByModel(products), [products]);
   const hasProducts = orderedProducts.length > 0;
   const visibleProducts = hasProducts ? orderedProducts.slice(0, 5) : [];
   const skeletonItems = Array.from({ length: 5 });
   const cardDensity = railType === "new" || railType === "similar" ? "compact" : "standard";
+  console.log("RENDER_PATH_NAME", { path: "Storefront->ProductRail", saleModeEnabled });
   if (!loading && !hasProducts) return null;
   return (
     <section className="sf-reveal mx-auto max-w-[1200px] px-4 py-2 md:py-4">
@@ -5284,9 +5285,10 @@ function useStorefrontProductGridColumns() {
   return width >= 768 ? 4 : 2;
 }
 
-const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled = storefrontSalePricesEnabled }) {
+const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled }) {
   const columns = useStorefrontProductGridColumns();
   const shouldVirtualize = columns >= 4 && products.length > 40;
+  console.log("RENDER_PATH_NAME", { path: "StorefrontProductListingPage->ProductGrid", saleModeEnabled });
   const renderProduct = useCallback((product, index, key) => {
     console.log("PRODUCT_CARD_PARENT_PROP", { saleModeEnabled });
     return (
@@ -7684,6 +7686,10 @@ function ProductDetailsVariantSheet({
 
 function RelatedProducts({ currentId, ...props }) {
   const { products } = useProducts({ limit: 8 });
+  console.log("RENDER_PATH_NAME", {
+    path: "StorefrontProductDetailPage->RelatedProducts",
+    saleModeEnabled: props?.saleModeEnabled,
+  });
   const filtered = useMemo(
     () => sortStorefrontColorCardsByModel(products.filter((product) => String(product.parent_product_id || product.id) !== String(currentId))).slice(0, 4),
     [currentId, products]
@@ -9379,7 +9385,7 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
       </div>
       {products.length ? (
         <div className="mt-6">
-          <ProductRail title={t("storefront.nav.new")} subtitle={t("storefront.success.recommendedProducts")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} saleModeEnabled={storefrontSalePricesEnabled} />
+          <ProductRail title={t("storefront.nav.new")} subtitle={t("storefront.success.recommendedProducts")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} saleModeEnabled={publicSaleModeEnabled} />
         </div>
       ) : null}
     </section>
@@ -11806,6 +11812,10 @@ function Storefront() {
   const brandName = resolveStorefrontBrandName(publicStoreSettings);
   const brandLogoUrl = resolveStorefrontBrandLogoUrl(publicStoreSettings);
   const brandInitials = resolveBrandInitials(brandName);
+  const publicSaleModeEnabled = useMemo(
+    () => parseSaleModeEnabled(publicStoreSettings?.sale_mode_enabled, true),
+    [publicStoreSettings]
+  );
 
   const helpers = useMemo(() => ({
     sfText,
@@ -11829,9 +11839,9 @@ function Storefront() {
     brandLogoUrl,
     brandInitials,
     getDisplayPricing,
-    saleModeEnabled: storefrontSalePricesEnabled,
+    saleModeEnabled: publicSaleModeEnabled,
     rawSaleModeEnabled: storefrontPublicSaleModeEnabledRaw,
-  }), [brandInitials, brandLogoUrl, brandName, storefrontPublicSaleModeEnabledRaw, storefrontSalePricesEnabled]);
+  }), [brandInitials, brandLogoUrl, brandName, publicSaleModeEnabled, storefrontPublicSaleModeEnabledRaw]);
 
   const storefrontBrandSettings = useMemo(() => ({
     brandName,
@@ -11937,12 +11947,16 @@ function Storefront() {
 
   const storefrontPage = useMemo(() => {
     if (isStorefrontProductsPath(currentStorefrontPath)) {
+      console.log("RENDER_PATH_NAME", {
+        path: "Storefront->StorefrontProductListingPage",
+        saleModeEnabled: publicSaleModeEnabled,
+      });
       return (
         <LazyStorefrontProductListingPage
           wishlist={wishlist}
           toggleWishlist={toggleWishlist}
           onAddToCart={onAddToCart}
-          saleModeEnabled={storefrontSalePricesEnabled}
+          saleModeEnabled={publicSaleModeEnabled}
         />
       );
     }
@@ -11950,6 +11964,10 @@ function Storefront() {
     if (isStorefrontOfferPath(currentStorefrontPath)) return <OfferStoryViewer />;
 
     if (isStorefrontProductPath(currentStorefrontPath)) {
+      console.log("RENDER_PATH_NAME", {
+        path: "Storefront->StorefrontProductDetailPage",
+        saleModeEnabled: publicSaleModeEnabled,
+      });
       return (
         <LazyStorefrontProductDetailPage
           key={storefrontRouteKey}
@@ -11959,6 +11977,7 @@ function Storefront() {
           rememberProduct={rememberProduct}
           recent={recent}
           profile={profile}
+          saleModeEnabled={publicSaleModeEnabled}
         />
       );
     }
@@ -12063,6 +12082,7 @@ function Storefront() {
     onAddToCart,
     profile,
     publicStoreSettings,
+    publicSaleModeEnabled,
     quickActionLinks,
     recent,
     rememberProduct,

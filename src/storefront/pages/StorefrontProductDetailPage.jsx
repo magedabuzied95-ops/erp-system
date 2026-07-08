@@ -197,7 +197,7 @@ function ProductDetailReviewSection() {
   );
 }
 
-export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile }) {
+export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile, saleModeEnabled }) {
   const { identifier } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -540,6 +540,11 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     );
   }
 
+  console.log("RENDER_PATH_NAME", {
+    path: "StorefrontProductDetailPage->RelatedProducts",
+    saleModeEnabled,
+  });
+
   return (
     <section dir="rtl" className="sf-product-details-page mx-auto max-w-7xl px-3 pb-28 pt-2 md:px-4 md:pb-36 md:pt-5 lg:pb-8">
       <div ref={productTopRef} aria-hidden="true" className="h-0 w-0 overflow-hidden" />
@@ -763,7 +768,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           </div>
         </div>}
         {false && <ProductDetailReviewSection />}
-        <RelatedProducts currentId={product.id} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} />
+        <RelatedProducts currentId={product.id} wishlist={wishlist} toggleWishlist={toggleWishlist} onAddToCart={onAddToCart} saleModeEnabled={saleModeEnabled} />
         <RecentProductsSection currentId={product.id} recent={recent} />
       </div>
       {false && <div className="md:hidden">
