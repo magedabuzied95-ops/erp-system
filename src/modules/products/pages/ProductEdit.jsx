@@ -328,8 +328,43 @@ const normalizeColorKey = (value = "") => String(value || "default").trim().toLo
 
 const normalizeManufacturerId = (value = "") => String(value || "").trim();
 
+const getManufacturerRecord = (manufacturers = [], manufacturerId = "") => {
+  const normalizedId = normalizeManufacturerId(manufacturerId);
+  if (!normalizedId) return null;
+  return (
+    manufacturers.find((item) => String(item.id) === normalizedId) ||
+    manufacturers.find((item) => String(item.manufacturer_id) === normalizedId) ||
+    manufacturers.find((item) => String(item.manufacturerId) === normalizedId) ||
+    manufacturers.find((item) => String(item.label) === normalizedId) ||
+    manufacturers.find((item) => String(item.name) === normalizedId) ||
+    null
+  );
+};
+
 const getDefaultManufacturerName = (manufacturers = [], defaultManufacturerId = "") =>
-  manufacturers.find((item) => String(item.id) === String(defaultManufacturerId))?.name || "";
+  getManufacturerRecord(manufacturers, defaultManufacturerId)?.name ||
+  getManufacturerRecord(manufacturers, defaultManufacturerId)?.manufacturer_name ||
+  getManufacturerRecord(manufacturers, defaultManufacturerId)?.manufacturerName ||
+  getManufacturerRecord(manufacturers, defaultManufacturerId)?.label ||
+  "";
+
+const normalizeManufacturerRows = (rows = []) =>
+  rows
+    .map((item) => {
+      const id = String(item?.id ?? item?.manufacturer_id ?? item?.manufacturerId ?? "").trim();
+      if (!id) return null;
+      const name = String(item?.name ?? item?.manufacturer_name ?? item?.manufacturerName ?? item?.label ?? "").trim() || id;
+      return {
+        ...item,
+        id,
+        name,
+        manufacturer_id: String(item?.manufacturer_id ?? id).trim(),
+        manufacturer_name: name,
+        manufacturerName: name,
+        label: name,
+      };
+    })
+    .filter((item) => item && item.active !== false && item.is_active !== false);
 
 const SEO_PANEL_STATE_KEY = "erp.products.seoPanelOpen";
 
@@ -1261,7 +1296,19 @@ function ProductEdit() {
       try {
         const rows = await getManufacturers();
         if (!active) return;
-        const list = Array.isArray(rows) ? rows : [];
+        const list = normalizeManufacturerRows(
+          Array.isArray(rows)
+            ? rows
+            : Array.isArray(rows?.manufacturers)
+              ? rows.manufacturers
+              : Array.isArray(rows?.data)
+                ? rows.data
+                : Array.isArray(rows?.result)
+                  ? rows.result
+                  : Array.isArray(rows?.payload)
+                    ? rows.payload
+                    : []
+        );
         setManufacturers(list);
       } catch (error) {
         console.log(error);
@@ -1595,15 +1642,20 @@ function ProductEdit() {
   });
 
   const getManufacturerName = (manufacturerId) =>
-    manufacturers.find((item) => String(item.id) === String(manufacturerId))?.name || "No manufacturer selected";
+    getManufacturerRecord(manufacturers, manufacturerId)?.name ||
+    getManufacturerRecord(manufacturers, manufacturerId)?.manufacturer_name ||
+    getManufacturerRecord(manufacturers, manufacturerId)?.manufacturerName ||
+    getManufacturerRecord(manufacturers, manufacturerId)?.label ||
+    "No manufacturer selected";
 
   const getManufacturerPayload = (manufacturerId) => {
     const normalized = normalizeManufacturerId(manufacturerId);
-    const manufacturerName = normalized
-      ? manufacturers.find((item) => String(item.id) === String(normalized))?.name || null
+    const manufacturerRecord = normalized ? getManufacturerRecord(manufacturers, normalized) : null;
+    const manufacturerName = manufacturerRecord
+      ? manufacturerRecord.name || manufacturerRecord.manufacturer_name || manufacturerRecord.manufacturerName || manufacturerRecord.label || null
       : null;
     return {
-      manufacturer_id: normalized || null,
+      manufacturer_id: normalized || manufacturerRecord?.id || manufacturerRecord?.manufacturer_id || manufacturerRecord?.manufacturerId || null,
       manufacturer: manufacturerName,
       manufacturer_name: manufacturerName,
     };
@@ -3818,8 +3870,8 @@ function ProductEdit() {
                   >
                     <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
                     {manufacturers.map((manufacturer) => (
-                      <option key={manufacturer.id} value={String(manufacturer.id)}>
-                        {manufacturer.name}
+                      <option key={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || manufacturer.label || manufacturer.name)} value={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "")}>
+                        {manufacturer.name || manufacturer.manufacturer_name || manufacturer.manufacturerName || manufacturer.label || String(manufacturer.id || manufacturer.manufacturer_id || "")}
                       </option>
                     ))}
                   </select>
@@ -4147,8 +4199,8 @@ function ProductEdit() {
                             >
                               <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
                               {manufacturers.map((manufacturer) => (
-                                <option key={manufacturer.id} value={String(manufacturer.id)}>
-                                  {manufacturer.name}
+                                <option key={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || manufacturer.label || manufacturer.name)} value={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "")}>
+                                  {manufacturer.name || manufacturer.manufacturer_name || manufacturer.manufacturerName || manufacturer.label || String(manufacturer.id || manufacturer.manufacturer_id || "")}
                                 </option>
                               ))}
                             </select>

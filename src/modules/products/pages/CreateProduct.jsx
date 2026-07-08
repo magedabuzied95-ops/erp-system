@@ -310,7 +310,42 @@ const normalizeProductRelationIds = (payload = {}) =>
   );
 
 const getDefaultManufacturerName = (manufacturers = [], defaultManufacturerId = "") =>
-  manufacturers.find((item) => String(item.id) === String(defaultManufacturerId))?.name || "";
+  getManufacturerRecord(manufacturers, defaultManufacturerId)?.name ||
+  getManufacturerRecord(manufacturers, defaultManufacturerId)?.manufacturer_name ||
+  getManufacturerRecord(manufacturers, defaultManufacturerId)?.manufacturerName ||
+  getManufacturerRecord(manufacturers, defaultManufacturerId)?.label ||
+  "";
+
+function getManufacturerRecord(manufacturers = [], manufacturerId = "") {
+  const normalizedId = String(manufacturerId || "").trim();
+  if (!normalizedId) return null;
+  return (
+    manufacturers.find((item) => String(item.id) === normalizedId) ||
+    manufacturers.find((item) => String(item.manufacturer_id) === normalizedId) ||
+    manufacturers.find((item) => String(item.manufacturerId) === normalizedId) ||
+    manufacturers.find((item) => String(item.label) === normalizedId) ||
+    manufacturers.find((item) => String(item.name) === normalizedId) ||
+    null
+  );
+}
+
+const normalizeManufacturerRows = (rows = []) =>
+  rows
+    .map((item) => {
+      const id = String(item?.id ?? item?.manufacturer_id ?? item?.manufacturerId ?? "").trim();
+      if (!id) return null;
+      const name = String(item?.name ?? item?.manufacturer_name ?? item?.manufacturerName ?? item?.label ?? "").trim() || id;
+      return {
+        ...item,
+        id,
+        name,
+        manufacturer_id: String(item?.manufacturer_id ?? id).trim(),
+        manufacturer_name: name,
+        manufacturerName: name,
+        label: name,
+      };
+    })
+    .filter((item) => item && item.active !== false && item.is_active !== false);
 
 const SEO_PANEL_STATE_KEY = "erp.products.seoPanelOpen";
 
@@ -762,7 +797,19 @@ function CreateProduct() {
       try {
         const rows = await getManufacturers();
         if (!active) return;
-        const list = Array.isArray(rows) ? rows : [];
+        const list = normalizeManufacturerRows(
+          Array.isArray(rows)
+            ? rows
+            : Array.isArray(rows?.manufacturers)
+              ? rows.manufacturers
+              : Array.isArray(rows?.data)
+                ? rows.data
+                : Array.isArray(rows?.result)
+                  ? rows.result
+                  : Array.isArray(rows?.payload)
+                    ? rows.payload
+                    : []
+        );
         setManufacturers(list);
       } catch (error) {
         console.log(error);
@@ -3169,8 +3216,8 @@ function CreateProduct() {
                     >
                       <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
                       {manufacturers.map((manufacturer) => (
-                        <option key={manufacturer.id} value={String(manufacturer.id)}>
-                          {manufacturer.name}
+                        <option key={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || manufacturer.label || manufacturer.name)} value={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "")}>
+                          {manufacturer.name || manufacturer.manufacturer_name || manufacturer.manufacturerName || manufacturer.label || String(manufacturer.id || manufacturer.manufacturer_id || "")}
                         </option>
                       ))}
                     </select>
@@ -3487,8 +3534,8 @@ function CreateProduct() {
                                   >
                                     <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
                                     {manufacturers.map((manufacturer) => (
-                                      <option key={manufacturer.id} value={String(manufacturer.id)}>
-                                        {manufacturer.name}
+                                      <option key={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || manufacturer.label || manufacturer.name)} value={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "")}>
+                                        {manufacturer.name || manufacturer.manufacturer_name || manufacturer.manufacturerName || manufacturer.label || String(manufacturer.id || manufacturer.manufacturer_id || "")}
                                       </option>
                                     ))}
                                   </select>
