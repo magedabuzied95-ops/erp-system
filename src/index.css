@@ -3888,6 +3888,18 @@
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 20%, transparent);
   }
 
+  .manufacturer-select-dropdown option {
+    background: #09090b;
+    color: #ffffff;
+  }
+
+  .manufacturer-select-dropdown option:hover,
+  .manufacturer-select-dropdown option:checked,
+  .manufacturer-select-dropdown option:focus {
+    background: var(--primary);
+    color: #ffffff;
+  }
+
   .theme-button-primary,
   .theme-button-soft {
     display: inline-flex;

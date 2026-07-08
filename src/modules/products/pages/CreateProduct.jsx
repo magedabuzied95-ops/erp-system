@@ -65,6 +65,7 @@ import {
   generateAiProductData,
   generateProductDescription,
   generateThermalArtwork,
+  getBrands,
   getManufacturers,
   getProductsWithVariants,
   normalizeVariantPayload,
@@ -347,6 +348,43 @@ const normalizeManufacturerRows = (rows = []) =>
     })
     .filter((item) => item && item.active !== false && item.is_active !== false);
 
+const unwrapBrandRows = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  const directData = payload?.data;
+  const candidates = [
+    payload?.brands,
+    payload?.items,
+    payload?.results,
+    payload?.result,
+    directData,
+    directData?.data,
+    directData?.brands,
+    directData?.items,
+    directData?.results,
+    payload,
+  ];
+  return candidates.find(Array.isArray) || [];
+};
+
+const normalizeBrandRows = (rows = []) =>
+  unwrapBrandRows(rows)
+    .map((item) => {
+      const id = String(item?.id ?? item?.brand_id ?? item?.brandId ?? "").trim();
+      const name = String(item?.name ?? item?.brand_name ?? item?.brandName ?? item?.label ?? "").trim();
+      if (!id || !name) return null;
+      return {
+        ...item,
+        id,
+        brand_id: String(item?.brand_id ?? id).trim(),
+        brandId: String(item?.brandId ?? id).trim(),
+        name,
+        brand_name: name,
+        brandName: name,
+        label: name,
+      };
+    })
+    .filter((item) => item && item.active !== false && item.is_active !== false);
+
 const SEO_PANEL_STATE_KEY = "erp.products.seoPanelOpen";
 
 function CreateProduct() {
@@ -354,7 +392,7 @@ function CreateProduct() {
   const navigate = useNavigate();
 
   const categories = useMemo(() => seedCategories(), []);
-  const brands = useMemo(() => seedBrands(), []);
+  const [brands, setBrands] = useState([]);
   const units = useMemo(() => seedUnits(), []);
   const [manufacturers, setManufacturers] = useState([]);
 
@@ -457,6 +495,29 @@ function CreateProduct() {
       }
       for (const url of galleryObjectUrlsRef.current) revokeObjectPreviewUrl(url);
       galleryObjectUrlsRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadBrands = async () => {
+      try {
+        const rows = await getBrands();
+        if (!active) return;
+        const normalizedRows = normalizeBrandRows(rows);
+        setBrands(normalizedRows.length > 0 ? normalizedRows : seedBrands());
+      } catch (error) {
+        if (!active) return;
+        console.log(error);
+        setBrands(seedBrands());
+      }
+    };
+
+    loadBrands();
+
+    return () => {
+      active = false;
     };
   }, []);
 
@@ -3212,11 +3273,16 @@ function CreateProduct() {
                     <select
                       value={defaultManufacturerId}
                       onChange={(e) => applyDefaultManufacturer(e.target.value)}
-                      className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none"
+                      className="manufacturer-select-dropdown h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none"
                     >
                       <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
                       {manufacturers.map((manufacturer) => (
-                        <option key={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || manufacturer.label || manufacturer.name)} value={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "")}>
+                        <option
+                          key={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || manufacturer.label || manufacturer.name)}
+                          value={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "")}
+                          className="bg-zinc-950 text-white"
+                          style={{ backgroundColor: "#09090b", color: "#fff" }}
+                        >
                           {manufacturer.name || manufacturer.manufacturer_name || manufacturer.manufacturerName || manufacturer.label || String(manufacturer.id || manufacturer.manufacturer_id || "")}
                         </option>
                       ))}
@@ -3530,11 +3596,16 @@ function CreateProduct() {
                                   <select
                                     value={group.manufacturer_id || ""}
                                     onChange={(e) => updateColorGroup(group.id, "manufacturer_id", e.target.value)}
-                                    className="h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none"
+                                    className="manufacturer-select-dropdown h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none"
                                   >
                                     <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
                                     {manufacturers.map((manufacturer) => (
-                                      <option key={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || manufacturer.label || manufacturer.name)} value={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "")}>
+                                      <option
+                                        key={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || manufacturer.label || manufacturer.name)}
+                                        value={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "")}
+                                        className="bg-zinc-950 text-white"
+                                        style={{ backgroundColor: "#09090b", color: "#fff" }}
+                                      >
                                         {manufacturer.name || manufacturer.manufacturer_name || manufacturer.manufacturerName || manufacturer.label || String(manufacturer.id || manufacturer.manufacturer_id || "")}
                                       </option>
                                     ))}
