@@ -38,8 +38,8 @@ const PUBLIC_RETURN_POLICY_LINES = [
 ];
 const DEFAULT_SOCIAL_LINKS = {
   googleReviewUrl: "https://www.google.com/maps/place//data=!4m3!3m2!1s0x14f9e3498b6a02f9:0xd576a0402361f8c8!12e1?source=g.page.m._&laa=merchant-review-solicitation",
-  facebookReviewUrl: "https://www.facebook.com/MONESHOESSTORE/reviews",
-  instagramUrl: "https://www.instagram.com/m1store_eg/",
+  facebookReviewUrl: "https://www.facebook.com/share/1DmN6zj29g/?mibextid=wwXIfr",
+  instagramUrl: "https://www.instagram.com/m1store_egy?igsh=MWplb2d4cmJ4YmxhaQ%3D%3D&utm_source=qr",
 };
 
 const getPublicAppUrl = () => {

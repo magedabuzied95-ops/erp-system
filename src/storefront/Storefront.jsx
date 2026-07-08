@@ -9417,7 +9417,7 @@ function ContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
     "company.instagram_username",
     "social.instagram_username",
     "instagram_username",
-  ) || "@m1store_eg";
+  ) || "@m1store_egy";
   const instagramHref = normalizeUrl(
     firstValue(
       "storefront.instagram_url",
@@ -9443,7 +9443,7 @@ function ContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
       "social.facebook_url",
       "facebook_url",
     ),
-    "https://www.facebook.com/",
+    "https://www.facebook.com/share/1DmN6zj29g/?mibextid=wwXIfr",
   );
   const address = firstValue("address", "storeAddress", "store_address", "publicAddress", "public_address", "storefront.address", "company.address") || "القاهرة، مصر";
   const mapHref = quickActionLinks.galleryHref || normalizeUrl(

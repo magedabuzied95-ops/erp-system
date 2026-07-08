@@ -18,8 +18,8 @@ const M1_STORE_WEBSITE_HREF = "https://www.m1store-egy.com";
 const M1_STORE_PHONE = "01000659301";
 const DEFAULT_SOCIAL_LINKS = {
   googleReviewUrl: "https://www.google.com/maps/place//data=!4m3!3m2!1s0x14f9e3498b6a02f9:0xd576a0402361f8c8!12e1?source=g.page.m._&laa=merchant-review-solicitation",
-  facebookReviewUrl: "https://www.facebook.com/MONESHOESSTORE/reviews",
-  instagramUrl: "https://www.instagram.com/m1store_eg/",
+  facebookReviewUrl: "https://www.facebook.com/share/1DmN6zj29g/?mibextid=wwXIfr",
+  instagramUrl: "https://www.instagram.com/m1store_egy?igsh=MWplb2d4cmJ4YmxhaQ%3D%3D&utm_source=qr",
 };
 const ARABIC_RETURN_POLICY_HTML = `
   <div>يمكنك الاستبدال أو الاسترجاع خلال 14 يومًا من تاريخ الاستلام وفق الشروط التالية:</div>
