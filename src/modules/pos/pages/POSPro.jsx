@@ -4865,6 +4865,7 @@ function POSPro() {
       const additionalPaymentBreakdown = editingOrder?.id
         ? paymentBreakdown.filter((item) => item.method !== "exchange_credit")
         : [];
+      const idempotencyKey = createOfflineOrderIdempotencyKey();
       console.log("[pos-checkout:edit-settlement-payload]", {
         editing_order_id: editingOrder?.id || null,
         edit_settlement_type: editSettlementType,
