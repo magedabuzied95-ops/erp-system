@@ -57,6 +57,19 @@ const uniqueTextValues = (values = [], limit = 3) => {
   return result;
 };
 
+const getSharedArticleCode = (product = {}) => {
+  const productArticleCode = String(product.article_code || product.articleCode || "").trim();
+  if (productArticleCode) return productArticleCode;
+
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  const articleCodes = [...new Set(
+    variants
+      .map((variant) => String(variant.article_code || variant.articleCode || "").trim())
+      .filter(Boolean)
+  )];
+  return articleCodes.length === 1 ? articleCodes[0] : "";
+};
+
 const formatProductPrice = (product, t) => {
   const min = Number(product.min_price ?? product.base_price ?? product.sale_price ?? product.price ?? 0);
   const max = Number(product.max_price ?? min);
@@ -226,6 +239,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
   const variants = Array.isArray(product.variants) ? product.variants : [];
   const colors = uniqueTextValues(variants.map((variant) => variant.color), 3);
   const sizes = uniqueTextValues(variants.map((variant) => variant.size), 4);
+  const articleCode = getSharedArticleCode(product);
 
   return (
     <div
@@ -256,6 +270,13 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
               {isOutOfStock ? t("pos.labels.outOfStock") : t("pos.labels.inStock", { count: stock })}
             </span>
           </div>
+          {articleCode ? (
+            <div className="absolute inset-x-1.5 bottom-1.5 flex justify-center">
+              <div className="max-w-full truncate rounded-full border border-white/15 bg-zinc-950/88 px-2 py-0.5 text-[8px] font-black text-zinc-100 shadow-sm backdrop-blur">
+                {`ارتكل: ${articleCode}`}
+              </div>
+            </div>
+          ) : null}
         </div>
 
       </div>

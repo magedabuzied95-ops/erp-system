@@ -3104,6 +3104,10 @@ function POSPro() {
     ) || null;
   }, [activeProduct, selectedColor, selectedSize]);
   const activeVariantSizeLabel = getPosSizeDisplayLabel(activeProduct, activeVariant?.size);
+  const activeArticleCode = useMemo(
+    () => firstTextValue(activeProduct?.article_code, activeProduct?.articleCode, activeVariant?.article_code, activeVariant?.articleCode),
+    [activeProduct?.articleCode, activeProduct?.article_code, activeVariant?.articleCode, activeVariant?.article_code]
+  );
 
   const activeVariantImageUrl = useMemo(() => {
     if (!activeProduct) return "";
@@ -7370,9 +7374,10 @@ function POSPro() {
                   </div>
 
                   <div className="hidden overflow-hidden rounded-2xl border border-white/10 sm:block sm:rounded-3xl">
-                    <div className="hidden grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_0.8fr] bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.16em] text-zinc-500 lg:grid">
+                    <div className="hidden grid-cols-[1.4fr_0.8fr_0.9fr_0.9fr_0.7fr_0.8fr] bg-white/5 px-4 py-3 text-xs uppercase tracking-[0.16em] text-zinc-500 lg:grid">
                       <span>{t("pos.labels.variant")}</span>
                       <span>{t("pos.labels.sku")}</span>
+                      <span>{t("products.fields.articleCode", "Article Code / الأرتكل")}</span>
                       <span>{t("pos.labels.barcode")}</span>
                       <span>{t("pos.labels.stock")}</span>
                       <span>{t("pos.labels.action")}</span>
@@ -7385,10 +7390,16 @@ function POSPro() {
                         const stock = normalizeStockQuantity(variant.stock_quantity ?? variant.stock);
                         const price = formatCurrency(variant.price || activeProduct.sale_price || 0);
                         const disabled = stock <= 0;
+                        const variantArticleCode = firstTextValue(
+                          activeProduct.article_code,
+                          activeProduct.articleCode,
+                          variant.article_code,
+                          variant.articleCode
+                        );
                         return (
                           <div
                             key={String(variant.variant_id || variant.id)}
-                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-white/5 px-2.5 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm lg:grid-cols-[1.5fr_0.8fr_0.8fr_0.8fr_0.8fr] lg:gap-3 ${
+                            className={`grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2 border-t border-white/5 px-2.5 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm lg:grid-cols-[1.4fr_0.8fr_0.9fr_0.9fr_0.7fr_0.8fr] lg:gap-3 ${
                               selected ? "bg-emerald-500/10" : ""
                             }`}
                           >
@@ -7400,10 +7411,12 @@ function POSPro() {
                                 <span className="rounded-full bg-white/5 px-2 py-0.5">{t("pos.labels.stock")}: {stock}</span>
                                 <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-emerald-200">{t("pos.labels.price")}: {price}</span>
                                 {(variant.sku || activeProduct.sku) ? <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-500">SKU: {String(variant.sku || activeProduct.sku).slice(-6)}</span> : null}
+                                {variantArticleCode ? <span className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-400">ART: {variantArticleCode}</span> : null}
                               </div>
                               <div className="hidden text-xs text-zinc-500 lg:block">{price}</div>
                             </div>
                             <div className="hidden truncate text-zinc-300 lg:block">{variant.sku || activeProduct.sku}</div>
+                            <div className="hidden truncate text-zinc-300 lg:block">{variantArticleCode || t("common.notAvailable")}</div>
                             <div className="hidden truncate text-zinc-300 lg:block">{variant.barcode || activeProduct.barcode || t("common.notAvailable")}</div>
                             <div className="hidden text-zinc-300 lg:block">{stock}</div>
                             <button
@@ -7448,12 +7461,14 @@ function POSPro() {
                     <div className="mt-2 flex flex-wrap gap-1.5 text-xs font-black sm:mt-4 sm:grid sm:grid-cols-2 sm:gap-3 sm:text-sm">
                       <SmallCard compact label={t("pos.labels.stock")} value={String(normalizeStockQuantity(activeVariant?.stock_quantity ?? activeVariant?.stock))} />
                       <SmallCard compact label={t("pos.labels.price")} value={formatCurrency(activeVariant?.price || 0)} />
+                      <SmallCard className="hidden sm:block" label={t("products.fields.articleCode", "Article Code / الأرتكل")} value={activeArticleCode || t("common.notAvailable")} />
                       <SmallCard className="hidden sm:block" label={t("pos.labels.sku")} value={activeVariant?.sku || t("common.notAvailable")} />
                       <SmallCard className="hidden sm:block" label={t("pos.labels.barcode")} value={activeVariant?.barcode || t("common.notAvailable")} />
                     </div>
                     <details className="mt-2 rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs text-zinc-400 sm:hidden">
-                      <summary className="cursor-pointer font-bold text-zinc-300">{t("pos.labels.sku")} / {t("pos.labels.barcode")}</summary>
+                      <summary className="cursor-pointer font-bold text-zinc-300">{t("pos.labels.sku")} / {t("pos.labels.barcode")} / {t("products.fields.articleCode", "Article Code / الأرتكل")}</summary>
                       <div className="mt-2 space-y-1">
+                        <div className="truncate">{t("products.fields.articleCode", "Article Code / الأرتكل")}: {activeArticleCode || t("common.notAvailable")}</div>
                         <div className="truncate">SKU: {activeVariant?.sku || t("common.notAvailable")}</div>
                         <div className="truncate">{t("pos.labels.barcode")}: {activeVariant?.barcode || t("common.notAvailable")}</div>
                       </div>
