@@ -1409,6 +1409,23 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
   const compactTotal = Number(totals.total || 0);
   const compactItemCount = premiumTotalQuantity;
 
+  if (compact) {
+    return (
+      <ThermalReceiptFinal
+        invoiceNumber={premiumReceiptNumber}
+        cart={cart}
+        totals={totals}
+        paymentSummary={paymentSummary}
+        paymentMode={paymentMode}
+        sellerName={compactSellerName}
+        customer={customer}
+        barcodeSvg={premiumBarcodeSvg}
+        premiumDate={premiumDate}
+        premiumTime={premiumTime}
+      />
+    );
+  }
+
   return (
     <div
       dir="rtl"
@@ -1728,6 +1745,315 @@ function ReceiptMiniStat({ label, value }) {
     <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-2.5 py-2 text-center">
       <div className="text-[10px] font-bold tracking-[0.12em] text-zinc-500">{label}</div>
       <div className="mt-1 text-[12px] font-black text-emerald-700">{value}</div>
+    </div>
+  );
+}
+
+const THERMAL_RECEIPT_FINAL_CSS = `
+.thermal-final {
+  width: 100%;
+  max-width: 80mm;
+  box-sizing: border-box;
+  padding: 8px 10px;
+  direction: rtl;
+  font-family: Arial, Tahoma, sans-serif;
+  color: #000;
+  background: #fff;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.thermal-header {
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+.thermal-store-name {
+  font-size: 20px;
+  font-weight: 900;
+  line-height: 1.2;
+}
+
+.thermal-thanks {
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 3px;
+}
+
+.thermal-divider {
+  border-top: 1px dashed #000;
+  margin: 8px 0;
+}
+
+.thermal-field {
+  margin: 6px 0;
+  text-align: right;
+}
+
+.thermal-label {
+  font-size: 12px;
+  font-weight: 800;
+  margin-bottom: 2px;
+}
+
+.thermal-value {
+  font-size: 14px;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.thermal-product-card {
+  border: 1px dashed #000;
+  border-radius: 4px;
+  padding: 7px;
+  margin: 8px 0;
+  text-align: right;
+}
+
+.thermal-product-title {
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.35;
+  margin-bottom: 6px;
+}
+
+.thermal-product-meta {
+  font-size: 13px;
+  margin: 3px 0;
+}
+
+.thermal-money-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  margin: 5px 0;
+}
+
+.thermal-money-row strong {
+  font-weight: 900;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.thermal-line-total {
+  border-top: 1px dashed #000;
+  padding-top: 5px;
+  margin-top: 6px;
+}
+
+.thermal-summary {
+  margin: 8px 0;
+}
+
+.thermal-grand-total {
+  border-top: 2px solid #000;
+  border-bottom: 2px solid #000;
+  padding: 8px 0;
+  margin: 10px 0;
+  text-align: center;
+}
+
+.thermal-grand-total div {
+  font-size: 15px;
+  font-weight: 900;
+}
+
+.thermal-grand-total strong {
+  display: block;
+  font-size: 20px;
+  font-weight: 900;
+  margin-top: 3px;
+  direction: ltr;
+  unicode-bidi: embed;
+}
+
+.thermal-policy {
+  border: 1px dashed #000;
+  padding: 7px;
+  margin: 10px 0;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.thermal-policy-title {
+  font-weight: 900;
+  margin-bottom: 4px;
+}
+
+.thermal-barcode {
+  text-align: center;
+  margin: 10px 0 6px;
+}
+
+.thermal-footer {
+  border-top: 1px dashed #000;
+  padding-top: 7px;
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.5;
+  direction: ltr;
+}
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 0;
+  }
+
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+
+  .thermal-final {
+    max-width: none !important;
+    width: 80mm !important;
+    padding: 8px 10px !important;
+    margin: 0 auto !important;
+  }
+}
+`;
+
+function ThermalReceiptFinal({
+  invoiceNumber,
+  cart,
+  totals,
+  paymentSummary,
+  paymentMode,
+  sellerName = "",
+  customer,
+  barcodeSvg,
+  premiumDate = "",
+  premiumTime = "",
+}) {
+  const safeText = (value) => String(value ?? "").trim() || "-";
+  const money = (value) => {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? formatCurrency(numeric) : "-";
+  };
+  const receiptNumber = safeText(invoiceNumber || "DRAFT");
+  const customerName = safeText(customer?.name || customer?.customer_name || "Walk-in Customer");
+  const paymentLabel = safeText(getLocalizedPaymentLabel(paymentMode, paymentSummary));
+  const sellerLabel = safeText(sellerName || getSellerName(customer));
+  const dateLabel = safeText(`${premiumDate} ${premiumTime}`.trim());
+  const subtotal = Number(totals?.subtotal || 0);
+  const itemDiscountTotal = Number(totals?.itemDiscountTotal || 0);
+  const invoiceDiscount = Number(totals?.invoiceDiscount || 0);
+  const loyaltyDiscount = Number(totals?.loyaltyDiscount || 0);
+  const grandTotal = Number(totals?.total || 0);
+  const totalDiscounts = itemDiscountTotal + invoiceDiscount;
+  const totalQuantity = Array.isArray(cart) ? cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0) : 0;
+
+  return (
+    <div className="thermal-final" dir="rtl">
+      <style>{THERMAL_RECEIPT_FINAL_CSS}</style>
+      {/* GREEN_THERMAL_RECEIPT_FINAL_COMPONENT */}
+      <div className="thermal-header">
+        <div className="thermal-store-name">M1 Store</div>
+        <div className="thermal-thanks">شكراً لشرائكم</div>
+      </div>
+
+      <div className="thermal-divider" />
+
+      <div className="thermal-field">
+        <div className="thermal-label">رقم الفاتورة</div>
+        <div className="thermal-value">{receiptNumber}</div>
+      </div>
+      <div className="thermal-field">
+        <div className="thermal-label">التاريخ</div>
+        <div className="thermal-value">{dateLabel}</div>
+      </div>
+      <div className="thermal-field">
+        <div className="thermal-label">البائع</div>
+        <div className="thermal-value">{sellerLabel}</div>
+      </div>
+      <div className="thermal-field">
+        <div className="thermal-label">العميل</div>
+        <div className="thermal-value">{customerName}</div>
+      </div>
+      <div className="thermal-field">
+        <div className="thermal-label">طريقة الدفع</div>
+        <div className="thermal-value">{paymentLabel}</div>
+      </div>
+
+      <div className="thermal-divider" />
+
+      {Array.isArray(cart) && cart.length ? cart.map((item, index) => {
+        const unitPrice = getReceiptItemUnitPrice(item);
+        const lineTotal = getReceiptItemTotal(item);
+        const colorText = safeText(item?.color || item?.color_name || "غير محدد");
+        const sizeText = safeText(item?.size || item?.size_name || "غير محدد");
+        return (
+          <div key={String(item?.key || item?.id || `${item?.name || "item"}-${index}`)} className="thermal-product-card">
+            <div className="thermal-product-title">{safeText(item?.name || "منتج")}</div>
+            <div className="thermal-product-meta">اللون: {colorText}</div>
+            <div className="thermal-product-meta">المقاس: {sizeText}</div>
+            <div className="thermal-money-row">
+              <span>الكمية</span>
+              <strong>{safeText(item?.quantity)}</strong>
+            </div>
+            <div className="thermal-money-row">
+              <span>سعر الوحدة</span>
+              <strong>{money(unitPrice)}</strong>
+            </div>
+            <div className="thermal-money-row thermal-line-total">
+              <span>الإجمالي</span>
+              <strong>{money(lineTotal)}</strong>
+            </div>
+          </div>
+        );
+      }) : (
+        <div className="thermal-field">
+          <div className="thermal-value">لا توجد منتجات</div>
+        </div>
+      )}
+
+      <div className="thermal-divider" />
+
+      <div className="thermal-summary">
+        <div className="thermal-money-row">
+          <span>المجموع الفرعي</span>
+          <strong>{money(subtotal)}</strong>
+        </div>
+        <div className="thermal-money-row">
+          <span>الخصومات</span>
+          <strong>{`- ${money(totalDiscounts)}`}</strong>
+        </div>
+        <div className="thermal-money-row">
+          <span>خصم الولاء</span>
+          <strong>{`- ${money(loyaltyDiscount)}`}</strong>
+        </div>
+      </div>
+
+      <div className="thermal-grand-total">
+        <div>الإجمالي</div>
+        <strong>{`${money(grandTotal)} EGP`}</strong>
+      </div>
+
+      <div className="thermal-field">
+        <div className="thermal-label">إجمالي الكمية</div>
+        <div className="thermal-value">{safeText(totalQuantity)}</div>
+      </div>
+
+      <div className="thermal-policy">
+        <div className="thermal-policy-title">سياسة الاستبدال والاسترجاع</div>
+        <div>يسمح بالاستبدال والاسترجاع خلال 14 يوم بشرط عدم الاستخدام والحفاظ على الحالة الأصلية وتقديم أصل الفاتورة.</div>
+        <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
+      </div>
+
+      <div className="thermal-barcode">
+        <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
+        <div className="thermal-value" style={{ fontSize: "12px", fontWeight: 900 }}>{receiptNumber}</div>
+      </div>
+
+      <div className="thermal-footer">
+        <div>www.m1store-egy.com</div>
+        <div>01000659301</div>
+      </div>
     </div>
   );
 }
