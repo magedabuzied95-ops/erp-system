@@ -66,13 +66,30 @@ const buildProductGalleryImages = (product = {}, selectedVariant = null) => {
     images.push(image);
   };
 
-  const variantImageSources = [
-    ...(Array.isArray(selectedVariant?.images) ? selectedVariant.images : []),
-    ...(Array.isArray(selectedVariant?.color_images) ? selectedVariant.color_images : []),
-    ...(Array.isArray(selectedVariant?.gallery_images) ? selectedVariant.gallery_images : []),
-    selectedVariant?.image_url,
-    selectedVariant?.image,
+  const collectVariantImageSources = (variant = {}) => [
+    ...(Array.isArray(variant?.images) ? variant.images : []),
+    ...(Array.isArray(variant?.color_images) ? variant.color_images : []),
+    ...(Array.isArray(variant?.gallery_images) ? variant.gallery_images : []),
+    variant?.image_url,
+    variant?.image,
   ];
+
+  const variants = Array.isArray(product?.variants) ? product.variants : [];
+  const selectedColor = String(selectedVariant?.color || "").trim().toLowerCase();
+  const selectedColorKey = selectedColor ? variantColorKey(selectedVariant) : "";
+  const matchingColorVariants = selectedVariant
+    ? variants.filter((variant) => {
+      if (selectedColorKey) return variantColorKey(variant) === selectedColorKey;
+      if (selectedColor) return String(variant?.color || "").trim().toLowerCase() === selectedColor;
+      return String(variant?.id || variant?.variant_id || "") === String(selectedVariant?.id || selectedVariant?.variant_id || "");
+    })
+    : [];
+
+  const colorScopedVariants = matchingColorVariants.length
+    ? matchingColorVariants
+    : selectedVariant
+      ? [selectedVariant]
+      : [];
 
   const productImageSources = [
     ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
@@ -83,7 +100,12 @@ const buildProductGalleryImages = (product = {}, selectedVariant = null) => {
     product?.image,
   ];
 
-  variantImageSources.forEach(pushImage);
+  colorScopedVariants.forEach((variant) => {
+    collectVariantImageSources(variant).forEach(pushImage);
+  });
+
+  if (images.length > 0) return images;
+
   productImageSources.forEach(pushImage);
 
   return images;
