@@ -215,8 +215,8 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
   const variantSalePriceEnabled = toBoolean(variantRow.sale_price_enabled, false);
   const hasExistingProductSalePrice = hasPositiveMoneyValue(productRow.sale_price);
   const hasValidVariantSalePrice = variantSalePriceEnabled && hasPositiveMoneyValue(variantRow.sale_price);
-  const nextSalePrice = hasValidVariantSalePrice ? variantRow.sale_price : productRow.sale_price;
-  const nextSalePriceEnabled = hasValidVariantSalePrice ? true : productRow.sale_price_enabled;
+  let nextSalePrice = hasValidVariantSalePrice ? variantRow.sale_price : productRow.sale_price;
+  let nextSalePriceEnabled = hasValidVariantSalePrice ? true : productRow.sale_price_enabled;
   const copiedCostFields = {
     last_purchase_cost: nextLastPurchaseCost,
     last_purchase_price: pickPositiveMoney(
@@ -278,6 +278,38 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productId: numericProductId,
     tenantId: tenantId ?? null,
     copiedCostFields,
+  });
+
+  const finalHasValidVariantSale = toBoolean(variantRow.sale_price_enabled, false) && hasPositiveMoneyValue(variantRow.sale_price);
+  if (!finalHasValidVariantSale) {
+    nextSalePrice = productRow.sale_price;
+    nextSalePriceEnabled = productRow.sale_price_enabled;
+  }
+
+  console.log("[product-pricing-sync] final update pricing payload", {
+    productId: numericProductId,
+    tenantId: tenantId ?? null,
+    existingProductPricing: {
+      sale_price: productRow.sale_price ?? null,
+      sale_price_enabled: productRow.sale_price_enabled ?? null,
+    },
+    selectedVariantPricing: {
+      sale_price: variantRow.sale_price ?? null,
+      sale_price_enabled: variantRow.sale_price_enabled ?? null,
+    },
+    hasValidVariantSale: finalHasValidVariantSale,
+    copiedPricing: {
+      last_purchase_cost: nextLastPurchaseCost,
+      last_purchase_price: copiedCostFields.last_purchase_price,
+      average_cost: nextAverageCost,
+      cost_price: nextCostPrice,
+      purchase_price: nextPurchasePrice,
+      selling_price: nextSellingPrice,
+      regular_price: nextRegularPrice,
+      price: nextPrice,
+      sale_price: nextSalePrice,
+      sale_price_enabled: nextSalePriceEnabled,
+    },
   });
 
   const updateResult = await client.query(
