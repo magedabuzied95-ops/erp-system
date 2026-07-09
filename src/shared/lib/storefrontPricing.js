@@ -44,6 +44,16 @@ export const truthyStorefrontFlag = (value) =>
     .replace(/\s+/g, "_")
     .match(/^(true|1|yes|on|sale_active|is_sale_active|on_sale|sale_enabled|discount_enabled|has_sale|use_sale_price)$/);
 
+export const storefrontForceSaleForOffer = (product = {}, variant = {}) =>
+  truthyStorefrontFlag(variant?.is_offer_story) ||
+  truthyStorefrontFlag(variant?.isOfferStory) ||
+  truthyStorefrontFlag(variant?.show_in_offer_story) ||
+  truthyStorefrontFlag(variant?.showInOfferStory) ||
+  truthyStorefrontFlag(product?.is_offer_story) ||
+  truthyStorefrontFlag(product?.isOfferStory) ||
+  truthyStorefrontFlag(product?.show_in_offer_story) ||
+  truthyStorefrontFlag(product?.showInOfferStory);
+
 export const storefrontSaleModeOn = (product = {}, variant = {}) =>
   truthyStorefrontFlag(variant?.sale_price_enabled) ||
   truthyStorefrontFlag(variant?.sale_enabled) ||
@@ -100,11 +110,13 @@ export const getDisplayPricing = (product = {}, saleModeEnabled = true, variant 
   const sellingPrice = storefrontSellingPrice(product, resolvedVariant || {});
   const salePrice = parseStorefrontPriceValue(resolvedVariant?.sale_price ?? product?.sale_price ?? resolvedVariant?.offer_price ?? product?.offer_price ?? 0);
   const enabled = parseSaleModeEnabled(saleModeEnabled, true);
+  const forceSaleForOffer = storefrontForceSaleForOffer(product, resolvedVariant || {});
+  const shouldUseSale = enabled || forceSaleForOffer;
   let price = sellingPrice;
   let comparePrice = null;
   let isOnSale = false;
 
-  if (enabled && salePrice > 0 && sellingPrice > 0 && salePrice < sellingPrice) {
+  if (shouldUseSale && salePrice > 0 && sellingPrice > 0 && salePrice < sellingPrice) {
     price = salePrice;
     const compareCandidate =
       storefrontOriginalPriceCandidates(product, resolvedVariant || {}).find((value) => value > price) ||
@@ -125,6 +137,8 @@ export const getDisplayPricing = (product = {}, saleModeEnabled = true, variant 
     variantId,
     parsedSaleModeEnabled: enabled,
     saleModeEnabled: enabled,
+    forceSaleForOffer,
+    shouldUseSale,
     sellingPrice,
     salePrice,
     chosenPrice: price,
