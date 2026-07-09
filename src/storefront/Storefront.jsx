@@ -5267,7 +5267,7 @@ function useStorefrontProductGridColumns() {
 }
 
 const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled }) {
-  const columnCount = useProductGridColumnCount();
+  const columnCount = useStorefrontProductGridColumns();
   const initialBatchSize = columnCount >= 4 ? 16 : 12;
   const appendBatchSize = columnCount >= 4 ? 8 : 4;
   const [visibleCount, setVisibleCount] = useState(initialBatchSize);
