@@ -79,6 +79,10 @@ export const storefrontSellingPrice = (product = {}, variant = {}) =>
 
 const storefrontOriginalPriceCandidates = (product = {}, variant = {}) =>
   [
+    product?.old_price,
+    product?.oldPrice,
+    product?.price_before_sale,
+    product?.priceBeforeSale,
     product?.custom_compare_price,
     product?.compare_base_price,
     product?.original_price,
@@ -90,6 +94,10 @@ const storefrontOriginalPriceCandidates = (product = {}, variant = {}) =>
     variant?.base_price,
     variant?.list_price,
     product?.regular_price,
+    variant?.old_price,
+    variant?.oldPrice,
+    variant?.price_before_sale,
+    variant?.priceBeforeSale,
     variant?.regular_price,
     variant?.compare_at_price,
     product?.compare_at_price,
@@ -98,7 +106,8 @@ const storefrontOriginalPriceCandidates = (product = {}, variant = {}) =>
     .filter((value) => Number.isFinite(value) && value > 0);
 
 export const storefrontOriginalPrice = (product = {}, variant = {}) => {
-  const activePrice = storefrontSaleModeOn(product, variant) && parseStorefrontPriceValue(variant?.sale_price ?? product?.sale_price ?? 0) > 0
+  const hasForcedOfferSale = storefrontForceSaleForOffer(product, variant) && parseStorefrontPriceValue(variant?.sale_price ?? product?.sale_price ?? 0) > 0;
+  const activePrice = (hasForcedOfferSale || storefrontSaleModeOn(product, variant)) && parseStorefrontPriceValue(variant?.sale_price ?? product?.sale_price ?? 0) > 0
     ? parseStorefrontPriceValue(variant?.sale_price ?? product?.sale_price ?? 0)
     : storefrontSellingPrice(product, variant);
   const candidates = storefrontOriginalPriceCandidates(product, variant);
@@ -112,17 +121,30 @@ export const getDisplayPricing = (product = {}, saleModeEnabled = true, variant 
   const enabled = parseSaleModeEnabled(saleModeEnabled, true);
   const forceSaleForOffer = storefrontForceSaleForOffer(product, resolvedVariant || {});
   const shouldUseSale = enabled || forceSaleForOffer;
+  const shouldForceOfferSalePrice = forceSaleForOffer && salePrice > 0;
   let price = sellingPrice;
   let comparePrice = null;
   let isOnSale = false;
 
-  if (shouldUseSale && salePrice > 0 && sellingPrice > 0 && salePrice < sellingPrice) {
+  if (shouldForceOfferSalePrice) {
+    price = salePrice;
+    const compareCandidate =
+      storefrontOriginalPriceCandidates(product, resolvedVariant || {}).find((value) => value > price) ||
+      (sellingPrice > price ? sellingPrice : 0);
+    comparePrice = compareCandidate > price ? compareCandidate : null;
+    isOnSale = true;
+  } else if (shouldUseSale && salePrice > 0 && sellingPrice > 0 && salePrice < sellingPrice) {
     price = salePrice;
     const compareCandidate =
       storefrontOriginalPriceCandidates(product, resolvedVariant || {}).find((value) => value > price) ||
       (sellingPrice > price ? sellingPrice : 0);
     comparePrice = compareCandidate > price ? compareCandidate : null;
     isOnSale = Boolean(comparePrice && comparePrice > price);
+  }
+
+  if (!comparePrice || !(comparePrice > price)) {
+    const compareCandidate = storefrontOriginalPriceCandidates(product, resolvedVariant || {}).find((value) => value > price) || 0;
+    comparePrice = compareCandidate > price ? compareCandidate : null;
   }
 
   const discountPercent =
