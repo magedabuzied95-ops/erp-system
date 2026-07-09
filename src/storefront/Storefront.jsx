@@ -71,7 +71,7 @@ import { isMirrorProduct, mirrorProductTitle } from "../shared/lib/mirrorProduct
 import { applyProductSocialMeta, productToSocialMeta } from "../shared/lib/socialMeta";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
-import { VirtualGrid, VirtualList } from "../shared/components/VirtualList";
+import { VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
 import { animateFlyToCart } from "./lib/flyToCart";
@@ -5267,8 +5267,6 @@ function useStorefrontProductGridColumns() {
 }
 
 const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled }) {
-  const columns = useStorefrontProductGridColumns();
-  const shouldVirtualize = columns >= 4 && products.length > 40;
   const renderProduct = useCallback((product, index, key) => {
     return (
       <ProductCard
@@ -5284,20 +5282,6 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
   }, [onAddToCart, saleModeEnabled, toggleWishlist, wishlist]);
 
   if (loading) return <ProductSkeleton count={8} />;
-
-  if (shouldVirtualize) {
-    return (
-      <VirtualGrid
-        items={products}
-        columns={columns}
-        estimateRowHeight={380}
-        className="max-h-[calc(100vh-10rem)] min-h-[36rem] overflow-y-auto overflow-x-hidden pr-1"
-        gridClassName="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5"
-        itemKey={(product, index) => productCardKey(product, index)}
-        renderItem={renderProduct}
-      />
-    );
-  }
 
   return (
     <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5">
