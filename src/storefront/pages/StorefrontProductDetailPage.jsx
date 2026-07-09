@@ -75,21 +75,12 @@ const buildProductGalleryImages = (product = {}, selectedVariant = null) => {
   ];
 
   const variants = Array.isArray(product?.variants) ? product.variants : [];
-  const selectedColor = String(selectedVariant?.color || "").trim().toLowerCase();
-  const selectedColorKey = selectedColor ? variantColorKey(selectedVariant) : "";
-  const matchingColorVariants = selectedVariant
-    ? variants.filter((variant) => {
-      if (selectedColorKey) return variantColorKey(variant) === selectedColorKey;
-      if (selectedColor) return String(variant?.color || "").trim().toLowerCase() === selectedColor;
-      return String(variant?.id || variant?.variant_id || "") === String(selectedVariant?.id || selectedVariant?.variant_id || "");
-    })
-    : [];
-
-  const colorScopedVariants = matchingColorVariants.length
-    ? matchingColorVariants
-    : selectedVariant
-      ? [selectedVariant]
-      : [];
+  const groupedVariants = new Map();
+  variants.forEach((variant) => {
+    const key = variantColorKey(variant) || String(variant?.id || variant?.variant_id || "");
+    if (!groupedVariants.has(key)) groupedVariants.set(key, []);
+    groupedVariants.get(key).push(variant);
+  });
 
   const productImageSources = [
     ...(Array.isArray(product?.gallery_images) ? product.gallery_images : []),
@@ -100,8 +91,23 @@ const buildProductGalleryImages = (product = {}, selectedVariant = null) => {
     product?.image,
   ];
 
-  colorScopedVariants.forEach((variant) => {
-    collectVariantImageSources(variant).forEach(pushImage);
+  groupedVariants.forEach((groupVariants) => {
+    if (!Array.isArray(groupVariants) || !groupVariants.length) return;
+    const primaryVariant =
+      groupVariants.find((variant) => variantColorKey(variant) === variantColorKey(selectedVariant || {})) ||
+      groupVariants[0];
+    const primaryImage =
+      galleryImageValue(primaryVariant?.images?.find?.((image) => image?.is_primary)) ||
+      galleryImageValue(primaryVariant?.color_images?.find?.((image) => image?.is_primary)) ||
+      galleryImageValue(primaryVariant?.gallery_images?.find?.((image) => image?.is_primary)) ||
+      galleryImageValue(primaryVariant?.image_url) ||
+      galleryImageValue(primaryVariant?.image);
+
+    if (primaryImage) pushImage(primaryImage);
+
+    groupVariants.forEach((variant) => {
+      collectVariantImageSources(variant).forEach(pushImage);
+    });
   });
 
   if (images.length > 0) return images;
@@ -450,6 +456,18 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       image.src = src;
     });
   }, [galleryImages]);
+  useEffect(() => {
+    if (!galleryImages.length) return;
+    const targetImage =
+      selected.image ||
+      variantImage(safeActiveVariant) ||
+      selectedColorGroup?.primaryImage?.image_url ||
+      selectedColorGroup?.primaryImage?.preview ||
+      "";
+    if (!targetImage) return;
+    const nextIndex = galleryImages.findIndex((image) => String(image) === String(targetImage));
+    if (nextIndex >= 0) setActiveImageIndex(nextIndex);
+  }, [galleryImages, safeActiveVariant, selected.image, selectedColorGroup]);
   const activeImage = galleryImages[activeImageIndex] || galleryImages[0] || selected.image || variantImage(safeActiveVariant) || selectedColorGroup?.primaryImage?.image_url || selectedColorGroup?.primaryImage?.preview || firstVariantImage(variants) || product?.image_url || "";
   const galleryItems = useMemo(() => galleryImages.map((image) => ({ image })), [galleryImages]);
   const mirrorProduct = product ? isMirrorProduct(product) : false;
@@ -486,7 +504,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       colorName: variantColorName(nextVariant),
       image: nextImage,
     });
-    setActiveImageIndex(0);
+    const nextImageIndex = galleryImages.findIndex((image) => String(image) === String(nextImage));
+    setActiveImageIndex(nextImageIndex >= 0 ? nextImageIndex : 0);
   };
   const selectColor = (group) => {
     const colorKey = group?.key || "";
