@@ -205,10 +205,13 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.regular_price,
     productRow.selling_price
   );
-  const nextSalePrice = pickPositiveMoney(variantRow.sale_price, productRow.sale_price);
-  const nextSalePriceEnabled = nextSalePrice > 0
-    ? toBoolean(variantRow.sale_price_enabled, toBoolean(productRow.sale_price_enabled, false)) || nextSalePrice > 0
-    : false;
+  const currentProductSalePrice = pickPositiveMoney(productRow.sale_price);
+  const variantSalePrice = pickPositiveMoney(variantRow.sale_price);
+  const hasVariantSalePrice = variantSalePrice > 0;
+  const nextSalePrice = hasVariantSalePrice ? variantSalePrice : currentProductSalePrice;
+  const nextSalePriceEnabled = hasVariantSalePrice
+    ? (toBoolean(variantRow.sale_price_enabled, toBoolean(productRow.sale_price_enabled, false)) || nextSalePrice > 0)
+    : (toBoolean(productRow.sale_price_enabled, false) && currentProductSalePrice > 0);
   const copiedCostFields = {
     last_purchase_cost: nextLastPurchaseCost,
     last_purchase_price: pickPositiveMoney(
@@ -255,6 +258,13 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       price: nextPrice,
       sale_price: nextSalePrice,
       sale_price_enabled: nextSalePriceEnabled,
+    },
+    salePricePreservation: {
+      current_product_sale_price: productRow.sale_price ?? null,
+      current_product_sale_price_enabled: productRow.sale_price_enabled ?? null,
+      variant_sale_price: variantRow.sale_price ?? null,
+      variant_sale_price_enabled: variantRow.sale_price_enabled ?? null,
+      hasVariantSalePrice,
     },
   });
   console.log("[product-pricing-sync] copiedCostFields", {
@@ -313,6 +323,23 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       sale_price: nextSalePrice,
       sale_price_enabled: nextSalePriceEnabled,
     },
+  });
+
+  const afterSyncResult = await client.query(
+    `
+    SELECT id, sale_price, sale_price_enabled
+    FROM products
+    WHERE id = $1
+      AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
+    LIMIT 1
+    `,
+    [numericProductId, tenantId]
+  );
+
+  console.log("DB_SALE_PRICE_AFTER_PRODUCT_PRICING_SYNC", {
+    productId: numericProductId,
+    tenantId: tenantId ?? null,
+    db: afterSyncResult.rows[0] || null,
   });
 
   return updateResult.rowCount || 0;

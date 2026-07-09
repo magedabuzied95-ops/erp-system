@@ -4358,11 +4358,16 @@ export const updateProduct = async (req, res) => {
       : null;
     console.log("[products:update] incoming pricing payload", {
       productId: req.params.id,
+      request_sale_price: req.body?.sale_price ?? req.body?.salePrice ?? req.body?.offer_price ?? "__missing__",
+      request_sale_price_enabled: Object.prototype.hasOwnProperty.call(req.body || {}, "sale_price_enabled")
+        ? req.body?.sale_price_enabled
+        : "__missing__",
       top_level: {
         regular_price,
         price,
         selling_price: req.body?.selling_price ?? req.body?.sellingPrice,
         sale_price,
+        salePrice,
         offer_price,
         sale_price_enabled,
         sale_reason,
@@ -4462,6 +4467,20 @@ export const updateProduct = async (req, res) => {
       });
     }
     const currentProductRow = currentProductResult.rows[0] || {};
+    console.log("DB_SALE_PRICE_BEFORE_UPDATE", {
+      productId,
+      tenantId,
+      db: {
+        sale_price: currentProductRow.sale_price ?? null,
+        sale_price_enabled: currentProductRow.sale_price_enabled ?? null,
+      },
+      request: {
+        sale_price: req.body?.sale_price ?? req.body?.salePrice ?? req.body?.offer_price ?? "__missing__",
+        sale_price_enabled: Object.prototype.hasOwnProperty.call(req.body || {}, "sale_price_enabled")
+          ? req.body?.sale_price_enabled
+          : "__missing__",
+      },
+    });
     const bodyHas = (key) => Object.prototype.hasOwnProperty.call(req.body || {}, key);
     const nextName = bodyHas("name") ? String(name || "").trim() : String(currentProductRow.name || "").trim();
     const nextDescription = bodyHas("description") ? String(description || "").trim() : String(currentProductRow.description || "").trim();
@@ -4705,6 +4724,10 @@ export const updateProduct = async (req, res) => {
     });
     console.log("[products:update] sql update payload pricing", {
       productId,
+      request_sale_price: req.body?.sale_price ?? req.body?.salePrice ?? req.body?.offer_price ?? "__missing__",
+      request_sale_price_enabled: Object.prototype.hasOwnProperty.call(req.body || {}, "sale_price_enabled")
+        ? req.body?.sale_price_enabled
+        : "__missing__",
       update_presence: {
         basePriceProvided,
         salePriceProvided,
@@ -4770,6 +4793,14 @@ export const updateProduct = async (req, res) => {
         wholesale_price: updated.rows[0]?.wholesale_price,
       },
     });
+    console.log("DB_SALE_PRICE_IMMEDIATELY_AFTER_UPDATE", {
+      productId,
+      tenantId,
+      db: {
+        sale_price: updated.rows[0]?.sale_price ?? null,
+        sale_price_enabled: updated.rows[0]?.sale_price_enabled ?? null,
+      },
+    });
     await replaceProductAudiences(client, productId, normalizedAudiences);
     performanceLogger.markStage("Save attributes");
     const deletedIds = Array.isArray(deleted_variant_ids) ? deleted_variant_ids : [];
@@ -4832,6 +4863,21 @@ export const updateProduct = async (req, res) => {
       await syncProductPricingFromVariants(client, {
         productId,
         tenantId,
+      });
+      const salePriceAfterSyncResult = await client.query(
+        `
+        SELECT id, sale_price, sale_price_enabled
+        FROM products
+        WHERE id = $1
+          AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
+        LIMIT 1
+        `,
+        [productId, tenantId]
+      );
+      console.log("DB_SALE_PRICE_AFTER_PRODUCT_PRICING_SYNC", {
+        productId,
+        tenantId,
+        db: salePriceAfterSyncResult.rows[0] || null,
       });
       explicitlyArchivedVariants = await archiveProductVariantsByIds(client, {
         productId,
@@ -4954,7 +5000,7 @@ export const updateProduct = async (req, res) => {
     const updatedProduct = normalizeProductRow(updated.rows[0]);
     const thermalReadbackProduct = await client.query(
       `
-      SELECT id, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error
+      SELECT id, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error, sale_price, sale_price_enabled
       FROM products
       WHERE id = $1
         AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
@@ -4977,6 +5023,18 @@ export const updateProduct = async (req, res) => {
     console.log("PRODUCT_UPDATE_THERMAL_READBACK", {
       product: thermalReadbackProduct.rows[0] || null,
       variants: thermalReadbackVariants.rows || [],
+    });
+    console.log("FINAL_RETURNED_PRODUCT", {
+      productId,
+      tenantId,
+      returned: {
+        sale_price: updatedProduct?.sale_price ?? null,
+        sale_price_enabled: updatedProduct?.sale_price_enabled ?? null,
+      },
+      readback: {
+        sale_price: thermalReadbackProduct.rows[0]?.sale_price ?? null,
+        sale_price_enabled: thermalReadbackProduct.rows[0]?.sale_price_enabled ?? null,
+      },
     });
 
     const thermalColorJobs = buildThermalColorJobGroups({
