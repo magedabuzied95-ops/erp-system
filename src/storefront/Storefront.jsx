@@ -6890,7 +6890,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     [availableVariant, product, parsedSaleModeEnabled]
   );
   const sellingPrice = pricing.price;
-  const comparePrice = parsedSaleModeEnabled && pricing.comparePrice && pricing.comparePrice > sellingPrice ? pricing.comparePrice : 0;
+  const comparePrice = pricing.comparePrice && pricing.comparePrice > sellingPrice ? pricing.comparePrice : 0;
   const discountPercent = parsedSaleModeEnabled ? pricing.discountPercent || 0 : 0;
   const activeSizes = useMemo(
     () => providedAvailableSizes || getSizesForColorGroup(activeColorGroup),

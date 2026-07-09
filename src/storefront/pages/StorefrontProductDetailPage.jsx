@@ -435,7 +435,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const selectedPrice = resolveStorefrontPrice(product, safeActiveVariant);
   const selectedSellingPrice = selectedPrice.activePrice || displaySellingPrice(product, safeActiveVariant);
   const selectedComparePrice = selectedPrice.comparePrice || displayComparePrice(product, safeActiveVariant);
-  const selectedDiscountPercent = selectedComparePrice > selectedSellingPrice ? Math.max(1, Math.round(((selectedComparePrice - selectedSellingPrice) / selectedComparePrice) * 100)) : 0;
+  const selectedDiscountPercent = Number(selectedPrice.discountPercent || 0) || 0;
   const descriptionText = cleanDisplayText(product?.seo_description || product?.description_ar || product?.description_en || product?.description)
     || "طھطµظ…ظٹظ… ط¹ظ…ظ„ظٹ ط¨ط®ط§ظ…ط© Premium ظ…ظ†ط§ط³ط¨ ظ„ظ„ط®ط±ظˆط¬ ط§ظ„ظٹظˆظ…ظٹ ظˆط³ظ‡ظ„ ط§ظ„طھظ†ط³ظٹظ‚ ظ…ط¹ ط³طھط§ظٹظ„ط§طھ ظ…ط®طھظ„ظپط©.";
   const inWishlist = product && wishlist.some((item) => String(item.id) === String(product.id));

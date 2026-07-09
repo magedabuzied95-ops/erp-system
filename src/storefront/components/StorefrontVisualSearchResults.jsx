@@ -53,7 +53,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
   const parsedSaleModeEnabled = parseSaleModeEnabled(saleModeEnabled, true);
   const pricing = getDisplayPricing(safeProduct, parsedSaleModeEnabled, variant);
   const activePrice = pricing.price;
-  const comparePrice = parsedSaleModeEnabled && pricing.comparePrice && pricing.comparePrice > activePrice ? pricing.comparePrice : 0;
+  const comparePrice = pricing.comparePrice && pricing.comparePrice > activePrice ? pricing.comparePrice : 0;
   const meta = [safeProduct?.brand, safeProduct?.category, safeProduct?.gender, safeProduct?.grade].filter(Boolean).join(" / ") || t("storefront.products.storeProduct", "منتج من المتجر");
 
   const viewProduct = (event) => {
