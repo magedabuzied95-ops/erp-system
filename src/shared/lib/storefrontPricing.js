@@ -47,10 +47,24 @@ export const truthyStorefrontFlag = (value) =>
 export const storefrontForceSaleForOffer = (product = {}, variant = {}) =>
   truthyStorefrontFlag(variant?.is_offer_story) ||
   truthyStorefrontFlag(variant?.isOfferStory) ||
+  truthyStorefrontFlag(variant?.is_offer) ||
+  truthyStorefrontFlag(variant?.isOffer) ||
+  truthyStorefrontFlag(variant?.offer) ||
+  truthyStorefrontFlag(variant?.appears_in_offers) ||
+  truthyStorefrontFlag(variant?.appearsInOffers) ||
+  truthyStorefrontFlag(variant?.storefront_offer) ||
+  truthyStorefrontFlag(variant?.storefrontOffer) ||
   truthyStorefrontFlag(variant?.show_in_offer_story) ||
   truthyStorefrontFlag(variant?.showInOfferStory) ||
   truthyStorefrontFlag(product?.is_offer_story) ||
   truthyStorefrontFlag(product?.isOfferStory) ||
+  truthyStorefrontFlag(product?.is_offer) ||
+  truthyStorefrontFlag(product?.isOffer) ||
+  truthyStorefrontFlag(product?.offer) ||
+  truthyStorefrontFlag(product?.appears_in_offers) ||
+  truthyStorefrontFlag(product?.appearsInOffers) ||
+  truthyStorefrontFlag(product?.storefront_offer) ||
+  truthyStorefrontFlag(product?.storefrontOffer) ||
   truthyStorefrontFlag(product?.show_in_offer_story) ||
   truthyStorefrontFlag(product?.showInOfferStory);
 

@@ -2579,11 +2579,11 @@ const offerStoryPriceInfo = (product = {}) => {
     storefrontSalePricesEnabled
   );
   return {
-    offerSalePrice: storefrontSalePricesEnabled && pricing.isOnSale ? pricing.salePrice : 0,
+    offerSalePrice: pricing.isOnSale ? pricing.salePrice : 0,
     regularPrice: pricing.sellingPrice,
-    comparePrice: storefrontSalePricesEnabled && pricing.isOnSale ? pricing.comparePrice || 0 : 0,
+    comparePrice: pricing.isOnSale ? pricing.comparePrice || 0 : 0,
     displayPrice: pricing.price,
-    crossedPrice: storefrontSalePricesEnabled && pricing.isOnSale ? pricing.comparePrice || 0 : 0,
+    crossedPrice: pricing.isOnSale ? pricing.comparePrice || 0 : 0,
   };
 };
 
