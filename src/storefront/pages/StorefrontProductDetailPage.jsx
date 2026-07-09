@@ -707,7 +707,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
               type="button"
               onClick={() => safeActiveVariant && onAddToCart(product, safeActiveVariant, qty, { sourceEl: mainImageRef.current })}
               disabled={!safeActiveVariant || !variantHasStock(safeActiveVariant)}
-              className="sf-product-cta flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
+              className="sf-product-cta col-span-full flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-white text-sm font-black text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.16)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/35"
             >
               <ShoppingCart className="h-4 w-4" />
               {sfText("storefront.cart.addToCart", "Add to cart")}
