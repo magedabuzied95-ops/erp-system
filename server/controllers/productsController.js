@@ -4169,6 +4169,7 @@ export const updateProduct = async (req, res) => {
         regular_price,
         price,
       sale_price,
+      salePrice,
       offer_price,
       sale_price_enabled,
       sale_reason,
@@ -4304,7 +4305,7 @@ export const updateProduct = async (req, res) => {
     const basePriceProvided = ["selling_price", "sellingPrice", "regular_price", "price"].some((key) =>
       Object.prototype.hasOwnProperty.call(req.body || {}, key)
     );
-    const salePriceProvided = ["sale_price", "offer_price"].some((key) =>
+    const salePriceProvided = ["sale_price", "salePrice", "offer_price"].some((key) =>
       Object.prototype.hasOwnProperty.call(req.body || {}, key)
     );
     const salePriceEnabledProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "sale_price_enabled");
@@ -4332,7 +4333,7 @@ export const updateProduct = async (req, res) => {
     const normalizedRegularPrice = basePriceProvided
       ? toPriceValue(selling_price ?? req.body?.sellingPrice ?? regular_price ?? price)
       : null;
-    const rawSalePrice = sale_price ?? offer_price;
+    const rawSalePrice = sale_price ?? salePrice ?? offer_price;
     const salePriceClearRequested =
       salePriceProvided &&
       (rawSalePrice === "" || rawSalePrice === null || rawSalePrice === undefined) &&

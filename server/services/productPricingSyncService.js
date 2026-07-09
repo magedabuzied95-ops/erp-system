@@ -205,8 +205,10 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.regular_price,
     productRow.selling_price
   );
-  const nextSalePrice = pickMoney(variantRow.sale_price, productRow.sale_price);
-  const nextSalePriceEnabled = (toBoolean(variantRow.sale_price_enabled, toBoolean(productRow.sale_price_enabled, false)) || nextSalePrice > 0) && nextSalePrice > 0;
+  const nextSalePrice = pickPositiveMoney(variantRow.sale_price, productRow.sale_price);
+  const nextSalePriceEnabled = nextSalePrice > 0
+    ? toBoolean(variantRow.sale_price_enabled, toBoolean(productRow.sale_price_enabled, false)) || nextSalePrice > 0
+    : false;
   const copiedCostFields = {
     last_purchase_cost: nextLastPurchaseCost,
     last_purchase_price: pickPositiveMoney(
