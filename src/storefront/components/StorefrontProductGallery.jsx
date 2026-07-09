@@ -9,14 +9,22 @@ export default function StorefrontProductGallery({
   selectedImage = "",
   activeImageIndex = 0,
   onSelectImage,
+  onStepImage,
   imageFor,
   fallbackProductImage,
   mainImageRef = null,
 }) {
   const thumbnailsRef = useRef(null);
 
-  const scrollThumbnails = (offset) => {
-    thumbnailsRef.current?.scrollBy?.({ left: offset, behavior: "smooth" });
+  const scrollActiveThumbnailIntoView = (index) => {
+    const element = thumbnailsRef.current?.querySelector?.(`[data-gallery-index="${index}"]`);
+    element?.scrollIntoView?.({ behavior: "smooth", inline: "center", block: "nearest" });
+  };
+
+  const stepGallery = (direction) => {
+    onStepImage?.(direction);
+    const nextIndex = Number.isInteger(activeImageIndex) ? activeImageIndex + direction : 0;
+    window.setTimeout(() => scrollActiveThumbnailIntoView(nextIndex), 0);
   };
 
   return (
@@ -29,9 +37,9 @@ export default function StorefrontProductGallery({
         <div dir="ltr" className="sf-product-thumbnails mt-1.5 flex items-center gap-1.5 md:mt-3 md:gap-2">
           <button
             type="button"
-            onClick={() => scrollThumbnails(-220)}
+            onClick={() => stepGallery(-1)}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-[0_8px_18px_rgba(39,20,75,0.08)] transition hover:border-stone-300 hover:text-stone-950 md:h-11 md:w-11"
-            aria-label="Scroll thumbnails left"
+            aria-label="Previous image"
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -43,6 +51,7 @@ export default function StorefrontProductGallery({
                 <button
                   key={`${image}-${imageIndex}`}
                   type="button"
+                  data-gallery-index={imageIndex}
                   onClick={() => onSelectImage?.(item, imageIndex)}
                   className={`sf-product-thumb h-12 w-12 shrink-0 snap-start overflow-hidden rounded-xl border bg-white p-1 transition-[background-color,border-color,box-shadow,opacity,transform] duration-75 hover:border-stone-900 hover:shadow-[0_10px_24px_rgba(39,20,75,0.10)] md:h-20 md:w-20 md:rounded-2xl md:p-1.5 ${active ? "border-stone-950 shadow-[0_12px_28px_rgba(39,20,75,0.14)]" : "border-stone-200"}`}
                 >
@@ -53,9 +62,9 @@ export default function StorefrontProductGallery({
           </div>
           <button
             type="button"
-            onClick={() => scrollThumbnails(220)}
+            onClick={() => stepGallery(1)}
             className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-stone-200 bg-white text-stone-700 shadow-[0_8px_18px_rgba(39,20,75,0.08)] transition hover:border-stone-300 hover:text-stone-950 md:h-11 md:w-11"
-            aria-label="Scroll thumbnails right"
+            aria-label="Next image"
           >
             <ChevronRight className="h-4 w-4" />
           </button>
