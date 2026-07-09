@@ -38,6 +38,21 @@ import { useProductClassifications } from "../../modules/products/hooks/useProdu
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
 import { Baby, Briefcase, ChevronLeft, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
 
+const FILTER_DEBOUNCE_MS = 320;
+
+const useDebouncedValue = (value, delay = FILTER_DEBOUNCE_MS) => {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedValue(value);
+    }, delay);
+    return () => window.clearTimeout(timeoutId);
+  }, [delay, value]);
+
+  return debouncedValue;
+};
+
 const normalizeFilterText = (value = "") => String(value ?? "").trim();
 const normalizeAudienceFilterKey = (value = "") => normalizeFilterKey(String(value ?? "").normalize("NFKD").replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "").replace(/\p{M}+/gu, "")).replace(/['\u2019]/g, "'");
 const normalizeStorefrontAudienceValue = (value = "") => {
@@ -487,10 +502,11 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     () => classificationGroupsToFieldOptions(classificationGroups, { gender, productType, grade }, { includeInactive: false }),
     [classificationGroups, gender, grade, productType]
   );
-  const productsApiParams = useMemo(
+  const backendFilterState = useMemo(
     () => ({ q: backendSearchTerm, gender: gender || "", offer_story: saleView ? 1 : "", sort, limit: 500 }),
     [backendSearchTerm, gender, saleView, sort]
   );
+  const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
   const { products, loading, error } = useProducts(productsApiParams, { ttlMs: 0 });
   const filterBasePath = sale ? "/sale" : "/products";
   const activeFilterCount = [
@@ -553,7 +569,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       })),
     });
   }, [catalogProducts, offerStoryQuery, productsApiParams, saleView]);
-  const catalogFilters = useMemo(
+  const filterState = useMemo(
     () => ({
       gender,
       category,
@@ -568,27 +584,47 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       saleView,
       lastSizes,
       inStock,
+      selectedSort,
     }),
-    [brand, category, color, grade, inStock, lastSizes, maxPrice, minPrice, productType, quality, saleView, selectedSizes, gender]
+    [brand, category, color, grade, inStock, lastSizes, maxPrice, minPrice, productType, quality, saleView, selectedSizes, gender, selectedSort]
+  );
+  const debouncedFilterState = useDebouncedValue(filterState, FILTER_DEBOUNCE_MS);
+  const catalogFilters = useMemo(
+    () => ({
+      gender: debouncedFilterState.gender,
+      category: debouncedFilterState.category,
+      brand: debouncedFilterState.brand,
+      productType: debouncedFilterState.productType,
+      grade: debouncedFilterState.grade,
+      color: debouncedFilterState.color,
+      quality: debouncedFilterState.quality,
+      sizes: debouncedFilterState.sizes,
+      minPrice: debouncedFilterState.minPrice,
+      maxPrice: debouncedFilterState.maxPrice,
+      saleView: debouncedFilterState.saleView,
+      lastSizes: debouncedFilterState.lastSizes,
+      inStock: debouncedFilterState.inStock,
+    }),
+    [debouncedFilterState]
   );
   const catalogFiltersWithoutGender = useMemo(
     () => ({ ...catalogFilters, gender: "" }),
     [catalogFilters]
   );
   const hasActiveCatalogFilters = Boolean(
-    gender ||
-      category ||
-      brand ||
-      productType ||
-      grade ||
-      quality ||
-      color ||
-      selectedSizes.length ||
-      minPrice ||
-      maxPrice ||
-      saleView ||
-      lastSizes ||
-      inStock
+    debouncedFilterState.gender ||
+      debouncedFilterState.category ||
+      debouncedFilterState.brand ||
+      debouncedFilterState.productType ||
+      debouncedFilterState.grade ||
+      debouncedFilterState.quality ||
+      debouncedFilterState.color ||
+      debouncedFilterState.sizes.length ||
+      debouncedFilterState.minPrice ||
+      debouncedFilterState.maxPrice ||
+      debouncedFilterState.saleView ||
+      debouncedFilterState.lastSizes ||
+      debouncedFilterState.inStock
   );
   const filterCatalogProducts = (items = [], filters = {}, ignore = []) => {
     const ignoreSet = new Set(Array.isArray(ignore) ? ignore : [ignore].filter(Boolean));
@@ -662,7 +698,10 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     () => (hasActiveCatalogFilters ? filterCatalogProducts(catalogProducts, catalogFiltersWithoutGender) : catalogProducts),
     [catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
   );
-  const orderedFilteredProducts = useMemo(() => sortStorefrontColorCardsByModel(sortCatalogProducts(filteredProducts, selectedSort)), [filteredProducts, selectedSort]);
+  const orderedFilteredProducts = useMemo(
+    () => sortStorefrontColorCardsByModel(sortCatalogProducts(filteredProducts, debouncedFilterState.selectedSort)),
+    [debouncedFilterState.selectedSort, filteredProducts]
+  );
   const filteredProductsForGender = useMemo(
     () => (hasActiveCatalogFilters ? filterCatalogProducts(catalogProducts, catalogFilters, ["gender"]) : catalogProducts),
     [catalogFilters, catalogProducts, hasActiveCatalogFilters]

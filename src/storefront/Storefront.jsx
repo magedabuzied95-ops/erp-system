@@ -5267,6 +5267,51 @@ function useStorefrontProductGridColumns() {
 }
 
 const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist, toggleWishlist, onAddToCart, saleModeEnabled }) {
+  const columnCount = useProductGridColumnCount();
+  const initialBatchSize = columnCount >= 4 ? 16 : 12;
+  const appendBatchSize = columnCount >= 4 ? 8 : 4;
+  const [visibleCount, setVisibleCount] = useState(initialBatchSize);
+  const [isAppending, setIsAppending] = useState(false);
+  const loadMoreSentinelRef = useRef(null);
+  const productSignature = useMemo(
+    () => products.map((product, index) => productCardKey(product, index)).join("|"),
+    [products]
+  );
+  const visibleProducts = useMemo(
+    () => products.slice(0, visibleCount),
+    [products, visibleCount]
+  );
+  const hasMoreProducts = visibleCount < products.length;
+
+  useEffect(() => {
+    setVisibleCount(initialBatchSize);
+    setIsAppending(false);
+  }, [initialBatchSize, productSignature]);
+
+  const loadMoreProducts = useCallback(() => {
+    if (isAppending || !hasMoreProducts) return;
+    setIsAppending(true);
+    window.setTimeout(() => {
+      setVisibleCount((current) => Math.min(products.length, current + appendBatchSize));
+      setIsAppending(false);
+    }, 120);
+  }, [appendBatchSize, hasMoreProducts, isAppending, products.length]);
+
+  useEffect(() => {
+    const target = loadMoreSentinelRef.current;
+    if (!target || !hasMoreProducts || isAppending || typeof window === "undefined" || !("IntersectionObserver" in window)) return undefined;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          loadMoreProducts();
+        }
+      },
+      { rootMargin: "320px 0px" }
+    );
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [hasMoreProducts, isAppending, loadMoreProducts]);
+
   const renderProduct = useCallback((product, index, key) => {
     return (
       <ProductCard
@@ -5277,16 +5322,21 @@ const ProductGrid = memo(function ProductGrid({ products = [], loading, wishlist
         onAddToCart={onAddToCart}
         saleModeEnabled={saleModeEnabled}
         sizeLimit={4}
+        eagerImage={index < columnCount}
       />
     );
-  }, [onAddToCart, saleModeEnabled, toggleWishlist, wishlist]);
+  }, [columnCount, onAddToCart, saleModeEnabled, toggleWishlist, wishlist]);
 
-  if (loading) return <ProductSkeleton count={8} />;
+  if (loading && !products.length) return <ProductSkeleton count={8} />;
 
   return (
-    <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5">
-      {products.map((product, index) => renderProduct(product, index, productCardKey(product, index)))}
-    </div>
+    <>
+      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-4 md:gap-5">
+        {visibleProducts.map((product, index) => renderProduct(product, index, productCardKey(product, index)))}
+      </div>
+      {isAppending ? <div className="mt-3"><ProductSkeleton count={appendBatchSize} /></div> : null}
+      {hasMoreProducts ? <div ref={loadMoreSentinelRef} aria-hidden="true" className="h-px w-full" /> : null}
+    </>
   );
 });
 
