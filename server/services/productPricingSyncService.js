@@ -29,12 +29,18 @@ const pickPositiveMoney = (...values) => {
   }
   return 0;
 };
+const hasPositiveMoneyValue = (value) => {
+  if (value === undefined || value === null) return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  const normalized = typeof value === "number" ? value : parseFloat(String(value).trim());
+  return Number.isFinite(normalized) && normalized > 0;
+};
 
 const pricingSignalScoreSql = `
   (
     (CASE WHEN COALESCE(NULLIF(last_purchase_cost, 0), NULLIF(average_cost, 0), NULLIF(cost_price, 0), NULLIF(purchase_price, 0)) IS NOT NULL THEN 4 ELSE 0 END) +
     (CASE WHEN COALESCE(NULLIF(selling_price, 0), NULLIF(price, 0), NULLIF(regular_price, 0)) IS NOT NULL THEN 2 ELSE 0 END) +
-    (CASE WHEN COALESCE(NULLIF(sale_price, 0), NULLIF(sale_price_enabled::int, 0)) IS NOT NULL THEN 1 ELSE 0 END)
+    (CASE WHEN COALESCE(sale_price_enabled, FALSE) = TRUE AND COALESCE(sale_price, 0) > 0 THEN 1 ELSE 0 END)
   )
 `;
 
@@ -125,7 +131,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       ${pricingSignalScoreSql} DESC,
       COALESCE(NULLIF(last_purchase_cost, 0), NULLIF(average_cost, 0), NULLIF(cost_price, 0), NULLIF(purchase_price, 0)) DESC,
       COALESCE(NULLIF(selling_price, 0), NULLIF(price, 0), NULLIF(regular_price, 0)) DESC,
-      COALESCE(NULLIF(sale_price, 0), NULLIF(sale_price_enabled::int, 0)) DESC,
+      CASE WHEN COALESCE(sale_price_enabled, FALSE) = TRUE AND COALESCE(sale_price, 0) > 0 THEN sale_price ELSE 0 END DESC,
       COALESCE(updated_at, last_purchase_pricing_at) DESC,
       id DESC
     LIMIT 1
@@ -205,13 +211,12 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.regular_price,
     productRow.selling_price
   );
-  const currentProductSalePrice = pickPositiveMoney(productRow.sale_price);
-  const variantSalePrice = pickPositiveMoney(variantRow.sale_price);
-  const hasVariantSalePrice = variantSalePrice > 0;
-  const nextSalePrice = hasVariantSalePrice ? variantSalePrice : currentProductSalePrice;
-  const nextSalePriceEnabled = hasVariantSalePrice
-    ? (toBoolean(variantRow.sale_price_enabled, toBoolean(productRow.sale_price_enabled, false)) || nextSalePrice > 0)
-    : (toBoolean(productRow.sale_price_enabled, false) && currentProductSalePrice > 0);
+  const productSalePriceEnabled = toBoolean(productRow.sale_price_enabled, false);
+  const variantSalePriceEnabled = toBoolean(variantRow.sale_price_enabled, false);
+  const hasExistingProductSalePrice = hasPositiveMoneyValue(productRow.sale_price);
+  const hasValidVariantSalePrice = variantSalePriceEnabled && hasPositiveMoneyValue(variantRow.sale_price);
+  const nextSalePrice = hasValidVariantSalePrice ? variantRow.sale_price : productRow.sale_price;
+  const nextSalePriceEnabled = hasValidVariantSalePrice ? true : productRow.sale_price_enabled;
   const copiedCostFields = {
     last_purchase_cost: nextLastPurchaseCost,
     last_purchase_price: pickPositiveMoney(
@@ -264,7 +269,9 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       current_product_sale_price_enabled: productRow.sale_price_enabled ?? null,
       variant_sale_price: variantRow.sale_price ?? null,
       variant_sale_price_enabled: variantRow.sale_price_enabled ?? null,
-      hasVariantSalePrice,
+      hasExistingProductSalePrice,
+      hasValidVariantSalePrice,
+      productSalePriceEnabled,
     },
   });
   console.log("[product-pricing-sync] copiedCostFields", {
