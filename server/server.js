@@ -1856,7 +1856,7 @@ app.get("/", (req, res) => {
 
 app.use((err, req, res, next) => {
 
-  console.log("SERVER ERROR:", err);
+  console.error("SERVER ERROR:", err);
   void next;
 
   if (isCorsOriginError(err)) {
@@ -1897,7 +1897,7 @@ app.use((err, req, res, next) => {
 
   res.status(500).json({
     success: false,
-    message: err.message || "Server Error"
+    message: "Internal Server Error"
   });
 
 });
