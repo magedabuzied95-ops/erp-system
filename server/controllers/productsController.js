@@ -5184,11 +5184,11 @@ export const updateProductStatus = async (req, res) => {
     const productId = normalizeOptionalForeignKey(req.params.id);
     if (!productId) return res.status(400).json({ success: false, message: "Invalid product id" });
 
-    const statusProvided =
-      Object.prototype.hasOwnProperty.call(req.body || {}, "status") ||
-      Object.prototype.hasOwnProperty.call(req.body || {}, "is_active") ||
-      Object.prototype.hasOwnProperty.call(req.body || {}, "active");
     const body = req.body && typeof req.body === "object" ? req.body : {};
+    const statusProvided =
+      Object.prototype.hasOwnProperty.call(body, "status") ||
+      Object.prototype.hasOwnProperty.call(body, "is_active") ||
+      Object.prototype.hasOwnProperty.call(body, "active");
     const offerStoryProvided = Object.prototype.hasOwnProperty.call(body, "is_offer_story");
     const posFavoriteProvided = Object.prototype.hasOwnProperty.call(body, "is_pos_favorite");
     const storefrontVisibleProvided = Object.prototype.hasOwnProperty.call(body, "is_storefront_visible");
