@@ -5185,6 +5185,10 @@ export const updateProductStatus = async (req, res) => {
     if (!productId) return res.status(400).json({ success: false, message: "Invalid product id" });
 
     const body = req.body && typeof req.body === "object" ? req.body : {};
+    console.log("[PRODUCT_STATUS_BODY]", {
+      keys: Object.keys(req.body || {}),
+      body: req.body,
+    });
     const statusProvided =
       Object.prototype.hasOwnProperty.call(body, "status") ||
       Object.prototype.hasOwnProperty.call(body, "is_active") ||
