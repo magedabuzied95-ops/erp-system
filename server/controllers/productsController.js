@@ -514,6 +514,16 @@ const normalizePurchaseAlertByColor = (value, fallback = false) => {
   return fallback;
 };
 
+const normalizeBooleanField = (value, fallback = false) => {
+  if (value === undefined || value === null || value === "") return fallback;
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0) return false;
+  const normalized = String(value).trim().toLowerCase();
+  if (["true", "1", "yes", "on"].includes(normalized)) return true;
+  if (["false", "0", "no", "off"].includes(normalized)) return false;
+  return fallback;
+};
+
 const ensureProductVariantManufacturerColumn = async () => {
   if (!productVariantSchemaReadyPromise) {
     productVariantSchemaReadyPromise = (async () => {
@@ -5178,9 +5188,10 @@ export const updateProductStatus = async (req, res) => {
       Object.prototype.hasOwnProperty.call(req.body || {}, "status") ||
       Object.prototype.hasOwnProperty.call(req.body || {}, "is_active") ||
       Object.prototype.hasOwnProperty.call(req.body || {}, "active");
-    const offerStoryProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "is_offer_story");
-    const posFavoriteProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "is_pos_favorite");
-    const storefrontVisibleProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "is_storefront_visible");
+    const body = req.body && typeof req.body === "object" ? req.body : {};
+    const offerStoryProvided = Object.prototype.hasOwnProperty.call(body, "is_offer_story");
+    const posFavoriteProvided = Object.prototype.hasOwnProperty.call(body, "is_pos_favorite");
+    const storefrontVisibleProvided = Object.prototype.hasOwnProperty.call(body, "is_storefront_visible");
     const requestedStatus = String(req.body?.status || "").trim().toLowerCase();
     const requestedActive =
       req.body?.is_active === true ||
@@ -5234,17 +5245,17 @@ export const updateProductStatus = async (req, res) => {
       setParts.push(`is_active = $${values.length}`);
     }
     if (offerStoryProvided && productColumns.has("is_offer_story")) {
-      const nextOfferStory = req.body?.is_offer_story === true || String(req.body?.is_offer_story || "").toLowerCase() === "true";
+      const nextOfferStory = normalizeBooleanField(body.is_offer_story, false);
       values.push(nextOfferStory);
       setParts.push(`is_offer_story = $${values.length}`);
     }
     if (posFavoriteProvided && productColumns.has("is_pos_favorite")) {
-      const nextPosFavorite = req.body?.is_pos_favorite === true || String(req.body?.is_pos_favorite || "").toLowerCase() === "true";
+      const nextPosFavorite = normalizeBooleanField(body.is_pos_favorite, false);
       values.push(nextPosFavorite);
       setParts.push(`is_pos_favorite = $${values.length}`);
     }
     if (storefrontVisibleProvided && productColumns.has("is_storefront_visible")) {
-      const nextStorefrontVisible = req.body?.is_storefront_visible === true || String(req.body?.is_storefront_visible || "").toLowerCase() === "true";
+      const nextStorefrontVisible = normalizeBooleanField(body.is_storefront_visible, false);
       values.push(nextStorefrontVisible);
       setParts.push(`is_storefront_visible = $${values.length}`);
     }
@@ -5275,9 +5286,9 @@ export const updateProductStatus = async (req, res) => {
       previous_status: currentStatus,
       status: statusProvided ? nextStatus : currentStatus,
       is_active: statusProvided ? requestedActive : null,
-      is_offer_story: offerStoryProvided ? (req.body?.is_offer_story === true || String(req.body?.is_offer_story || "").toLowerCase() === "true") : null,
-      is_pos_favorite: posFavoriteProvided ? (req.body?.is_pos_favorite === true || String(req.body?.is_pos_favorite || "").toLowerCase() === "true") : null,
-      is_storefront_visible: storefrontVisibleProvided ? (req.body?.is_storefront_visible === true || String(req.body?.is_storefront_visible || "").toLowerCase() === "true") : null,
+      is_offer_story: offerStoryProvided ? normalizeBooleanField(body.is_offer_story, false) : null,
+      is_pos_favorite: posFavoriteProvided ? normalizeBooleanField(body.is_pos_favorite, false) : null,
+      is_storefront_visible: storefrontVisibleProvided ? normalizeBooleanField(body.is_storefront_visible, false) : null,
       affected_rows: updated.rowCount,
       db_snapshot: refreshed
         ? {
