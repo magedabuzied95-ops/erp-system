@@ -140,7 +140,7 @@ const logInvoiceRowImageDebug = (item, index, resolvedImageUrl) => {
   });
 };
 
-export default function OrderInvoiceCard({ order, items, invoice, className = "", compact = false, luxury = false }) {
+export default function OrderInvoiceCard({ order, items, invoice, className = "", compact = false, luxury = false, publicView = false }) {
   const { t } = useTranslation();
   const { dir, isRtl, formatDate } = useLocale();
   const storeBranding = getStoreBranding();
@@ -172,50 +172,87 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
   const articleClass = luxury
     ? "overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[#FAFAF9] text-slate-950 shadow-[0_34px_100px_rgba(0,0,0,0.36),0_2px_0_rgba(255,255,255,0.85)_inset] print:rounded-none print:border-slate-200 print:bg-white print:text-slate-950 print:shadow-none"
     : "overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white text-stone-950 shadow-[0_18px_50px_rgba(39,20,75,0.07)]";
+  const resolvedPaymentMethod = getPaymentMethodLabel(paymentMethod || data?.paymentMethod);
 
   return (
     <article dir={dir} className={`${articleClass} ${textAlignClass} ${className}`}>
       <div className={`${luxury ? "border-b border-slate-200/75 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_54%,#f1f5f9_100%)] p-5 print:border-slate-200 print:bg-white sm:p-6" : "border-b border-stone-200 bg-stone-50/80 p-5"}`}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="flex items-start gap-3">
-            {data.store?.logoUrl ? (
-              <div className={`grid h-16 w-16 shrink-0 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.35rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-2xl border-stone-200"}`}>
-                <img
-                  src={data.store?.logoUrl}
-                  alt={data.store?.name || "M1 Store"}
-                  className="h-full w-full object-contain p-2"
-                  onError={(event) => {
-                    event.currentTarget.style.display = "none";
-                  }}
-                />
+        <div className={`flex flex-col gap-4 ${publicView ? "" : "sm:flex-row sm:items-start sm:justify-between"}`}>
+          {publicView ? (
+            <>
+              <div className="flex flex-col items-center text-center">
+                {data.store?.logoUrl ? (
+                  <div className={`grid h-20 w-20 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.5rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-2xl border-stone-200"}`}>
+                    <img
+                      src={data.store?.logoUrl}
+                      alt={data.store?.name || "M1 Store"}
+                      className="h-full w-full object-contain p-2"
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                    />
+                  </div>
+                ) : null}
+                <div className={`mt-3 ${luxury ? "text-2xl font-black tracking-tight text-slate-950 sm:text-[1.7rem]" : "text-2xl font-black"}`}>{data?.store?.name || storeBranding.name || "M1 Store"}</div>
+                <div className={`mt-1.5 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${luxury ? "border-violet-200 bg-violet-50 text-violet-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                  <ShoppingBag className="h-3.5 w-3.5" />
+                  {INVOICE_COPY.orderInvoice}
+                </div>
               </div>
-            ) : null}
-            <div>
-              <div className={`${luxury ? "text-2xl font-black tracking-tight text-slate-950 sm:text-[1.7rem]" : "text-2xl font-black"}`}>{data?.store?.name || storeBranding.name || "M1 Store"}</div>
-              <div className={`mt-1.5 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${luxury ? "border-violet-200 bg-violet-50 text-violet-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                <ShoppingBag className="h-3.5 w-3.5" />
-                {INVOICE_COPY.orderInvoice}
+              <div className="flex flex-col gap-2">
+                <div className={`flex flex-wrap items-center justify-between gap-3 ${luxury ? "text-slate-500" : "text-stone-500"}`}>
+                  <div className="text-sm font-bold">
+                    {INVOICE_COPY.orderDate}: {formatDate(data?.createdAt)}
+                  </div>
+                  <div className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black tracking-wide ${luxury ? "border-violet-200 bg-violet-50 text-violet-900" : "border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]"}`} dir="ltr">
+                    {publicNumber}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
-          <div className={`${amountAlignClass} sm:min-w-52`}>
-            <div className={`${luxury ? "text-[0.7rem] font-black tracking-[0.22em] text-slate-400 print:text-slate-500" : "text-sm font-black text-stone-500"}`}>{INVOICE_COPY.orderNumber}</div>
-            <div className={`mt-2 inline-flex items-center rounded-full border px-3 py-1 text-xs font-black tracking-wide ${luxury ? "border-violet-200 bg-violet-50 text-violet-900" : "border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]"}`} dir="ltr">
-              {publicNumber}
-            </div>
-            <div className={`mt-2 flex items-center gap-1 text-sm font-bold ${luxury ? "text-slate-500" : "text-stone-500"} ${isRtl ? "justify-end" : "justify-start"}`}>
-              <CalendarDays className="h-4 w-4" />
-              {INVOICE_COPY.orderDate}: {formatDate(data?.createdAt)}
-            </div>
-          </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-start gap-3">
+                {data.store?.logoUrl ? (
+                  <div className={`grid h-16 w-16 shrink-0 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.35rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-2xl border-stone-200"}`}>
+                    <img
+                      src={data.store?.logoUrl}
+                      alt={data.store?.name || "M1 Store"}
+                      className="h-full w-full object-contain p-2"
+                      onError={(event) => {
+                        event.currentTarget.style.display = "none";
+                      }}
+                    />
+                  </div>
+                ) : null}
+                <div>
+                  <div className={`${luxury ? "text-2xl font-black tracking-tight text-slate-950 sm:text-[1.7rem]" : "text-2xl font-black"}`}>{data?.store?.name || storeBranding.name || "M1 Store"}</div>
+                  <div className={`mt-1.5 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${luxury ? "border-violet-200 bg-violet-50 text-violet-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    <ShoppingBag className="h-3.5 w-3.5" />
+                    {INVOICE_COPY.orderInvoice}
+                  </div>
+                </div>
+              </div>
+              <div className={`${amountAlignClass} sm:min-w-52`}>
+                <div className={`${luxury ? "text-[0.7rem] font-black tracking-[0.22em] text-slate-400 print:text-slate-500" : "text-sm font-black text-stone-500"}`}>{INVOICE_COPY.orderNumber}</div>
+                <div className={`mt-2 inline-flex items-center rounded-full border px-3 py-1 text-xs font-black tracking-wide ${luxury ? "border-violet-200 bg-violet-50 text-violet-900" : "border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]"}`} dir="ltr">
+                  {publicNumber}
+                </div>
+                <div className={`mt-2 flex items-center gap-1 text-sm font-bold ${luxury ? "text-slate-500" : "text-stone-500"} ${isRtl ? "justify-end" : "justify-start"}`}>
+                  <CalendarDays className="h-4 w-4" />
+                  {INVOICE_COPY.orderDate}: {formatDate(data?.createdAt)}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
-      <div className={`${luxury ? "grid gap-3 p-5 sm:grid-cols-2 sm:p-6 lg:grid-cols-4" : "grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-4"}`}>
-        <Meta luxury={luxury} icon={User} label={INVOICE_COPY.customer} value={data?.customer?.name || INVOICE_COPY.walkInCustomer} unavailable={unavailable} />
-        <Meta luxury={luxury} icon={Phone} label={INVOICE_COPY.phone} value={data?.customer?.phone || unavailable} unavailable={unavailable} />
-        <Meta luxury={luxury} label={INVOICE_COPY.status} value={getStatusLabel(data.status || "pending")} unavailable={unavailable} badge />
-        <Meta luxury={luxury} icon={CreditCard} label={INVOICE_COPY.paymentMethod} value={getPaymentMethodLabel(paymentMethod || data?.paymentMethod)} unavailable={unavailable} />
+      <div className={`${luxury ? `grid gap-3 p-5 sm:p-6 ${publicView ? "sm:grid-cols-2 lg:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}` : `grid gap-3 p-5 ${publicView ? "sm:grid-cols-2 lg:grid-cols-2" : "sm:grid-cols-2 lg:grid-cols-4"}`}`}>
+        <Meta luxury={luxury} icon={User} label={INVOICE_COPY.customer} value={data?.customer?.name || INVOICE_COPY.walkInCustomer} unavailable={unavailable} inline={publicView} />
+        <Meta luxury={luxury} icon={Phone} label={INVOICE_COPY.phone} value={data?.customer?.phone || unavailable} unavailable={unavailable} inline={publicView} />
+        {!publicView ? <Meta luxury={luxury} label={INVOICE_COPY.status} value={getStatusLabel(data.status || "pending")} unavailable={unavailable} badge /> : null}
+        {!publicView ? <Meta luxury={luxury} icon={CreditCard} label={INVOICE_COPY.paymentMethod} value={resolvedPaymentMethod} unavailable={unavailable} /> : null}
       </div>
 
       <div className={`${luxury ? "px-5 pb-6 sm:px-6" : "px-5 pb-5"}`}>
@@ -274,26 +311,35 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
             <span>{INVOICE_COPY.grandTotal}</span>
             <span className={`${luxury ? "text-xl text-emerald-700" : "text-emerald-700"}`}>{formatCurrency(totals?.grandTotal)}</span>
           </div>
+          {publicView ? (
+            <div className={`mt-3 border-t pt-3 text-sm font-black ${luxury ? "border-slate-200 text-slate-950" : "border-stone-200"}`}>
+              {INVOICE_COPY.paymentMethod}: {resolvedPaymentMethod || unavailable}
+            </div>
+          ) : null}
         </div>
       </div>
     </article>
   );
 }
 
-function Meta({ icon: Icon, label, value, unavailable, luxury = false, badge = false }) {
+function Meta({ icon: Icon, label, value, unavailable, luxury = false, badge = false, inline = false }) {
   const tone = getStatusTone(value);
   return (
     <div className={`rounded-2xl border px-4 py-3 ${luxury ? "border-slate-200/90 bg-white/70 shadow-[0_12px_32px_rgba(15,23,42,0.05)] print:bg-slate-50 print:shadow-none" : "border-stone-200 bg-stone-50"}`}>
-      <div className={`flex items-center gap-2 text-xs font-black ${luxury ? "uppercase tracking-[0.14em] text-slate-400" : "text-stone-500"}`}>
-        {Icon ? <Icon className="h-4 w-4" /> : null}
-        {label}
-      </div>
+      {!inline ? (
+        <div className={`flex items-center gap-2 text-xs font-black ${luxury ? "uppercase tracking-[0.14em] text-slate-400" : "text-stone-500"}`}>
+          {Icon ? <Icon className="h-4 w-4" /> : null}
+          {label}
+        </div>
+      ) : null}
       {badge ? (
         <div className={`mt-2 inline-flex max-w-full items-center rounded-full border px-3 py-1 text-xs font-black ${luxury ? luxuryStatusClasses[tone] : "border-stone-200 bg-white text-stone-950"}`}>
           <span className="truncate">{value || unavailable}</span>
         </div>
       ) : (
-        <div className={`mt-1 truncate font-black ${luxury ? "text-slate-950" : "text-stone-950"}`}>{value || unavailable}</div>
+        <div className={`${inline ? "truncate" : "mt-1 truncate"} font-black ${luxury ? "text-slate-950" : "text-stone-950"}`}>
+          {inline ? `${label}: ${value || unavailable}` : (value || unavailable)}
+        </div>
       )}
     </div>
   );
