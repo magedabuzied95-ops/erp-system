@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 
 import { api } from "../shared/api/api";
-import { getCurrentTenant } from "../shared/auth/authStorage";
 import OrderInvoiceCard from "../shared/components/invoices/OrderInvoiceCard";
 import { normalizeOrderInvoiceData } from "../shared/utils/orderInvoice";
 import { getPrintDirection, normalizePrintLanguage, tPrint } from "../shared/utils/printLocalization";
@@ -105,6 +104,7 @@ export default function PublicInvoice() {
   const [invoice, setInvoice] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [publicSettings, setPublicSettings] = useState({});
 
   const resolvedToken = useMemo(() => {
     const raw = String(token || "").trim();
@@ -158,18 +158,36 @@ export default function PublicInvoice() {
     };
   }, [resolvedToken]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    api
+      .get("/settings/public", {
+        suppressErrorStatuses: [401, 403, 404, 500],
+        cache: "no-store",
+        headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+      })
+      .then((response) => {
+        if (cancelled) return;
+        setPublicSettings(response?.settings || {});
+      })
+      .catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const publicUrl = useMemo(
     () => normalizePublicUrl(invoice?.public_invoice_url || `/invoice/${encodeURIComponent(resolvedToken || "")}`),
     [invoice, resolvedToken]
   );
   const tenantBranding = useMemo(() => {
-    const tenant = getCurrentTenant() || {};
-    const settings = tenant.settings || {};
     return {
-      storeName: String(settings["general.company_name"] || settings["storefront.store_name"] || "M1 Store").trim(),
-      logoUrl: String(settings["general.company_logo_url"] || settings["storefront.store_logo_url"] || "").trim(),
+      storeName: String(publicSettings?.["general.company_name"] || publicSettings?.["storefront.store_name"] || "M1 Store").trim(),
+      logoUrl: String(publicSettings?.["general.company_logo_url"] || publicSettings?.["storefront.store_logo_url"] || "").trim(),
     };
-  }, []);
+  }, [publicSettings]);
   const normalizedInvoice = useMemo(
     () => normalizeOrderInvoiceData({ ...(invoice || {}), public_invoice_url: publicUrl }, null, tenantBranding),
     [invoice, publicUrl, tenantBranding]
