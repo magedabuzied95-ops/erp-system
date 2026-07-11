@@ -230,23 +230,17 @@ const normalizeColorImages = (images = []) => {
 
 const resolveHydratedColorImage = (group = {}) =>
   String(
-    group.variant_color_thermal_image_url ||
-      group.variantColorThermalImageUrl ||
-      group.color_thermal_image_url ||
-      group.colorThermalImageUrl ||
-      group.thermal_image_url ||
-      group.thermalImageUrl ||
-      group.image_url ||
+    group.image_url ||
+      group.variant_image_url ||
+      group.color_image_url ||
       group.imagePreview ||
       ""
   ).trim();
 
 const getPrimaryColorImage = (group = {}) => {
-  const thermalImage = resolveHydratedColorImage(group);
-  if (thermalImage) return thermalImage;
   const images = normalizeColorImages(group.images);
   const primary = images.find((item) => item.is_primary) || images[0] || null;
-  return primary?.image_url || group.image_url || group.imagePreview || "";
+  return primary?.image_url || resolveHydratedColorImage(group) || "";
 };
 
 const getResolvedThermalImageUrl = ({ product = {}, groups = [], variants = [] } = {}) => {
@@ -3999,7 +3993,7 @@ function ProductEdit() {
                           className="h-full w-full object-contain p-2"
                         />
                       ) : (
-                        <ImagePlus className="text-zinc-400" size={22} />
+                        <span className="px-2 text-center text-[11px] font-semibold text-zinc-500">لا توجد صورة</span>
                       )}
                     </div>
 
@@ -4009,6 +4003,11 @@ function ProductEdit() {
                         <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
                           {getGroupManufacturerSummary(group)}
                         </span>
+                        {getColorGroupThermalUrl(group) ? (
+                          <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                            Thermal Artwork جاهز
+                          </span>
+                        ) : null}
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-400">
                         <span>{getGroupSizeCount(group)} size(s)</span>
@@ -4096,7 +4095,7 @@ function ProductEdit() {
                           {aiCoverRegeneratingKey === `color:${normalizeColorKey(group.color)}` ? "Queueing AI Cover..." : "Regenerate AI Cover"}
                         </button>
                       ) : null}
-                      <div className="grid w-full max-w-[520px] grid-cols-2 gap-2">
+                      <div className="flex w-full max-w-[520px] flex-col gap-2">
                         <div className="rounded-[12px] border border-white/10 bg-zinc-950/70 p-2">
                           <div className="flex h-20 items-center justify-center overflow-hidden rounded-[10px] bg-zinc-900">
                             {getPrimaryColorImage(group) ? (
@@ -4106,23 +4105,15 @@ function ProductEdit() {
                                 className="h-full w-full object-contain"
                               />
                             ) : (
-                              <span className="text-[10px] font-semibold text-zinc-500">Original color image</span>
+                              <span className="text-[10px] font-semibold text-zinc-500">لا توجد صورة</span>
                             )}
                           </div>
                         </div>
-                        <div className="rounded-[12px] border border-white/10 bg-zinc-950/70 p-2">
-                          <div className="flex h-20 items-center justify-center overflow-hidden rounded-[10px] bg-zinc-900">
-                            {group.thermal_image_url ? (
-                              <img
-                                src={resolveAssetUrl(group.thermal_image_url)}
-                                alt={`${group.color || `Color ${groupIndex + 1}`} AI thermal artwork`}
-                                className="h-full w-full object-contain"
-                              />
-                            ) : (
-                              <span className="text-[10px] font-semibold text-zinc-500">AI Thermal Artwork</span>
-                            )}
+                        {getColorGroupThermalUrl(group) ? (
+                          <div className="rounded-[12px] border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-semibold text-emerald-100">
+                            Thermal Artwork جاهز
                           </div>
-                        </div>
+                        ) : null}
                       </div>
                       <div className="grid w-full max-w-[520px] grid-cols-[repeat(auto-fill,minmax(88px,96px))] gap-2.5">
                         {normalizeColorImages(group.images).map((image, imageIndex) => (

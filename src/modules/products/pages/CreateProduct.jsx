@@ -3307,6 +3307,11 @@ function CreateProduct() {
                             <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-zinc-300">
                               {getGroupManufacturerSummary(group)}
                             </span>
+                            {getColorGroupThermalUrl(group) ? (
+                              <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
+                                Thermal Artwork جاهز
+                              </span>
+                            ) : null}
                           </div>
                           <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-zinc-400">
                             <span>{getGroupSizeCount(group)} size(s)</span>
@@ -3381,7 +3386,7 @@ function CreateProduct() {
                                 {thermalImageGenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                                 {group.thermal_image_url ? "Regenerate AI Thermal Artwork" : "Generate AI Thermal Artwork"}
                               </button>
-                              <div className="grid w-full max-w-[520px] grid-cols-2 gap-2">
+                              <div className="flex w-full max-w-[520px] flex-col gap-2">
                                 <div className="rounded-[12px] border border-white/10 bg-zinc-950/70 p-2">
                                   <div className="flex h-20 items-center justify-center overflow-hidden rounded-[10px] bg-zinc-900">
                                     {getPrimaryColorImage(group) ? (
@@ -3391,23 +3396,15 @@ function CreateProduct() {
                                         className="h-full w-full object-contain"
                                       />
                                     ) : (
-                                      <span className="text-[10px] font-semibold text-zinc-500">Original color image</span>
+                                      <span className="text-[10px] font-semibold text-zinc-500">لا توجد صورة</span>
                                     )}
                                   </div>
                                 </div>
-                                <div className="rounded-[12px] border border-white/10 bg-zinc-950/70 p-2">
-                                  <div className="flex h-20 items-center justify-center overflow-hidden rounded-[10px] bg-zinc-900">
-                                    {group.thermal_image_url ? (
-                                      <img
-                                        src={group.thermal_image_url}
-                                        alt={`${group.color || `Color ${groupIndex + 1}`} AI thermal artwork`}
-                                        className="h-full w-full object-contain"
-                                      />
-                                    ) : (
-                                      <span className="text-[10px] font-semibold text-zinc-500">AI Thermal Artwork</span>
-                                    )}
+                                {getColorGroupThermalUrl(group) ? (
+                                  <div className="rounded-[12px] border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-[11px] font-semibold text-emerald-100">
+                                    Thermal Artwork جاهز
                                   </div>
-                                </div>
+                                ) : null}
                               </div>
                               <div className="grid w-full max-w-[520px] grid-cols-[repeat(auto-fill,minmax(88px,96px))] gap-2.5">
                                 {(normalizeColorImages(group.images).length > 0 ? normalizeColorImages(group.images) : []).map((image, imageIndex) => (
