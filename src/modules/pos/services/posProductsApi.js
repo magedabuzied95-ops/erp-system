@@ -23,6 +23,9 @@ const normalizeText = (value) => {
   return String(value).trim();
 };
 
+const normalizeBoolean = (value) =>
+  value === true || value === 1 || String(value ?? "").trim().toLowerCase() === "true";
+
 export { resolvePosImageUrl };
 
 const getProductId = (row = {}) =>
@@ -185,6 +188,8 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     sale_mode_applied: resolvedPrice.sale_mode_applied,
     is_offer_story: shouldForceSalePriceForPos(sourceProduct) || shouldForceSalePriceForPos(row),
     isOfferStory: shouldForceSalePriceForPos(sourceProduct) || shouldForceSalePriceForPos(row),
+    is_pos_favorite: normalizeBoolean(sourceProduct.is_pos_favorite ?? sourceProduct.isPosFavorite ?? row.is_pos_favorite ?? row.isPosFavorite),
+    isPosFavorite: normalizeBoolean(sourceProduct.is_pos_favorite ?? sourceProduct.isPosFavorite ?? row.is_pos_favorite ?? row.isPosFavorite),
     stock: stockQuantity,
     stock_quantity: stockQuantity,
     available: stockQuantity > 0,
@@ -314,6 +319,8 @@ const buildProductFromVariants = (productSeed, variants) => {
           ? "global"
           : "regular",
     sale_badge: variants.find((variant) => variant.sale_badge)?.sale_badge || "",
+    is_pos_favorite: normalizeBoolean(productSeed.is_pos_favorite ?? productSeed.isPosFavorite ?? variants[0]?.is_pos_favorite ?? variants[0]?.isPosFavorite),
+    isPosFavorite: normalizeBoolean(productSeed.is_pos_favorite ?? productSeed.isPosFavorite ?? variants[0]?.is_pos_favorite ?? variants[0]?.isPosFavorite),
     total_stock: variants.reduce((sum, variant) => sum + Number(variant.stock_quantity ?? variant.stock ?? 0), 0),
     stock: variants.reduce((sum, variant) => sum + Number(variant.stock_quantity ?? variant.stock ?? 0), 0),
     sku: variants.find((variant) => variant.sku)?.sku || normalizeText(productSeed.sku ?? productSeed.product_sku),
@@ -438,6 +445,8 @@ export const normalizePosCatalogProduct = (product = {}) => {
   const stock = variants.reduce((sum, variant) => sum + Number(variant.stock_quantity ?? variant.stock ?? 0), 0);
   return {
     ...product,
+    is_pos_favorite: normalizeBoolean(product.is_pos_favorite ?? product.isPosFavorite),
+    isPosFavorite: normalizeBoolean(product.isPosFavorite ?? product.is_pos_favorite),
     variants,
     total_stock: stock,
     stock,

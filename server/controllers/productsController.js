@@ -611,6 +611,7 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS style TEXT,
             ADD COLUMN IF NOT EXISTS grade TEXT,
             ADD COLUMN IF NOT EXISTS is_offer_story BOOLEAN NOT NULL DEFAULT FALSE,
+            ADD COLUMN IF NOT EXISTS is_pos_favorite BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS is_storefront_visible BOOLEAN NOT NULL DEFAULT TRUE,
             ADD COLUMN IF NOT EXISTS description TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS description_ar TEXT DEFAULT '',
@@ -670,6 +671,7 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS qr_token TEXT,
             ADD COLUMN IF NOT EXISTS tenant_id BIGINT
         `);
+        await client.query(`UPDATE products SET is_pos_favorite = FALSE WHERE is_pos_favorite IS NULL`);
         await client.query(`
           UPDATE products
           SET thermal_image_status = 'ready'
@@ -1015,6 +1017,7 @@ const normalizeProductRow = (row = {}) => {
   style: row.style || "",
   grade: row.grade || "",
   is_offer_story: row.is_offer_story === true || String(row.is_offer_story || "").toLowerCase() === "true",
+  is_pos_favorite: row.is_pos_favorite === true || String(row.is_pos_favorite || "").toLowerCase() === "true",
   is_storefront_visible: row.is_storefront_visible === true || String(row.is_storefront_visible ?? "").toLowerCase() === "true" || row.is_storefront_visible === undefined || row.is_storefront_visible === null || row.is_storefront_visible === "",
   variation_mode: normalizeVariationMode(row.variation_mode),
   fixed_size_label: row.fixed_size_label || "",
@@ -5176,6 +5179,7 @@ export const updateProductStatus = async (req, res) => {
       Object.prototype.hasOwnProperty.call(req.body || {}, "is_active") ||
       Object.prototype.hasOwnProperty.call(req.body || {}, "active");
     const offerStoryProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "is_offer_story");
+    const posFavoriteProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "is_pos_favorite");
     const storefrontVisibleProvided = Object.prototype.hasOwnProperty.call(req.body || {}, "is_storefront_visible");
     const requestedStatus = String(req.body?.status || "").trim().toLowerCase();
     const requestedActive =
@@ -5186,7 +5190,7 @@ export const updateProductStatus = async (req, res) => {
     if (statusProvided && requestedStatus && !["active", "inactive"].includes(requestedStatus)) {
       return res.status(400).json({ success: false, message: "Product status can only be active or inactive" });
     }
-    if (!statusProvided && !offerStoryProvided && !storefrontVisibleProvided) {
+    if (!statusProvided && !offerStoryProvided && !posFavoriteProvided && !storefrontVisibleProvided) {
       return res.status(400).json({ success: false, message: "No status fields provided" });
     }
 
@@ -5234,6 +5238,11 @@ export const updateProductStatus = async (req, res) => {
       values.push(nextOfferStory);
       setParts.push(`is_offer_story = $${values.length}`);
     }
+    if (posFavoriteProvided && productColumns.has("is_pos_favorite")) {
+      const nextPosFavorite = req.body?.is_pos_favorite === true || String(req.body?.is_pos_favorite || "").toLowerCase() === "true";
+      values.push(nextPosFavorite);
+      setParts.push(`is_pos_favorite = $${values.length}`);
+    }
     if (storefrontVisibleProvided && productColumns.has("is_storefront_visible")) {
       const nextStorefrontVisible = req.body?.is_storefront_visible === true || String(req.body?.is_storefront_visible || "").toLowerCase() === "true";
       values.push(nextStorefrontVisible);
@@ -5267,6 +5276,7 @@ export const updateProductStatus = async (req, res) => {
       status: statusProvided ? nextStatus : currentStatus,
       is_active: statusProvided ? requestedActive : null,
       is_offer_story: offerStoryProvided ? (req.body?.is_offer_story === true || String(req.body?.is_offer_story || "").toLowerCase() === "true") : null,
+      is_pos_favorite: posFavoriteProvided ? (req.body?.is_pos_favorite === true || String(req.body?.is_pos_favorite || "").toLowerCase() === "true") : null,
       is_storefront_visible: storefrontVisibleProvided ? (req.body?.is_storefront_visible === true || String(req.body?.is_storefront_visible || "").toLowerCase() === "true") : null,
       affected_rows: updated.rowCount,
       db_snapshot: refreshed
@@ -5274,6 +5284,7 @@ export const updateProductStatus = async (req, res) => {
             id: refreshed.id,
             name: refreshed.name,
             is_offer_story: refreshed.is_offer_story,
+            is_pos_favorite: refreshed.is_pos_favorite,
             is_storefront_visible: refreshed.is_storefront_visible,
             active: refreshed.active,
           }
@@ -5289,6 +5300,7 @@ export const updateProductStatus = async (req, res) => {
             id: refreshed.id,
             name: refreshed.name,
             is_offer_story: refreshed.is_offer_story,
+            is_pos_favorite: refreshed.is_pos_favorite,
             is_storefront_visible: refreshed.is_storefront_visible,
             active: refreshed.active,
           }
@@ -5296,6 +5308,7 @@ export const updateProductStatus = async (req, res) => {
       id: refreshed?.id,
       name: refreshed?.name,
       is_offer_story: refreshed?.is_offer_story,
+      is_pos_favorite: refreshed?.is_pos_favorite,
       is_storefront_visible: refreshed?.is_storefront_visible,
       active: refreshed?.active,
     });

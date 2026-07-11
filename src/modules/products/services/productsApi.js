@@ -364,6 +364,8 @@ export const updateProduct = async (id, body) => {
 };
 
 export const updateProductStatus = async (id, body) => unwrapItem(await api.patch(`/products/${id}/status`, body));
+export const toggleProductPosFavorite = async (id, isPosFavorite) =>
+  unwrapItem(await api.patch(`/products/${id}/status`, { is_pos_favorite: isPosFavorite }));
 
 export const updateProductPrices = async (id, body) => api.put(`/products/${id}/prices`, body);
 

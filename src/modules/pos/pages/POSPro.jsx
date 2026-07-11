@@ -31,6 +31,7 @@ import {
   Minus,
   Plus,
   Store,
+  Star,
   UserCheck,
   User,
   Warehouse,
@@ -3002,6 +3003,19 @@ function POSPro() {
       })
       .map(({ product }) => product);
   }, [productsAfterSmartFilters, deferredSearch, selectedBrandId, selectedManufacturerId]);
+
+  const favoriteVisibleProducts = useMemo(
+    () => visibleProducts.filter((product) => product?.is_pos_favorite === true || product?.isPosFavorite === true),
+    [visibleProducts]
+  );
+
+  const regularVisibleProducts = useMemo(() => {
+    if (!favoriteVisibleProducts.length) return visibleProducts;
+    const favoriteIds = new Set(
+      favoriteVisibleProducts.map((product) => String(product.product_id || product.id)).filter(Boolean)
+    );
+    return visibleProducts.filter((product) => !favoriteIds.has(String(product.product_id || product.id)));
+  }, [favoriteVisibleProducts, visibleProducts]);
 
   useEffect(() => {
     if (loading || products.length === 0 || firstDataLoggedRef.current) return;
@@ -6837,14 +6851,31 @@ function POSPro() {
             </div>
             </div>
 
-            <div className="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:pr-1">
-            <ProductGrid
-              loading={loading}
-              error={error}
-              products={visibleProducts}
-              search={search}
-              onSelectProduct={handleSelectProduct}
-            />
+            <div className="min-w-0 space-y-4 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:pr-1">
+            {!loading && !error && favoriteVisibleProducts.length > 0 ? (
+              <section className="space-y-2">
+                <div className="flex items-center gap-2 rounded-2xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-sm font-black text-amber-100">
+                  <Star className="h-4 w-4 fill-current" />
+                  <span>المفضلة</span>
+                </div>
+                <ProductGrid
+                  loading={false}
+                  error=""
+                  products={favoriteVisibleProducts}
+                  search={search}
+                  onSelectProduct={handleSelectProduct}
+                />
+              </section>
+            ) : null}
+            {!favoriteVisibleProducts.length || regularVisibleProducts.length > 0 || loading || error || visibleProducts.length === 0 ? (
+              <ProductGrid
+                loading={loading}
+                error={error}
+                products={favoriteVisibleProducts.length > 0 ? regularVisibleProducts : visibleProducts}
+                search={search}
+                onSelectProduct={handleSelectProduct}
+              />
+            ) : null}
             </div>
             </div>
           </section>

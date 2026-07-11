@@ -24,6 +24,7 @@ import {
   PackageSearch,
   Trash2,
   X,
+  Star,
   Zap,
 } from "lucide-react";
 
@@ -52,6 +53,7 @@ import {
   deleteProduct,
   getProductsAdminList,
   getProductsWithVariants,
+  toggleProductPosFavorite,
   updateProductPrices,
   updateProductStatus,
 } from "../services/productsApi";
@@ -1482,6 +1484,23 @@ function ProductsList() {
     setSelectedProduct((prev) => (prev?.id === id ? { ...prev, is_storefront_visible: isStorefrontVisible } : prev));
   };
 
+  const updateLocalPosFavorite = (id, snapshotOrValue) => {
+    const item = rows.find((row) => row.id === id);
+    if (!item) return;
+    const nextIsPosFavorite =
+      snapshotOrValue && typeof snapshotOrValue === "object"
+        ? snapshotOrValue.is_pos_favorite === true || String(snapshotOrValue.is_pos_favorite || "").trim().toLowerCase() === "true"
+        : Boolean(snapshotOrValue);
+    const nextRow = {
+      ...item,
+      ...(snapshotOrValue && typeof snapshotOrValue === "object" ? snapshotOrValue : {}),
+      is_pos_favorite: nextIsPosFavorite,
+    };
+    upsertProductMeta(nextRow);
+    setRows((prev) => prev.map((row) => (row.id === id ? nextRow : row)));
+    setSelectedProduct((prev) => (prev?.id === id ? { ...prev, ...nextRow } : prev));
+  };
+
   const requestProductStatusToggle = (row) => {
     setOpenActionId(null);
     setActionMenuPosition(null);
@@ -1528,6 +1547,22 @@ function ProductsList() {
     } catch (err) {
       console.error("[products:list] offer story toggle failed", err);
       toast.error(err?.responseBody?.message || err?.message || t("products.toasts.offerStoryUpdateFailed", "Failed to update offers"));
+      refreshProducts();
+    }
+  };
+
+  const handleTogglePosFavorite = async (row) => {
+    if (!row?.id) return;
+    const nextPosFavorite = !Boolean(row.is_pos_favorite);
+    try {
+      const response = await toggleProductPosFavorite(row.id, nextPosFavorite);
+      const snapshot = response?.db_snapshot || response?.product || response?.data || response || null;
+      updateLocalPosFavorite(row.id, snapshot || nextPosFavorite);
+      toast.success(nextPosFavorite ? "تمت الإضافة إلى مفضلة الـPOS" : "تمت الإزالة من مفضلة الـPOS");
+      refreshProducts();
+    } catch (err) {
+      console.error("[products:list] pos favorite toggle failed", err);
+      toast.error(err?.responseBody?.message || err?.message || "Failed to update POS favorites");
       refreshProducts();
     }
   };
@@ -1729,6 +1764,18 @@ function ProductsList() {
           console.log("[products:list] action click", { action: "duplicate", productId: row.id });
           handleDuplicate(row);
           setOpenActionId(null);
+        },
+      },
+      {
+        key: "toggle-pos-favorite",
+        icon: Star,
+        label: row.is_pos_favorite ? "إزالة من مفضلة الـPOS" : "إضافة إلى مفضلة الـPOS",
+        placement: "dropdown",
+        onClick: () => {
+          console.log("[products:list] action click", { action: "toggle-pos-favorite", productId: row.id, is_pos_favorite: row.is_pos_favorite });
+          setOpenActionId(null);
+          setActionMenuPosition(null);
+          handleTogglePosFavorite(row);
         },
       },
       {
