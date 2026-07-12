@@ -222,8 +222,8 @@ function ProductClassifications() {
       title={t("products.classifications.title")}
       description={t("products.classifications.description")}
     >
-      <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-        <section className="rounded-[28px] border border-white/8 bg-white/[0.035] p-4 shadow-xl shadow-black/10 sm:p-5">
+      <div className="grid min-w-0 gap-4">
+        <section className="min-w-0 rounded-[28px] border border-white/8 bg-white/[0.035] p-4 shadow-xl shadow-black/10 sm:p-5">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.22em] text-zinc-500">
@@ -239,7 +239,7 @@ function ProductClassifications() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {visibleGroups.map((group) => {
               const active = String(selectedGroupKey || "") === String(group.key || "");
               const accent = GROUP_ACCENTS[group.key] || GROUP_ACCENTS.gender;
@@ -344,11 +344,11 @@ function ProductClassifications() {
           </div>
         </section>
 
-        <aside className="space-y-4">
+        <aside className="min-w-0">
           <div className="rounded-[1.45rem] border border-white/8 bg-white/[0.035] p-4 shadow-xl shadow-black/10">
             <div className="text-sm font-black text-white">{t("products.classifications.createNewGroup")}</div>
             <div className="mt-1 text-xs font-semibold text-zinc-400">{t("products.classifications.createNewGroupHelp")}</div>
-            <div className="mt-4 grid gap-3">
+            <div className="mt-4 grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
               <Field label={t("products.classifications.key")} value={newGroupForm.key} onChange={(value) => setNewGroupForm((current) => ({ ...current, key: value }))} placeholder={t("products.classifications.customKeyPlaceholder")} />
               <Field label={t("products.classifications.arabicName")} value={newGroupForm.name_ar} onChange={(value) => setNewGroupForm((current) => ({ ...current, name_ar: value }))} placeholder={t("products.classifications.customArabicPlaceholder")} />
               <Field label={t("products.classifications.englishName")} value={newGroupForm.name_en} onChange={(value) => setNewGroupForm((current) => ({ ...current, name_en: value }))} placeholder={t("products.classifications.customEnglishPlaceholder")} />
@@ -463,7 +463,7 @@ function ClassificationOptionRow({ option, groupId, lang, t, onSaved, onDeleted 
   return (
     <div className="rounded-[1.35rem] border border-white/8 bg-white/[0.03] p-4">
       <div className="mb-3 text-sm font-black text-white">{getLocalizedName(option, lang)}</div>
-      <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1fr_1fr_120px]">
+      <div className="grid min-w-0 gap-3 md:grid-cols-2 xl:grid-cols-3">
         <Field label={t("products.classifications.value")} value={form.value} onChange={(value) => setForm((current) => ({ ...current, value }))} />
         <Field label={t("products.classifications.arabicName")} value={form.label_ar} onChange={(value) => setForm((current) => ({ ...current, label_ar: value }))} />
         <Field label={t("products.classifications.englishLabel")} value={form.label_en} onChange={(value) => setForm((current) => ({ ...current, label_en: value }))} />
@@ -512,14 +512,14 @@ function ConfirmDeleteModal({ t, loading, onCancel, onConfirm }) {
 
 function Field({ label, value, onChange, type = "text", placeholder = "" }) {
   return (
-    <label className="grid gap-2">
+    <label className="grid min-w-0 gap-2">
       <span className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">{label}</span>
       <input
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange?.(event.target.value)}
-        className="h-11 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-[#7c3aed]/60"
+        className="h-11 w-full min-w-0 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-[#7c3aed]/60"
       />
     </label>
   );
