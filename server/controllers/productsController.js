@@ -4114,12 +4114,21 @@ export const createProduct = async (req, res) => {
     await client.query("COMMIT");
     transactionStarted = false;
     const createdProduct = normalizeProductRow(created.rows[0]);
+    const requestedThermalColors = new Map((Array.isArray(colorImages) ? colorImages : []).map((group) => [
+      String(group?.color_name || group?.color_value || group?.color || "").trim().toLowerCase(),
+      group?.generate_thermal_artwork === true || group?.thermal_generation_enabled === true,
+    ]));
     const thermalColorJobs = buildThermalColorJobGroups({
       productId,
       productName: createdProduct.name || "",
       variants: hydratedVariants,
-      colorImages: colorImagesPayload,
+      colorImages: colorImagesPayload.map((group) => ({
+        ...group,
+        generate_thermal_artwork: requestedThermalColors.get(String(group?.color_name || group?.color_value || group?.color || "").trim().toLowerCase()) === true,
+      })),
       productImageUrl: createdProduct.image_url || createdProduct.product_image_url || "",
+      requireOptIn: true,
+      generateProductCover: req.body?.generate_cover_thermal_artwork === true,
     });
     scheduleThermalColorArtworkJobs({
       productId,
@@ -5100,12 +5109,21 @@ export const updateProduct = async (req, res) => {
       },
     });
 
+    const requestedThermalColors = new Map((Array.isArray(colorImages) ? colorImages : []).map((group) => [
+      String(group?.color_name || group?.color_value || group?.color || "").trim().toLowerCase(),
+      group?.generate_thermal_artwork === true || group?.thermal_generation_enabled === true,
+    ]));
     const thermalColorJobs = buildThermalColorJobGroups({
       productId,
       productName: updatedProduct.name || "",
       variants: hydratedVariants,
-      colorImages: colorImagesPayload,
+      colorImages: colorImagesPayload.map((group) => ({
+        ...group,
+        generate_thermal_artwork: requestedThermalColors.get(String(group?.color_name || group?.color_value || group?.color || "").trim().toLowerCase()) === true,
+      })),
       productImageUrl: updatedProduct.image_url || updatedProduct.product_image_url || "",
+      requireOptIn: true,
+      generateProductCover: req.body?.generate_cover_thermal_artwork === true,
     });
     console.log("THERMAL_COLOR_GROUP_BUILD_RESULT", {
       productId,

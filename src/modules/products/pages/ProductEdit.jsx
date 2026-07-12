@@ -188,6 +188,7 @@ const createEmptyColorGroup = (defaults = {}) => ({
   imagePreview: formatFieldValue(defaults.imagePreview),
   image_url: formatFieldValue(defaults.image_url),
   thermal_image_url: formatFieldValue(defaults.thermal_image_url),
+  generate_thermal_artwork: Boolean(defaults.generate_thermal_artwork),
   ai_cover: defaults.ai_cover || null,
   ai_cover_status: formatFieldValue(defaults.ai_cover_status),
   images: Array.isArray(defaults.images) ? defaults.images : [],
@@ -917,6 +918,7 @@ function ProductEdit() {
   const [coverImage, setCoverImage] = useState("");
   const [thermalImageUrl, setThermalImageUrl] = useState("");
   const [thermalImageGenerating, setThermalImageGenerating] = useState(false);
+  const [generateCoverThermalArtwork, setGenerateCoverThermalArtwork] = useState(false);
   const [coverLabel, setCoverLabel] = useState("");
   const [gallery, setGallery] = useState([]);
   const [defaultManufacturerId, setDefaultManufacturerId] = useState("");
@@ -2851,6 +2853,7 @@ function ProductEdit() {
           colorThermalImageUrl: thermalImageUrl,
           variant_color_thermal_image_url: thermalImageUrl,
           variantColorThermalImageUrl: thermalImageUrl,
+          generate_thermal_artwork: Boolean(group.generate_thermal_artwork),
           images: dedupeImages(groupImages).map((image, index) => ({
             id: image.id || makeId(),
             preview: image.image_url || "",
@@ -3089,6 +3092,7 @@ function ProductEdit() {
         ? {
             image_url: coverImageUrl,
             thermal_image_url: resolvedThermalImageUrl,
+            generate_cover_thermal_artwork: generateCoverThermalArtwork,
             gallery_images: galleryPayload,
             colorImages: isSimpleMode ? [] : colorImagesPayload.map((group) => ({
               ...group,
@@ -3133,6 +3137,7 @@ function ProductEdit() {
             status: product.status || "active",
             image_url: coverImageUrl,
             thermal_image_url: resolvedThermalImageUrl,
+            generate_cover_thermal_artwork: generateCoverThermalArtwork,
             gallery_images: galleryPayload,
             colorImages: isSimpleMode ? [] : colorImagesPayload.map((group) => ({
               ...group,
@@ -3656,6 +3661,16 @@ function ProductEdit() {
                 </label>
                 <div className="mt-3 grid gap-2">
                   <AiCoverStatusBadge state={product.ai_cover} />
+                  <button
+                    type="button"
+                    aria-pressed={generateCoverThermalArtwork}
+                    onClick={() => setGenerateCoverThermalArtwork((value) => !value)}
+                    disabled={!coverImage}
+                    className={`inline-flex h-11 w-full items-center justify-between rounded-[16px] border px-4 text-sm font-black transition disabled:cursor-not-allowed disabled:opacity-50 ${generateCoverThermalArtwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}
+                  >
+                    <span>إنشاء Thermal للكفر عند الحفظ</span>
+                    <span>{generateCoverThermalArtwork ? "مفعّل" : "غير مفعّل"}</span>
+                  </button>
                   {canRegenerateAiCover ? (
                     <button
                       type="button"
@@ -4044,6 +4059,16 @@ function ProductEdit() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        aria-pressed={Boolean(group.generate_thermal_artwork)}
+                        onClick={() => updateColorGroup(group.id, "generate_thermal_artwork", !group.generate_thermal_artwork)}
+                        disabled={!getPrimaryColorImage(group)}
+                        className={`inline-flex h-9 w-full items-center justify-between rounded-[12px] border px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-50 ${group.generate_thermal_artwork ? "border-emerald-400/45 bg-emerald-400/15 text-emerald-200" : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10"}`}
+                      >
+                        <span>إنشاء Thermal لهذا اللون عند الحفظ</span>
+                        <span>{group.generate_thermal_artwork ? "مفعّل" : "غير مفعّل"}</span>
+                      </button>
                       <button
                         type="button"
                         onClick={(event) => {

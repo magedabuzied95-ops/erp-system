@@ -50,12 +50,18 @@ export const buildThermalColorJobGroups = ({
   variants = [],
   colorImages = [],
   productImageUrl = "",
+  requireOptIn = false,
+  generateProductCover = false,
 } = {}) => {
   const groups = new Map();
+  const optedInColorKeys = new Set();
 
   for (const colorGroup of Array.isArray(colorImages) ? colorImages : []) {
     const colorKey = normalizeColorKey(colorIdentifierFromSource(colorGroup));
     const primaryImageUrl = colorImageFromGroup(colorGroup);
+    const thermalGenerationEnabled = colorGroup?.generate_thermal_artwork === true || colorGroup?.thermal_generation_enabled === true;
+    if (thermalGenerationEnabled && colorKey) optedInColorKeys.add(colorKey);
+    if (requireOptIn && !thermalGenerationEnabled) continue;
     if (!colorKey && !primaryImageUrl) continue;
     const groupKey = `${productId || "product"}|${colorKey || "default"}`;
     if (!groups.has(groupKey)) {
@@ -78,6 +84,8 @@ export const buildThermalColorJobGroups = ({
 
   for (const variant of Array.isArray(variants) ? variants : []) {
     const colorKey = normalizeColorKey(colorIdentifierFromSource(variant));
+    const thermalGenerationEnabled = variant?.generate_thermal_artwork === true || variant?.thermal_generation_enabled === true;
+    if (requireOptIn && !thermalGenerationEnabled && !optedInColorKeys.has(colorKey)) continue;
     const primaryImageUrl = firstText(
       variant?.primary_image_url,
       variant?.colorPrimaryImageUrl,
@@ -126,6 +134,20 @@ export const buildThermalColorJobGroups = ({
   }
 
   const productImage = normalizeText(productImageUrl);
+  if (generateProductCover && productImage) {
+    groups.set(`${productId || "product"}|__cover__`, {
+      productId,
+      productName: normalizeText(productName),
+      colorKey: "__cover__",
+      color: "Cover",
+      primaryImageUrl: productImage,
+      variantIds: [],
+      representativeVariantId: null,
+      existingThermalUrl: "",
+      source: "product-image",
+      regenerate: true,
+    });
+  }
   if (!groups.size && productImage) {
     console.log("AI_THERMAL_BLOCK_PRODUCT_COVER", {
       productId,
