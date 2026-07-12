@@ -494,7 +494,6 @@ function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => Boolean(readSidebarJson(SIDEBAR_COLLAPSED_STORAGE_KEY, false)));
   const [openGroups, setOpenGroups] = useState(() => readSidebarJson(SIDEBAR_GROUPS_STORAGE_KEY, {}));
   const [sidebarSearch, setSidebarSearch] = useState("");
-  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const currentTenant = getCurrentTenant();
   const workspaceName = currentTenant?.companyName || currentTenant?.company_name || currentTenant?.name || currentTenant?.slug || "MONE";
   const workspaceLogoUrl = currentTenant?.companyLogoUrl || currentTenant?.company_logo_url || currentTenant?.logoUrl || "";
@@ -539,11 +538,6 @@ function MainLayout() {
     }));
   }, [user, t]);
   const groupedSections = useMemo(() => buildEnterpriseSidebarGroups(sections), [sections]);
-  const allSidebarItems = useMemo(() => groupedSections.flatMap((group) => group.items), [groupedSections]);
-  const headerQuickActionItems = useMemo(() => {
-    const byRoute = new Map(allSidebarItems.map((item) => [item.to, item]));
-    return HEADER_QUICK_ACTION_ROUTES.map((route) => byRoute.get(route)).filter(Boolean);
-  }, [allSidebarItems]);
   const resolvedDir = typeof i18n.dir === "function" ? i18n.dir(i18n.language) : "";
   const documentDir = typeof document !== "undefined" ? document.documentElement.dir : "";
   const dir = (resolvedDir || documentDir) === "rtl" ? "rtl" : "ltr";
@@ -875,43 +869,6 @@ function MainLayout() {
                   <ShoppingBag className="h-4 w-4 text-emerald-300 transition group-hover:text-emerald-200" />
                   <span className="hidden sm:inline">المتجر</span>
                 </button>
-                {headerQuickActionItems.length ? (
-                  <div className="hidden min-w-0 max-w-[34vw] items-center gap-1.5 overflow-x-auto pe-1 lg:flex 2xl:max-w-none">
-                    {headerQuickActionItems.map((item) => (
-                      <HeaderQuickActionButton key={`header-quick-${item.to}`} item={item} location={location} />
-                    ))}
-                  </div>
-                ) : null}
-                <div className="m1-quick-create relative hidden sm:block">
-                  <button type="button" onClick={() => setQuickCreateOpen((value) => !value)} className="m1-topbar-create inline-flex h-10 items-center gap-2 border px-3 text-sm font-bold" aria-expanded={quickCreateOpen}>
-                    <Plus className="h-4 w-4" />
-                    <span>{isRtl ? "إنشاء سريع" : "Quick create"}</span>
-                    <ChevronDown className={`h-3.5 w-3.5 transition ${quickCreateOpen ? "rotate-180" : ""}`} />
-                  </button>
-                  {quickCreateOpen ? (
-                    <div className="m1-topbar-create-menu absolute end-0 top-full z-50 mt-2 w-52 overflow-hidden border p-1.5">
-                      <button onClick={() => { setQuickCreateOpen(false); navigate("/products/add"); }}><Plus />{isRtl ? "إضافة منتج" : "Add product"}</button>
-                      <button onClick={() => { setQuickCreateOpen(false); navigate("/create-order"); }}><ShoppingBag />{isRtl ? "إنشاء طلب" : "Create order"}</button>
-                      <button onClick={() => { setQuickCreateOpen(false); navigate("/pos"); }}><Store />{isRtl ? "نقطة البيع" : "Point of sale"}</button>
-                      <button onClick={() => { setQuickCreateOpen(false); window.open(publicStorefrontUrl("/"), "_blank", "noopener,noreferrer"); }}><ShoppingBag />{isRtl ? "فتح المتجر" : "Open store"}</button>
-                    </div>
-                  ) : null}
-                </div>
-                <LanguageSwitcher compact className="shrink-0" />
-                <button
-                  type="button"
-                  onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
-                  className="m1-shell-theme-toggle inline-flex h-10 w-10 shrink-0 items-center justify-center border border-[var(--border)] text-[var(--topbar-text)]"
-                  aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
-                  title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
-                >
-                  {theme.mode === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-                </button>
-                <NotificationBoundary fallback={<NotificationBellFallback />}>
-                  <Suspense fallback={<NotificationBellFallback />}>
-                    <NotificationBell />
-                  </Suspense>
-                </NotificationBoundary>
                 <button
                   type="button"
                   onClick={() => navigate("/pos")}
@@ -929,6 +886,16 @@ function MainLayout() {
                   <span className="hidden sm:inline">{posLabel}</span>
                   <span className="sm:hidden">POS</span>
                 </button>
+                <LanguageSwitcher compact className="shrink-0" />
+                <button
+                  type="button"
+                  onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
+                  className="m1-shell-theme-toggle inline-flex h-10 w-10 shrink-0 items-center justify-center border border-[var(--border)] text-[var(--topbar-text)]"
+                  aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
+                  title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
+                >
+                  {theme.mode === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </button>
                 <button
                   type="button"
                   onClick={handleLogout}
@@ -937,7 +904,6 @@ function MainLayout() {
                 >
                   <LogOut className="h-4 w-4" />
                 </button>
-                <RealtimePill label={t("common.systemOnline")} />
               </div>
             </div>
           </div>
