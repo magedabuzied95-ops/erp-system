@@ -226,17 +226,17 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
   const textAlignClass = isRtl ? "text-right" : "text-left";
   const amountAlignClass = isRtl ? "text-left" : "text-right";
   const articleClass = luxury
-    ? "overflow-hidden rounded-[2rem] border border-slate-200/80 bg-[#FAFAF9] text-slate-950 shadow-[0_34px_100px_rgba(0,0,0,0.36),0_2px_0_rgba(255,255,255,0.85)_inset] print:rounded-none print:border-slate-200 print:bg-white print:text-slate-950 print:shadow-none"
+    ? "overflow-hidden rounded-[2rem] border border-amber-200/70 bg-[#fffdf8] text-slate-950 shadow-[0_34px_100px_rgba(0,0,0,0.36),0_2px_0_rgba(255,255,255,0.9)_inset] print:rounded-none print:border-slate-200 print:bg-white print:text-slate-950 print:shadow-none"
     : "overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white text-stone-950 shadow-[0_18px_50px_rgba(39,20,75,0.07)]";
   const resolvedPaymentMethod = getPaymentMethodLabel(paymentMethod || data?.paymentMethod, copy);
 
   return (
     <article dir={dir} className={`${articleClass} ${textAlignClass} ${className}`}>
-      <div className={`${luxury ? "border-b border-slate-200/75 bg-[linear-gradient(135deg,#ffffff_0%,#f8fafc_54%,#f1f5f9_100%)] p-5 print:border-slate-200 print:bg-white sm:p-6" : "border-b border-stone-200 bg-stone-50/80 p-5"}`}>
+      <div className={`${luxury ? "border-b border-amber-200/75 bg-[linear-gradient(135deg,#fffdf7_0%,#ffffff_48%,#f8f1df_100%)] p-5 print:border-slate-200 print:bg-white sm:p-7" : "border-b border-stone-200 bg-stone-50/80 p-5"}`}>
         <div className={`flex flex-col gap-4 ${publicView ? "" : "sm:flex-row sm:items-start sm:justify-between"}`}>
           {publicView ? (
             <>
-              <div className="flex flex-col items-center text-center">
+              <div className="flex flex-col items-center text-center sm:flex-row sm:items-center sm:gap-5 sm:text-start">
                 {data.store?.logoUrl ? (
                   <div className={`grid h-20 w-20 place-items-center overflow-hidden border bg-white ${luxury ? "rounded-[1.5rem] border-slate-200 shadow-[0_14px_34px_rgba(15,23,42,0.08)] print:shadow-none" : "rounded-2xl border-stone-200"}`}>
                     <img
@@ -249,10 +249,12 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
                     />
                   </div>
                 ) : null}
-                <div className={`mt-3 ${luxury ? "text-2xl font-black tracking-tight text-slate-950 sm:text-[1.7rem]" : "text-2xl font-black"}`}>{data?.store?.name || storeBranding.name || "M1 Store"}</div>
-                <div className={`mt-1.5 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${luxury ? "border-violet-200 bg-violet-50 text-violet-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                  <ShoppingBag className="h-3.5 w-3.5" />
-                  {copy.orderInvoice}
+                <div>
+                  <div className={`mt-3 sm:mt-0 ${luxury ? "text-2xl font-black tracking-tight text-slate-950 sm:text-[1.8rem]" : "text-2xl font-black"}`}>{data?.store?.name || storeBranding.name || "M1 Store"}</div>
+                  <div className={`mt-1.5 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-black ${luxury ? "border-amber-300/70 bg-amber-100/70 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                    <ShoppingBag className="h-3.5 w-3.5" />
+                    {copy.orderInvoice}
+                  </div>
                 </div>
               </div>
               <div className="flex flex-col gap-2">
@@ -260,7 +262,7 @@ export default function OrderInvoiceCard({ order, items, invoice, className = ""
                   <div className="text-sm font-bold">
                     {copy.orderDate}: {formatDate(data?.createdAt)}
                   </div>
-                  <div className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black tracking-wide ${luxury ? "border-violet-200 bg-violet-50 text-violet-900" : "border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]"}`} dir="ltr">
+                  <div className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-black tracking-wide ${luxury ? "border-slate-300 bg-slate-900 text-white" : "border-[#7c3aed]/20 bg-[#7c3aed]/10 text-[#5b21b6]"}`} dir="ltr">
                     {publicNumber}
                   </div>
                 </div>

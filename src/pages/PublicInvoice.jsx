@@ -3,9 +3,11 @@ import { Link, useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
+  Download,
   ExternalLink,
   Globe,
   Loader2,
+  Printer,
   ShieldCheck,
   Star,
   Smartphone,
@@ -229,7 +231,7 @@ export default function PublicInvoice() {
 
   return (
     <div dir={printDir} lang={printLanguage} className="public-invoice-shell min-h-screen text-white print:bg-white print:text-black">
-      <div className="mx-auto max-w-5xl px-3 py-4 sm:px-6 sm:py-6 lg:px-8">
+      <div className="mx-auto max-w-5xl px-3 py-5 sm:px-6 sm:py-8 lg:px-8">
         <div className="mb-5 flex flex-col gap-3 print:hidden sm:flex-row sm:items-center sm:justify-between">
           <Link
             to="/"
@@ -238,6 +240,25 @@ export default function PublicInvoice() {
             <ArrowLeft className="h-4 w-4" />
             {invoicePrintLabel("back", "عودة")}
           </Link>
+          <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center">
+            <a
+              href={`${getPublicAppUrl()}/api/public/invoices/${encodeURIComponent(resolvedToken)}/pdf`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-amber-300/25 bg-amber-300/10 px-4 py-2.5 text-sm font-black text-amber-100 transition hover:-translate-y-0.5 hover:bg-amber-300/15"
+            >
+              <Download className="h-4 w-4" />
+              {invoicePrintLabel("download", "تحميل PDF")}
+            </a>
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-2.5 text-sm font-black text-slate-950 shadow-lg shadow-amber-950/20 transition hover:-translate-y-0.5 hover:bg-amber-300"
+            >
+              <Printer className="h-4 w-4" />
+              {invoicePrintLabel("print", "طباعة")}
+            </button>
+          </div>
         </div>
 
         <OrderInvoiceCard
@@ -247,8 +268,8 @@ export default function PublicInvoice() {
           className="print:rounded-none print:border-0 print:shadow-none"
         />
 
-        <div className="mt-4 rounded-2xl border border-slate-200/80 bg-[#FAFAF9] p-3 text-center text-xs font-bold text-slate-600 shadow-[0_18px_50px_rgba(2,6,23,0.22)] print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none">
-          <div className="flex items-start justify-center gap-2 text-right">
+        <div className="mt-5 rounded-[1.5rem] border border-amber-200/80 bg-[#fffaf0] p-4 text-xs font-bold leading-6 text-slate-600 shadow-[0_18px_50px_rgba(2,6,23,0.22)] print:border-slate-200 print:bg-white print:text-slate-700 print:shadow-none sm:p-5">
+          <div className="flex items-start gap-3 text-start">
             <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" />
             <div className="space-y-1">
               {PUBLIC_RETURN_POLICY_LINES.map((line) => (
