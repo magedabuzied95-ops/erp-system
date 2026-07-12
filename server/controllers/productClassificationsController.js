@@ -374,7 +374,6 @@ export const createProductClassificationOption = async (req, res) => {
       return res.status(400).json({ success: false, message: "value, label_ar, and label_en are required" });
     }
     await client.query("BEGIN");
-    await assertUniqueOptionValue(client, { groupId, value: payload.value });
     const result = await client.query(
       `
       INSERT INTO product_classification_options (group_id, value, label_ar, label_en, icon, color, sort_order, is_active)
