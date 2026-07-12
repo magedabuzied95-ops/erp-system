@@ -304,9 +304,9 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
         ) : null}
 
         <div className={`mt-auto rounded-xl border px-2 py-1.5 text-center shadow-sm ${
-          hasPrice ? "border-violet-500/20 bg-black/55" : "border-amber-300/30 bg-amber-500/10"
+          hasPrice ? "border-emerald-300/20 bg-emerald-950/20" : "border-amber-300/30 bg-amber-500/10"
         }`}>
-          <div className={`truncate text-[8px] font-black uppercase tracking-[0.12em] ${hasPrice ? "text-violet-300" : "text-amber-200"}`}>
+          <div className={`truncate text-[8px] font-black uppercase tracking-[0.12em] ${hasPrice ? "text-emerald-200/80" : "text-amber-200"}`}>
             {saleBadge || t("pos.productGrid.price")}
           </div>
           {originalPrice ? <div className="text-[9px] font-bold leading-tight text-zinc-400 line-through decoration-zinc-300/70">{originalPrice}</div> : null}
