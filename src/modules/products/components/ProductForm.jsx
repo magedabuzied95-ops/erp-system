@@ -299,6 +299,7 @@ function ProductForm({
         </div>
 
         <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
+          <div className="2xl:col-span-2">
           <AudienceCheckboxGroup
             label={t("products.form.gender", "الجمهور")}
             value={selectedAudiences}
@@ -307,6 +308,7 @@ function ProductForm({
               onGenderChange?.(next[0] || "");
             }}
           />
+          </div>
 
           <SmartClassificationSelect
             label={t("products.form.productType")}
