@@ -3298,7 +3298,7 @@ function ProductEdit() {
                 />
               </div>
 
-              <div className="rounded-[18px] border border-white/8 bg-white/[0.028] p-3">
+              <div className="rounded-[18px] border border-white/8 bg-white/[0.028] p-3" style={{ display: "none" }}>
                 <label className="text-sm font-semibold text-zinc-200">{t("products.editor.skuPrefix", "SKU prefix")}</label>
                 <div className="mt-1.5 flex gap-2">
                   <input
@@ -3607,6 +3607,8 @@ function ProductEdit() {
               productType={product.product_type}
               grade={product.grade}
               isOfferStory={product.is_offer_story}
+              useCustomComparePrice={product.use_custom_compare_price}
+              customComparePrice={product.custom_compare_price}
               onMainCategoryChange={setMainCategory}
               onSubCategoryChange={setSubCategory}
               onChildCategoryChange={setChildCategory}
@@ -3625,6 +3627,8 @@ function ProductEdit() {
               onProductTypeChange={(value) => updateProductField("product_type", value)}
               onGradeChange={(value) => updateProductField("grade", value)}
               onIsOfferStoryChange={(value) => updateProductField("is_offer_story", value)}
+              onUseCustomComparePriceChange={(value) => updateProductField("use_custom_compare_price", value)}
+              onCustomComparePriceChange={(value) => updateProductField("custom_compare_price", value)}
               purchaseAlertsEnabled={product.purchase_alerts_enabled}
               purchaseAlertByColor={product.purchase_alert_by_color}
               cartonSize={product.carton_size}

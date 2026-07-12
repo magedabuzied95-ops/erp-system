@@ -2542,6 +2542,8 @@ function CreateProduct() {
                 productType={productType}
                 grade={grade}
                 isOfferStory={isOfferStory}
+                useCustomComparePrice={useCustomComparePrice}
+                customComparePrice={customComparePrice}
                 onMainCategoryChange={setMainCategory}
                 onSubCategoryChange={setSubCategory}
                 onChildCategoryChange={setChildCategory}
@@ -2559,6 +2561,8 @@ function CreateProduct() {
                 onProductTypeChange={setProductType}
                 onGradeChange={setGrade}
                 onIsOfferStoryChange={setIsOfferStory}
+                onUseCustomComparePriceChange={setUseCustomComparePrice}
+                onCustomComparePriceChange={setCustomComparePrice}
                 purchaseAlertsEnabled={purchaseAlertsEnabled}
                 purchaseAlertByColor={purchaseAlertByColor}
                 cartonSize={cartonSize}
@@ -2818,7 +2822,7 @@ function CreateProduct() {
                       </div>
                     ))}
                   </div>
-                  <div className="mt-3 rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
+                  <div className="mt-3 rounded-[16px] border border-white/8 bg-white/[0.035] p-3" style={{ display: "none" }}>
                     <label className="flex items-start gap-3">
                       <input
                         type="checkbox"

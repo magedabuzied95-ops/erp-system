@@ -27,6 +27,8 @@ function ProductForm({
   productType = "",
   grade = "",
   isOfferStory = false,
+  useCustomComparePrice = false,
+  customComparePrice = "",
   purchaseAlertsEnabled = true,
   purchaseAlertByColor = false,
   cartonSize = "",
@@ -42,6 +44,8 @@ function ProductForm({
   onProductTypeChange,
   onGradeChange,
   onIsOfferStoryChange,
+  onUseCustomComparePriceChange,
+  onCustomComparePriceChange,
   onPurchaseAlertsEnabledChange,
   onPurchaseAlertByColorChange,
   onCartonSizeChange,
@@ -104,8 +108,8 @@ function ProductForm({
   }, [showCatalogStructure]);
 
   return (
-    <div className="mt-6 space-y-5">
-      <section className="rounded-[28px] border border-white/8 bg-white/[0.035] p-4 shadow-xl shadow-black/10 backdrop-blur sm:p-5">
+    <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
+      <section className="rounded-[28px] border border-white/8 bg-white/[0.035] p-4 shadow-xl shadow-black/10 backdrop-blur sm:p-5 xl:col-start-1 xl:row-start-1">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/8 pb-4" style={{ display: "none" }}>
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-zinc-500">{t("products.form.catalogStructure")}</p>
@@ -180,7 +184,7 @@ function ProductForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
           <div className="relative" ref={brandWrapRef}>
             <label className="text-sm font-semibold text-zinc-300">{t("products.form.brand")}</label>
             <button
@@ -248,7 +252,7 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-cyan-400/15 bg-gradient-to-br from-cyan-400/10 via-white/[0.03] to-blue-400/10 p-4 shadow-xl shadow-black/10 sm:p-5">
+      <section className="rounded-[28px] border border-cyan-400/15 bg-gradient-to-br from-cyan-400/10 via-white/[0.03] to-blue-400/10 p-4 shadow-xl shadow-black/10 sm:p-5 xl:col-span-3 xl:row-start-2">
         <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200">{t("products.form.variationMode")}</p>
             <p className="mt-1 text-sm text-zinc-400">{t("products.form.variationHelp")}</p>
@@ -279,7 +283,7 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-emerald-400/15 bg-gradient-to-br from-emerald-400/10 via-white/[0.035] to-cyan-400/10 p-4 shadow-xl shadow-black/10 sm:p-5">
+      <section className="rounded-[28px] border border-emerald-400/15 bg-gradient-to-br from-emerald-400/10 via-white/[0.035] to-cyan-400/10 p-4 shadow-xl shadow-black/10 sm:p-5 xl:col-start-2 xl:row-start-1">
         <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-200">{t("products.form.smartPosFilters")}</p>
             <p className="mt-1 text-sm text-zinc-400">{t("products.form.smartPosHelp")}</p>
@@ -330,7 +334,27 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-amber-400/15 bg-gradient-to-br from-amber-400/10 via-white/[0.03] to-orange-400/10 p-4 shadow-xl shadow-black/10 sm:p-5">
+      <section className="rounded-[28px] border border-violet-400/15 bg-gradient-to-br from-violet-400/10 via-white/[0.035] to-amber-400/10 p-4 shadow-xl shadow-black/10 sm:p-5 xl:col-start-3 xl:row-start-1">
+        <div className="mb-4">
+          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-200">سعر المتجر</p>
+          <p className="mt-1 text-sm text-zinc-400">إعداد السعر القديم الظاهر للعميل بجانب سعر البيع.</p>
+        </div>
+        <label className="flex items-start gap-3 rounded-[20px] border border-white/8 bg-zinc-950/60 px-4 py-3">
+          <input type="checkbox" checked={Boolean(useCustomComparePrice)} onChange={(event) => onUseCustomComparePriceChange?.(event.target.checked)} className="mt-1 h-4 w-4 rounded border-white/20 bg-zinc-950 accent-violet-400" />
+          <span>
+            <span className="block text-sm font-black text-white">تفعيل سعر المقارنة</span>
+            <span className="mt-1 block text-xs leading-5 text-zinc-400">للتسويق في المتجر فقط ولا يؤثر على POS أو الفواتير أو الأرباح.</span>
+          </span>
+        </label>
+        {useCustomComparePrice ? (
+          <div className="mt-4">
+            <label className="text-sm font-semibold text-zinc-300">السعر القديم</label>
+            <input type="number" min="0" step="0.01" value={customComparePrice} onChange={(event) => onCustomComparePriceChange?.(event.target.value)} placeholder="السعر القديم المعروض في المتجر" className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-zinc-950/70 px-4 font-semibold text-white outline-none placeholder:text-zinc-600 focus:border-violet-300/50" />
+          </div>
+        ) : null}
+      </section>
+
+      <section className="rounded-[28px] border border-amber-400/15 bg-gradient-to-br from-amber-400/10 via-white/[0.03] to-orange-400/10 p-4 shadow-xl shadow-black/10 sm:p-5 xl:col-span-3 xl:row-start-3">
         <div className="mb-4">
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-200">
             {t("products.form.purchaseSettings", "إعدادات الشراء")}
