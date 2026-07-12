@@ -19,6 +19,7 @@ import {
   Home,
   Loader2,
   MessageCircle,
+  Moon,
   Play,
   Package2,
   QrCode,
@@ -27,6 +28,7 @@ import {
   ShieldCheck,
   Smartphone,
   Star,
+  Sun,
   Target,
   Trophy,
   UserRound,
@@ -53,6 +55,8 @@ import { allowedPortalChatAttachment } from "../../../shared/chat/portalChatUtil
 import EmployeePortalNavControls, { buildEmployeePortalHomePath, canNavigateEmployeePortalBack } from "../components/EmployeePortalNavControls";
 import { getEmployeeSalesOpportunities } from "../services/salesOpportunitiesApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
+import { useTheme } from "../../../theme/useTheme";
+import "./EmployeePayrollPortal.m1.css";
 
 const labels = {
   ar: {
@@ -1314,6 +1318,7 @@ function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) 
 }
 
 export default function EmployeePayrollPortal() {
+  const { theme, setTheme } = useTheme();
   usePageTitle("Employee Portal");
   const { token } = useParams();
   const navigate = useNavigate();
@@ -2901,6 +2906,15 @@ export default function EmployeePayrollPortal() {
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
             <span>{ui("employeeDashboard")}</span>
           </div>
+          <button
+            type="button"
+            onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-[var(--primary)] hover:text-[var(--primary)]"
+            aria-label={theme.mode === "dark" ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
+            title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
+          >
+            {theme.mode === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
         </header>
 
         {!portal && loading ? (
@@ -3831,7 +3845,7 @@ export default function EmployeePayrollPortal() {
       ) : null}
       {chatOpen ? (
         <div className="fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950/70 p-0">
-          <section className="mx-auto flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" style={chatPanelStyle} dir={direction}>
+          <section className="employee-portal-chat mx-auto flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" style={chatPanelStyle} dir={direction}>
             <div className="employee-portal-safe-top sticky top-0 z-30 flex-none bg-[#0b141a]">
               <EmployeePortalNavControls onBack={handlePortalBack} onHome={handlePortalHome} tone="dark" className="mb-0 px-3 pt-3" />
               <header className="flex min-h-14 items-center justify-between gap-2 border-b border-white/10 bg-[#1f2c33] px-3 py-2">

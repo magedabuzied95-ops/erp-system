@@ -11,6 +11,7 @@ import ProductGrid from "../../pos/components/ProductGrid";
 import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
+import "./EmployeePortalWorkspaces.m1.css";
 
 const text = (value = "") => String(value || "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -1545,7 +1546,7 @@ export default function EmployeePortalProducts() {
   }
 
   return (
-    <main dir="rtl" className="employee-portal-min-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_30%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-3 py-3 text-right text-white sm:px-4 sm:py-4">
+    <main dir="rtl" className="employee-portal-products employee-portal-min-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.12),_transparent_30%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-3 py-3 text-right text-white sm:px-4 sm:py-4">
       <div className="mx-auto max-w-7xl">
         {!sheetOpen ? <EmployeePortalNavControls onBack={handleCatalogBack} onHome={handleGoHome} tone="dark" /> : null}
         <header className="employee-portal-safe-top rounded-[1.5rem] border border-white/10 bg-white/[0.03] px-4 py-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur">

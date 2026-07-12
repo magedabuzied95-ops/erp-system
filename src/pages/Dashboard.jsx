@@ -79,7 +79,7 @@ const widgetDefinitions = [
   { id: "products", title: "Best Selling Products", roles: ["owner", "admin", "manager", "sales", "warehouse"], size: "medium" },
 ];
 
-const paymentColors = ["#10b981", "#38bdf8", "#f59e0b", "#a78bfa", "#fb7185"];
+const paymentColors = ["#b8860b", "#111111", "#71717a", "#a1a1aa", "#10b981"];
 
 const getRole = (user = getCurrentUser()) =>
   String(user?.role_name || user?.role || "admin").trim().toLowerCase().replace(/[_-]+/g, " ");
@@ -275,6 +275,11 @@ function Dashboard() {
   const [filters, setFilters] = React.useState({ range: "today", date_from: "", date_to: "", branch_id: "all" });
   const [focusMode, setFocusMode] = React.useState(() => localStorage.getItem("erp.dashboard.mode") === "focus");
   const [activeSection, setActiveSection] = React.useState("sales");
+
+  React.useEffect(() => {
+    document.body.classList.add("dashboard-shopify-route");
+    return () => document.body.classList.remove("dashboard-shopify-route");
+  }, []);
 
   React.useEffect(() => {
     try {
@@ -505,7 +510,7 @@ function Dashboard() {
     return { tone: "emerald", title: copy.noCriticalAlerts, detail: copy.operationsCalm };
   }, [copy, data.liveActivity, data.lowStock]);
   const executiveCards = [
-    { label: copy.revenueToday, value: formatCurrency(overview.kpis?.todaySales?.value || overview.today?.sales || 0), icon: Banknote, tone: "emerald", detail: percent(overview.kpis?.todaySales?.growth || 0) },
+    { label: copy.revenueToday, value: formatCurrency(overview.kpis?.todaySales?.value || overview.today?.sales || 0), icon: Banknote, tone: "gold", detail: percent(overview.kpis?.todaySales?.growth || 0) },
     { label: copy.ordersToday, value: number(overview.kpis?.todayOrders?.value ?? overview.today?.orders), icon: ShoppingCart, tone: "slate", detail: `${formatCurrency(overview.kpis?.averageOrderValue?.value || 0)} ${copy.aov}` },
     { label: copy.activePos, value: number(openPosShifts.length), icon: MonitorDot, tone: hasPosActivity ? "emerald" : "slate", detail: posStatus.value },
     { label: copy.lowStock, value: number(data.lowStock.length || overview.kpis?.lowStockProducts?.value), icon: AlertTriangle, tone: data.lowStock.length ? "amber" : "emerald", detail: data.lowStock.length ? copy.needsAttention : copy.healthy },
@@ -528,17 +533,17 @@ function Dashboard() {
   const activeSecondary = secondarySections.find((section) => section.id === activeSection) || secondarySections[0];
 
   return (
-    <div className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[28px] px-4 pb-10 pt-4 text-slate-100 sm:px-6">
-      <div className="sticky top-0 z-20 -mx-4 border-b border-slate-700/45 bg-[#07111f]/88 px-4 py-4 backdrop-blur-xl sm:-mx-6 sm:px-6">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+    <div dir={isArabic ? "rtl" : "ltr"} className="dashboard-premium relative isolate min-h-screen w-full overflow-x-hidden rounded-[20px] px-3 pb-8 pt-3 text-zinc-950 sm:px-5">
+      <div className="dashboard-commandbar sticky top-0 z-20 -mx-3 border-b border-slate-700/45 bg-[#07111f]/88 px-3 py-3 backdrop-blur-xl sm:-mx-5 sm:px-5">
+        <div className="grid gap-3 xl:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.8fr)] xl:items-center">
           <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{copy.executiveControlCenter}</div>
-            <h1 className="mt-1 text-2xl font-black tracking-normal text-white md:text-4xl">
+            <div className="text-[11px] font-semibold text-slate-400">{copy.executiveControlCenter}</div>
+            <h1 className="mt-1 text-xl font-black tracking-normal text-white md:text-2xl">
               {getGreeting(copy)}, {user?.name || copy.admin}
             </h1>
             <div className="mt-1 text-sm font-semibold text-slate-400">{tenant?.name || tenant?.companyName || copy.workspace}{lastUpdated ? ` · ${copy.updated} ${shortTime(lastUpdated)}` : ""}</div>
           </div>
-          <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-slate-300 xl:justify-end">
+          <div className="dashboard-toolbar flex flex-wrap items-center gap-2 text-xs font-bold text-slate-300 xl:justify-end">
             <div className="flex max-w-full flex-wrap items-center gap-1.5 rounded-2xl border border-slate-700/50 bg-slate-900/55 p-1">
               {quickActions.map((action) => (
                 <QuickAction key={action.to} {...action} />
@@ -580,13 +585,13 @@ function Dashboard() {
         </div>
       </div>
 
-      <section className="relative z-10 mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="dashboard-kpi-grid relative z-10 mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         {executiveCards.map((card) => <ExecutiveCard key={card.label} {...card} loading={loading} />)}
       </section>
 
       {!loading && Number(overview.today?.orders || 0) === 0 && Number(overview.today?.sales || 0) === 0 ? <GettingStarted /> : null}
 
-      <div className="relative z-10 mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="dashboard-workspace relative z-10 mt-5 grid gap-4">
         <main className="min-w-0 space-y-6">
           {!focusMode && secondarySections.length ? (
             <ExecutiveSection
@@ -621,23 +626,25 @@ function Dashboard() {
 
 function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loading = false, textValue = false }) {
   const tones = {
+    gold: "border-amber-600/25 bg-white text-zinc-950",
     emerald: "border-emerald-400/20 bg-emerald-500/10 text-emerald-100",
     amber: "border-amber-400/24 bg-amber-500/10 text-amber-100",
     rose: "border-red-400/24 bg-red-500/10 text-red-100",
     slate: "border-slate-700/70 bg-slate-900/62 text-slate-100",
   };
   const iconTones = {
+    gold: "bg-amber-100 text-amber-800",
     emerald: "bg-emerald-400/12 text-emerald-200",
     amber: "bg-amber-400/12 text-amber-200",
     rose: "bg-red-400/12 text-red-200",
     slate: "bg-slate-700/55 text-slate-300",
   };
   return (
-    <article className={`min-h-[168px] rounded-3xl border p-5 shadow-xl shadow-black/18 ${tones[tone] || tones.slate}`}>
+    <article className={`min-h-[132px] rounded-3xl border p-4 shadow-xl shadow-black/18 ${tones[tone] || tones.slate}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{label}</div>
-          <div className={`mt-4 font-black tracking-normal text-white ${textValue ? "line-clamp-2 text-xl leading-7" : "text-3xl md:text-4xl"}`}>
+          <div className={`mt-3 font-black tracking-normal text-white ${textValue ? "line-clamp-2 text-lg leading-6" : "text-2xl md:text-3xl"}`}>
             {loading ? <SkeletonLine className="h-9 w-24" /> : value}
           </div>
         </div>
@@ -645,7 +652,7 @@ function ExecutiveCard({ label, value, detail, icon: Icon, tone = "slate", loadi
           <Icon className="h-5 w-5" />
         </div>
       </div>
-      <div className="mt-5 text-sm font-semibold text-slate-400">{loading ? <SkeletonLine className="h-4 w-28" /> : detail}</div>
+      <div className="mt-4 border-t border-zinc-100 pt-3 text-xs font-semibold text-slate-400">{loading ? <SkeletonLine className="h-4 w-28" /> : detail}</div>
     </article>
   );
 }
@@ -661,7 +668,7 @@ function ExecutiveSection({ sections, activeId, onSelect, children }) {
             onClick={() => onSelect(id)}
             className={`inline-flex h-11 items-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${
               activeId === id
-                ? "border-cyan-300/30 bg-cyan-300/10 text-cyan-100"
+                ? "border-amber-600/35 bg-amber-50 text-amber-900"
                 : "border-slate-700 bg-slate-950/45 text-slate-400 hover:border-slate-500 hover:text-slate-100"
             }`}
           >
@@ -732,11 +739,11 @@ function QuickAction({ to, icon: Icon, label, primary = false }) {
       to={to}
       className={`group inline-flex h-8 items-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-black uppercase tracking-[0.08em] shadow-sm shadow-black/10 transition duration-150 hover:-translate-y-0.5 sm:px-3 ${
         primary
-          ? "border-emerald-300/25 bg-emerald-400/15 text-emerald-50 hover:border-emerald-300/40 hover:bg-emerald-400/20"
+          ? "border-amber-700 bg-amber-700 text-white hover:border-amber-800 hover:bg-amber-800"
           : "border-white/[0.07] bg-white/[0.045] text-zinc-300 hover:border-white/15 hover:bg-white/[0.075] hover:text-white"
       }`}
     >
-      <Icon className={`h-3.5 w-3.5 ${primary ? "text-emerald-200" : "text-zinc-500 transition group-hover:text-emerald-200"}`} />
+      <Icon className={`h-3.5 w-3.5 ${primary ? "text-white" : "text-zinc-500 transition group-hover:text-amber-700"}`} />
       <span className="whitespace-nowrap">{label}</span>
     </Link>
   );
@@ -1109,7 +1116,7 @@ function RightSidebar({ lowStock, recentInvoices, activity }) {
   const copy = getDashboardCopy(String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar"));
   const notifications = (activity || []).slice(0, 5);
   return (
-    <aside className="space-y-4 xl:sticky xl:top-28 xl:self-start">
+    <aside className="dashboard-operations-grid grid gap-4 md:grid-cols-3">
       <SidePanel title={copy.notifications} icon={Bell}>
         {notifications.map((item, index) => <NotificationLine key={`${item.created_at}-${index}`} tone="slate" label={item.title || item.type || copy.systemUpdate} value={shortTime(item.created_at)} />)}
         {!notifications.length ? <NotificationLine tone="emerald" label={copy.systemLive} value={copy.noNewAlerts} pulse /> : null}

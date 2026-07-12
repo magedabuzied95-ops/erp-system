@@ -29,6 +29,7 @@ import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import { normalizePosCatalogProduct, normalizePosSellableProducts } from "../../pos/services/posProductsApi";
 import { getEmployeePortalProducts } from "../services/employeePortalProductsApi";
 import usePageTitle from "../../../shared/hooks/usePageTitle";
+import "./EmployeePortalWorkspaces.m1.css";
 import {
   createEmployeePortalInventorySession,
   getEmployeePortalInventorySession,
@@ -1145,7 +1146,7 @@ export default function EmployeePortalInventory() {
   }, []);
 
   return (
-    <div dir="rtl" className="employee-portal-inventory min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.10),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-3 py-3 text-slate-950 sm:px-4 sm:py-4">
+    <div dir="rtl" className="employee-portal-workspace employee-portal-inventory min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.10),_transparent_28%),linear-gradient(180deg,#f8fafc_0%,#eef2ff_100%)] px-3 py-3 text-slate-950 sm:px-4 sm:py-4">
       <style>{`
         .employee-portal-inventory {
           width: 100%;

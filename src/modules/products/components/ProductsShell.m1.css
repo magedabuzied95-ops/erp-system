@@ -1,0 +1,41 @@
+.m1-products-page{font-family:var(--app-font);color:var(--text)}
+.m1-products-heading{border-radius:var(--radius-lg)!important;box-shadow:var(--shadow-card)!important;padding:20px!important}
+.m1-products-heading h1{font-size:26px!important;font-weight:800!important;line-height:1.3!important}
+.m1-products-heading p{line-height:1.65}
+.m1-products-heading .mobile-scroll-tabs{margin-top:18px!important;padding-top:16px;border-top:1px solid var(--border)}
+.m1-products-heading .mobile-scroll-tabs a{height:36px;border-radius:var(--radius-sm);font-size:12px;font-weight:700}
+.m1-products-primary-action,.m1-products-secondary-action{min-height:40px;border-radius:var(--radius-sm);font-family:var(--app-font)}
+.m1-products-primary-action{border:1px solid var(--primary-active);background:var(--primary);color:var(--primary-contrast)}
+.m1-products-primary-action:hover{background:var(--primary-hover)}
+.m1-products-secondary-action{border:1px solid var(--border);background:var(--surface);color:var(--text)}
+.m1-products-secondary-action:hover{background:var(--surface-soft);border-color:var(--border-strong)}
+
+.m1-products-catalog{border-color:var(--border)!important;border-radius:var(--radius-lg)!important;background:var(--card)!important;box-shadow:var(--shadow-card)!important}
+.m1-products-catalog [class*="border-white"]{border-color:var(--border)!important}
+.m1-products-catalog [class*="bg-zinc-950"]{background:var(--surface-raised)!important}
+.m1-products-catalog [class*="bg-white/"]{background:var(--surface-soft)!important}
+.m1-products-catalog [class*="text-white"]{color:var(--text)!important}
+.m1-products-catalog [class*="text-zinc-200"],.m1-products-catalog [class*="text-zinc-300"]{color:var(--text-secondary)!important}
+.m1-products-catalog [class*="text-zinc-400"],.m1-products-catalog [class*="text-zinc-500"]{color:var(--muted)!important}
+.m1-products-catalog input:not([type="checkbox"]),.m1-products-catalog select{min-height:38px;border-color:var(--border)!important;border-radius:var(--radius-sm)!important;background:var(--surface)!important;color:var(--text)!important;font-family:var(--app-font)}
+.m1-products-catalog input::placeholder{color:var(--text-tertiary)!important}
+.m1-products-catalog>div:first-child{border-radius:var(--radius-sm)!important;background:var(--surface-soft)!important}
+.m1-products-catalog>div:first-child>button{border-radius:var(--radius-xs)!important;color:var(--muted)!important}
+.m1-products-catalog>div:first-child>button[class*="bg-emerald"]{background:var(--primary)!important;color:var(--primary-contrast)!important;box-shadow:none!important}
+.m1-products-catalog table{border-collapse:collapse!important;border-spacing:0!important;font-size:12px}
+.m1-products-catalog thead tr{background:var(--table-head)!important}
+.m1-products-catalog thead th{padding:11px 14px!important;border-bottom:1px solid var(--border)!important;color:var(--muted)!important;font-size:11px!important;font-weight:700!important;letter-spacing:0!important;text-transform:none!important}
+.m1-products-catalog tbody tr{border:0!important;border-bottom:1px solid var(--border)!important;border-radius:0!important;background:transparent!important}
+.m1-products-catalog tbody tr:hover{background:var(--table-hover)!important}
+.m1-products-catalog tbody td{padding:12px 14px!important}
+.m1-products-catalog tbody p{color:var(--text)!important}.m1-products-catalog tbody p+ p{color:var(--muted)!important}
+.m1-products-catalog button{font-family:var(--app-font)}
+.m1-products-catalog button[class*="rounded-full"]{border-radius:var(--radius-sm)!important}
+.m1-products-catalog [class*="rounded-3xl"],.m1-products-catalog [class*="rounded-[34px]"]{border-radius:var(--radius-lg)!important}
+.m1-products-catalog [class*="rounded-2xl"]{border-radius:var(--radius-md)!important}
+.m1-products-catalog [class*="shadow-"]{box-shadow:none!important}
+.m1-products-catalog [class*="bg-emerald-500"][class*="text-black"]{background:var(--primary)!important;color:var(--primary-contrast)!important}
+
+html[data-density="compact"] .m1-products-catalog tbody td{padding-top:8px!important;padding-bottom:8px!important}
+html[data-density="compact"] .m1-products-heading{padding:16px!important}
+@media(max-width:767px){.m1-products-heading{padding:15px!important}.m1-products-heading h1{font-size:23px!important}.m1-products-primary-action,.m1-products-secondary-action{width:100%;justify-content:center}.m1-products-catalog{padding:10px!important}.m1-products-catalog article{background:var(--surface)!important;border-color:var(--border)!important;border-radius:var(--radius-md)!important}}

@@ -3,7 +3,8 @@ import ReactDOM from "react-dom/client";
 import "./i18n/i18n";
 
 import "./index.css";
-import { API_BASE_URL, API_ORIGIN, SOCKET_URL } from "./shared/constants/app";
+import "./theme/foundation.css";
+import { API_BASE_URL, API_ORIGIN, SOCKET_URL } from "./shared/constants/app.js?m1PreviewApi=2";
 import { installChunkLoadRecovery } from "./shared/utils/chunkLoadRecovery";
 import { ThemeProvider } from "./theme/ThemeProvider";
 

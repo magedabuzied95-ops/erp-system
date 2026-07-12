@@ -14,6 +14,7 @@ import {
   Printer,
 } from "lucide-react";
 import { ResponsiveTabs } from "../../../shared/components/mobile/ResponsiveMobile";
+import "./ProductsShell.m1.css";
 
 export default function ProductsShell({
   title,
@@ -37,8 +38,8 @@ export default function ProductsShell({
   ];
 
   return (
-    <div className="w-full min-w-0 max-w-none space-y-4 overflow-x-hidden sm:space-y-6">
-      <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[0_22px_70px_var(--shadow)] sm:rounded-[28px] sm:p-5 xl:p-6">
+    <div className="m1-products-page w-full min-w-0 max-w-none space-y-4 overflow-x-hidden sm:space-y-6">
+      <div className="m1-products-heading rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-3 shadow-[0_22px_70px_var(--shadow)] sm:rounded-[28px] sm:p-5 xl:p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[var(--primary)] sm:text-xs sm:tracking-[0.24em]">
@@ -69,7 +70,7 @@ export default function ProductsShell({
                   flex h-9 shrink-0 items-center gap-2 rounded-full border px-4 text-sm font-semibold transition duration-200
                   ${
                     active
-                      ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)] shadow-[0_0_24px_rgba(16,185,129,0.12)]"
+                      ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]"
                       : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:-translate-y-0.5 hover:bg-[var(--surface-soft)] hover:text-[var(--text)]"
                   }
                 `}

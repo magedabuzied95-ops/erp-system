@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Megaphone,
   Medal,
+  Moon,
   Package,
   Plus,
   Printer,
@@ -51,6 +52,8 @@ import { playRealtimeSound, requestBrowserNotificationPermission, unlockRealtime
 import { managerPortalApi } from "../services/managerPortalApi";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { safeSetLocalStorage } from "../../../utils/safeStorage";
+import { useTheme } from "../../../theme/useTheme";
+import "./ManagerPortal.m1.css";
 
 const TABS = ["today", "staff", "tasks", "sales", "chat", "more"];
 const STORAGE_KEY = "manager.portal.active.tab";
@@ -589,9 +592,12 @@ const StatusPill = ({ value, tone = "slate" }) => {
     green: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-100",
     amber: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100",
     red: "border-rose-200 bg-rose-50 text-rose-700 dark:border-rose-400/20 dark:bg-rose-400/10 dark:text-rose-100",
-    blue: "border-sky-200 bg-sky-50 text-sky-700 dark:border-sky-400/20 dark:bg-sky-400/10 dark:text-sky-100",
+    blue: "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-400/30 dark:bg-amber-400/10 dark:text-amber-200",
   };
-  return <span className={`manager-portal-status-pill rounded-full border px-2.5 py-1.5 text-[11px] font-black leading-5 ${tones[tone] || tones.slate}`}>{value}</span>;
+  const style = tone === "blue"
+    ? { background: "var(--primary-soft)", borderColor: "color-mix(in srgb, var(--primary) 36%, var(--border))", color: "var(--primary)" }
+    : undefined;
+  return <span style={style} className={`manager-portal-status-pill rounded-full border px-2.5 py-1.5 text-[11px] font-black leading-5 ${tones[tone] || tones.slate}`}>{value}</span>;
 };
 
 const EmptyState = ({ title, body, compact = false }) => (
@@ -602,6 +608,7 @@ const EmptyState = ({ title, body, compact = false }) => (
 );
 
 export default function ManagerPortal() {
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
   const { token } = useParams();
   const [searchParams] = useSearchParams();
@@ -1548,7 +1555,7 @@ export default function ManagerPortal() {
 
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={toggleExpanded} className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-800">
-              {expanded ? "إخفاء التفاصيل" : "View Details"}
+              {expanded ? "إخفاء التفاصيل" : "عرض التفاصيل"}
               <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
             </button>
             <button
@@ -1771,7 +1778,7 @@ export default function ManagerPortal() {
           ) : null}
 
           {isMobilePortal ? (
-            <header className="manager-portal-mobile-hero mt-2 rounded-[1.45rem] border border-slate-800 bg-[#050816] p-3 shadow-[0_14px_30px_rgba(2,6,23,0.22)]">
+            <header className="manager-portal-hero manager-portal-mobile-hero mt-2 rounded-[1.45rem] border border-slate-800 bg-[#050816] p-3 shadow-[0_14px_30px_rgba(2,6,23,0.22)]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">بوابة المدير</div>
@@ -1781,19 +1788,24 @@ export default function ManagerPortal() {
                     <span className="min-w-0 truncate">{portalText(me?.branch_name || "كل الفروع")}</span>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  data-testid="refresh-button"
-                  onClick={() => void loadAll({ silent: true })}
-                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-sm transition hover:bg-slate-800"
-                  aria-label="تحديث"
-                >
-                  <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
-                </button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-100" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
+                    {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="refresh-button"
+                    onClick={() => void loadAll({ silent: true })}
+                    className="manager-refresh-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-slate-100 shadow-sm transition hover:bg-slate-800"
+                    aria-label="تحديث"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+                  </button>
+                </div>
               </div>
             </header>
           ) : (
-            <header className="rounded-[2rem] border border-slate-200 bg-slate-950 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
+            <header className="manager-portal-hero rounded-[2rem] border border-slate-200 bg-slate-950 p-4 shadow-[0_18px_40px_rgba(15,23,42,0.18)]">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-300">بوابة المدير</div>
@@ -1806,6 +1818,9 @@ export default function ManagerPortal() {
                 <div className="flex flex-col items-end gap-2">
                   <Badge className="border-slate-700 bg-slate-800 text-slate-100">مباشر</Badge>
                   <div className="flex items-center gap-2">
+                    <button type="button" onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")} className="manager-theme-toggle inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-700 bg-slate-900 text-white" aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"} title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}>
+                      {theme.mode === "dark" ? <SunMedium className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                    </button>
                     <button
                       type="button"
                       onClick={openInventoryApprovals}
@@ -2124,7 +2139,7 @@ export default function ManagerPortal() {
                               <div className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-slate-400">{event.detail || "لا توجد تفاصيل إضافية"}</div>
                             </div>
                             <div className="shrink-0 text-right">
-                              {event.kind ? <div className="mb-1 flex justify-end"><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${event.kind === "invoice" ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-200" : event.tone === "amber" ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-200" : event.tone === "red" ? "border-cyan-400/20 bg-cyan-400/10 text-cyan-200" : "border-slate-700 bg-slate-900 text-slate-200"}`}>{event.kind === "invoice" ? "فاتورة" : event.kind === "lead" ? "عميل" : event.kind === "task" ? "مهمة" : "حدث"}</span></div> : null}
+                              {event.kind ? <div className="mb-1 flex justify-end"><span className={`rounded-full border px-2 py-1 text-[10px] font-black ${event.kind === "invoice" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : event.tone === "amber" ? "border-amber-400/30 bg-amber-400/10 text-amber-200" : event.tone === "red" ? "border-rose-400/30 bg-rose-400/10 text-rose-200" : "border-slate-700 bg-slate-900 text-slate-200"}`}>{event.kind === "invoice" ? "فاتورة" : event.kind === "lead" ? "عميل" : event.kind === "task" ? "مهمة" : "حدث"}</span></div> : null}
                               <StatusPill tone={event.tone || "slate"} value={formatDateTime(event.timestamp)} />
                             </div>
                           </button>
@@ -2444,11 +2459,11 @@ export default function ManagerPortal() {
                       <svg viewBox="0 0 120 36" className="mt-3 h-11 w-full" preserveAspectRatio="none" aria-hidden="true">
                         <defs>
                           <linearGradient id="salesSparkFill" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#22d3ee" stopOpacity="0.55" />
-                            <stop offset="100%" stopColor="#22d3ee" stopOpacity="0" />
+                            <stop offset="0%" stopColor="#d0a632" stopOpacity="0.42" />
+                            <stop offset="100%" stopColor="#d0a632" stopOpacity="0" />
                           </linearGradient>
                         </defs>
-                        <polyline fill="none" stroke="#67e8f9" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" points={sparklinePoints(salesTrendValues, 120, 36)} />
+                        <polyline fill="none" stroke="#d0a632" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" points={sparklinePoints(salesTrendValues, 120, 36)} />
                       </svg>
                     </div>
 
@@ -2465,7 +2480,7 @@ export default function ManagerPortal() {
                         </div>
                       </div>
                       <svg viewBox="0 0 120 36" className="mt-3 h-11 w-full" preserveAspectRatio="none" aria-hidden="true">
-                        <polyline fill="none" stroke="#38bdf8" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" points={sparklinePoints(invoiceTrendValues, 120, 36)} />
+                        <polyline fill="none" stroke="#d0a632" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" points={sparklinePoints(invoiceTrendValues, 120, 36)} />
                       </svg>
                     </div>
 

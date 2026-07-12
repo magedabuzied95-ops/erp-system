@@ -1,0 +1,102 @@
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+
+@layer base {
+  :root {
+    --app-font: var(--font-en);
+    --font-ui: var(--app-font);
+    --control-height: var(--control-height-md);
+    --radius-control: var(--radius-sm);
+    --radius-card: var(--radius-lg);
+    --surface-hover: var(--surface-soft);
+    --shadow-popover: var(--shadow-overlay);
+    --page-inline: clamp(12px, 2.1vw, 30px);
+    --content-max: 1480px;
+  }
+
+  html[dir="rtl"], html[data-language="ar"] { --app-font: var(--font-ar); }
+  html[dir="ltr"], html[data-language="en"] { --app-font: var(--font-en); }
+
+  :where(button, input, select, textarea, a):focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px var(--focus-ring);
+  }
+
+  ::selection { background: var(--primary-soft); color: var(--text); }
+}
+
+@layer components {
+  .m1-page { min-height: 100vh; background: var(--bg); color: var(--text); font-family: var(--app-font); font-size: 14px; line-height: 1.55; }
+  .m1-container { width: min(100%, var(--content-max)); margin-inline: auto; padding-inline: var(--page-inline); }
+  .m1-surface { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); }
+  .m1-surface-soft { background: var(--surface-soft); border: 1px solid var(--border); border-radius: var(--radius-md); }
+  .m1-control { min-height: var(--control-height-md); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); }
+  .m1-action-primary { min-height: var(--control-height-md); border: 1px solid var(--primary-active); border-radius: var(--radius-sm); background: var(--primary); color: var(--primary-contrast); font-weight: 700; }
+  .m1-action-primary:hover { background: var(--primary-hover); }
+  .m1-action-secondary { min-height: var(--control-height-md); border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--text); font-weight: 600; }
+  .m1-text-muted { color: var(--muted); }
+  .m1-status-success { background: var(--success-soft); color: var(--success); }
+  .m1-status-warning { background: var(--warning-soft); color: var(--warning); }
+  .m1-status-danger { background: var(--danger-soft); color: var(--danger); }
+  .m1-status-neutral { background: var(--surface-soft); color: var(--text-secondary); }
+  .m1-data-table { width: 100%; border-collapse: collapse; }
+  .m1-data-table th { background: var(--table-head); color: var(--text-tertiary); font-weight: 600; text-align: start; }
+  .m1-data-table th, .m1-data-table td { border-bottom: 1px solid var(--border); padding: 10px 12px; }
+  .m1-data-table tbody tr:hover { background: var(--table-hover); }
+}
+
+@media (max-width: 767px) {
+  :root { --page-inline: 12px; --control-height-md: 42px; }
+}
+
+/* Legacy ERP modules used emerald/cyan as brand colors. Inside the authenticated
+   app shell, solid colored controls are actions and therefore use M1 gold.
+   Soft colors remain semantic statuses with accessible contrast. */
+.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-emerald-400"]:not([class*="bg-emerald-400/"]),
+.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-emerald-500"]:not([class*="bg-emerald-500/"]),
+.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-green-500"]:not([class*="bg-green-500/"]),
+.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-cyan-300"]:not([class*="bg-cyan-300/"]),
+.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-cyan-400"]:not([class*="bg-cyan-400/"]),
+.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-sky-400"]:not([class*="bg-sky-400/"]) {
+  background: var(--primary) !important;
+  background-image: none !important;
+  border-color: var(--primary-active) !important;
+  color: var(--primary-contrast) !important;
+  box-shadow: none !important;
+}
+
+.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-blue-"][class*="text-blue-"],
+.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-sky-"][class*="text-sky-"],
+.m1-shell-root .m1-shell-content :where(button,a)[class*="bg-cyan-"][class*="text-cyan-"] {
+  background: var(--primary-soft) !important;
+  border-color: color-mix(in srgb, var(--primary) 40%, var(--border)) !important;
+  color: var(--primary) !important;
+  box-shadow: none !important;
+}
+
+.m1-shell-root .m1-shell-content :where([class*="text-cyan-"],[class*="text-sky-"],[class*="text-blue-"]) {
+  color: var(--info) !important;
+}
+.m1-shell-root .m1-shell-content :where([class*="bg-cyan-500/"],[class*="bg-cyan-400/"],[class*="bg-cyan-300/"],[class*="bg-sky-500/"],[class*="bg-sky-400/"],[class*="bg-blue-500/"]) {
+  background: var(--info-soft) !important;
+}
+.m1-shell-root .m1-shell-content :where([class*="border-cyan-"],[class*="border-sky-"],[class*="border-blue-"]) {
+  border-color: color-mix(in srgb, var(--info) 38%, var(--border)) !important;
+}
+
+.m1-shell-root .m1-shell-content :where([class*="text-emerald-"],[class*="text-green-"]) {
+  color: var(--success) !important;
+}
+.m1-shell-root .m1-shell-content :where([class*="bg-emerald-500/"],[class*="bg-emerald-400/"],[class*="bg-emerald-300/"],[class*="bg-green-500/"],[class*="bg-green-400/"]) {
+  background: var(--success-soft) !important;
+}
+.m1-shell-root .m1-shell-content :where([class*="border-emerald-"],[class*="border-green-"]) {
+  border-color: color-mix(in srgb, var(--success) 36%, var(--border)) !important;
+}
+
+.m1-shell-root .m1-shell-content :where([class*="text-amber-"],[class*="text-yellow-"],[class*="text-orange-"]) { color: var(--warning) !important; }
+.m1-shell-root .m1-shell-content :where([class*="bg-amber-500/"],[class*="bg-amber-400/"],[class*="bg-yellow-500/"],[class*="bg-orange-500/"]) { background: var(--warning-soft) !important; }
+.m1-shell-root .m1-shell-content :where([class*="text-rose-"],[class*="text-red-"]) { color: var(--danger) !important; }
+.m1-shell-root .m1-shell-content :where([class*="bg-rose-500/"],[class*="bg-rose-400/"],[class*="bg-red-500/"]) { background: var(--danger-soft) !important; }
+
+html[data-theme="light"] .m1-shell-root .m1-shell-content :where([class*="opacity-"],button:disabled) { text-shadow: none; }

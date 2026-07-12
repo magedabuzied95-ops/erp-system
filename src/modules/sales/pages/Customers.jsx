@@ -6,6 +6,7 @@ import { api } from "../../../shared/api/api";
 import { getCurrentUser } from "../../../shared/auth/authStorage";
 import customerStatementArabicFontUrl from "../../../assets/fonts/customer-statement-arabic.ttf?url";
 import { escapeHtml, formatPrintDate, normalizePrintLanguage, openPrintHtml, PRINT_FONT_STACK, wrapPrintableHtml } from "../../../shared/utils/printLocalization";
+import "./Customers.m1.css";
 
 const DEFAULT_CUSTOMERS_PAGE_SIZE = 50;
 const CUSTOMER_PAGE_SIZE_OPTIONS = [25, 50, 100, 200];
@@ -822,7 +823,7 @@ function Customers() {
   };
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-6 py-6 text-white">
+    <div className="m1-customers-page min-h-screen bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_34%),linear-gradient(180deg,#09090b_0%,#111827_100%)] px-6 py-6 text-white">
       <div className="w-full space-y-6">
         <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-slate-950/75 p-5 shadow-2xl shadow-black/30 backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
           <div>

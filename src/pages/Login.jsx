@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../shared/api/api";
 import { setAuth, getCurrentTenant, setCurrentTenant } from "../shared/auth/authStorage";
-import { API_BASE_URL } from "../shared/constants/app";
+import { API_BASE_URL } from "../shared/constants/app.js?m1PreviewApi=2";
 
 function BrandBadge({ name, logoUrl }) {
   const [failed, setFailed] = useState(false);
@@ -81,8 +81,9 @@ function Login() {
       setLoading(true);
       setError("");
 
-      const loginUrl = `${API_BASE_URL}/auth/login`;
-      console.log("[login] api base:", API_BASE_URL);
+      const previewApiBase = typeof window !== "undefined" && window.location.hostname.endsWith(".nip.io") ? "/api" : API_BASE_URL;
+      const loginUrl = `${previewApiBase}/auth/login`;
+      console.log("[login] api base:", previewApiBase);
       console.log("[login] request url:", loginUrl);
 
       const data = await api.post("/auth/login", {

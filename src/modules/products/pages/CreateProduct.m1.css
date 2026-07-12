@@ -1,0 +1,30 @@
+.m1-create-product{font-family:var(--app-font);color:var(--text)}
+.m1-create-product>div.flex{padding-inline:0!important;gap:16px!important}
+.m1-create-product>div.flex>section:first-child{border-color:var(--border)!important;border-radius:var(--radius-lg)!important;background:var(--card)!important;box-shadow:var(--shadow-card)!important;padding:18px!important}
+.m1-create-product>div.flex>section:first-child h1{color:var(--text)!important;font-family:var(--app-font);font-size:22px!important;font-weight:800!important}
+.m1-create-product>div.flex>section:first-child p{color:var(--muted)!important}
+.m1-create-product>div.flex>nav{top:64px!important;margin-inline:0!important;border:1px solid var(--border)!important;border-radius:var(--radius-md);background:color-mix(in srgb,var(--bg) 92%,transparent)!important;box-shadow:none!important;padding:7px!important}
+.m1-create-product>div.flex>nav button{height:34px!important;border-color:var(--border)!important;border-radius:var(--radius-sm)!important;background:var(--surface)!important;color:var(--text-secondary)!important;font-family:var(--app-font);font-size:11px!important;box-shadow:none!important}
+.m1-create-product>div.flex>nav button:hover{border-color:var(--primary)!important;background:var(--primary-soft)!important;color:var(--primary)!important}
+.m1-create-section{border-color:var(--border)!important;border-radius:var(--radius-lg)!important;background:var(--card)!important;box-shadow:var(--shadow-card)!important;padding:20px!important}
+.m1-create-section:hover{border-color:var(--border-strong)!important}
+.m1-create-section h2{color:var(--text)!important;font-family:var(--app-font);font-size:17px!important;font-weight:800!important;line-height:1.4}
+.m1-create-section label{color:var(--text-secondary)!important;font-family:var(--app-font);font-size:12px!important;font-weight:700!important;letter-spacing:0!important;text-transform:none!important}
+.m1-create-section p{color:var(--muted)!important;line-height:1.65}
+.m1-create-product :where(input:not([type="checkbox"]):not([type="radio"]),select,textarea){border-color:var(--border)!important;border-radius:var(--radius-sm)!important;background:var(--surface-soft)!important;color:var(--text)!important;font-family:var(--app-font);font-size:13px!important;box-shadow:none!important}
+.m1-create-product :where(input,select,textarea):focus{border-color:var(--primary)!important;box-shadow:0 0 0 3px var(--focus-ring)!important}
+.m1-create-product :where(input,textarea)::placeholder{color:var(--text-tertiary)!important}
+.m1-create-product [class*="border-white"]{border-color:var(--border)!important}
+.m1-create-product [class*="bg-[#10"],.m1-create-product [class*="bg-[#0f"],.m1-create-product [class*="bg-zinc-950"],.m1-create-product [class*="bg-zinc-900"]{background:var(--surface-soft)!important}
+.m1-create-product [class*="bg-white/"]{background:var(--surface-soft)!important}
+.m1-create-product :where(.text-white,.text-zinc-100,.text-zinc-200,.text-zinc-300){color:var(--text)!important}
+.m1-create-product :where(.text-zinc-400,.text-zinc-500,.text-zinc-600){color:var(--muted)!important}
+.m1-create-product [class*="rounded-[28px]"],.m1-create-product [class*="rounded-[24px]"],.m1-create-product [class*="rounded-[20px]"],.m1-create-product [class*="rounded-[18px]"]{border-radius:var(--radius-lg)!important}
+.m1-create-product [class*="rounded-2xl"],.m1-create-product [class*="rounded-[16px]"],.m1-create-product [class*="rounded-[14px]"]{border-radius:var(--radius-md)!important}
+.m1-create-product button{font-family:var(--app-font);box-shadow:none!important;transform:none!important}
+.m1-create-product button[class*="from-emerald"]{border:1px solid var(--primary-active)!important;background:var(--primary)!important;color:var(--primary-contrast)!important}
+.m1-create-product button[class*="from-emerald"]:hover{background:var(--primary-hover)!important}
+.m1-create-product .fixed.bottom-0{border-color:var(--border)!important;background:var(--surface-raised)!important;box-shadow:var(--shadow-overlay)!important}
+[dir="rtl"] .m1-create-product{font-family:var(--font-ar)}
+html[data-density="compact"] .m1-create-section{padding:16px!important}
+@media(max-width:767px){.m1-create-product>div.flex>section:first-child,.m1-create-section{padding:15px!important}.m1-create-product>div.flex>nav{top:58px!important}.m1-create-product .grid{gap:12px}}

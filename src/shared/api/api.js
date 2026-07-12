@@ -1,7 +1,15 @@
 import { clearAuth, getCurrentTenant, getCurrentUser, getToken } from "../auth/authStorage";
 
-import { API_BASE_URL } from "../constants/app";
+import { API_BASE_URL } from "../constants/app.js?m1PreviewApi=2";
 import { estimatePayloadSize, isErpPerfDebugEnabled } from "../lib/perfDebug";
+
+const runtimeApiBaseUrl = () => {
+  if (typeof window !== "undefined") {
+    const hostname = String(window.location.hostname || "").toLowerCase();
+    if (hostname.endsWith(".nip.io")) return "/api";
+  }
+  return API_BASE_URL;
+};
 
 const hasFormData =
   typeof FormData !== "undefined";
@@ -179,7 +187,7 @@ const request = async (
     });
   }
   const queryString = query.toString();
-  const requestUrl = `${API_BASE_URL}${endpoint}${queryString ? `${endpoint.includes("?") ? "&" : "?"}${queryString}` : ""}`;
+  const requestUrl = `${runtimeApiBaseUrl()}${endpoint}${queryString ? `${endpoint.includes("?") ? "&" : "?"}${queryString}` : ""}`;
   const perfEndpoint = normalizePerfEndpoint(endpoint, query);
   const duplicateRequestKey = `${method}:${perfEndpoint}`;
   const perfStartedAt = typeof performance !== "undefined" ? performance.now() : Date.now();

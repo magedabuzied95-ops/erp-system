@@ -427,8 +427,8 @@ export default function EmployeeAnalyticsWorkspace() {
                     <Tooltip
                       contentStyle={{ backgroundColor: "#09090b", border: "1px solid #27272a", borderRadius: 16, color: "#fff" }}
                     />
-                    <Bar dataKey="sales" fill="#34d399" radius={[10, 10, 0, 0]} />
-                    <Bar dataKey="commission" fill="#22d3ee" radius={[10, 10, 0, 0]} />
+                    <Bar dataKey="sales" fill="var(--primary)" radius={[10, 10, 0, 0]} />
+                    <Bar dataKey="commission" fill="var(--chart-secondary, #77736a)" radius={[10, 10, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -451,7 +451,7 @@ export default function EmployeeAnalyticsWorkspace() {
                     <Tooltip
                       contentStyle={{ backgroundColor: "#09090b", border: "1px solid #27272a", borderRadius: 16, color: "#fff" }}
                     />
-                    <Line type="monotone" dataKey="sales" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} />
+                    <Line type="monotone" dataKey="sales" stroke="var(--primary)" strokeWidth={3} dot={{ r: 4, fill: "var(--primary)" }} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -684,7 +684,7 @@ export default function EmployeeAnalyticsWorkspace() {
                   <Tooltip contentStyle={{ backgroundColor: "#09090b", border: "1px solid #27272a", borderRadius: 16, color: "#fff" }} />
                   <Bar dataKey="total_sales" radius={[10, 10, 0, 0]}>
                     {shiftPerformance.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? "#34d399" : "#22d3ee"} />
+                      <Cell key={`cell-${index}`} fill={index % 2 === 0 ? "var(--primary)" : "var(--chart-secondary, #77736a)"} />
                     ))}
                   </Bar>
                 </BarChart>

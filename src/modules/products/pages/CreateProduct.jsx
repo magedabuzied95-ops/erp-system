@@ -30,6 +30,7 @@ import ProductsShell from "../components/ProductsShell";
 import ProductForm from "../components/ProductForm";
 import ImageThumbnailActions from "../components/ImageThumbnailActions";
 import MultiVersionGenerator from "../components/MultiVersionGenerator";
+import "./CreateProduct.m1.css";
 
 import {
   generateBarcode,
@@ -2417,7 +2418,7 @@ function CreateProduct() {
         </Link>
       }
     >
-      <form id="create-product-form" onSubmit={handleSubmit} className="w-full min-w-0 max-w-none space-y-8 overflow-x-hidden pb-28 lg:pb-24">
+      <form id="create-product-form" onSubmit={handleSubmit} className="m1-create-product w-full min-w-0 max-w-none space-y-6 overflow-x-hidden pb-28 lg:pb-24">
         <ProductActionBar
           mode="create"
           saving={saving}
@@ -3953,7 +3954,7 @@ function SectionHeader({ icon: Icon, title, subtitle, tone = "emerald", action =
 function SectionCard({ children, hidden = false, className = "", id }) {
   if (hidden) return null;
   return (
-    <section id={id} className={`scroll-mt-24 rounded-[18px] border border-white/8 bg-[#10172a] p-4 shadow-[0_14px_42px_rgba(0,0,0,0.16)] transition duration-200 hover:border-white/12 sm:p-5 ${className}`}>
+    <section id={id} className={`m1-create-section scroll-mt-24 rounded-[18px] border border-white/8 bg-[#10172a] p-4 transition duration-200 sm:p-5 ${className}`}>
       {children}
     </section>
   );

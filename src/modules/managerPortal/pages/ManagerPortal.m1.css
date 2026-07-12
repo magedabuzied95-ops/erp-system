@@ -1,0 +1,301 @@
+.manager-portal-shell {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: var(--font-ar) !important;
+}
+
+.manager-portal-shell :where(h1, h2, h3, h4, button, input, select, textarea) {
+  font-family: inherit !important;
+}
+
+.manager-portal-shell aside,
+.manager-portal-shell :where(section, article, [class*="rounded-"]) {
+  border-color: var(--border);
+}
+
+.manager-portal-shell .manager-portal-hero {
+  background: var(--topbar) !important;
+  border-color: color-mix(in srgb, var(--topbar-text) 16%, transparent) !important;
+  color: var(--topbar-text) !important;
+}
+
+.manager-portal-shell .manager-theme-toggle {
+  background: color-mix(in srgb, var(--topbar-text) 8%, transparent) !important;
+  border-color: color-mix(in srgb, var(--topbar-text) 18%, transparent) !important;
+  color: var(--topbar-text) !important;
+}
+
+/* Manager home: keep utility controls and timestamps inside the M1 palette. */
+.manager-portal-shell .manager-refresh-button {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.manager-portal-shell .manager-refresh-button:hover {
+  background: var(--surface-hover) !important;
+  border-color: color-mix(in srgb, var(--primary) 42%, var(--border)) !important;
+}
+
+.manager-portal-shell .manager-portal-status-pill[class*="bg-sky-"],
+.manager-portal-shell .manager-portal-status-pill[style] {
+  background: #3a2d0d !important;
+  border-color: #6f5718 !important;
+  color: #f4d675 !important;
+}
+
+html[data-theme="light"] .manager-portal-shell .manager-portal-status-pill[class*="bg-sky-"],
+html[data-theme="light"] .manager-portal-shell .manager-portal-status-pill[style] {
+  background: #fff7df !important;
+  border-color: #ddc16c !important;
+  color: #7a5a00 !important;
+}
+
+/* Primary manager actions use M1 gold. */
+.manager-portal-shell button[class*="bg-emerald-"],
+.manager-portal-shell button[class*="bg-cyan-"],
+.manager-portal-shell button[class*="bg-slate-950"] {
+  background: var(--primary) !important;
+  background-image: none !important;
+  border-color: var(--primary-active) !important;
+  color: var(--primary-contrast) !important;
+}
+
+html[data-theme="light"] .manager-portal-shell aside,
+html[data-theme="light"] .manager-portal-shell :where([class*="bg-white"]) {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .manager-portal-shell :where([class*="bg-slate-950"], [class*="bg-[#050816]"], [class*="bg-[#0f172a]"], [class*="bg-[#111827]"]):not(.manager-portal-hero):not(button) {
+  background: var(--surface-soft) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .manager-portal-shell :where([class*="text-white"], [class*="text-slate-100"], [class*="text-slate-200"]) {
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .manager-portal-shell .manager-portal-hero :where([class*="text-white"], [class*="text-slate-"]) {
+  color: var(--topbar-text) !important;
+}
+
+html[data-theme="dark"] .manager-portal-shell aside,
+html[data-theme="dark"] .manager-portal-shell :where([class*="bg-white"], [class*="bg-slate-50"], [class*="bg-slate-100"]) {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .manager-portal-shell :where([class*="text-slate-950"], [class*="text-slate-900"], [class*="text-slate-800"], [class*="text-slate-700"]) {
+  color: var(--text) !important;
+}
+
+.manager-portal-shell :where([class*="text-slate-400"], [class*="text-slate-500"], [class*="text-slate-600"]) {
+  color: var(--muted) !important;
+}
+
+.manager-portal-shell :where(input, select, textarea) {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.manager-portal-shell :where([class*="shadow-slate-"], [class*="shadow-xl"], [class*="shadow-2xl"]) {
+  --tw-shadow-color: var(--shadow) !important;
+}
+
+/* Core manager components used white gradients that ignored dark mode. */
+.manager-portal-shell :where(
+  .manager-portal-card,
+  .manager-portal-mini-metric,
+  .manager-portal-employee-card,
+  .manager-portal-empty,
+  .manager-portal-badge
+) {
+  background: var(--surface) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.manager-portal-shell :where(.manager-portal-card-icon, .manager-portal-mini-metric-icon) {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+
+html[data-theme="dark"] .manager-portal-shell [class*="linear-gradient(180deg,#ffffff"] {
+  background: var(--surface) !important;
+  background-image: none !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .manager-portal-shell [class*="linear-gradient(180deg,#0f172a"] {
+  background: var(--surface-soft) !important;
+  background-image: none !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .manager-portal-shell :where(.manager-portal-card, .manager-portal-employee-card, .manager-portal-mini-metric) :where(h2, h3, h4, [class*="font-black"], [class*="font-bold"]) {
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .manager-portal-shell aside button[class*="linear-gradient"] {
+  background: var(--primary-soft) !important;
+  background-image: none !important;
+  color: var(--primary) !important;
+}
+
+html[data-theme="light"] .manager-portal-shell :where(.manager-portal-card, .manager-portal-employee-card, .manager-portal-mini-metric) {
+  box-shadow: var(--shadow-card) !important;
+}
+
+/* Remove the legacy navy islands from alerts, stock and sales panels. */
+.manager-portal-shell :where(
+  .manager-portal-quick-card,
+  .manager-portal-compact-stat,
+  [class*="bg-[#0b1120]"],
+  [class*="bg-[#0f172a]"],
+  [class*="bg-[#0b1220]"],
+  [class*="bg-[#07111f]"],
+  [class*="bg-[#08111f]"]
+) {
+  background: var(--surface-soft) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.manager-portal-shell :where(.manager-portal-quick-card, .manager-portal-compact-stat) :where([class*="text-white"], [class*="text-slate-"]) {
+  color: var(--text) !important;
+}
+
+/* Manager chat: gold outgoing messages, neutral incoming messages. */
+.manager-portal-shell [class*="bg-[#0b141a]"] {
+  background-color: var(--bg) !important;
+  background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--muted) 12%, transparent) 1px, transparent 0) !important;
+}
+
+.manager-portal-shell [class*="bg-[#1f2c33]"],
+.manager-portal-shell [class*="bg-[#182229]"] {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+.manager-portal-shell [class*="bg-[#005c4b]"] {
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}
+
+.manager-portal-shell [class*="bg-[#005c4b]"]::after { background: var(--primary) !important; }
+
+.manager-portal-shell [class*="bg-[#202c33]"] {
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+}
+
+.manager-portal-shell [class*="bg-[#202c33]"]::after { background: var(--surface-raised) !important; }
+
+.manager-portal-shell form[class*="bg-[#1f2c33]"] button[type="submit"] {
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}
+
+/* Mobile KPI grid: explicit override for the legacy CompactStat tone map. */
+.manager-portal-shell .manager-portal-compact-stat {
+  min-height: 138px !important;
+  background: var(--surface) !important;
+  background-image: none !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.manager-portal-shell .manager-portal-compact-stat--emphasis {
+  border-color: color-mix(in srgb, var(--primary) 48%, var(--border)) !important;
+}
+
+.manager-portal-shell .manager-portal-compact-stat [class*="bg-cyan-"] {
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+}
+
+.manager-portal-shell .manager-portal-compact-stat :where([class*="text-slate-"], [class*="text-white"]) {
+  color: var(--muted) !important;
+}
+
+.manager-portal-shell .manager-portal-compact-stat .manager-portal-compact-stat-value,
+.manager-portal-shell .manager-portal-compact-stat [class*="text-2xl"],
+.manager-portal-shell .manager-portal-compact-stat [class*="text-3xl"] {
+  color: var(--text) !important;
+}
+
+@media (max-width: 639px) {
+  .manager-portal-shell .manager-portal-compact-stat {
+    min-height: 132px !important;
+    padding: 14px !important;
+    border-radius: 18px !important;
+  }
+}
+
+/* Pills and mobile navigation no longer use navy/blue as an accent. */
+.manager-portal-shell .manager-portal-status-pill[class*="bg-sky-"] {
+  background: var(--primary-soft) !important;
+  border-color: color-mix(in srgb, var(--primary) 36%, var(--border)) !important;
+  color: var(--primary) !important;
+}
+
+.manager-portal-shell .manager-portal-status-pill[class*="bg-slate-"] {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+
+.manager-portal-shell .manager-bottom-nav-shell {
+  background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 12px 34px var(--shadow) !important;
+  backdrop-filter: blur(18px);
+}
+
+.manager-portal-shell .manager-bottom-nav-shell button {
+  color: var(--muted) !important;
+}
+
+.manager-portal-shell .manager-bottom-nav-shell button[class*="linear-gradient"] {
+  background: var(--primary-soft) !important;
+  background-image: none !important;
+  color: var(--primary) !important;
+}
+
+.manager-portal-shell .manager-bottom-nav-shell button[class*="linear-gradient"] :where(svg, span) {
+  color: currentColor !important;
+}
+
+.manager-portal-shell .manager-portal-mobile-sales-hero,
+.manager-portal-shell .manager-portal-mobile-sales-hero ~ div[class*="bg-[#07111f]"] {
+  background: var(--surface) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.manager-portal-shell .manager-portal-mobile-sales-hero [class*="bg-slate-900"] {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+}
+
+.manager-portal-shell .manager-portal-mobile-sales-hero :where([class*="text-white"], [class*="text-slate-"]) {
+  color: var(--text) !important;
+}
+
+/* Semantic colors: green success, amber warning, red danger. */
+.manager-portal-shell :where([class*="text-emerald-"], [class*="text-green-"]) { color: var(--success) !important; }
+.manager-portal-shell :where([class*="text-amber-"], [class*="text-orange-"]) { color: var(--warning) !important; }
+.manager-portal-shell :where([class*="text-red-"], [class*="text-rose-"]) { color: var(--danger) !important; }
+
+@media (max-width: 1023px) {
+  .manager-portal-shell { padding-inline: 10px !important; }
+}

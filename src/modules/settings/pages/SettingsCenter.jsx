@@ -62,6 +62,7 @@ import {
   displayRefillBarcodeSettingsToValues,
 } from "../../../../shared/barcodePrintSettings.js";
 import { uploadProductImageValue } from "../../products/services/productsApi";
+import "./SettingsCenter.m1.css";
 
 const copy = {
   en: {
@@ -956,7 +957,7 @@ function SettingsCenterContent({ debugMode = false }) {
   }
 
   return (
-    <div dir={direction} className="min-h-screen w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden bg-[#f6f8fb] text-slate-950 dark:bg-[#050816] dark:text-white lg:max-w-none">
+    <div dir={direction} className="m1-settings-center min-h-screen w-full max-w-[calc(100vw-1.5rem)] overflow-x-hidden bg-[#f6f8fb] text-slate-950 dark:bg-[#050816] dark:text-white lg:max-w-none">
       <div className="mx-auto w-full max-w-[calc(100vw-3rem)] px-0 py-4 sm:max-w-[96rem] sm:px-5 lg:px-8">
         <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-[#f6f8fb]/90 px-0 py-3 backdrop-blur-xl dark:border-white/10 dark:bg-[#050816]/90 lg:-mx-8 lg:px-8">
           <div className="flex w-full min-w-0 max-w-full flex-col gap-4 rounded-[1.75rem] border border-white/70 bg-white/85 p-4 shadow-[0_18px_60px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-slate-950/80 dark:shadow-[0_22px_70px_rgba(0,0,0,0.45)] lg:flex-row lg:items-center lg:justify-between">

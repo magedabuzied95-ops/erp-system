@@ -2781,7 +2781,7 @@ function SocialCommentsWorkspace({
 
   return (
     <section className="flex h-full min-h-0 w-full min-w-0 flex-1 overflow-hidden rounded-[28px] border border-white/10 bg-slate-950/55 text-white shadow-[0_16px_50px_rgba(0,0,0,0.22)] backdrop-blur">
-      <div className="grid h-full min-h-0 w-full min-w-0 gap-2.5 p-2.5 min-[1024px]:grid-cols-[312px_minmax(0,1fr)] min-[1280px]:grid-cols-[312px_minmax(0,1fr)_348px]">
+      <div className="grid h-full min-h-0 w-full min-w-0 gap-2.5 p-2.5 min-[1024px]:grid-cols-[312px_minmax(0,1fr)] min-[1440px]:grid-cols-[336px_minmax(0,1fr)]">
         <aside className="flex min-h-0 min-w-0 flex-col overflow-hidden rounded-[24px] border border-white/10 bg-slate-950/60 shadow-[0_10px_30px_rgba(0,0,0,0.16)]">
           <div className="flex items-center justify-between gap-2 border-b border-white/10 px-2.5 py-2.5">
             <div className="min-w-0">

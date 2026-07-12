@@ -31,6 +31,10 @@ import Login from "./pages/Login";
 ====================================================== */
 
 const Dashboard = lazy(() => import("./pages/Dashboard"));
+const DashboardPrototype = lazy(() => import("./pages/DashboardPrototype"));
+const ThemeFoundation = lazy(() => import("./pages/ThemeFoundation"));
+const AppShellPreview = lazy(() => import("./pages/AppShellPreview"));
+const ComponentsPreview = lazy(() => import("./pages/ComponentsPreview"));
 
 /* ======================================================
    PRODUCTS
@@ -231,15 +235,15 @@ const AiAgentAnalytics = lazy(() => import("./modules/aiSupport/pages/AiAgentAna
 
 function RouteSkeleton() {
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-[linear-gradient(180deg,rgba(248,250,252,0.96),rgba(241,245,249,0.92))] p-4 text-[var(--text)] md:p-6 dark:bg-[#050816] dark:text-white">
+    <div className="min-h-[calc(100vh-4rem)] bg-[var(--bg)] p-4 text-[var(--text)] md:p-6">
       <div className="mx-auto w-full max-w-7xl space-y-5">
-        <div className="sf-skeleton-shimmer h-10 w-60 rounded-2xl bg-white/80 dark:bg-white/[0.06]" />
+        <div className="sf-skeleton-shimmer h-10 w-60 rounded-2xl bg-[var(--surface-soft)]" />
         <div className="grid gap-3 md:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
-            <div key={index} className="sf-skeleton-shimmer h-24 rounded-2xl bg-white/80 dark:bg-white/[0.06]" />
+            <div key={index} className="sf-skeleton-shimmer h-24 rounded-2xl bg-[var(--surface-soft)]" />
           ))}
         </div>
-        <div className="sf-skeleton-shimmer h-[28rem] rounded-[1.75rem] bg-white/80 dark:bg-white/[0.06]" />
+        <div className="sf-skeleton-shimmer h-[28rem] rounded-[1.75rem] bg-[var(--surface-soft)]" />
       </div>
     </div>
   );
@@ -358,6 +362,23 @@ function App() {
         path="/login"
         element={<Login />}
       />
+
+      <Route
+        path="/dashboard-prototype"
+        element={<DashboardPrototype />}
+      />
+
+      <Route
+        path="/design-system"
+        element={<ThemeFoundation />}
+      />
+
+      <Route
+        path="/app-shell-preview"
+        element={<AppShellPreview />}
+      />
+
+      <Route path="/components-preview" element={<ComponentsPreview />} />
 
       {/* FORBIDDEN */}
 

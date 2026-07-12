@@ -3,12 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="theme-color" content="#0f172a" />
+    <meta name="theme-color" content="#f3f3f1" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="الموظف" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script>
+      (function () {
+        try {
+          var theme = localStorage.getItem("erp.theme") === "dark" ? "dark" : "light";
+          var dark = theme === "dark";
+          var root = document.documentElement;
+          root.dataset.theme = theme;
+          root.classList.toggle("dark", dark);
+          root.style.colorScheme = theme;
+          root.style.setProperty("--bg", dark ? "#171715" : "#f3f3f1");
+          root.style.setProperty("--surface", dark ? "#232321" : "#ffffff");
+          root.style.setProperty("--card", dark ? "#232321" : "#ffffff");
+          root.style.setProperty("--surface-soft", dark ? "#2a2a27" : "#f7f7f5");
+          root.style.setProperty("--text", dark ? "#efeee9" : "#25231f");
+          root.style.setProperty("--muted", dark ? "#a19e96" : "#716e67");
+          root.style.setProperty("--border", dark ? "#393936" : "#dedbd3");
+          root.style.backgroundColor = dark ? "#171715" : "#f3f3f1";
+          var meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", dark ? "#171715" : "#f3f3f1");
+        } catch (error) {
+          document.documentElement.style.backgroundColor = "#f3f3f1";
+        }
+      })();
+    </script>
+    <style>
+      html,body,#root{min-height:100%;background:var(--bg,#f3f3f1);color:var(--text,#25231f)}
+      body{margin:0}
+    </style>
     <script>
       (function () {
         try {

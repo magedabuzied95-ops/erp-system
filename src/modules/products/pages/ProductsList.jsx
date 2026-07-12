@@ -2133,14 +2133,14 @@ function ProductsList() {
         <>
           <button
             onClick={() => navigate("/products/add")}
-            className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-400 sm:px-5 sm:py-3 sm:text-base"
+            className="m1-products-primary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition sm:px-5 sm:py-3 sm:text-base"
           >
             <Plus size={18} />
             {t("products.newProduct")}
           </button>
           <button
             onClick={() => setReloadNonce((prev) => prev + 1)}
-            className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10 sm:px-5 sm:py-3 sm:text-base"
+            className="m1-products-secondary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition sm:px-5 sm:py-3 sm:text-base"
           >
             <Filter size={18} />
             {t("products.refresh")}
@@ -2148,7 +2148,7 @@ function ProductsList() {
         </>
       }
     >
-      <div className="w-full min-w-0 max-w-none rounded-2xl border border-white/8 bg-zinc-950/80 p-3 sm:rounded-[34px] sm:p-5 xl:p-6">
+      <div className="m1-products-catalog w-full min-w-0 max-w-none rounded-2xl border border-white/8 bg-zinc-950/80 p-3 sm:p-5 xl:p-6">
         <div className="mb-4 flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-1">
           <button
             type="button"

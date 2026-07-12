@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 
-import { Bell, ChevronDown, CircleDollarSign, LogOut, Menu, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Search, Settings2, ShoppingBag, Store, User, X } from "lucide-react";
+import { Bell, ChevronDown, CircleDollarSign, LogOut, Menu, Moon, Paintbrush, PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen, Plus, Search, Settings2, ShoppingBag, Store, Sun, User, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { clearAuth, getCurrentTenant, getCurrentUser, getToken } from "../auth/authStorage";
@@ -15,6 +15,9 @@ import LanguageSwitcher from "../components/LanguageSwitcher";
 import { NotificationBoundary, NotificationsProvider, useNotifications } from "../notifications/index.js";
 import { useRealtimeConnection } from "../realtime/socketStore";
 import { publicStorefrontUrl } from "../lib/publicStorefront";
+import { useTheme } from "../../theme/useTheme";
+import "./MainLayout.m1.css";
+import "./AiMarketing.m1.css";
 
 const NotificationBell = lazy(() => import("../notifications/NotificationBell.jsx"));
 const SIDEBAR_GROUPS_STORAGE_KEY = "erp.sidebar.openGroups.v2";
@@ -481,6 +484,7 @@ function MainLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, i18n } = useTranslation();
+  const { theme, setTheme } = useTheme();
   usePageTitle(resolveMainLayoutTitle(location.pathname));
   const user = useMemo(
     () => getCurrentUser() || { name: "Admin", role: "Admin", permissions: ["*"] },
@@ -490,6 +494,7 @@ function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => Boolean(readSidebarJson(SIDEBAR_COLLAPSED_STORAGE_KEY, false)));
   const [openGroups, setOpenGroups] = useState(() => readSidebarJson(SIDEBAR_GROUPS_STORAGE_KEY, {}));
   const [sidebarSearch, setSidebarSearch] = useState("");
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
   const currentTenant = getCurrentTenant();
   const workspaceName = currentTenant?.companyName || currentTenant?.company_name || currentTenant?.name || currentTenant?.slug || "MONE";
   const workspaceLogoUrl = currentTenant?.companyLogoUrl || currentTenant?.company_logo_url || currentTenant?.logoUrl || "";
@@ -544,6 +549,7 @@ function MainLayout() {
   const dir = (resolvedDir || documentDir) === "rtl" ? "rtl" : "ltr";
   const isRtl = dir === "rtl";
   const isPosActive = location.pathname === "/pos" || location.pathname.startsWith("/pos/");
+  const isAiMarketingWorkspace = location.pathname.startsWith("/marketing") || location.pathname.startsWith("/admin/ai-");
   const isStoreActive = location.pathname === "/shop" || location.pathname.startsWith("/shop/");
   const posLabel = "نقطة البيع";
   const searchQuery = normalizeSearchText(sidebarSearch);
@@ -625,7 +631,8 @@ function MainLayout() {
     <div
       dir={dir}
       className={[
-        "min-h-screen w-full max-w-none overflow-x-hidden bg-[var(--bg)] text-[var(--text)] transition-all duration-300",
+        "m1-shell-root min-h-screen w-full max-w-none overflow-x-hidden bg-[var(--bg)] text-[var(--text)] transition-all duration-300",
+        isAiMarketingWorkspace ? "m1-ai-marketing-scope" : "",
         "lg:grid",
         sidebarCollapsed
           ? "lg:grid-cols-[clamp(80px,5vw,96px)_minmax(0,1fr)]"
@@ -643,7 +650,7 @@ function MainLayout() {
 
       <aside
         className={[
-          "sidebar-scroll fixed bottom-0 top-0 z-50 flex w-[min(85vw,340px)] flex-col overflow-y-auto overflow-x-hidden bg-[var(--surface)] shadow-2xl transition-all duration-300 lg:sticky lg:top-0 lg:z-30 lg:h-screen lg:w-full lg:translate-x-0",
+          "m1-shell-sidebar sidebar-scroll fixed bottom-0 top-0 z-50 flex w-[min(85vw,340px)] flex-col overflow-hidden bg-[var(--surface)] shadow-2xl transition-all duration-300 lg:sticky lg:top-0 lg:z-30 lg:h-screen lg:w-full lg:translate-x-0",
           sidebarCollapsed ? "p-3 lg:p-3" : "p-4 lg:p-4",
           mobileDrawerOpen ? "translate-x-0" : isRtl ? "translate-x-full" : "-translate-x-full",
           isRtl
@@ -821,7 +828,7 @@ function MainLayout() {
         className="min-h-screen w-full min-w-0 overflow-x-hidden"
       >
         <div className="flex min-h-screen w-full min-w-0 max-w-none flex-col overflow-x-hidden">
-          <div className="sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-2xl lg:top-0" style={{ "--topbar-height": "72px" }}>
+          <div className="m1-shell-topbar sticky top-0 z-30 border-b border-[var(--border)] bg-[var(--surface)]/90 backdrop-blur-2xl lg:top-0" style={{ "--topbar-height": "64px" }}>
             <div className="pointer-events-none absolute inset-0" aria-hidden="true" />
             <div className="relative z-10 flex items-center justify-between gap-3 px-3 py-3 sm:px-4 lg:px-6 xl:px-8 lg:py-5">
               <div className="flex min-w-0 items-center gap-3 lg:hidden">
@@ -875,7 +882,31 @@ function MainLayout() {
                     ))}
                   </div>
                 ) : null}
+                <div className="m1-quick-create relative hidden sm:block">
+                  <button type="button" onClick={() => setQuickCreateOpen((value) => !value)} className="m1-topbar-create inline-flex h-10 items-center gap-2 border px-3 text-sm font-bold" aria-expanded={quickCreateOpen}>
+                    <Plus className="h-4 w-4" />
+                    <span>{isRtl ? "إنشاء سريع" : "Quick create"}</span>
+                    <ChevronDown className={`h-3.5 w-3.5 transition ${quickCreateOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {quickCreateOpen ? (
+                    <div className="m1-topbar-create-menu absolute end-0 top-full z-50 mt-2 w-52 overflow-hidden border p-1.5">
+                      <button onClick={() => { setQuickCreateOpen(false); navigate("/products/add"); }}><Plus />{isRtl ? "إضافة منتج" : "Add product"}</button>
+                      <button onClick={() => { setQuickCreateOpen(false); navigate("/create-order"); }}><ShoppingBag />{isRtl ? "إنشاء طلب" : "Create order"}</button>
+                      <button onClick={() => { setQuickCreateOpen(false); navigate("/pos"); }}><Store />{isRtl ? "نقطة البيع" : "Point of sale"}</button>
+                      <button onClick={() => { setQuickCreateOpen(false); window.open(publicStorefrontUrl("/"), "_blank", "noopener,noreferrer"); }}><ShoppingBag />{isRtl ? "فتح المتجر" : "Open store"}</button>
+                    </div>
+                  ) : null}
+                </div>
                 <LanguageSwitcher compact className="shrink-0" />
+                <button
+                  type="button"
+                  onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
+                  className="m1-shell-theme-toggle inline-flex h-10 w-10 shrink-0 items-center justify-center border border-[var(--border)] text-[var(--topbar-text)]"
+                  aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
+                  title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
+                >
+                  {theme.mode === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+                </button>
                 <NotificationBoundary fallback={<NotificationBellFallback />}>
                   <Suspense fallback={<NotificationBellFallback />}>
                     <NotificationBell />
@@ -911,7 +942,7 @@ function MainLayout() {
             </div>
           </div>
 
-          <div className="w-full max-w-none flex-1 overflow-x-hidden p-3 sm:p-4 lg:p-6 xl:p-8 2xl:p-10">
+          <div className="m1-shell-content w-full max-w-none flex-1 overflow-x-hidden p-3 sm:p-4 lg:p-6 xl:p-8 2xl:p-10">
             <Outlet />
           </div>
         </div>

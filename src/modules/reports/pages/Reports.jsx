@@ -40,6 +40,8 @@ import {
   Zap,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { useTranslation } from "react-i18next";
+import "./Reports.m1.css";
 
 import {
   getCustomerReports,
@@ -72,7 +74,9 @@ const KPI_META = [
   ["loyaltyRedemptions", "Loyalty Redemptions"],
 ];
 
-const CHART_COLORS = ["#22c55e", "#38bdf8", "#f59e0b", "#a78bfa", "#fb7185", "#14b8a6"];
+const CHART_COLORS = ["#b8860b", "#64748b", "#4f6f8f", "#198754", "#a19e96", "#c47a08"];
+const REPORT_LABELS_AR = { insights: "رؤى ذكية", sales: "المبيعات", employees: "الموظفون", inventory: "المخزون", customers: "العملاء والولاء", financial: "المالية" };
+const KPI_LABELS_AR = { totalSales:"إجمالي المبيعات",netProfit:"صافي الربح",ordersCount:"عدد الطلبات",averageOrderValue:"متوسط قيمة الطلب",expenses:"المصروفات",inventoryValue:"قيمة المخزون",customersCount:"عدد العملاء",employeeProductivity:"إنتاجية الموظفين",loyaltyRedemptions:"استبدالات الولاء" };
 const PRESETS_KEY = "erp.reports.presets.v1";
 
 const severityStyles = {
@@ -156,6 +160,8 @@ const rowsToCsv = (rows = []) => {
 };
 
 function Reports() {
+  const { i18n } = useTranslation();
+  const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const [filters, setFilters] = useState(defaultFilters);
   const [activeTab, setActiveTab] = useState("sales");
   const [dashboard, setDashboard] = useState(null);
@@ -175,7 +181,8 @@ function Reports() {
     }
   });
 
-  const activeDefinition = REPORT_TABS.find((tab) => tab.key === activeTab) || REPORT_TABS[0];
+  const reportTabs = useMemo(() => REPORT_TABS.map((tab) => ({ ...tab, label: isArabic ? REPORT_LABELS_AR[tab.key] : tab.label })), [isArabic]);
+  const activeDefinition = reportTabs.find((tab) => tab.key === activeTab) || reportTabs[0];
   const activeReport = reports[activeTab] || {};
   const activeRows = getRowsFromReport(activeReport);
   const allColumns = useMemo(() => Object.keys(activeRows[0] || {}), [activeRows]);
@@ -354,18 +361,18 @@ function Reports() {
   };
 
   return (
-    <div className="min-h-screen bg-[#080b10] px-3 py-4 text-white sm:px-5 lg:px-7">
+    <div className="m1-reports-page min-h-screen bg-[#080b10] px-3 py-4 text-white sm:px-5 lg:px-7" dir={isArabic ? "rtl" : "ltr"}>
       <div className="mx-auto max-w-[1600px] space-y-5">
         <header className="rounded-[28px] border border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(6,78,59,0.72))] p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <div className="flex items-center gap-2 text-xs font-black uppercase tracking-[0.22em] text-emerald-200">
                 <BarChart3 className="h-4 w-4" />
-                Analytics & Reports
+                {isArabic ? "التحليلات والتقارير" : "Analytics & Reports"}
               </div>
-              <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">Enterprise Reports Center</h1>
+              <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">{isArabic ? "مركز التقارير المؤسسية" : "Enterprise Reports Center"}</h1>
               <p className="mt-2 max-w-3xl text-sm font-semibold text-zinc-300">
-                Centralized performance intelligence across POS, orders, inventory, attendance, shifts, loyalty, accounting, branches, and warehouses.
+                {isArabic ? "عرض مركزي لأداء المبيعات والطلبات والمخزون والموظفين والولاء والحسابات والفروع والمخازن." : "Centralized performance intelligence across POS, orders, inventory, attendance, shifts, loyalty, accounting, branches, and warehouses."}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -405,27 +412,27 @@ function Reports() {
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {KPI_META.map(([key, label]) => (
-            <KpiCard key={key} label={label} value={kpis[key]} loading={loading} money={!["ordersCount", "customersCount", "loyaltyRedemptions"].includes(key)} />
+            <KpiCard key={key} label={isArabic ? KPI_LABELS_AR[key] : label} value={kpis[key]} loading={loading} money={!["ordersCount", "customersCount", "loyaltyRedemptions"].includes(key)} />
           ))}
         </section>
 
         <section className="grid gap-4 xl:grid-cols-2">
-          <ChartPanel title="Daily Sales" icon={TrendingUp} loading={loading}>
+          <ChartPanel title={isArabic ? "المبيعات اليومية" : "Daily Sales"} icon={TrendingUp} loading={loading}>
             <AreaMetric rows={normalizeChartRows(charts.dailySales)} />
           </ChartPanel>
-          <ChartPanel title="Monthly Revenue / Profit" icon={LineChartIcon} loading={loading}>
+          <ChartPanel title={isArabic ? "الإيراد والربح الشهري" : "Monthly Revenue / Profit"} icon={LineChartIcon} loading={loading}>
             <LineMetric rows={normalizeChartRows(charts.monthlyRevenue)} secondaryRows={normalizeChartRows(charts.profitTrend)} />
           </ChartPanel>
-          <ChartPanel title="Orders by Hour" loading={loading}>
+          <ChartPanel title={isArabic ? "الطلبات حسب الساعة" : "Orders by Hour"} loading={loading}>
             <BarMetric rows={normalizeChartRows(charts.ordersByHour)} />
           </ChartPanel>
-          <ChartPanel title="Payment Methods" loading={loading}>
+          <ChartPanel title={isArabic ? "طرق الدفع" : "Payment Methods"} loading={loading}>
             <PieMetric rows={normalizeChartRows(charts.paymentMethods)} />
           </ChartPanel>
-          <ChartPanel title="Sales by Branch" loading={loading}>
+          <ChartPanel title={isArabic ? "المبيعات حسب الفرع" : "Sales by Branch"} loading={loading}>
             <BarMetric rows={normalizeChartRows(charts.salesByBranch)} />
           </ChartPanel>
-          <ChartPanel title="Attendance Trend" loading={loading}>
+          <ChartPanel title={isArabic ? "اتجاه الحضور" : "Attendance Trend"} loading={loading}>
             <AreaMetric rows={normalizeChartRows(charts.attendanceTrend)} />
           </ChartPanel>
         </section>
@@ -433,7 +440,7 @@ function Reports() {
         <section className="rounded-[28px] border border-white/10 bg-zinc-950/80 p-4 shadow-xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex gap-2 overflow-x-auto pb-1">
-              {REPORT_TABS.map((tab) => (
+              {reportTabs.map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
@@ -718,7 +725,7 @@ function AreaMetric({ rows }) {
           <XAxis dataKey="label" stroke="#a1a1aa" fontSize={11} />
           <YAxis stroke="#a1a1aa" fontSize={11} />
           <Tooltip contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,.12)", borderRadius: 12 }} />
-          <Area type="monotone" dataKey="value" stroke="#22c55e" fill="rgba(34,197,94,.22)" strokeWidth={2} />
+          <Area type="monotone" dataKey="value" stroke="#b8860b" fill="rgba(184,134,11,.16)" strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -735,8 +742,8 @@ function LineMetric({ rows, secondaryRows }) {
           <XAxis dataKey="label" stroke="#a1a1aa" fontSize={11} />
           <YAxis stroke="#a1a1aa" fontSize={11} />
           <Tooltip contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,.12)", borderRadius: 12 }} />
-          <Line type="monotone" dataKey="value" stroke="#38bdf8" strokeWidth={2} dot={false} />
-          <Line type="monotone" dataKey="profit" stroke="#22c55e" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="value" stroke="#b8860b" strokeWidth={2} dot={false} />
+          <Line type="monotone" dataKey="profit" stroke="#4f6f8f" strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
     </div>
@@ -752,7 +759,7 @@ function BarMetric({ rows }) {
           <XAxis dataKey="label" stroke="#a1a1aa" fontSize={11} />
           <YAxis stroke="#a1a1aa" fontSize={11} />
           <Tooltip contentStyle={{ background: "#09090b", border: "1px solid rgba(255,255,255,.12)", borderRadius: 12 }} />
-          <Bar dataKey="value" fill="#22c55e" radius={[8, 8, 0, 0]} />
+          <Bar dataKey="value" fill="#b8860b" radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>

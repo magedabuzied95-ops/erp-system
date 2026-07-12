@@ -16,7 +16,7 @@ const tabClassName = ({ isActive }) =>
   [
     "inline-flex h-8 shrink-0 items-center gap-2 rounded-full border px-3.5 text-xs font-semibold transition duration-200 sm:h-9 sm:px-4 sm:text-sm",
     isActive
-      ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100 shadow-[0_0_24px_rgba(34,211,238,0.12)]"
+      ? "border-[var(--primary)] bg-[var(--primary-soft)] text-[var(--primary)]"
       : "border-white/10 bg-white/[0.04] text-slate-300 hover:-translate-y-0.5 hover:bg-white/[0.07] hover:text-white",
   ].join(" ");
 
@@ -28,10 +28,10 @@ export default function MarketingStudioHeader({
   const { t } = useTranslation();
 
   return (
-    <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 px-4 py-3 shadow-2xl shadow-black/25 sm:px-5 sm:py-4">
+    <section className="rounded-3xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 shadow-[var(--shadow-card)] sm:px-5 sm:py-4">
       <div className="flex flex-col gap-2">
         <div className="max-w-3xl">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-cyan-200">
+          <div className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[var(--primary-soft)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--primary)]">
             <MessageCircleMore className="h-3.5 w-3.5" />
             {t("marketing.studio.eyebrow", eyebrow)}
           </div>

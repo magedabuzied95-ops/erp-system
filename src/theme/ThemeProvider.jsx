@@ -26,7 +26,7 @@ const applyThemeVariables = (theme, accentId, density) => {
   const densityValue = density === "compact" ? "compact" : "normal";
 
   const variables = { ...theme.variables };
-  if (accent.id !== DEFAULT_ACCENT_ID) {
+  if (accent.id !== DEFAULT_ACCENT_ID && accent.primary && accent.primarySoft) {
     variables.primary = accent.primary;
     variables.primarySoft = accent.primarySoft;
   }

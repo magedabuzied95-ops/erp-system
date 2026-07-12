@@ -25,6 +25,7 @@ import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { useVirtualRows } from "../../../shared/components/VirtualList";
 import { getProductsWithVariants } from "../../products/services/productsApi";
 import { formatCurrency } from "../../pos/lib/posUtils";
+import "./SalesEmployees.m1.css";
 
 const today = new Date().toISOString().slice(0, 10);
 const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10);
@@ -1209,7 +1210,7 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   }, [activeTab, defaultTab, tabs]);
 
   return (
-    <div dir={direction} className="min-h-screen bg-[var(--bg)] p-4 text-[var(--text)] md:p-6">
+    <div dir={direction} className="m1-sales-employees min-h-screen bg-[var(--bg)] p-4 text-[var(--text)] md:p-6">
       {!embedded ? (
       <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>

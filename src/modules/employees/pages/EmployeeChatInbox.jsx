@@ -9,6 +9,7 @@ import { getAttendanceEmployees } from "../../attendance/attendanceApi";
 import ChatImageAttachment from "../components/ChatImageAttachment";
 import WhatsAppRecordingBar from "../components/WhatsAppRecordingBar";
 import WhatsAppVoiceMessage from "../components/WhatsAppVoiceMessage";
+import "./EmployeeChatInbox.m1.css";
 import { logResolvedChatImageUrl, messageAttachmentDuration, normalizeChatAttachmentUrl } from "../lib/chatAttachments";
 
 const formatChatTime = (value) => {
@@ -807,7 +808,7 @@ export default function EmployeeChatInbox({ selectedEmployee = null, selectedEmp
   };
 
   return (
-    <section className="theme-card flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden p-0 md:h-auto md:min-h-0" dir="rtl">
+    <section className="m1-employee-chat theme-card flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden p-0 md:h-auto md:min-h-0" dir="rtl">
       <div className="shrink-0 border-b border-[var(--border)] p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

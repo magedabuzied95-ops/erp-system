@@ -1715,8 +1715,8 @@ export default function SocialMediaPublisher() {
   );
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(245,158,11,0.12),_transparent_32%),linear-gradient(180deg,#07111f_0%,#050816_100%)] text-white">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 pb-32 pt-5 md:px-6 md:pb-10 lg:px-8 lg:pb-12">
+    <div className="min-h-screen w-full overflow-x-hidden bg-[var(--bg)] text-[var(--text)]">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 pb-32 pt-5 md:px-6 md:pb-10 lg:px-7 lg:pb-12">
         <MarketingStudioHeader
           eyebrow="Marketing Studio"
           title="Campaign Studio"
@@ -1725,7 +1725,7 @@ export default function SocialMediaPublisher() {
 
         {error ? <div className="rounded-2xl border border-rose-400/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{error}</div> : null}
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid gap-5">
           <section className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/25">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-2 text-amber-100">
@@ -2292,7 +2292,7 @@ export default function SocialMediaPublisher() {
                 </button>
               </div>
 
-              <div className="sticky bottom-0 z-20 mt-2 grid grid-cols-2 gap-2 border-t border-white/10 bg-[#07111f]/96 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 backdrop-blur md:hidden">
+              <div className="sticky bottom-0 z-20 mt-2 grid grid-cols-2 gap-2 border-t border-[var(--border)] bg-[var(--card)] pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 md:hidden">
                 <button
                   type="button"
                   onClick={handleSchedule}
@@ -2330,7 +2330,7 @@ export default function SocialMediaPublisher() {
                 role="dialog"
                 aria-modal="true"
                 aria-label="Preview post"
-                className="flex h-full w-full max-w-6xl flex-col overflow-hidden bg-[#07111f] text-white shadow-2xl shadow-black/60 md:h-[92vh] md:rounded-[2rem] md:border md:border-white/10"
+                className="flex h-full w-full max-w-6xl flex-col overflow-hidden bg-[var(--card)] text-[var(--text)] shadow-2xl shadow-black/60 md:h-[92vh] md:rounded-[2rem] md:border md:border-[var(--border)]"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
@@ -2398,7 +2398,7 @@ export default function SocialMediaPublisher() {
                   </div>
                 </div>
 
-                <div className="sticky bottom-0 border-t border-white/10 bg-[#07111f]/98 px-4 py-4 backdrop-blur md:px-6">
+                <div className="sticky bottom-0 border-t border-[var(--border)] bg-[var(--card)] px-4 py-4 md:px-6">
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                     <button
                       type="button"
@@ -2444,7 +2444,7 @@ export default function SocialMediaPublisher() {
                 role="dialog"
                 aria-modal="true"
                 aria-label="Templates"
-                className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#07111f] text-white shadow-2xl shadow-black/60 md:h-[86vh] md:rounded-[2rem]"
+                className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-t-[2rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl shadow-black/60 md:h-[86vh] md:rounded-[2rem]"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
@@ -2554,7 +2554,7 @@ export default function SocialMediaPublisher() {
                 role="dialog"
                 aria-modal="true"
                 aria-label="Select Product"
-                className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[2rem] border border-white/10 bg-[#07111f] text-white shadow-2xl shadow-black/60 md:h-[86vh] md:rounded-[2rem]"
+                className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-t-[2rem] border border-[var(--border)] bg-[var(--card)] text-[var(--text)] shadow-2xl shadow-black/60 md:h-[86vh] md:rounded-[2rem]"
                 onClick={(event) => event.stopPropagation()}
               >
                 <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">

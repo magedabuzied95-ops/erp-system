@@ -1,0 +1,80 @@
+.employee-portal-products,
+.employee-portal-workspace {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: var(--font-ar) !important;
+}
+
+.employee-portal-products :where(header, section),
+.employee-portal-workspace :where(header, section, article) {
+  border-color: var(--border) !important;
+}
+
+/* M1 gold is reserved for actions. */
+.employee-portal-products button[class*="bg-emerald-"],
+.employee-portal-products button[class*="bg-cyan-"],
+.employee-portal-workspace button[class*="bg-emerald-"],
+.employee-portal-workspace button[class*="bg-cyan-"] {
+  background: var(--primary) !important;
+  background-image: none !important;
+  border-color: var(--primary-active) !important;
+  color: var(--primary-contrast) !important;
+}
+
+.employee-portal-products button[class*="bg-emerald-"] :where(svg, span),
+.employee-portal-products button[class*="bg-cyan-"] :where(svg, span),
+.employee-portal-workspace button[class*="bg-emerald-"] :where(svg, span),
+.employee-portal-workspace button[class*="bg-cyan-"] :where(svg, span) {
+  color: currentColor !important;
+}
+
+html[data-theme="light"] .employee-portal-products :where(header, section) {
+  background: var(--surface) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+html[data-theme="light"] .employee-portal-products :where([class*="text-white"], [class*="text-zinc-200"]) {
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .employee-portal-products :where([class*="text-zinc-300"], [class*="text-zinc-400"], [class*="text-zinc-500"]) {
+  color: var(--muted) !important;
+}
+
+html[data-theme="light"] .employee-portal-products :where([class*="bg-black"], [class*="bg-white/"], [class*="bg-zinc-950"]) {
+  background: var(--surface-soft) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="light"] .employee-portal-products :where(input, select, textarea) {
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .employee-portal-workspace :where([class*="bg-white"], [class*="bg-slate-50"], [class*="bg-slate-100"]) {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .employee-portal-workspace :where([class*="text-slate-950"], [class*="text-slate-900"], [class*="text-slate-800"], [class*="text-slate-700"]) {
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .employee-portal-workspace :where([class*="text-slate-400"], [class*="text-slate-500"], [class*="text-slate-600"]) {
+  color: var(--muted) !important;
+}
+
+html[data-theme="dark"] .employee-portal-workspace :where(input, select, textarea) {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .employee-portal-workspace :where([class*="border-slate-"], [class*="border-white/"]) {
+  border-color: var(--border) !important;
+}
+
+/* Green remains semantic for inventory/success labels only. */
+.employee-portal-products :where([class*="text-emerald-"], [class*="text-green-"]),
+.employee-portal-workspace :where([class*="text-emerald-"], [class*="text-green-"]) {
+  color: var(--success) !important;
+}

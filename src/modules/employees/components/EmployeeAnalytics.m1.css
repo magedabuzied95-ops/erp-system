@@ -1,0 +1,110 @@
+.m1-employee-analytics {
+  --chart-secondary: color-mix(in srgb, var(--text-tertiary) 72%, var(--surface));
+  color: var(--text);
+}
+
+.m1-employee-analytics > div:first-child,
+.m1-employee-analytics :where(section, .rounded-\[30px\], .rounded-\[28px\]) {
+  background: var(--surface) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.m1-employee-analytics > div:first-child {
+  border-block-start: 3px solid var(--primary) !important;
+}
+
+.m1-employee-analytics > div:first-child p:first-child,
+.m1-employee-analytics [class*="text-cyan-"],
+.m1-employee-analytics [class*="text-amber-"] {
+  color: var(--primary) !important;
+}
+
+.m1-employee-analytics :where(h1, h2, h3, td[class*="text-white"], [class*="text-white"]) {
+  color: var(--text) !important;
+}
+
+.m1-employee-analytics :where([class*="text-zinc-400"], [class*="text-zinc-500"], [class*="text-white/60"], [class*="text-white/70"]) {
+  color: var(--muted) !important;
+}
+
+.m1-employee-analytics :where(input, select, textarea) {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.m1-employee-analytics :where(input, select, textarea):focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px var(--focus-ring) !important;
+}
+
+.m1-employee-analytics button:not(.m1-analytics-tab-active) {
+  border-color: var(--border) !important;
+  background: var(--surface-soft) !important;
+  color: var(--text-secondary) !important;
+}
+
+.m1-employee-analytics .m1-analytics-tab-active,
+.m1-employee-analytics button[class*="bg-emerald-500"] {
+  background: var(--primary) !important;
+  border-color: var(--primary-active) !important;
+  color: var(--primary-contrast) !important;
+}
+
+.m1-employee-analytics .m1-analytics-metric {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.m1-employee-analytics .m1-analytics-metric::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: 3px;
+  background: var(--border-strong);
+}
+
+.m1-employee-analytics .m1-analytics-metric.m1-metric-primary::before {
+  background: var(--primary);
+}
+
+.m1-employee-analytics :where(table thead, [class*="bg-white/5"]) {
+  background: var(--table-head) !important;
+}
+
+.m1-employee-analytics table :where(th, td) {
+  border-color: var(--border) !important;
+}
+
+.m1-employee-analytics table tbody tr:hover {
+  background: var(--table-hover) !important;
+}
+
+.m1-employee-analytics [class*="text-emerald-"] {
+  color: var(--success) !important;
+}
+
+.m1-employee-analytics [class*="text-rose-"] {
+  color: var(--danger) !important;
+}
+
+.m1-employee-analytics .recharts-cartesian-grid line {
+  stroke: var(--border) !important;
+}
+
+.m1-employee-analytics .recharts-cartesian-axis line,
+.m1-employee-analytics .recharts-cartesian-axis-tick line {
+  stroke: var(--border-strong) !important;
+}
+
+.m1-employee-analytics .recharts-cartesian-axis-tick text {
+  fill: var(--muted) !important;
+}

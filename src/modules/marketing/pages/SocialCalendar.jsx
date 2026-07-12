@@ -199,10 +199,10 @@ export default function SocialCalendar() {
   const todayKey = toLocalDateKey(referenceDate);
 
   return (
-    <div className="min-h-full bg-[#060816] text-white">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
+    <div className="min-h-full bg-[var(--bg)] text-[var(--text)]">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-5 px-4 py-5 md:px-6 lg:px-7">
         <MarketingStudioHeader />
-        <section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.18),transparent_28%),linear-gradient(135deg,rgba(2,6,23,0.98),rgba(15,23,42,0.96))] p-5 shadow-2xl shadow-black/30">
+        <section className="overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[var(--card)] p-5 shadow-[var(--shadow-card)]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
@@ -370,7 +370,7 @@ export default function SocialCalendar() {
               </div>
             </div>
 
-            <div className="rounded-[1.75rem] border border-white/10 bg-[linear-gradient(180deg,rgba(15,23,42,0.95),rgba(2,6,23,0.88))] p-4">
+            <div className="rounded-[1.75rem] border border-[var(--border)] bg-[var(--surface-soft)] p-4">
               <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-slate-500">
                 <Tv2 className="h-4 w-4 text-cyan-200" />
                 {t("marketing.socialCalendar.draft.canvasLabel")}

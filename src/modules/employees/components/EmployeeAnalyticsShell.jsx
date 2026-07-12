@@ -1,4 +1,5 @@
 import { Download, Printer, RefreshCcw, Table2 } from "lucide-react";
+import "./EmployeeAnalytics.m1.css";
 
 export default function EmployeeAnalyticsShell({
   title,
@@ -15,9 +16,9 @@ export default function EmployeeAnalyticsShell({
   tabs = [],
   children,
 }) {
-  const labelClass = isRtl ? "text-xs font-bold leading-5 text-cyan-300" : "text-xs uppercase tracking-[0.32em] text-cyan-300";
+  const labelClass = isRtl ? "text-xs font-bold leading-5" : "text-xs uppercase tracking-[0.32em]";
   return (
-    <div className="space-y-6" dir={isRtl ? "rtl" : "ltr"}>
+    <div className="m1-employee-analytics space-y-6" dir={isRtl ? "rtl" : "ltr"}>
       <div className="rounded-[32px] border border-white/10 bg-gradient-to-br from-zinc-950 via-zinc-950 to-slate-900 p-6 shadow-[0_24px_90px_rgba(0,0,0,0.24)] xl:p-8">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
@@ -71,7 +72,7 @@ export default function EmployeeAnalyticsShell({
                 onClick={() => onTabChange(tab.key)}
                 className={`rounded-2xl px-4 py-2 text-sm font-semibold transition ${
                   activeTab === tab.key
-                    ? "bg-emerald-500 text-black"
+                    ? "m1-analytics-tab-active text-black"
                     : "border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10"
                 }`}
               >

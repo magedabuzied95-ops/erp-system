@@ -3,13 +3,30 @@ import { Bell, CheckCheck, RefreshCw, Search } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { NotificationCard, useNotifications } from "../../../shared/notifications/index.js";
+import "./NotificationsCenter.m1.css";
 
-const categories = ["all", "staff_tasks", "orders", "payments", "inventory", "purchases", "security", "system"];
+const categories = ["all", "sales", "orders", "stock", "inventory", "payments", "purchases", "staff_tasks", "security", "system"];
 const priorities = ["all", "low", "medium", "high", "critical"];
 const readStates = ["all", "unread", "read"];
 
+const categoryOrder = ["sales", "orders", "stock", "inventory", "payments", "purchases", "staff_tasks", "security", "system"];
+const categoryTitles = {
+  all: "الكل",
+  sales: "المبيعات والفواتير",
+  orders: "الطلبات والفواتير",
+  stock: "المخزون والتنبيهات",
+  inventory: "المخزون",
+  payments: "المدفوعات",
+  purchases: "المشتريات",
+  staff_tasks: "مهام الموظفين",
+  security: "الأمان",
+  system: "النظام",
+};
+
 const labels = {
   staff_tasks: "Staff tasks",
+  sales: "المبيعات والفواتير",
+  stock: "المخزون والتنبيهات",
   all: "الكل",
   orders: "الطلبات",
   payments: "المدفوعات",
@@ -53,8 +70,30 @@ function NotificationsCenter() {
     });
   }, [category, dateFrom, dateTo, notifications, priority, query, readState]);
 
+  const categoryCounts = useMemo(() => notifications.reduce((accumulator, item) => {
+    const key = item.category || "system";
+    accumulator[key] = (accumulator[key] || 0) + 1;
+    return accumulator;
+  }, {}), [notifications]);
+
+  const groupedNotifications = useMemo(() => {
+    const groups = new Map();
+    filtered.forEach((item) => {
+      const key = item.category || "system";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(item);
+    });
+    const knownGroups = categoryOrder
+      .filter((key) => groups.has(key))
+      .map((key) => ({ key, title: categoryTitles[key] || key, items: groups.get(key) }));
+    const unknownGroups = Array.from(groups.entries())
+      .filter(([key]) => !categoryOrder.includes(key))
+      .map(([key, items]) => ({ key, title: categoryTitles[key] || key, items }));
+    return [...knownGroups, ...unknownGroups];
+  }, [filtered]);
+
   return (
-    <div className="space-y-5" dir="rtl">
+    <div className="m1-notifications-center space-y-4" dir="rtl">
       <section className="overflow-hidden rounded-3xl border border-slate-700/70 bg-[#07111f] shadow-[0_24px_80px_rgba(0,0,0,0.28)]">
         <div className="border-b border-slate-700/70 bg-[linear-gradient(180deg,rgba(15,23,42,0.96),rgba(7,17,31,0.98))] p-4 sm:p-6">
           <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
@@ -113,18 +152,44 @@ function NotificationsCenter() {
         </div>
       </section>
 
+      <nav className="notification-category-nav" aria-label="تصنيف الإشعارات">
+        {["all", ...categoryOrder, ...Object.keys(categoryCounts).filter((key) => !categoryOrder.includes(key))].map((key) => {
+          const count = key === "all" ? notifications.length : categoryCounts[key] || 0;
+          if (key !== "all" && !count) return null;
+          return (
+            <button key={key} type="button" onClick={() => setCategory(key)} className={category === key ? "active" : ""}>
+              <span>{categoryTitles[key] || key}</span>
+              <b>{count > 99 ? "99+" : count}</b>
+            </button>
+          );
+        })}
+      </nav>
+
       {error ? <div className="rounded-2xl border border-red-400/25 bg-red-500/10 p-4 text-sm font-bold text-red-100">{error}</div> : null}
 
-      <div className="grid gap-3">
+      <div className="notification-feed">
         {loading ? (
-          Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-2xl border border-slate-700/50 bg-slate-900/80" />)
+          <div className="notification-card-grid">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="h-28 animate-pulse rounded-2xl border border-slate-700/50 bg-slate-900/80" />)}</div>
         ) : filtered.length ? (
-          filtered.map((notification) => (
-            <NotificationCard
-              key={notification.id}
-              notification={notification}
-              onAction={(item) => navigate(item.action_url)}
-            />
+          groupedNotifications.map((group) => (
+            <section key={group.key} className="notification-group">
+              <header>
+                <div>
+                  <h2>{group.title}</h2>
+                  <p>{group.items.filter((item) => !item.is_read).length} غير مقروء من {group.items.length}</p>
+                </div>
+                {category === "all" ? <button type="button" onClick={() => setCategory(group.key)}>عرض القسم</button> : null}
+              </header>
+              <div className="notification-card-grid">
+                {group.items.map((notification) => (
+                  <NotificationCard
+                    key={notification.id}
+                    notification={notification}
+                    onAction={(item) => navigate(item.action_url)}
+                  />
+                ))}
+              </div>
+            </section>
           ))
         ) : (
           <div className="flex min-h-[20rem] flex-col items-center justify-center rounded-3xl border border-dashed border-slate-700 bg-[#07111f] p-10 text-center">

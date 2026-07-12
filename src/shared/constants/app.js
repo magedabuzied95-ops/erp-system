@@ -31,7 +31,11 @@ const devEnvValue = (value) =>
 
 const isLocalBrowserHost = () => {
   if (typeof window === "undefined") return true;
-  return ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(window.location.hostname);
+  const hostname = String(window.location.hostname || "").toLowerCase();
+  return (
+    ["localhost", "127.0.0.1", "0.0.0.0", "::1"].includes(hostname) ||
+    hostname.endsWith(".127.0.0.1.nip.io")
+  );
 };
 
 const normalizeApiBaseUrl = (value) => {
@@ -52,9 +56,24 @@ const resolveApiBaseUrl = () => {
     return PRODUCTION_API_BASE_URL;
   }
 
+  // All local nip.io ERP previews run behind Vite's same-origin proxy.
+  // Resolve this before reading env fallbacks, because the base .env may
+  // intentionally point ordinary localhost development at port 8000.
+  if (
+    typeof window !== "undefined" &&
+    String(window.location.hostname || "").toLowerCase().endsWith(".nip.io")
+  ) {
+    return "/api";
+  }
+
   const envApiBaseUrl = API_BASE_URL_ENV || API_ORIGIN_ENV;
-  if (envApiBaseUrl === "/api" && isLocalBrowserHost()) {
-    return `${LOCAL_API_ORIGIN}/api`;
+  if (envApiBaseUrl === "/api") {
+    // Keep same-origin API paths for Vite preview hosts so the dev proxy can
+    // handle CORS. Only plain localhost without a proxy needs port 8000.
+    if (typeof window !== "undefined" && String(window.location.hostname || "").toLowerCase().endsWith(".nip.io")) {
+      return "/api";
+    }
+    if (isLocalBrowserHost()) return `${LOCAL_API_ORIGIN}/api`;
   }
   return normalizeApiBaseUrl(envApiBaseUrl);
 };

@@ -24,11 +24,17 @@ export default defineConfig(({ mode }) => {
           target: devProxyTarget,
           changeOrigin: true,
           secure: false,
+          headers: {
+            Origin: "https://erp.m1store-egy.com",
+          },
         },
         "/uploads": {
           target: devProxyTarget,
           changeOrigin: true,
           secure: false,
+          headers: {
+            Origin: "https://erp.m1store-egy.com",
+          },
         },
         "/socket.io": {
           target: devProxyTarget,
@@ -41,6 +47,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     root: projectRoot,
+    cacheDir: String(env.VITE_CACHE_DIR || "node_modules/.vite"),
     plugins: [
       react(),
       tailwindcss(),

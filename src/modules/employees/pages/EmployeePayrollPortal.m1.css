@@ -1,0 +1,255 @@
+.employee-portal-shell {
+  background: var(--bg) !important;
+  color: var(--text) !important;
+  font-family: var(--font-ar, var(--app-font)) !important;
+}
+
+.employee-portal-shell :where([class*="bg-white"], [class*="bg-slate-50"], [class*="bg-slate-100"]) {
+  background: var(--surface) !important;
+  background-image: none !important;
+}
+
+.employee-portal-shell :where([class*="border-slate-100"], [class*="border-slate-200"], [class*="border-white/10"]) {
+  border-color: var(--border) !important;
+}
+
+.employee-portal-shell :where([class*="text-slate-950"], [class*="text-slate-900"], [class*="text-slate-800"], [class*="text-slate-700"]) {
+  color: var(--text) !important;
+}
+
+.employee-portal-shell :where([class*="text-slate-300"], [class*="text-slate-400"], [class*="text-slate-500"], [class*="text-slate-600"]) {
+  color: var(--muted) !important;
+}
+
+.employee-portal-shell > div > header [class*="text-emerald-"] {
+  color: var(--primary) !important;
+}
+
+.employee-portal-shell button[class*="bg-emerald-"],
+.employee-portal-shell button[class*="bg-cyan-"],
+.employee-portal-shell button[class*="bg-slate-950"] {
+  background: var(--primary) !important;
+  background-image: none !important;
+  border-color: var(--primary-active) !important;
+  color: var(--primary-contrast) !important;
+  box-shadow: none !important;
+}
+
+.employee-portal-shell button[class*="bg-emerald-"]:hover,
+.employee-portal-shell button[class*="bg-cyan-"]:hover,
+.employee-portal-shell button[class*="bg-slate-950"]:hover {
+  background: var(--primary-hover) !important;
+}
+
+.employee-portal-shell .sticky[class*="bg-white"] {
+  background: color-mix(in srgb, var(--surface) 94%, transparent) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.employee-portal-shell .sticky[class*="bg-white"] > div + button + button {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.employee-portal-shell .sticky[class*="bg-white"] .grid button {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text-secondary) !important;
+}
+
+.employee-portal-shell .sticky[class*="bg-white"] .grid button:first-child {
+  color: var(--success) !important;
+  border-color: color-mix(in srgb, var(--success) 30%, var(--border)) !important;
+  background: var(--success-soft) !important;
+}
+
+.employee-portal-shell section[class*="bg-[linear-gradient"] {
+  background: var(--surface) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+.employee-portal-shell section[class*="bg-[linear-gradient"] :where(h2, [class*="text-white"], [class*="text-cyan-"]) {
+  color: var(--text) !important;
+}
+
+.employee-portal-shell section[class*="bg-[linear-gradient"] > div:first-child > div:first-child > div:first-child {
+  color: var(--primary) !important;
+}
+
+.employee-portal-shell section[class*="bg-[linear-gradient"] [class*="border-cyan-"] {
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--border)) !important;
+  background: var(--primary-soft) !important;
+  color: var(--primary) !important;
+}
+
+.employee-portal-shell section[class*="bg-[linear-gradient"] article,
+.employee-portal-shell section[class*="bg-[linear-gradient"] > div:last-child {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+}
+
+.employee-portal-shell :where(input, select, textarea) {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.employee-portal-shell nav,
+.employee-portal-shell [class*="fixed"][class*="bottom-"] > div {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  box-shadow: var(--shadow-overlay) !important;
+}
+
+.employee-portal-shell [class*="fixed"][class*="bottom-"] button[class*="bg-slate-950"] {
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell {
+  color-scheme: dark;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="bg-slate-950"]):not(button) {
+  background: var(--surface) !important;
+  background-image: none !important;
+  border-color: var(--border) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="shadow-slate-"], [class*="shadow-xl"], [class*="shadow-2xl"]) {
+  --tw-shadow-color: transparent !important;
+  box-shadow: var(--shadow-card) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="bg-emerald-50"], [class*="bg-emerald-100"], [class*="bg-emerald-400/"], [class*="bg-emerald-500/"]) {
+  background: var(--success-soft) !important;
+  background-image: none !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="border-emerald-"], [class*="ring-emerald-"]) {
+  border-color: color-mix(in srgb, var(--success) 34%, var(--border)) !important;
+  --tw-ring-color: color-mix(in srgb, var(--success) 34%, transparent) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="text-emerald-"]) {
+  color: var(--success) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="bg-amber-50"], [class*="bg-amber-100"], [class*="bg-amber-400/"], [class*="bg-orange-50"], [class*="bg-orange-100"]) {
+  background: var(--warning-soft) !important;
+  background-image: none !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="border-amber-"], [class*="border-orange-"]) {
+  border-color: color-mix(in srgb, var(--warning) 36%, var(--border)) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="text-amber-"], [class*="text-orange-"]) {
+  color: var(--warning) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="bg-red-50"], [class*="bg-red-100"], [class*="bg-rose-50"], [class*="bg-rose-100"]) {
+  background: var(--danger-soft) !important;
+  background-image: none !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="border-red-"], [class*="border-rose-"]) {
+  border-color: color-mix(in srgb, var(--danger) 36%, var(--border)) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell :where([class*="text-red-"], [class*="text-rose-"]) {
+  color: var(--danger) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell article {
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell article :where([class*="bg-white"], [class*="bg-slate-50"], [class*="bg-slate-100"]) {
+  background: var(--surface-soft) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell [class*="border-dashed"] {
+  background: var(--surface-soft) !important;
+  border-color: var(--border-strong) !important;
+}
+
+html[data-theme="dark"] .employee-portal-shell [class*="ring-offset-[#0b141a]"] {
+  --tw-ring-offset-color: var(--bg) !important;
+}
+
+/* Action colors must win over semantic status utilities. In the portal these
+   solid legacy green/cyan buttons are commands, not success indicators. */
+.employee-portal-shell button[class*="bg-emerald-"],
+.employee-portal-shell button[class*="bg-cyan-"],
+.employee-portal-shell button[class*="bg-slate-950"] {
+  background: var(--primary) !important;
+  background-image: none !important;
+  border-color: var(--primary-active) !important;
+  color: var(--primary-contrast) !important;
+}
+
+.employee-portal-shell button[class*="bg-emerald-"] :where(svg, span),
+.employee-portal-shell button[class*="bg-cyan-"] :where(svg, span),
+.employee-portal-shell button[class*="bg-slate-950"] :where(svg, span) {
+  color: currentColor !important;
+}
+
+html[data-theme="light"] .employee-portal-shell {
+  color-scheme: light;
+}
+
+/* Employee chat follows the neutral M1 palette; green is status only. */
+.employee-portal-chat {
+  background: var(--bg) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.employee-portal-chat > div:first-child,
+.employee-portal-chat > div:first-child header,
+.employee-portal-chat form {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.employee-portal-chat [class*="bg-[#0b141a]"] {
+  background-color: var(--bg) !important;
+  background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--muted) 13%, transparent) 1px, transparent 0) !important;
+}
+
+.employee-portal-chat [class*="bg-[#005c4b]"] {
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}
+
+.employee-portal-chat [class*="bg-[#005c4b]"]::after {
+  background: var(--primary) !important;
+}
+
+.employee-portal-chat [class*="bg-[#202c33]"] {
+  background: var(--surface-raised) !important;
+  border: 1px solid var(--border) !important;
+  color: var(--text) !important;
+}
+
+.employee-portal-chat [class*="bg-[#202c33]"]::after {
+  background: var(--surface-raised) !important;
+}
+
+.employee-portal-chat form :where(input, textarea) {
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+  color: var(--text) !important;
+}
+
+.employee-portal-chat form button[type="submit"] {
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}

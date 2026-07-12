@@ -1,0 +1,35 @@
+.m1-sales-employees select {
+  color-scheme: dark;
+  accent-color: var(--primary);
+  color: var(--text);
+}
+
+.m1-sales-employees select option {
+  background-color: #232321;
+  color: #efeee9;
+}
+
+.m1-sales-employees select option:checked {
+  background: #6b5314 linear-gradient(0deg, #6b5314 0%, #6b5314 100%);
+  color: #fff8dc;
+}
+
+.m1-sales-employees select option:hover,
+.m1-sales-employees select option:focus {
+  background-color: #39342a;
+  color: #fff8dc;
+}
+
+html[data-theme="light"] .m1-sales-employees select {
+  color-scheme: light;
+}
+
+html[data-theme="light"] .m1-sales-employees select option {
+  background-color: #fff;
+  color: #25231f;
+}
+
+html[data-theme="light"] .m1-sales-employees select option:checked {
+  background: #f3e7b7 linear-gradient(0deg, #f3e7b7 0%, #f3e7b7 100%);
+  color: #4f3b00;
+}
