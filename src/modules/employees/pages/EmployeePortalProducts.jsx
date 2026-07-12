@@ -128,7 +128,7 @@ const scanValueVariants = (value = "") => {
 
 const variantsForColor = (product = {}, color = "") =>
   (Array.isArray(product.variants) ? product.variants : []).filter((variant) =>
-    text(variant.color) === text(color)
+    lower(variant.color) === lower(color)
   );
 
 const firstVariantForColor = (product = {}, color = "") =>
@@ -145,23 +145,25 @@ const findVariant = (product = {}, variantId = null, color = "", size = "", colo
     const byColorId = variants.find((variant) => String(variant.color_id ?? "") === String(colorId));
     if (byColorId) return byColorId;
   }
-  if (color || size) {
-    const byCombo = variants.find((variant) => text(variant.color) === text(color) && text(variant.size) === text(size));
-    if (byCombo) return byCombo;
+  if (color && size) {
+    return variants.find((variant) => lower(variant.color) === lower(color) && variantSizeValue(variant) === text(size)) || null;
+  }
+  if (size) {
+    return variants.find((variant) => variantSizeValue(variant) === text(size)) || null;
   }
   return variants.find((variant) => Number(variant.stock || 0) > 0) || variants[0] || null;
 };
 
 const stockByColor = (product = {}, color = "") =>
   (Array.isArray(product.variants) ? product.variants : [])
-    .filter((variant) => !color || text(variant.color) === text(color))
+    .filter((variant) => !color || lower(variant.color) === lower(color))
     .reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
 
 const firstAvailableColor = (product = {}) => product.colors.find((color) => stockByColor(product, color) > 0) || product.colors[0] || "";
 
 const sizeOptionsForProduct = (product = {}, color = "") => {
   const variants = Array.isArray(product.variants) ? product.variants : [];
-  const filtered = color ? variants.filter((variant) => text(variant.color) === text(color)) : variants;
+  const filtered = color ? variants.filter((variant) => lower(variant.color) === lower(color)) : variants;
   const bySize = new Map();
 
   for (const variant of filtered) {
@@ -181,7 +183,7 @@ const pickVariantForColor = (product = {}, color = "", preferredSize = "") => {
   if (!scopedVariants.length) return null;
 
   const exactSize = preferredSize
-    ? scopedVariants.find((variant) => text(variant.size) === text(preferredSize))
+    ? scopedVariants.find((variant) => variantSizeValue(variant) === text(preferredSize) && variantStockValue(variant) > 0)
     : null;
   if (exactSize) return exactSize;
 
@@ -262,7 +264,7 @@ const getAvailableVariantsForEmployeeFilters = (product = {}, filters = {}) => {
   return variants.filter((variant) => {
     if (variantStockValue(variant) <= 0) return false;
     if (isActiveSizeFilter(selectedSize) && variantSizeValue(variant) !== selectedSize) return false;
-    if (selectedColor && text(variant.color) !== selectedColor) return false;
+    if (selectedColor && lower(variant.color) !== lower(selectedColor)) return false;
     return true;
   });
 };
@@ -316,7 +318,7 @@ const expandEmployeeProductCardsByColorAndSize = (products = [], filters = {}) =
     const availableVariants = getAvailableVariantsForEmployeeFilters(product, { selectedSize });
     const colors = uniqueValues(availableVariants.map((variant) => variant.color));
     for (const color of colors) {
-      const scopedVariants = availableVariants.filter((variant) => text(variant.color) === color);
+      const scopedVariants = availableVariants.filter((variant) => lower(variant.color) === lower(color));
       if (!scopedVariants.length) continue;
       const key = `${product.id ?? product.product_id ?? "product"}:${color}:${selectedSize}`;
       if (seen.has(key)) continue;
@@ -324,7 +326,7 @@ const expandEmployeeProductCardsByColorAndSize = (products = [], filters = {}) =
       cards.push(buildEmployeeScopedProductCard(product, scopedVariants, { color, size: selectedSize }));
     }
   }
-  return cards.length ? cards : products;
+  return cards;
 };
 
 const buildListParams = ({ search, filters }) => {

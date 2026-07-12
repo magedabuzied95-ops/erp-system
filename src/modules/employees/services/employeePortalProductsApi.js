@@ -3,7 +3,9 @@ import { API_BASE_URL } from "../../../shared/constants/app";
 
 export const getEmployeePortalProducts = (token, params = {}) =>
   api.get(`/employee-portal/${encodeURIComponent(token)}/products`, {
-    params,
+    params: { ...params, _inventory_refresh: Date.now() },
+    cache: "no-store",
+    headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
     suppressErrorStatuses: [404, 422],
   });
 
