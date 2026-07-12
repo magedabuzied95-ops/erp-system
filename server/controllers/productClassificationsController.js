@@ -445,23 +445,31 @@ export const createProductClassificationOption = async (req, res) => {
       return res.status(400).json({ success: false, message: "value, label_ar, and label_en are required" });
     }
     await client.query("BEGIN");
-    const result = await client.query(
-      `
-      INSERT INTO product_classification_options (group_id, value, label_ar, label_en, icon, color, sort_order, is_active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      ON CONFLICT (group_id, value) DO UPDATE SET
-        label_ar = EXCLUDED.label_ar,
-        label_en = EXCLUDED.label_en,
-        icon = EXCLUDED.icon,
-        color = EXCLUDED.color,
-        sort_order = EXCLUDED.sort_order,
-        is_active = EXCLUDED.is_active,
-        deleted_at = NULL,
-        updated_at = CURRENT_TIMESTAMP
-      RETURNING *
-      `,
-      [groupId, payload.value, payload.label_ar, payload.label_en, payload.icon, payload.color, payload.sort_order, payload.is_active]
+    const existing = await client.query(
+      `SELECT id
+       FROM product_classification_options
+       WHERE group_id = $1 AND LOWER(TRIM(value)) = LOWER(TRIM($2))
+       ORDER BY id ASC
+       LIMIT 1
+       FOR UPDATE`,
+      [groupId, payload.value]
     );
+    const values = [groupId, payload.value, payload.label_ar, payload.label_en, payload.icon, payload.color, payload.sort_order, payload.is_active];
+    const result = existing.rows[0]
+      ? await client.query(
+          `UPDATE product_classification_options
+           SET group_id = $1, value = $2, label_ar = $3, label_en = $4, icon = $5, color = $6,
+               sort_order = $7, is_active = $8, deleted_at = NULL, updated_at = CURRENT_TIMESTAMP
+           WHERE id = $9
+           RETURNING *`,
+          [...values, existing.rows[0].id]
+        )
+      : await client.query(
+          `INSERT INTO product_classification_options (group_id, value, label_ar, label_en, icon, color, sort_order, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+           RETURNING *`,
+          values
+        );
     await client.query("COMMIT");
     await invalidateProductClassificationCaches();
     res.status(201).json({ success: true, option: serializeOption(result.rows[0]) });

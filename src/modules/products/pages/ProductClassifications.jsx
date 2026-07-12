@@ -104,7 +104,7 @@ function ProductClassifications() {
       is_active: Boolean(selectedGroup.is_active),
     });
     setOptionForm(emptyOptionForm);
-  }, [selectedGroup?.id, selectedGroup?.updated_at]);
+  }, [selectedGroup?.id, selectedGroup?.key, selectedGroup?.updated_at]);
 
   useEffect(() => {
     if (!selectedGroupKey && visibleGroups[0]?.key) {
@@ -242,7 +242,10 @@ function ProductClassifications() {
                 <button
                   key={`${group.key || "group"}-${group.id ?? "new"}`}
                   type="button"
-                  onClick={() => setSelectedGroupKey(group.key)}
+                  onClick={() => {
+                    setOptionForm(emptyOptionForm);
+                    setSelectedGroupKey(group.key);
+                  }}
                   className={`relative overflow-hidden rounded-[1.45rem] border p-4 text-start transition duration-200 hover:-translate-y-0.5 ${
                     active
                       ? "border-[#7c3aed]/50 bg-[linear-gradient(135deg,rgba(109,40,217,0.18),rgba(255,255,255,0.04))] shadow-[0_18px_40px_rgba(109,40,217,0.16)]"
