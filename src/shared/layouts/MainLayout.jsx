@@ -852,7 +852,7 @@ function MainLayout() {
                 </div>
               </div>
 
-              <div className="flex min-w-0 max-w-[calc(100vw-5rem)] items-center justify-end gap-2 overflow-x-auto pointer-events-auto sm:gap-2.5 lg:max-w-none lg:gap-3 lg:overflow-visible">
+              <div className="m1-topbar-tools flex min-w-0 max-w-[calc(100vw-5rem)] items-center justify-end gap-2 overflow-x-auto pointer-events-auto sm:gap-2.5 lg:max-w-none lg:gap-3 lg:overflow-visible">
                 <button
                   type="button"
                   onClick={() => window.open(publicStorefrontUrl("/"), "_blank", "noopener,noreferrer")}
