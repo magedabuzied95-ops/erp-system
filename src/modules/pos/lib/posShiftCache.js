@@ -52,15 +52,18 @@ export const isPosOfflineNetworkError = (error) => {
   const name = String(error?.name || error?.cause?.name || "").toLowerCase();
 
   if (!message && !name) return false;
-  if (name === "aborterror" || name === "timeouterror") return false;
-
   return (
     message.includes("networkerror") ||
     message.includes("failed to fetch") ||
     message.includes("network request failed") ||
     message.includes("load failed") ||
+    message.includes("aborted") ||
+    message.includes("timeout") ||
+    message.includes("timed out") ||
     message.includes("fetch") ||
-    name === "typeerror"
+    name === "typeerror" ||
+    name === "aborterror" ||
+    name === "timeouterror"
   );
 };
 

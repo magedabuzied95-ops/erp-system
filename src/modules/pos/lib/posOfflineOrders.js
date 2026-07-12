@@ -2,6 +2,8 @@ const POS_OFFLINE_ORDERS_DB_NAME = "erp-pos-offline-orders";
 const POS_OFFLINE_ORDERS_DB_STORE = "orders";
 const POS_OFFLINE_DEBUG =
   String((typeof import.meta !== "undefined" && import.meta.env?.VITE_POS_OFFLINE_DEBUG) || "").trim().toLowerCase() === "true";
+const POS_OFFLINE_SYNC_LOCK = "erp-pos-offline-orders-sync";
+let activeOfflineOrderSync = null;
 
 const isBrowser = () =>
   typeof window !== "undefined" &&
@@ -286,7 +288,7 @@ const sendOfflineOrderToServer = async (record) => {
   });
 };
 
-export const retryPendingOfflineOrders = async (sendOrder = sendOfflineOrderToServer) => {
+const runPendingOfflineOrderSync = async (sendOrder) => {
   const records = await listOfflineOrders();
   const retryable = records.filter((record) => ["pending_sync", "failed_sync"].includes(String(record.status || "")));
   const result = {
@@ -312,4 +314,26 @@ export const retryPendingOfflineOrders = async (sendOrder = sendOfflineOrderToSe
   }
 
   return result;
+};
+
+export const retryPendingOfflineOrders = async (sendOrder = sendOfflineOrderToServer) => {
+  if (activeOfflineOrderSync) return activeOfflineOrderSync;
+
+  const runWithCrossTabLock = async () => {
+    const locks = typeof navigator !== "undefined" ? navigator.locks : null;
+    if (!locks?.request) return runPendingOfflineOrderSync(sendOrder);
+
+    return locks.request(POS_OFFLINE_SYNC_LOCK, { mode: "exclusive", ifAvailable: true }, async (lock) => {
+      if (!lock) {
+        debugLog("sync skipped because another POS tab owns the lock");
+        return { total: 0, synced: [], failed: [], skipped_locked: true };
+      }
+      return runPendingOfflineOrderSync(sendOrder);
+    });
+  };
+
+  activeOfflineOrderSync = runWithCrossTabLock().finally(() => {
+    activeOfflineOrderSync = null;
+  });
+  return activeOfflineOrderSync;
 };

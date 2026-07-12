@@ -77,11 +77,12 @@ test("POS active shift cache round-trips cached shift metadata", async () => {
   });
 });
 
-test("POS offline network detection ignores server and abort errors", () => {
+test("POS offline network detection accepts network and timeout errors but rejects server errors", () => {
   assert.equal(isPosOfflineNetworkError(new Error("NetworkError when attempting to fetch /api")), true);
   assert.equal(isPosOfflineNetworkError({ message: "Failed to fetch" }), true);
   assert.equal(isPosOfflineNetworkError({ status: 404, message: "Not found" }), false);
-  assert.equal(isPosOfflineNetworkError({ name: "AbortError", message: "aborted" }), false);
+  assert.equal(isPosOfflineNetworkError({ name: "AbortError", message: "aborted" }), true);
+  assert.equal(isPosOfflineNetworkError({ name: "TimeoutError", message: "request timed out" }), true);
 });
 
 test("POS active shift cache validation rejects mismatched user or branch", () => {

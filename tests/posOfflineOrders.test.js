@@ -199,6 +199,34 @@ test("failed sync can be retried", async () => {
   });
 });
 
+test("concurrent sync requests send a pending order once", async () => {
+  await withIndexedDb(async () => {
+    await saveOfflineOrderDraft({
+      cart_items: [{ product_id: 2, quantity: 1 }],
+      totals: { total: 75 },
+      checkout_payload: { items: [{ product_id: 2, quantity: 1 }], total: 75 },
+    });
+
+    let calls = 0;
+    const sendOrder = async () => {
+      calls += 1;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return { success: true, order: { id: 903, invoice_number: "INV-903" } };
+    };
+
+    const [first, second] = await Promise.all([
+      retryPendingOfflineOrders(sendOrder),
+      retryPendingOfflineOrders(sendOrder),
+    ]);
+
+    assert.equal(calls, 1);
+    assert.equal(first.synced.length, 1);
+    assert.equal(second.synced.length, 1);
+    const records = await listOfflineOrders();
+    assert.equal(records[0].status, "synced");
+  });
+});
+
 test("validation and 400 errors are not stored offline", () => {
   assert.equal(shouldStoreOfflineOrderDraft({ status: 400, message: "Invalid payload" }), false);
   assert.equal(shouldStoreOfflineOrderDraft({ status: 422, responseBody: { message: "Stock" } }), false);
