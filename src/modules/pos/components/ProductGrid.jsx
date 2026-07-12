@@ -235,7 +235,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
   const saleBadge = product.sale_badge || (product.sale_source === "global" ? t("pos.productGrid.globalSale") : product.sale_source === "product" ? t("pos.productGrid.sale") : "");
   const hasPrice = Number(product.min_price ?? product.base_price ?? product.sale_price ?? product.price ?? 0) > 0;
   const variants = Array.isArray(product.variants) ? product.variants : [];
-  const colors = uniqueTextValues(variants.map((variant) => variant.color), 3);
+  const colors = product?.employee_card_size ? [] : uniqueTextValues(variants.map((variant) => variant.color), 3);
   const sizes = uniqueTextValues(variants.map((variant) => variant.size), 4);
   const articleCode = getSharedArticleCode(product);
   const isFavorite = product?.is_pos_favorite === true || product?.isPosFavorite === true;
@@ -291,8 +291,6 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
           {isEmployeeScopedVariant ? (
             <div className="absolute inset-x-2 top-2 flex justify-center">
               <div className="inline-flex max-w-[calc(100%-12px)] items-center gap-1 rounded-xl border border-amber-200/70 bg-zinc-950/90 px-2 py-1 text-center text-[9px] font-black leading-tight text-amber-100 shadow-md backdrop-blur-sm">
-                <span className="whitespace-normal">{product.employee_card_color}</span>
-                <span aria-hidden="true">•</span>
                 <span dir="ltr">{product.employee_card_size}</span>
               </div>
             </div>
@@ -305,12 +303,6 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
         <h3 className="min-w-0 text-center text-[0.7rem] font-semibold leading-tight text-zinc-100 sm:text-[0.76rem]">
           <span className="line-clamp-2 min-h-[2rem] sm:min-h-[1.9rem]">{product.name}</span>
         </h3>
-
-        {product?.employee_ambiguous_color_image ? (
-          <div className="rounded-lg border border-amber-300/20 bg-amber-400/10 px-2 py-1 text-center text-[8px] font-black leading-tight text-amber-100">
-            الصورة مشتركة — اعتمد اسم اللون
-          </div>
-        ) : null}
 
         {(colors.length || sizes.length) ? (
           <div className={`flex min-h-5 flex-wrap justify-center gap-1 overflow-hidden ${isEmployeeScopedVariant ? "" : "lg:hidden"}`}>
