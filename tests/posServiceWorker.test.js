@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 test("pos service worker excludes sensitive API routes from caching", () => {
-  const swPath = path.join(process.cwd(), "public", "pos", "pos-sw.js");
+  const swPath = path.join(process.cwd(), "public", "pos-sw.js");
   const source = fs.readFileSync(swPath, "utf8");
 
   assert.match(source, /startsWith\("\/api\/"\)/);
@@ -18,3 +18,10 @@ test("pos service worker excludes sensitive API routes from caching", () => {
   assert.match(source, /self\.clients\.claim\(\)/);
 });
 
+test("POS registers a root service worker that can control the exact /pos route", () => {
+  const pagePath = path.join(process.cwd(), "src", "modules", "pos", "pages", "POSPro.jsx");
+  const source = fs.readFileSync(pagePath, "utf8");
+
+  assert.match(source, /POS_SERVICE_WORKER_HREF = "\/pos-sw\.js"/);
+  assert.match(source, /register\(scriptUrl, \{ scope: "\/pos" \}\)/);
+});

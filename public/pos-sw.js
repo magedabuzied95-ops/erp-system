@@ -12,11 +12,8 @@ const SHELL_URLS = [
 ];
 
 const DEBUG = new URL(self.location.href).searchParams.get("debug") === "1";
-
 const log = (...args) => {
-  if (DEBUG) {
-    console.info(...args);
-  }
+  if (DEBUG) console.info(...args);
 };
 
 const isSafeShellAsset = (url) => {
@@ -41,7 +38,7 @@ const isSafeShellAsset = (url) => {
 const cacheShellUrl = async (cache, requestUrl) => {
   try {
     const response = await fetch(requestUrl, { cache: "no-store" });
-    if (!response || !response.ok) return;
+    if (!response?.ok) return;
     await cache.put(requestUrl, response.clone());
   } catch {
     // Shell caching is best-effort.
@@ -83,7 +80,6 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-
   if (
     url.pathname.startsWith("/api/") ||
     url.pathname.startsWith("/api") ||
@@ -106,14 +102,13 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(async () => {
           log("POS_SW_NAVIGATE_FALLBACK", { pathname: url.pathname });
-          return (await caches.match("/pos")) || (await caches.match("/pos-manifest.webmanifest")) || Response.error();
+          return (await caches.match("/pos")) || Response.error();
         })
     );
     return;
   }
 
   if (!isSafeShellAsset(url)) return;
-
   event.respondWith(
     caches.match(request).then((cached) => {
       if (cached) return cached;
