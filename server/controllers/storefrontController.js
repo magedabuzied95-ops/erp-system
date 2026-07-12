@@ -1333,6 +1333,7 @@ const catalogQuery = `
           'size', pv.size,
           'color', pv.color,
           'audience', pv.audience,
+          'audiences', string_to_array(LOWER(REPLACE(COALESCE(pv.audience, ''), ' ', '')), ','),
           'sku', pv.sku,
           'barcode', pv.barcode,
           'edition_name', pv.edition_name,
@@ -1426,7 +1427,7 @@ const productAudienceFilterSql = (param = "$5") => `
       WHERE pv_audience.product_id = p.id
         AND pv_audience.is_active IS DISTINCT FROM FALSE
         AND pv_audience.deleted_at IS NULL
-        AND LOWER(TRIM(COALESCE(pv_audience.audience, ''))) = ANY(${param}::text[])
+        AND string_to_array(LOWER(REPLACE(COALESCE(pv_audience.audience, ''), ' ', '')), ',') && ${param}::text[]
     )
     OR (
       NOT EXISTS (
@@ -1505,7 +1506,7 @@ export const storefrontProductsSql = `
           AND pv_size.is_active IS DISTINCT FROM FALSE
           AND pv_size.deleted_at IS NULL
           AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($10))
-          AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR COALESCE(TRIM(pv_size.audience), '') = '' OR LOWER(TRIM(pv_size.audience)) = ANY($7::text[]))
+          AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR COALESCE(TRIM(pv_size.audience), '') = '' OR string_to_array(LOWER(REPLACE(pv_size.audience, ' ', '')), ',') && $7::text[])
           AND ($11::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
       ))
       AND ($11::boolean = FALSE OR COALESCE(p.stock, 0) > 0 OR EXISTS (
@@ -1535,8 +1536,8 @@ export const queryProductsWithSql = async (sql, tenantId, q, category, filters, 
       result.rows = result.rows.map((row) => {
         const variants = Array.isArray(row.variants) ? row.variants : [];
         const scopedVariants = variants.filter((variant) => {
-          const audience = normalizeAudienceValue(variant?.audience);
-          return !audience || selectedAudiences.includes(audience);
+          const variantAudiences = normalizeProductAudiences(variant?.audiences, String(variant?.audience || "").split(","));
+          return variantAudiences.length === 0 || variantAudiences.some((audience) => selectedAudiences.includes(audience));
         });
         const matchedImage = scopedVariants.find((variant) => String(variant?.image_url || "").trim())?.image_url || "";
         return {

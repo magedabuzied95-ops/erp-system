@@ -2889,7 +2889,7 @@ function ProductEdit() {
           id: sourceRow.variantId || undefined,
           variant_id: sourceRow.variantId || undefined,
           color: group.color,
-          audience: group.audience || product.audiences?.[0] || product.gender || "",
+          audience: group.audience || product.audiences?.join(",") || product.gender || "",
           size: String(product.fixed_size_label || "One Size").trim() || "One Size",
           default_purchase_qty: purchaseQty,
           purchase_qty: purchaseQty,
@@ -2942,7 +2942,7 @@ function ProductEdit() {
           id: row.variantId || undefined,
           variant_id: row.variantId || undefined,
           color: group.color,
-          audience: group.audience || product.audiences?.[0] || product.gender || "",
+          audience: group.audience || product.audiences?.join(",") || product.gender || "",
           size,
           default_purchase_qty: purchaseQty,
           purchase_qty: purchaseQty,
@@ -4022,9 +4022,9 @@ function ProductEdit() {
                             ART {getGroupArticleSummary(group)}
                           </span>
                         ) : null}
-                        {group.audience ? (
+                        {(group.audience || product.audiences?.join(",") || product.gender) ? (
                           <span className="rounded-full border border-violet-400/25 bg-violet-400/10 px-2.5 py-1 text-[11px] font-bold text-violet-100">
-                            {group.audience === "men" ? "رجالي" : group.audience === "women" ? "حريمي" : "أطفال"}
+                            {String(group.audience || product.audiences?.join(",") || product.gender).split(",").map((value) => value === "men" ? "رجالي" : value === "women" ? "حريمي" : "أطفال").join(" + ")}
                           </span>
                         ) : null}
                         {getColorGroupThermalUrl(group) ? (
@@ -4307,7 +4307,7 @@ function ProductEdit() {
                             <label className="text-sm font-semibold text-zinc-300">الجمهور لهذا اللون</label>
                             <div className="mt-1.5 grid grid-cols-3 gap-1.5">
                               {[{ value: "men", label: "رجالي" }, { value: "women", label: "حريمي" }, { value: "kids", label: "أطفال" }].filter((option) => !product.audiences?.length || product.audiences.includes(option.value)).map((option) => (
-                                <button key={option.value} type="button" onClick={() => updateColorGroup(group.id, "audience", option.value)} className={`h-10 rounded-[12px] border text-xs font-bold transition ${(group.audience || product.audiences?.[0] || product.gender) === option.value ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-zinc-950 text-zinc-400 hover:text-white"}`}>
+                                <button key={option.value} type="button" onClick={() => { const current = String(group.audience || "").split(",").filter(Boolean); const next = current.includes(option.value) ? current.filter((value) => value !== option.value) : [...current, option.value]; updateColorGroup(group.id, "audience", next.join(",")); }} className={`h-10 rounded-[12px] border text-xs font-bold transition ${String(group.audience || product.audiences?.join(",") || product.gender).split(",").includes(option.value) ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-zinc-950 text-zinc-400 hover:text-white"}`}>
                                   {option.label}
                                 </button>
                               ))}
