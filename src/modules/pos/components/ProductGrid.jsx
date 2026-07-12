@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Box,
   PackageSearch,
+  Star,
 } from "lucide-react";
 
 import { formatCurrency } from "../lib/posUtils";
@@ -215,7 +216,7 @@ function ProductGrid({
 }
 
 const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const stock = getProductStock(product);
   const isOutOfStock = stock <= 0;
   const cover =
@@ -240,6 +241,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
   const colors = uniqueTextValues(variants.map((variant) => variant.color), 3);
   const sizes = uniqueTextValues(variants.map((variant) => variant.size), 4);
   const articleCode = getSharedArticleCode(product);
+  const isFavorite = product?.is_pos_favorite === true || product?.isPosFavorite === true;
 
   return (
     <div
@@ -252,7 +254,16 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
     >
       <div className="relative p-1.5 pb-0">
         <div className="relative h-32 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-36 sm:h-28 lg:h-24">
-        {cover ? (
+          {isFavorite ? (
+            <div
+              className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-amber-200/60 bg-zinc-950/90 text-amber-300 shadow-md backdrop-blur"
+              title={t("pos.productGrid.favorite")}
+              aria-label={t("pos.productGrid.favorite")}
+            >
+              <Star className="h-3.5 w-3.5 fill-current" />
+            </div>
+          ) : null}
+          {cover ? (
           <ProductImage
             src={cover}
             fallbackSrc={product.product_image_url}
@@ -264,7 +275,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
           </div>
         )}
 
-          <div className="absolute end-1.5 top-1.5 rounded-full border border-white/40 bg-zinc-950/80 px-1.5 py-0.5 text-[8px] font-black text-emerald-100 shadow-sm backdrop-blur">
+          <div className="absolute right-1.5 top-1.5 rounded-full border border-white/40 bg-zinc-950/80 px-1.5 py-0.5 text-[8px] font-black text-emerald-100 shadow-sm backdrop-blur">
             <span className="inline-flex items-center gap-0.5">
               <Box className="h-2.5 w-2.5 text-emerald-500" />
               {isOutOfStock ? t("pos.labels.outOfStock") : t("pos.labels.inStock", { count: stock })}

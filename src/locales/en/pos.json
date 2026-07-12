@@ -84,7 +84,8 @@
     "emptyFeed": "The product feed loaded, but it did not return any sellable rows.",
     "globalSale": "Global sale",
     "sale": "Sale",
-    "price": "Price"
+    "price": "Price",
+    "favorite": "Favorite"
   },
   "cart": {
     "title": "Cart",
