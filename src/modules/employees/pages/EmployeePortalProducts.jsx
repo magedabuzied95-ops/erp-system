@@ -791,7 +791,7 @@ function EmployeePortalCameraScannerModal({
 }
 
 export default function EmployeePortalProducts() {
-  usePageTitle("Employee Portal");
+  usePageTitle("Employee Product Catalog");
   const { token } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -866,12 +866,6 @@ export default function EmployeePortalProducts() {
       action: directLookup.action,
     });
   }, [directLookup.action, directLookup.color, directLookup.colorId, directLookup.productId, directLookup.size, directLookup.variantId, searchParams]);
-
-  useEffect(() => {
-    if (typeof document === "undefined") return undefined;
-    document.title = "Employee Portal Products";
-    return undefined;
-  }, []);
 
   useEffect(() => {
     let cancelled = false;

@@ -503,8 +503,8 @@ function ScannerModal({ onClose, onScan }) {
 }
 
 export default function EmployeePortalInventory() {
-  usePageTitle("Employee Portal");
   const { token, sessionId: routeSessionId } = useParams();
+  usePageTitle(routeSessionId ? "Inventory Count Session" : "Employee Inventory Count");
   const navigate = useNavigate();
   const [sessions, setSessions] = useState([]);
   const [sessionsLoading, setSessionsLoading] = useState(false);

@@ -69,7 +69,7 @@ export default function InventoryApprovalsPage() {
   const navigate = useNavigate();
   const { token: routeToken = "" } = useParams();
   const [searchParams] = useSearchParams();
-  usePageTitle("Manager Portal");
+  usePageTitle("Inventory Approvals");
   const token = routeToken || searchParams.get("token") || resolveStoredToken();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");

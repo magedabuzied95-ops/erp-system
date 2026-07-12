@@ -613,6 +613,14 @@ export default function ManagerPortal() {
   const { token } = useParams();
   const [searchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState(() => (isBrowser() ? window.localStorage.getItem(STORAGE_KEY) || "today" : "today"));
+  const managerPortalTitles = {
+    today: "Manager Dashboard",
+    staff: "Manager Team",
+    tasks: "Task Management",
+    sales: "Manager Sales",
+    chat: "Employee Chat",
+    more: "Manager Portal",
+  };
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
@@ -1021,6 +1029,11 @@ export default function ManagerPortal() {
     if (nextStock) setStockAlerts(normalizeManagerPortalPayload("stockAlerts", nextStock?.stockAlerts || null));
   }, [token]);
 
+  useEffect(() => {
+    if (!isBrowser()) return;
+    document.title = buildPageTitle(managerPortalTitles[activeTab] || "Manager Portal");
+  }, [activeTab]);
+
   const loadAll = async ({ silent = false } = {}) => {
     try {
       if (!silent) setLoading(true);
@@ -1107,7 +1120,7 @@ export default function ManagerPortal() {
       document.head.appendChild(appleTitle);
     }
     appleTitle.setAttribute("content", "Manager");
-      document.title = buildPageTitle("Manager Portal");
+      document.title = buildPageTitle(managerPortalTitles[activeTab] || "Manager Portal");
 
     return () => {
       link.remove();

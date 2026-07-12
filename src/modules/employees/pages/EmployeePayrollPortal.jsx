@@ -1319,7 +1319,6 @@ function HeaderBadgeButton({ count = 0, label, Icon, onClick, tone = "slate" }) 
 
 export default function EmployeePayrollPortal() {
   const { theme, setTheme } = useTheme();
-  usePageTitle("Employee Portal");
   const { token } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
@@ -1341,6 +1340,17 @@ export default function EmployeePayrollPortal() {
     const [requestSaving, setRequestSaving] = useState(false);
     const [showAllRequests, setShowAllRequests] = useState(false);
   const [activeTab, setActiveTab] = useState("home");
+  const employeePortalTitles = {
+    home: "Employee Portal",
+    attendance: "Employee Attendance",
+    tasks: "Employee Tasks",
+    requests: "Employee Requests",
+    salary: "Employee Payroll",
+    wallet: "Employee Wallet",
+    notifications: "Employee Notifications",
+    "display-refill": "Display Refill Tasks",
+  };
+  usePageTitle(employeePortalTitles[activeTab] || "Employee Portal");
   const [taskSavingId, setTaskSavingId] = useState("");
   const [portalNotice, setPortalNotice] = useState("");
   const [optionalLoading, setOptionalLoading] = useState(false);

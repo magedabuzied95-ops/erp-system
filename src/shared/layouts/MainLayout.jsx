@@ -210,12 +210,43 @@ const sidebarItemMatchesSearch = (item, groupTitle, query) => {
 const resolveMainLayoutTitle = (pathname = "") => {
   const path = String(pathname || "");
   if (path === "/dashboard" || path === "/") return "Dashboard";
+  if (path === "/pos" || path.startsWith("/pos/")) return "Point of Sale";
+  if (path === "/orders/returns") return "Returns";
   if (path.startsWith("/orders")) return "Orders";
+  if (path === "/products/add" || path === "/products/create") return "Add Product";
+  if (/^\/products\/[^/]+\/edit$/.test(path)) return "Edit Product";
+  if (path === "/products/categories") return "Product Categories";
+  if (path === "/products/classifications") return "Product Classifications";
+  if (path === "/products/brands") return "Brands";
+  if (path === "/products/manufacturers") return "Manufacturers";
+  if (path === "/products/units") return "Product Units";
+  if (path === "/products/variants") return "Product Variants";
+  if (path.includes("barcode" ) || path === "/products/labels") return "Barcode Labels";
   if (path.startsWith("/products")) return "Products";
+  if (path === "/inventory/count") return "Inventory Counts";
+  if (path.startsWith("/inventory/count/")) return "Inventory Count";
+  if (path === "/inventory/history") return "Inventory History";
+  if (path.includes("/history")) return "Stock History";
+  if (path === "/inventory/movements") return "Inventory Movements";
+  if (path === "/inventory/adjustments") return "Inventory Adjustments";
   if (path.startsWith("/inventory")) return "Inventory";
+  if (path === "/smart-warehouse") return "Smart Warehouse";
+  if (path === "/warehouses") return "Warehouses";
+  if (path === "/stock-transfers") return "Stock Transfers";
+  if (path === "/branches") return "Branches";
   if (path.startsWith("/customers")) return "Customers";
+  if (path === "/sales-employees") return "Sales Employees";
+  if (path.startsWith("/loyalty")) return "Loyalty";
+  if (path.startsWith("/suppliers")) return "Suppliers";
+  if (path === "/purchases/create") return "Create Purchase";
+  if (path === "/purchases/reorder-suggestions") return "Reorder Suggestions";
   if (path.startsWith("/purchases")) return "Purchases";
+  if (path.startsWith("/expenses")) return "Expenses";
   if (path.startsWith("/accounting")) return "Accounting";
+  if (path.startsWith("/employees/attendance")) return "Attendance";
+  if (path.startsWith("/employees")) return "Employees";
+  if (path.startsWith("/reports")) return "Reports";
+  if (path.startsWith("/operations/shipping")) return "Shipping Center";
   if (path.startsWith("/settings")) return "Settings";
   if (path === "/notifications") return "Notifications";
   if (path === "/workspace") return "Workspace";
@@ -230,7 +261,9 @@ const resolveMainLayoutTitle = (pathname = "") => {
   if (path === "/admin/tenants") return "Tenants";
   if (path === "/marketing/ai-center") return "AI Marketing";
   if (path === "/marketing/ai-center/leads") return "AI Lead Center";
-  return "";
+  if (path.startsWith("/marketing/social-calendar")) return "Social Calendar";
+  if (path.startsWith("/marketing/social-publisher")) return "Social Media Publisher";
+  return "ERP";
 };
 
 const groupForSidebarItem = (sectionTitle, item) => {
