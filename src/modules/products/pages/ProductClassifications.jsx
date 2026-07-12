@@ -281,7 +281,7 @@ function ProductClassifications() {
           <div className="mt-3 grid gap-4 lg:grid-cols-[1fr_1.1fr]">
             <div className="rounded-[1.45rem] border border-white/8 bg-white/[0.03] p-4">
               <div className="grid gap-3">
-                <Field label={t("products.classifications.key")} value={groupForm.key} onChange={(value) => setGroupForm((current) => ({ ...current, key: value }))} placeholder={t("products.classifications.keyPlaceholder")} />
+                <Field label={t("products.classifications.key")} value={groupForm.key} onChange={(value) => setGroupForm((current) => ({ ...current, key: value }))} placeholder={t("products.classifications.keyPlaceholder")} disabled={["gender", "product_type", "grade"].includes(String(selectedGroup?.key || ""))} />
                 <Field label={t("products.classifications.arabicName")} value={groupForm.name_ar} onChange={(value) => setGroupForm((current) => ({ ...current, name_ar: value }))} placeholder={t("products.classifications.arabicNamePlaceholder")} />
                 <Field label={t("products.classifications.englishName")} value={groupForm.name_en} onChange={(value) => setGroupForm((current) => ({ ...current, name_en: value }))} placeholder={t("products.classifications.englishNamePlaceholder")} />
                 <Field label={t("products.classifications.sortOrder")} type="number" value={groupForm.sort_order} onChange={(value) => setGroupForm((current) => ({ ...current, sort_order: value }))} />
@@ -510,16 +510,17 @@ function ConfirmDeleteModal({ t, loading, onCancel, onConfirm }) {
   );
 }
 
-function Field({ label, value, onChange, type = "text", placeholder = "" }) {
+function Field({ label, value, onChange, type = "text", placeholder = "", disabled = false }) {
   return (
     <label className="grid min-w-0 gap-2">
       <span className="text-xs font-black uppercase tracking-[0.18em] text-zinc-500">{label}</span>
       <input
         type={type}
         value={value}
+        disabled={disabled}
         placeholder={placeholder}
         onChange={(event) => onChange?.(event.target.value)}
-        className="h-11 w-full min-w-0 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-[#7c3aed]/60"
+        className="h-11 w-full min-w-0 rounded-2xl border border-white/8 bg-zinc-950/70 px-4 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-600 focus:border-[#7c3aed]/60 disabled:cursor-not-allowed disabled:bg-black/30 disabled:text-zinc-500"
       />
     </label>
   );

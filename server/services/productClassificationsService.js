@@ -49,6 +49,59 @@ const ensureProductClassificationSchemaNow = async () => {
     await client.query(`ALTER TABLE product_classification_options ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_product_classification_groups_sort ON product_classification_groups (sort_order, id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_product_classification_options_group_sort ON product_classification_options (group_id, sort_order, id)`);
+    const repairedProductTypeGroup = await client.query(`
+      WITH candidate AS (
+        SELECT g.id
+        FROM product_classification_groups g
+        LEFT JOIN product_classification_options o
+          ON o.group_id = g.id
+         AND o.deleted_at IS NULL
+        WHERE g.deleted_at IS NULL
+          AND (
+            LOWER(TRIM(g.key)) = 'slippers'
+            OR LOWER(TRIM(o.value)) IN ('sneakers', 'bags', 'crocs')
+          )
+          AND NOT EXISTS (
+            SELECT 1
+            FROM product_classification_groups current_type
+            WHERE current_type.deleted_at IS NULL
+              AND LOWER(TRIM(current_type.key)) = 'product_type'
+          )
+        GROUP BY g.id, g.key
+        ORDER BY
+          CASE WHEN LOWER(TRIM(g.key)) = 'slippers' THEN 0 ELSE 1 END,
+          COUNT(o.id) DESC,
+          g.id ASC
+        LIMIT 1
+      )
+      UPDATE product_classification_groups g
+      SET key = 'product_type',
+          name_ar = 'نوع المنتج',
+          name_en = 'Product Type',
+          is_active = TRUE,
+          deleted_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      FROM candidate
+      WHERE g.id = candidate.id
+      RETURNING g.id
+    `);
+    if (repairedProductTypeGroup.rowCount > 0) {
+      await client.query(`
+        INSERT INTO product_classification_options (group_id, value, label_ar, label_en, icon, color, sort_order, is_active, deleted_at)
+        SELECT id, 'slippers', 'اسليبرز', 'Slippers', 'S', '', 4, TRUE, NULL
+        FROM product_classification_groups
+        WHERE deleted_at IS NULL
+          AND LOWER(TRIM(key)) = 'product_type'
+        ON CONFLICT (group_id, value) DO UPDATE SET
+          label_ar = EXCLUDED.label_ar,
+          label_en = EXCLUDED.label_en,
+          icon = EXCLUDED.icon,
+          sort_order = EXCLUDED.sort_order,
+          is_active = TRUE,
+          deleted_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      `);
+    }
     await client.query(`
       DO $$
       BEGIN

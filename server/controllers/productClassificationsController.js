@@ -279,6 +279,14 @@ export const updateProductClassificationGroup = async (req, res) => {
     if (!payload.key || !payload.name_ar || !payload.name_en) {
       return res.status(400).json({ success: false, message: "key, name_ar, and name_en are required" });
     }
+    const currentGroup = await client.query(
+      "SELECT key FROM product_classification_groups WHERE id = $1 AND deleted_at IS NULL LIMIT 1",
+      [id]
+    );
+    const currentKey = normalizeKey(currentGroup.rows[0]?.key);
+    if (["gender", "product_type", "grade"].includes(currentKey) && payload.key !== currentKey) {
+      return res.status(400).json({ success: false, message: "Core classification group keys cannot be changed" });
+    }
     if (isRemovedClassificationKey(payload.key)) {
       return res.status(400).json({ success: false, message: "This classification group is no longer supported" });
     }
