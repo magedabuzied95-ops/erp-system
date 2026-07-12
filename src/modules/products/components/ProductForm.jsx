@@ -108,8 +108,8 @@ function ProductForm({
   }, [showCatalogStructure]);
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-5 xl:grid-cols-3">
-      <section className="rounded-[28px] border border-white/8 bg-white/[0.035] p-4 shadow-xl shadow-black/10 backdrop-blur sm:p-5 xl:col-start-1 xl:row-start-1">
+    <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(280px,.9fr)_minmax(420px,1.35fr)_minmax(280px,.85fr)] xl:items-start">
+      <section className="self-start rounded-[22px] border border-white/10 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] xl:col-start-1 xl:row-start-1">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/8 pb-4" style={{ display: "none" }}>
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-zinc-500">{t("products.form.catalogStructure")}</p>
@@ -184,7 +184,7 @@ function ProductForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3">
           <div className="relative" ref={brandWrapRef}>
             <label className="text-sm font-semibold text-zinc-300">{t("products.form.brand")}</label>
             <button
@@ -252,7 +252,7 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-cyan-400/15 bg-gradient-to-br from-cyan-400/10 via-white/[0.03] to-blue-400/10 p-4 shadow-xl shadow-black/10 sm:p-5 xl:col-span-3 xl:row-start-2">
+      <section className="self-start rounded-[24px] border border-cyan-400/15 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] sm:p-5 xl:col-span-3 xl:row-start-2">
         <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200">{t("products.form.variationMode")}</p>
             <p className="mt-1 text-sm text-zinc-400">{t("products.form.variationHelp")}</p>
@@ -283,13 +283,13 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-emerald-400/15 bg-gradient-to-br from-emerald-400/10 via-white/[0.035] to-cyan-400/10 p-4 shadow-xl shadow-black/10 sm:p-5 xl:col-start-2 xl:row-start-1">
+      <section className="self-start rounded-[22px] border border-emerald-400/20 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] xl:col-start-2 xl:row-start-1">
         <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-200">{t("products.form.smartPosFilters")}</p>
             <p className="mt-1 text-sm text-zinc-400">{t("products.form.smartPosHelp")}</p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
           <AudienceCheckboxGroup
             label={t("products.form.gender", "الجمهور")}
             value={selectedAudiences}
@@ -334,7 +334,7 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="rounded-[28px] border border-violet-400/15 bg-gradient-to-br from-violet-400/10 via-white/[0.035] to-amber-400/10 p-4 shadow-xl shadow-black/10 sm:p-5 xl:col-start-3 xl:row-start-1">
+      <section className="self-start rounded-[22px] border border-violet-400/20 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] xl:col-start-3 xl:row-start-1">
         <div className="mb-4">
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-200">سعر المتجر</p>
           <p className="mt-1 text-sm text-zinc-400">إعداد السعر القديم الظاهر للعميل بجانب سعر البيع.</p>
@@ -354,7 +354,7 @@ function ProductForm({
         ) : null}
       </section>
 
-      <section className="rounded-[28px] border border-amber-400/15 bg-gradient-to-br from-amber-400/10 via-white/[0.03] to-orange-400/10 p-4 shadow-xl shadow-black/10 sm:p-5 xl:col-span-3 xl:row-start-3">
+      <section className="self-start rounded-[24px] border border-amber-400/15 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] sm:p-5 xl:col-span-3 xl:row-start-3">
         <div className="mb-4">
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-200">
             {t("products.form.purchaseSettings", "إعدادات الشراء")}
