@@ -236,10 +236,16 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
   const hasPrice = Number(product.min_price ?? product.base_price ?? product.sale_price ?? product.price ?? 0) > 0;
   const variants = Array.isArray(product.variants) ? product.variants : [];
   const colors = product?.employee_card_size ? [] : uniqueTextValues(variants.map((variant) => variant.color), 3);
-  const sizes = uniqueTextValues(variants.map((variant) => variant.size), 4);
+  const sizes = product?.employee_card_size ? [] : uniqueTextValues(variants.map((variant) => variant.size), 4);
   const articleCode = getSharedArticleCode(product);
   const isFavorite = product?.is_pos_favorite === true || product?.isPosFavorite === true;
   const isEmployeeScopedVariant = Boolean(product?.employee_card_color || product?.employee_card_size);
+  const employeeFilteredSizes = uniqueTextValues(
+    Array.isArray(product?.employee_card_sizes) && product.employee_card_sizes.length
+      ? product.employee_card_sizes
+      : [product?.employee_card_size],
+    6
+  );
 
   return (
     <div
@@ -275,8 +281,14 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
 
           <div className="absolute right-1.5 top-1.5 rounded-full border border-white/40 bg-zinc-950/80 px-1.5 py-0.5 text-[8px] font-black text-emerald-100 shadow-sm backdrop-blur">
             <span className="inline-flex items-center gap-0.5">
-              <Box className="h-2.5 w-2.5 text-emerald-500" />
-              {isOutOfStock ? t("pos.labels.outOfStock") : t("pos.labels.inStock", { count: stock })}
+              {employeeFilteredSizes.length ? (
+                <span dir="ltr" className="text-amber-100">{employeeFilteredSizes.join(" / ")}</span>
+              ) : (
+                <>
+                  <Box className="h-2.5 w-2.5 text-emerald-500" />
+                  {isOutOfStock ? t("pos.labels.outOfStock") : t("pos.labels.inStock", { count: stock })}
+                </>
+              )}
             </span>
           </div>
           {articleCode ? (
@@ -285,13 +297,6 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
                 <span className="min-w-0 max-w-full truncate">
                   {articleCode}
                 </span>
-              </div>
-            </div>
-          ) : null}
-          {isEmployeeScopedVariant ? (
-            <div className="absolute inset-x-2 top-2 flex justify-center">
-              <div className="inline-flex max-w-[calc(100%-12px)] items-center gap-1 rounded-xl border border-amber-200/70 bg-zinc-950/90 px-2 py-1 text-center text-[9px] font-black leading-tight text-amber-100 shadow-md backdrop-blur-sm">
-                <span dir="ltr">{product.employee_card_size}</span>
               </div>
             </div>
           ) : null}

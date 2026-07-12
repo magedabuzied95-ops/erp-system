@@ -295,6 +295,7 @@ const buildEmployeeScopedProductCard = (product = {}, variants = [], { color = "
     employee_source_product: product,
     employee_card_color: scopedColor,
     employee_card_size: scopedSize,
+    employee_card_sizes: scopedSize ? [scopedSize] : [],
     employee_card_variant_id: previewVariant?.variant_id ?? previewVariant?.id ?? null,
     employee_exact_variant_image: true,
     employee_ambiguous_color_image: Boolean(candidateImageUrl && imageOwnerColors.length > 1),
