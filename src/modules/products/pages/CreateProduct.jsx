@@ -1642,11 +1642,20 @@ function CreateProduct() {
     product_name: name,
     brand: selectedBrandName || brand,
     manufacturer: getDefaultManufacturerName(manufacturers, defaultManufacturerId),
+    article_codes: Array.from(new Set(colorGroups.flatMap((group) => [
+      group.color_article_code,
+      ...(Array.isArray(group.sizes) ? group.sizes.map((row) => row.article_code) : []),
+    ]).map((value) => String(value || "").trim()).filter(Boolean))),
     current: {
       ...descriptionContext,
       brand_id: selectedBrandId || "",
       brand_name: selectedBrandName || "",
       brand: selectedBrandName || brand,
+      manufacturer: getDefaultManufacturerName(manufacturers, defaultManufacturerId),
+      article_codes: Array.from(new Set(colorGroups.flatMap((group) => [
+        group.color_article_code,
+        ...(Array.isArray(group.sizes) ? group.sizes.map((row) => row.article_code) : []),
+      ]).map((value) => String(value || "").trim()).filter(Boolean))),
       product_name: name,
       description_ar: descriptionAr,
       description_en: descriptionEn,

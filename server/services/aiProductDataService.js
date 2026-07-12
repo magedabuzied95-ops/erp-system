@@ -1,4 +1,5 @@
-const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_MODEL = "gpt-5.4";
+const GENERIC_MODEL_NAMES = new Set(["shoe", "shoes", "sneaker", "sneakers", "trainer", "trainers", "footwear", "product", "model"]);
 const FORBIDDEN_PLACEHOLDERS = [
   /\bstylish sneakers\b/gi,
   /\bfashion footwear\b/gi,
@@ -49,6 +50,11 @@ const withoutPlaceholders = (value = "") => {
 
 const sanitizeList = (value = []) => normalizeList(value).map(withoutPlaceholders).filter(Boolean);
 
+const sanitizeDetectedModel = (value = "") => {
+  const model = withoutPlaceholders(value);
+  return GENERIC_MODEL_NAMES.has(model.toLowerCase()) ? "" : model;
+};
+
 const clampConfidence = (value, fallback = 45) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return fallback;
@@ -91,6 +97,15 @@ const ensureBrandTitle = (value = "", brandName = "") => {
   if (!text) return brand;
   const brandPattern = new RegExp(`\\b${escapeRegex(brand)}\\b`, "i");
   return brandPattern.test(text) ? text : `${brand} ${text}`;
+};
+
+const ensureModelTitle = (value = "", brandName = "", detectedModel = "") => {
+  const model = sanitizeDetectedModel(detectedModel);
+  const title = ensureBrandTitle(value, brandName);
+  if (!model || title.toLowerCase().includes(model.toLowerCase())) return title;
+  const brand = cleanText(brandName);
+  const withoutBrand = brand ? title.replace(new RegExp(`\b${escapeRegex(brand)}\b`, "i"), "").trim() : title;
+  return [brand, model, withoutBrand].filter(Boolean).join(" ").replace(/\s{2,}/g, " ").trim();
 };
 
 const translateColorAr = (value = "") => {
@@ -217,7 +232,10 @@ const buildFallbackSuggestion = (input = {}, reason = "TEXT_FALLBACK") => {
       grade: cleanText(current.grade),
       dominant_colors: colors,
       brand_resemblance: cleanText(current.brand || current.manufacturer),
-      detected_model: cleanText(current.detected_model || current.model),
+      detected_model: sanitizeDetectedModel(current.detected_model || current.model),
+      model_match_status: "unverified",
+      model_evidence: [],
+      research_sources: [],
       classification: cleanText(current.category || productType),
       silhouette: cleanText(current.silhouette),
       fashion_category: cleanText(current.category),
@@ -250,9 +268,11 @@ const normalizeAiSuggestion = (raw = {}, fallback = {}, context = {}) => {
   const suggestions = raw.suggestions || raw;
   const fallbackSuggestions = fallback.suggestions || {};
   const brandName = cleanText(context.brand_name || context.brand || fallbackSuggestions.brand_resemblance);
-  const nameEn = ensureBrandTitle(
+  const detectedModel = sanitizeDetectedModel(suggestions.detected_model || suggestions.model) || sanitizeDetectedModel(fallbackSuggestions.detected_model);
+  const nameEn = ensureModelTitle(
     withoutPlaceholders(suggestions.name_en || suggestions.english_name || suggestions.product_name_en) || fallbackSuggestions.name_en,
-    brandName
+    brandName,
+    detectedModel
   );
   const nameAr = withoutPlaceholders(suggestions.name_ar || suggestions.arabic_name || suggestions.product_name_ar) || fallbackSuggestions.name_ar;
   const descriptionEn = withoutPlaceholders(suggestions.description_en || suggestions.english_description) || fallbackSuggestions.description_en;
@@ -287,7 +307,17 @@ const normalizeAiSuggestion = (raw = {}, fallback = {}, context = {}) => {
       dominant_colors: normalizeList(suggestions.dominant_colors || suggestions.colors || fallbackSuggestions.dominant_colors),
       brand_resemblance:
         brandName || cleanText(suggestions.brand_resemblance) || fallbackSuggestions.brand_resemblance,
-      detected_model: cleanText(suggestions.detected_model || suggestions.model) || fallbackSuggestions.detected_model,
+      detected_model: detectedModel,
+      model_match_status: cleanText(suggestions.model_match_status) || "unverified",
+      model_evidence: sanitizeList(suggestions.model_evidence),
+      research_sources: (Array.isArray(suggestions.research_sources) ? suggestions.research_sources : [])
+        .map((source) => ({
+          title: cleanText(source?.title),
+          url: cleanText(source?.url),
+          source_type: cleanText(source?.source_type || source?.type),
+        }))
+        .filter((source) => source.title || source.url)
+        .slice(0, 8),
       classification: cleanText(suggestions.classification) || fallbackSuggestions.classification,
       silhouette: cleanText(suggestions.silhouette) || fallbackSuggestions.silhouette,
       fashion_category: cleanText(suggestions.fashion_category) || fallbackSuggestions.fashion_category,
@@ -309,8 +339,9 @@ const buildPrompt = (current = {}) => {
     ? `
 Selected brand:
 - Brand name: ${brandName}
+- Treat the selected brand as a strong research constraint, but verify the exact model independently.
+- Search the brand's official website/catalog first. Then use reputable specialist retailers or established product databases when the official catalog has no match.
 - Use this exact brand name naturally in English product titles when it fits the image.
-- Title formula: brand + product type + color, for example "Nike Black Shoes" or "Puma White Sneakers".
 - Do not repeat the brand name twice. If the product name already contains the brand, do not add it again.
 `
     : "";
@@ -342,6 +373,9 @@ Return strict JSON only using this shape:
     "dominant_colors": ["color"],
     "brand_resemblance": "",
     "detected_model": "",
+    "model_match_status": "official_match/reputable_match/visual_guess/unverified",
+    "model_evidence": ["matching article/style code, visible construction detail, or source evidence"],
+    "research_sources": [{"title": "", "url": "", "source_type": "official/reputable"}],
     "classification": "sneakers/shoes/apparel/bags/accessories",
     "silhouette": "low-top/high-top/slip-on/sandal/boot/bag/apparel shape",
     "fashion_category": "sneakers/shoes/apparel/bags/accessories",
@@ -355,6 +389,14 @@ Return strict JSON only using this shape:
 
 Image recognition requirements:
 - Identify visible dominant colors, silhouette, product type, target gender, fashion category, brand cues, and model details.
+- Your highest-priority task is finding the exact commercial model name, not merely its brand or product type.
+- Use web search. Search the official brand website/catalog first using the brand plus any supplied article code, SKU, visible text, colorway, and distinctive construction details.
+- If no official result exists, search reputable professional retailers and established product databases. Prefer sources showing the same silhouette, panels, sole, branding placement, and color blocking.
+- Article/style/product codes are stronger evidence than visual resemblance. Search every supplied article code both with and without punctuation.
+- Set detected_model to the exact marketed model/family name (for example "GEL-KAYANO 14"), never a generic word such as shoe, sneaker, trainer, or footwear.
+- Set model_match_status to official_match only when an official brand source confirms it; reputable_match when strong professional sources confirm it; visual_guess when based mainly on appearance; otherwise unverified.
+- Include the best source URLs and concise evidence. Never invent a model or source. If confidence is insufficient, leave detected_model empty and explain why in model_evidence.
+- name_en and name_ar must include the verified exact model name when detected_model is available. Never return a title containing only brand plus a generic product type.
 - Recognize brand resemblance from visible design cues or entered fields, but do not claim authenticity unless the existing fields explicitly say the product is original/authentic.
 - For famous-inspired footwear, name the visual model only when visible or supplied, such as Superstar, Air Force, Samba, Campus, Gazelle, Jordan, Dunk, Yeezy, etc.
 - Use image evidence plus existing fields. Existing brand, grade, gender, category, and color fields should refine the result.
@@ -451,7 +493,10 @@ const callOpenAiVision = async ({ imageUrl, imageBase64, current }) => {
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: cleanText(process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL) || DEFAULT_MODEL,
+      model: cleanText(process.env.OPENAI_PRODUCT_RESEARCH_MODEL || process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL) || DEFAULT_MODEL,
+      tools: [{ type: "web_search" }],
+      tool_choice: "auto",
+      include: ["web_search_call.action.sources"],
       input: [
         {
           role: "user",

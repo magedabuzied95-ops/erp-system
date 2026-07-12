@@ -2262,8 +2262,17 @@ function ProductEdit() {
     product_name: product.name,
     brand,
     manufacturer: getDefaultManufacturerName(manufacturers, defaultManufacturerId),
+    article_codes: Array.from(new Set(colorGroups.flatMap((group) => [
+      group.color_article_code,
+      ...(Array.isArray(group.sizes) ? group.sizes.map((row) => row.article_code) : []),
+    ]).map((value) => String(value || "").trim()).filter(Boolean))),
     current: {
       ...descriptionContext,
+      manufacturer: getDefaultManufacturerName(manufacturers, defaultManufacturerId),
+      article_codes: Array.from(new Set(colorGroups.flatMap((group) => [
+        group.color_article_code,
+        ...(Array.isArray(group.sizes) ? group.sizes.map((row) => row.article_code) : []),
+      ]).map((value) => String(value || "").trim()).filter(Boolean))),
       product_name: product.name,
       description_ar: product.description_ar,
       description_en: product.description_en,
