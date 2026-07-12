@@ -1,4 +1,4 @@
-services:
+﻿services:
   db:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -34,8 +34,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - ./server/uploads:/app/server/uploads
-
+      - ./server/uploads:/app/uploads
   frontend:
     build:
       context: .
@@ -50,3 +49,5 @@ services:
 
 volumes:
   pgdata:
+
+

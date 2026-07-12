@@ -9,6 +9,12 @@ import {
 } from "../services/productVariantImagesService.js";
 import { syncProductPricingFromVariants } from "../services/productPricingSyncService.js";
 import {
+  ensureProductColorArticleCodeSchema,
+  loadProductColorArticleCodes,
+  replaceProductColorArticleCodes,
+} from "../services/productColorArticleCodeService.js";
+import { resolveEffectiveArticleCode } from "../../shared/articleCode.js";
+import {
   ensureAiShoeCoverSchema,
   isAiShoeCoverGenerationEnabled,
   loadAiShoeCoverStateMap,
@@ -1171,22 +1177,17 @@ const normalizeVariantRow = (row = {}) => {
   thermalImageStatus,
   sku: row.variant_sku || row.sku || "",
   barcode: row.variant_barcode || row.barcode || "",
-  article_code:
-    row.variant_article_code ||
-    row.article_code ||
-    row.articleCode ||
-    row.color_article_code ||
-    row.colorArticleCode ||
-    "",
-  articleCode:
-    row.variant_article_code ||
-    row.article_code ||
-    row.articleCode ||
-    row.color_article_code ||
-    row.colorArticleCode ||
-    "",
-  color_article_code: row.color_article_code || row.colorArticleCode || row.variant_article_code || row.article_code || "",
-  colorArticleCode: row.colorArticleCode || row.color_article_code || row.variant_article_code || row.article_code || "",
+  article_code: resolveEffectiveArticleCode(
+    { article_code: row.variant_article_code ?? row.article_code ?? row.articleCode },
+    row
+  ) || "",
+  articleCode: resolveEffectiveArticleCode(
+    { article_code: row.variant_article_code ?? row.article_code ?? row.articleCode },
+    row
+  ) || "",
+  variant_article_code: String(row.variant_article_code ?? row.article_code ?? row.articleCode ?? "").trim(),
+  color_article_code: String(row.color_article_code ?? row.colorArticleCode ?? "").trim(),
+  colorArticleCode: String(row.colorArticleCode ?? row.color_article_code ?? "").trim(),
   manufacturer_id: row.variant_manufacturer_id ?? row.manufacturer_id ?? null,
   variant_manufacturer_name: row.variant_manufacturer_name ?? row.manufacturer_name ?? "",
   manufacturer_name: row.variant_manufacturer_name ?? row.manufacturer_name ?? "",
@@ -1309,10 +1310,10 @@ const deriveColorGroupsFromVariants = (variants = []) => {
         color,
         color_name: color,
         color_value: color,
-        article_code: variant?.color_article_code || variant?.colorArticleCode || variant?.article_code || variant?.articleCode || "",
-        articleCode: variant?.colorArticleCode || variant?.color_article_code || variant?.articleCode || variant?.article_code || "",
-        color_article_code: variant?.color_article_code || variant?.colorArticleCode || variant?.article_code || variant?.articleCode || "",
-        colorArticleCode: variant?.colorArticleCode || variant?.color_article_code || variant?.articleCode || variant?.article_code || "",
+        article_code: variant?.color_article_code || variant?.colorArticleCode || "",
+        articleCode: variant?.colorArticleCode || variant?.color_article_code || "",
+        color_article_code: variant?.color_article_code || variant?.colorArticleCode || "",
+        colorArticleCode: variant?.colorArticleCode || variant?.color_article_code || "",
         image_url: variant?.image_url || "",
         colorPrimaryImageUrl: variant?.colorPrimaryImageUrl || variant?.image_url || "",
         color_image_url: variant?.color_image_url || variant?.image_url || "",
@@ -1534,6 +1535,15 @@ const buildProductSearchClause = ({ values, search }) => {
           AND sv.deleted_at IS NULL
           AND (
             ${variantFields.map((field) => `(${fieldMatch(field)})`).join(" OR ")}
+          )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM product_color_groups pcg
+        WHERE pcg.product_id = p.id
+          AND (
+            LOWER(TRIM(COALESCE(pcg.color_article_code, ''))) = LOWER(TRIM(${exactParam}))
+            OR COALESCE(pcg.color_article_code, '') ILIKE ${partialParam}
           )
       )
       OR EXISTS (
@@ -1879,14 +1889,6 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         variant.factoryModel ??
         variant.factory_code ??
         variant.factoryCode ??
-        group.article_code ??
-        group.articleCode ??
-        group.model_code ??
-        group.modelCode ??
-        group.factory_model ??
-        group.factoryModel ??
-        group.factory_code ??
-        group.factoryCode ??
         ""
     ),
     thermal_image_url: normalizeCopiedText(
@@ -2778,6 +2780,7 @@ const ensureProductAdminListIndexes = async () => {
     productAdminListIndexesReadyPromise = (async () => {
       await ensureProductSchema();
       await ensureProductVariantSchema();
+      await ensureProductColorArticleCodeSchema();
       await db.query(`CREATE INDEX IF NOT EXISTS idx_products_category_id ON products (category_id)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_products_brand_id ON products (brand_id)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants (product_id)`);
@@ -3144,6 +3147,7 @@ export const getProductsWithVariants = async (req, res) => {
       await ensureProductVariantSchema();
       await ensureProductVariantManufacturerColumn();
       await ensureProductVariantImagesSchema();
+      await ensureProductColorArticleCodeSchema();
       if (isAiShoeCoverGenerationEnabled()) {
         await ensureAiShoeCoverSchema().catch(() => {});
       }
@@ -3275,10 +3279,22 @@ export const getProductsWithVariants = async (req, res) => {
 
     const productIds = Array.from(grouped.keys()).map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0);
     const imageBundleMap = productIds.length ? await loadProductVariantImages(db, productIds).catch(() => new Map()) : new Map();
+    const colorArticleCodeMap = productIds.length ? await loadProductColorArticleCodes(db, productIds).catch(() => new Map()) : new Map();
 
     const normalizedProducts = await withProductAudiences(db, Array.from(grouped.values()).map((product) => {
       const imageBundle = imageBundleMap.get(String(product.id ?? product.product_id ?? "")) || null;
-      const variants = attachVariantImages(Array.isArray(product.variants) ? product.variants : [], imageBundle);
+      const variants = attachVariantImages(Array.isArray(product.variants) ? product.variants : [], imageBundle).map((variant) => {
+        const colorArticleCode = colorArticleCodeMap.get(`${product.id ?? product.product_id}:${String(variant.color || "").trim().toLowerCase()}`) || "";
+        const variantArticleCode = String(variant.variant_article_code ?? variant.article_code ?? "").trim();
+        return {
+          ...variant,
+          variant_article_code: variantArticleCode,
+          color_article_code: colorArticleCode,
+          colorArticleCode: colorArticleCode,
+          article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "",
+          articleCode: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "",
+        };
+      });
       const colorImages = attachGroupedColorImages(
         deriveColorGroupsFromVariants(variants),
         imageBundle
@@ -3470,6 +3486,8 @@ export const getProductByQrToken = async (req, res) => {
     await ensureProductVariantSchema();
     await ensureProductVariantManufacturerColumn();
     await ensureProductVariantImagesSchema();
+    await ensureProductColorArticleCodeSchema(client);
+    await ensureProductColorArticleCodeSchema();
     await ensureInventorySchema();
     await ensureProductQrTokens();
 
@@ -4044,11 +4062,21 @@ export const createProduct = async (req, res) => {
       variants: Array.isArray(variants) ? variants : [],
       colorImages: Array.isArray(colorImages) ? colorImages : [],
     });
+    await replaceProductColorArticleCodes(client, {
+      tenantId,
+      productId,
+      colorGroups: Array.isArray(colorImages) ? colorImages : [],
+    });
     performanceLogger.markStage("Save variant images");
 
     const imageBundleMap = await loadProductVariantImages(client, [productId]).catch(() => new Map());
     const imageBundle = imageBundleMap.get(String(productId)) || null;
-    const hydratedVariants = attachVariantImages(insertedVariants.map(normalizeVariantRow), imageBundle);
+    const createdColorArticleMap = await loadProductColorArticleCodes(client, [productId]);
+    const hydratedVariants = attachVariantImages(insertedVariants.map(normalizeVariantRow), imageBundle).map((variant) => {
+      const colorArticleCode = createdColorArticleMap.get(`${productId}:${String(variant.color || "").trim().toLowerCase()}`) || "";
+      const variantArticleCode = String(variant.variant_article_code ?? variant.article_code ?? "").trim();
+      return { ...variant, variant_article_code: variantArticleCode, color_article_code: colorArticleCode, colorArticleCode, article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "" };
+    });
     const colorImagesPayload = attachGroupedColorImages(
       deriveColorGroupsFromVariants(hydratedVariants),
       imageBundle
@@ -4153,6 +4181,7 @@ export const updateProduct = async (req, res) => {
       ["ensureProductSchema", ensureProductSchema],
       ["ensureProductVariantSchema", ensureProductVariantSchema],
       ["ensureProductVariantManufacturerColumn", ensureProductVariantManufacturerColumn],
+      ["ensureProductColorArticleCodeSchema", () => ensureProductColorArticleCodeSchema(client)],
       ["ensureSingleBranchMode", () => ensureSingleBranchMode(client)],
     ];
     for (const [label, step] of bootstrapSteps) {
@@ -4994,11 +5023,23 @@ export const updateProduct = async (req, res) => {
           colorImages: persistedColorImages,
         })
       : [];
+    if (colorImagesProvided) {
+      await replaceProductColorArticleCodes(client, {
+        tenantId,
+        productId,
+        colorGroups: activeColorImages,
+      });
+    }
     performanceLogger.markStage("Save variant images");
 
     const imageBundleMap = await loadProductVariantImages(client, [productId]).catch(() => new Map());
     const imageBundle = imageBundleMap.get(String(productId)) || null;
-    const hydratedVariants = attachVariantImages(activeVariantsAfterSave.map(normalizeVariantRow), imageBundle);
+    const updatedColorArticleMap = await loadProductColorArticleCodes(client, [productId]);
+    const hydratedVariants = attachVariantImages(activeVariantsAfterSave.map(normalizeVariantRow), imageBundle).map((variant) => {
+      const colorArticleCode = updatedColorArticleMap.get(`${productId}:${String(variant.color || "").trim().toLowerCase()}`) || "";
+      const variantArticleCode = String(variant.variant_article_code ?? variant.article_code ?? "").trim();
+      return { ...variant, variant_article_code: variantArticleCode, color_article_code: colorArticleCode, colorArticleCode, article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "" };
+    });
     const colorImagesPayload = attachGroupedColorImages(
       deriveColorGroupsFromVariants(hydratedVariants),
       imageBundle

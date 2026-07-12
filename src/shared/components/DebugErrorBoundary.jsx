@@ -1,4 +1,5 @@
 import React from "react";
+import i18n from "../../i18n/i18n";
 import {
   hasChunkReloadAttempted,
   isChunkLoadError,
@@ -9,13 +10,13 @@ function ChunkReloadFallback() {
   return (
     <div dir="rtl" className="flex min-h-screen items-center justify-center bg-stone-950 px-4 text-white">
       <div className="w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.06] p-6 text-center shadow-2xl">
-        <h1 className="text-2xl font-black">تم تحديث الموقع، برجاء إعادة تحميل الصفحة</h1>
+        <h1 className="text-2xl font-black">{i18n.t("common.reloadAfterUpdate")}</h1>
         <button
           type="button"
           onClick={() => window.location.reload()}
           className="mt-5 rounded-full bg-white px-5 py-3 text-sm font-black text-stone-950"
         >
-          إعادة تحميل
+          {i18n.t("common.reload")}
         </button>
       </div>
     </div>

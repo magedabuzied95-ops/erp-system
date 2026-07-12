@@ -154,9 +154,10 @@ export const normalizeVariantPayload = (input = {}) => {
         ""
     ),
     article_code: normalizeText(
-      source.article_code ??
+      source.variant_article_code ??
+        source.variantArticleCode ??
+        source.article_code ??
         source.articleCode ??
-        source.variant_article_code ??
         source.model_code ??
         source.modelCode ??
         source.factory_model ??
@@ -165,6 +166,8 @@ export const normalizeVariantPayload = (input = {}) => {
         source.factoryCode ??
         ""
     ),
+    color_article_code: normalizeText(source.color_article_code ?? source.colorArticleCode ?? ""),
+    colorArticleCode: normalizeText(source.colorArticleCode ?? source.color_article_code ?? ""),
     thermal_image_url: normalizeText(
       source.thermal_image_url ??
         source.thermalImageUrl ??

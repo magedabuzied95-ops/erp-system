@@ -3,11 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import { getCurrentUser } from "../auth/authStorage";
 
-export default function Navbar({ title = "لوحة التحكم", subtitle = "مرحباً بعودتك" }) {
+export default function Navbar({ title, subtitle }) {
   const { t } = useTranslation();
-  const user = getCurrentUser() || { name: "المدير", role: "مدير" };
-  const resolvedTitle = title === "لوحة التحكم" ? t("common.enterpriseDashboard") : title;
-  const resolvedSubtitle = subtitle === "مرحباً بعودتك" ? t("common.welcomeBack") : subtitle;
+  const user = getCurrentUser() || { name: t("common.admin", "Admin"), role: t("common.admin", "Admin") };
+  const resolvedTitle = title || t("common.enterpriseDashboard");
+  const resolvedSubtitle = subtitle || t("common.welcomeBack");
 
   return (
     <div className="sticky top-0 z-40 border-b border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_84%,transparent)] backdrop-blur-2xl">

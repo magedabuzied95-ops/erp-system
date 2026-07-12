@@ -93,6 +93,7 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
       row.factory_code ??
       row.factoryCode
   );
+  const colorArticleCode = normalizeText(row.color_article_code ?? row.colorArticleCode);
   const qrToken = normalizeText(
     row.qr_token ??
       row.qrToken ??
@@ -173,6 +174,8 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     qr_token: qrToken,
     qrToken,
     article_code: articleCode,
+    color_article_code: colorArticleCode,
+    colorArticleCode,
     image_url: imageUrl,
     product_image_url: productImageUrl,
     variant_image_url: variantImageUrl,

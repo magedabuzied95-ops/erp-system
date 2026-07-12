@@ -228,7 +228,7 @@ const createEmptyColorGroup = (defaults = {}) => {
         source.bulk_purchase_qty ??
         ""
     ).trim(),
-    article_code: String(source.article_code || source.articleCode || source.variant_article_code || "").trim(),
+    color_article_code: String(source.color_article_code || source.colorArticleCode || "").trim(),
     edition_name: String(source.edition_name || "").trim(),
     edition_slug: String(source.edition_slug || slugifyEdition(source.edition_name || "") || "").trim(),
     imagePreview: String(source.imagePreview || "").trim(),
@@ -1075,7 +1075,7 @@ function CreateProduct() {
     if (isColorOnlyMode) {
       return colorGroups.flatMap((group, groupIndex) => {
         const groupColor = getColorGroupName(group);
-        const groupArticleCode = String(group.article_code || "").trim();
+        const groupArticleCode = String(group.color_article_code || "").trim();
         if (!groupColor) return [];
         return [
           {
@@ -1087,7 +1087,8 @@ function CreateProduct() {
               ? makeUniqueSku(String(group.sizes?.[0]?.sku || "").trim().toUpperCase(), previewSkus)
               : buildVariantSku({ prefix: skuPrefix || uniqueSmartSkuPrefix, color: groupColor, size: String(fixedSizeLabel || "One Size").trim() || "One Size", usedSkus: previewSkus }),
             barcode: String(group.sizes?.[0]?.barcode || "").trim(),
-            article_code: groupArticleCode,
+            article_code: String(group.sizes?.[0]?.article_code || "").trim(),
+            color_article_code: groupArticleCode,
             price: Number(group.sizes?.[0]?.price || basePrice || 0),
             image_url: String(getPrimaryColorImage(group) || "").trim(),
             manufacturer_id: String(group.manufacturer_id || "").trim(),
@@ -1098,7 +1099,7 @@ function CreateProduct() {
 
     return colorGroups.flatMap((group, groupIndex) => {
       const groupColor = getColorGroupName(group);
-      const groupArticleCode = String(group.article_code || "").trim();
+      const groupArticleCode = String(group.color_article_code || "").trim();
       if (!groupColor) return [];
 
           return (Array.isArray(group.sizes) ? group.sizes : [])
@@ -1112,7 +1113,8 @@ function CreateProduct() {
             ? makeUniqueSku(String(row.sku || "").trim().toUpperCase(), previewSkus)
             : buildVariantSku({ prefix: skuPrefix || uniqueSmartSkuPrefix, color: groupColor, size: String(row.size || "").trim(), usedSkus: previewSkus }),
           barcode: String(row.barcode || "").trim(),
-          article_code: groupArticleCode,
+          article_code: String(row.article_code || "").trim(),
+          color_article_code: groupArticleCode,
           price: Number(row.price || basePrice || 0),
           image_url: String(getPrimaryColorImage(group) || "").trim(),
           manufacturer_id: String(group.manufacturer_id || "").trim(),
@@ -1543,7 +1545,7 @@ function CreateProduct() {
     }
 
     const hasExistingArticle = targetGroups.some((group) =>
-      String(group.article_code || "").trim() ||
+      String(group.color_article_code || "").trim() ||
       (group.sizes || []).some((row) => String(row.article_code || "").trim())
     );
     if (hasExistingArticle && !overwrite) {
@@ -1555,7 +1557,7 @@ function CreateProduct() {
     setColorGroups((prev) =>
       prev.map((group) => {
         if (!isTargetGroup(group)) return group;
-        const shouldSetGroup = overwrite || !String(group.article_code || "").trim();
+        const shouldSetGroup = overwrite || !String(group.color_article_code || "").trim();
         const nextSizes = (group.sizes || []).map((row) => {
           const shouldSetRow = overwrite || !String(row.article_code || "").trim();
           if (!shouldSetRow) return row;
@@ -1565,7 +1567,7 @@ function CreateProduct() {
         if (shouldSetGroup) changedCount += 1;
         return {
           ...group,
-          article_code: shouldSetGroup ? articleCode : group.article_code,
+          color_article_code: shouldSetGroup ? articleCode : group.color_article_code,
           sizes: nextSizes,
         };
       })
@@ -1930,7 +1932,7 @@ function CreateProduct() {
         const groupImageUrl = String(getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "").trim();
         const groupEditionName = mirrorEditionEnabled ? String(group.edition_name || "").trim() : "";
         const groupEditionSlug = groupEditionName ? slugifyEdition(group.edition_slug || groupEditionName) : "";
-        const groupArticleCode = String(group.article_code || "").trim();
+        const groupArticleCode = String(group.color_article_code || "").trim();
         const groupManufacturerPayload = getManufacturerPayload(group.manufacturer_id);
         if (!groupColor) return [];
 
@@ -1957,7 +1959,8 @@ function CreateProduct() {
                 usedSkus: usedVariantSkus,
               }),
               barcode: String(sourceRow.barcode || "").trim() || "",
-              article_code: groupArticleCode,
+              article_code: String(sourceRow.article_code || "").trim(),
+              color_article_code: groupArticleCode,
               purchase_price: 0,
               sale_price: 0,
               price: 0,
@@ -1999,7 +2002,8 @@ function CreateProduct() {
                 usedSkus: usedVariantSkus,
               }),
               barcode: String(row.barcode || "").trim() || "",
-              article_code: groupArticleCode,
+              article_code: String(row.article_code || "").trim(),
+              color_article_code: groupArticleCode,
               purchase_price: 0,
               sale_price: 0,
               price: 0,
@@ -2027,7 +2031,7 @@ function CreateProduct() {
           return {
             color_name: groupColor,
             color_value: groupColor,
-            article_code: String(group.article_code || "").trim(),
+            color_article_code: String(group.color_article_code || "").trim(),
           images: dedupeImages(groupImages).map((image, index) => ({
             id: image.id || makeId(),
             preview: image.image_url || "",
@@ -3469,8 +3473,8 @@ function CreateProduct() {
                                 <div>
                                   <label className="text-sm font-semibold text-zinc-300">{t("products.fields.articleCode", "Article Code")}</label>
                                   <input
-                                    value={group.article_code || ""}
-                                    onChange={(e) => updateColorGroup(group.id, "article_code", e.target.value)}
+                                    value={group.color_article_code || ""}
+                                    onChange={(e) => updateColorGroup(group.id, "color_article_code", e.target.value)}
                                     placeholder="L122"
                                     className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                   />
@@ -3720,11 +3724,12 @@ function CreateProduct() {
                                   </div>
                                 </div>
 
-                                <div className="hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:grid-cols-[minmax(0,1fr)_minmax(0,120px)_minmax(0,170px)_minmax(0,190px)_auto] xl:gap-2">
+                                <div className="hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:grid-cols-[minmax(0,.75fr)_minmax(0,120px)_minmax(0,150px)_minmax(0,165px)_minmax(0,150px)_auto] xl:gap-2">
                                   <div>{t("products.fields.size", "Size")}</div>
                                   <div>{t("products.editor.stockQty", "Stock Qty")}</div>
                                   <div>SKU</div>
                                   <div>{t("products.selected.barcode", "Barcode")}</div>
+                                  <div>{t("products.fields.articleCode", "Article Code")}</div>
                                   <div>{t("products.table.actions", "Actions")}</div>
                                 </div>
 
@@ -3732,7 +3737,7 @@ function CreateProduct() {
                                   {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                                   <div
                                     key={row.id}
-                                    className="grid min-w-[680px] gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:grid-cols-[minmax(0,1fr)_minmax(0,120px)_minmax(0,170px)_minmax(0,190px)_auto]"
+                                    className="grid min-w-[820px] gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:grid-cols-[minmax(0,.75fr)_minmax(0,120px)_minmax(0,150px)_minmax(0,165px)_minmax(0,150px)_auto]"
                                   >
                                       <div>
                                         <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
@@ -3778,6 +3783,15 @@ function CreateProduct() {
                                           value={row.barcode}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "barcode", e.target.value)}
                                           placeholder={t("products.editor.scanOrEnterBarcode", "امسح أو أدخل الباركود")}
+                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("products.fields.articleCode", "Article Code")}</label>
+                                        <input
+                                          value={row.article_code || ""}
+                                          onChange={(e) => updateSizeRow(group.id, row.id, "article_code", e.target.value)}
+                                          placeholder="L122-40"
                                           className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                                         />
                                       </div>

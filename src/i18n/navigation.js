@@ -6,6 +6,7 @@ const SECTION_TITLE_KEYS = {
   Operations: "sidebar.operations",
   Purchasing: "sidebar.purchasing",
   Inventory: "sidebar.inventory",
+  "Inventory Count": "sidebar.inventoryCount",
   Finance: "sidebar.finance",
   "HR / Attendance": "sidebar.hrAttendance",
   Employees: "sidebar.employees",
@@ -68,10 +69,13 @@ const ITEM_LABEL_KEYS = {
   "Marketing Dashboard": "sidebar.marketingDashboard",
   "AI Marketing Center": "sidebar.aiMarketingCenter",
   "Social Posts": "sidebar.socialPosts",
+  "Social Calendar": "sidebar.socialCalendar",
+  "Social Media Publisher": "sidebar.socialMediaPublisher",
   Campaigns: "sidebar.campaigns",
   Coupons: "sidebar.coupons",
   Templates: "sidebar.templates",
   Storefront: "sidebar.storefront",
+  "Storefront Settings": "sidebar.storefrontSettings",
   "Website Orders": "sidebar.websiteOrders",
   "Website Settings": "sidebar.websiteSettings",
   "AI Inbox": "sidebar.aiInbox",
@@ -81,6 +85,10 @@ const ITEM_LABEL_KEYS = {
   "AI Agent Analytics": "sidebar.aiAgentAnalytics",
   "AI Knowledge Base": "sidebar.aiKnowledgeBase",
   "AI Agent Settings": "sidebar.aiAgentSettings",
+  "AI Support Console": "sidebar.aiSupportConsole",
+  General: "sidebar.general",
+  Shipping: "sidebar.shipping",
+  Payments: "sidebar.payments",
 };
 
 const translateNavigationLabel = (key, fallback, t) =>

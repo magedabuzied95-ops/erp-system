@@ -71,6 +71,7 @@ const sanitizePosCatalogVariant = (variant = {}) => {
     sku: normalizeText(variant.sku || ""),
     barcode: normalizeText(variant.barcode || ""),
     article_code: normalizeText(variant.article_code || ""),
+    color_article_code: normalizeText(variant.color_article_code || variant.colorArticleCode || ""),
     image_url: imageUrl,
     variant_image_url: imageUrl,
     product_image_url: imageUrl,

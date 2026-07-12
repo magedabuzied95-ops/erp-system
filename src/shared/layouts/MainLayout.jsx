@@ -307,18 +307,18 @@ const buildEnterpriseSidebarGroups = (sections) => {
       if (seen.has(key)) return;
       seen.add(key);
       const groupTitle = groupForSidebarItem(section.sourceTitle || section.title, item);
-      const sidebarLabel = item.to === "/settings/appearance"
-        ? "المظهر"
+      const sidebarLabelKey = item.to === "/settings/appearance"
+        ? "sidebar.appearance"
         : item.to === "/settings"
-          ? "مركز الإعدادات"
+          ? "sidebar.settingsCenter"
         : item.to === "/settings/company"
-          ? "عام"
+          ? "sidebar.general"
         : item.to === "/settings/storefront"
-          ? "المتجر الإلكتروني"
+          ? "sidebar.storefrontSettings"
         : item.to === "/settings/shipping"
-          ? "الشحن"
+          ? "sidebar.shipping"
         : item.to === "/settings/payments"
-          ? "المدفوعات"
+          ? "sidebar.payments"
           : undefined;
       const sidebarIcon = item.to === "/settings/appearance"
         ? Paintbrush
@@ -327,7 +327,7 @@ const buildEnterpriseSidebarGroups = (sections) => {
         : item.to === "/settings/company"
           ? Settings2
           : item.icon;
-      byTitle.get(groupTitle)?.items.push({ ...item, icon: sidebarIcon, sidebarLabel, sourceSection: section.sourceTitle || section.title });
+      byTitle.get(groupTitle)?.items.push({ ...item, icon: sidebarIcon, sidebarLabelKey, sourceSection: section.sourceTitle || section.title });
     });
   });
 
@@ -356,9 +356,10 @@ const buildEnterpriseSidebarGroups = (sections) => {
 };
 
 function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
+  const { t } = useTranslation();
   const Icon = item.icon;
   const active = sidebarItemActive(item, location);
-  const displayLabel = item.sidebarLabel || item.label;
+  const displayLabel = item.sidebarLabelKey ? t(item.sidebarLabelKey) : item.label;
   const className = [
     "group/nav relative flex min-h-9 items-center rounded-xl border text-sm font-semibold transition duration-200",
     collapsed ? "justify-center px-2 py-2" : "gap-2.5 px-3 py-2",
@@ -411,7 +412,7 @@ function HeaderQuickActionButton({ item, location, onNavigate }) {
   const Icon = item.icon;
   const active = sidebarItemActive(item, location);
   const labelKey = QUICK_ACCESS_LABELS[item.to];
-  const label = labelKey ? t(labelKey) : item.sidebarLabel || item.label;
+  const label = labelKey ? t(labelKey) : item.sidebarLabelKey ? t(item.sidebarLabelKey) : item.label;
   return (
     <NavLink
       to={item.to}
