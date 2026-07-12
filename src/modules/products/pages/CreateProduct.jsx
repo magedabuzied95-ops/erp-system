@@ -3098,7 +3098,7 @@ function CreateProduct() {
                   <input type="checkbox" checked={trackStock} onChange={(e) => setTrackStock(e.target.checked)} />
                 </label>
 
-                <div className={`${isSimpleMode ? "hidden" : ""} rounded-2xl border border-white/8 bg-white/5 p-4`}>
+                <div className={`${isSimpleMode ? "hidden" : ""} rounded-2xl border border-white/8 bg-white/5 p-4`} style={{ display: "none" }}>
                   <button
                     type="button"
                     onClick={() => setAdvancedOpen((current) => !current)}
@@ -3842,7 +3842,7 @@ function CreateProduct() {
               </div>
             </SectionCard>
 
-            <SectionCard hidden={isSimpleMode}>
+            <SectionCard hidden>
               <SectionHeader
                 icon={ScanLine}
                 title={t("products.editor.variantPreview")}
