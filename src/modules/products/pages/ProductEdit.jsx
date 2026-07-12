@@ -27,6 +27,7 @@ import toast from "react-hot-toast";
 import ProductsShell from "../components/ProductsShell";
 import ProductForm from "../components/ProductForm";
 import ImageThumbnailActions from "../components/ImageThumbnailActions";
+import ManufacturerSelect from "../components/ManufacturerSelect";
 import MultiVersionGenerator from "../components/MultiVersionGenerator";
 import {
   buildSmartSkuPrefix,
@@ -3941,23 +3942,12 @@ function ProductEdit() {
                   <div className="mb-2 text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">
                     Manufacturer
                   </div>
-                  <select
+                  <ManufacturerSelect
                     value={defaultManufacturerId}
-                    onChange={(e) => applyDefaultManufacturer(e.target.value)}
-                    className="manufacturer-select-dropdown h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none"
-                  >
-                    <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
-                    {manufacturers.map((manufacturer) => (
-                      <option
-                        key={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || manufacturer.label || manufacturer.name)}
-                        value={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "")}
-                        className="bg-zinc-950 text-white"
-                        style={{ backgroundColor: "#09090b", color: "#fff" }}
-                      >
-                        {manufacturer.name || manufacturer.manufacturer_name || manufacturer.manufacturerName || manufacturer.label || String(manufacturer.id || manufacturer.manufacturer_id || "")}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={applyDefaultManufacturer}
+                    manufacturers={manufacturers}
+                    placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
+                  />
                 </label>
                 <div className="rounded-[14px] border border-white/8 bg-zinc-950/60 px-3 py-2">
                   <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{t("products.editor.behavior")}</div>
@@ -4272,23 +4262,12 @@ function ProductEdit() {
                                 Color level
                               </span>
                             </div>
-                            <select
+                            <ManufacturerSelect
                               value={group.manufacturer_id || ""}
-                              onChange={(e) => updateColorGroup(group.id, "manufacturer_id", e.target.value)}
-                              className="manufacturer-select-dropdown h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none"
-                            >
-                              <option value="">{t("products.editor.selectManufacturer", "Select manufacturer")}</option>
-                              {manufacturers.map((manufacturer) => (
-                                <option
-                                  key={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || manufacturer.label || manufacturer.name)}
-                                  value={String(manufacturer.id || manufacturer.manufacturer_id || manufacturer.manufacturerId || "")}
-                                  className="bg-zinc-950 text-white"
-                                  style={{ backgroundColor: "#09090b", color: "#fff" }}
-                                >
-                                  {manufacturer.name || manufacturer.manufacturer_name || manufacturer.manufacturerName || manufacturer.label || String(manufacturer.id || manufacturer.manufacturer_id || "")}
-                                </option>
-                              ))}
-                            </select>
+                              onChange={(value) => updateColorGroup(group.id, "manufacturer_id", value)}
+                              manufacturers={manufacturers}
+                              placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
+                            />
                           </div>
                         </div>
 
