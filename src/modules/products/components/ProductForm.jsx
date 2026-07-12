@@ -106,7 +106,7 @@ function ProductForm({
   return (
     <div className="mt-6 space-y-5">
       <section className="rounded-[28px] border border-white/8 bg-white/[0.035] p-4 shadow-xl shadow-black/10 backdrop-blur sm:p-5">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/8 pb-4">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/8 pb-4" style={{ display: "none" }}>
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-zinc-500">{t("products.form.catalogStructure")}</p>
             <p className="mt-1 text-sm text-zinc-400">{t("products.form.catalogHelp")}</p>
@@ -131,6 +131,7 @@ function ProductForm({
         </div>
 
         <div
+          style={{ display: "none" }}
           className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
             showCatalogStructure
               ? "mb-4 grid-rows-[1fr] opacity-100"
@@ -169,6 +170,7 @@ function ProductForm({
         </div>
 
         <div
+          style={{ display: "none" }}
           className={`transition-[max-height,opacity,transform] duration-300 ease-out ${
             showCatalogStructure ? "max-h-0 -translate-y-1 overflow-hidden opacity-0" : "mb-4 max-h-24 translate-y-0 opacity-100"
           }`}
