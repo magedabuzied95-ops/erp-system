@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- Shared storefront helpers are imported by route-level modules. */
 import { Component, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { memo, useCallback } from "react";
 import { useDeferredValue } from "react";
@@ -8,22 +9,17 @@ import { FaWhatsapp } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 import { lazy, Suspense } from "react";
 import i18n, { applyDocumentLanguage, normalizeLanguage, persistApplicationLanguage } from "../i18n/i18n";
-import { logPagePerf } from "../shared/lib/perfDebug";
 import usePageTitle from "../shared/hooks/usePageTitle";
 import { safeSetSessionStorage } from "../utils/safeStorage";
 import {
-  Bell,
   BadgePercent,
   Baby,
   Briefcase,
-  Camera,
   Check,
   ChevronLeft,
-  Copy,
   Crown,
   Clock3,
   Footprints,
-  ExternalLink,
   Gem,
   Heart,
   Home,
@@ -45,7 +41,6 @@ import {
   Sparkles,
   Star,
   ShieldCheck,
-  Share2,
   Tag,
   RefreshCcw,
   Moon,
@@ -64,11 +59,9 @@ import { API_BASE_URL } from "../shared/constants/app";
 import { resolveProductImageUrl } from "../shared/lib/imageUrls";
 import { clearStorefrontCustomerAuth, readStorefrontCustomerAuth, storefrontCustomerRequest } from "./lib/storefrontCustomerAuth";
 import { formatCurrencyParts, getCurrency } from "../shared/lib/currency";
-import { useProductClassifications } from "../modules/products/hooks/useProductClassifications";
-import { classificationGroupsToFieldOptions } from "../modules/products/lib/productClassifications";
 import useDismissableLayer from "../shared/hooks/useDismissableLayer";
 import { isMirrorProduct, mirrorProductTitle } from "../shared/lib/mirrorProduct";
-import { applyProductSocialMeta, productToSocialMeta } from "../shared/lib/socialMeta";
+import { productToSocialMeta } from "../shared/lib/socialMeta";
 import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualList } from "../shared/components/VirtualList";
@@ -663,50 +656,6 @@ const useStorefrontBrands = () => {
   return state;
 };
 
-const useLastPiece = (params = {}, options = {}) => {
-  const enabled = options.enabled !== false;
-  const [state, setState] = useState({ loading: true, error: "", categories: [], sizes: [], products: [], hooks: {} });
-  const queryKey = JSON.stringify(params);
-  const queryString = useMemo(() => {
-    const query = new URLSearchParams();
-    const queryParams = JSON.parse(queryKey || "{}");
-    Object.entries(queryParams).forEach(([key, value]) => {
-      if (value !== undefined && value !== null && value !== "") query.set(key, value);
-    });
-    return query.toString();
-  }, [queryKey]);
-
-  useEffect(() => {
-    if (!enabled) return undefined;
-    let cancelled = false;
-    deferReactState(() => {
-      if (!cancelled) setState((prev) => ({ ...prev, loading: true, error: "" }));
-    });
-    cachedStorefrontGet(`/storefront/last-piece${queryString ? `?${queryString}` : ""}`, { ttlMs: STOREFRONT_LAST_PIECE_CACHE_TTL_MS })
-      .then((data) => {
-        if (!cancelled) {
-          setState({
-            loading: false,
-            error: "",
-            categories: data.categories || [],
-            sizes: data.sizes || [],
-            products: data.products || [],
-            hooks: data.hooks || {},
-          });
-        }
-      })
-      .catch((error) => {
-        if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, error: error.message, categories: [], sizes: [], products: [], hooks: {} });
-        }
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [enabled, queryString]);
-
-  return state;
-};
 
 const useStorefrontGenderClassifications = () => {
   const cachedGenderData = getCachedStorefrontGetData("/storefront/classifications/gender", { ttlMs: STOREFRONT_GENDER_CACHE_TTL_MS });
@@ -734,48 +683,14 @@ const useStorefrontGenderClassifications = () => {
 
   return state;
 };
-const storefrontSaleModeOn = (product = {}, variant = {}) => {
-  return getDisplayPricing(product, storefrontSalePricesEnabled, variant).isOnSale;
-};
-const storefrontOriginalPriceCandidates = (product = {}, variant = {}) =>
-  [
-    product?.custom_compare_price,
-    product?.compare_base_price,
-    product?.original_price,
-    product?.base_price,
-    product?.list_price,
-    variant?.custom_compare_price,
-    variant?.compare_base_price,
-    variant?.original_price,
-    variant?.base_price,
-    variant?.list_price,
-    product?.regular_price,
-    variant?.regular_price,
-    variant?.compare_at_price,
-    product?.compare_at_price,
-  ].map(Number).filter((value) => Number.isFinite(value) && value > 0);
 const storefrontOriginalPrice = (product = {}, variant = {}) => {
   const pricing = getDisplayPricing(product, storefrontSalePricesEnabled, variant);
   return pricing.comparePrice || storefrontSellingPrice(product, variant) || 0;
 };
 const storefrontSellingPrice = (product = {}, variant = {}) =>
   Number(variant?.selling_price || variant?.price || product?.selling_price || product?.price || product?.regular_price || 0);
-const saleActive = (product = {}, variant = {}) => {
-  return getDisplayPricing(product, storefrontSalePricesEnabled, variant).isOnSale;
-};
 const displaySellingPrice = (product = {}, variant = {}) => {
   return getDisplayPricing(product, storefrontSalePricesEnabled, variant).price;
-};
-const displayLastPieceSellingPrice = (product = {}, variant = {}) => {
-  const purchaseSalePrice = Number(
-    variant?.last_piece_sale_price ||
-      variant?.purchase_invoice_sale_price ||
-      variant?.purchase_sale_price ||
-      0
-  );
-  const regular = storefrontSellingPrice(product, variant);
-  if (storefrontSaleModeOn(product, variant) && purchaseSalePrice > 0 && regular > 0 && purchaseSalePrice < regular) return purchaseSalePrice;
-  return displaySellingPrice(product, variant);
 };
 const resolveStorefrontPrice = (product = {}, variant = {}) => {
   const pricing = getDisplayPricing(product, storefrontSalePricesEnabled, variant);
@@ -1010,9 +925,6 @@ const popularScore = (product = {}) => {
     (Number.isFinite(viewed) ? viewed * 10 : 0) +
     (featured * 500) +
     Math.min(stockScore(product), 100);
-};
-const hasSale = (product = {}) => {
-  return getDisplayPricing(product, storefrontSalePricesEnabled).isOnSale;
 };
 const isOfferStory = (product = {}) =>
   product?.is_offer_story === true ||
@@ -1437,7 +1349,6 @@ const extractOfferSizes = (product = {}) => {
 
   return sortProductSizes(Array.from(seen));
 };
-const offerStoryProductSizes = (product = {}) => extractOfferSizes(product);
 const offerStoryMatchingVariant = (product = {}, selectedSize = "") => {
   const variants = Array.isArray(product?.variants) ? product.variants : [];
   const targetSize = String(selectedSize || "").trim().toLowerCase();
@@ -1466,46 +1377,9 @@ const offerStoryProductMatches = (product = {}, selectedSize = "", selectedType 
   return true;
 };
 const LAST_PIECE_MAX_STOCK = 3;
-const sellableVariantStock = (variant = {}) => {
-  const stock = Number(variant.stock);
-  return Number.isFinite(stock) && stock > 0 ? Math.floor(stock) : 0;
-};
-const isCriticalLowStockVariant = (variant = {}) => {
-  const stock = sellableVariantStock(variant);
-  return stock >= 1 && stock <= LAST_PIECE_MAX_STOCK;
-};
 const isLastPieceProduct = (product = {}) => {
   const totalStock = productTotalStock(product);
   return totalStock > 0 && totalStock <= LAST_PIECE_MAX_STOCK;
-};
-const lastPieceProductUrl = (product, variant = {}) => {
-  return appendProductUrlParams(productBaseUrl(product), [
-    ["variant", variant.edition_slug || variant.id || ""],
-    ["size", variant.size || ""],
-    ["color", variant.color || ""],
-  ]);
-};
-const lastPieceProductVariants = (product = {}, limit = 3) => (
-  (Array.isArray(product?.variants) ? product.variants : [])
-    .filter((variant) => sellableVariantStock(variant) > 0)
-    .sort((a, b) =>
-      sellableVariantStock(a) - sellableVariantStock(b) ||
-      String(a.size || "").localeCompare(String(b.size || ""), "ar", { numeric: true }) ||
-      String(a.color || "").localeCompare(String(b.color || ""), "ar", { numeric: true })
-    )
-    .slice(0, limit)
-);
-const lastPieceMatchingVariant = (product = {}, selectedSize = "") => {
-  const variants = Array.isArray(product?.variants) ? product.variants : [];
-  const targetSize = String(selectedSize || "").trim().toLowerCase();
-  const candidates = targetSize
-    ? variants.filter((variant) => String(variant?.size || "").trim().toLowerCase() === targetSize && sellableVariantStock(variant) > 0)
-    : variants.filter((variant) => sellableVariantStock(variant) > 0);
-  return candidates.sort((a, b) =>
-    sellableVariantStock(a) - sellableVariantStock(b) ||
-    String(a.size || "").localeCompare(String(b.size || ""), "ar", { numeric: true }) ||
-    String(a.color || "").localeCompare(String(b.color || ""), "ar", { numeric: true })
-  )[0] || null;
 };
 const normalizeAudienceValue = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
@@ -1664,9 +1538,7 @@ const LazyStorefrontProductListingPage = lazy(() => import("./pages/StorefrontPr
 const LazyStorefrontProductDetailPage = lazy(() => import("./pages/StorefrontProductDetailPage.jsx").then((module) => ({ default: module.StorefrontProductDetailPage })));
 const LazyProductCardVariantSheet = lazy(() => Promise.resolve({ default: ProductCardVariantSheet }));
 const LazyProductDetailsVariantSheet = lazy(() => Promise.resolve({ default: ProductDetailsVariantSheet }));
-const LazyStorefrontAiSupportWidget = lazy(() => import("./components/StorefrontAiSupportWidget"));
 const LazyStorefrontCheckoutSummary = lazy(() => import("./components/StorefrontCheckoutSummary"));
-const LazyStorefrontVisualSearchResults = lazy(() => import("./components/StorefrontVisualSearchResults"));
 const LazyStorefrontProductGallery = lazy(() => import("./components/StorefrontProductGallery"));
 const LazyStorefrontCartPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.CartPageRoute })));
 const LazyStorefrontTrackOrderPage = lazy(() => import("./pages/StorefrontAsyncPages").then((module) => ({ default: module.TrackOrderPage })));
@@ -1677,25 +1549,10 @@ const LazyStorefrontSizeGuidePage = lazy(() => import("./pages/StorefrontSizeGui
 const LazyOrderConfirmationActionPage = lazy(() => import("./pages/OrderConfirmationActionPage.jsx").then((module) => ({ default: module.OrderConfirmationActionPage })));
 
 const CART_KEY = "storefront.cart";
-const LEGACY_CART_KEYS = [
-  "cart",
-  "storefrontCart",
-  "storefront_cart",
-  "storefrontCartItems",
-  "storefront.cart.items",
-  "tiger_cart",
-  "posCart",
-];
 const WISHLIST_KEY = "storefront.wishlist";
 const RECENT_KEY = "storefront.recent";
 const PROFILE_KEY = "storefront.profile";
 const THEME_KEY = "storefront.theme";
-const CUSTOMER_SESSION_TOKEN_KEY = "storefront.customer_session_token";
-const CUSTOMER_CAPTURE_SKIP_KEY = "storefront.customer_capture_skip_until";
-const CUSTOMER_CAPTURE_SHOWN_KEY = "storefront.customer_capture_shown";
-const CUSTOMER_CAPTURE_COOLDOWN_MS = 6 * 60 * 60 * 1000;
-const STOREFRONT_SPLASH_SEEN_KEY = "m1_store_splash_seen";
-const STOREFRONT_SPLASH_DURATION_MS = 1100;
 const storefrontGetCache = new Map();
 const storefrontGetInFlight = new Map();
 const storefrontProductDetailsCache = new Map();
@@ -1706,37 +1563,11 @@ const STOREFRONT_PRODUCTS_CACHE_TTL_MS = 30 * 1000;
 const STOREFRONT_HOME_CACHE_TTL_MS = 60 * 1000;
 const STOREFRONT_BRANDS_CACHE_TTL_MS = 10 * 60 * 1000;
 const STOREFRONT_GENDER_CACHE_TTL_MS = 10 * 60 * 1000;
-const STOREFRONT_LAST_PIECE_CACHE_TTL_MS = 20 * 1000;
 const STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS = 60 * 1000;
 const STOREFRONT_PREFETCH_LIMIT = 12;
 const storefrontDebugLog = (label, payload = {}) => {
   if (!import.meta.env.DEV) return;
   console.log(label, payload);
-};
-const storefrontSaleDebugEnabled = () =>
-  import.meta.env.DEV ||
-  (typeof window !== "undefined" && ["1", "true", "yes", "on"].includes(String(window.localStorage?.getItem("STOREFRONT_SALE_DEBUG") || "").trim().toLowerCase()));
-const storefrontSaleDebugSeen = new Set();
-const logStorefrontSaleResolver = (product = {}, variant = {}, details = {}) => {
-  if (!storefrontSaleDebugEnabled()) return;
-  const key = [
-    product?.id || product?.product_id || product?.slug || "",
-    variant?.id || variant?.variant_id || variant?.sku || "",
-    details?.source || "",
-  ].join(":");
-  if (storefrontSaleDebugSeen.has(key)) return;
-  storefrontSaleDebugSeen.add(key);
-  console.debug("[storefront:sale-price-resolver]", {
-    product_id: product?.id || product?.product_id || null,
-    variant_id: variant?.id || variant?.variant_id || null,
-    sale_mode_enabled: storefrontSalePricesEnabled,
-    sale_price: Number(variant?.sale_price ?? product?.sale_price ?? 0) || 0,
-    selling_price: Number(variant?.selling_price ?? variant?.price ?? product?.selling_price ?? product?.price ?? product?.regular_price ?? 0) || 0,
-    chosen_price: Number(details?.chosenPrice ?? 0) || 0,
-    compare_price: Number(details?.comparePrice ?? 0) || 0,
-    active_sale: Boolean(details?.activeSale),
-    source: details?.source || "",
-  });
 };
 const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) => {
   if (ttlMs <= 0) {
@@ -1845,24 +1676,16 @@ const cleanupStorefrontStorage = () => {
         window.localStorage.removeItem(key);
       }
     });
-  } catch {}
+  } catch {
+    // Storage cleanup is best-effort in restricted browser contexts.
+  }
 };
 const getSuccessMessages = () => {
   const messages = i18n.t("storefront.toasts.successMessages", { returnObjects: true });
   return Array.isArray(messages) && messages.length ? messages : ["اختيار ممتاز", "طلبك يتم تجهيزه الآن", "اختيار قوي", "سنجهزه لك بأسرع وقت"];
 };
 
-const getConversionTrustPoints = () => {
-  const points = i18n.t("storefront.home.trustPoints", { returnObjects: true });
-  return Array.isArray(points) && points.length ? points : ["دفع آمن", "تبديل سهل", "صور حقيقية", "شحن سريع"];
-};
 
-const homeSellingBadges = [
-  { labelAr: "شحن سريع", labelEn: "Fast shipping", icon: Truck },
-  { labelAr: "استبدال خلال 14 يومًا", labelEn: "14-day exchange", icon: RefreshCcw },
-  { labelAr: "دفع آمن", labelEn: "Secure payment", icon: ShieldCheck },
-  { labelAr: "صور حقيقية", labelEn: "Real photos", icon: Camera },
-];
 
 const storefrontApi = {
   getProductDetails(identifier, options = {}) {
@@ -1972,7 +1795,6 @@ const extractProductPayload = (payload = {}) => {
   return null;
 };
 const productFromDetailsResponse = (data = {}) => extractProductPayload(data);
-const MANUAL_CITY_AREA = "الاختيار اليدوي";
 const MANUAL_CITY_AREA_LABEL = "الاختيار اليدوي";
 const governorateCityAreas = repairedDefaultEgyptShippingLocations.reduce((acc, location) => {
   const governorate = String(location.governorate_name_ar || location.governorate_name_en || "").trim();
@@ -2161,7 +1983,6 @@ const getPaymentMethods = (paymentSettings = DEFAULT_STOREFRONT_PAYMENT_SETTINGS
     text: sfText("storefront.checkout.transfer.vodafoneWallet"),
   },
 ];
-const SHIPPING_CONFIRMATION_METHODS = new Set(["shipping_confirmation", "instapay", "vodafone_cash"]);
 const INSTA_PAY_QR_URL = import.meta.env.VITE_INSTAPAY_QR_URL || "";
 const VODAFONE_CASH_QR_URL = import.meta.env.VITE_VODAFONE_CASH_QR_URL || "";
 const storefrontDebugEnabled = () => ["1", "true", "yes", "on"].includes(String(import.meta.env?.VITE_ERP_PERF_DEBUG || import.meta.env?.VITE_STOREFRONT_DEBUG || "").toLowerCase());
@@ -2216,10 +2037,6 @@ const rawOptionValue = (value, fallback = "") => {
   return String(value ?? fallback ?? "").trim();
 };
 const normalizeCheckoutPaymentMethod = (value) => (rawOptionValue(value).toLowerCase() === "cod" ? "cod" : "shipping_confirmation");
-const normalizeShippingPaymentMethod = (value) => {
-  const raw = rawOptionValue(value).toLowerCase();
-  return raw === "vodafone_cash" ? "vodafone_cash" : "instapay";
-};
 const CHECKOUT_STEP_STORAGE_KEY = "storefront.checkout.step";
 const normalizeShippingQuote = (quote = {}) => ({
   loading: false,
@@ -2263,49 +2080,6 @@ const CHECKOUT_ADDRESS_FIELDS = [
   "shipping_district_id",
 ];
 
-const buildLatestCheckoutAddress = (customer = null, order = null) => {
-  if (!order) return null;
-  const text = (value) => String(value || "").trim();
-  const shippingCityId = text(order.shipping_city_id);
-  const shippingZoneId = text(order.shipping_zone_id);
-  const shippingDistrictId = text(order.shipping_district_id);
-  const governorate = text(order.governorate || order.shipping_city_name_ar || order.shipping_city_name_en);
-  const cityArea = text(order.city_area || order.shipping_district_name_ar || order.shipping_district_name_en || order.shipping_zone_name_ar || order.shipping_zone_name_en);
-  const detailedAddress = text(order.customer_address || order.shipping_address_line || "");
-  const streetAddress = text(order.street_address || order.shipping_address?.street_address || order.shipping_provider_address?.street_address || detailedAddress);
-  const buildingNumber = text(order.building_number || order.shipping_address?.building_number || order.shipping_provider_address?.building_number);
-  const floorNumber = text(order.floor_number || order.shipping_address?.floor_number || order.shipping_provider_address?.floor_number);
-  const apartmentNumber = text(order.apartment_number || order.shipping_address?.apartment_number || order.shipping_provider_address?.apartment_number);
-  const landmark = text(order.landmark || order.shipping_address?.landmark || order.shipping_provider_address?.landmark);
-  const deliveryNotes = text(order.delivery_notes || order.shipping_address?.delivery_notes || order.shipping_provider_address?.notes);
-  const fullName = text(order.customer_name || customer?.name);
-  const primaryPhone = text(order.customer_phone || customer?.phone);
-
-  const candidate = {
-    full_name: fullName,
-    primary_phone: primaryPhone,
-    governorate,
-    city_area: cityArea,
-    detailed_address: detailedAddress,
-    street_address: streetAddress,
-    building_number: buildingNumber,
-    floor_number: floorNumber,
-    apartment_number: apartmentNumber,
-    landmark,
-    delivery_notes: deliveryNotes,
-    governorate_id: text(order.governorate_id || order.shipping_city_id || ""),
-    city_id: text(order.city_id || order.shipping_city_id || ""),
-    area_id: text(order.area_id || order.shipping_district_id || order.district_id || ""),
-    zone_id: text(order.zone_id || order.shipping_zone_id || ""),
-    district_id: text(order.district_id || order.shipping_district_id || ""),
-    shipping_city_id: shippingCityId,
-    shipping_zone_id: shippingZoneId,
-    shipping_district_id: shippingDistrictId,
-  };
-
-  return Object.values(candidate).some(Boolean) ? candidate : null;
-};
-const paymentLogoPreloadUrls = Object.values(paymentBrandLogos).flatMap((logo) => [logo.webp, logo.png].filter(Boolean));
 const whatsappPhone = String(import.meta.env.VITE_WHATSAPP_PHONE || import.meta.env.VITE_STORE_WHATSAPP || "").replace(/\D/g, "");
 const buildWhatsAppHref = (text = "") => (whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(text)}` : "https://wa.me/");
 const getStatusLabels = () => {
@@ -2313,7 +2087,6 @@ const getStatusLabels = () => {
   return Array.isArray(labels) && labels.length ? labels : ["Order received", "Preparing", "Shipped", "On the way", "Delivered"];
 };
 const SEARCH_RECENT_KEY = "storefront.search.recent";
-const reason = "";
 const getSearchPlaceholders = () => {
   const values = i18n.t("storefront.search.placeholders", { returnObjects: true });
   return Array.isArray(values) && values.length ? values : ["ابحث عن Jordan 4...", "ابحث عن Sneakers...", "ابحث بالمقاس 42...", "ابحث باسم البراند...", "ابحث بـ SKU..."];
@@ -2335,11 +2108,6 @@ const getSearchFallbackSections = () => {
 };
 
 const STOREFRONT_CACHE_PREFIXES = ["storefront.cache", "storefront.products", "storefront.product", "storefront.last-piece", "storefront.story", "storefront.stories"];
-const isQuotaError = (error) =>
-  error?.name === "QuotaExceededError" ||
-  error?.name === "NS_ERROR_DOM_QUOTA_REACHED" ||
-  error?.code === 22 ||
-  error?.code === 1014;
 
 const deferReactState = (callback) => {
   if (typeof queueMicrotask === "function") {
@@ -2356,92 +2124,6 @@ const pickSuccessMessage = (seed = "") => {
   return messages[score % messages.length] || messages[0];
 };
 
-const featuredCategoryDefinitions = [
-  {
-    id: "men",
-    labelEn: "Men",
-    labelAr: "رجالي",
-    headlineEn: "New Collection",
-    headlineAr: "New Collection",
-    subtitleEn: "Premium styles. Daily arrivals.",
-    subtitleAr: "Premium styles. Daily arrivals.",
-    query: "Jordan 4 Nike Shox Air Force Adidas Campus رجالي",
-    href: "/products?gender=men",
-    examples: ["Jordan 4", "Nike Shox", "Air Force", "Adidas Campus"],
-    test: (product, text) => productAudienceValues(product).includes("men") || /(?:^|\b)(men|mens|male|رجالي|رجال)(?:\b|$)/i.test(text),
-    icon: Briefcase,
-  },
-  {
-    id: "women",
-    labelEn: "Women",
-    labelAr: "حريمي",
-    headlineEn: "New Women's Collection",
-    headlineAr: "مجموعة الحريمي الجديدة",
-    subtitleEn: "Soft colors, bold silhouettes, and everyday favorites in one edit.",
-    subtitleAr: "ألوان ناعمة، قصات جريئة، ومفضلات يومية في اختيار واحد.",
-    query: "Nike Adidas Jordan حريمي",
-    href: "/products?gender=women",
-    examples: ["Nike", "Adidas", "Jordan"],
-    test: (product, text) => productAudienceValues(product).includes("women") || /(?:^|\b)(women|womens|female|ladies|حريمي|نساء|بناتي)(?:\b|$)/i.test(text),
-    icon: Users,
-  },
-  {
-    id: "kids",
-    labelEn: "Kids",
-    labelAr: "أطفال",
-    headlineEn: "Kids Essentials",
-    headlineAr: "أساسيات الأطفال",
-    subtitleEn: "Built for school, play and movement.",
-    subtitleAr: "مصممة للمدرسة، اللعب والحركة.",
-    query: "kids children school play أطفال",
-    href: "/products?gender=kids",
-    examples: ["kids", "children", "school", "play"],
-    test: (product, text) => productAudienceValues(product).includes("kids") || /(?:^|\b)(kids?|children|child|boys|girls|أطفال|طفل)(?:\b|$)/i.test(text),
-    icon: Baby,
-  },
-  {
-    id: "offers",
-    labelEn: "Offers",
-    labelAr: "عروض",
-    headlineEn: "Season Offers",
-    headlineAr: "عروض الموسم",
-    subtitleEn: "Selected discounts and high-value picks for a limited time.",
-    subtitleAr: "خصومات مختارة وقطع عالية القيمة لفترة محدودة.",
-    query: "offers sale discount عروض",
-    href: "/offers",
-    examples: ["Sale", "Discount", "Offers", "Best Price"],
-    test: (product, text) => isOfferStory(product) || /(?:^|\b)(offer|offers|sale|discount|خصم|عروض?)(?:\b|$)/i.test(text),
-    icon: BadgePercent,
-  },
-  {
-    id: "crocs",
-    labelEn: "Crocs",
-    labelAr: "كروكس",
-    headlineEn: "Crocs Picks",
-    headlineAr: "اختيارات كروكس",
-    subtitleEn: "Easy comfort, summer colors, and quick everyday pairs.",
-    subtitleAr: "راحة سهلة، ألوان صيفية، وقطع يومية خفيفة.",
-    query: "crocs crocband classic clog slides كروكس",
-    href: "/products?type=crocs",
-    examples: ["Crocs", "Crocband", "Classic Clog", "Slides"],
-    test: (product, text) => String(product?.product_type || product?.productType || product?.category || "").toLowerCase().includes("croc") || /(?:^|\b)(crocs?|crocband|classics?\s*clog|slides)(?:\b|$)/i.test(text),
-    icon: Footprints,
-  },
-  {
-    id: "last-sizes",
-    labelEn: "Last Sizes",
-    labelAr: "آخر المقاسات",
-    headlineEn: "Last Sizes",
-    headlineAr: "آخر المقاسات",
-    subtitleEn: "Limited pairs with final sizes before they disappear.",
-    subtitleAr: "أزواج محدودة بالمقاسات الأخيرة قبل نفادها.",
-    query: "last sizes final size آخر المقاسات",
-    href: "/products?stock=last",
-    examples: ["Last Sizes", "Final Size", "Limited Stock"],
-    test: (product, text) => isLastPieceProduct(product) || /(?:^|\b)(last\s*sizes?|final\s*size|last\s*size|آخر\s*المقاسات|المقاسات\s*الأخيرة|final\s*pieces?)(?:\b|$)/i.test(text),
-    icon: PackageSearch,
-  },
-];
 
 const productSearchText = (product = {}) => {
   const values = [
@@ -2485,9 +2167,6 @@ const displayCartItemComparePrice = (item = {}) => {
   return getDisplayPricing(item, storefrontSalePricesEnabled).comparePrice || 0;
 };
 
-const displayDiscountPercent = (product = {}, variant = {}) => {
-  return getDisplayPricing(product, storefrontSalePricesEnabled, variant).discountPercent || 0;
-};
 
 const getVisibleCartActionElement = () => {
   if (typeof document === "undefined") return null;
@@ -2599,7 +2278,9 @@ const classificationColor = (option = {}) => option.color || "#d4af37";
 const storefrontLabelKey = (value = "") =>
   String(value || "")
     .normalize("NFKD")
-    .replace(/[\u0640\u200c\u200d\u200e\u200f]/g, "")
+    .replace(/\u0640/g, "")
+    .replace(/[\u200c\u200e\u200f]/g, "")
+    .replace(/\u200d/g, "")
     .replace(/\p{M}+/gu, "")
     .replace(/['\u2019]/g, "'")
     .replace(/\s+/g, " ")
@@ -2678,238 +2359,8 @@ const uniqueClassificationOptions = (options = []) => {
   });
 };
 
-function FeaturedCategoriesHeroSkeleton({ lang = "ar", themeMode = "dark" }) {
-  const isRtl = normalizeLanguage(lang) === "ar";
-  const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
-  return (
-    <section className="mx-auto max-w-[1320px] px-4 py-4 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
-      <div className={`overflow-hidden rounded-[1.85rem] border shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem] ${darkMode ? "border-white/10 bg-[#080808]" : "border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.10)]"}`}>
-        <div className="grid min-h-[510px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)]">
-          <div className="relative min-h-[500px] p-5 md:p-8 lg:min-h-[560px] lg:p-10">
-            <div className={`sf-skeleton-shimmer h-8 w-36 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-            <div className={`mt-6 sf-skeleton-shimmer h-16 max-w-2xl rounded-[1.5rem] md:h-28 ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-            <div className={`mt-4 sf-skeleton-shimmer h-4 w-2/3 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-            <div className={`mt-7 sf-skeleton-shimmer h-11 w-36 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-            <div className="mt-10 grid min-h-[220px] grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-2">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className={`sf-skeleton-shimmer rounded-[1.5rem] ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-              ))}
-            </div>
-          </div>
-          <aside className={`hidden border-s p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block ${darkMode ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-slate-50 shadow-[inset_1px_0_0_rgba(15,23,42,0.04)]"}`}>
-            <div className={`mb-4 sf-skeleton-shimmer h-5 w-40 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-            <div className="grid gap-2">
-              {Array.from({ length: 4 }).map((_, index) => (
-                <div key={index} className={`sf-skeleton-shimmer h-12 rounded-xl ${darkMode ? "bg-white/[0.06]" : "bg-slate-200/90"}`} />
-              ))}
-            </div>
-          </aside>
-        </div>
-      </div>
-    </section>
-  );
-}
 
-function ShopByMainCategoriesSkeleton({ lang = "ar", themeMode = "dark" }) {
-  const isRtl = normalizeLanguage(lang) === "ar";
-  const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
-  return (
-    <section className="mx-auto max-w-[1360px] px-4 py-10 md:py-16" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="mb-8 flex items-end justify-between gap-3 md:mb-11">
-        <div className="min-w-0">
-          <div className={`sf-skeleton-shimmer h-3 w-32 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-          <div className={`mt-3 sf-skeleton-shimmer h-12 w-[min(28rem,74vw)] rounded-[1.5rem] md:h-20 ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-        </div>
-        <div className={`hidden h-11 w-28 rounded-full sm:block ${darkMode ? "bg-white/5" : "bg-slate-200/90"}`} />
-      </div>
-      <div className="grid gap-7 md:gap-10">
-        {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className={`overflow-hidden rounded-[2.35rem] border shadow-[0_34px_110px_rgba(15,23,42,0.28)] ${darkMode ? "border-white/10 bg-[#080808]" : "border-slate-200 bg-white shadow-[0_34px_110px_rgba(15,23,42,0.10)]"}`}>
-            <div className="grid min-h-[300px] gap-4 p-5 md:min-h-[360px] md:grid-cols-[0.45fr_0.55fr] md:p-8 lg:min-h-[400px]">
-              <div className="flex flex-col justify-end gap-3">
-                <div className={`sf-skeleton-shimmer h-5 w-28 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-                <div className={`sf-skeleton-shimmer h-12 w-[min(22rem,70vw)] rounded-[1.5rem] md:h-20 ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-                <div className={`sf-skeleton-shimmer h-4 w-2/3 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-                <div className={`sf-skeleton-shimmer h-11 w-32 rounded-full ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-              </div>
-              <div className={`sf-skeleton-shimmer min-h-[210px] rounded-[1.85rem] md:min-h-[280px] ${darkMode ? "bg-white/10" : "bg-slate-200/90"}`} />
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
-function FeaturedCategoriesHero({ products = [], lang = "ar", loading = false, themeMode = "dark" }) {
-  const { t } = useTranslation();
-  const isRtl = normalizeLanguage(lang) === "ar";
-  const normalizedThemeMode = themeMode || "dark";
-  const darkMode = normalizedThemeMode !== "light";
-  const [activeCategoryId, setActiveCategoryId] = useState("");
-  const [slideIndex, setSlideIndex] = useState(0);
-  const [manualTick, setManualTick] = useState(0);
-
-  const categories = useMemo(() => {
-    const sourceProducts = uniqueProductsByIdentity(products)
-      .filter((product) => product?.id && product?.name && isAvailableProduct(product))
-      .map(featuredSlideProduct)
-      .filter((item) => item.image);
-
-    return featuredCategoryDefinitions
-      .map((definition) => {
-        const escapedKeywords = (Array.isArray(definition.examples) ? definition.examples : [])
-          .map((item) => String(item || "").trim())
-          .filter(Boolean)
-          .map((item) => item.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-        const keywordPattern = escapedKeywords.length ? new RegExp(escapedKeywords.join("|"), "i") : null;
-        const exactSlides = keywordPattern ? sourceProducts.filter(({ product }) => keywordPattern.test(productSearchText(product))) : [];
-        const matchedSlides = sourceProducts.filter(({ product }) => definition.test(product, productSearchText(product)));
-        const slides = uniqueProductsByIdentity([...exactSlides, ...matchedSlides, ...sourceProducts].map((item) => item.product))
-          .map(featuredSlideProduct)
-          .filter((item) => item.image)
-          .slice(0, 6);
-        return {
-          ...definition,
-          label: isRtl ? definition.labelAr : definition.labelEn,
-          slides,
-        };
-      })
-      .filter((category) => category.slides.length);
-  }, [isRtl, products]);
-
-  useEffect(() => {
-    if (!categories.length) return;
-    if (!categories.some((category) => category.id === activeCategoryId)) {
-      setActiveCategoryId(categories[0].id);
-      setSlideIndex(0);
-    }
-  }, [activeCategoryId, categories]);
-
-  const activeCategory = categories.find((category) => category.id === activeCategoryId) || categories[0];
-  const slides = activeCategory?.slides || [];
-  const activeSlide = slides[slideIndex % Math.max(slides.length, 1)] || slides[0];
-
-  useEffect(() => {
-    if (slides.length <= 1) return undefined;
-    const timer = window.setInterval(() => {
-      setSlideIndex((current) => (current + 1) % slides.length);
-    }, 4000);
-    return () => window.clearInterval(timer);
-  }, [activeCategory?.id, manualTick, slides.length]);
-
-  const pickCategory = (categoryId) => {
-    setActiveCategoryId(categoryId);
-    setSlideIndex(0);
-    setManualTick((current) => current + 1);
-  };
-  const moveSlide = (direction) => {
-    if (!slides.length) return;
-    setSlideIndex((current) => (current + direction + slides.length) % slides.length);
-    setManualTick((current) => current + 1);
-  };
-
-  if (!activeCategory || !activeSlide) return loading ? <FeaturedCategoriesHeroSkeleton lang={lang} /> : null;
-
-  const { product, image } = activeSlide;
-  const ActiveIcon = activeCategory.icon;
-  const cta = isRtl ? "تسوّق الفئة" : t("storefront.common.shopCategory", "Shop category");
-  const headline = isRtl ? activeCategory.headlineAr : activeCategory.headlineEn;
-  const subtitle = isRtl ? activeCategory.subtitleAr : activeCategory.subtitleEn;
-  const categoryHref = activeCategory.href || `/products?q=${encodeURIComponent(activeCategory.query || activeCategory.label)}`;
-  const supportingSlides = [activeSlide, ...slides.filter((slide) => slide.product?.id !== activeSlide.product?.id)].slice(0, 5);
-
-  return (
-    <section className="mx-auto max-w-[1320px] px-4 pb-3 pt-1.5 mt-3 md:mt-0 md:pb-8 md:pt-8" dir={isRtl ? "rtl" : "ltr"}>
-      <div className={`overflow-hidden rounded-[1.85rem] border shadow-[0_34px_100px_rgba(15,23,42,0.30)] md:rounded-[2.35rem] ${darkMode ? "border-white/10 bg-[#080808]" : "border-slate-200 bg-white shadow-[0_34px_100px_rgba(15,23,42,0.10)]"}`}>
-        <div className="grid min-h-[420px] lg:grid-cols-[minmax(0,0.72fr)_minmax(18rem,0.28fr)] lg:[direction:ltr] md:min-h-[520px]">
-          <Link
-            to={categoryHref}
-            className={`group relative flex min-h-[410px] overflow-hidden lg:min-h-[580px] lg:[direction:rtl] md:min-h-[500px] ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.08),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.03),transparent_32%),linear-gradient(135deg,#050505_0%,#0a0a0a_54%,#151515_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`}
-          >
-            <div className={`pointer-events-none absolute inset-0 ${darkMode ? "bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" : "bg-[linear-gradient(120deg,rgba(255,255,255,0.54),transparent_34%,rgba(255,255,255,0.06))]"}`} />
-            <div className={`pointer-events-none absolute inset-x-0 bottom-0 h-1/2 ${darkMode ? "bg-gradient-to-t from-black/52 to-transparent" : "bg-gradient-to-t from-white/90 to-transparent"}`} />
-            <div className="absolute start-4 top-4 z-20 hidden gap-2 md:flex">
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? 1 : -1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="السابق">
-                <ChevronLeft className={`h-4 w-4 ${isRtl ? "rotate-180" : ""}`} />
-              </button>
-              <button type="button" onClick={(event) => { event.preventDefault(); moveSlide(isRtl ? -1 : 1); }} className={`grid h-10 w-10 shrink-0 place-items-center rounded-full border shadow-sm backdrop-blur transition-[background-color,color,opacity,transform] duration-200 active:scale-95 focus-visible:outline-none focus-visible:ring-2 ${darkMode ? "border-transparent bg-white/10 text-white hover:bg-white/16 hover:text-white focus-visible:ring-white/35" : "border-slate-200 bg-white/90 text-slate-700 hover:bg-white hover:text-slate-950 focus-visible:ring-slate-300"}`} aria-label="Next slide">
-                <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
-              </button>
-            </div>
-            <div className="relative z-10 grid w-full gap-5 p-4 md:grid-cols-[minmax(0,0.42fr)_minmax(0,0.58fr)] md:gap-7 md:p-9 lg:p-12">
-              <div key={`category-copy-${activeCategory.id}`} className="relative z-20 flex min-h-[9.5rem] w-full max-w-[20rem] flex-col items-start justify-start self-start pb-0 ml-0 mr-auto text-left animate-[sfFadeUp_420ms_ease-out_both] md:min-h-0 md:max-w-none md:justify-center md:pb-0 md:ml-0 md:mr-0">
-                <div dir="ltr" className="flex w-full flex-col items-start text-left">
-                  <h1 className={`max-w-[20rem] text-left text-[1.84rem] font-black leading-[1.06] tracking-[-0.03em] sm:max-w-[22rem] sm:text-[2.08rem] sm:leading-[1.02] md:max-w-xl md:text-6xl lg:text-[4.9rem] ${darkMode ? "text-white" : "text-slate-900"}`}>
-                    {headline}
-                  </h1>
-                  <p className={`mt-3 max-w-[18rem] text-left text-[0.92rem] font-bold leading-6 sm:max-w-[20rem] md:mt-6 md:max-w-[34rem] md:text-lg md:leading-8 ${darkMode ? "text-white/68" : "text-slate-600"}`}>
-                    {subtitle}
-                  </p>
-                </div>
-                <span className={`mt-4 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-7 text-sm font-black text-left transition duration-200 ease-out group-hover:-translate-y-0.5 md:mt-9 md:min-h-14 md:px-8 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_20px_46px_rgba(248,231,179,0.22)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_20px_46px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 group-hover:bg-[#d4af37] group-hover:text-white"} self-start md:self-auto`}>
-                  {cta}
-                </span>
-              </div>
-              <div className="relative mt-4 flex min-h-[250px] items-end justify-end md:mt-0 md:min-h-[490px] md:items-center md:justify-center">
-                <div className={`absolute bottom-8 left-1/2 h-14 w-[82%] -translate-x-1/2 rounded-[100%] blur-3xl ${darkMode ? "bg-black/75" : "bg-slate-300/80"}`} />
-                {supportingSlides.map((slide, index) => {
-                  const active = slide.product?.id === product?.id;
-                  return (
-                    <img
-                      key={`${activeCategory.id}-${productIdentityKey(slide.product, index)}-${slide.image}`}
-                      src={imageFor(slide.image)}
-                      {...responsiveImageProps(slide.image, "hero")}
-                      alt=""
-                      onError={fallbackProductImage}
-                      className={`absolute object-contain drop-shadow-[0_40px_42px_rgba(0,0,0,0.42)] transition-all duration-700 ease-out ${active ? "z-30 left-0 right-0 mx-auto bottom-3 max-h-[300px] w-[92%] opacity-100 animate-[sfFadeUp_420ms_ease-out_both] md:left-auto md:right-auto md:bottom-auto md:mx-0 md:max-h-[520px] md:w-[86%] md:translate-x-0 md:translate-y-0" : index === 1 ? "z-20 right-[4%] bottom-[14%] max-h-[126px] w-[28%] -rotate-12 opacity-56 md:right-auto md:bottom-auto md:max-h-[230px] md:w-[31%] md:-translate-x-[108%] md:translate-y-[30%]" : index === 2 ? "z-20 right-[16%] bottom-[18%] max-h-[120px] w-[27%] rotate-12 opacity-54 md:right-auto md:bottom-auto md:max-h-[225px] md:w-[30%] md:translate-x-[108%] md:-translate-y-[28%]" : index === 3 ? "z-10 right-[28%] bottom-[8%] max-h-[104px] w-[23%] rotate-6 opacity-36 blur-[0.3px] md:right-auto md:bottom-auto md:max-h-[180px] md:w-[26%] md:-translate-x-[128%] md:-translate-y-[28%]" : "z-10 right-[8%] bottom-[4%] max-h-[104px] w-[23%] -rotate-6 opacity-36 blur-[0.3px] md:right-auto md:bottom-auto md:max-h-[180px] md:w-[26%] md:translate-x-[128%] md:translate-y-[30%]"}`}
-                      loading={active ? "eager" : "lazy"}
-                      decoding="async"
-                      width="760"
-                      height="620"
-                    />
-                  );
-                })}
-              </div>
-              {slides.length > 1 ? (
-                <div className="absolute bottom-4 end-4 z-20 flex gap-1.5 sm:bottom-3 sm:end-3">
-                  {slides.map((slide, index) => (
-                    <button key={productIdentityKey(slide.product, index)} type="button" onClick={(event) => { event.preventDefault(); setSlideIndex(index); setManualTick((current) => current + 1); }} className={`h-1.5 rounded-full transition ${index === slideIndex ? "w-8 bg-stone-950 dark:bg-white" : "w-2 bg-stone-950/24 dark:bg-white/30"}`} aria-label={`Slide ${index + 1}`} />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-          </Link>
-
-          <aside className={`hidden border-s p-5 shadow-[inset_1px_0_0_rgba(255,255,255,0.06)] lg:block lg:[direction:rtl] ${darkMode ? "border-white/10 bg-white/[0.045]" : "border-slate-200 bg-slate-50 shadow-[inset_1px_0_0_rgba(15,23,42,0.04)]"}`}>
-            <div className={`mb-4 border-b pb-3 text-sm font-black ${darkMode ? "border-white/10 text-white" : "border-slate-200 text-slate-900"}`}>
-              الأقسام المميزة
-            </div>
-            <nav className="grid gap-1" aria-label="فئات الأقسام">
-              {categories.map((category) => {
-                const active = category.id === activeCategory.id;
-                return (
-                  <Link
-                    key={category.id}
-                    to={category.href}
-                    onMouseEnter={() => pickCategory(category.id)}
-                    onFocus={() => pickCategory(category.id)}
-                    className={`group flex min-h-12 items-center justify-between gap-3 rounded-xl px-3 py-2.5 text-start transition ${darkMode ? (active ? "bg-white text-stone-950 ring-1 ring-white/25" : "text-white/66 hover:bg-white/[0.07] hover:text-white") : (active ? "bg-slate-900 text-white ring-1 ring-slate-200" : "text-slate-700 hover:bg-slate-100 hover:text-slate-950")}`}
-                  >
-                    <span className="min-w-0 truncate text-base font-black">
-                      {category.label}
-                    </span>
-                    <ChevronLeft className={`h-4 w-4 shrink-0 transition ${isRtl ? "" : "rotate-180"} ${active ? "opacity-80" : "opacity-35 group-hover:opacity-70"}`} />
-                  </Link>
-                );
-              })}
-            </nav>
-          </aside>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 const mainHomeCategoryCards = [
   {
@@ -2979,808 +2430,11 @@ const homeProductWithImage = (product = {}) => {
   return slide.image ? { ...slide, product } : null;
 };
 
-function MobileStoryCategories({ products = [], lang = "ar", themeMode = "dark" }) {
-  const isRtl = normalizeLanguage(lang) === "ar";
-  const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
-  const sourceProducts = useMemo(
-    () => uniqueProductsByIdentity(products)
-      .filter((product) => product?.id && product?.name && isAvailableProduct(product))
-      .map(homeProductWithImage)
-      .filter(Boolean),
-    [products]
-  );
 
-  const storyCards = useMemo(() => {
-    const usedProducts = new Set();
-    return mainHomeCategoryCards.slice(0, 4).map((definition) => {
-      const match = sourceProducts.find(({ product }) => {
-        if (usedProducts.has(productIdentityKey(product))) return false;
-        if (definition.id === "offers") return isOfferStory(product);
-        return definition.test(product, productSearchText(product));
-      });
-      if (match?.product) usedProducts.add(productIdentityKey(match.product));
-      return {
-        ...definition,
-        image: match?.image || "",
-      };
-    });
-  }, [sourceProducts]);
 
-  if (!storyCards.length) return null;
 
-  return (
-    <section className="-mt-1 mx-auto max-w-[1320px] px-4 pt-1 md:hidden" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="border-t border-white/10 pt-2">
-        <div className="grid w-full grid-cols-4 gap-[clamp(10px,3vw,16px)]">
-        {storyCards.map((card) => {
-          const Icon = card.icon;
-          const href = card.href || `/products?q=${encodeURIComponent(card.titleAr || card.titleEn || "")}`;
-          const label = isRtl ? card.titleAr : card.titleEn;
-          const imageSrc = card.image ? imageFor(card.image) : "";
-          return (
-            <Link
-              key={card.id}
-              to={href}
-              className="group flex min-w-0 flex-col items-center gap-1 text-center"
-              aria-label={label}
-            >
-              <span className="relative grid h-[clamp(56px,15vw,66px)] w-[clamp(56px,15vw,66px)] place-items-center overflow-hidden rounded-full border border-[#d4af37]/55 bg-[radial-gradient(circle_at_30%_25%,rgba(212,175,55,0.22),transparent_35%),linear-gradient(180deg,#050505_0%,#101010_100%)] p-[2px] shadow-[0_0_0_1px_rgba(212,175,55,0.24),0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 group-active:scale-[0.98]">
-                {imageSrc ? (
-                  <img
-                    src={imageSrc}
-                    {...responsiveImageProps(card.image, "grid")}
-                    alt=""
-                    onError={fallbackProductImage}
-                    className="h-full w-full rounded-full object-cover object-center"
-                    loading="lazy"
-                    decoding="async"
-                    width="180"
-                    height="180"
-                  />
-                ) : (
-                  <Icon className="h-7 w-7 text-[#f8e7b3]" />
-                )}
-                <span className="pointer-events-none absolute inset-0 rounded-full border border-white/5" />
-              </span>
-              <span className="text-[clamp(11px,3vw,12px)] font-black leading-[1.1] text-white/86 whitespace-nowrap">{label}</span>
-            </Link>
-          );
-        })}
-        </div>
-      </div>
-    </section>
-  );
-}
 
-function ShopByMainCategories({ products = [], lang = "ar", loading = false, themeMode = "dark" }) {
-  const isRtl = normalizeLanguage(lang) === "ar";
-  const darkMode = themeMode === "dark" || (typeof document !== "undefined" && document.body.classList.contains("storefront-dark"));
-  const heroCopyById = {
-    men: {
-      title: "Men Collection",
-      subtitle: "Premium styles. Daily arrivals.",
-    },
-    women: {
-      title: "Women Collection",
-      subtitle: "Premium styles. Daily arrivals.",
-    },
-    kids: {
-      title: "Kids Collection",
-      subtitle: "Premium styles. Daily arrivals.",
-    },
-    offers: {
-      title: "Sale Collection",
-      subtitle: "Best deals. Limited offers.",
-    },
-    crocs: {
-      title: "Crocs Collection",
-      subtitle: "Comfort. Everyday wear.",
-    },
-  };
-  const sourceProducts = useMemo(
-    () => uniqueProductsByIdentity(products)
-      .filter((product) => product?.id && product?.name && isAvailableProduct(product))
-      .map(homeProductWithImage)
-      .filter(Boolean),
-    [products]
-  );
 
-  const cards = useMemo(() => mainHomeCategoryCards.map((definition) => {
-    const matchedProducts = sourceProducts.filter(({ product }) => definition.test(product, productSearchText(product)));
-    const images = uniqueProductsByIdentity(matchedProducts.map((item) => item.product))
-      .map(homeProductWithImage)
-      .filter(Boolean)
-      .slice(0, 4);
-    return { ...definition, images };
-  }), [sourceProducts]);
-
-  if (!cards.length) return loading ? <ShopByMainCategoriesSkeleton lang={lang} /> : null;
-
-  return (
-    <section className="mx-auto max-w-[1360px] px-4 py-8 sm:py-9 md:py-16" dir={isRtl ? "rtl" : "ltr"}>
-      <div className={`mb-6 flex items-end justify-between gap-3 sm:mb-8 md:mb-11 ${isRtl ? "text-right" : "text-left"}`}>
-        <div>
-          <div className={`mb-2 text-[10px] font-black uppercase tracking-[0.18em] ${darkMode ? "text-[#f8e7b3]" : "text-[#d4af37]"}`}>
-            {sfText("storefront.home.shopByCategory")}
-          </div>
-          <h2 className={`text-3xl font-black tracking-normal md:text-6xl ${darkMode ? "text-white/90" : "text-[#101010]"}`}>
-            الأقسام المميزة
-          </h2>
-        </div>
-        <Link to="/products" className={`hidden min-h-11 items-center justify-center rounded-full border px-6 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.08)] transition hover:-translate-y-0.5 active:scale-[0.98] sm:inline-flex ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#101010] hover:border-[#d4af37]/50 hover:bg-white hover:text-[#101010]"}`}>
-          {sfText("common.viewAll")}
-        </Link>
-      </div>
-      <div className="grid gap-4 sm:gap-5 md:gap-10">
-        {cards.map((card) => {
-          const heroCopy = heroCopyById[card.id] || {};
-          const title = heroCopy.title || (isRtl ? card.titleAr : card.titleEn);
-          const subtitle = heroCopy.subtitle || (isRtl ? card.subtitleAr : card.subtitleEn);
-          const image = card.images?.[0] || null;
-          const imageSrc = image ? imageFor(image.image) : "";
-          const Icon = card.icon;
-          return (
-            <Link
-              key={card.id}
-              to={card.href}
-              className={`group relative flex min-h-[410px] flex-col overflow-hidden rounded-[2.35rem] border transition duration-500 hover:-translate-y-1.5 active:scale-[0.99] md:min-h-[500px] lg:min-h-[580px] ${darkMode ? "border-white/12 bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_45%,#111111_100%)] text-white shadow-[0_34px_110px_rgba(0,0,0,0.34)] hover:border-[#d4af37]/40 hover:shadow-[0_48px_130px_rgba(0,0,0,0.48)]" : "border-slate-200 bg-white text-stone-950 shadow-[0_34px_110px_rgba(15,23,42,0.10)] hover:border-[#d4af37]/30 hover:shadow-[0_48px_130px_rgba(15,23,42,0.16)]"}`}
-            >
-              <div className={`absolute inset-0 ${darkMode ? "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.08),transparent_24%),radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.03),transparent_32%),linear-gradient(135deg,#050505_0%,#0a0a0a_54%,#151515_100%)]" : "bg-[radial-gradient(circle_at_74%_36%,rgba(212,175,55,0.10),transparent_26%),radial-gradient(circle_at_18%_18%,rgba(248,231,179,0.28),transparent_30%),linear-gradient(135deg,#ffffff_0%,#f8fafc_56%,#eef2ff_100%)]"}`} />
-              <div className={`absolute inset-0 ${darkMode ? "bg-[linear-gradient(120deg,rgba(255,255,255,0.08),transparent_34%,rgba(0,0,0,0.42))]" : "bg-[linear-gradient(120deg,rgba(255,255,255,0.54),transparent_34%,rgba(255,255,255,0.06))]"}`} />
-              <div className="relative z-10 flex flex-1 flex-col justify-start p-4 pt-4 sm:p-5 sm:pt-6 md:p-10 lg:p-12">
-                <div dir="ltr" className="flex w-full flex-col items-start text-left">
-                  <h3 className={`max-w-[20rem] text-[1.84rem] font-black leading-[1.06] tracking-[-0.03em] sm:max-w-[22rem] sm:text-[2.08rem] sm:leading-[1.02] md:max-w-xl md:text-7xl lg:text-[5.1rem] ${darkMode ? "text-white" : "text-slate-900"}`}>{title}</h3>
-                  <p className={`mt-3 max-w-[18rem] text-[0.92rem] font-bold leading-6 sm:max-w-[20rem] md:mt-6 md:max-w-[34rem] md:text-xl md:leading-8 ${darkMode ? "text-white/82" : "text-slate-600"}`}>{subtitle}</p>
-                </div>
-                <span className={`mt-4 inline-flex min-h-12 w-fit items-center justify-center gap-2 rounded-full px-7 text-sm font-black transition duration-200 ease-out group-hover:-translate-y-0.5 md:mt-9 md:min-h-14 md:px-8 ${darkMode ? "bg-[#f8e7b3] text-stone-950 shadow-[0_20px_46px_rgba(248,231,179,0.22)] ring-1 ring-white/10 group-hover:bg-white" : "bg-slate-900 text-white shadow-[0_20px_46px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 group-hover:bg-[#d4af37] group-hover:text-white"} self-start`}>
-                  {isRtl ? "تسوّق الآن" : sfText("storefront.common.shopNow")}
-                  <ChevronLeft className={`h-4 w-4 transition group-hover:-translate-x-1 ${isRtl ? "" : "rotate-180 group-hover:translate-x-1 group-hover:-translate-y-0"}`} />
-                </span>
-                <div className="relative mt-4 flex min-h-[168px] items-end justify-center overflow-hidden p-1.5 sm:mt-5 sm:min-h-[190px] sm:p-2.5 md:mt-6 md:min-h-[230px] md:p-6 lg:p-8">
-                  <div className={`absolute bottom-4 left-1/2 h-12 w-[78%] -translate-x-1/2 rounded-full blur-3xl ${darkMode ? "bg-black/18" : "bg-slate-300/70"}`} />
-                  {imageSrc ? (
-                    <img
-                      key={`${card.id}-${productIdentityKey(image?.product)}`}
-                      src={imageSrc}
-                      {...responsiveImageProps(image, "hero")}
-                      alt=""
-                      onError={fallbackProductImage}
-                      className="relative z-10 h-full w-full max-w-[340px] object-contain"
-                      loading="lazy"
-                      decoding="async"
-                      width="420"
-                      height="320"
-                    />
-                  ) : (
-                    <Icon className="relative z-10 h-12 w-12 text-[#f8e7b3]" />
-                  )}
-                </div>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function HomeProductSection({ title, subtitle, viewAllTo = "/products", products = [], loading = false, railType = "default", tone = "default", wishlist, toggleWishlist, onAddToCart, themeMode = "light" }) {
-  const isRtl = normalizeLanguage(i18n.language) === "ar";
-  const darkMode = themeMode === "dark";
-  const railViewportRef = useRef(null);
-  const railTrackRef = useRef(null);
-  const railCardRefs = useRef([]);
-  const autoplayIndexRef = useRef(0);
-  const translateXRef = useRef(0);
-  const dragStateRef = useRef({ active: false, moved: false, startX: 0, startTranslateX: 0, pointerId: null });
-  const autoplayTimersRef = useRef({ wait: null, settle: null, reset: null });
-  const railPausedRef = useRef(false);
-  const [railPaused, setRailPaused] = useState(false);
-  const [trackMotion, setTrackMotion] = useState({ x: 0, transition: "none" });
-  const [activeDotIndex, setActiveDotIndex] = useState(0);
-  const visibleProducts = useMemo(
-    () => sortStorefrontColorCardsByModel(uniqueProductsByIdentity(products).filter((product) => product?.id && product?.name && isAvailableProduct(product)).slice(0, 8)),
-    [products]
-  );
-  const repeatedProducts = useMemo(() => {
-    if (!visibleProducts.length) return [];
-    return Array.from({ length: 3 }, (_, repeatIndex) =>
-      visibleProducts.map((product, index) => ({
-        product,
-        repeatIndex,
-        index,
-        key: `${productCardKey(product, index)}-${repeatIndex}`,
-      }))
-    ).flat();
-  }, [visibleProducts]);
-  const skeletonItems = Array.from({ length: 8 });
-  const toneConfig = {
-    default: {
-      shell: "bg-transparent",
-      eyebrow: "text-[#d4af37] dark:text-[#f8e7b3]",
-      line: "from-[#d4af37] to-[#f8e7b3]",
-      button: "hover:border-[#d4af37]/50",
-    },
-    popular: {
-      shell: "rounded-[2.25rem] border border-amber-200/55 bg-[radial-gradient(circle_at_86%_0%,rgba(248,231,179,0.44),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.88),rgba(255,247,221,0.42))] px-4 py-6 shadow-[0_24px_80px_rgba(180,83,9,0.10),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-amber-300/15 dark:bg-[radial-gradient(circle_at_86%_0%,rgba(248,231,179,0.16),transparent_28%),linear-gradient(135deg,rgba(255,255,255,0.07),rgba(248,231,179,0.06))]",
-      eyebrow: "text-amber-600 dark:text-[#f8e7b3]",
-      line: "from-amber-500 to-[#f8e7b3]",
-      button: "hover:border-amber-400/60",
-    },
-    new: {
-      shell: "rounded-[2.25rem] border border-emerald-200/55 bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.22),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.82),rgba(236,253,245,0.42))] px-4 py-6 shadow-[0_24px_80px_rgba(16,185,129,0.10),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-emerald-300/15 dark:bg-[radial-gradient(circle_at_12%_0%,rgba(16,185,129,0.15),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(16,185,129,0.06))]",
-      eyebrow: "text-emerald-600 dark:text-emerald-300",
-      line: "from-emerald-500 to-teal-300",
-      button: "hover:border-emerald-400/60",
-    },
-    last: {
-      shell: "rounded-[2.25rem] border border-orange-200/60 bg-[radial-gradient(circle_at_90%_10%,rgba(251,146,60,0.25),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.84),rgba(255,237,213,0.44))] px-4 py-6 shadow-[0_24px_80px_rgba(234,88,12,0.10),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-orange-300/15 dark:bg-[radial-gradient(circle_at_90%_10%,rgba(251,146,60,0.16),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(251,146,60,0.06))]",
-      eyebrow: "text-orange-600 dark:text-orange-300",
-      line: "from-orange-500 to-amber-300",
-      button: "hover:border-orange-400/60",
-    },
-    sale: {
-      shell: "rounded-[2.25rem] border border-red-200/60 bg-[radial-gradient(circle_at_12%_0%,rgba(239,68,68,0.22),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.84),rgba(254,226,226,0.42))] px-4 py-6 shadow-[0_24px_80px_rgba(220,38,38,0.10),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-red-300/15 dark:bg-[radial-gradient(circle_at_12%_0%,rgba(239,68,68,0.16),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(239,68,68,0.06))]",
-      eyebrow: "text-red-600 dark:text-red-300",
-      line: "from-red-500 to-rose-300",
-      button: "hover:border-red-400/60",
-    },
-    trending: {
-      shell: "rounded-[2.25rem] border border-violet-200/60 bg-[radial-gradient(circle_at_86%_0%,rgba(212,175,55,0.22),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.84),rgba(245,243,255,0.44))] px-4 py-6 shadow-[0_24px_80px_rgba(212,175,55,0.10),inset_0_1px_0_rgba(255,255,255,0.72)] dark:border-violet-300/15 dark:bg-[radial-gradient(circle_at_86%_0%,rgba(212,175,55,0.18),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.06),rgba(212,175,55,0.08))]",
-      eyebrow: "text-violet-600 dark:text-violet-300",
-      line: "from-violet-600 to-fuchsia-300",
-      button: "hover:border-violet-400/60",
-    },
-  }[tone] || {};
-  const sectionTone = toneConfig.shell || "bg-transparent";
-  const eyebrowClass = darkMode
-    ? (toneConfig.eyebrow || "text-[#d4af37] dark:text-[#f8e7b3]")
-    : (tone === "popular" ? "text-[#334155]" : "text-[#d4af37]");
-  const railItems = loading && !visibleProducts.length
-    ? Array.from({ length: 3 }, (_, repeatIndex) =>
-        skeletonItems.map((_, index) => ({
-          key: `skeleton-${repeatIndex}-${index}`,
-          repeatIndex,
-          index,
-          product: null,
-          skeleton: true,
-        }))
-      ).flat()
-    : repeatedProducts;
-  const transitionMs = 500;
-  const autoplayDelay = 3000;
-  const loopStartIndex = visibleProducts.length;
-  const loopEndIndex = visibleProducts.length * 2;
-  const reducedMotion = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
-
-  const clearTimers = useCallback(() => {
-    if (typeof window === "undefined") return;
-    if (autoplayTimersRef.current.wait) window.clearTimeout(autoplayTimersRef.current.wait);
-    if (autoplayTimersRef.current.settle) window.clearTimeout(autoplayTimersRef.current.settle);
-    if (autoplayTimersRef.current.reset) window.clearTimeout(autoplayTimersRef.current.reset);
-    autoplayTimersRef.current = { wait: null, settle: null, reset: null };
-  }, []);
-
-  const setRailPausedState = useCallback((nextPaused) => {
-    railPausedRef.current = nextPaused;
-    setRailPaused(nextPaused);
-  }, []);
-
-  const setTrackPosition = useCallback((nextX, animate) => {
-    translateXRef.current = nextX;
-    setTrackMotion({
-      x: nextX,
-      transition: animate ? `transform ${transitionMs}ms ease` : "none",
-    });
-  }, []);
-
-  const setCenteredIndex = useCallback((index, animate = true) => {
-    const viewport = railViewportRef.current;
-    const node = railCardRefs.current[index];
-    if (!viewport || !node) return false;
-    const viewportRect = viewport.getBoundingClientRect();
-    const cardRect = node.getBoundingClientRect();
-    const viewportCenter = viewportRect.left + viewportRect.width / 2;
-    const cardCenter = cardRect.left + cardRect.width / 2;
-    const nextX = translateXRef.current + (viewportCenter - cardCenter);
-    autoplayIndexRef.current = index;
-    setActiveDotIndex(visibleProducts.length ? index % visibleProducts.length : 0);
-    setTrackPosition(nextX, animate);
-    return true;
-  }, [setTrackPosition, visibleProducts.length]);
-
-  const normalizeToMiddleCopy = useCallback((index) => {
-    if (!visibleProducts.length) return index;
-    const offset = ((index % visibleProducts.length) + visibleProducts.length) % visibleProducts.length;
-    return loopStartIndex + offset;
-  }, [loopStartIndex, visibleProducts.length]);
-
-  const syncToCurrentCopy = useCallback(() => {
-    if (!visibleProducts.length) return;
-    const normalized = normalizeToMiddleCopy(autoplayIndexRef.current);
-    if (normalized !== autoplayIndexRef.current) {
-      setCenteredIndex(normalized, false);
-    }
-  }, [normalizeToMiddleCopy, setCenteredIndex, visibleProducts.length]);
-
-  const findClosestIndex = useCallback(() => {
-    const viewport = railViewportRef.current;
-    if (!viewport || !visibleProducts.length) return autoplayIndexRef.current;
-    const viewportRect = viewport.getBoundingClientRect();
-    const viewportCenter = viewportRect.left + viewportRect.width / 2;
-    let bestIndex = autoplayIndexRef.current;
-    let bestDistance = Number.POSITIVE_INFINITY;
-    railCardRefs.current.forEach((node, index) => {
-      if (!node) return;
-      const rect = node.getBoundingClientRect();
-      const center = rect.left + rect.width / 2;
-      const distance = Math.abs(center - viewportCenter);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestIndex = index;
-      }
-    });
-    return bestIndex;
-  }, [visibleProducts.length]);
-
-  const queueNextStep = useCallback((delay = autoplayDelay) => {
-    if (typeof window === "undefined") return;
-    if (!visibleProducts.length || railPausedRef.current || reducedMotion || dragStateRef.current.active) return;
-    if (autoplayTimersRef.current.wait) window.clearTimeout(autoplayTimersRef.current.wait);
-    autoplayTimersRef.current.wait = window.setTimeout(() => {
-      if (railPausedRef.current || reducedMotion || dragStateRef.current.active || !visibleProducts.length) return;
-      let nextIndex = autoplayIndexRef.current + 1;
-      if (nextIndex >= loopEndIndex) {
-        nextIndex = loopEndIndex;
-      }
-      const moved = setCenteredIndex(nextIndex, true);
-      if (!moved) return;
-      if (autoplayTimersRef.current.settle) window.clearTimeout(autoplayTimersRef.current.settle);
-      autoplayTimersRef.current.settle = window.setTimeout(() => {
-        if (nextIndex >= loopEndIndex) {
-          autoplayIndexRef.current = loopStartIndex;
-          setCenteredIndex(loopStartIndex, false);
-        }
-        queueNextStep(autoplayDelay);
-      }, transitionMs);
-    }, delay);
-  }, [autoplayDelay, loopEndIndex, loopStartIndex, reducedMotion, setCenteredIndex, visibleProducts.length]);
-
-  useEffect(() => {
-    railCardRefs.current = [];
-  }, [visibleProducts.length, railItems.length]);
-
-  useEffect(() => {
-    if (typeof window === "undefined" || !visibleProducts.length) return undefined;
-    autoplayIndexRef.current = loopStartIndex;
-    setActiveDotIndex(0);
-    setTrackPosition(0, false);
-    const raf = window.requestAnimationFrame(() => {
-      setCenteredIndex(loopStartIndex, false);
-    });
-    return () => window.cancelAnimationFrame(raf);
-  }, [loopStartIndex, setCenteredIndex, setTrackPosition, visibleProducts.length]);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return undefined;
-    const onResize = () => {
-      if (!visibleProducts.length) return;
-      setCenteredIndex(autoplayIndexRef.current, false);
-    };
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
-  }, [setCenteredIndex, visibleProducts.length]);
-
-  useEffect(() => {
-    clearTimers();
-    if (!visibleProducts.length || railPaused || reducedMotion) return undefined;
-    queueNextStep(autoplayDelay);
-    return clearTimers;
-  }, [autoplayDelay, clearTimers, queueNextStep, railPaused, reducedMotion, visibleProducts.length]);
-
-  useEffect(() => () => clearTimers(), [clearTimers]);
-
-  const handlePointerDown = (event) => {
-    if (event.button != null && event.button !== 0) return;
-    const target = event.target;
-    if (target instanceof Element && target.closest("a,button,input,textarea,select,[role='button']")) return;
-    const viewport = railViewportRef.current;
-    if (!viewport || !visibleProducts.length) return;
-    dragStateRef.current = {
-      active: true,
-      moved: false,
-      startX: event.clientX,
-      startTranslateX: translateXRef.current,
-      pointerId: event.pointerId,
-    };
-    try {
-      viewport.setPointerCapture(event.pointerId);
-    } catch {
-      // noop
-    }
-    setRailPausedState(true);
-    clearTimers();
-  };
-
-  const handlePointerMove = (event) => {
-    if (!dragStateRef.current.active) return;
-    const delta = event.clientX - dragStateRef.current.startX;
-    if (Math.abs(delta) > 3) dragStateRef.current.moved = true;
-    setTrackPosition(dragStateRef.current.startTranslateX + delta, false);
-  };
-
-  const endPointerInteraction = (event) => {
-    if (!dragStateRef.current.active) return;
-    const viewport = railViewportRef.current;
-    if (viewport && dragStateRef.current.pointerId != null) {
-      try {
-        viewport.releasePointerCapture(dragStateRef.current.pointerId);
-      } catch {
-        // noop
-      }
-    }
-    if (dragStateRef.current.moved) {
-      const closestIndex = findClosestIndex();
-      const normalized = normalizeToMiddleCopy(closestIndex);
-      setCenteredIndex(normalized, true);
-    }
-    dragStateRef.current = { active: false, moved: false, startX: 0, startTranslateX: translateXRef.current, pointerId: null };
-    setRailPausedState(false);
-    clearTimers();
-    queueNextStep(autoplayDelay);
-  };
-
-  const handleClickCapture = (event) => {
-    if (!dragStateRef.current.moved) return;
-    event.preventDefault();
-    event.stopPropagation();
-    dragStateRef.current.moved = false;
-  };
-
-  const handleDotClick = (index) => {
-    if (!visibleProducts.length) return;
-    setRailPausedState(true);
-    clearTimers();
-    setCenteredIndex(loopStartIndex + index, true);
-    autoplayIndexRef.current = loopStartIndex + index;
-    setRailPausedState(false);
-    queueNextStep(autoplayDelay);
-  };
-
-  if (!loading && !visibleProducts.length) return null;
-
-  return (
-    <section className="sf-reveal mx-auto max-w-[1240px] px-4 py-7 md:py-10">
-      <div className={sectionTone}>
-        <div className="mb-5 flex items-end justify-between gap-3 text-right md:mb-7">
-          <div className="min-w-0">
-            <div className={`mb-1.5 text-[10px] font-black uppercase tracking-[0.18em] md:text-[11px] ${eyebrowClass}`}>{sfText("storefront.common.shopNow")}</div>
-            <h2 className={`text-[1.9rem] font-black tracking-tight md:text-[4rem] ${darkMode ? "text-stone-100" : "text-[#101010]"}`}>{title}</h2>
-            {subtitle ? <p className={`mt-1.5 text-xs font-bold leading-5 md:mt-2 md:text-base md:leading-6 ${darkMode ? "text-stone-400" : "text-[#475569]"}`}>{subtitle}</p> : null}
-            <div className={`mt-3 h-1 w-20 rounded-full bg-gradient-to-l ${toneConfig.line || "from-[#d4af37] to-[#f8e7b3]"}`} />
-          </div>
-          <Link to={viewAllTo} className={`mb-0.5 inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-full border px-4 py-2 text-xs font-black shadow-[0_14px_34px_rgba(39,20,75,0.09)] transition hover:-translate-y-0.5 active:scale-[0.98] md:min-h-12 md:px-6 ${darkMode ? "border-white/10 bg-white/5 text-stone-200 hover:bg-white hover:text-stone-950 dark:hover:bg-white dark:hover:text-stone-950" : "border-slate-300 bg-white text-[#101010] hover:border-[#d4af37]/50 hover:bg-white hover:text-[#101010]"} ${toneConfig.button || "hover:border-[#d4af37]/50"}`}>
-            {sfText("common.viewAll")}
-            <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
-          </Link>
-        </div>
-
-        <div
-          ref={railViewportRef}
-          dir={isRtl ? "rtl" : "ltr"}
-          className="relative w-full min-w-0 overflow-hidden pb-2 [touch-action:pan-y]"
-          onPointerEnter={() => setRailPausedState(true)}
-          onPointerLeave={() => {
-            setRailPausedState(false);
-            queueNextStep(autoplayDelay);
-          }}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={endPointerInteraction}
-          onPointerCancel={endPointerInteraction}
-          onClickCapture={handleClickCapture}
-        >
-          <div
-            ref={railTrackRef}
-            className="flex w-max min-w-full gap-[1.125rem] will-change-transform md:gap-5"
-            style={{
-              transform: `translate3d(${trackMotion.x}px, 0, 0)`,
-              transition: trackMotion.transition,
-            }}
-          >
-            {railItems.map(({ product, skeleton, key, index, repeatIndex }) => (
-              <div
-                key={key}
-                ref={(node) => {
-                  railCardRefs.current[index + repeatIndex * visibleProducts.length] = node;
-                }}
-                data-home-rail-card="true"
-                className="w-[82vw] max-w-[22rem] shrink-0 sm:w-[43vw] md:w-[19rem] xl:w-[20rem]"
-              >
-                {skeleton ? (
-                  <div className="h-56 animate-pulse rounded-[1.35rem] bg-white shadow-[0_12px_32px_rgba(39,20,75,0.06)] md:h-72 md:rounded-[1.75rem] dark:bg-white/5" />
-                ) : (
-                  <>
-                    <ProductCard
-                      product={product}
-                      wishlist={wishlist}
-                      toggleWishlist={toggleWishlist}
-                      onAddToCart={onAddToCart}
-                      railType={railType}
-                      rank={index + 1}
-                      density="compact"
-                      eagerImage
-                      imagePreset="small"
-                      saleModeEnabled={publicSaleModeEnabled}
-                    />
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {visibleProducts.length ? (
-          <div className="mt-4 flex items-center justify-center gap-2 md:hidden">
-            {visibleProducts.map((product, index) => {
-              const active = activeDotIndex === index;
-              return (
-                <button
-                  key={productIdentityKey(product, index)}
-                  type="button"
-                  aria-label={`Go to product ${index + 1}`}
-                  onClick={() => handleDotClick(index)}
-                  className={`h-2.5 rounded-full transition-all duration-300 ${active ? "w-8 bg-stone-950 dark:bg-white" : "w-2.5 bg-stone-300 dark:bg-white/30"}`}
-                />
-              );
-            })}
-          </div>
-        ) : null}
-      </div>
-    </section>
-  );
-}
-
-function HomeBrandsSection() {
-  const { i18n } = useTranslation();
-  const lang = i18n.language || "ar";
-  const { brands, loading } = useStorefrontBrands();
-  const visibleBrands = useMemo(() => (Array.isArray(brands) ? brands : []).filter((brand) => brand?.id && brand?.name && brand?.logo_url), [brands]);
-  const brandCount = visibleBrands.length;
-  const isSingleBrand = brandCount === 1;
-  const isDualBrand = brandCount === 2;
-  const sectionClassName = isSingleBrand
-    ? "mx-auto mt-8 max-w-3xl px-4 py-8 md:mb-8 md:py-8"
-    : "mx-auto mt-8 max-w-7xl px-4 py-3 md:mb-8 md:py-6";
-  const gridClassName = isDualBrand
-    ? "mx-auto grid max-w-5xl grid-cols-2 gap-5 md:gap-6"
-    : "grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5";
-  const cardClassName = isDualBrand
-    ? "flex h-36 items-center justify-center rounded-3xl border border-stone-200 bg-white px-6 py-5 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#d4af37]/40 group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] md:h-44 dark:border-white/10 dark:bg-white/[0.04]"
-    : isSingleBrand
-      ? "inline-flex w-fit max-w-none flex-col items-center justify-center rounded-[24px] border border-white/10 bg-white/[0.04] px-6 py-5 text-center shadow-sm transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#d4af37]/40 group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] dark:bg-white/[0.04]"
-      : "flex h-28 items-center justify-center rounded-2xl border border-stone-200 bg-white px-6 py-4 shadow-[0_10px_24px_rgba(39,20,75,0.05)] transition duration-200 group-hover:-translate-y-0.5 group-hover:border-[#d4af37]/40 group-hover:shadow-[0_16px_36px_rgba(0,0,0,0.08)] md:h-32 dark:border-white/10 dark:bg-white/[0.04]";
-  const logoClassName = isDualBrand
-    ? "max-h-24 max-w-[210px] object-contain md:max-h-[140px] md:max-w-[240px]"
-    : isSingleBrand
-      ? "max-w-full max-h-full object-contain"
-      : "max-h-24 md:max-h-28 object-contain";
-
-  if (loading && !visibleBrands.length) {
-    return (
-      <section className={sectionClassName} dir={normalizeLanguage(lang) === "ar" ? "rtl" : "ltr"}>
-        <div className="rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6">
-          <div className="mb-4 text-center">
-            <div className="mx-auto sf-skeleton-shimmer h-3 w-28 rounded-full bg-stone-200/80 dark:bg-white/[0.08]" />
-            <div className="mx-auto mt-3 sf-skeleton-shimmer h-8 w-44 rounded-[1rem] bg-stone-200/80 dark:bg-white/[0.08]" />
-          </div>
-          <div className={isSingleBrand ? "mx-auto flex max-w-[260px] justify-center" : gridClassName}>
-            {Array.from({ length: isSingleBrand ? 1 : isDualBrand ? 2 : 5 }).map((_, index) => (
-              <div
-                key={index}
-                className={`sf-skeleton-shimmer ${isSingleBrand ? "h-28 w-full rounded-[1.5rem]" : isDualBrand ? "h-36 rounded-3xl md:h-44" : "h-28 rounded-2xl md:h-32"} bg-stone-200/80 dark:bg-white/[0.08]`}
-              />
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
-  if (!visibleBrands.length) return null;
-
-  return (
-    <section className={sectionClassName} dir={normalizeLanguage(lang) === "ar" ? "rtl" : "ltr"}>
-      <div className="rounded-[2.15rem] border border-stone-200 bg-white px-4 py-5 shadow-[0_18px_54px_rgba(39,20,75,0.07)] dark:border-white/10 dark:bg-[linear-gradient(180deg,rgba(7,11,22,0.98),rgba(7,11,22,0.92))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.28)] md:px-5 md:py-6">
-        <div className="mb-4 text-center">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#d4af37] dark:text-[#f3d77a]">{sfText("storefront.home.brandsEyebrow")}</p>
-          <h2 className="mt-1 text-2xl font-black tracking-normal text-stone-950 dark:text-white md:text-3xl">العلامات التجارية</h2>
-        </div>
-        {isSingleBrand ? (
-          <div className="mx-auto flex w-fit justify-center">
-            {visibleBrands.map((brand) => {
-              const brandHref = `/?brand=${encodeURIComponent(brand.id || brand.slug)}`;
-              const brandName = brand.name || "";
-              return (
-                <Link
-                  key={brand.id || brand.slug || brand.name}
-                  to={brandHref}
-                  aria-label={brand.name}
-                  className="group mx-auto inline-flex w-fit max-w-none min-w-0"
-                >
-                  <span className={cardClassName}>
-                    <span className="flex h-[150px] w-[150px] items-center justify-center overflow-hidden rounded-[20px] bg-white sm:h-[170px] sm:w-[170px]">
-                      <img
-                        src={resolveProductImageUrl(brand.logo_url)}
-                        alt={brandName}
-                        className={logoClassName}
-                        loading="lazy"
-                        decoding="async"
-                        width="170"
-                        height="170"
-                      />
-                    </span>
-                    <div className="mt-4 text-lg font-black text-white">{brandName}</div>
-                    <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-[11px] font-black text-white/80">المزيد من العلامات التجارية</div>
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        ) : (
-          <div className={gridClassName}>
-            {visibleBrands.map((brand) => {
-              const brandHref = `/?brand=${encodeURIComponent(brand.id || brand.slug)}`;
-              const brandName = brand.name || "";
-              return (
-                <Link
-                  key={brand.id || brand.slug || brand.name}
-                  to={brandHref}
-                  aria-label={brand.name}
-                  className="group min-w-0"
-                >
-                  <span className={cardClassName}>
-                    <img
-                      src={resolveProductImageUrl(brand.logo_url)}
-                      alt={brandName}
-                      className={logoClassName}
-                      loading="lazy"
-                      decoding="async"
-                      width="220"
-                      height="112"
-                    />
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function QuickSellingStrips({ lang = "ar" }) {
-  const isRtl = normalizeLanguage(lang) === "ar";
-  return (
-    <section className="mx-auto max-w-[1200px] px-4 py-1.5 md:py-2" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="grid grid-cols-2 gap-2 pb-1 sm:grid sm:grid-cols-4 sm:gap-2 sm:overflow-visible sm:pb-0">
-        {homeSellingBadges.map((badge) => {
-          const Icon = badge.icon;
-          return (
-            <div key={badge.labelAr} className="flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-full border border-stone-200 bg-white/85 px-2.5 py-2 text-[10px] font-black leading-none text-stone-800 shadow-[0_10px_26px_rgba(39,20,75,0.05)] backdrop-blur dark:border-white/10 dark:bg-white/[0.055] dark:text-stone-100 sm:min-h-12 sm:gap-2 sm:px-4 sm:py-2.5 sm:text-sm">
-              <Icon className="h-3.5 w-3.5 shrink-0 text-[#d4af37] dark:text-[#f8e7b3] sm:h-4 sm:w-4" />
-              <span className="truncate">{isRtl ? badge.labelAr : badge.labelEn}</span>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
-function HomePage(props) {
-  const { i18n, t } = useTranslation();
-  const navigate = useNavigate();
-  const location = useLocation();
-  const [params] = useSearchParams();
-  const lang = i18n.language || "ar";
-  const themeMode = props.themeMode || "dark";
-  const [lastPieceOpen, setLastPieceOpen] = useState(false);
-  const brandFilter = params.get("brand") || "";
-  const storefrontHome = useStorefrontHome();
-  const { products, loading } = useProducts({ limit: 24 });
-  const { products: saleProducts, loading: saleLoading } = useProducts({ offer_story: 1, limit: 12 });
-
-  useEffect(() => {
-    if (!brandFilter || !isStorefrontHomePath(location.pathname)) return;
-    navigate(productsPath({ brand: brandFilter }), { replace: true });
-  }, [brandFilter, location.pathname, navigate]);
-
-  const merchProducts = useMemo(() => products.filter(isAvailableProduct), [products]);
-  const railProducts = useMemo(() => (merchProducts.length ? merchProducts : products), [merchProducts, products]);
-  const saleRailProducts = useMemo(() => saleProducts.filter(isAvailableProduct), [saleProducts]);
-  const saleFallback = useMemo(() => railProducts.filter(isOfferStory), [railProducts]);
-  const bestBase = useMemo(
-    () => uniqueProductsByIdentity([...railProducts].sort((a, b) => stockScore(b) - stockScore(a) || newestScore(b) - newestScore(a))),
-    [railProducts]
-  );
-  const freshBase = useMemo(
-    () => uniqueProductsByIdentity([...railProducts].sort((a, b) => newestScore(b) - newestScore(a))),
-    [railProducts]
-  );
-  const saleBase = useMemo(
-    () => uniqueProductsByIdentity([...(saleRailProducts.length ? saleRailProducts : saleProducts), ...saleFallback].filter(isOfferStory)),
-    [saleFallback, saleProducts, saleRailProducts]
-  );
-  const storefrontHomeProducts = useMemo(
-    () => uniqueProductsByIdentity((storefrontHome.collections || []).flatMap((collection) => collection.products || [])),
-    [storefrontHome.collections]
-  );
-  const showHomeProductSections = false;
-  const homepageProductPool = useMemo(
-    () => uniqueProductsByIdentity([...railProducts, ...storefrontHomeProducts, ...saleBase, ...saleProducts, ...freshBase, ...bestBase]),
-    [bestBase, freshBase, railProducts, saleBase, saleProducts, storefrontHomeProducts]
-  );
-  const homepageProductsWithImages = useMemo(
-    () => homepageProductPool.filter((product) => isAvailableProduct(product) && homeProductWithImage(product)),
-    [homepageProductPool]
-  );
-  const featuredCategoryProducts = useMemo(
-    () => homepageProductPool,
-    [homepageProductPool]
-  );
-  const homeSections = useMemo(() => {
-    const used = new Set();
-    const pick = ({ preferred = [], fallback = [], limit = 8, allowRepeatIfEmpty = false } = {}) => {
-      let selected = pickHomeProducts({ preferred, fallback, exclude: used, limit });
-      if (!selected.length && allowRepeatIfEmpty) {
-        selected = pickHomeProducts({ preferred, fallback, limit });
-      }
-      selected.forEach((product, index) => {
-        const key = productIdentityKey(product, index);
-        if (key) used.add(key);
-      });
-      return selected;
-    };
-
-    const popularPreferred = uniqueProductsByIdentity([...homepageProductPool]
-      .filter((product) => homeProductWithImage(product))
-      .sort((a, b) => popularScore(b) - popularScore(a) || newestScore(b) - newestScore(a)));
-    const newestPreferred = freshBase.filter((product) => homeProductWithImage(product));
-    const salePreferred = saleBase.filter((product) => isOfferStory(product) && homeProductWithImage(product));
-    const lastSizePreferred = homepageProductPool.filter((product) => isLastPieceProduct(product) && homeProductWithImage(product));
-    const trendingPreferred = bestBase.filter((product) => homeProductWithImage(product));
-
-    return {
-      mostPopular: pick({ preferred: popularPreferred, fallback: homepageProductsWithImages, limit: 8 }),
-      newArrivals: pick({ preferred: newestPreferred, fallback: [], limit: 8, allowRepeatIfEmpty: true }),
-      sale: pick({ preferred: salePreferred, fallback: [], limit: 8, allowRepeatIfEmpty: true }),
-      lastSizes: pick({ preferred: lastSizePreferred, fallback: [], limit: 8, allowRepeatIfEmpty: true }),
-      trending: pick({ preferred: trendingPreferred, fallback: homepageProductsWithImages, limit: 8, allowRepeatIfEmpty: true }),
-    };
-  }, [bestBase, freshBase, homepageProductPool, homepageProductsWithImages, saleBase]);
-
-  return (
-    <div className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0">
-      <MobileStoryCategories products={featuredCategoryProducts} lang={lang} themeMode={themeMode} />
-      <FeaturedCategoriesHero products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={themeMode} />
-      <QuickSellingStrips lang={lang} />
-      <ShopByMainCategories products={featuredCategoryProducts} lang={lang} loading={loading || storefrontHome.loading} themeMode={themeMode} />
-      {showHomeProductSections ? (
-        <>
-          <HomeProductSection title={sfText("storefront.nav.new")} subtitle={sfText("storefront.home.newSubtitle")} viewAllTo="/products?sort=newest" loading={loading || storefrontHome.loading} products={homeSections.newArrivals} railType="new" tone="new" {...props} />
-    <HomeProductSection title={sfText("storefront.nav.sale")} subtitle={sfText("storefront.home.saleSubtitle")} viewAllTo="/offers" loading={saleLoading && !homeSections.sale.length} products={homeSections.sale} railType="sale" tone="sale" {...props} />
-          <HomeProductSection title={sfText("storefront.home.lastSizes")} subtitle={sfText("storefront.home.productOfWeekEmpty")} viewAllTo="/products?lastSizes=true" loading={loading || storefrontHome.loading} products={homeSections.lastSizes} railType="last-size" tone="last" {...props} />
-          <HomeProductSection title={normalizeLanguage(lang) === "ar" ? "الأكثر طلبًا" : "Trending"} subtitle={normalizeLanguage(lang) === "ar" ? "اختيارات رائجة مع أحدث المنتجات كخيار بديل." : "Popular picks, with newest products as fallback."} viewAllTo="/products?sort=trending" loading={loading || storefrontHome.loading} products={homeSections.trending} railType="trending" tone="trending" {...props} />
-        </>
-      ) : null}
-      <Reviews />
-      <HomeBrandsSection />
-      <LastPieceFinder open={lastPieceOpen} onClose={() => setLastPieceOpen(false)} />
-    </div>
-  );
-}
 
 function PremiumHomePage(props) {
   const { i18n } = useTranslation();
@@ -3951,8 +2605,6 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
   const heroMobileTitle = heroCopy.mobileTitle || (isRtl ? "اكتشف أحدث الموديلات" : "Discover the latest models");
   const heroMobileSubtitle = heroCopy.mobileSubtitle || (isRtl ? "رجالي • حريمي • أطفال • كروكس" : "Men • Women • Kids • Crocs");
   const heroPrice = Number(heroSlide?.price || 0) > 0 ? money(heroSlide.price) : "";
-  const comparePrice = Number(heroSlide?.comparePrice || 0) > Number(heroSlide?.price || 0) ? money(heroSlide.comparePrice) : "";
-  const featureLine = heroSlide?.product?.name || heroCollection?.title || (isRtl ? "مختارات الموسم" : "Curated picks");
 
   return (
     <section className="mx-auto max-w-[1400px] px-4 pt-3 md:pt-8">
@@ -4466,276 +3118,7 @@ function SectionIntro({ eyebrow, title, subtitle, compact = false }) {
   );
 }
 
-function LastPieceFinder({ open, onClose }) {
-  const navigate = useNavigate();
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState("");
-  const [selectedSize, setSelectedSize] = useState("");
-  useBodyScrollLock(open);
-  const { loading, error, categories, sizes, products } = useLastPiece({
-    category: selectedCategory,
-    limit: 80,
-  }, {
-    enabled: open,
-  });
-  const criticalProducts = useMemo(() => (
-    (Array.isArray(products) ? products : [])
-      .map((product) => ({
-        ...product,
-        total_stock: productTotalStock(product),
-        variants: lastPieceProductVariants(product, 3),
-      }))
-      .filter((product) => isLastPieceProduct(product) && product.variants.length)
-      .sort((a, b) =>
-        productTotalStock(a) - productTotalStock(b) ||
-        sellableVariantStock(a.variants[0]) - sellableVariantStock(b.variants[0])
-      )
-  ), [products]);
-  const selectedCategoryProducts = useMemo(
-    () => selectedCategory ? criticalProducts.filter((product) => product.category === selectedCategory) : criticalProducts,
-    [criticalProducts, selectedCategory]
-  );
-  const eligibleLastPieceProducts = useMemo(
-    () => selectedCategoryProducts.filter(isLastPieceProduct),
-    [selectedCategoryProducts]
-  );
-  const sizeOptions = useMemo(() => {
-    const bySize = new Map();
-    eligibleLastPieceProducts.forEach((product) => {
-      (Array.isArray(product.variants) ? product.variants : []).forEach((variant) => {
-        const size = String(variant?.size || "").trim();
-        if (!size || sellableVariantStock(variant) <= 0) return;
-        bySize.set(size, size);
-      });
-    });
-    return Array.from(bySize.values()).sort((a, b) => {
-      const numericA = Number(a);
-      const numericB = Number(b);
-      const bothNumeric = Number.isFinite(numericA) && Number.isFinite(numericB);
-      return bothNumeric ? numericA - numericB : String(a).localeCompare(String(b), "ar", { numeric: true });
-    });
-  }, [eligibleLastPieceProducts]);
-  const displayedProducts = useMemo(() => {
-    const selectedCategoryEligibleProducts = selectedCategory
-      ? eligibleLastPieceProducts.filter((product) => product.category === selectedCategory)
-      : eligibleLastPieceProducts;
-    if (!selectedSize) return selectedCategoryEligibleProducts;
-    const targetSize = String(selectedSize || "").trim().toLowerCase();
-    return selectedCategoryEligibleProducts.filter((product) =>
-      (Array.isArray(product.variants) ? product.variants : []).some(
-        (variant) => String(variant?.size || "").trim().toLowerCase() === targetSize && sellableVariantStock(variant) > 0
-      )
-    );
-  }, [eligibleLastPieceProducts, selectedCategory, selectedSize]);
-  const displayedCategories = useMemo(() => {
-    const byCategory = new Map();
-    criticalProducts.forEach((product) => {
-      const label = product.category || product.category_name || product.product_type || "";
-      if (!label) return;
-      const current = byCategory.get(label) || { label, count: 0, products: [] };
-      current.count += 1;
-      current.products.push(product);
-      byCategory.set(label, current);
-    });
-    const rawOrder = (Array.isArray(categories) ? categories : []).map((category) => category.label).filter(Boolean);
-    return Array.from(byCategory.values()).sort((a, b) => {
-      const orderA = rawOrder.indexOf(a.label);
-      const orderB = rawOrder.indexOf(b.label);
-      if (orderA !== -1 || orderB !== -1) return (orderA === -1 ? 999 : orderA) - (orderB === -1 ? 999 : orderB);
-      return String(a.label).localeCompare(String(b.label), "ar");
-    });
-  }, [categories, criticalProducts]);
-  const step = selectedSize ? "products" : selectedCategory ? "sizes" : "categories";
-  const title = step === "categories" ? "اختيار الفئة" : step === "sizes" ? "اختيار المقاس" : `${selectedCategory} / ${selectedSize}`;
 
-  useEffect(() => {
-    if (!open) {
-      let cancelled = false;
-      deferReactState(() => {
-        if (cancelled) return;
-        setSelectedCategory("");
-        setSelectedSize("");
-        setIsNavigating(false);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-    return undefined;
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, onClose]);
-
-  if (!open || isNavigating) return null;
-
-  const openProduct = (product, variant) => {
-    const url = lastPieceProductUrl(product, variant);
-    setIsNavigating(true);
-    setSelectedCategory("");
-    setSelectedSize("");
-    onClose();
-    requestAnimationFrame(() => navigate(url));
-  };
-
-  const goBack = () => {
-    if (selectedSize) {
-      setSelectedSize("");
-      return;
-    }
-    if (selectedCategory) setSelectedCategory("");
-  };
-
-  return (
-    <div className="fixed inset-0 z-[70] bg-stone-950 text-white">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_24%_18%,rgba(245,158,11,0.20),transparent_30%),radial-gradient(circle_at_82%_22%,rgba(168,85,247,0.18),transparent_34%),linear-gradient(180deg,#11100d_0%,#1c1917_48%,#050505_100%)]" />
-      <div className="pointer-events-none absolute inset-x-4 top-3 z-10 flex gap-1.5">
-        {["categories", "sizes", "products"].map((item) => (
-          <span key={item} className={`h-1 flex-1 overflow-hidden rounded-full bg-white/18 ${step === item ? "after:block after:h-full after:animate-[sfStoryProgress_5.5s_linear_forwards] after:rounded-full after:bg-[#f8e7b3]" : ""}`} />
-        ))}
-      </div>
-      <div dir="rtl" className="relative z-10 mx-auto flex h-dvh max-w-2xl flex-col overflow-hidden px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[calc(1.35rem+env(safe-area-inset-top))]">
-        <div className="flex shrink-0 items-center justify-between gap-3 py-3">
-          <button onClick={selectedCategory ? goBack : onClose} className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/10 text-white backdrop-blur transition active:scale-95" aria-label={sfText("storefront.common.back")}>
-            {selectedCategory ? <ChevronLeft className="h-5 w-5 rotate-180" /> : <X className="h-5 w-5" />}
-          </button>
-          <div className="min-w-0 text-center">
-            <p className="text-[11px] font-black uppercase tracking-[0.2em] text-[#f8e7b3]">منتجات محددة</p>
-            <h2 className="mt-1 truncate text-2xl font-black">{title}</h2>
-          </div>
-          <button onClick={onClose} className="grid h-11 w-11 place-items-center rounded-full border border-white/12 bg-white/10 text-white backdrop-blur transition active:scale-95" aria-label={sfText("storefront.common.close")}>
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden pb-2">
-          {loading && step !== "products" ? (
-            <div className="grid h-full place-items-center text-center">
-              <div>
-                <div className="mx-auto h-14 w-14 animate-pulse rounded-full border border-[#f8e7b3]/35 bg-[#f8e7b3]/10" />
-                <p className="mt-4 text-sm font-black text-white/70">{sfText("storefront.products.checkingLiveStock")}</p>
-              </div>
-            </div>
-          ) : error ? (
-            <div className="mt-10 rounded-[1.5rem] border border-rose-300/20 bg-rose-500/10 p-5 text-center font-black text-rose-100">{error}</div>
-          ) : null}
-
-          {!loading && !error && step === "categories" ? (
-            <div className="grid grid-cols-2 gap-2 pt-3 sm:gap-3 sm:pt-5">
-              {displayedCategories.map((category) => {
-                const visual = { icon: <ShoppingBag className="h-4 w-4 sm:h-6 sm:w-6" />, text: "منتجات مميزة" };
-                return (
-                  <button
-                    key={category.label}
-                    onClick={() => setSelectedCategory(category.label)}
-                    className="group relative min-h-[112px] overflow-hidden rounded-[1rem] border border-white/12 bg-[linear-gradient(180deg,#0b0f19,#151515)] p-3 text-right shadow-[0_16px_42px_rgba(0,0,0,0.22)] backdrop-blur transition duration-300 active:scale-[0.98] sm:min-h-36 sm:rounded-[1.65rem] sm:p-5"
-                  >
-                    <span className="absolute inset-y-0 left-0 w-1/2 bg-[radial-gradient(circle_at_30%_50%,rgba(212,175,55,0.12),transparent_48%)] opacity-80" />
-                    <span className="relative flex h-full flex-col justify-between gap-2 sm:flex-row sm:items-center sm:gap-4">
-                      <span>
-                        <span className="grid h-9 w-9 place-items-center rounded-full bg-[#d4af37] text-stone-950 shadow-[0_10px_26px_rgba(212,175,55,0.18)] sm:h-12 sm:w-12">{visual.icon}</span>
-                        <span className="mt-2 block text-lg font-black leading-5 sm:mt-4 sm:text-3xl">{category.label}</span>
-                        <span className="mt-0.5 block text-[10.5px] font-bold leading-4 text-white/58 sm:mt-1 sm:text-sm sm:leading-5">منتجات محددة</span>
-                      </span>
-                      <span className="w-fit rounded-full border border-white/12 bg-white/10 px-2 py-1 text-[10px] font-black text-[#f8e7b3] sm:px-3 sm:text-xs">{category.count} منتج</span>
-                    </span>
-                  </button>
-                );
-              })}
-              {!displayedCategories.length ? <LastPieceEmpty text="لا توجد نتائج مطابقة" /> : null}
-            </div>
-          ) : null}
-
-          {!loading && !error && step === "sizes" ? (
-            <div className="pt-7">
-              <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
-                {sizeOptions.map((size) => (
-                  <button
-                    key={size}
-                    onClick={() => setSelectedSize(size)}
-                    className="min-h-16 rounded-2xl border border-[#f8e7b3]/18 bg-white/[0.08] text-xl font-black text-white shadow-[0_14px_34px_rgba(0,0,0,0.18)] backdrop-blur transition hover:border-[#f8e7b3]/45 hover:bg-[#f8e7b3]/12 active:scale-95"
-                  >
-                    {size}
-                  </button>
-                ))}
-              </div>
-              {!sizeOptions.length ? <LastPieceEmpty text="لا توجد نتائج مطابقة" /> : null}
-            </div>
-          ) : null}
-
-          {step === "products" ? (
-            <div className="grid gap-3 pt-4">
-              {loading ? <ProductSkeleton count={3} /> : displayedProducts.map((product, index) => (
-                (() => {
-                  const remainingStock = productTotalStock(product);
-                  const variant = lastPieceMatchingVariant(product, selectedSize);
-                  const sellingPrice = displayLastPieceSellingPrice(product, variant);
-                  const rawComparePrice = displayComparePrice(product, variant);
-                  const comparePrice = rawComparePrice > sellingPrice ? rawComparePrice : 0;
-                  const discountPercent = comparePrice > sellingPrice ? Math.max(1, Math.round(((comparePrice - sellingPrice) / comparePrice) * 100)) : 0;
-                  return (
-                    <article key={productCardKey(product, index)} className={`overflow-hidden rounded-[1.45rem] border backdrop-blur ${lowStockUrgencyClass(remainingStock)}`}>
-                      <button onClick={() => openProduct(product, variant)} className="grid w-full grid-cols-[8.5rem_1fr] gap-3 p-3 text-right sm:grid-cols-[11rem_1fr]">
-                        <span className="relative aspect-[4/5] overflow-hidden rounded-[1.15rem] bg-white/8">
-                          <img src={imageFor(variant?.image_url || product.image_url)} onError={fallbackProductImage} alt={product.name} className="h-full w-full object-contain p-2" loading="lazy" decoding="async" width="176" height="220" />
-                          <span className={`absolute right-2 top-2 rounded-full px-2.5 py-1 text-[10px] font-black ${lowStockPillClass(remainingStock)}`}>{lowStockLabel(remainingStock)}</span>
-                        </span>
-                        <span className="flex min-w-0 flex-col py-1">
-                          <span className="line-clamp-2 text-lg font-black leading-6">{product.name}</span>
-                          <span className="mt-1 text-xs font-black text-[#f8e7b3]">{lowStockText(remainingStock)}</span>
-                          <span className="mt-2 flex flex-wrap gap-1.5 text-[11px] font-black">
-                            {product.variants.map((item) => {
-                              const stock = sellableVariantStock(item);
-                              const summary = [item.color, item.size ? `Size ${item.size}` : ""].filter(Boolean).join(" / ");
-                              return (
-                                <span key={item.id || `${item.color}-${item.size}`} className="rounded-full border border-amber-200/20 bg-amber-400/10 px-2.5 py-1 text-amber-100">
-                                  {summary || "Unspecified"} / {stock > 0 ? `${stock} in stock` : "Out of stock"}
-                                </span>
-                              );
-                            })}
-                          </span>
-                          <span className="mt-auto pt-4">
-                            <span className="flex flex-wrap items-end gap-2">
-                              <span className="text-xl font-black">{money(sellingPrice)}</span>
-                              {comparePrice ? <span className="text-xs font-bold text-white/42 line-through">{money(comparePrice)}</span> : null}
-                              {discountPercent ? <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black text-stone-950">-{discountPercent}%</span> : null}
-                            </span>
-                            <span className="mt-3 grid grid-cols-2 gap-2">
-                              <span className="rounded-full border border-white/14 bg-white/10 px-3 py-2 text-center text-xs font-black">{sfText("storefront.cart.reserveProduct")}</span>
-                              <span className="sf-shimmer-button rounded-full bg-[#f8e7b3] px-3 py-2 text-center text-xs font-black text-stone-950">{sfText("storefront.cart.orderNow")}</span>
-                            </span>
-                          </span>
-                        </span>
-                      </button>
-                    </article>
-                  );
-                })()
-              ))}
-              {!loading && !displayedProducts.length ? <LastPieceEmpty text="No products found. Try another filter." /> : null}
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LastPieceEmpty({ text }) {
-  return (
-    <div className="mt-8 rounded-[1.5rem] border border-white/12 bg-white/[0.08] p-6 text-center backdrop-blur">
-      <Sparkles className="mx-auto h-7 w-7 text-[#f8e7b3]" />
-      <p className="mt-3 text-sm font-black text-white/70">{text}</p>
-    </div>
-  );
-}
 
 function OfferStoryEmptyState({ title, text, actionLabel, onAction }) {
   return (
@@ -4775,12 +3158,11 @@ function OfferStoryBubble({ label, count, active, onClick, compact = false }) {
   );
 }
 
-function OfferStorySlide({ storyItem, index, total, selectedSize, lang, onPrev, onNext, onViewProduct, onTouchStart, onTouchEnd }) {
+function OfferStorySlide({ storyItem, selectedSize, onViewProduct, onTouchStart, onTouchEnd }) {
   const product = storyItem || {};
   const variant = storyItem?.storyVariant || offerStoryMatchingVariant(product, selectedSize);
   const imageSrc = storyItem?.image || variantImage(variant) || imageFor(product.image_url || product.image || product.gallery_images?.[0] || "");
   const sizeChips = Array.isArray(storyItem?.sizes) && storyItem.sizes.length ? storyItem.sizes : extractOfferSizes(product);
-  const stock = Number(variant?.stock || 0) || productStock(product);
   const priceInfo = offerStoryPriceInfo(product);
   return (
     <div
@@ -4979,7 +3361,7 @@ function OfferStoryViewer() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [navigate, stage, storyProducts.length]);
 
-  const goPrev = () => {
+  const goPrev = useCallback(() => {
     if (stage === "size") return navigate("/");
     if (stage === "type") return setSelectedSize("");
     setCurrentIndex((index) => {
@@ -4988,9 +3370,9 @@ function OfferStoryViewer() {
       if (!total) return 0;
       return (index - 1 + total) % total;
     });
-  };
+  }, [navigate, stage, storyProducts.length]);
 
-  const goNext = () => {
+  const goNext = useCallback(() => {
     if (stage === "size" || stage === "type") return;
     setCurrentIndex((index) => {
       const total = storyProducts.length;
@@ -4998,7 +3380,7 @@ function OfferStoryViewer() {
       if (!total) return 0;
       return (index + 1) % total;
     });
-  };
+  }, [stage, storyProducts.length]);
 
   const handleTouchStart = (event) => {
     touchStartXRef.current = event.changedTouches?.[0]?.screenX ?? 0;
@@ -5805,7 +4187,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandTagline = "", brandLogoUrl = "", quickActionLinks = {}, mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
+function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandLogoUrl = "", mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
   const { i18n: storefrontI18n, t } = useTranslation();
   const brandInitials = resolveBrandInitials(brandName);
   const [search, setSearch] = useState("");
@@ -5826,13 +4208,9 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     fileType: "",
   });
   const [imageSearchOpen, setImageSearchOpen] = useState(false);
-  const imageSearchResults = visualSearch;
-  const setImageSearchResults = setVisualSearch;
   const [placeholderIndex, setPlaceholderIndex] = useState(0);
   const [recentSearches, setRecentSearches] = useState(() => readJson(SEARCH_RECENT_KEY, []));
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
-  const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
   const [isCompact, setIsCompact] = useState(false);
   const [announcementIndex, setAnnouncementIndex] = useState(0);
   const visualPreviewUrlRef = useRef("");
@@ -5885,14 +4263,6 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     { label: t("storefront.header.wishlist"), to: "/wishlist", icon: <Heart className="h-3.5 w-3.5" /> },
     { label: t("storefront.header.account"), to: "/account", icon: <User className="h-3.5 w-3.5" /> },
   ];
-  const navItems = [
-    { label: t("storefront.nav.categories"), to: "/products" },
-    { label: t("storefront.nav.sale"), to: "/offers" },
-    { label: t("storefront.nav.new"), to: "/products?sort=new" },
-    { label: t("storefront.nav.men"), to: "/products?gender=men" },
-    { label: t("storefront.nav.women"), to: "/products?gender=women" },
-    { label: t("storefront.nav.kids"), to: "/products?gender=kids" },
-  ];
   const themeIsDark = effectiveTheme === "dark";
   const headerShellClassName = [
     "sf-luxury-header sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent",
@@ -5935,7 +4305,6 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     };
   }, [menuOpen]);
 
-  const openMobileMenu = useCallback(() => setMobileMenuOpen(true), [setMobileMenuOpen]);
   const closeMobileMenu = useCallback(() => {
     setMobileMenuOpen(false);
     setMobileSearchOpen(false);
@@ -6131,7 +4500,6 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
         event.target.value = "";
         return;
       }
-      const label = file.name.replace(/\.[^.]+$/, "") || "Untitled";
       if (visualPreviewUrlRef.current) URL.revokeObjectURL(visualPreviewUrlRef.current);
       const previewUrl = URL.createObjectURL(file);
       visualPreviewUrlRef.current = previewUrl;
@@ -6154,7 +4522,7 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
       setMobileSearchOpen(true);
       const formData = new FormData();
       formData.append("image", selectedVisualImageRef.current);
-      const tenantId = resolveStorefrontTenantId();
+      const tenantId = document.documentElement.dataset.tenantId || "1";
       formData.append("tenant_id", tenantId);
       const endpoint = "/storefront/image-search";
       try {
@@ -6223,24 +4591,6 @@ function Header({ cartCount, wishlistCount, onCart, onAddToCart, effectiveTheme,
     window.open(buildWhatsAppHref("عايز أطلب توفير الموديل ده لو متاح"), "_blank", "noopener,noreferrer");
   }, []);
 
-  const toggleNotifications = () => {
-    setNotificationsOpen((value) => {
-      const next = !value;
-      if (next && notifications.length === 0) {
-        const { token } = readStorefrontCustomerAuth();
-        if (token) {
-          storefrontCustomerRequest("/storefront/notifications", { params: { limit: 20 } })
-            .then((data) => setNotifications(data.notifications || []))
-            .catch(() => setNotifications([]));
-        } else {
-          cachedStorefrontGet("/storefront/notifications", { ttlMs: 30 * 1000 })
-            .then((data) => setNotifications(data.notifications || []))
-            .catch(() => setNotifications([]));
-        }
-      }
-      return next;
-    });
-  };
 
   const switchLanguage = async () => {
     persistApplicationLanguage(nextLanguage);
@@ -6556,7 +4906,6 @@ function PremiumSearch({
   onClose,
   open,
   mobileOpen,
-  setMobileOpen,
   placeholder,
   suggestions = [],
   loading = false,
@@ -6895,7 +5244,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
 const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProduct = null, colorOptions: providedColorOptions = null, selectedColor: providedSelectedColor = "", selectedVariant: providedSelectedVariant = null, availableSizes: providedAvailableSizes = null, wishlist, toggleWishlist, onAddToCart, saleModeEnabled, railType = "default", rank = null, featured = false, density = "standard", sizeLimit = 4, eagerImage = false, imagePreset = "grid" }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const product = groupedProduct || rawProduct || {};
+  const product = useMemo(() => groupedProduct || rawProduct || {}, [groupedProduct, rawProduct]);
   const cardRef = useRef(null);
   const primaryImageRef = useRef(null);
   const variants = useMemo(() => {
@@ -6981,7 +5330,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     return () => {
       cancelled = true;
     };
-  }, [firstAvailableVariant?.id, product.id, providedSelectedColor, providedSelectedVariant]);
+  }, [firstAvailableVariant, product.id, providedSelectedColor, providedSelectedVariant]);
   useEffect(() => {
     setSecondaryImageReady(false);
     setSecondaryFlashActive(false);
@@ -7056,7 +5405,6 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
     [quickAddSizeOptions, quickAddVariantId]
   );
   const quickAddMaxQty = Math.max(1, Number(quickAddSelectedVariant?.stock || 1));
-  const quickAddSafeQty = Math.min(Math.max(1, Number(quickAddQty || 1)), quickAddMaxQty);
   const canQuickAdd = sellableVariants.length > 0;
   const openVariantSheet = useCallback(() => {
     const nextGroup = colorGroups.length === 1 ? colorGroups[0] : null;
@@ -7414,7 +5762,6 @@ function ProductCardVariantSheet({
 }) {
   const { t } = useTranslation();
   useBodyScrollLock(open);
-  if (!open) return null;
   const activeGroup = useMemo(
     () => colorGroups.find((group) => String(group.key) === String(selectedColorKey)) || (colorGroups.length === 1 ? colorGroups[0] : null),
     [colorGroups, selectedColorKey]
@@ -7454,6 +5801,8 @@ function ProductCardVariantSheet({
       onVariantChange(nextVariantId);
     }
   }, [availableSizeOptions, onVariantChange, selectedVariantId]);
+
+  if (!open) return null;
 
   return createPortal(
     <div dir="rtl" className="sf-product-variant-sheet fixed inset-0 z-[120] flex items-end justify-center pointer-events-auto md:items-center" role="dialog" aria-modal="true">
@@ -7627,7 +5976,6 @@ function ProductDetailsVariantSheet({
   variant,
   colors = [],
   selectedColorKey,
-  selectedSize,
   quantity = 1,
   action = "cart",
   onClose,
@@ -7754,9 +6102,9 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     order_notes: "",
   });
   const [shippingPaymentFile, setShippingPaymentFile] = useState(null);
-  const [shippingPaymentPreviewUrl, setShippingPaymentPreviewUrl] = useState("");
+  const [, setShippingPaymentPreviewUrl] = useState("");
   const [errors, setErrors] = useState({});
-  const [customerTrust, setCustomerTrust] = useState({ loading: false, customer: null });
+  const [, setCustomerTrust] = useState({ loading: false, customer: null });
   const [summaryOpen, setSummaryOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [checkoutStep, setCheckoutStep] = useState(() => {
@@ -7795,8 +6143,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   const discount = couponDiscount;
   const deliveryFee = form.governorate ? shippingQuote.price : 0;
   const total = Math.max(0, subtotal - discount + deliveryFee);
-  const isDamietta = ["ط·آ·ط¢آ¯ط·آ¸أ¢â‚¬آ¦ط·آ¸ط¸آ¹ط·آ·ط¢آ§ط·آ·ط¢آ·", "ط·آ·ط¢آ¯ط·آ¸أ¢â‚¬آ¦ط·آ¸ط¸آ¹ط·آ·ط¢آ§ط·آ·ط¢آ·"].some((name) => String(form.governorate || "").includes(name));
-  const trustedCustomer = customerTrust.customer || {};
   const codAvailable = shippingQuote.cod_allowed !== false;
   const normalizedFormPaymentMethod = paymentMode === "cod" ? "cod" : "shipping_confirmation";
   const isShippingConfirmation = paymentMode === "electronic";
@@ -7817,13 +6163,6 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
         : t("storefront.checkout.actions.confirmOrder");
   const codAmount = normalizedFormPaymentMethod === "cod" ? total : Math.max(0, total - deliveryFee);
   const storefrontPaymentSettings = useMemo(() => normalizeStorefrontPaymentSettings(publicStoreSettings), [publicStoreSettings]);
-  const storefrontBrandSettings = useMemo(() => ({
-    brandName: resolveStorefrontBrandName(publicStoreSettings),
-    brandTagline: String(publicStoreSettings["storefront.store_tagline"] || "").trim(),
-    brandLogoUrl: resolveStorefrontBrandLogoUrl(publicStoreSettings),
-  }), [publicStoreSettings]);
-  const paymentMethods = useMemo(() => getPaymentMethods(storefrontPaymentSettings), [storefrontPaymentSettings]);
-  const paymentCopy = paymentMethods.find((method) => method.id === normalizedFormPaymentMethod)?.text || "";
   const locationGovernorates = useMemo(() => uniqueCheckoutLocations(shippingLocations, "governorate_id"), [shippingLocations]);
   const locationCities = useMemo(() => uniqueCheckoutLocations(shippingLocations, "city_id", (item) => !form.governorate_id || item.governorate_id === form.governorate_id), [shippingLocations, form.governorate_id]);
   const locationAreas = useMemo(() => uniqueCheckoutLocations(shippingLocations, "area_id", (item) => !form.city_id || item.city_id === form.city_id), [shippingLocations, form.city_id]);
@@ -8288,7 +6627,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     return () => {
       cancelled = true;
     };
-  }, [form.primary_phone]);
+  }, [form.primary_phone, profile.customer_email, profile.email]);
 
   useEffect(() => {
     if (checkoutStep !== 2) return undefined;
@@ -8633,8 +6972,8 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
     const composedAddress = [
       form.street_address || form.detailed_address,
       form.building_number ? `Building ${form.building_number}` : "",
-      form.floor_number ? `ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ·ط¢آ·ط·آ¢ط¢آ¯ط·آ·ط¢آ¸ط·آ«أ¢â‚¬آ ط·آ·ط¢آ·ط·آ¢ط¢آ± ${form.floor_number}` : "",
-      form.apartment_number ? `ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ·ط¢آ·ط·آ¢ط¢آ´ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ·ط¢آ·ط·آ¢ط¢آ© ${form.apartment_number}` : "",
+      form.floor_number ? `Floor ${form.floor_number}` : "",
+      form.apartment_number ? `Apartment ${form.apartment_number}` : "",
       form.landmark ? `Near ${form.landmark}` : "",
     ].filter(Boolean).join(", ");
 
@@ -9229,12 +7568,11 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
   );
 }
 
-function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "" }) {
+function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "" }) {
   const { t } = useTranslation();
   const { orderNumber } = useParams();
   const location = useLocation();
   const [params] = useSearchParams();
-  const darkMode = themeMode === "dark";
   const decodedOrderNumber = decodeURIComponent(orderNumber || "");
   const phone = params.get("phone") || profile.primary_phone || location.state?.customer?.phone || "";
   const message = useMemo(() => pickSuccessMessage(decodedOrderNumber || phone), [decodedOrderNumber, phone]);
@@ -9262,7 +7600,7 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
       .catch(() => undefined);
   }, [decodedOrderNumber, phone, loaded?.order]);
 
-  const order = loaded?.order || {};
+  const order = useMemo(() => loaded?.order || {}, [loaded?.order]);
   const brandedOrder = useMemo(() => ({
     ...order,
     company_name: brandName || order.company_name || order.store?.name || "MONE",
@@ -9339,7 +7677,7 @@ function OrderSuccess({ profile, themeMode, brandName = "MONE", brandLogoUrl = "
       </div>
       {products.length ? (
         <div className="mt-6">
-          <ProductRail title={t("storefront.nav.new")} subtitle={t("storefront.success.recommendedProducts")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} saleModeEnabled={publicSaleModeEnabled} />
+          <ProductRail title={t("storefront.nav.new")} subtitle={t("storefront.success.recommendedProducts")} products={products} loading={false} railType="new" wishlist={[]} toggleWishlist={() => undefined} onAddToCart={() => undefined} saleModeEnabled={storefrontSalePricesEnabled} />
         </div>
       ) : null}
     </section>
@@ -9407,260 +7745,6 @@ function FaqPage() {
   return <StaticPage title={sfText("storefront.faq.title")} items={items} />;
 }
 
-function ContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
-  const settings = publicStoreSettings || {};
-  const firstValue = (...keys) => keys.map((key) => String(settings[key] || "").trim()).find(Boolean) || "";
-  const normalizeUrl = (value, fallback = "") => {
-    const raw = String(value || "").trim();
-    if (!raw) return fallback;
-    if (/^(https?:|mailto:|tel:|whatsapp:)/i.test(raw) || raw.startsWith("/")) return raw;
-    return fallback;
-  };
-  const normalizePhoneHref = (value, fallback = "") => {
-    const raw = String(value || "").trim();
-    const digits = raw.replace(/\D/g, "");
-    return digits ? `tel:${digits}` : fallback;
-  };
-  const phoneNumber = firstValue(
-    "storefront.phone",
-    "storefront.contact_phone",
-    "general.phone",
-    "company.phone",
-    "contact.phone",
-    "phone",
-    "support.phone",
-  ) || "01000000000";
-  const phoneHref = normalizePhoneHref(phoneNumber, `tel:${phoneNumber.replace(/\D/g, "") || "01000000000"}`);
-  const whatsappNumber = firstValue(
-    "storefront.whatsapp_phone",
-    "storefront.whatsapp_url",
-    "storefront.whatsapp_link",
-    "storefront.support_whatsapp",
-    "general.whatsapp_phone",
-    "general.whatsapp",
-    "company.whatsapp",
-    "company.whatsapp_phone",
-    "support.whatsapp",
-    "contact.whatsapp",
-    "whatsapp",
-  ) || "";
-  const whatsappHref = quickActionLinks.whatsappHref || normalizeUrl(whatsappNumber, `https://wa.me/${whatsappNumber.replace(/\D/g, "")}`);
-  const instagramUsername = firstValue(
-    "storefront.instagram_username",
-    "storefront.instagram",
-    "company.instagram_username",
-    "social.instagram_username",
-    "instagram_username",
-  ) || "@m1store_egy";
-  const instagramHref = normalizeUrl(
-    firstValue(
-      "storefront.instagram_url",
-      "storefront.instagram_link",
-      "company.instagram_url",
-      "social.instagram_url",
-      "instagram_url",
-    ),
-    `https://www.instagram.com/${String(instagramUsername).replace(/^@/, "")}`,
-  );
-  const facebookPage = firstValue(
-    "storefront.facebook_page_name",
-    "storefront.facebook_name",
-    "company.facebook_page_name",
-    "social.facebook_page_name",
-    "facebook_page_name",
-  ) || "M1 Store";
-  const facebookHref = normalizeUrl(
-    firstValue(
-      "storefront.facebook_url",
-      "storefront.facebook_link",
-      "company.facebook_url",
-      "social.facebook_url",
-      "facebook_url",
-    ),
-    "https://www.facebook.com/share/1DmN6zj29g/?mibextid=wwXIfr",
-  );
-  const address = firstValue("address", "storeAddress", "store_address", "publicAddress", "public_address", "storefront.address", "company.address") || "القاهرة، مصر";
-  const mapHref = quickActionLinks.galleryHref || normalizeUrl(
-    firstValue(
-      "storefront.map_url",
-      "storefront.google_map_url",
-      "storefront.location_url",
-      "storefront.location_link",
-      "storefront.store_location_url",
-      "storefront.address_url",
-      "general.map_url",
-      "general.google_map_url",
-      "company.map_url",
-      "company.google_maps_url",
-      "company.location_url",
-      "map_url",
-      "google_map_url",
-      "location_url",
-    ),
-    "/contact",
-  );
-  const weekdayHours = firstValue(
-    "storefront.weekday_hours",
-    "storefront.working_hours_weekday",
-    "working_hours_weekday",
-    "working_hours",
-    "business_hours",
-    "storefront.working_hours",
-  ) || "السبت - الخميس: 10:00 ص - 10:00 م";
-  const weekendHours = firstValue(
-    "storefront.weekend_hours",
-    "storefront.working_hours_weekend",
-    "working_hours_weekend",
-  ) || "الجمعة: 2:00 م - 10:00 م";
-
-  const contactCards = [
-    {
-      id: "phone",
-      title: sfText("storefront.contact.phone"),
-      icon: Phone,
-      value: phoneNumber,
-      meta: "اتصال مباشر بفريق المتجر",
-      href: phoneHref,
-      cta: "اتصال الآن",
-      accent: "gold",
-    },
-    {
-      id: "whatsapp",
-      title: sfText("storefront.support.whatsapp", "واتساب"),
-      icon: MessageCircle,
-      value: whatsappNumber || "wa.me",
-      meta: sfText("storefront.contact.whatsappHint"),
-      href: whatsappHref,
-      cta: "مراسلة واتساب",
-      accent: "green",
-      external: true,
-    },
-    {
-      id: "instagram",
-      title: "Instagram",
-      icon: Camera,
-      value: instagramUsername,
-      meta: "آخر الموديلات والعروض",
-      href: instagramHref,
-      cta: "فتح الحساب",
-      accent: "gold",
-      external: true,
-    },
-    {
-      id: "facebook",
-      title: "Facebook",
-      icon: ExternalLink,
-      value: facebookPage,
-      meta: "تابع آخر التحديثات",
-      href: facebookHref,
-      cta: "زيارة الصفحة",
-      accent: "gold",
-      external: true,
-    },
-  ];
-
-  return (
-    <section className="mx-auto w-full max-w-6xl bg-[#050505] px-4 py-6 text-white md:px-6 md:py-10" dir="rtl">
-      <div className="mb-6 flex flex-col gap-3 md:mb-8 md:flex-row md:items-end md:justify-between">
-        <div className="max-w-2xl">
-          <p className="text-xs font-black uppercase tracking-[0.24em] text-[#D4AF37]/85">M1 Store</p>
-          <h1 className="mt-2 text-3xl font-black tracking-tight text-white md:text-5xl">{sfText("storefront.contact.title")}</h1>
-          <p className="mt-3 text-sm font-medium leading-7 text-slate-400 md:text-base">
-            {sfText("storefront.contact.whatsappHint")}
-          </p>
-        </div>
-        <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[rgba(255,255,255,0.08)] bg-[#101010] px-4 py-2 text-xs font-black text-slate-200 shadow-[0_12px_30px_rgba(0,0,0,0.24)]">
-          <Sparkles className="h-4 w-4 text-[#D4AF37]" />
-          دعم سريع وتجربة فاخرة
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        {contactCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <article
-              key={card.id}
-              className="group rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[#101010] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-[rgba(212,175,55,0.26)] hover:shadow-[0_24px_60px_rgba(0,0,0,0.34)] active:translate-y-0 active:scale-[0.99]"
-            >
-              <div className="flex items-start gap-4">
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37] shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-                  <Icon className="h-5 w-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h2 className="text-lg font-black text-white">{card.title}</h2>
-                  <p className="mt-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">{card.meta}</p>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(2,6,23,0.34)] p-4">
-                <div className="text-sm font-semibold text-slate-400">{card.id === "whatsapp" ? "الرقم" : card.id === "instagram" ? "الاسم" : card.id === "facebook" ? "الصفحة" : "الرقم"}</div>
-                <div className="mt-1 text-lg font-black leading-7 text-white break-words">{card.value}</div>
-              </div>
-
-              <a
-                href={card.href}
-                target={card.external ? "_blank" : undefined}
-                rel={card.external ? "noreferrer" : undefined}
-                className={`mt-4 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full border px-4 py-3 text-sm font-black transition duration-200 active:scale-[0.98] ${card.accent === "green" ? "border-emerald-400/20 bg-emerald-500 text-white shadow-[0_16px_36px_rgba(16,185,129,0.24)] hover:bg-emerald-400" : "border-[rgba(212,175,55,0.20)] bg-[#0d0d0d] text-white shadow-[0_16px_36px_rgba(0,0,0,0.22)] hover:border-[rgba(212,175,55,0.36)] hover:bg-[#111a2f]"}`}
-              >
-                {card.cta}
-              </a>
-            </article>
-          );
-        })}
-
-        <article className="rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[#101010] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-[rgba(212,175,55,0.26)] md:col-span-2">
-          <div className="flex items-start gap-4">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37]">
-              <MapPin className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-black text-white">{sfText("storefront.contact.address")}</h2>
-              <p className="mt-1 text-sm font-medium leading-7 text-slate-400">العنوان الكامل والوصول على الخريطة</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1.35fr)_minmax(0,0.95fr)]">
-            <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.04)] p-4">
-              <div className="text-sm font-semibold text-slate-400">{sfText("storefront.contact.address")}</div>
-              <div className="mt-1 text-base font-black leading-8 text-white">{address}</div>
-            </div>
-            <a
-              href={mapHref}
-              target={mapHref.startsWith("http") ? "_blank" : undefined}
-              rel={mapHref.startsWith("http") ? "noreferrer" : undefined}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full border border-[rgba(212,175,55,0.20)] bg-[#0d0d0d] px-4 py-3 text-sm font-black text-white shadow-[0_16px_36px_rgba(0,0,0,0.22)] transition duration-200 hover:-translate-y-0.5 hover:border-[rgba(212,175,55,0.36)] hover:bg-[#111a2f] active:scale-[0.98]"
-            >
-              فتح الموقع على الخريطة
-            </a>
-          </div>
-        </article>
-
-        <article className="rounded-[20px] border border-[rgba(255,255,255,0.08)] bg-[#101010] p-5 shadow-[0_18px_50px_rgba(0,0,0,0.24)] transition duration-200 hover:-translate-y-0.5 hover:border-[rgba(212,175,55,0.26)] md:col-span-2">
-          <div className="flex items-start gap-4">
-            <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl border border-[rgba(212,175,55,0.18)] bg-[rgba(212,175,55,0.08)] text-[#D4AF37]">
-              <Clock3 className="h-5 w-5" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <h2 className="text-lg font-black text-white">{sfText("storefront.contact.workingHours")}</h2>
-              <p className="mt-1 text-sm font-medium leading-7 text-slate-400">مواعيد العمل خلال أيام الأسبوع وعطلة نهاية الأسبوع</p>
-            </div>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.04)] p-4">
-              <div className="text-sm font-semibold text-slate-400">أيام الأسبوع</div>
-              <div className="mt-1 text-base font-black leading-8 text-white">{weekdayHours}</div>
-            </div>
-            <div className="rounded-2xl border border-[rgba(255,255,255,0.06)] bg-[rgba(255,255,255,0.04)] p-4">
-              <div className="text-sm font-semibold text-slate-400">الويك إند</div>
-              <div className="mt-1 text-base font-black leading-8 text-white">{weekendHours}</div>
-            </div>
-          </div>
-        </article>
-      </div>
-    </section>
-  );
-}
 
 function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} }) {
   const settings = publicStoreSettings || {};
@@ -9673,23 +7757,18 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
     return settings[key];
   };
   const firstValue = (...keys) => keys.map((key) => String(readSetting(key) || "").trim()).find(Boolean) || "";
-  const safeText = (value, fallback = "غير متوفر حاليًا") => String(value || "").trim() || fallback;
   const normalizeUrl = (value) => {
     const raw = String(value || "").trim();
     if (!raw) return "";
     if (/^(https?:|mailto:|tel:|whatsapp:)/i.test(raw) || raw.startsWith("/")) return raw;
     return "";
   };
-  const missingContactText = "غير متوفر";
-  const displayText = (value) => String(value || "").trim() || missingContactText;
 
   const phoneNumber = firstValue("storefront.contact_phone", "storefront.phone", "general.phone", "company.phone", "contact.phone", "phone", "support.phone");
   const phoneHref = phoneNumber ? `tel:${phoneNumber.replace(/\D/g, "")}` : "";
   const whatsappPhone = firstValue("storefront.whatsapp_phone", "general.whatsapp_phone", "general.whatsapp", "company.whatsapp", "company.whatsapp_phone", "support.whatsapp", "contact.whatsapp", "whatsapp");
   const whatsappUrl = normalizeUrl(firstValue("storefront.whatsapp_url", "storefront.whatsapp_link"));
   const whatsappHref = quickActionLinks.whatsappHref || whatsappUrl || (whatsappPhone ? `https://wa.me/${whatsappPhone.replace(/\D/g, "")}` : "");
-  const whatsappNumber = whatsappPhone || whatsappUrl;
-  const whatsappDisplay = whatsappPhone || whatsappUrl;
   const instagramUsername = firstValue("storefront.instagram_username", "storefront.instagram", "company.instagram_username", "social.instagram_username", "instagram_username");
   const instagramHref = normalizeUrl(firstValue("storefront.instagram_url", "storefront.instagram_link", "company.instagram_url", "social.instagram_url", "instagram_url")) || (instagramUsername ? `https://www.instagram.com/${String(instagramUsername).replace(/^@/, "")}` : "");
   const facebookPage = firstValue("storefront.facebook_page_name", "storefront.facebook_name", "company.facebook_page_name", "social.facebook_page_name", "facebook_page_name");
@@ -9900,113 +7979,6 @@ function PremiumContactPage({ publicStoreSettings = {}, quickActionLinks = {} })
   );
 }
 
-function SizeGuide() {
-  const darkMode = typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
-  const sizeGuidePhoto = "https://cdn.shopify.com/s/files/1/0592/5807/7362/files/measure-foot-at-home-guide.png?v=1759953450";
-  const sizeRows = [
-    { eu: 37, foot: "23.6 cm" },
-    { eu: 38, foot: "24.2 cm" },
-    { eu: 39, foot: "24.8 cm" },
-    { eu: 40, foot: "25.4 cm" },
-    { eu: 41, foot: "26.0 cm" },
-    { eu: 42, foot: "26.6 cm" },
-    { eu: 43, foot: "27.2 cm" },
-    { eu: 44, foot: "27.8 cm" },
-    { eu: 45, foot: "28.4 cm" },
-    { eu: 46, foot: "29.0 cm" },
-    { eu: 47, foot: "29.6 cm" },
-    { eu: 48, foot: "30.2 cm" },
-    { eu: 49, foot: "30.8 cm" },
-    { eu: 50, foot: "31.4 cm" },
-  ];
-  const measureSteps = [
-    ["1", sfText("storefront.sizeGuide.steps.paper.title"), sfText("storefront.sizeGuide.steps.paper.text")],
-    ["2", sfText("storefront.sizeGuide.steps.mark.title"), sfText("storefront.sizeGuide.steps.mark.text")],
-    ["3", sfText("storefront.sizeGuide.steps.measure.title"), sfText("storefront.sizeGuide.steps.measure.text")],
-    ["4", sfText("storefront.sizeGuide.steps.larger.title"), sfText("storefront.sizeGuide.steps.larger.text")],
-  ];
-  return (
-    <section className={`sf-size-guide-page mx-auto max-w-6xl px-4 py-8 md:py-12 ${darkMode ? "text-white" : "text-[#101010]"}`} dir="rtl">
-      <div className="mb-6 flex flex-col gap-3 md:mb-8 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className={`text-sm font-black ${darkMode ? "text-[#f3d77a]" : "text-[#d4af37]"}`}>{sfText("storefront.sizeGuide.eyebrow")}</p>
-          <h1 className={`mt-1 text-3xl font-black tracking-normal md:text-5xl ${darkMode ? "text-white" : "text-[#101010]"}`}>{sfText("storefront.sizeGuide.title")}</h1>
-          <p className={`mt-3 max-w-2xl text-sm font-bold leading-7 md:text-base ${darkMode ? "text-slate-300" : "text-[#475569]"}`}>
-            {sfText("storefront.sizeGuide.subtitle")}
-          </p>
-        </div>
-        <div className={`inline-flex w-fit items-center gap-2 rounded-full border px-4 py-2 text-xs font-black shadow-sm ${darkMode ? "border-white/10 bg-white/[0.06] text-slate-200" : "border-slate-300 bg-white text-[#101010]"}`}>
-          <Footprints className={`h-4 w-4 ${darkMode ? "text-[#f3d77a]" : "text-[#d4af37]"}`} />
-          {sfText("storefront.sizeGuide.centimeterMeasurement")}
-        </div>
-      </div>
-
-      <div className="overflow-hidden rounded-[1.75rem] border border-slate-200 bg-white shadow-[0_22px_70px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[linear-gradient(145deg,rgba(5,5,5,0.98),rgba(16,16,16,0.95)_45%,rgba(21,21,21,0.96))] dark:shadow-[0_24px_80px_rgba(0,0,0,0.42),inset_0_1px_0_rgba(255,255,255,0.06)]">
-        <div className="border-b border-slate-200 px-4 py-4 dark:border-white/10 sm:px-6">
-          <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.sizeGuide.tableTitle")}</h2>
-          <p className="mt-1 text-sm font-bold text-stone-500 dark:text-slate-400">{sfText("storefront.sizeGuide.mobileScrollHint")}</p>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-right text-sm font-bold">
-            <thead>
-              <tr className="border-b border-slate-200 bg-slate-50 text-xs font-black text-stone-600 dark:border-white/10 dark:bg-white/[0.045] dark:text-slate-300">
-                <th className="whitespace-nowrap px-5 py-4">المقاس (EU)</th>
-                <th className="whitespace-nowrap px-5 py-4">طول القدم (سم)</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-white/10">
-              {sizeRows.map((row) => (
-                <tr key={row.eu} className="text-stone-700 transition hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-white/[0.06]">
-                  <td className="px-5 py-4 text-lg font-black text-stone-950 dark:text-white">{row.eu}</td>
-                  <td className="whitespace-nowrap px-5 py-4 text-stone-800 dark:text-slate-100">{row.foot}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-        <div className="mt-5 rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-[0_18px_55px_rgba(15,23,42,0.07)] dark:border-white/10 dark:bg-[linear-gradient(145deg,rgba(5,5,5,0.94),rgba(16,16,16,0.90))] dark:shadow-[0_20px_70px_rgba(0,0,0,0.34),inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h2 className="text-2xl font-black text-stone-950 dark:text-white">{sfText("storefront.sizeGuide.measurementMethod")}</h2>
-            <p className="mt-2 max-w-2xl text-sm font-bold leading-7 text-stone-600 dark:text-slate-300">
-              {sfText("storefront.sizeGuide.measurementIntro")}
-            </p>
-          </div>
-          <a href="https://wa.me/" className={`inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-full border px-5 py-3 text-sm font-black shadow-[0_14px_34px_rgba(16,185,129,0.28)] transition hover:-translate-y-0.5 ${darkMode ? "border-emerald-300/25 bg-emerald-500/95 text-white hover:bg-emerald-400" : "border-slate-300 bg-white text-[#101010] hover:border-[#cbd5e1] hover:bg-[#f8fafc]"}`}>
-            <MessageCircle className={`h-4 w-4 ${darkMode ? "text-white" : "text-[#d4af37]"}`} />
-            {sfText("storefront.support.whatsappHelp")}
-          </a>
-        </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {measureSteps.map(([number, title, text]) => (
-            <div key={number} className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-white/10 dark:bg-white/[0.045]">
-              <span className="grid h-9 w-9 place-items-center rounded-full border border-[#d4af37]/20 bg-[#d4af37]/10 text-sm font-black text-[#d4af37] dark:border-[#f3d77a]/25 dark:bg-[#d4af37]/25 dark:text-[#ddd6fe]">{number}</span>
-              <h3 className="mt-3 font-black text-stone-950 dark:text-white">{title}</h3>
-              <p className="mt-2 text-sm font-bold leading-6 text-stone-600 dark:text-slate-300">{text}</p>
-            </div>
-          ))}
-        </div>
-        <div className="mt-6 overflow-hidden rounded-[1.5rem] border border-slate-200 bg-[linear-gradient(145deg,#f8fafc,#ffffff)] p-4 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[linear-gradient(180deg,#050505_0%,#101010_100%)] dark:shadow-[0_20px_70px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-6">
-          <div className="mx-auto w-full max-w-3xl">
-            <div className="overflow-hidden rounded-[1.5rem] border border-slate-200 bg-slate-100 shadow-[0_18px_50px_rgba(15,23,42,0.08)] dark:border-white/10 dark:bg-[#101010]">
-              <img
-                src={sizeGuidePhoto}
-                alt={sfText("storefront.sizeGuide.illustrationAria")}
-                className="h-auto w-full object-cover"
-                loading="lazy"
-              />
-            </div>
-          </div>
-          <p className="mx-auto mt-3 max-w-2xl text-center text-sm font-black leading-7 text-stone-600 dark:text-slate-300">
-              {sfText("storefront.sizeGuide.measurementCaption")}
-          </p>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 function ReturnsPolicy() {
   const sections = [
@@ -10660,24 +8632,6 @@ function StorefrontPageFallback() {
   );
 }
 
-function VisualSearchResultsFallback() {
-  return (
-    <div className="sf-visual-card-list">
-      {[0, 1].map((item) => (
-        <div key={item} className="sf-visual-card animate-pulse">
-          <div className="sf-visual-card-main">
-            <div className="h-24 w-24 shrink-0 rounded-2xl bg-stone-200/80 dark:bg-white/10" />
-            <div className="min-w-0 flex-1">
-              <div className="h-4 w-4/5 rounded-full bg-stone-200 dark:bg-white/10" />
-              <div className="mt-3 h-3 w-3/5 rounded-full bg-stone-200 dark:bg-white/10" />
-              <div className="mt-4 h-4 w-24 rounded-full bg-stone-200 dark:bg-white/10" />
-            </div>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function ProductGalleryFallback() {
   return (
@@ -10791,43 +8745,15 @@ function QuantityStepper({ quantity, onMinus, onPlus }) {
   );
 }
 
-function Footer() {
-  const darkMode = typeof document !== "undefined" && (document.documentElement.classList.contains("dark") || document.body.classList.contains("storefront-dark"));
-  return (
-    <footer className="mt-4 border-t border-stone-200/80 bg-[var(--sf-cream)] px-4 py-6 md:mt-8 md:py-10 dark:border-white/10 dark:bg-[linear-gradient(180deg,#080808,#020617)] dark:text-white">
-      <div className="mx-auto grid max-w-7xl gap-6 md:grid-cols-[1.2fr_0.8fr_0.8fr_1fr]">
-        <div><h3 className="text-2xl font-black tracking-normal">{sfText("storefront.footer.brand")}</h3><p className="mt-2 max-w-sm text-sm font-bold leading-6 text-stone-600 dark:text-stone-400">{sfText("storefront.footer.tagline")}</p></div>
-        <FooterLinks title={sfText("storefront.footer.links")} links={[[sfText("storefront.returns.title"), "/returns"], [sfText("storefront.nav.sizeGuide"), "/size-guide"], [sfText("storefront.faq.title"), "/faq"]]} />
-        <FooterLinks title={sfText("storefront.footer.contact")} links={[[sfText("storefront.contact.title"), "/contact"], [sfText("storefront.support.whatsapp"), "https://wa.me/"], ["Instagram", "/contact"]]} />
-        <div>
-          <h4 className="font-black">{sfText("storefront.footer.followUs")}</h4>
-          <div className="mt-3 flex gap-2">
-            <a href="https://wa.me/" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200/80 bg-white/96 text-stone-950 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-emerald-300 hover:text-emerald-600 dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[0_14px_28px_rgba(0,0,0,0.22)] dark:hover:border-emerald-300/40 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-300" aria-label="WhatsApp"><MessageCircle className="h-5 w-5" /></a>
-            <Link to="/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200/80 bg-white/96 text-stone-950 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-[var(--sf-purple)] hover:text-[var(--sf-purple)] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[0_14px_28px_rgba(0,0,0,0.22)] dark:hover:border-[var(--sf-purple)]/40 dark:hover:bg-[rgba(212,175,55,0.12)] dark:hover:text-[var(--sf-purple-2)]" aria-label="Instagram"><Camera className="h-5 w-5" /></Link>
-            <Link to="/contact" className="grid h-11 w-11 place-items-center rounded-full border border-stone-200/80 bg-white/96 text-stone-950 shadow-[0_10px_24px_rgba(15,23,42,0.08)] transition hover:-translate-y-0.5 hover:border-[var(--sf-purple)] hover:text-[var(--sf-purple)] dark:border-white/12 dark:bg-white/[0.075] dark:text-slate-100 dark:shadow-[0_14px_28px_rgba(0,0,0,0.22)] dark:hover:border-[var(--sf-purple)]/40 dark:hover:bg-[rgba(212,175,55,0.12)] dark:hover:text-[var(--sf-purple-2)]" aria-label="Facebook"><ExternalLink className="h-5 w-5" /></Link>
-          </div>
-          <a href="https://wa.me/" className="mt-4 inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-transparent bg-stone-950 px-5 py-3 text-sm font-black text-white shadow-[0_14px_30px_rgba(15,23,42,0.12)] transition hover:-translate-y-0.5 hover:bg-[var(--sf-purple)] hover:text-stone-950 dark:bg-[linear-gradient(135deg,var(--sf-purple),var(--sf-purple-2))] dark:text-stone-950 dark:shadow-[0_16px_34px_rgba(212,175,55,0.20)] dark:hover:bg-[linear-gradient(135deg,var(--sf-purple-2),var(--sf-purple))]">
-            <MessageCircle className={`h-4 w-4 ${darkMode ? "text-stone-950" : "text-[var(--sf-purple)]"}`} />
-            {sfText("storefront.support.whatsappHelp")}
-          </a>
-        </div>
-      </div>
-    </footer>
-  );
-}
 
-function FooterLinks({ title, links }) {
-  return <div><h4 className="font-black">{title}</h4><div className="mt-3 grid gap-2.5 text-sm font-bold text-stone-600 dark:text-stone-400">{links.map(([label, href]) => <Link className="transition hover:text-stone-950 dark:hover:text-[var(--sf-purple-2)]" key={label} to={href}>{label}</Link>)}</div></div>;
-}
 
-function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = {}, publicStoreSettings = {}, themeMode = "dark" }) {
+function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
   const { i18n: storefrontI18n } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
   const path = location.pathname || "";
-  const search = location.search || "";
   const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
   const isDarkMode = themeMode === "dark";
   const isCheckoutFlow = isStorefrontCheckoutFlowPath(path);
@@ -10881,7 +8807,7 @@ function MobileBottomNav({ cartCount = 0, onHome = () => {}, quickActionLinks = 
 
   useEffect(() => {
     if (categoriesOpen) setCategoriesOpen(false);
-  }, [location.pathname, location.search]);
+  }, [categoriesOpen, location.pathname, location.search]);
 
   if (!isVisible) return null;
 
@@ -11000,49 +8926,7 @@ function SummaryRow({ label, value, strong, dark = false, rtl = false }) {
   return <div className={`sf-summary-row flex items-center justify-between gap-3 ${rtl ? "flex-row-reverse text-right" : ""} ${strong ? "mt-3 border-t border-stone-200/80 pt-3 text-xl font-black text-stone-950" : "mt-2 text-sm font-bold text-stone-600"}`}><span className="sf-summary-row-label">{label}</span><span className={`sf-summary-row-value ${strong ? "rounded-full border border-stone-200/80 bg-white px-3 py-1 shadow-[0_8px_18px_rgba(15,23,42,0.06)]" : "font-black text-stone-800"}`}>{value}</span></div>;
 }
 
-function InfoLine({ icon, text }) {
-  return (
-    <div className="sf-checkout-info-line flex min-h-14 items-center gap-2 rounded-[1rem] border border-white/[0.08] bg-white/[0.055] p-3 text-white/74 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] backdrop-blur transition hover:border-white/16 hover:bg-white/[0.075]">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/[0.07] text-[#d4af37]">{icon}</span>
-      <span>{text}</span>
-    </div>
-  );
-}
 
-function PaymentMethodTab({ method, active, onClick, label, helperText, logoUrl }) {
-  const isVodafone = method === "vodafone_cash";
-  const subtitle = helperText || (isVodafone
-    ? sfText("storefront.checkout.transfer.vodafoneWallet")
-    : sfText("storefront.checkout.transfer.instantBankTransfer"));
-  const methodLabel = label || (isVodafone ? "Vodafone Cash" : "InstaPay");
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`sf-checkout-payment-tab ${active ? "sf-checkout-payment-tab--active" : "sf-checkout-payment-tab--inactive"} ${isVodafone ? "sf-checkout-payment-tab--vodafone" : "sf-checkout-payment-tab--instapay"} group relative overflow-hidden rounded-[1.2rem] px-3 py-3 text-right transition duration-300 active:scale-[0.985] ${
-        active
-          ? isVodafone
-            ? "border border-red-300/35 bg-[linear-gradient(135deg,rgba(230,0,0,0.28),rgba(255,255,255,0.08))] text-white shadow-[0_18px_42px_rgba(230,0,0,0.20)] ring-2 ring-red-400/12"
-            : "border border-[#d4af37]/35 bg-[rgba(212,175,55,0.12)] text-[#d4af37] shadow-[0_18px_46px_rgba(212,175,55,0.28)] ring-2 ring-[#d4af37]/16"
-          : "border border-transparent text-white/58 hover:border-white/10 hover:bg-white/[0.065] hover:text-white hover:shadow-[0_16px_36px_rgba(212,175,55,0.12)]"
-      }`}
-    >
-      <span className={`absolute inset-0 opacity-0 transition duration-300 group-hover:opacity-100 ${isVodafone ? "bg-[radial-gradient(circle_at_top_left,rgba(230,0,0,0.22),transparent_42%)]" : "bg-[radial-gradient(circle_at_top_left,rgba(196,181,253,0.22),transparent_42%)]"}`} />
-      <span className="relative flex items-center gap-3">
-        <PaymentBrandLogo method={method} size="tab" active={active} label={methodLabel} logoUrl={logoUrl} />
-        <span className="min-w-0">
-          <span className="block text-sm font-black">{methodLabel}</span>
-          <span className={`mt-0.5 block text-[11px] font-bold ${active ? "text-white/74" : "text-white/42"}`}>
-            {subtitle}
-          </span>
-        </span>
-        <span className={`mr-auto grid h-6 w-6 shrink-0 place-items-center rounded-full border transition ${active ? "border-white/40 bg-white/16 text-white" : "border-white/14 bg-white/[0.04] text-transparent"}`}>
-          <Check className="h-3.5 w-3.5" />
-        </span>
-      </span>
-    </button>
-  );
-}
 
 function PaymentBrandLogo({ method, size = "tab", active = false, label, logoUrl }) {
   const [failed, setFailed] = useState(false);
@@ -11091,41 +8975,6 @@ function PaymentBrandLogo({ method, size = "tab", active = false, label, logoUrl
   );
 }
 
-function PaymentCopyLine({ method, label, value, amount, deepLink }) {
-  const [copied, setCopied] = useState(false);
-  const isVodafone = method === "vodafone_cash";
-  const copyValue = async () => {
-    await navigator.clipboard?.writeText(value);
-    setCopied(true);
-    toast.success(sfText("storefront.toasts.copied"));
-    window.setTimeout(() => setCopied(false), 1600);
-  };
-  return (
-    <div className={`sf-checkout-payment-copy rounded-[1.55rem] border p-4 shadow-[0_22px_54px_rgba(0,0,0,0.26)] ${isVodafone ? "border-red-300/18 bg-[linear-gradient(145deg,rgba(230,0,0,0.16),rgba(255,255,255,0.055))]" : "border-[#e5c158]/18 bg-[linear-gradient(145deg,rgba(212,175,55,0.18),rgba(255,255,255,0.055))]"}`}>
-      <div className="flex min-w-0 items-start gap-3">
-        <PaymentBrandLogo method={method} size="copy" label={label} />
-        <div className="min-w-0 flex-1">
-          <div className="text-xs font-black text-white/48">{sfText("storefront.checkout.transfer.transferDetailsVia", undefined, { label })}</div>
-          <div className="sf-checkout-payment-value mt-2 rounded-2xl border border-white/10 bg-black/24 px-3 py-3 font-mono text-xl font-black tracking-wide text-white shadow-inner shadow-black/20" dir="ltr">{value}</div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs font-bold text-white/54">
-            <span className="rounded-full border border-white/10 bg-white/[0.055] px-3 py-1">{sfText("storefront.checkout.transfer.amount")}: {money(amount)}</span>
-            <span className="rounded-full border border-emerald-300/20 bg-emerald-400/10 px-3 py-1 text-emerald-100">{sfText("storefront.checkout.transfer.noCardSharing")}</span>
-          </div>
-        </div>
-      </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <button type="button" onClick={copyValue} className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-black transition duration-200 ${copied ? "bg-emerald-400 text-emerald-950 shadow-[0_14px_32px_rgba(16,185,129,0.25)]" : "bg-[#d4af37] text-white shadow-[0_14px_32px_rgba(212,175,55,0.28)] hover:-translate-y-0.5 hover:bg-[#d4af37]"}`} aria-label={`Copy ${label}`}>
-          {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-          {copied ? sfText("storefront.toasts.copied") : sfText("storefront.checkout.transfer.copyPaymentDetails")}
-        </button>
-        <button type="button" onClick={() => { window.location.href = deepLink; }} className="sf-checkout-copy-link inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-4 py-2 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-white/[0.09] md:hidden">
-          <Smartphone className="h-4 w-4" />
-          {sfText("storefront.checkout.transfer.openApp")}
-        </button>
-      </div>
-    </div>
-  );
-}
 
 function InfoBox({ label, value, darkMode: darkModeProp } = {}) {
   const darkMode = typeof darkModeProp === "boolean"
@@ -11204,40 +9053,8 @@ function SmallProductGrid({ items, action, onAddToCart }) {
   );
 }
 
-function Reviews() {
-  const reviews = [
-    ["M", sfText("storefront.reviews.items.quality")],
-    ["A", sfText("storefront.reviews.items.size")],
-    ["S", sfText("storefront.reviews.items.experience")],
-  ];
 
-  return (
-    <section className="mx-auto max-w-7xl px-4 py-3 text-white md:py-7">
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <h2 className="text-2xl font-black text-white">{sfText("storefront.reviews.title")}</h2>
-        <span className="rounded-full border border-white/[0.08] bg-white/[0.055] px-3 py-1.5 text-xs font-black text-[#d4af37] shadow-[0_0_28px_rgba(212,175,55,0.18)] backdrop-blur-xl">4.8 / 5</span>
-      </div>
-      <div className="grid gap-3 md:grid-cols-3">
-        {reviews.map(([avatar, review]) => (
-          <div key={review} className="rounded-[1.35rem] border border-white/[0.08] bg-[linear-gradient(180deg,#080808_0%,#080808_100%)] p-3.5 font-bold text-white shadow-[0_16px_42px_rgba(0,0,0,0.35)] ring-1 ring-white/[0.025] backdrop-blur-xl md:p-4">
-            <div className="flex items-center gap-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] bg-white/[0.06] text-sm font-black text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">{avatar}</span>
-              <div className="min-w-0">
-                <div className="flex gap-0.5 text-[#d4af37]">
-                  {Array.from({ length: 5 }).map((_, index) => <Star key={index} className="h-3.5 w-3.5 fill-current" />)}
-                </div>
-                <div className="mt-1 inline-flex rounded-full border border-white/[0.08] bg-white/[0.045] px-2 py-0.5 text-[11px] font-black text-white/65">{sfText("storefront.reviews.verifiedCustomer")}</div>
-              </div>
-            </div>
-            <p className="mt-3 text-sm leading-6 text-white/90">{review}</p>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function MobileBuyBar({ product, variant, visible, onAddToCart, buyNow }) {
+function MobileBuyBar({ product, variant, visible, onAddToCart }) {
   const disabled = !variant || Number(variant.stock || 0) <= 0;
   if (!visible) return null;
   return (
@@ -11411,7 +9228,7 @@ function Storefront() {
   const [wishlist, setWishlist] = useState(() => readStorefrontStorage(WISHLIST_KEY, []));
   const [recent, setRecent] = useState(() => readStorefrontStorage(RECENT_KEY, []));
   const [profile, setProfile] = useState(() => normalizeStorefrontProfile(readStorefrontStorage(PROFILE_KEY, { full_name: "", primary_phone: "", phone: "", customer_id: "" })));
-  const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "dark"));
+  const [themeMode, setThemeMode] = useState(() => readStorefrontStorage(THEME_KEY, "light"));
   const [publicStoreSettings, setPublicStoreSettings] = useState({});
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -11773,7 +9590,7 @@ function Storefront() {
     getDisplayPricing,
     saleModeEnabled: publicSaleModeEnabled,
     rawSaleModeEnabled: storefrontPublicSaleModeEnabledRaw,
-  }), [brandInitials, brandLogoUrl, brandName, publicSaleModeEnabled, storefrontPublicSaleModeEnabledRaw]);
+  }), [brandInitials, brandLogoUrl, brandName, publicSaleModeEnabled]);
 
   const storefrontBrandSettings = useMemo(() => ({
     brandName,
@@ -11884,7 +9701,7 @@ function Storefront() {
           wishlist={wishlist}
           toggleWishlist={toggleWishlist}
           onAddToCart={onAddToCart}
-          saleModeEnabled={publicSaleModeEnabled}
+          saleModeEnabled={storefrontSalePricesEnabled}
         />
       );
     }
@@ -11901,7 +9718,7 @@ function Storefront() {
           rememberProduct={rememberProduct}
           recent={recent}
           profile={profile}
-          saleModeEnabled={publicSaleModeEnabled}
+          saleModeEnabled={storefrontSalePricesEnabled}
         />
       );
     }
@@ -12006,7 +9823,6 @@ function Storefront() {
     onAddToCart,
     profile,
     publicStoreSettings,
-    publicSaleModeEnabled,
     quickActionLinks,
     recent,
     rememberProduct,

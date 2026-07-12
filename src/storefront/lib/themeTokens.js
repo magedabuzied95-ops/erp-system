@@ -1,64 +1,64 @@
 const STOREFRONT_THEME_PALETTES = {
   dark: {
-    background: "#050505",
-    surface: "#0b0b0c",
-    card: "rgba(255,255,255,0.045)",
-    cardSoft: "rgba(255,255,255,0.065)",
-    border: "rgba(255,255,255,0.10)",
-    borderStrong: "rgba(255,255,255,0.16)",
-    textPrimary: "#f8fafc",
-    textSecondary: "rgba(248,250,252,0.74)",
-    muted: "rgba(248,250,252,0.54)",
-    accent: "#d4af37",
-    accentText: "#111827",
-    accentSoft: "rgba(212,175,55,0.16)",
-    success: "#22c55e",
-    warning: "#f59e0b",
-    error: "#ef4444",
-    shadow: "0 32px 120px rgba(0,0,0,0.36)",
-    shadowSoft: "0 18px 48px rgba(0,0,0,0.18)",
-    heroGradient: "linear-gradient(135deg,#050505 0%,#0a0a0a 55%,#141414 100%)",
-    heroGlow: "radial-gradient(circle at 14% 16%, rgba(212,175,55,0.14), transparent 28%), radial-gradient(circle at 82% 20%, rgba(255,255,255,0.06), transparent 30%)",
+    background: "#171715",
+    surface: "#232321",
+    card: "#232321",
+    cardSoft: "#2a2a27",
+    border: "#393936",
+    borderStrong: "#4b4a46",
+    textPrimary: "#efeee9",
+    textSecondary: "#c5c2ba",
+    muted: "#a19e96",
+    accent: "#d0a632",
+    accentText: "#1f1908",
+    accentSoft: "#352d18",
+    success: "#42b883",
+    warning: "#e0a23a",
+    error: "#ef6b6b",
+    shadow: "0 18px 48px rgba(0,0,0,0.42)",
+    shadowSoft: "0 1px 2px rgba(0,0,0,0.24)",
+    heroGradient: "linear-gradient(135deg,#171715 0%,#1d1d1b 52%,#232321 100%)",
+    heroGlow: "radial-gradient(circle at 14% 16%, rgba(208,166,50,0.16), transparent 30%), radial-gradient(circle at 82% 20%, rgba(255,255,255,0.04), transparent 32%)",
   },
   light: {
-    background: "#f6f1e8",
-    surface: "#fffdf8",
-    card: "rgba(255,255,255,0.95)",
-    cardSoft: "rgba(255,255,255,0.88)",
-    border: "rgba(15,23,42,0.12)",
-    borderStrong: "rgba(15,23,42,0.20)",
-    textPrimary: "#1f2937",
-    textSecondary: "#2f3d50",
-    muted: "#475569",
-    accent: "#d4af37",
-    accentText: "#111827",
-    accentSoft: "rgba(212,175,55,0.12)",
-    success: "#16a34a",
-    warning: "#d97706",
-    error: "#dc2626",
-    shadow: "0 28px 100px rgba(15,23,42,0.10)",
-    shadowSoft: "0 18px 42px rgba(15,23,42,0.10)",
-    heroGradient: "linear-gradient(135deg,#fffdf8 0%,#fff8ee 54%,#eef2ff 100%)",
-    heroGlow: "radial-gradient(circle at 16% 20%, rgba(212,175,55,0.12), transparent 28%), radial-gradient(circle at 84% 18%, rgba(255,255,255,0.78), transparent 33%)",
+    background: "#f3f3f1",
+    surface: "#ffffff",
+    card: "#ffffff",
+    cardSoft: "#f7f7f5",
+    border: "#dedbd3",
+    borderStrong: "#c9c5bc",
+    textPrimary: "#25231f",
+    textSecondary: "#5d5952",
+    muted: "#716e67",
+    accent: "#a47a12",
+    accentText: "#1f1908",
+    accentSoft: "#fff7df",
+    success: "#198754",
+    warning: "#c47a08",
+    error: "#d14343",
+    shadow: "0 16px 40px rgba(31,29,25,0.16)",
+    shadowSoft: "0 1px 2px rgba(31,29,25,0.05)",
+    heroGradient: "linear-gradient(135deg,#ffffff 0%,#f7f7f5 54%,#fff7df 100%)",
+    heroGlow: "radial-gradient(circle at 16% 20%, rgba(164,122,18,0.12), transparent 30%), radial-gradient(circle at 84% 18%, rgba(255,255,255,0.82), transparent 34%)",
   },
 };
 
-export const resolveStorefrontThemeMode = (themeMode = "dark") => {
+export const resolveStorefrontThemeMode = (themeMode = "light") => {
   const normalized = String(themeMode || "").trim().toLowerCase();
   if (normalized === "system") {
     if (typeof window !== "undefined" && typeof window.matchMedia === "function") {
       return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
     }
-    return "dark";
+    return "light";
   }
-  return normalized === "light" ? "light" : "dark";
+  return normalized === "dark" ? "dark" : "light";
 };
 
-export const getStorefrontThemeTokens = (themeMode = "dark") => {
+export const getStorefrontThemeTokens = (themeMode = "light") => {
   const resolvedMode = resolveStorefrontThemeMode(themeMode);
-  const palette = STOREFRONT_THEME_PALETTES[resolvedMode] || STOREFRONT_THEME_PALETTES.dark;
+  const palette = STOREFRONT_THEME_PALETTES[resolvedMode] || STOREFRONT_THEME_PALETTES.light;
   return {
-    mode: String(themeMode || resolvedMode || "dark"),
+    mode: String(themeMode || resolvedMode || "light"),
     resolvedMode,
     ...palette,
   };

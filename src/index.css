@@ -31,9 +31,9 @@
     background: var(--bg);
   }
 
-  html:has(.sf-luxury-header),
-  body:has(.sf-luxury-header),
-  #root:has(.sf-luxury-header) {
+  html:has(body.storefront-dark .sf-luxury-header),
+  body.storefront-dark:has(.sf-luxury-header),
+  body.storefront-dark #root:has(.sf-luxury-header) {
     background: linear-gradient(180deg, #030303 0%, #070707 45%, #0b0b0b 100%) !important;
     background-color: #050505 !important;
   }
@@ -509,9 +509,9 @@
 
 @layer components {
   .storefront-shell {
-    --sf-purple: #d4af37;
-    --sf-purple-2: #e5c158;
-    --sf-cream: #f7f4ee;
+    --sf-purple: #a47a12;
+    --sf-purple-2: #d0a632;
+    --sf-cream: #f3f3f1;
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --mobile-bottom-nav-height: 58px;
     --checkout-sticky-actions-height: 0px;
@@ -525,6 +525,9 @@
       var(--sf-floating-gap, 10px)
     );
     min-height: 100dvh;
+    font-family: var(--app-font, "Inter", "Segoe UI", sans-serif);
+    background: var(--sf-light-page, var(--bg));
+    color: var(--sf-light-text, var(--text));
     scroll-behavior: smooth;
     scrollbar-gutter: stable;
   }
@@ -2182,16 +2185,16 @@
 
   .storefront-shell:not(.storefront-dark) {
     color-scheme: light;
-    --sf-light-page: #f6f1e8;
-    --sf-light-page-soft: #fffdf8;
-    --sf-light-text: #1f2937;
-    --sf-light-muted: #475569;
-    --sf-light-border: rgba(15, 23, 42, 0.12);
-    --sf-light-border-strong: rgba(15, 23, 42, 0.2);
-    --sf-light-surface: rgba(255, 255, 255, 0.95);
-    --sf-light-surface-strong: rgba(255, 255, 255, 0.98);
-    --sf-light-surface-soft: rgba(248, 250, 252, 0.92);
-    --sf-light-surface-tint: rgba(212, 175, 55, 0.08);
+    --sf-light-page: #f3f3f1;
+    --sf-light-page-soft: #f7f7f5;
+    --sf-light-text: #25231f;
+    --sf-light-muted: #716e67;
+    --sf-light-border: #dedbd3;
+    --sf-light-border-strong: #c9c5bc;
+    --sf-light-surface: #ffffff;
+    --sf-light-surface-strong: #ffffff;
+    --sf-light-surface-soft: #f7f7f5;
+    --sf-light-surface-tint: #fff7df;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-luxury-header,
