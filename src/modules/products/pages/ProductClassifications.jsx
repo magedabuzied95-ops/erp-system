@@ -193,11 +193,6 @@ function ProductClassifications() {
       toast.error(t("products.classifications.validation.optionRequired"));
       return;
     }
-    const existingOption = findMatchingClassificationOption(selectedGroup.options || [], optionForm);
-    if (existingOption) {
-      await restoreExistingOption(existingOption);
-      return;
-    }
     try {
       setSavingOption(true);
       await createProductClassificationOption({ ...optionForm, group_id: selectedGroup.id });

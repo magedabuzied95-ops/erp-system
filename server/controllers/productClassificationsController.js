@@ -431,6 +431,7 @@ export const createProductClassificationOption = async (req, res) => {
   const client = await db.connect();
   try {
     await ensureProductClassificationSchema();
+    await repairProductTypeGroupIfNeeded();
     const payload = optionPayload(req.body || {});
     const groupId = await resolveGroupId(payload);
     if (!groupId) {
