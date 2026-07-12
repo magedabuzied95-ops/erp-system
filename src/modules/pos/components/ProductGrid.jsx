@@ -219,12 +219,9 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
   const { t } = useTranslation();
   const stock = getProductStock(product);
   const isOutOfStock = stock <= 0;
-  const cover =
-    product.image_url ||
-    product.variant_image_url ||
-    product.product_image_url ||
-    product.variants?.[0]?.image_url ||
-    "";
+  const cover = product?.employee_exact_variant_image
+    ? product.image_url || product.variant_image_url || product.product_image_url || ""
+    : product.image_url || product.variant_image_url || product.product_image_url || product.variants?.[0]?.image_url || "";
   const handleSelect = useCallback(() => {
     onSelectProduct(product);
   }, [onSelectProduct, product]);
@@ -242,6 +239,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
   const sizes = uniqueTextValues(variants.map((variant) => variant.size), 4);
   const articleCode = getSharedArticleCode(product);
   const isFavorite = product?.is_pos_favorite === true || product?.isPosFavorite === true;
+  const isEmployeeScopedVariant = Boolean(product?.employee_card_color || product?.employee_card_size);
 
   return (
     <div
@@ -266,7 +264,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
           {cover ? (
           <ProductImage
             src={cover}
-            fallbackSrc={product.product_image_url}
+            fallbackSrc={product?.employee_exact_variant_image ? "" : product.product_image_url}
             alt={product.name}
           />
         ) : (
@@ -290,6 +288,15 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
               </div>
             </div>
           ) : null}
+          {isEmployeeScopedVariant ? (
+            <div className="absolute inset-x-2 top-2 flex justify-center">
+              <div className="inline-flex max-w-[calc(100%-12px)] items-center gap-1 rounded-full border border-amber-200/70 bg-zinc-950/90 px-2 py-1 text-[9px] font-black text-amber-100 shadow-md backdrop-blur-sm">
+                <span className="max-w-[6rem] truncate">{product.employee_card_color}</span>
+                <span aria-hidden="true">•</span>
+                <span dir="ltr">{product.employee_card_size}</span>
+              </div>
+            </div>
+          ) : null}
         </div>
 
       </div>
@@ -300,7 +307,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
         </h3>
 
         {(colors.length || sizes.length) ? (
-          <div className="flex min-h-5 flex-wrap justify-center gap-1 overflow-hidden lg:hidden">
+          <div className={`flex min-h-5 flex-wrap justify-center gap-1 overflow-hidden ${isEmployeeScopedVariant ? "" : "lg:hidden"}`}>
             {colors.slice(0, 2).map((color) => (
               <span key={`color-${color}`} className="max-w-[4.5rem] truncate rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[8px] font-black text-zinc-300">
                 {color}

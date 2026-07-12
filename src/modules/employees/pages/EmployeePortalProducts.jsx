@@ -275,11 +275,10 @@ const buildEmployeeScopedProductCard = (product = {}, variants = [], { color = "
   const scopedVariants = Array.isArray(variants) ? variants : [];
   const scopedStock = scopedVariants.reduce((sum, variant) => sum + variantStockValue(variant), 0);
   const previewVariant = scopedVariants.find((variant) => extractImageUrl(variant)) || scopedVariants[0] || null;
-  const previewImageUrl = resolveProductPreviewImage(product, {
-    color: scopedColor,
-    size: scopedSize,
-    variantId: previewVariant?.variant_id ?? previewVariant?.id ?? null,
-  });
+  const productMainImage = resolveProductMainImage(product);
+  const exactColorImage = resolveColorEntryImage(product, scopedColor);
+  const exactVariantImage = extractImageUrl(previewVariant);
+  const previewImageUrl = exactColorImage || (exactVariantImage && exactVariantImage !== productMainImage ? exactVariantImage : "");
 
   return {
     ...product,
@@ -290,9 +289,10 @@ const buildEmployeeScopedProductCard = (product = {}, variants = [], { color = "
     employee_card_color: scopedColor,
     employee_card_size: scopedSize,
     employee_card_variant_id: previewVariant?.variant_id ?? previewVariant?.id ?? null,
-    image_url: previewImageUrl || product.image_url,
-    product_image_url: previewImageUrl || product.product_image_url || product.image_url,
-    variant_image_url: previewImageUrl || previewVariant?.image_url || "",
+    employee_exact_variant_image: true,
+    image_url: previewImageUrl,
+    product_image_url: previewImageUrl,
+    variant_image_url: previewImageUrl,
     total_stock: scopedStock,
     stock: scopedStock,
     colors: scopedColor ? [scopedColor] : uniqueValues(scopedVariants.map((variant) => variant.color)),
