@@ -2254,7 +2254,7 @@ function ProductsList() {
             </button>
 
             {filtersOpen && classificationFilterGroups.length ? (
-              <div ref={filtersRef} className="fixed inset-x-2 bottom-2 z-[80] max-h-[85dvh] overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 sm:absolute sm:inset-x-auto sm:bottom-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[min(42rem,calc(100vw-2rem))]">
+              <div ref={filtersRef} className="fixed inset-x-2 bottom-2 z-[80] max-h-[85dvh] overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60 sm:absolute sm:inset-x-auto sm:bottom-auto sm:left-0 sm:right-auto sm:top-full sm:mt-2 sm:w-[min(38rem,calc(100vw-2rem))]">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/10 bg-white/[0.03] px-4 py-3">
                   <div className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-[0.16em] text-zinc-500">
                     <Filter size={14} />
