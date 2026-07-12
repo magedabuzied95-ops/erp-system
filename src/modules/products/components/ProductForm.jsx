@@ -108,8 +108,8 @@ function ProductForm({
   }, [showCatalogStructure]);
 
   return (
-    <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(280px,.9fr)_minmax(420px,1.35fr)_minmax(280px,.85fr)] xl:items-start">
-      <section className="self-start rounded-[22px] border border-white/10 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] xl:col-start-1 xl:row-start-1">
+    <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(280px,.95fr)_minmax(440px,1.35fr)_minmax(280px,.9fr)] xl:gap-x-0 xl:gap-y-5 xl:items-stretch xl:drop-shadow-[0_18px_42px_rgba(0,0,0,0.18)]">
+      <section className="rounded-[22px] border border-white/10 bg-[#20201e] p-5 xl:col-start-1 xl:row-start-1 xl:rounded-e-none">
         <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/8 pb-4" style={{ display: "none" }}>
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-zinc-500">{t("products.form.catalogStructure")}</p>
@@ -184,7 +184,15 @@ function ProductForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-3">
+        <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/8 pb-4">
+          <div>
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">01 · بيانات البيع</p>
+            <h3 className="mt-1 text-base font-black text-white">العلامة والوحدة</h3>
+          </div>
+          <div className="h-9 w-1 rounded-full bg-amber-400/70" />
+        </div>
+
+        <div className="grid grid-cols-1 gap-4">
           <div className="relative" ref={brandWrapRef}>
             <label className="text-sm font-semibold text-zinc-300">{t("products.form.brand")}</label>
             <button
@@ -252,7 +260,7 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="self-start rounded-[24px] border border-cyan-400/15 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] sm:p-5 xl:col-span-3 xl:row-start-2">
+      <section className="rounded-[24px] border border-cyan-400/15 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] sm:p-5 xl:col-span-3 xl:row-start-2">
         <div className="mb-4">
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-cyan-200">{t("products.form.variationMode")}</p>
             <p className="mt-1 text-sm text-zinc-400">{t("products.form.variationHelp")}</p>
@@ -283,10 +291,11 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="self-start rounded-[22px] border border-emerald-400/20 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] xl:col-start-2 xl:row-start-1">
-        <div className="mb-4">
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-200">{t("products.form.smartPosFilters")}</p>
-            <p className="mt-1 text-sm text-zinc-400">{t("products.form.smartPosHelp")}</p>
+      <section className="rounded-[22px] border border-emerald-400/20 bg-[#20201e] p-5 xl:col-start-2 xl:row-start-1 xl:rounded-none xl:border-x-0">
+        <div className="mb-5 border-b border-white/8 pb-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-300">02 · التصنيف الذكي</p>
+            <h3 className="mt-1 text-base font-black text-white">{t("products.form.smartPosFilters")}</h3>
+            <p className="mt-1 text-xs leading-5 text-zinc-500">{t("products.form.smartPosHelp")}</p>
         </div>
 
         <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
@@ -334,10 +343,11 @@ function ProductForm({
         </div>
       </section>
 
-      <section className="self-start rounded-[22px] border border-violet-400/20 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] xl:col-start-3 xl:row-start-1">
-        <div className="mb-4">
-          <p className="text-[11px] font-black uppercase tracking-[0.22em] text-violet-200">سعر المتجر</p>
-          <p className="mt-1 text-sm text-zinc-400">إعداد السعر القديم الظاهر للعميل بجانب سعر البيع.</p>
+      <section className="rounded-[22px] border border-violet-400/20 bg-[#20201e] p-5 xl:col-start-3 xl:row-start-1 xl:rounded-s-none">
+        <div className="mb-5 border-b border-white/8 pb-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.22em] text-violet-300">03 · التسعير التسويقي</p>
+          <h3 className="mt-1 text-base font-black text-white">سعر المتجر</h3>
+          <p className="mt-1 text-xs leading-5 text-zinc-500">إعداد السعر القديم الظاهر للعميل بجانب سعر البيع.</p>
         </div>
         <label className="flex items-start gap-3 rounded-[20px] border border-white/8 bg-zinc-950/60 px-4 py-3">
           <input type="checkbox" checked={Boolean(useCustomComparePrice)} onChange={(event) => onUseCustomComparePriceChange?.(event.target.checked)} className="mt-1 h-4 w-4 rounded border-white/20 bg-zinc-950 accent-violet-400" />
@@ -354,7 +364,7 @@ function ProductForm({
         ) : null}
       </section>
 
-      <section className="self-start rounded-[24px] border border-amber-400/15 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] sm:p-5 xl:col-span-3 xl:row-start-3">
+      <section className="rounded-[24px] border border-amber-400/15 bg-zinc-950/45 p-4 shadow-[0_14px_38px_rgba(0,0,0,0.16)] sm:p-5 xl:col-span-3 xl:row-start-3">
         <div className="mb-4">
           <p className="text-[11px] font-black uppercase tracking-[0.22em] text-amber-200">
             {t("products.form.purchaseSettings", "إعدادات الشراء")}
