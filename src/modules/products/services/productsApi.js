@@ -79,6 +79,8 @@ export const normalizeVariantPayload = (input = {}) => {
         source.color_name ??
         source.name
     ),
+    audience: normalizeText(source.audience ?? source.variant_audience ?? source.gender ?? ""),
+    variant_audience: normalizeText(source.variant_audience ?? source.audience ?? source.gender ?? ""),
     size: normalizeText(
       source.size ??
         source.sizeName ??

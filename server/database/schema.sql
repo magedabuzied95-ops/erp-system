@@ -244,6 +244,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
   sku VARCHAR(120),
   barcode VARCHAR(120),
   article_code TEXT,
+  audience VARCHAR(30),
   image_url TEXT,
   thermal_image_url TEXT DEFAULT '',
   thermal_image_status TEXT NOT NULL DEFAULT 'pending',

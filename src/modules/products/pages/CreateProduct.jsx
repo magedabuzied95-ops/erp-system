@@ -215,6 +215,7 @@ const createEmptyColorGroup = (defaults = {}) => {
   return {
     id: makeId(),
     color: getColorGroupName(source),
+    audience: String(source.audience || source.variant_audience || "").trim(),
     manufacturer_id: String(source.manufacturer_id || "").trim(),
     manufacturer_override: Boolean(source.manufacturer_override),
     planned_qty: String(
@@ -1957,6 +1958,7 @@ function CreateProduct() {
           return [
             normalizeVariantPayload({
               color: groupColor,
+              audience: group.audience || audiences[0] || gender || "",
               size: String(fixedSizeLabel || "One Size").trim() || "One Size",
               default_purchase_qty: purchaseQty,
               purchase_qty: purchaseQty,
@@ -1999,6 +2001,7 @@ function CreateProduct() {
             const purchaseQty = getVariantPurchaseQty(row, group);
             return normalizeVariantPayload({
               color: groupColor,
+              audience: group.audience || audiences[0] || gender || "",
               size: String(row.size || "").trim(),
               default_purchase_qty: purchaseQty,
               purchase_qty: purchaseQty,
@@ -3323,6 +3326,11 @@ function CreateProduct() {
                                 ART {getGroupArticleSummary(group)}
                               </span>
                             ) : null}
+                            {group.audience ? (
+                              <span className="rounded-full border border-violet-400/25 bg-violet-400/10 px-2.5 py-1 text-[11px] font-bold text-violet-100">
+                                {group.audience === "men" ? "رجالي" : group.audience === "women" ? "حريمي" : "أطفال"}
+                              </span>
+                            ) : null}
                             {getColorGroupThermalUrl(group) ? (
                               <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
                                 Thermal Artwork جاهز
@@ -3467,7 +3475,7 @@ function CreateProduct() {
                             </div>
 
                             <div className="min-w-0 space-y-3">
-                              <div className={`grid gap-3 ${mirrorEditionEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
+                              <div className={`grid gap-3 ${mirrorEditionEnabled ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
                                 <div>
                                   <label className="text-sm font-semibold text-zinc-300">{t("products.editor.colorName")}</label>
                                   <input
@@ -3585,6 +3593,17 @@ function CreateProduct() {
                                     manufacturers={manufacturers}
                                     placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
                                   />
+                                </div>
+                                <div>
+                                  <label className="text-sm font-semibold text-zinc-300">الجمهور لهذا اللون</label>
+                                  <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                                    {[{ value: "men", label: "رجالي" }, { value: "women", label: "حريمي" }, { value: "kids", label: "أطفال" }].filter((option) => audiences.length === 0 || audiences.includes(option.value)).map((option) => (
+                                      <button key={option.value} type="button" onClick={() => updateColorGroup(group.id, "audience", option.value)} className={`h-10 rounded-[12px] border text-xs font-bold transition ${(group.audience || audiences[0] || gender) === option.value ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-zinc-950 text-zinc-400 hover:text-white"}`}>
+                                        {option.label}
+                                      </button>
+                                    ))}
+                                  </div>
+                                  <p className="mt-1 text-[11px] text-zinc-500">يتحكم في ظهور اللون داخل أقسام المتجر.</p>
                                 </div>
                               </div>
 

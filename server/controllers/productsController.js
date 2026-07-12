@@ -852,7 +852,8 @@ export const ensureProductVariantSchema = async () => {
       ADD COLUMN IF NOT EXISTS branch_id BIGINT,
       ADD COLUMN IF NOT EXISTS edition_name TEXT,
       ADD COLUMN IF NOT EXISTS edition_slug TEXT,
-      ADD COLUMN IF NOT EXISTS article_code TEXT
+      ADD COLUMN IF NOT EXISTS article_code TEXT,
+      ADD COLUMN IF NOT EXISTS audience VARCHAR(30)
   `);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants (product_id, id)`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_tenant_product_id ON product_variants (tenant_id, product_id, id)`);
@@ -861,6 +862,7 @@ export const ensureProductVariantSchema = async () => {
   await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_sku_lower ON product_variants (LOWER(sku))`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_barcode_lower ON product_variants (LOWER(barcode))`);
   await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_article_code_lower ON product_variants (LOWER(TRIM(article_code))) WHERE article_code IS NOT NULL AND TRIM(article_code) <> ''`);
+  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_audience ON product_variants (product_id, audience, is_active) WHERE deleted_at IS NULL`);
   await db.query(`
     UPDATE product_variants
     SET thermal_image_status = 'ready'
@@ -2364,6 +2366,7 @@ const prepareVariantsForCreate = async (client, {
       sku: nextSku,
       barcode: nextBarcode,
       article_code: variant.article_code || "",
+      audience: String(variant.audience || variant.variant_audience || "").trim() || null,
       image_url: normalizedVariantImageUrl,
       thermal_image_url: normalizedVariantImageUrl ? "" : normalizedThermalImageUrl,
       thermal_image_status: normalizedVariantImageUrl ? "pending" : normalizedThermalImageUrl ? "ready" : "pending",
@@ -2384,7 +2387,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
 
   const values = [];
   const placeholders = variants.map((variant, index) => {
-    const offset = index * 23;
+    const offset = index * 24;
     values.push(
       tenantId,
       productId,
@@ -2397,6 +2400,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       variant.sku || "",
       variant.barcode || "",
       variant.article_code || "",
+      variant.audience || null,
       variant.image_url || "",
       variant.thermal_image_url || "",
       variant.thermal_image_status || "pending",
@@ -2410,7 +2414,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       variant.default_purchase_qty ?? 0,
       true
     );
-    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, NULLIF($${offset + 11}, ''), $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, NULL)`;
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, NULLIF($${offset + 11}, ''), $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, $${offset + 24}, NULL)`;
   });
 
   const result = await client.query(
@@ -2427,6 +2431,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       sku,
       barcode,
       article_code,
+      audience,
       image_url,
       thermal_image_url,
       thermal_image_status,
@@ -2487,6 +2492,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       sku,
       barcode,
       article_code,
+      audience,
       image_url,
       thermal_image_url,
       thermal_image_status,
@@ -2501,7 +2507,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       is_active,
       deleted_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULLIF($11, ''), $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, TRUE, NULL)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULLIF($11, ''), $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, TRUE, NULL)
     RETURNING *
     `,
     [
@@ -2516,6 +2522,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       nextVariant.sku,
       nextVariant.barcode,
       nextVariant.article_code || "",
+      String(nextVariant.audience || nextVariant.variant_audience || "").trim() || null,
       normalizedVariantImageUrl,
       nextVariantThermalImageUrl,
       nextVariantThermalImageStatus,
@@ -2624,22 +2631,23 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       sku = $7,
       barcode = $8,
       article_code = NULLIF($9, ''),
-      image_url = $10,
-      thermal_image_url = $11,
-      thermal_image_status = $12,
-      thermal_image_generated_at = $13,
-      thermal_image_error = $14,
-      cost_price = $15,
-      price = $16,
-      sale_price = $17,
-      edition_name = $18,
-      edition_slug = $19,
-      default_purchase_qty = COALESCE($20, default_purchase_qty),
+      audience = $10,
+      image_url = $11,
+      thermal_image_url = $12,
+      thermal_image_status = $13,
+      thermal_image_generated_at = $14,
+      thermal_image_error = $15,
+      cost_price = $16,
+      price = $17,
+      sale_price = $18,
+      edition_name = $19,
+      edition_slug = $20,
+      default_purchase_qty = COALESCE($21, default_purchase_qty),
       is_active = TRUE,
       deleted_at = NULL
-    WHERE id = $21
-      AND product_id = $22
-      AND ($23::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $23::bigint)
+    WHERE id = $22
+      AND product_id = $23
+      AND ($24::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $24::bigint)
     RETURNING *
     `,
     [
@@ -2652,6 +2660,7 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       nextVariant.sku,
       nextVariant.barcode,
       nextVariant.article_code || "",
+      String(nextVariant.audience || nextVariant.variant_audience || "").trim() || null,
       nextVariantImageUrl,
       nextVariantThermalImageUrl,
       nextVariantThermalImageStatus,

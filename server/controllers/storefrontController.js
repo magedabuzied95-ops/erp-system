@@ -694,6 +694,8 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_name TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_slug TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS article_code TEXT`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS audience VARCHAR(30)`);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_audience ON product_variants (product_id, audience, is_active) WHERE deleted_at IS NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE`);
@@ -1330,6 +1332,7 @@ const catalogQuery = `
           'product_id', pv.product_id,
           'size', pv.size,
           'color', pv.color,
+          'audience', pv.audience,
           'sku', pv.sku,
           'barcode', pv.barcode,
           'edition_name', pv.edition_name,
@@ -1419,11 +1422,30 @@ const productAudienceFilterSql = (param = "$5") => `
     COALESCE(array_length(${param}::text[], 1), 0) = 0
     OR EXISTS (
       SELECT 1
+      FROM product_variants pv_audience
+      WHERE pv_audience.product_id = p.id
+        AND pv_audience.is_active IS DISTINCT FROM FALSE
+        AND pv_audience.deleted_at IS NULL
+        AND LOWER(TRIM(COALESCE(pv_audience.audience, ''))) = ANY(${param}::text[])
+    )
+    OR (
+      NOT EXISTS (
+        SELECT 1 FROM product_variants pv_audience_any
+        WHERE pv_audience_any.product_id = p.id
+          AND COALESCE(TRIM(pv_audience_any.audience), '') <> ''
+          AND pv_audience_any.is_active IS DISTINCT FROM FALSE
+          AND pv_audience_any.deleted_at IS NULL
+      )
+      AND EXISTS (
+      SELECT 1
       FROM product_audiences pa_filter
       WHERE pa_filter.product_id = p.id
         AND pa_filter.audience = ANY(${param}::text[])
+      )
     )
     OR (
+      NOT EXISTS (SELECT 1 FROM product_variants pv_audience_any WHERE pv_audience_any.product_id = p.id AND COALESCE(TRIM(pv_audience_any.audience), '') <> '')
+      AND
       NOT EXISTS (SELECT 1 FROM product_audiences pa_any WHERE pa_any.product_id = p.id)
       AND LOWER(TRIM(COALESCE(p.gender, ''))) = ANY(${param}::text[])
     )
@@ -1483,6 +1505,7 @@ export const storefrontProductsSql = `
           AND pv_size.is_active IS DISTINCT FROM FALSE
           AND pv_size.deleted_at IS NULL
           AND LOWER(TRIM(COALESCE(pv_size.size, ''))) = LOWER(TRIM($10))
+          AND (COALESCE(array_length($7::text[], 1), 0) = 0 OR COALESCE(TRIM(pv_size.audience), '') = '' OR LOWER(TRIM(pv_size.audience)) = ANY($7::text[]))
           AND ($11::boolean = FALSE OR COALESCE(pv_size.stock, 0) > 0)
       ))
       AND ($11::boolean = FALSE OR COALESCE(p.stock, 0) > 0 OR EXISTS (
@@ -1506,7 +1529,24 @@ const storefrontProductsSqlWithoutVisibility = storefrontProductsSql.replace(
 export const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnly, limit, offset) => {
   const params = [tenantId, q, category, filters.brand || "", saleOnly, Boolean(filters.offerStory), filters.gender, filters.productType, filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset];
   try {
-    return await db.query(sql, params);
+    const result = await db.query(sql, params);
+    const selectedAudiences = Array.isArray(filters.gender) ? filters.gender : [];
+    if (selectedAudiences.length > 0) {
+      result.rows = result.rows.map((row) => {
+        const variants = Array.isArray(row.variants) ? row.variants : [];
+        const scopedVariants = variants.filter((variant) => {
+          const audience = normalizeAudienceValue(variant?.audience);
+          return !audience || selectedAudiences.includes(audience);
+        });
+        const matchedImage = scopedVariants.find((variant) => String(variant?.image_url || "").trim())?.image_url || "";
+        return {
+          ...row,
+          variants: scopedVariants,
+          ...(matchedImage ? { public_image_url: matchedImage } : {}),
+        };
+      });
+    }
+    return result;
   } catch (error) {
     error.sql = sql;
     error.params = params;

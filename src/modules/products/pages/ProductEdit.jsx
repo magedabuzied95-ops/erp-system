@@ -168,6 +168,7 @@ const createEmptySizeRow = (defaults = {}) => createVariantRow(defaults);
 const createEmptyColorGroup = (defaults = {}) => ({
   id: makeId(),
   color: formatFieldValue(defaults.color),
+  audience: formatFieldValue(defaults.audience ?? defaults.variant_audience ?? defaults.gender),
   manufacturer_id: formatFieldValue(defaults.manufacturer_id),
   manufacturer_override: Boolean(defaults.manufacturer_override),
   color_article_code: formatFieldValue(defaults.color_article_code ?? defaults.colorArticleCode),
@@ -562,6 +563,7 @@ const buildProductEditVariantContentSnapshot = (groups = []) =>
   JSON.stringify(
     (Array.isArray(groups) ? groups : []).map((group) => ({
       color: String(group.color || "").trim(),
+      audience: String(group.audience || "").trim(),
       manufacturer_id: String(group.manufacturer_id || "").trim(),
       manufacturer_override: Boolean(group.manufacturer_override),
     color_article_code: String(group.color_article_code || group.article_code || "").trim(),
@@ -693,6 +695,8 @@ const normalizeVariantForm = (row = {}) => ({
   edition_name: row.edition_name || row.variant_edition_name || "",
   edition_slug: row.edition_slug || row.variant_edition_slug || "",
   manufacturer_id: row.manufacturer_id ?? row.variant_manufacturer_id ?? "",
+  audience: row.audience || row.variant_audience || "",
+  variant_audience: row.variant_audience || row.audience || "",
   images: Array.isArray(row.images) ? row.images : Array.isArray(row.color_images) ? row.color_images : [],
 });
 
@@ -782,6 +786,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
           color_article_code: row.color_article_code || row.colorArticleCode || "",
           thermal_image_url: row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "",
           manufacturer_id: normalizeManufacturerId(row.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
+          audience: String(row.audience || row.variant_audience || "").trim(),
           manufacturer_override:
             normalizeManufacturerId(row.manufacturer_id) !== normalizeManufacturerId(defaultManufacturerId),
         planned_qty:
@@ -2884,6 +2889,7 @@ function ProductEdit() {
           id: sourceRow.variantId || undefined,
           variant_id: sourceRow.variantId || undefined,
           color: group.color,
+          audience: group.audience || product.audiences?.[0] || product.gender || "",
           size: String(product.fixed_size_label || "One Size").trim() || "One Size",
           default_purchase_qty: purchaseQty,
           purchase_qty: purchaseQty,
@@ -2936,6 +2942,7 @@ function ProductEdit() {
           id: row.variantId || undefined,
           variant_id: row.variantId || undefined,
           color: group.color,
+          audience: group.audience || product.audiences?.[0] || product.gender || "",
           size,
           default_purchase_qty: purchaseQty,
           purchase_qty: purchaseQty,
@@ -4015,6 +4022,11 @@ function ProductEdit() {
                             ART {getGroupArticleSummary(group)}
                           </span>
                         ) : null}
+                        {group.audience ? (
+                          <span className="rounded-full border border-violet-400/25 bg-violet-400/10 px-2.5 py-1 text-[11px] font-bold text-violet-100">
+                            {group.audience === "men" ? "رجالي" : group.audience === "women" ? "حريمي" : "أطفال"}
+                          </span>
+                        ) : null}
                         {getColorGroupThermalUrl(group) ? (
                           <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-200">
                             Thermal Artwork جاهز
@@ -4172,7 +4184,7 @@ function ProductEdit() {
                     </div>
 
                     <div className="min-w-0 space-y-3">
-                        <div className={`grid gap-3 ${mirrorEditionEnabled ? "xl:grid-cols-4" : "xl:grid-cols-3"}`}>
+                        <div className={`grid gap-3 ${mirrorEditionEnabled ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
                           <div>
                             <label className="text-sm font-semibold text-zinc-300">{t("products.editor.colorName")}</label>
                               <input
@@ -4290,6 +4302,17 @@ function ProductEdit() {
                               manufacturers={manufacturers}
                               placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
                             />
+                          </div>
+                          <div>
+                            <label className="text-sm font-semibold text-zinc-300">الجمهور لهذا اللون</label>
+                            <div className="mt-1.5 grid grid-cols-3 gap-1.5">
+                              {[{ value: "men", label: "رجالي" }, { value: "women", label: "حريمي" }, { value: "kids", label: "أطفال" }].filter((option) => !product.audiences?.length || product.audiences.includes(option.value)).map((option) => (
+                                <button key={option.value} type="button" onClick={() => updateColorGroup(group.id, "audience", option.value)} className={`h-10 rounded-[12px] border text-xs font-bold transition ${(group.audience || product.audiences?.[0] || product.gender) === option.value ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-zinc-950 text-zinc-400 hover:text-white"}`}>
+                                  {option.label}
+                                </button>
+                              ))}
+                            </div>
+                            <p className="mt-1 text-[11px] text-zinc-500">يتحكم في ظهور اللون داخل أقسام المتجر.</p>
                           </div>
                         </div>
 
