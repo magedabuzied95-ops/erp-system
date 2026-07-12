@@ -278,7 +278,13 @@ const buildEmployeeScopedProductCard = (product = {}, variants = [], { color = "
   const productMainImage = resolveProductMainImage(product);
   const exactColorImage = resolveColorEntryImage(product, scopedColor);
   const exactVariantImage = extractImageUrl(previewVariant);
-  const previewImageUrl = exactColorImage || (exactVariantImage && exactVariantImage !== productMainImage ? exactVariantImage : "");
+  const candidateImageUrl = exactColorImage || (exactVariantImage && exactVariantImage !== productMainImage ? exactVariantImage : "");
+  const imageOwnerColors = uniqueValues(
+    (Array.isArray(product.variants) ? product.variants : [])
+      .filter((variant) => candidateImageUrl && extractImageUrl(variant) === candidateImageUrl)
+      .map((variant) => variant.color)
+  );
+  const previewImageUrl = imageOwnerColors.length > 1 ? "" : candidateImageUrl;
 
   return {
     ...product,
@@ -290,6 +296,7 @@ const buildEmployeeScopedProductCard = (product = {}, variants = [], { color = "
     employee_card_size: scopedSize,
     employee_card_variant_id: previewVariant?.variant_id ?? previewVariant?.id ?? null,
     employee_exact_variant_image: true,
+    employee_ambiguous_color_image: Boolean(candidateImageUrl && imageOwnerColors.length > 1),
     image_url: previewImageUrl,
     product_image_url: previewImageUrl,
     variant_image_url: previewImageUrl,
