@@ -686,7 +686,9 @@ const buildPayrollApprovalBlockers = ({ employee = {}, payrollSnapshot = {}, att
   if (missingDates.length) {
     append({
       type: "attendance_missing",
-      severity: "hard",
+      // Missing rows represent payable absences; the calculated absence deduction already handles them.
+      // Only unresolved check-in records are hard approval blockers.
+      severity: "warning",
       message_ar: `بيانات حضور ناقصة: ${missingDates.join(", ")}`,
       reference_id: Number(employee.id) || null,
       date: missingDates[0] || null,
@@ -2362,6 +2364,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
           amount: netPay,
           createdBy: createdBy || null,
           branchId: employee.branch_id || branchId || null,
+          entryDate: payrollPeriodEnd,
           description: `Payroll approval ${payrollReference}`,
           notes: `Payroll approval for ${employee.full_name} (${payrollReference})`,
           sourceKey: `payroll-approval-${payrollRun.id}`,
@@ -2537,6 +2540,7 @@ export const markPayrollAsPaid = async ({ tenantId = null, employeeId, filters =
         createdBy,
         branchId,
         paymentMethod,
+        entryDate: monthBounds(payrollRun.payroll_period).end,
         description: `Payroll payment ${payrollRun.payroll_reference}`,
         notes: `Payroll payment for ${employee.full_name} (${payrollRun.payroll_reference})`,
         sourceKey: `payroll-payment-${payrollRun.id}`,
@@ -2576,7 +2580,9 @@ export const markPayrollAsPaid = async ({ tenantId = null, employeeId, filters =
   } catch (error) {
     try {
       await client.query("ROLLBACK");
-    } catch {}
+    } catch {
+      // Preserve the original payment error if rollback also fails.
+    }
     throw error;
   } finally {
     client.release();
