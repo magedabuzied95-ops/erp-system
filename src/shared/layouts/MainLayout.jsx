@@ -36,28 +36,28 @@ const ENTERPRISE_GROUPS = [
 ];
 
 const GROUP_TITLE_KEYS = {
-  Main: "الرئيسية",
-  Sales: "المبيعات",
-  Operations: "العمليات",
-  "Products & Inventory": "المنتجات والمخزون",
-  Purchasing: "المشتريات",
-  Employees: "الموظفون",
-  Finance: "المالية",
-  "AI & Marketing": "الذكاء والتسويق",
-  "System Settings": "إعدادات النظام",
+  Main: "sidebar.groups.main",
+  Sales: "sidebar.groups.sales",
+  Operations: "sidebar.groups.operations",
+  "Products & Inventory": "sidebar.groups.productsInventory",
+  Purchasing: "sidebar.groups.purchasing",
+  Employees: "sidebar.groups.employees",
+  Finance: "sidebar.groups.finance",
+  "AI & Marketing": "sidebar.groups.aiMarketing",
+  "System Settings": "sidebar.groups.systemSettings",
 };
 
 const HEADER_QUICK_ACTION_ROUTES = ["/orders", "/products/add", "/products", "/marketing/ai-center"];
 const QUICK_ACCESS_LABELS = {
-  "/orders": "الطلبات",
-  "/products/add": "إضافة منتج",
-  "/marketing/ai-center": "مركز التسويق الذكي",
-  "/products": "المنتجات",
+  "/orders": "sidebar.quickAccess.orders",
+  "/products/add": "sidebar.quickAccess.product",
+  "/marketing/ai-center": "sidebar.quickAccess.aiCenter",
+  "/products": "sidebar.quickAccess.products",
 };
 const SIDEBAR_SUBGROUP_TITLE_KEYS = {
-  "AI Marketing": "التسويق الذكي",
-  "AI Support": "دعم الذكاء",
-  "System Settings": "إعدادات النظام",
+  "AI Marketing": "sidebar.subgroups.aiMarketing",
+  "AI Support": "sidebar.subgroups.aiSupport",
+  "System Settings": "sidebar.subgroups.systemSettings",
 };
 
 const SYSTEM_PREFERENCE_ROUTES = new Set(["/settings", "/settings/appearance", "/settings/company", "/settings/storefront", "/settings/shipping", "/settings/payments"]);
@@ -80,23 +80,6 @@ const SETTINGS_CENTER_ACTIVE_ROUTES = new Set([
 ]);
 const AI_MARKETING_ROUTES = new Set(["/marketing/ai-center", "/marketing/ai-center/leads", "/marketing/ai-center/videos", "/admin/ai-inbox", "/admin/ai-followups", "/admin/ai-channels", "/admin/ai-agent-analytics"]);
 const AI_SUPPORT_ROUTES = new Set(["/admin/ai-support-console", "/admin/ai-support-knowledge-base", "/admin/ai-agent-settings"]);
-const ARABIC_GROUP_LABELS = {
-  Main: "الرئيسية",
-  Sales: "المبيعات",
-  Operations: "العمليات",
-  "Products & Inventory": "المنتجات والمخزون",
-  Purchasing: "المشتريات",
-  Employees: "الموظفون",
-  Finance: "المالية",
-  "AI & Marketing": "الذكاء والتسويق",
-  "System Settings": "إعدادات النظام",
-};
-const ARABIC_SUBGROUP_LABELS = {
-  "AI Marketing": "التسويق الذكي",
-  "AI Support": "دعم الذكاء",
-  "System Settings": "إعدادات النظام",
-};
-
 const sidebarSubgroupForItem = (groupTitle, item) => {
   const to = String(item.to || "");
   if (groupTitle === "Marketing" && AI_MARKETING_ROUTES.has(to)) return "AI Marketing";
@@ -391,10 +374,11 @@ function SidebarNavItem({ item, location, collapsed = false, onNavigate }) {
 }
 
 function HeaderQuickActionButton({ item, location, onNavigate }) {
+  const { t } = useTranslation();
   const Icon = item.icon;
   const active = sidebarItemActive(item, location);
   const labelKey = QUICK_ACCESS_LABELS[item.to];
-  const label = labelKey || item.sidebarLabel || item.label;
+  const label = labelKey ? t(labelKey) : item.sidebarLabel || item.label;
   return (
     <NavLink
       to={item.to}
@@ -545,7 +529,7 @@ function MainLayout() {
   const isPosActive = location.pathname === "/pos" || location.pathname.startsWith("/pos/");
   const isAiMarketingWorkspace = location.pathname.startsWith("/marketing") || location.pathname.startsWith("/admin/ai-");
   const isStoreActive = location.pathname === "/shop" || location.pathname.startsWith("/shop/");
-  const posLabel = "نقطة البيع";
+  const posLabel = t("sidebar.quickAccess.pos");
   const searchQuery = normalizeSearchText(sidebarSearch);
   const activeGroupTitle = useMemo(() => {
     const activeGroup = groupedSections.find((group) => group.items.some((item) => sidebarItemActive(item, location)));
@@ -677,15 +661,15 @@ function MainLayout() {
                 <WorkspaceBrandMark name={workspaceName} logoUrl={workspaceLogoUrl} className="h-11 w-11 rounded-2xl bg-[var(--surface-soft)]" />
                 <div className="min-w-0">
                   <h1 className={["truncate font-black tracking-tight text-[var(--text)]", sidebarCompact ? "text-center text-lg" : "text-2xl"].join(" ")}>{workspaceName}</h1>
-                  {sidebarCompact ? null : <p className="mt-0.5 truncate text-xs text-[var(--muted)]">Workspace</p>}
+                  {sidebarCompact ? null : <p className="mt-0.5 truncate text-xs text-[var(--muted)]">{t("sidebar.workspace")}</p>}
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setSidebarCollapsed((value) => !value)}
                 className="hidden h-8 w-8 shrink-0 place-items-center rounded-xl border border-[var(--border)] text-[var(--muted)] transition hover:bg-[var(--surface-soft)] hover:text-[var(--text)] lg:grid"
-                title={sidebarCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
-                aria-label={sidebarCollapsed ? "توسيع الشريط الجانبي" : "طي الشريط الجانبي"}
+                title={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+                aria-label={sidebarCollapsed ? t("sidebar.expand") : t("sidebar.collapse")}
               >
                 <CollapseIcon className="h-4 w-4" />
               </button>
@@ -698,7 +682,7 @@ function MainLayout() {
               <input
                 value={sidebarSearch}
                 onChange={(event) => setSidebarSearch(event.target.value)}
-                placeholder="ابحث في الوحدات..."
+                placeholder={t("sidebar.searchModules")}
                 className="h-10 w-full rounded-2xl border border-[var(--border)] bg-[var(--card)] ps-9 pe-3 text-sm font-semibold text-[var(--text)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--primary)] focus:bg-[var(--surface-soft)]"
               />
             </label>
@@ -707,7 +691,7 @@ function MainLayout() {
           <nav className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pe-1" aria-label={t("common.mainNavigation", "التنقل الرئيسي")}>
             {visibleGroupedSections.length ? visibleGroupedSections.map((group) => {
               const isOpen = Boolean(searchQuery || openGroups[group.title] || activeGroupTitle === group.title);
-              const groupLabel = ARABIC_GROUP_LABELS[group.title] || group.title;
+              const groupLabel = t(GROUP_TITLE_KEYS[group.title] || group.title, { defaultValue: group.title });
               const activeInGroup = group.items.some((item) => sidebarItemActive(item, location));
               const rootItems = [];
               const nestedSections = [];
@@ -748,7 +732,7 @@ function MainLayout() {
                         ))}
                         {nestedSections.map((nestedSection) => {
                           const nestedKey = `nested:${group.title}:${nestedSection.title}`;
-                          const nestedTitle = ARABIC_SUBGROUP_LABELS[nestedSection.title] || nestedSection.title;
+                          const nestedTitle = t(SIDEBAR_SUBGROUP_TITLE_KEYS[nestedSection.title] || nestedSection.title, { defaultValue: nestedSection.title });
                           const nestedOpen = Boolean(searchQuery || (openGroups[nestedKey] ?? true));
                           const nestedActive = nestedSection.items.some((item) => sidebarItemActive(item, location));
                           return (
@@ -809,11 +793,11 @@ function MainLayout() {
           <button
             type="button"
             onClick={handleLogout}
-            title={sidebarCompact ? "تسجيل الخروج" : undefined}
+            title={sidebarCompact ? t("common.logout") : undefined}
             className={["flex w-full items-center justify-center rounded-xl bg-[var(--danger)] text-sm font-black text-white shadow-lg", sidebarCompact ? "h-10 px-2" : "gap-2 px-3 py-2"].join(" ")}
           >
             <LogOut className="h-4 w-4" />
-            {sidebarCompact ? null : "تسجيل الخروج"}
+            {sidebarCompact ? null : t("common.logout")}
           </button>
         </div>
       </aside>
@@ -846,7 +830,7 @@ function MainLayout() {
                   <div className="min-w-0">
                     <h2 className="truncate text-2xl font-bold tracking-tight text-[var(--text)]">{workspaceName}</h2>
                     <p className="mt-1 text-sm text-[var(--muted)]">
-                      عودة موفقة، {user?.name}
+                      {t("common.welcomeBack")}, {user?.name}
                     </p>
                   </div>
                 </div>
@@ -856,8 +840,8 @@ function MainLayout() {
                 <button
                   type="button"
                   onClick={() => window.open(publicStorefrontUrl("/"), "_blank", "noopener,noreferrer")}
-                  title="المتجر"
-                  aria-label="فتح المتجر"
+                  title={t("sidebar.storefront")}
+                  aria-label={t("sidebar.openStore")}
                   className={[
                     "group inline-flex h-11 items-center justify-center gap-2 rounded-full border px-3 text-sm font-black transition duration-200 sm:px-4",
                     "bg-zinc-950/75 text-[var(--text)] shadow-[0_10px_30px_rgba(0,0,0,0.18)] backdrop-blur",
@@ -867,7 +851,7 @@ function MainLayout() {
                   ].join(" ")}
                 >
                   <ShoppingBag className="h-4 w-4 text-emerald-300 transition group-hover:text-emerald-200" />
-                  <span className="hidden sm:inline">المتجر</span>
+                  <span className="hidden sm:inline">{t("sidebar.storefront")}</span>
                 </button>
                 <button
                   type="button"
@@ -891,8 +875,8 @@ function MainLayout() {
                   type="button"
                   onClick={() => setTheme(theme.mode === "dark" ? "light" : "dark")}
                   className="m1-shell-theme-toggle inline-flex h-10 w-10 shrink-0 items-center justify-center border border-[var(--border)] text-[var(--topbar-text)]"
-                  aria-label={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
-                  title={theme.mode === "dark" ? "الوضع الفاتح" : "الوضع الداكن"}
+                  aria-label={theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode")}
+                  title={theme.mode === "dark" ? t("appearance.lightMode") : t("appearance.darkMode")}
                 >
                   {theme.mode === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
                 </button>
@@ -900,7 +884,7 @@ function MainLayout() {
                   type="button"
                   onClick={handleLogout}
                   className="inline-flex h-11 items-center justify-center rounded-full border border-[var(--border)] bg-[var(--card)] px-3 text-sm font-semibold text-[var(--text)] lg:hidden"
-                  aria-label="تسجيل الخروج"
+                  aria-label={t("common.logout")}
                 >
                   <LogOut className="h-4 w-4" />
                 </button>

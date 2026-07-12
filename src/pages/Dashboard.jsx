@@ -100,14 +100,16 @@ const normalizeObject = (response, fallback = {}) => response?.data || response 
 const hasSocketClient = Boolean(socket && typeof socket.on === "function");
 
 const percent = (value) => `${Number(value || 0) >= 0 ? "+" : ""}${Number(value || 0).toFixed(1)}%`;
-const number = (value) => Number(value || 0).toLocaleString("en-US");
+const dashboardLocale = () =>
+  (typeof document !== "undefined" && document.documentElement.lang === "ar") ? "ar-EG" : "en-US";
+const number = (value) => Number(value || 0).toLocaleString(dashboardLocale());
 const compactNumber = (value) =>
-  Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(Number(value || 0));
+  Intl.NumberFormat(dashboardLocale(), { notation: "compact", maximumFractionDigits: 1 }).format(Number(value || 0));
 const shortTime = (value) => {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return date.toLocaleTimeString(dashboardLocale(), { hour: "2-digit", minute: "2-digit" });
 };
 
 const getDashboardCopy = (isArabic) => ({
@@ -250,15 +252,16 @@ const sparkPath = (values = [], width = 112, height = 34) => {
     .join(" ");
 };
 
-const dayLabel = (value) => {
+const dayLabel = (value, locale = dashboardLocale()) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value || "");
-  return date.toLocaleDateString([], { month: "short", day: "numeric" });
+  return date.toLocaleDateString(locale, { month: "short", day: "numeric" });
 };
 
 function Dashboard() {
   const { i18n } = useTranslation();
   const isArabic = String(i18n.resolvedLanguage || i18n.language || "").startsWith("ar");
+  const locale = isArabic ? "ar-EG" : "en-US";
   const copy = React.useMemo(() => getDashboardCopy(isArabic), [isArabic]);
   const user = getCurrentUser();
   const tenant = getCurrentTenant();
@@ -393,7 +396,7 @@ function Dashboard() {
 
       setData({
         overview: normalizeObject(overview, null),
-        salesTrend: normalizeArray(salesTrend).map((row) => ({ ...row, label: dayLabel(row.day), revenue: Number(row.revenue || 0), orders: Number(row.orders || 0) })),
+        salesTrend: normalizeArray(salesTrend).map((row) => ({ ...row, label: dayLabel(row.day, locale), revenue: Number(row.revenue || 0), orders: Number(row.orders || 0) })),
         topProducts: normalizeArray(topProducts).map((row) => ({ ...row, quantity: Number(row.quantity || 0), revenue: Number(row.revenue || 0) })),
         lowStock: normalizeArray(lowStock),
         liveActivity: normalizeArray(liveActivity),
@@ -414,7 +417,7 @@ function Dashboard() {
     } finally {
       setLoading(false);
     }
-  }, [queryString]);
+  }, [queryString, locale]);
 
   React.useEffect(() => {
     loadDashboard();
