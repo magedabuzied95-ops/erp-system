@@ -3724,7 +3724,7 @@ function CreateProduct() {
                                   </div>
                                 </div>
 
-                                <div className="hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:grid-cols-[minmax(0,.75fr)_minmax(0,120px)_minmax(0,150px)_minmax(0,165px)_minmax(0,150px)_auto] xl:gap-2">
+                                <div className="hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:grid-cols-[minmax(120px,1fr)_120px_minmax(130px,150px)_minmax(160px,185px)_minmax(130px,150px)_110px] xl:gap-2">
                                   <div>{t("products.fields.size", "Size")}</div>
                                   <div>{t("products.editor.stockQty", "Stock Qty")}</div>
                                   <div>SKU</div>
@@ -3737,17 +3737,17 @@ function CreateProduct() {
                                   {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                                   <div
                                     key={row.id}
-                                    className="grid min-w-[820px] gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:grid-cols-[minmax(0,.75fr)_minmax(0,120px)_minmax(0,150px)_minmax(0,165px)_minmax(0,150px)_auto]"
+                                    className="grid min-w-[820px] gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:grid-cols-[minmax(120px,1fr)_120px_minmax(130px,150px)_minmax(160px,185px)_minmax(130px,150px)_110px] xl:items-start xl:py-2"
                                   >
                                       <div>
-                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">
                                           {isColorOnlyMode ? t("products.editor.fixedSize", "المقاس الثابت") : t("products.fields.size", "المقاس")}
                                         </label>
                                         <input
                                           value={row.size}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "size", e.target.value)}
                                           placeholder={isColorOnlyMode ? fixedSizeLabel || t("products.editor.oneSize", "مقاس واحد") : "40"}
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                         />
                                         {isCrocsProductType(productType) ? (
                                           <p className="mt-1 text-[11px] font-semibold leading-4 text-cyan-200/90">
@@ -3756,7 +3756,7 @@ function CreateProduct() {
                                         ) : null}
                                       </div>
                                       <div>
-                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.stockQty", "الكمية المخزنة")}</label>
+                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">{t("products.editor.stockQty", "الكمية المخزنة")}</label>
                                         <input
                                           type="number"
                                           min="0"
@@ -3764,38 +3764,38 @@ function CreateProduct() {
                                           value={row.stock ?? ""}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "stock", e.target.value)}
                                           placeholder="0"
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                         />
-                                        <p className="mt-1 text-[10px] leading-4 text-zinc-500">{t("products.editor.preparationOnlyStock", "للتجهيز فقط. تتم إضافة المخزون الفعلي من فواتير الشراء.")}</p>
+                                        <p className="mt-1 text-[10px] leading-4 text-zinc-500 xl:hidden">{t("products.editor.preparationOnlyStock", "للتجهيز فقط. تتم إضافة المخزون الفعلي من فواتير الشراء.")}</p>
                                       </div>
                                       <div>
-                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">SKU</label>
+                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">SKU</label>
                                         <input
                                           value={row.sku}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "sku", e.target.value)}
                                           placeholder=""
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                         />
                                       </div>
                                       <div>
-                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("products.selected.barcode", "Barcode")}</label>
+                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">{t("products.selected.barcode", "Barcode")}</label>
                                         <input
                                           value={row.barcode}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "barcode", e.target.value)}
                                           placeholder={t("products.editor.scanOrEnterBarcode", "امسح أو أدخل الباركود")}
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                         />
                                       </div>
                                       <div>
-                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500">{t("products.fields.articleCode", "Article Code")}</label>
+                                        <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">{t("products.fields.articleCode", "Article Code")}</label>
                                         <input
                                           value={row.article_code || ""}
                                           onChange={(e) => updateSizeRow(group.id, row.id, "article_code", e.target.value)}
                                           placeholder="L122-40"
-                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
+                                          className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                         />
                                       </div>
-                                      <div className="flex items-end">
+                                      <div className="flex items-start">
                                         <button
                                           type="button"
                                           onClick={() => removeSizeRow(group.id, row.id)}
