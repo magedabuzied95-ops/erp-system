@@ -1046,7 +1046,6 @@ function CreateProduct() {
       const groupColor = getColorGroupName(group);
       return {
         ...group,
-        color: groupColor || group.color || "",
         sizes: sortProductSizes(Array.isArray(group.sizes) ? group.sizes : []).map((row) => {
           if (row.skuManualOverride) {
             if (String(row.sku || "").trim()) makeUniqueSku(String(row.sku || "").trim().toUpperCase(), usedSkus);
