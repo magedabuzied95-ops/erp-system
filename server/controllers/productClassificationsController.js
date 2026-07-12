@@ -115,6 +115,66 @@ const invalidateProductClassificationCaches = async () => {
   });
 };
 
+const repairProductTypeGroupIfNeeded = async () => {
+  const client = await db.connect();
+  try {
+    await client.query("BEGIN");
+    const repaired = await client.query(`
+      WITH candidate AS (
+        SELECT g.id
+        FROM product_classification_groups g
+        LEFT JOIN product_classification_options o
+          ON o.group_id = g.id
+         AND o.deleted_at IS NULL
+        WHERE g.deleted_at IS NULL
+          AND LOWER(TRIM(COALESCE(o.value, ''))) IN ('sneakers', 'bags', 'crocs')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM product_classification_groups current_type
+            WHERE current_type.deleted_at IS NULL
+              AND LOWER(TRIM(current_type.key)) = 'product_type'
+          )
+        GROUP BY g.id
+        HAVING COUNT(DISTINCT LOWER(TRIM(o.value))) >= 2
+        ORDER BY COUNT(DISTINCT LOWER(TRIM(o.value))) DESC, g.id ASC
+        LIMIT 1
+      )
+      UPDATE product_classification_groups g
+      SET key = 'product_type',
+          name_ar = 'نوع المنتج',
+          name_en = 'Product Type',
+          is_active = TRUE,
+          deleted_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      FROM candidate
+      WHERE g.id = candidate.id
+      RETURNING g.id
+    `);
+    if (repaired.rowCount > 0) {
+      await client.query(`
+        INSERT INTO product_classification_options (group_id, value, label_ar, label_en, icon, color, sort_order, is_active, deleted_at)
+        VALUES ($1, 'slippers', 'اسليبرز', 'Slippers', 'S', '', 4, TRUE, NULL)
+        ON CONFLICT (group_id, value) DO UPDATE SET
+          label_ar = EXCLUDED.label_ar,
+          label_en = EXCLUDED.label_en,
+          icon = EXCLUDED.icon,
+          sort_order = EXCLUDED.sort_order,
+          is_active = TRUE,
+          deleted_at = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      `, [repaired.rows[0].id]);
+    }
+    await client.query("COMMIT");
+    if (repaired.rowCount > 0) await invalidateProductClassificationCaches();
+    return repaired.rowCount > 0;
+  } catch (error) {
+    await client.query("ROLLBACK");
+    throw error;
+  } finally {
+    client.release();
+  }
+};
+
 const columnCandidatesForGroup = (groupKey) => ({
   gender: ["gender"],
   product_type: ["product_type", "productType", "type"],
@@ -203,6 +263,8 @@ const clearProductClassificationReferences = async (client, { groupKey, options 
 
 export const listProductClassifications = async (req, res) => {
   try {
+    await ensureProductClassificationSchema();
+    await repairProductTypeGroupIfNeeded();
     const includeInactive = String(req.query.includeInactive || "").trim() === "1";
     const activeOnly = String(req.query.activeOnly || "").trim() === "1";
     const groups = await fetchProductClassificationGroups({ includeInactive: includeInactive && !activeOnly });
@@ -284,8 +346,8 @@ export const updateProductClassificationGroup = async (req, res) => {
       [id]
     );
     const currentKey = normalizeKey(currentGroup.rows[0]?.key);
-    if (["gender", "product_type", "grade"].includes(currentKey) && payload.key !== currentKey) {
-      return res.status(400).json({ success: false, message: "Core classification group keys cannot be changed" });
+    if (currentKey && payload.key !== currentKey) {
+      return res.status(400).json({ success: false, message: "Classification group keys cannot be changed after creation" });
     }
     if (isRemovedClassificationKey(payload.key)) {
       return res.status(400).json({ success: false, message: "This classification group is no longer supported" });

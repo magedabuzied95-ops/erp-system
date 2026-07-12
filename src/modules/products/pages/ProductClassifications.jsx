@@ -281,7 +281,7 @@ function ProductClassifications() {
           <div className="mt-3 grid gap-4 lg:grid-cols-[1fr_1.1fr]">
             <div className="rounded-[1.45rem] border border-white/8 bg-white/[0.03] p-4">
               <div className="grid gap-3">
-                <Field label={t("products.classifications.key")} value={groupForm.key} onChange={(value) => setGroupForm((current) => ({ ...current, key: value }))} placeholder={t("products.classifications.keyPlaceholder")} disabled={["gender", "product_type", "grade"].includes(String(selectedGroup?.key || ""))} />
+                <Field label={t("products.classifications.key")} value={groupForm.key} onChange={(value) => setGroupForm((current) => ({ ...current, key: value }))} placeholder={t("products.classifications.keyPlaceholder")} disabled={Boolean(selectedGroup?.id)} />
                 <Field label={t("products.classifications.arabicName")} value={groupForm.name_ar} onChange={(value) => setGroupForm((current) => ({ ...current, name_ar: value }))} placeholder={t("products.classifications.arabicNamePlaceholder")} />
                 <Field label={t("products.classifications.englishName")} value={groupForm.name_en} onChange={(value) => setGroupForm((current) => ({ ...current, name_en: value }))} placeholder={t("products.classifications.englishNamePlaceholder")} />
                 <Field label={t("products.classifications.sortOrder")} type="number" value={groupForm.sort_order} onChange={(value) => setGroupForm((current) => ({ ...current, sort_order: value }))} />
