@@ -2,6 +2,7 @@ import { createPortal } from "react-dom";
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
 import { X } from "lucide-react";
+import "./SmartPosFilters.m1.css";
 
 function CategoryPill({ active, onClick, name, count, icon, color }) {
   const disabled = !active && Number.isFinite(Number(count)) && Number(count) === 0;
@@ -11,7 +12,9 @@ function CategoryPill({ active, onClick, name, count, icon, color }) {
       onClick={onClick}
       disabled={disabled}
       style={!active && !disabled && color ? { borderColor: `${color}66`, color } : undefined}
-      className={`inline-flex min-h-7 max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black leading-none transition duration-200 sm:text-[11px] ${
+      className={`m1-smart-filter-pill inline-flex min-h-7 max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black leading-none transition duration-200 sm:text-[11px] ${
+        active ? "is-active" : ""
+      } ${disabled ? "is-disabled" : ""} ${
         active
           ? "border-emerald-200/60 bg-gradient-to-r from-emerald-300 via-emerald-400 to-lime-300 text-emerald-950 shadow-[0_0_10px_rgba(16,185,129,0.16)]"
           : disabled
@@ -37,7 +40,7 @@ function SmartFilterRow({ label, options, value, onChange }) {
   if (items.length === 0) return null;
 
   return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
+    <div className="m1-smart-filter-group min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
       <div className="mb-1.5 flex min-h-4 items-center">
         <div className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{label}</div>
       </div>
@@ -108,7 +111,7 @@ function SmartPosFilters({
 
   const content = (
     <div
-      className="fixed inset-0 flex items-end justify-center bg-black/75 px-4 py-4 backdrop-blur-xl sm:items-center sm:py-6"
+      className="m1-smart-filter-overlay fixed inset-0 flex items-end justify-center bg-black/75 px-4 py-4 backdrop-blur-xl sm:items-center sm:py-6"
       style={{ zIndex: 2147483000 }}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
@@ -119,10 +122,10 @@ function SmartPosFilters({
         role="dialog"
         aria-modal="true"
         aria-labelledby="smart-pos-filters-title"
-        className="flex w-[min(1050px,calc(100vw-40px))] max-w-[calc(100vw-40px)] max-h-[84vh] flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/95 shadow-2xl shadow-black/60 backdrop-blur-xl sm:w-[min(1050px,calc(100vw-56px))] sm:max-w-[calc(100vw-56px)] sm:rounded-3xl"
+        className="m1-smart-filter-panel flex w-[min(1050px,calc(100vw-40px))] max-w-[calc(100vw-40px)] max-h-[84vh] flex-col overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950/95 shadow-2xl shadow-black/60 backdrop-blur-xl sm:w-[min(1050px,calc(100vw-56px))] sm:max-w-[calc(100vw-56px)] sm:rounded-3xl"
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-4 sm:py-3.5">
+        <div className="m1-smart-filter-header flex items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-4 sm:py-3.5">
           <div className="min-w-0">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">{copy.eyebrow}</div>
             <h2 id="smart-pos-filters-title" className="mt-0.5 text-lg font-black text-white sm:text-xl">
@@ -133,7 +136,7 @@ function SmartPosFilters({
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            className="m1-smart-filter-close inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
             aria-label={copy.close}
             title={copy.close}
           >
@@ -151,12 +154,12 @@ function SmartPosFilters({
             </div>
 
             <div className="grid gap-2">
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
+              <div className="m1-smart-filter-group rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
                 <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{copy.brand}</div>
                 <select
                   value={selectedBrandId}
                   onChange={(event) => onBrandChange(event.target.value)}
-                  className="h-10 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-[13px] font-semibold text-white outline-none transition focus:border-emerald-400/50"
+                  className="m1-smart-filter-select h-10 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-[13px] font-semibold text-white outline-none transition"
                 >
                   <option value="all">{copy.allBrands}</option>
                   {(brandOptions || []).map((brand) => (
@@ -167,12 +170,12 @@ function SmartPosFilters({
                 </select>
               </div>
 
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
+              <div className="m1-smart-filter-group rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
                 <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{copy.manufacturer}</div>
                 <select
                   value={selectedManufacturerId}
                   onChange={(event) => onManufacturerChange(event.target.value)}
-                  className="h-10 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-[13px] font-semibold text-white outline-none transition focus:border-emerald-400/50"
+                  className="m1-smart-filter-select h-10 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-[13px] font-semibold text-white outline-none transition"
                 >
                   <option value="all">{copy.allManufacturers}</option>
                   {(manufacturerOptions || []).map((manufacturer) => (
@@ -186,12 +189,12 @@ function SmartPosFilters({
           </div>
         </div>
 
-        <div className="sticky bottom-0 border-t border-white/10 bg-slate-950/95 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-3.5">
+        <div className="m1-smart-filter-footer sticky bottom-0 border-t border-white/10 bg-slate-950/95 px-3 py-3 backdrop-blur-xl sm:px-4 sm:py-3.5">
           <div className="grid gap-2 sm:grid-cols-3">
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl bg-emerald-500/90 px-4 text-sm font-black text-black transition hover:bg-emerald-400"
+              className="m1-smart-filter-apply inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black transition"
             >
               {copy.apply}
             </button>
