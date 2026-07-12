@@ -3893,27 +3893,35 @@
 
   .manufacturer-select-dropdown {
     color-scheme: dark;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
   }
 
   .manufacturer-select-dropdown option {
-    background: #09090b;
-    color: #ffffff;
+    background-color: #18181b !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-weight: 600;
+    opacity: 1;
   }
 
   .manufacturer-select-dropdown option:disabled {
-    color: #a1a1aa;
+    color: #a1a1aa !important;
+    -webkit-text-fill-color: #a1a1aa !important;
   }
 
   .manufacturer-select-dropdown option:hover,
   .manufacturer-select-dropdown option:checked,
   .manufacturer-select-dropdown option:focus {
-    background: color-mix(in srgb, var(--primary) 72%, #09090b);
-    color: #ffffff;
+    background-color: #52525b !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
   }
 
   .manufacturer-select-dropdown option:not(:checked):hover {
-    background: color-mix(in srgb, var(--primary) 48%, #09090b);
-    color: #ffffff;
+    background-color: #3f3f46 !important;
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
   }
 
   .theme-button-primary,
