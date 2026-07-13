@@ -51,6 +51,7 @@ import { accountingApi } from "../../accounting/services/accountingApi";
 
 const failedCartImageUrls = new Set();
 const M1_RECEIPT_FALLBACK_LOGO = "https://res.cloudinary.com/dpnyfsjvz/image/upload/v1781790446/erp/products/ocxppxsepj5qfewqgch6.png";
+const M1_CUSTOMER_SERVICE_PHONE = "01000659301";
 
 const getStoreProfile = () => {
   const tenant = getCurrentTenant() || {};
@@ -59,7 +60,7 @@ const getStoreProfile = () => {
   return {
     name: tenant.companyName || tenant.company_name || tenant.name || settings.companyName || "YOUR STORE",
     website: "www.m1store-egy.com",
-    phone: settings.phone || tenant.phone || "01234567890",
+    phone: M1_CUSTOMER_SERVICE_PHONE,
     address: settings.companyAddress || settings.address || tenant.address || "",
     logoUrl:
       settings["storefront.store_logo_url"] ||
@@ -1622,7 +1623,7 @@ const THERMAL_RECEIPT_FINAL_CSS = `
 .thermal-number{direction:ltr;unicode-bidi:isolate;text-align:left;font-weight:900;overflow-wrap:anywhere}.thermal-meta{display:grid;grid-template-columns:auto 1fr;gap:.8mm 2mm;margin-top:1.5mm}.thermal-meta dt{font-weight:900;white-space:nowrap}.thermal-meta dd{margin:0;min-width:0;text-align:left;font-weight:800;overflow-wrap:anywhere}.thermal-meta .ltr{direction:ltr;unicode-bidi:isolate}
 .thermal-items{width:100%;border-collapse:collapse;table-layout:fixed}.thermal-items th{padding:1.2mm .4mm;border-top:1.5px solid #000;border-bottom:1.5px solid #000;font-size:9px;font-weight:900}.thermal-items td{padding:1.5mm .4mm;border-bottom:1px dashed #777;vertical-align:middle;font-size:9.5px;font-weight:800;overflow:hidden}.thermal-items th:first-child,.thermal-items td:first-child{text-align:right}.thermal-items th:not(:first-child),.thermal-items td:not(:first-child){text-align:left;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;white-space:nowrap}.thermal-product{display:flex;align-items:center;gap:1mm;min-width:0}.thermal-item-image{width:10mm;height:10mm;flex:0 0 10mm;object-fit:contain;border:1px solid #555;background:#fff;filter:grayscale(1) contrast(1.2)}.thermal-item-copy{min-width:0}.thermal-item-name{font-weight:900;line-height:1.25;overflow-wrap:anywhere}.thermal-item-detail{margin-top:.4mm;font-size:8.5px;font-weight:700;color:#111}.thermal-col-qty{width:6mm}.thermal-col-price{width:15mm}.thermal-col-total{width:16mm}
 .thermal-totals{margin-top:1.5mm}.thermal-row{display:flex;align-items:baseline;justify-content:space-between;gap:3mm;padding:.55mm 0}.thermal-row span:first-child{font-weight:700}.thermal-row strong{direction:ltr;unicode-bidi:isolate;text-align:left;font-weight:900;font-variant-numeric:tabular-nums}.thermal-grand{margin-top:1mm;padding:1.8mm 0;border-top:2px solid #000;border-bottom:2px solid #000;font-size:16px}.thermal-grand span:first-child,.thermal-grand strong{font-weight:900}
-.thermal-store-info{font-size:10px;line-height:1.45}.thermal-store-row{display:grid;grid-template-columns:auto 1fr;gap:2mm;padding:.35mm 0}.thermal-store-row span{font-weight:900}.thermal-store-row strong{text-align:left;font-weight:800;overflow-wrap:anywhere}.thermal-note{margin-top:1.8mm;text-align:center;font-size:9.5px;font-weight:800;line-height:1.45}.thermal-policy-title{font-size:10.5px;font-weight:900}.thermal-barcode{margin:2mm auto 0;text-align:center}.thermal-barcode svg{display:block;width:100%!important;height:17mm!important;max-width:100%;margin:auto}.thermal-barcode svg text{display:none}.thermal-barcode svg rect,.thermal-barcode svg path,.thermal-barcode svg line{shape-rendering:crispEdges}.thermal-footer{margin-top:1.5mm;text-align:center;font-size:9.5px;line-height:1.4}.thermal-thanks{font-size:11px;font-weight:900}.thermal-cut{margin-top:3mm;border-top:1px dashed #000}
+.thermal-store-info{font-size:10px;line-height:1.45}.thermal-store-row{display:grid;grid-template-columns:auto 1fr;gap:2mm;padding:.35mm 0}.thermal-store-row span{font-weight:900}.thermal-store-row strong{text-align:left;font-weight:800;overflow-wrap:anywhere}.thermal-website{margin-top:1mm;text-align:center}.thermal-website span{display:block;font-weight:800}.thermal-website strong{display:block;margin-top:.4mm;font-size:11px;font-weight:900;letter-spacing:.02em}.thermal-note{margin-top:1.8mm;text-align:center;font-size:9.5px;font-weight:800;line-height:1.45}.thermal-policy-title{font-size:10.5px;font-weight:900}.thermal-barcode{margin:2mm auto 0;text-align:center}.thermal-barcode svg{display:block;width:100%!important;height:17mm!important;max-width:100%;margin:auto}.thermal-barcode svg text{display:none}.thermal-barcode svg rect,.thermal-barcode svg path,.thermal-barcode svg line{shape-rendering:crispEdges}.thermal-footer{margin-top:1.5mm;text-align:center;font-size:9.5px;line-height:1.4}.thermal-thanks{font-size:11px;font-weight:900}.thermal-cut{margin-top:3mm;border-top:1px dashed #000}
 @page{margin:0}@media print{html,body{width:100%!important;min-width:0!important;margin:0!important;padding:0!important;background:#fff!important}.thermal-final{width:100%!important;max-width:none!important;margin:0!important;padding-right:4mm!important;padding-left:4mm!important;page-break-inside:avoid;break-inside:avoid}}
 `;
 
@@ -1647,7 +1648,6 @@ function ThermalReceiptFinal({
   const dateLabel = Number.isNaN(receiptDate.getTime()) ? "-" : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(receiptDate);
   const timeLabel = Number.isNaN(receiptDate.getTime()) ? "-" : new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }).format(receiptDate);
   const customerName = customer?.name || customer?.customer_name || "عميل نقدي";
-  const customerPhone = customer?.phone || customer?.mobile || customer?.customer_phone || "";
   const cashier = cashierName || sellerName || "";
   const salesperson = sellerName && sellerName !== cashier ? sellerName : "";
   const payment = getLocalizedPaymentLabel(paymentMode, paymentSummary);
@@ -1684,7 +1684,6 @@ function ThermalReceiptFinal({
         {cashier ? <><dt>الكاشير</dt><dd>{cashier}</dd></> : null}
         {salesperson ? <><dt>البائع</dt><dd>{salesperson}</dd></> : null}
         <dt>العميل</dt><dd>{customerName}</dd>
-        {customerPhone ? <><dt>الهاتف</dt><dd className="ltr">{customerPhone}</dd></> : null}
         <dt>الدفع</dt><dd>{payment}</dd>
       </dl>
 
@@ -1722,10 +1721,10 @@ function ThermalReceiptFinal({
         {dueAmount > 0 ? <div className="thermal-row"><span>المتبقي</span><strong>{money(dueAmount)}</strong></div> : null}
       </section>
 
-      {(store.address || store.phone || officialWebsite) ? <><hr className="thermal-rule" /><section className="thermal-store-info">
+      {(store.address || M1_CUSTOMER_SERVICE_PHONE || officialWebsite) ? <><hr className="thermal-rule" /><section className="thermal-store-info">
         {store.address ? <div className="thermal-store-row"><span>العنوان</span><strong>{store.address}</strong></div> : null}
-        {store.phone ? <div className="thermal-store-row"><span>خدمة العملاء</span><strong dir="ltr">{store.phone}</strong></div> : null}
-        {officialWebsite ? <div className="thermal-store-row"><span>الموقع الإلكتروني الرسمي</span><strong dir="ltr">{officialWebsite}</strong></div> : null}
+        <div className="thermal-store-row"><span>خدمة العملاء</span><strong dir="ltr">{M1_CUSTOMER_SERVICE_PHONE}</strong></div>
+        {officialWebsite ? <div className="thermal-website"><span>الموقع الإلكتروني الرسمي</span><strong dir="ltr">{officialWebsite}</strong></div> : null}
       </section></> : null}
       <div className="thermal-note"><div className="thermal-policy-title">سياسة الاستبدال والاسترجاع</div><div>{getReturnPolicyText()}</div></div>
       <div className="thermal-barcode"><div dangerouslySetInnerHTML={{ __html: barcodeSvg }} /></div>

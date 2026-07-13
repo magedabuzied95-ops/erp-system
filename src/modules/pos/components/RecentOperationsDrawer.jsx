@@ -262,6 +262,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [scannedInvoiceLookup, setScannedInvoiceLookup] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [hasMore, setHasMore] = useState(false);
   const [totalCount, setTotalCount] = useState(null);
@@ -368,6 +369,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     if (!invoiceNumber) return;
     autoOpenedInvoiceRef.current = "";
     setSearch(invoiceNumber);
+    setScannedInvoiceLookup(invoiceNumber);
     setDebouncedSearch(invoiceNumber);
   }, [open, requestedInvoiceNumber]);
 
@@ -425,8 +427,9 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
   const filteredOrders = orders;
 
   useEffect(() => {
-    if (!open || !requestedInvoiceNumber || loading || !orders.length) return;
-    const requested = String(requestedInvoiceNumber).trim().toLowerCase();
+    const invoiceLookup = requestedInvoiceNumber || scannedInvoiceLookup;
+    if (!open || !invoiceLookup || loading || !orders.length) return;
+    const requested = String(invoiceLookup).trim().toLowerCase();
     if (!requested || autoOpenedInvoiceRef.current === requested) return;
     const requestedDigits = requested.replace(/\D/g, "").replace(/^0+/, "");
     const matchedOrder = orders.find((order) => {
@@ -442,7 +445,21 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
         autoOpenedInvoiceRef.current = "";
         toast.error(error.message || "تعذر فتح الفاتورة المقروءة");
       });
-  }, [loadOrderSummary, loading, open, orders, requestedInvoiceNumber]);
+  }, [loadOrderSummary, loading, open, orders, requestedInvoiceNumber, scannedInvoiceLookup]);
+
+  const handleSearchChange = (event) => {
+    const value = String(event.target.value || "");
+    const barcodeMatch = value.trim().match(/^9919(\d{12})$/);
+    if (barcodeMatch) {
+      const invoiceLookup = String(Number(barcodeMatch[1] || 0));
+      setScannedInvoiceLookup(invoiceLookup);
+      setSearch(invoiceLookup);
+      setDebouncedSearch(invoiceLookup);
+      return;
+    }
+    setScannedInvoiceLookup("");
+    setSearch(value);
+  };
 
   const handleReprint = async (order) => {
     await runOrderAction(order, "print", async () => {
@@ -593,7 +610,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
               <Search className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
               <input
                 value={search}
-                onChange={(event) => setSearch(event.target.value)}
+                onChange={handleSearchChange}
                 placeholder="بحث برقم الفاتورة أو العميل أو الهاتف"
                 className="h-12 w-full rounded-2xl border border-white/10 bg-black/40 pr-11 pl-4 text-sm font-semibold text-white outline-none placeholder:text-zinc-500"
               />

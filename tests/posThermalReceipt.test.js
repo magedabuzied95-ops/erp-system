@@ -33,7 +33,10 @@ test("thermal receipt preserves business data with a clear compact product image
   assert.match(thermalBlock, /thermal-item-image/);
   assert.match(thermalBlock, /resolveProductImageUrl/);
   assert.doesNotMatch(thermalBlock, /M1-Store|01000659301/);
+  assert.match(receiptSource, /M1_CUSTOMER_SERVICE_PHONE = "01000659301"/);
   assert.match(thermalBlock, /www\.m1store-egy\.com/);
+  assert.doesNotMatch(thermalBlock, /customerPhone|customer\.phone|customer\.mobile/);
+  assert.match(receiptSource, /thermal-website/);
   assert.match(thermalBlock, /store\.logoUrl/);
   assert.match(receiptSource, /@page\{margin:0\}/);
   assert.match(receiptSource, /\.thermal-final\{width:100%/);
@@ -55,5 +58,8 @@ test("invoice barcode opens the matching recent operation instead of product loo
   assert.match(posSource, /requestedInvoiceNumber=\{scannedInvoiceNumber\}/);
   assert.match(drawerSource, /requestedDigits/);
   assert.match(drawerSource, /invoiceDigits === requestedDigits/);
+  assert.match(drawerSource, /handleSearchChange/);
+  assert.match(drawerSource, /value\.trim\(\)\.match\(\/\^9919/);
+  assert.match(drawerSource, /setScannedInvoiceLookup\(invoiceLookup\)/);
   assert.match(drawerSource, /setSelectedOrder\(loadedOrder\)/);
 });
