@@ -1731,6 +1731,7 @@ function ProductsList() {
         label: t("products.actionsMenu.edit", "تعديل"),
         placement: "primary",
         visibleFrom: "lg",
+        href: `/products/${row.id}/edit`,
         onClick: () => {
           console.log("[products:list] action click", { action: "edit", productId: row.id });
           navigate(`/products/${row.id}/edit`);
@@ -2665,6 +2666,7 @@ function ProductsList() {
                                   key={action.key}
                                   icon={action.icon}
                                   label={action.inlineLabel || action.label}
+                                  href={action.href}
                                   onClick={action.onClick}
                                   disabled={action.disabled}
                                   className={action.className || ""}
@@ -3260,7 +3262,35 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
   );
 });
 
-function QuickRowAction({ icon: Icon, label, onClick, disabled = false, className = "" }) {
+function QuickRowAction({ icon: Icon, label, href = "", onClick, disabled = false, className = "" }) {
+  const sharedClassName = `group/action relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100 hover:shadow-[0_0_18px_rgba(16,185,129,0.12)] disabled:cursor-not-allowed disabled:opacity-30 ${className}`;
+  const content = (
+    <>
+      <Icon size={14} />
+      <span className="pointer-events-none absolute bottom-full left-1/2 z-[110] mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-zinc-950 px-2 py-1 text-[10px] font-bold text-white opacity-0 shadow-xl shadow-black/40 transition group-hover/action:opacity-100 group-focus-visible/action:opacity-100">
+        {label}
+      </span>
+    </>
+  );
+
+  if (href && !disabled) {
+    return (
+      <Link
+        to={href}
+        onClick={(event) => {
+          if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+          event.preventDefault();
+          onClick?.();
+        }}
+        title={label}
+        aria-label={label}
+        className={sharedClassName}
+      >
+        {content}
+      </Link>
+    );
+  }
+
   return (
     <button
       type="button"
@@ -3268,12 +3298,9 @@ function QuickRowAction({ icon: Icon, label, onClick, disabled = false, classNam
       disabled={disabled}
       title={label}
       aria-label={label}
-      className={`group/action relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.025] text-zinc-400 opacity-75 transition hover:border-emerald-300/25 hover:bg-emerald-400/10 hover:text-emerald-100 hover:opacity-100 hover:shadow-[0_0_18px_rgba(16,185,129,0.12)] disabled:cursor-not-allowed disabled:opacity-30 ${className}`}
+      className={sharedClassName}
     >
-      <Icon size={14} />
-      <span className="pointer-events-none absolute bottom-full left-1/2 z-[110] mb-2 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-zinc-950 px-2 py-1 text-[10px] font-bold text-white opacity-0 shadow-xl shadow-black/40 transition group-hover/action:opacity-100 group-focus-visible/action:opacity-100">
-        {label}
-      </span>
+      {content}
     </button>
   );
 }
