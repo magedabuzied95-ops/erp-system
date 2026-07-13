@@ -1995,7 +1995,7 @@ export const updateCustomer = async (req, res) => {
       UPDATE customers
       SET ${setClauses.join(", ")}
       WHERE id = $${columns.tenantIdColumn ? params.length - 1 : params.length}
-        ${columns.tenantIdColumn ? `AND tenant_id = $${params.length}::bigint` : ""}
+        ${columns.tenantIdColumn ? `AND ($${params.length}::bigint IS NULL OR tenant_id = $${params.length}::bigint)` : ""}
       RETURNING id
     `;
 
