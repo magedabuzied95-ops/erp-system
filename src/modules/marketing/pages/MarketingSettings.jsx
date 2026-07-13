@@ -89,7 +89,7 @@ const statusLabel = (status = "") => {
 };
 
 function StatusBadge({ status }) {
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${hubStatusTone(status)}`}>{statusLabel(status)}</span>;
+  return <span className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1.5 text-sm font-black ${hubStatusTone(status)}`}>{statusLabel(status)}</span>;
 }
 
 const isConnectedStatus = (status = "") => ["connected", "fully_connected"].includes(String(status || "").toLowerCase());
@@ -190,7 +190,7 @@ function CopyButton({ value, label = "Copy" }) {
         navigator.clipboard?.writeText(String(value || ""));
         toast.success(`${label} copied`);
       }}
-      className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-slate-100 transition hover:bg-white/10"
+      className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-100 transition hover:bg-white/10"
     >
       <Copy className="h-3.5 w-3.5" />
       {label}
@@ -199,20 +199,20 @@ function CopyButton({ value, label = "Copy" }) {
 }
 
 function CapabilityPill({ connected, connectedLabel = "Connected", disconnectedLabel = "Not connected" }) {
-  return <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-black ${statusTone(connected)}`}>{connected ? connectedLabel : disconnectedLabel}</span>;
+  return <span className={`inline-flex min-h-9 items-center rounded-full border px-3 py-1.5 text-sm font-black ${statusTone(connected)}`}>{connected ? connectedLabel : disconnectedLabel}</span>;
 }
 
 function CapabilityCard({ icon: Icon, title, subtitle, connected, status, checks = [], details, connectedLabel, disconnectedLabel, emptyLabel, onTest }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
+    <div className="rounded-2xl border border-white/[0.12] bg-[#101310] p-5 shadow-lg shadow-black/10">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-cyan-300/20 bg-cyan-400/10 text-cyan-100">
-            <Icon className="h-4 w-4" />
+          <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-amber-300/20 bg-amber-400/10 text-amber-200">
+            <Icon className="h-5 w-5" />
           </span>
           <div>
             <div className="font-black text-white">{title}</div>
-            {subtitle ? <div className="mt-1 text-xs text-slate-400">{subtitle}</div> : null}
+            {subtitle ? <div className="mt-1 text-sm leading-6 text-slate-400">{subtitle}</div> : null}
           </div>
         </div>
         {status ? <StatusBadge status={status} /> : <CapabilityPill connected={connected} connectedLabel={connectedLabel} disconnectedLabel={disconnectedLabel} />}
@@ -220,15 +220,15 @@ function CapabilityCard({ icon: Icon, title, subtitle, connected, status, checks
       {checks.length ? (
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {checks.map((check) => (
-            <div key={check.label} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-300">
-              <CheckCircle2 className={`h-3.5 w-3.5 ${check.ok ? "text-emerald-300" : "text-amber-300"}`} />
+            <div key={check.label} className="flex min-h-10 items-center gap-2.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm text-slate-300">
+              <CheckCircle2 className={`h-4 w-4 shrink-0 ${check.ok ? "text-emerald-300" : "text-amber-300"}`} />
               <span>{check.label}</span>
             </div>
           ))}
         </div>
       ) : null}
       {details?.length ? (
-        <div className="mt-4 grid gap-2 text-xs text-slate-400">
+        <div className="mt-4 grid gap-2.5 text-sm text-slate-400">
           {details.map(([label, value]) => (
             <div key={label} className="flex justify-between gap-3">
               <span>{label}</span>
@@ -238,8 +238,8 @@ function CapabilityCard({ icon: Icon, title, subtitle, connected, status, checks
         </div>
       ) : null}
       {onTest ? (
-        <button onClick={onTest} className="mt-4 inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100">
-          <PlayCircle className="h-3.5 w-3.5" />
+        <button onClick={onTest} className="mt-4 inline-flex min-h-10 items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-100">
+          <PlayCircle className="h-4 w-4" />
           Test live
         </button>
       ) : null}
@@ -881,59 +881,108 @@ export default function MarketingSettings() {
   const isLocalSetup = /localhost|127\.0\.0\.1/i.test(`${setupCheck?.redirect_uri || ""} ${setupCheck?.webhook_url || ""}`);
   const pageLabel = metaConfig.facebook_page_name || metaConfig.page_name || form.page_id;
   const instagramLabel = metaConfig.instagram_username || form.instagram_account_id;
+  const overviewCards = [
+    {
+      label: "حالة الربط",
+      value: setupCompletion.complete ? "مكتمل" : partialSetupDetected ? "يحتاج استكمال" : "غير متصل",
+      hint: pageLabel || "لم يتم اختيار صفحة فيسبوك",
+      ok: setupCompletion.complete,
+      icon: Workflow,
+    },
+    {
+      label: "الرسائل",
+      value: messengerOperationalConnected && instagramDmOperationalConnected ? "تعمل بالكامل" : messengerOperationalConnected || instagramDmOperationalConnected ? "تعمل جزئيًا" : "غير مفعلة",
+      hint: instagramLabel || "حساب إنستجرام غير محدد",
+      ok: messengerOperationalConnected && instagramDmOperationalConnected,
+      icon: MessageCircle,
+    },
+    {
+      label: "Webhook",
+      value: webhookReady ? "سليم" : "يحتاج مراجعة",
+      hint: webhookReady ? "استقبال الأحداث يعمل" : "تحقق من الاشتراك والرمز",
+      ok: webhookReady,
+      icon: Zap,
+    },
+    {
+      label: "الصلاحيات",
+      value: permissionsReady ? "مكتملة" : `${missingPermissions.length || 0} مفقودة`,
+      hint: permissionsReady ? "جاهزة للنشر والرسائل" : "راجع صلاحيات تطبيق Meta",
+      ok: permissionsReady,
+      icon: ShieldCheck,
+    },
+  ];
 
   return (
-    <div className="min-h-full bg-[#060816] text-white">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
+    <div dir="rtl" className="min-h-full bg-[#0b0d0c] text-white">
+      <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 px-4 py-5 md:px-6 lg:px-8">
         <MarketingStudioHeader />
-        <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
+        <section className="rounded-3xl border border-amber-400/15 bg-gradient-to-br from-[#1d1b12] via-[#171915] to-[#111411] p-5 shadow-2xl shadow-black/30 md:p-6">
           <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
-              <Settings2 className="h-3.5 w-3.5" />
+            <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
+              <Settings2 className="h-4 w-4" />
               {t("marketing.settings.eyebrow")}
             </div>
             <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.settings.title")}</h1>
-            <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.settings.subtitle")}</p>
+            <p className="max-w-3xl text-base leading-7 text-slate-300">{t("marketing.settings.subtitle")}</p>
           </div>
-          <div className="mt-5 flex flex-wrap gap-2">
+          <div className="sticky top-3 z-20 mt-5 flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-[#111411]/95 p-2.5 shadow-xl shadow-black/20 backdrop-blur">
             {[
-              ["facebook", t("marketing.social.platforms.facebook", "Facebook")],
-              ["instagram", t("marketing.social.platforms.instagram", "Instagram")],
-              ["messaging", t("marketing.settings.capabilities.messaging", "Messaging")],
-              ["publishing", t("marketing.settings.capabilities.publishing", "Publishing")],
+              ["facebook", "الربط والحسابات"],
+              ["messaging", "الرسائل"],
+              ["publishing", "النشر"],
               ["webhook", "Webhook"],
-              ["automation", t("marketing.settings.capabilities.automation", "Automation")],
+              ["automation", "الردود الآلية"],
             ].map(([section, label]) => (
-              <a key={section} href={`#marketing-settings-${section}`} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-slate-200 transition hover:bg-white/10">
+              <a key={section} href={`#marketing-settings-${section}`} className="inline-flex min-h-10 items-center rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-sm font-black text-slate-200 transition hover:border-amber-400/25 hover:bg-amber-400/10 hover:text-amber-100">
                 {label}
               </a>
             ))}
-            <button onClick={loadMetaDiagnostics} className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100">
-              <RefreshCw className={`h-3.5 w-3.5 ${diagnosticsLoading ? "animate-spin" : ""}`} />
-              Live diagnostics
+            <button onClick={loadMetaDiagnostics} className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3.5 py-2 text-sm font-black text-amber-100">
+              <RefreshCw className={`h-4 w-4 ${diagnosticsLoading ? "animate-spin" : ""}`} />
+              تحديث الحالة
             </button>
           </div>
         </section>
 
+        <section aria-label="ملخص حالة Meta" className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {overviewCards.map(({ label, value, hint, ok, icon: Icon }) => (
+            <div key={label} className="rounded-2xl border border-white/[0.12] bg-[#171a18] p-5 shadow-lg shadow-black/10">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <div className="text-sm font-semibold text-slate-400">{label}</div>
+                  <div className="mt-2 text-xl font-black text-white">{value}</div>
+                </div>
+                <span className={`inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${ok ? "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" : "border-amber-400/25 bg-amber-400/10 text-amber-300"}`}>
+                  <Icon className="h-5 w-5" />
+                </span>
+              </div>
+              <p className="mt-3 text-sm leading-6 text-slate-400">{hint}</p>
+            </div>
+          ))}
+        </section>
+
         {error ? <div className="rounded-2xl border border-rose-500/20 bg-rose-500/10 p-4 text-sm text-rose-100">{error}</div> : null}
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <details className="group rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+          <summary className="flex cursor-pointer list-none flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                <ShieldCheck className="h-3.5 w-3.5" />
-                Setup Check
+              <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
+                <ShieldCheck className="h-4 w-4" />
+                الإعدادات التقنية المتقدمة
               </div>
-              <h2 className="mt-3 text-xl font-black tracking-tight">Meta OAuth readiness</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-400">Use these values in Meta Developer settings. Secret values are never displayed here.</p>
+              <h2 className="mt-3 text-xl font-black tracking-tight md:text-2xl">جاهزية ربط Meta وبيانات المطور</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-400">اضغط لعرض روابط OAuth وWebhook والصلاحيات المطلوبة. القيم السرية لا تظهر هنا.</p>
             </div>
-            <StatusBadge status={setupCheck?.env_ready ? "connected" : "missing_permissions"} />
-          </div>
+            <div className="flex items-center gap-3">
+              <StatusBadge status={setupCheck?.env_ready ? "connected" : "missing_permissions"} />
+              <span className="text-2xl text-slate-400 transition group-open:rotate-180">⌄</span>
+            </div>
+          </summary>
           <div className="mt-5 grid gap-3 lg:grid-cols-3">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Environment</div>
-      <div className="mt-2 text-sm font-black text-white">{setupCheck?.env_ready ? "جاهز" : "غير جاهز"}</div>
-              <div className="mt-3 space-y-2 text-xs text-slate-300">
+            <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
+              <div className="text-sm font-semibold text-slate-400">بيئة التشغيل</div>
+              <div className="mt-2 text-base font-black text-white">{setupCheck?.env_ready ? "جاهز" : "غير جاهز"}</div>
+              <div dir="ltr" className="mt-3 space-y-2 text-sm text-slate-300">
                 {["META_APP_ID", "META_APP_SECRET", "META_REDIRECT_URI", "META_VERIFY_TOKEN"].map((key) => (
                   <div key={key} className="flex items-center justify-between gap-3">
                     <span>{key}</span>
@@ -942,16 +991,16 @@ export default function MarketingSettings() {
                 ))}
               </div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">OAuth Redirect URI</div>
-              <code className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-xs text-cyan-100">{setupCheck?.redirect_uri || "غير مهيأ"}</code>
+            <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
+              <div className="text-sm font-semibold text-slate-400">رابط إعادة توجيه OAuth</div>
+              <code dir="ltr" className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-sm text-slate-200">{setupCheck?.redirect_uri || "غير مهيأ"}</code>
               <div className="mt-3">
                 <CopyButton value={setupCheck?.redirect_uri || ""} label="نسخ رابط إعادة التوجيه" />
               </div>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">رابط استدعاء Webhook</div>
-              <code className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-xs text-amber-100">{setupCheck?.webhook_url || "غير مهيأ"}</code>
+            <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
+              <div className="text-sm font-semibold text-slate-400">رابط استدعاء Webhook</div>
+              <code dir="ltr" className="mt-2 block break-all rounded-xl bg-black/30 p-3 text-sm text-amber-100">{setupCheck?.webhook_url || "غير مهيأ"}</code>
               <div className="mt-3 flex flex-wrap gap-2">
                 <CopyButton value={setupCheck?.webhook_url || ""} label="نسخ رابط Webhook" />
                 <CopyButton value={setupCheck?.verify_token_status === "configured" ? "configured" : ""} label="نسخ حالة التحقق" />
@@ -964,28 +1013,28 @@ export default function MarketingSettings() {
             </div>
           ) : null}
           <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_0.9fr]">
-            <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Required permissions</div>
+            <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
+              <div className="text-sm font-semibold text-slate-400">الصلاحيات المطلوبة</div>
               <div className="mt-3 flex flex-wrap gap-2">
                 {(setupCheck?.required_permissions || []).map((permission) => (
-                  <span key={permission} className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-bold text-slate-200">{permission}</span>
+                  <span dir="ltr" key={permission} className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm font-bold text-slate-200">{permission}</span>
                 ))}
               </div>
               <p className="mt-4 text-sm text-slate-400">App review reminder: production messaging and publishing require Meta review approval for the requested permissions.</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">Setup steps</div>
-              <div className="mt-3 space-y-2 text-xs text-slate-300">
+            <div className="rounded-2xl border border-white/10 bg-[#101310] p-5">
+              <div className="text-sm font-semibold text-slate-400">خطوات الإعداد</div>
+              <div className="mt-3 space-y-2 text-sm text-slate-300">
                 {(setupCheck?.setup_steps || []).map((step) => (
                   <div key={step} className="flex gap-2 rounded-xl bg-white/[0.03] px-3 py-2">
-                    <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 text-cyan-300" />
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
                     <span>{step}</span>
                   </div>
                 ))}
               </div>
             </div>
           </div>
-        </section>
+        </details>
 
         {oauthResult ? (
           <section className={`rounded-3xl border p-5 shadow-2xl shadow-black/20 ${oauthResult.status === "partially_connected" ? "border-amber-400/20 bg-amber-400/10" : "border-emerald-400/20 bg-emerald-400/10"}`}>
@@ -1017,16 +1066,16 @@ export default function MarketingSettings() {
           </section>
         ) : null}
 
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <section className="rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
-                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
-                  <Workflow className="h-3.5 w-3.5" />
-                  Meta Integration Hub
+                <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
+                  <Workflow className="h-4 w-4" />
+                  مركز ربط Meta
                 </div>
-                <h2 className="mt-3 text-2xl font-black tracking-tight">Connect Meta</h2>
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                <h2 className="mt-3 text-2xl font-black tracking-tight md:text-3xl">ربط حساب Meta</h2>
+                <p className="mt-2 max-w-2xl text-base leading-7 text-slate-300">
                   يستخدم الإعداد الموجّه تسجيل الدخول عبر فيسبوك واختيار الصفحة واكتشاف حساب إنستجرام والتحقق من الصلاحيات وفحوصات Webhook. وتبقى المعرّفات اليدوية متاحة في الوضع المتقدم.
                 </p>
               </div>
@@ -1037,14 +1086,14 @@ export default function MarketingSettings() {
                 <button
                   key={label}
                   onClick={() => setWizardStep(index)}
-                  className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${wizardStep === index ? "border-cyan-400/30 bg-cyan-400/10 text-cyan-100" : "border-white/10 bg-slate-950/50 text-slate-300 hover:bg-white/5"}`}
+                  className={`min-h-16 rounded-2xl border px-4 py-3 text-right text-sm transition ${wizardStep === index ? "border-amber-400/35 bg-amber-400/10 text-amber-100" : "border-white/10 bg-[#101310] text-slate-300 hover:bg-white/5"}`}
                 >
-                  <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-500">Step {index + 1}</div>
+                  <div className="text-sm font-black text-slate-400">الخطوة {index + 1}</div>
                   <div className="mt-1 font-black">{label}</div>
                 </button>
               ))}
             </div>
-            <div className="mt-5 rounded-2xl border border-white/10 bg-slate-950/60 p-4">
+            <div className="mt-5 rounded-2xl border border-white/10 bg-[#101310] p-5">
               {wizardStep === 0 ? (
                 <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <div>
@@ -1056,15 +1105,15 @@ export default function MarketingSettings() {
                       <KeyRound className="h-4 w-4" />
                       {oauthLoading ? "Connecting..." : "Connect Meta"}
                     </button>
-                    <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/25 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 disabled:opacity-60">
-                      <PlayCircle className="h-3.5 w-3.5" />
+                    <button onClick={runWebhookSelfTest} disabled={webhookSelfTestLoading} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 px-4 py-2 text-sm font-black text-amber-100 disabled:opacity-60">
+                      <PlayCircle className="h-4 w-4" />
                       {webhookSelfTestLoading ? "Verifying..." : "Verify webhook"}
                     </button>
-                    <button onClick={completeMetaSetup} disabled={completeSetupLoading} className="inline-flex items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs font-black text-emerald-100 disabled:opacity-60">
-                      <CheckCircle2 className="h-3.5 w-3.5" />
+                    <button onClick={completeMetaSetup} disabled={completeSetupLoading} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-sm font-black text-emerald-100 disabled:opacity-60">
+                      <CheckCircle2 className="h-4 w-4" />
                       {completeSetupLoading ? "Completing..." : "Complete setup"}
                     </button>
-                    <button onClick={() => setAdvancedMode((value) => !value)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-black text-white">
+                    <button onClick={() => setAdvancedMode((value) => !value)} className="min-h-11 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-black text-white">
                       {advancedMode ? "Hide advanced mode" : "Advanced mode"}
                     </button>
                   </div>
@@ -1107,11 +1156,11 @@ export default function MarketingSettings() {
             </div>
           </section>
 
-          <aside className="rounded-3xl border border-white/10 bg-slate-950/70 p-5 shadow-2xl shadow-black/20">
+          <aside className="rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Setup checklist</div>
-                <div className="mt-1 text-lg font-black text-white">{completedSteps}/{setupSteps.length}</div>
+                <div className="text-sm font-black text-slate-400">مراحل الإعداد</div>
+                <div className="mt-1 text-2xl font-black text-white">{completedSteps}/{setupSteps.length}</div>
               </div>
               <StatusBadge status={setupStatus} />
             </div>
@@ -1122,7 +1171,7 @@ export default function MarketingSettings() {
             ) : null}
             <div className="mt-4 space-y-2">
               {setupSteps.map((step) => (
-                <div key={step.label} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-xs text-slate-300">
+                <div key={step.label} className="flex min-h-10 items-center gap-2.5 rounded-xl border border-white/10 bg-[#101310] px-3 py-2.5 text-sm text-slate-300">
                   <CheckCircle2 className={`h-4 w-4 ${step.done ? "text-emerald-300" : "text-slate-600"}`} />
                   <span>{step.label}</span>
                 </div>
@@ -1139,7 +1188,7 @@ export default function MarketingSettings() {
           </div>
         ) : null}
 
-        <section id="marketing-settings-facebook" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section id="marketing-settings-facebook" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
           <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-500">Connection</div>
@@ -1241,14 +1290,14 @@ export default function MarketingSettings() {
           </div>
         </section>
 
-        <section id="marketing-settings-messaging" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section id="marketing-settings-messaging" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
-                <MessageCircle className="h-3.5 w-3.5" />
+              <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
+                <MessageCircle className="h-4 w-4" />
                 {t("marketing.settings.capabilities.messaging", "Messaging")}
               </div>
-              <h2 className="mt-3 text-xl font-black tracking-tight">{t("marketing.settings.capabilities.messagingTitle", "Meta messaging capabilities")}</h2>
+            <h2 className="mt-3 text-2xl font-black tracking-tight">{t("marketing.settings.capabilities.messagingTitle", "Meta messaging capabilities")}</h2>
             </div>
             <div className="text-sm text-slate-400">{t("marketing.settings.capabilities.webhook", "Webhook")}: {metaConfig.webhook_enabled ? t("marketing.settings.status.enabled", "Enabled") : t("marketing.settings.status.disabled", "Disabled")}</div>
           </div>
@@ -1307,12 +1356,12 @@ export default function MarketingSettings() {
           </div>
         </section>
 
-        <section id="marketing-settings-publishing" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/20 bg-violet-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-violet-200">
-            <FileText className="h-3.5 w-3.5" />
+        <section id="marketing-settings-publishing" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+          <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
+            <FileText className="h-4 w-4" />
             {t("marketing.settings.capabilities.publishing", "النشر")}
           </div>
-          <h2 className="mt-3 text-xl font-black tracking-tight">{t("marketing.settings.capabilities.publishingTitle", "قدرات النشر في ميتا")}</h2>
+          <h2 className="mt-3 text-2xl font-black tracking-tight">{t("marketing.settings.capabilities.publishingTitle", "قدرات النشر في ميتا")}</h2>
           <div className="mt-5 grid gap-4 md:grid-cols-2">
             <CapabilityCard
               icon={FileText}
@@ -1361,14 +1410,14 @@ export default function MarketingSettings() {
           </div>
         </section>
 
-        <section id="marketing-settings-webhook" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section id="marketing-settings-webhook" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
           <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-amber-200">
-                <Zap className="h-3.5 w-3.5" />
+              <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
+                <Zap className="h-4 w-4" />
                 تشخيص Webhook
               </div>
-              <h2 className="mt-3 text-xl font-black tracking-tight">Live delivery health</h2>
+              <h2 className="mt-3 text-2xl font-black tracking-tight">حالة استقبال الأحداث</h2>
             </div>
             <StatusBadge status={liveWebhook.webhook_verified ? "connected" : "webhook_issue"} />
           </div>
@@ -1379,7 +1428,7 @@ export default function MarketingSettings() {
             </button>
             <code className="break-all rounded-xl bg-black/30 px-3 py-2 text-xs text-cyan-100">{webhookSelfTest?.expected_public_url || liveWebhook.webhook_url || metaStatus?.webhook_url || setupCheck?.webhook_url || "/api/meta/webhook"}</code>
           </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-4">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
               ["Webhook verified", liveWebhook.webhook_verified ? "نعم" : "لا"],
               ["Subscribed apps", liveWebhook.subscribed_apps_status || metaStatus?.subscribed_apps?.subscribed_apps_status || "Unknown"],
@@ -1397,20 +1446,20 @@ export default function MarketingSettings() {
               ["Event throughput 24h", liveWebhook.event_throughput_24h ?? 0],
               ["Expected public URL", webhookSelfTest?.expected_public_url || liveWebhook.webhook_url || metaStatus?.webhook_url || "/api/meta/webhook"],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</div>
+              <div key={label} className="rounded-2xl border border-white/10 bg-[#101310] p-5">
+                <div className="text-sm font-semibold text-slate-400">{label}</div>
                 <div className="mt-2 break-words text-sm font-black text-white">{value}</div>
               </div>
             ))}
           </div>
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
-          <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-cyan-200">
-            <KeyRound className="h-3.5 w-3.5" />
-            Token intelligence
+        <section className="rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
+          <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
+            <KeyRound className="h-4 w-4" />
+            حالة رمز الوصول
           </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-5">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             {[
               ["عمر الرمز", tokenIntelligence.age_days === null || tokenIntelligence.age_days === undefined ? "غير معروف" : `${tokenIntelligence.age_days} يوم`],
               ["Expiration countdown", tokenIntelligence.expiration_countdown_seconds === null || tokenIntelligence.expiration_countdown_seconds === undefined ? "Unknown" : `${Math.max(0, Math.floor(tokenIntelligence.expiration_countdown_seconds / 3600))}h`],
@@ -1418,23 +1467,23 @@ export default function MarketingSettings() {
               ["Last refresh status", tokenIntelligence.last_refresh_status || "not_run"],
               ["Auto-refresh success", `${tokenIntelligence.auto_refresh_success_rate ?? 0}%`],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-white/10 bg-slate-950/55 p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</div>
+              <div key={label} className="rounded-2xl border border-white/10 bg-[#101310] p-5">
+                <div className="text-sm font-semibold text-slate-400">{label}</div>
                 <div className="mt-2 text-sm font-black text-white">{value}</div>
               </div>
             ))}
           </div>
         </section>
 
-        <section id="marketing-settings-automation" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section id="marketing-settings-automation" className="scroll-mt-6 rounded-3xl border border-white/[0.12] bg-[#171a18] p-5 shadow-2xl shadow-black/20 md:p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-emerald-200">
-                <MessageCircle className="h-3.5 w-3.5" />
+              <div className="inline-flex min-h-9 items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-sm font-semibold text-amber-200">
+                <MessageCircle className="h-4 w-4" />
                 {t("marketing.automation.commentDm.eyebrow")}
               </div>
-              <h2 className="mt-3 text-xl font-black tracking-tight">{t("marketing.automation.commentDm.title")}</h2>
-              <p className="mt-2 text-sm text-slate-400">{t("marketing.settings.capabilities.automationHelp", "قواعد التعليق إلى الرسالة والردود التلقائية وسجلات الأتمتة.")} {t("marketing.settings.capabilities.activeRules", "القواعد النشطة")}: {activeRulesCount}</p>
+              <h2 className="mt-3 text-2xl font-black tracking-tight">{t("marketing.automation.commentDm.title")}</h2>
+              <p className="mt-2 text-base leading-7 text-slate-400">{t("marketing.settings.capabilities.automationHelp", "قواعد التعليق إلى الرسالة والردود التلقائية وسجلات الأتمتة.")} {t("marketing.settings.capabilities.activeRules", "القواعد النشطة")}: {activeRulesCount}</p>
             </div>
             <button onClick={() => { setEditingRuleId(null); setRuleForm(blankRule); }} className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white">
               <Plus className="h-4 w-4" />
