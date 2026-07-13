@@ -398,7 +398,7 @@ export default function AiLeadCenter() {
   ];
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.15),_transparent_32%),linear-gradient(180deg,#07111f_0%,#050816_100%)] px-4 py-4 text-white md:px-6 lg:px-8">
+    <div className="min-h-screen overflow-x-hidden bg-[radial-gradient(circle_at_top,_rgba(34,211,238,0.15),_transparent_32%),linear-gradient(180deg,#07111f_0%,#050816_100%)] px-4 py-4 text-white md:px-6 lg:px-8">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-5">
         <AiMarketingCenterNav />
 
@@ -533,8 +533,8 @@ export default function AiLeadCenter() {
           </div>
         </section>
 
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
-          <section className="space-y-3">
+        <div className="grid min-w-0 items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.72fr)]">
+          <section className="min-w-0 space-y-3">
             {loading ? (
               <div className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-8 text-center text-sm text-slate-400">Loading AI leads...</div>
             ) : filteredLeads.length === 0 ? (
@@ -552,19 +552,19 @@ export default function AiLeadCenter() {
                   <article
                     key={lead.id}
                     className={[
-                      "rounded-[2rem] border p-4 shadow-2xl shadow-black/15 transition",
+                      "min-w-0 overflow-hidden rounded-[2rem] border p-4 shadow-2xl shadow-black/15 transition",
                       active ? "border-cyan-300/40 bg-cyan-300/10" : "border-white/10 bg-white/[0.04] hover:border-white/20 hover:bg-white/[0.06]",
                     ].join(" ")}
                   >
-                    <button type="button" onClick={() => setSelectedLeadId(lead.id)} className="w-full text-left">
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <button type="button" onClick={() => setSelectedLeadId(lead.id)} className="block w-full min-w-0 text-start">
+                      <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_18rem] 2xl:items-start">
                         <div className="min-w-0 flex-1">
                           <div className="flex flex-wrap items-center gap-2">
                             <div className="text-lg font-black text-white">{lead.customer}</div>
                             <Pill tone={lead.stageTone}>{lead.stageLabel}</Pill>
                             <Pill tone={lead.platform === "instagram" ? "rose" : lead.platform === "facebook" ? "cyan" : lead.platform === "messenger" ? "emerald" : "amber"}>{lead.platformLabel}</Pill>
                           </div>
-                          <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          <div className="mt-2 grid min-w-0 gap-2 sm:grid-cols-2">
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
                               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Customer</div>
                               <div className="mt-1 truncate text-sm font-semibold text-white">{lead.customer}</div>
@@ -575,11 +575,11 @@ export default function AiLeadCenter() {
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
                               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Source Post</div>
-                              <div className="mt-1 line-clamp-2 text-sm font-semibold text-white">{lead.sourcePost}</div>
+                              <div dir="auto" className="mt-1 line-clamp-2 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{lead.sourcePost}</div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
                               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Interested Product</div>
-                              <div className="mt-1 line-clamp-2 text-sm font-semibold text-white">{lead.interestedProduct}</div>
+                              <div dir="auto" className="mt-1 line-clamp-2 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{lead.interestedProduct}</div>
                             </div>
                             <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
                               <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Current Stage</div>
@@ -591,7 +591,7 @@ export default function AiLeadCenter() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex min-w-[220px] flex-col gap-3 rounded-2xl border border-white/10 bg-black/20 p-3">
+                        <div className="flex w-full min-w-0 max-w-full flex-col gap-3 overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-3 2xl:w-72 2xl:shrink-0">
                           <div className="flex items-center justify-between gap-2">
                             <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Confidence</div>
                             <div className="text-sm font-black text-white">{Math.round(lead.confidence)}%</div>
@@ -599,11 +599,11 @@ export default function AiLeadCenter() {
                           <div className="h-2 overflow-hidden rounded-full bg-white/10">
                             <div className="h-full rounded-full bg-gradient-to-r from-cyan-400 via-emerald-400 to-lime-400" style={{ width: `${Math.max(0, Math.min(100, lead.confidence))}%` }} />
                           </div>
-                          <div className="text-xs leading-5 text-slate-400">
+                          <div dir="auto" className="min-w-0 break-words text-xs leading-5 text-slate-400 [overflow-wrap:anywhere]">
                             {lead.summary || "Lead summary will appear here when conversation data exists."}
                           </div>
-                          <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
-                            <span className="inline-flex items-center gap-1"><Clock3 className="h-3.5 w-3.5" /> {formatDateTime(lead.updatedAt)}</span>
+                          <div className="flex min-w-0 flex-wrap items-center justify-between gap-2 text-[11px] text-slate-500">
+                            <span className="inline-flex min-w-0 items-center gap-1"><Clock3 className="h-3.5 w-3.5 shrink-0" /> <span className="truncate">{formatDateTime(lead.updatedAt)}</span></span>
                             {lead.unreadCount ? <span className="rounded-full border border-rose-300/20 bg-rose-400/10 px-2 py-1 font-black text-rose-100">Unread {lead.unreadCount}</span> : null}
                           </div>
                         </div>
@@ -615,7 +615,7 @@ export default function AiLeadCenter() {
             )}
           </section>
 
-          <aside className="space-y-4">
+          <aside className="min-w-0 space-y-4 xl:sticky xl:top-4">
             <section className="rounded-[2rem] border border-white/10 bg-white/[0.05] p-4 shadow-2xl shadow-black/15">
               <div className="flex items-center justify-between gap-2">
                 <div>
@@ -636,11 +636,11 @@ export default function AiLeadCenter() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
                       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Source Post</div>
-                      <div className="mt-1 text-sm font-semibold text-white">{selectedLead.sourcePost}</div>
+                      <div dir="auto" className="mt-1 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{selectedLead.sourcePost}</div>
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2">
                       <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Interested Product</div>
-                      <div className="mt-1 text-sm font-semibold text-white">{selectedLead.interestedProduct}</div>
+                      <div dir="auto" className="mt-1 break-words text-sm font-semibold text-white [overflow-wrap:anywhere]">{selectedLead.interestedProduct}</div>
                     </div>
                   </div>
 
