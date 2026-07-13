@@ -4,7 +4,10 @@ import { getPerfContext } from "../utils/perfDebug.js";
 
 const { Pool } = pkg;
 
-const DB_CONNECTION_TIMEOUT_MS = Number(process.env.PG_CONNECTION_TIMEOUT_MS) || 3000;
+// Local PostgreSQL can need more than three seconds to accept a connection while
+// image-generation work is using the host CPU. Keep this configurable, but use a
+// production-safe default so ordinary product saves do not fail during that load.
+const DB_CONNECTION_TIMEOUT_MS = Number(process.env.PG_CONNECTION_TIMEOUT_MS) || 10000;
 const DB_QUERY_TIMEOUT_MS = Number(process.env.PG_QUERY_TIMEOUT_MS) || 15000;
 const DB_IDLE_TIMEOUT_MS = Number(process.env.PG_IDLE_TIMEOUT_MS) || 10000;
 const DB_POOL_MAX = Math.max(1, Number(process.env.PG_POOL_MAX) || 10);

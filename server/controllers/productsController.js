@@ -32,6 +32,7 @@ import { slugifyEdition } from "../utils/mirrorProduct.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 
 let productVariantSchemaReadyPromise = null;
+let fullProductVariantSchemaReadyPromise = null;
 let productSchemaReadyPromise = null;
 let productColumnsReadyPromise = null;
 const tableColumnsCache = new Map();
@@ -551,7 +552,12 @@ const ensureProductVariantManufacturerColumn = async () => {
       } finally {
         client.release();
       }
-    })();
+    })().catch((error) => {
+      // A temporary database timeout must not poison schema setup for the
+      // lifetime of the process. Allow the next request to retry it.
+      productVariantSchemaReadyPromise = null;
+      throw error;
+    });
   }
 
   return productVariantSchemaReadyPromise;
@@ -804,7 +810,10 @@ export const ensureProductSchema = async () => {
       } finally {
         client.release();
       }
-    })();
+    })().catch((error) => {
+      productSchemaReadyPromise = null;
+      throw error;
+    });
   }
 
   return productSchemaReadyPromise;
@@ -820,8 +829,10 @@ const ensureProductQrTokens = async () => {
 };
 
 export const ensureProductVariantSchema = async () => {
-  await ensureProductVariantManufacturerColumn();
-  await db.query(`
+  if (!fullProductVariantSchemaReadyPromise) {
+    fullProductVariantSchemaReadyPromise = (async () => {
+      await ensureProductVariantManufacturerColumn();
+      await db.query(`
     ALTER TABLE IF EXISTS product_variants
       ADD COLUMN IF NOT EXISTS color VARCHAR(100),
       ADD COLUMN IF NOT EXISTS size VARCHAR(100),
@@ -861,22 +872,22 @@ export const ensureProductVariantSchema = async () => {
       ADD COLUMN IF NOT EXISTS edition_slug TEXT,
       ADD COLUMN IF NOT EXISTS article_code TEXT,
       ADD COLUMN IF NOT EXISTS audience VARCHAR(30)
-  `);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants (product_id, id)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_tenant_product_id ON product_variants (tenant_id, product_id, id)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_stock_product ON product_variants (stock, product_id, id)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_active_product ON product_variants (product_id, is_active, deleted_at, id)`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_sku_lower ON product_variants (LOWER(sku))`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_barcode_lower ON product_variants (LOWER(barcode))`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_article_code_lower ON product_variants (LOWER(TRIM(article_code))) WHERE article_code IS NOT NULL AND TRIM(article_code) <> ''`);
-  await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_audience ON product_variants (product_id, audience, is_active) WHERE deleted_at IS NULL`);
-  await db.query(`
+      `);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants (product_id, id)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_tenant_product_id ON product_variants (tenant_id, product_id, id)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_stock_product ON product_variants (stock, product_id, id)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_active_product ON product_variants (product_id, is_active, deleted_at, id)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_sku_lower ON product_variants (LOWER(sku))`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_barcode_lower ON product_variants (LOWER(barcode))`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_article_code_lower ON product_variants (LOWER(TRIM(article_code))) WHERE article_code IS NOT NULL AND TRIM(article_code) <> ''`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_audience ON product_variants (product_id, audience, is_active) WHERE deleted_at IS NULL`);
+      await db.query(`
     UPDATE product_variants
     SET thermal_image_status = 'ready'
     WHERE COALESCE(NULLIF(thermal_image_url, ''), '') <> ''
       AND COALESCE(NULLIF(thermal_image_status, ''), 'pending') = 'pending'
-  `);
-  await db.query(`
+      `);
+      await db.query(`
     DO $$
     DECLARE
       nullable_column_name text;
@@ -894,7 +905,14 @@ export const ensureProductVariantSchema = async () => {
         END IF;
       END LOOP;
     END $$;
-  `);
+      `);
+    })().catch((error) => {
+      fullProductVariantSchemaReadyPromise = null;
+      throw error;
+    });
+  }
+
+  return fullProductVariantSchemaReadyPromise;
 };
 
 const firstPositiveNumber = (...values) => {
