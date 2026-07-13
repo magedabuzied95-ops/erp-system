@@ -2,7 +2,7 @@ export const POS_CUSTOMER_CACHE_SCHEMA_VERSION = 1;
 
 const POS_CUSTOMER_DB_NAME = "erp-pos-customer-cache";
 const POS_CUSTOMER_DB_STORE = "snapshots";
-const MAX_CACHED_CUSTOMERS = 2000;
+const MAX_CACHED_CUSTOMERS = 10000;
 
 const isBrowser = () =>
   typeof window !== "undefined" && typeof window.indexedDB !== "undefined";
@@ -79,6 +79,25 @@ export const buildPosCustomerSnapshot = (customers = [], { tenantId } = {}) => {
 
 export const mergePosCustomerRows = (current = [], incoming = []) =>
   dedupeCustomers([...(Array.isArray(current) ? current : []), ...(Array.isArray(incoming) ? incoming : [])]);
+
+export const getPosCustomerPagination = (response, fallbackCount = 0) => {
+  const root = response && typeof response === "object" ? response : {};
+  const nested = root?.data && !Array.isArray(root.data) && typeof root.data === "object" ? root.data : null;
+  const payload = root?.pagination || root?.total !== undefined || root?.page !== undefined ? root : nested || root;
+  const pagination = payload?.pagination && typeof payload.pagination === "object" ? payload.pagination : {};
+  const page = Number(payload?.page ?? pagination?.page ?? 1);
+  const limit = Number(payload?.limit ?? pagination?.limit ?? Math.max(1, fallbackCount || 200));
+  const total = Number(payload?.total ?? pagination?.total ?? fallbackCount);
+  const totalPages = Number(payload?.totalPages ?? pagination?.totalPages ?? Math.ceil(total / Math.max(1, limit)));
+  const hasMoreValue = payload?.hasMore ?? pagination?.hasMore;
+  return {
+    page: Number.isFinite(page) && page > 0 ? page : 1,
+    limit: Number.isFinite(limit) && limit > 0 ? limit : 200,
+    total: Number.isFinite(total) && total >= 0 ? total : fallbackCount,
+    totalPages: Number.isFinite(totalPages) && totalPages > 0 ? totalPages : 1,
+    hasMore: typeof hasMoreValue === "boolean" ? hasMoreValue : page < totalPages,
+  };
+};
 
 export const searchPosCustomerSnapshot = (snapshot, searchValue = "", { limit = 30 } = {}) => {
   if (!snapshot || snapshot.schema_version !== POS_CUSTOMER_CACHE_SCHEMA_VERSION) return [];

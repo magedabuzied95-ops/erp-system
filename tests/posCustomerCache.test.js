@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   POS_CUSTOMER_CACHE_SCHEMA_VERSION,
   buildPosCustomerSnapshot,
+  getPosCustomerPagination,
   mergePosCustomerRows,
   searchPosCustomerSnapshot,
 } from "../src/modules/pos/lib/posCustomerCache.js";
@@ -46,4 +47,23 @@ test("online search results merge into the existing offline customer snapshot", 
 
   assert.equal(merged.length, 2);
   assert.equal(merged.find((item) => item.id === 1).name, "Updated Name");
+});
+
+test("customer pagination exposes every server page for background caching", () => {
+  const pagination = getPosCustomerPagination({
+    customers: Array.from({ length: 200 }, (_, index) => ({ id: index + 1 })),
+    total: 485,
+    page: 1,
+    limit: 200,
+    hasMore: true,
+    pagination: { totalPages: 3 },
+  }, 200);
+
+  assert.deepEqual(pagination, {
+    page: 1,
+    limit: 200,
+    total: 485,
+    totalPages: 3,
+    hasMore: true,
+  });
 });

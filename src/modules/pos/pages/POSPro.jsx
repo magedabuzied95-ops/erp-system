@@ -98,6 +98,7 @@ import {
   savePosCatalogSnapshot,
 } from "../lib/posCatalogCache";
 import {
+  getPosCustomerPagination,
   getPosCustomerSnapshot,
   savePosCustomerSnapshot,
   searchPosCustomerSnapshot,
@@ -1150,6 +1151,42 @@ const normalizeCustomersResponse = (response) => {
     Array.isArray(payload?.customers) ? payload.customers :
     [];
   return rows.map(normalizePosCustomer);
+};
+
+const cacheAllPosCustomers = async ({ firstResponse, tenantId, branchId, signal }) => {
+  if (!tenantId) return;
+  const firstRows = normalizeCustomersResponse(firstResponse);
+  if (firstRows.length === 0) return;
+
+  await savePosCustomerSnapshot(firstRows, { tenantId });
+  const pagination = getPosCustomerPagination(firstResponse, firstRows.length);
+  let cachedCount = firstRows.length;
+
+  try {
+    for (let page = pagination.page + 1; page <= pagination.totalPages; page += 1) {
+      if (signal?.aborted) return;
+      const response = await api.get("/customers", {
+        params: {
+          limit: pagination.limit,
+          page,
+          branch_id: branchId || "",
+        },
+        signal,
+      });
+      const rows = normalizeCustomersResponse(response);
+      if (rows.length === 0) break;
+      await savePosCustomerSnapshot(rows, { tenantId, merge: true });
+      cachedCount += rows.length;
+    }
+    console.info("POS_CUSTOMER_CACHE_COMPLETE", {
+      customer_count: Math.min(cachedCount, pagination.total || cachedCount),
+      total: pagination.total,
+      pages: pagination.totalPages,
+    });
+  } catch (error) {
+    if (signal?.aborted || error?.name === "AbortError" || error?.code === "ERR_CANCELED") return;
+    console.warn("POS_CUSTOMER_CACHE_BACKGROUND_LOAD_FAILED", error?.message || error);
+  }
 };
 
 const POS_SALE_STATS_KEY = "erp.pos.saleStats";
@@ -2245,7 +2282,12 @@ function POSPro() {
         const normalizedCustomers = normalizeCustomersResponse(customersRes);
         if (normalizedCustomers.length > 0) {
           setCustomers(normalizedCustomers);
-          void savePosCustomerSnapshot(normalizedCustomers, { tenantId: customerCacheTenantId });
+          void cacheAllPosCustomers({
+            firstResponse: customersRes,
+            tenantId: customerCacheTenantId,
+            branchId: activePosShift?.branch_id || posShiftBranch?.id || "",
+            signal: controller.signal,
+          });
         } else if (customersResult.status === "rejected" && isPosOfflineNetworkError(customersResult.reason)) {
           const customerSnapshot = await getPosCustomerSnapshot({ tenantId: customerCacheTenantId });
           const cachedCustomers = searchPosCustomerSnapshot(customerSnapshot, "", { limit: 200 });
