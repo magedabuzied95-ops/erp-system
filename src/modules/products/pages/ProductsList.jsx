@@ -71,6 +71,8 @@ import {
 } from "../../marketing/services/marketingApi";
 
 const pageSizeOptions = [8, 12, 24];
+const PRODUCTS_PAGE_SIZE_STORAGE_KEY = "erp.products.list.pageSize";
+const DEFAULT_PRODUCTS_PAGE_SIZE = pageSizeOptions[0];
 const REQUEST_TIMEOUT_MS = 15000;
 const ACTION_MENU_WIDTH = 224;
 const ACTION_MENU_ESTIMATED_HEIGHT = 480;
@@ -123,6 +125,25 @@ const getProductTypeValue = (row = {}) =>
 const isMeaningfulCategory = (value = "") => {
   const normalized = String(value || "").trim().toLowerCase();
   return Boolean(normalized) && !["uncategorized", "غير مصنف", "بدون تصنيف"].includes(normalized);
+};
+
+const getStoredProductsPageSize = () => {
+  if (typeof window === "undefined") return DEFAULT_PRODUCTS_PAGE_SIZE;
+  try {
+    const storedValue = Number(window.localStorage.getItem(PRODUCTS_PAGE_SIZE_STORAGE_KEY));
+    return pageSizeOptions.includes(storedValue) ? storedValue : DEFAULT_PRODUCTS_PAGE_SIZE;
+  } catch {
+    return DEFAULT_PRODUCTS_PAGE_SIZE;
+  }
+};
+
+const storeProductsPageSize = (value) => {
+  if (typeof window === "undefined" || !pageSizeOptions.includes(Number(value))) return;
+  try {
+    window.localStorage.setItem(PRODUCTS_PAGE_SIZE_STORAGE_KEY, String(value));
+  } catch {
+    // Keep pagination usable when browser storage is unavailable.
+  }
 };
 
 const isInlineRowActionVisible = (action = {}, viewportWidth = 0) => {
@@ -1167,7 +1188,7 @@ function ProductsList() {
   }));
   const [brandFilter, setBrandFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(8);
+  const [pageSize, setPageSize] = useState(getStoredProductsPageSize);
   const [pagination, setPagination] = useState({ page: 1, limit: 8, offset: 0, total: 0, totalPages: 1 });
   const [brandOptions, setBrandOptions] = useState(["all"]);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -1206,6 +1227,10 @@ function ProductsList() {
     window.addEventListener("resize", updateViewportWidth);
     return () => window.removeEventListener("resize", updateViewportWidth);
   }, []);
+
+  useEffect(() => {
+    storeProductsPageSize(pageSize);
+  }, [pageSize]);
 
   useEffect(() => {
     if (!openActionId) return undefined;
