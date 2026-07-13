@@ -1643,6 +1643,29 @@ function CreateProduct() {
     );
   };
 
+  const zeroAllColorStock = () => {
+    const rowCount = colorGroups.reduce((total, group) => total + (Array.isArray(group.sizes) ? group.sizes.length : 0), 0);
+    if (!rowCount) {
+      toast.error(t("products.editor.noVariantRows", "No size rows to update"));
+      return;
+    }
+    const confirmed = window.confirm(
+      t("products.editor.zeroAllColorStockConfirm", "Set the stock quantity of every size in every color to zero?")
+    );
+    if (!confirmed) return;
+
+    setColorGroups((current) =>
+      current.map((group) => ({
+        ...group,
+        sizes: (Array.isArray(group.sizes) ? group.sizes : []).map((row) => ({
+          ...row,
+          stock: 0,
+        })),
+      }))
+    );
+    toast.success(t("products.editor.zeroAllColorStockDone", "Stock set to zero for all colors"));
+  };
+
   const handleCover = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -3288,14 +3311,24 @@ function CreateProduct() {
                     tone="cyan"
                   />
 
-                  <button
-                    type="button"
-                    onClick={addColorGroup}
-                    className={buttonClasses("primary", "h-9 rounded-full px-4")}
-                  >
-                    <Plus size={16} strokeWidth={2} />
-                    {t("products.editor.addColor")}
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={zeroAllColorStock}
+                      className="inline-flex h-9 items-center gap-2 rounded-full border border-rose-400/25 bg-rose-400/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15"
+                    >
+                      <Trash2 size={16} strokeWidth={2} />
+                      {t("products.editor.zeroAllColorStock", "Zero stock for all colors")}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={addColorGroup}
+                      className={buttonClasses("primary", "h-9 rounded-full px-4")}
+                    >
+                      <Plus size={16} strokeWidth={2} />
+                      {t("products.editor.addColor")}
+                    </button>
+                  </div>
                 </div>
               </div>
 

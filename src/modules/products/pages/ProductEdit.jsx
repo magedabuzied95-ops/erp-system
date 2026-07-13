@@ -2638,6 +2638,30 @@ function ProductEdit() {
     }
   };
 
+  const zeroAllColorStock = () => {
+    const rowCount = colorGroups.reduce((total, group) => total + (Array.isArray(group.sizes) ? group.sizes.length : 0), 0);
+    if (!rowCount) {
+      toast.error(t("products.editor.noVariantRows", "No size rows to update"));
+      return;
+    }
+    const confirmed = window.confirm(
+      t("products.editor.zeroAllColorStockConfirm", "Set the stock quantity of every size in every color to zero?")
+    );
+    if (!confirmed) return;
+
+    setColorGroups((current) =>
+      current.map((group) => ({
+        ...group,
+        sizes: (Array.isArray(group.sizes) ? group.sizes : []).map((row) => ({
+          ...row,
+          stock: 0,
+          available_stock: 0,
+        })),
+      }))
+    );
+    toast.success(t("products.editor.zeroAllColorStockDone", "Stock set to zero for all colors"));
+  };
+
   const parseOptionalNumericField = (value) => {
     const text = normalizePricingFieldValue(value);
     if (!text) return "";
@@ -3991,14 +4015,24 @@ function ProductEdit() {
                 </p>
               </div>
 
-              <button
-                type="button"
-                onClick={addColorGroup}
-                className="inline-flex h-10 items-center gap-2 rounded-[14px] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white"
-              >
-                <Plus size={16} />
-                Add color
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={zeroAllColorStock}
+                  className="inline-flex h-10 items-center gap-2 rounded-[14px] border border-rose-400/25 bg-rose-400/10 px-4 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/15"
+                >
+                  <Trash2 size={16} />
+                  {t("products.editor.zeroAllColorStock", "Zero stock for all colors")}
+                </button>
+                <button
+                  type="button"
+                  onClick={addColorGroup}
+                  className="inline-flex h-10 items-center gap-2 rounded-[14px] border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white"
+                >
+                  <Plus size={16} />
+                  Add color
+                </button>
+              </div>
             </div>
 
             <div className="mt-4 rounded-[20px] border border-white/8 bg-white/5 p-3">
