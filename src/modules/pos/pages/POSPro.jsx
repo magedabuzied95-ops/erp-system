@@ -89,7 +89,7 @@ import {
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
-import { printThermalReceipt } from "../lib/thermalReceiptPrint.jsx";
+import { printThermalReceipt, warmThermalReceiptPrinter } from "../lib/thermalReceiptPrint.jsx";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 import {
@@ -1713,6 +1713,10 @@ function POSPro() {
   const [quickExpenseSaving, setQuickExpenseSaving] = useState(false);
   const isVariantModalOpen = Boolean(barcodeShopProduct);
   const [viewportIsMobile, setViewportIsMobile] = useState(() => isMobileViewport());
+
+  useEffect(() => {
+    if (recentOperationsOpen) warmThermalReceiptPrinter();
+  }, [recentOperationsOpen]);
 
   const searchRef = useRef(null);
   const posShellRef = useRef(null);

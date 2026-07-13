@@ -1,6 +1,21 @@
 import { ReceiptPreview } from "../components/CartSidebar";
 
 const activePrintJobs = new Map();
+let receiptRendererPromise = null;
+
+const getReceiptRenderer = () => {
+  if (!receiptRendererPromise) {
+    receiptRendererPromise = import("react-dom/server").catch((error) => {
+      receiptRendererPromise = null;
+      throw error;
+    });
+  }
+  return receiptRendererPromise;
+};
+
+export const warmThermalReceiptPrinter = () => {
+  void getReceiptRenderer().catch(() => {});
+};
 
 const escapeHtml = (value = "") =>
   String(value ?? "")
@@ -47,7 +62,7 @@ export const buildThermalPrintDocument = ({ receiptHtml, title = "Sales Receipt"
 </html>`;
 
 const renderReceiptDocument = async (receiptProps) => {
-  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { renderToStaticMarkup } = await getReceiptRenderer();
   const receiptHtml = renderToStaticMarkup(<ReceiptPreview {...receiptProps} compact />);
   const invoiceNumber = receiptProps?.invoiceNumber || "Sales Receipt";
   return buildThermalPrintDocument({

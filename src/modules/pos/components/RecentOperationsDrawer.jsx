@@ -234,6 +234,19 @@ const refundMethods = [
 ];
 
 const RECENT_ORDERS_PAGE_SIZE = 10;
+const ORDER_SUMMARY_CACHE_TTL_MS = 45_000;
+const orderSummaryCache = new Map();
+const orderSummaryRequests = new Map();
+
+const primeOrderImages = (order = {}) => {
+  if (typeof window === "undefined" || typeof window.Image !== "function") return;
+  const urls = new Set((order.items || []).map((item) => getItemImage(item)).filter(Boolean));
+  urls.forEach((url) => {
+    const image = new window.Image();
+    image.decoding = "async";
+    image.src = url;
+  });
+};
 
 const auditActionLabels = {
   created: "إنشاء",
@@ -299,14 +312,39 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     }
   }, []);
 
-  const loadOrderSummary = useCallback(async (order) => {
+  const loadOrderSummary = useCallback(async (order, { force = false } = {}) => {
     if (!order?.id) return order;
-    const response = await api.get(`/orders/${order.id}/pos-summary`, { timeoutMs: 10000 });
-    const loadedOrder = response.order || order;
-    const loadedItems = Array.isArray(response.items) ? response.items : loadedOrder.items || order.items || [];
-    const timeline = Array.isArray(response.audit_timeline) ? response.audit_timeline : loadedOrder.audit_timeline;
-    return { ...order, ...loadedOrder, items: loadedItems, audit_timeline: timeline || [] };
+    const cacheKey = String(order.id);
+    const cached = orderSummaryCache.get(cacheKey);
+    if (!force && cached?.expiresAt > Date.now()) {
+      return { ...order, ...cached.order };
+    }
+    if (!force && orderSummaryRequests.has(cacheKey)) {
+      const pendingOrder = await orderSummaryRequests.get(cacheKey);
+      return { ...order, ...pendingOrder };
+    }
+
+    const request = api.get(`/orders/${order.id}/pos-summary`, { timeoutMs: 10000 }).then((response) => {
+      const loadedOrder = response.order || order;
+      const loadedItems = Array.isArray(response.items) ? response.items : loadedOrder.items || order.items || [];
+      const timeline = Array.isArray(response.audit_timeline) ? response.audit_timeline : loadedOrder.audit_timeline;
+      const summary = { ...order, ...loadedOrder, items: loadedItems, audit_timeline: timeline || [] };
+      orderSummaryCache.set(cacheKey, { order: summary, expiresAt: Date.now() + ORDER_SUMMARY_CACHE_TTL_MS });
+      primeOrderImages(summary);
+      return summary;
+    });
+    orderSummaryRequests.set(cacheKey, request);
+    try {
+      return await request;
+    } finally {
+      if (orderSummaryRequests.get(cacheKey) === request) orderSummaryRequests.delete(cacheKey);
+    }
   }, []);
+
+  const prefetchOrderSummary = useCallback((order) => {
+    if (!order?.id) return;
+    void loadOrderSummary(order).catch(() => {});
+  }, [loadOrderSummary]);
 
   const loadOrders = useCallback(async ({ reset = false } = {}) => {
     const seq = requestSeqRef.current + 1;
@@ -316,7 +354,6 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     try {
       if (reset) {
         setLoading(true);
-        setOrders([]);
         setHasMore(false);
         setTotalCount(null);
       } else setLoadingMore(true);
@@ -408,6 +445,19 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
   }, [debouncedSearch, loadOrders, open]);
 
   useEffect(() => {
+    if (!open || loading || !orders.length) return undefined;
+    const warmRecentOrders = () => {
+      orders.slice(0, 2).forEach(prefetchOrderSummary);
+    };
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(warmRecentOrders, { timeout: 800 });
+      return () => window.cancelIdleCallback?.(idleId);
+    }
+    const timer = window.setTimeout(warmRecentOrders, 120);
+    return () => window.clearTimeout(timer);
+  }, [loading, open, orders, prefetchOrderSummary]);
+
+  useEffect(() => {
     if (!open || !pendingRenderStartedAtRef.current) return undefined;
     const renderStartedAt = pendingRenderStartedAtRef.current;
     pendingRenderStartedAtRef.current = 0;
@@ -467,7 +517,9 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
       try {
         const loadedOrder = await loadOrderSummary(order);
         await onPrintOrder?.(loadedOrder);
-        await api.post(`/orders/${order.id}/reprint-log`, {});
+        void api.post(`/orders/${order.id}/reprint-log`, {}).catch((error) => {
+          console.warn("[RecentOperationsDrawer] reprint log failed", error);
+        });
         toast.success("تم تجهيز الفاتورة للطباعة مرة أخرى");
       } catch (err) {
         toast.error(err.message || "تعذر إعادة الطباعة");
@@ -554,6 +606,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     await runOrderAction(permanentDeleteOrder, "permanent-delete", async () => {
       try {
         await api.delete(`/orders/${permanentDeleteOrder.id}/permanent`, { body: { confirmation } });
+        orderSummaryCache.delete(String(permanentDeleteOrder.id));
         setOrders((current) => current.filter((order) => String(order.id) !== String(permanentDeleteOrder.id)));
         setSelectedOrder((current) => (String(current?.id) === String(permanentDeleteOrder.id) ? null : current));
         setReturnOrder((current) => (String(current?.id) === String(permanentDeleteOrder.id) ? null : current));
@@ -660,6 +713,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
                   onEdit={handleEditClick}
                   onReturn={handleReturn}
                   onPermanentDelete={openPermanentDelete}
+                  onPrefetch={prefetchOrderSummary}
                 />
               ))}
               {hasMore ? (
@@ -711,7 +765,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
   );
 }
 
-function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprint, onViewDetails, onEdit, onReturn, onPermanentDelete }) {
+function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprint, onViewDetails, onEdit, onReturn, onPermanentDelete, onPrefetch }) {
   const lock = getInvoiceLock(order, currentUser, editLockHours);
   const badges = getStatusBadges(order);
   const isActionLoading = (action) => Boolean(loadingActions[getOrderActionKey(order, action)]);
@@ -729,7 +783,11 @@ function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprin
   };
 
   return (
-    <article className="relative rounded-xl border border-white/10 bg-white/[0.04] p-2">
+    <article
+      className="relative rounded-xl border border-white/10 bg-white/[0.04] p-2"
+      onPointerEnter={() => onPrefetch?.(order)}
+      onFocusCapture={() => onPrefetch?.(order)}
+    >
                   <div className="grid grid-cols-[minmax(0,1.05fr)_minmax(0,1.25fr)_auto_auto] items-center gap-1.5">
                     <div className="min-w-0">
                       <div className="max-w-[8.5rem] truncate text-xs font-extrabold leading-4 text-white sm:text-sm" title={getOrderInvoiceNumber(order)}>

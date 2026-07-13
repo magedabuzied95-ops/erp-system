@@ -7270,7 +7270,7 @@ export const getSingleOrder = async (req, res) => {
       },
     ];
 
-    const editAudits = await db.query(
+    const editAuditsPromise = db.query(
       `
       SELECT a.created_at, COALESCE(u.name, u.email, 'أدمن') AS user_name
       FROM order_edit_audits a
@@ -7281,11 +7281,7 @@ export const getSingleOrder = async (req, res) => {
       `,
       [id, tenantId]
     );
-    editAudits.rows.forEach((row) => {
-      timeline.push({ action: "edited", user: row.user_name || "أدمن", at: row.created_at });
-    });
-
-    const reprintLogs = await db.query(
+    const reprintLogsPromise = db.query(
       `
       SELECT r.created_at, COALESCE(u.name, u.email, 'أدمن') AS user_name
       FROM order_reprint_logs r
@@ -7296,11 +7292,7 @@ export const getSingleOrder = async (req, res) => {
       `,
       [id, tenantId]
     );
-    reprintLogs.rows.forEach((row) => {
-      timeline.push({ action: "reprinted", user: row.user_name || "أدمن", at: row.created_at });
-    });
-
-    const returnLogs = await db.query(
+    const returnLogsPromise = db.query(
       `
       SELECT r.created_at, r.reason, COALESCE(u.name, u.email, 'أدمن') AS user_name
       FROM returns r
@@ -7311,6 +7303,17 @@ export const getSingleOrder = async (req, res) => {
       `,
       [id, tenantId]
     );
+    const [editAudits, reprintLogs, returnLogs] = await Promise.all([
+      editAuditsPromise,
+      reprintLogsPromise,
+      returnLogsPromise,
+    ]);
+    editAudits.rows.forEach((row) => {
+      timeline.push({ action: "edited", user: row.user_name || "أدمن", at: row.created_at });
+    });
+    reprintLogs.rows.forEach((row) => {
+      timeline.push({ action: "reprinted", user: row.user_name || "أدمن", at: row.created_at });
+    });
     returnLogs.rows.forEach((row) => {
       const isExchange = String(row.reason || "").includes("استبدال") || String(row.reason || "").toLowerCase().includes("exchange");
       timeline.push({ action: isExchange ? "exchange_created" : "return_created", user: row.user_name || "أدمن", at: row.created_at });

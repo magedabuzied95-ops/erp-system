@@ -7,6 +7,7 @@ const posSource = read("../src/modules/pos/pages/POSPro.jsx");
 const drawerSource = read("../src/modules/pos/components/RecentOperationsDrawer.jsx");
 const receiptSource = read("../src/modules/pos/components/CartSidebar.jsx");
 const printServiceSource = read("../src/modules/pos/lib/thermalReceiptPrint.jsx");
+const ordersControllerSource = read("../server/controllers/ordersController.js");
 const settingsSource = read("../shared/settingsRegistry.js");
 
 test("all POS invoice actions use the shared thermal receipt print service", () => {
@@ -14,6 +15,18 @@ test("all POS invoice actions use the shared thermal receipt print service", () 
   assert.match(posSource, /onPrintOrder=\{\(order\) => handlePrint\(order\)\}/);
   assert.match(drawerSource, /await onPrintOrder\?\.\(loadedOrder\)/);
   assert.doesNotMatch(drawerSource, /document\.write|window\.print|printWindow/);
+});
+
+test("recent POS actions warm and reuse invoice details without delaying successful printing", () => {
+  assert.match(drawerSource, /ORDER_SUMMARY_CACHE_TTL_MS/);
+  assert.match(drawerSource, /orderSummaryRequests/);
+  assert.match(drawerSource, /requestIdleCallback/);
+  assert.match(drawerSource, /onPointerEnter=\{\(\) => onPrefetch\?\.\(order\)\}/);
+  assert.match(drawerSource, /void api\.post\(`\/orders\/\$\{order\.id\}\/reprint-log`/);
+  assert.match(posSource, /warmThermalReceiptPrinter\(\)/);
+  assert.match(printServiceSource, /receiptRendererPromise/);
+  assert.match(printServiceSource, /getReceiptRenderer\(\)/);
+  assert.match(ordersControllerSource, /Promise\.all\(\[\s*editAuditsPromise,\s*reprintLogsPromise,\s*returnLogsPromise/);
 });
 
 test("automatic printing is driven by the persisted POS setting and the completed order snapshot", () => {
