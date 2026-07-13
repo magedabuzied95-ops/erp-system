@@ -31,6 +31,7 @@ import {
   buildProductLabelItems,
   buildBarcodeShopLabelItem,
   buildSmartProductQrUrl,
+  buildLandscapePrintSvg,
   getBoxFrameLayout,
   getBoxTextLayout,
   getThermalLandscapeLabelLayout,
@@ -1824,8 +1825,10 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
             transform: `scale(${previewScale})`,
             transformOrigin: "center center",
           }}
+          dangerouslySetInnerHTML={{
+            __html: buildLandscapePrintSvg(item, { size: "SIZE", color: "COLOR" }),
+          }}
         >
-          {landscapeCard}
         </div>
       </div>
     );
