@@ -51,7 +51,14 @@ import { accountingApi } from "../../accounting/services/accountingApi";
 
 const failedCartImageUrls = new Set();
 const M1_RECEIPT_FALLBACK_LOGO = "https://res.cloudinary.com/dpnyfsjvz/image/upload/v1781790446/erp/products/ocxppxsepj5qfewqgch6.png";
+const M1_RECEIPT_THERMAL_LOGO = "https://res.cloudinary.com/dpnyfsjvz/image/upload/c_crop,g_center,w_900,h_900/e_grayscale,e_contrast:80,e_blackwhite:50/v1781790446/erp/products/ocxppxsepj5qfewqgch6.png";
 const M1_CUSTOMER_SERVICE_PHONE = "01000659301";
+
+const resolveThermalStoreLogo = (value = "") => {
+  const logoUrl = String(value || "").trim();
+  if (!logoUrl) return "";
+  return logoUrl.includes("ocxppxsepj5qfewqgch6") ? M1_RECEIPT_THERMAL_LOGO : logoUrl;
+};
 
 const getStoreProfile = () => {
   const tenant = getCurrentTenant() || {};
@@ -1618,7 +1625,7 @@ function ReceiptMiniStat({ label, value }) {
 
 const THERMAL_RECEIPT_FINAL_CSS = `
 .thermal-final{width:100%;max-width:none;margin:0;padding:2.5mm 4mm 3.5mm;box-sizing:border-box;direction:rtl;background:#fff;color:#000;font-family:Arial,sans-serif;font-size:12px;font-weight:700;line-height:1.4;-webkit-font-smoothing:none}
-.thermal-final *{box-sizing:border-box;font-family:Arial,sans-serif!important}.thermal-header{text-align:center}.thermal-logo{display:block;width:22mm;max-width:22mm;height:22mm;max-height:22mm;margin:0 auto 1mm;object-fit:contain;filter:none}.thermal-store-name{font-size:18px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
+.thermal-final *{box-sizing:border-box;font-family:Arial,sans-serif!important}.thermal-header{text-align:center}.thermal-logo{display:block;width:22mm;max-width:22mm;height:22mm;max-height:22mm;margin:0 auto 1mm;border-radius:50%;object-fit:contain;filter:grayscale(1) contrast(1.35);print-color-adjust:exact;-webkit-print-color-adjust:exact}.thermal-store-name{font-size:18px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}
 .thermal-rule{height:0;border:0;border-top:1px dashed #000;margin:2mm 0}.thermal-rule-solid{border-top-style:solid;border-top-width:1.5px}.thermal-title{display:flex;align-items:center;justify-content:space-between;gap:3mm;font-size:12px;font-weight:900}
 .thermal-number{direction:ltr;unicode-bidi:isolate;text-align:left;font-weight:900;overflow-wrap:anywhere}.thermal-meta{display:grid;grid-template-columns:auto 1fr;gap:.8mm 2mm;margin-top:1.5mm}.thermal-meta dt{font-weight:900;white-space:nowrap}.thermal-meta dd{margin:0;min-width:0;text-align:left;font-weight:800;overflow-wrap:anywhere}.thermal-meta .ltr{direction:ltr;unicode-bidi:isolate}
 .thermal-items{width:100%;border-collapse:collapse;table-layout:fixed}.thermal-items th{padding:1.2mm .4mm;border-top:1.5px solid #000;border-bottom:1.5px solid #000;font-size:9px;font-weight:900}.thermal-items td{padding:1.5mm .4mm;border-bottom:1px dashed #777;vertical-align:middle;font-size:9.5px;font-weight:800;overflow:hidden}.thermal-items th:first-child,.thermal-items td:first-child{text-align:right}.thermal-items th:not(:first-child),.thermal-items td:not(:first-child){text-align:left;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;white-space:nowrap}.thermal-product{display:flex;align-items:center;gap:1mm;min-width:0}.thermal-item-image{width:10mm;height:10mm;flex:0 0 10mm;object-fit:contain;border:1px solid #555;background:#fff;filter:grayscale(1) contrast(1.2)}.thermal-item-copy{min-width:0}.thermal-item-name{font-weight:900;line-height:1.25;overflow-wrap:anywhere}.thermal-item-detail{margin-top:.4mm;font-size:8.5px;font-weight:700;color:#111}.thermal-col-qty{width:6mm}.thermal-col-price{width:15mm}.thermal-col-total{width:16mm}
@@ -1643,6 +1650,7 @@ function ThermalReceiptFinal({
   const money = (value) => formatCurrency(Number.isFinite(Number(value)) ? Number(value) : 0, "ar");
   const amount = (value) => Number(Number(value || 0).toFixed(2)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const store = mergeStoreProfile(getStoreProfile(), storeProfile);
+  const thermalLogoUrl = resolveThermalStoreLogo(store.logoUrl);
   const receiptNumber = String(invoiceNumber || "DRAFT").trim();
   const receiptDate = createdAt ? new Date(createdAt) : new Date();
   const dateLabel = Number.isNaN(receiptDate.getTime()) ? "-" : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(receiptDate);
@@ -1671,7 +1679,7 @@ function ThermalReceiptFinal({
     <article className="thermal-final" dir="rtl" aria-label={`فاتورة ${receiptNumber}`}>
       <style>{THERMAL_RECEIPT_FINAL_CSS}</style>
       <header className="thermal-header">
-        {store.logoUrl ? <img className="thermal-logo" src={store.logoUrl} alt={store.name || "شعار المتجر"} /> : null}
+        {thermalLogoUrl ? <img className="thermal-logo" src={thermalLogoUrl} alt={store.name || "شعار المتجر"} /> : null}
         <div className="thermal-store-name">{store.name}</div>
       </header>
 

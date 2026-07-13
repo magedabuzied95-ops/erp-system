@@ -29,13 +29,21 @@ const waitForImages = async (documentRef) => {
   const images = Array.from(documentRef?.images || []);
   if (!images.length) return;
   await Promise.all(
-    images.map((image) => {
-      if (image.complete) return Promise.resolve();
-      return new Promise((resolve) => {
-        image.addEventListener("load", resolve, { once: true });
-        image.addEventListener("error", resolve, { once: true });
-        window.setTimeout(resolve, 1500);
-      });
+    images.map(async (image) => {
+      if (!image.complete) {
+        await new Promise((resolve) => {
+          const finish = () => resolve();
+          image.addEventListener("load", finish, { once: true });
+          image.addEventListener("error", finish, { once: true });
+          window.setTimeout(finish, 2500);
+        });
+      }
+      if (typeof image.decode === "function" && image.naturalWidth > 0) {
+        await Promise.race([
+          image.decode().catch(() => {}),
+          new Promise((resolve) => window.setTimeout(resolve, 1000)),
+        ]);
+      }
     })
   );
 };

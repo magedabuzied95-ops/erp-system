@@ -57,6 +57,12 @@ test("thermal receipt preserves business data with a clear compact product image
   assert.match(receiptSource, /الموقع الإلكتروني الرسمي/);
   assert.match(receiptSource, /9919.*padStart\(12/);
   assert.match(receiptSource, /M1_RECEIPT_FALLBACK_LOGO/);
+  assert.match(receiptSource, /M1_RECEIPT_THERMAL_LOGO/);
+  assert.match(receiptSource, /e_grayscale,e_contrast:80,e_blackwhite:50/);
+  assert.match(receiptSource, /resolveThermalStoreLogo\(store\.logoUrl\)/);
+  assert.match(receiptSource, /border-radius:50%/);
+  assert.match(printServiceSource, /image\.decode\(\)/);
+  assert.match(printServiceSource, /image\.naturalWidth > 0/);
   assert.doesNotMatch(receiptSource, /www\.workspace\.com/);
   assert.doesNotMatch(receiptSource, /امسح لفتح الفاتورة في العمليات الأخيرة/);
   assert.doesNotMatch(thermalBlock, /thermal-barcode-number/);
