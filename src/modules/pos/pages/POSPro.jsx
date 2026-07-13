@@ -4887,6 +4887,7 @@ function POSPro() {
       );
     }
 
+    let offlineCheckoutSnapshot = null;
     try {
       console.log("[pos-checkout:frontend-submit]", {
         checkout_branch_id: checkoutBranchId,
@@ -5168,6 +5169,24 @@ function POSPro() {
         ...payload,
         idempotency_key: idempotencyKey,
       };
+      if (!editingOrder?.id) {
+        offlineCheckoutSnapshot = {
+          idempotencyKey,
+          checkoutPayload,
+          paymentMethod: payload.payment_method,
+          customerName: invoiceCustomer.name || "",
+          cartItems: [...cart],
+          totals: {
+            subtotal: cartTotals.subtotal,
+            discount_amount: cartTotals.itemDiscountTotal + cartTotals.invoiceDiscount,
+            service_fee: cartTotals.serviceFee,
+            total: cartTotals.total,
+            paid_amount: checkoutPaymentSummary.paidAmount,
+            change_amount: checkoutPaymentSummary.changeAmount,
+            amount_due_now: amountDueNow,
+          },
+        };
+      }
 
       console.log("[pos-checkout:payload-built]", {
         editing_order_id: editingOrder?.id || null,
@@ -5496,11 +5515,12 @@ function POSPro() {
         error: err,
       });
       const message = safeArabicText(getErrorMessage(err, t("pos.toasts.checkoutFailed")), t("pos.toasts.checkoutFailed"));
-      if (!editingOrder?.id && shouldStoreOfflineOrderDraft(err)) {
+      if (!editingOrder?.id && offlineCheckoutSnapshot && shouldStoreOfflineOrderDraft(err)) {
         try {
+          const draftIdempotencyKey = offlineCheckoutSnapshot.idempotencyKey;
           const offlineDraft = await saveOfflineOrderDraft({
-            local_id: `offline-${idempotencyKey}`,
-            idempotency_key: idempotencyKey,
+            local_id: `offline-${draftIdempotencyKey}`,
+            idempotency_key: draftIdempotencyKey,
             created_at: new Date().toISOString(),
             cashier: {
               id: currentUser?.id || null,
@@ -5512,21 +5532,13 @@ function POSPro() {
             cart_items: cart,
             customer: {
               id: customer?.id || customer?.customer_id || null,
-              name: invoiceCustomer.name || "",
+              name: offlineCheckoutSnapshot.customerName,
               phone: customer?.phone || "",
               email: customer?.email || "",
             },
-            payment_method: payload.payment_method,
-            totals: {
-              subtotal: cartTotals.subtotal,
-              discount_amount: cartTotals.itemDiscountTotal + cartTotals.invoiceDiscount,
-              service_fee: cartTotals.serviceFee,
-              total: cartTotals.total,
-              paid_amount: checkoutPaymentSummary.paidAmount,
-              change_amount: checkoutPaymentSummary.changeAmount,
-              amount_due_now: amountDueNow,
-            },
-            checkout_payload: checkoutPayload,
+            payment_method: offlineCheckoutSnapshot.paymentMethod,
+            totals: offlineCheckoutSnapshot.totals,
+            checkout_payload: offlineCheckoutSnapshot.checkoutPayload,
             sync_endpoint: "/orders",
             status: "pending_sync",
           });
@@ -5534,6 +5546,23 @@ function POSPro() {
           setOfflinePendingSyncCount(
             pendingOrders.filter((order) => ["pending_sync", "failed_sync"].includes(String(order.status || ""))).length
           );
+          setProducts((current) => applySoldItemsToCatalog(current, offlineCheckoutSnapshot.cartItems));
+          writePosSaleStats(offlineCheckoutSnapshot.cartItems);
+          setCart([]);
+          clearPosPersistedState();
+          setCashAmount(0);
+          setCardAmount(0);
+          setWalletAmount(0);
+          setVodafoneCashAmount(0);
+          setCustomerWalletAmount(0);
+          setExchangeState(null);
+          setInvoiceDiscountType(defaultState.invoiceDiscountType);
+          setInvoiceDiscountValue(defaultState.invoiceDiscountValue);
+          setInvoiceDiscountReason(defaultState.invoiceDiscountReason);
+          setInvoiceDiscount(0);
+          setServiceFee(0);
+          setLoyaltyRedeemPoints(0);
+          handleClearSelectedCustomer();
           toast.success(
             t(
               "pos.toasts.savedOfflineInvoice",

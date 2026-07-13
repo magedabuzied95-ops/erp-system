@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import fs from "node:fs";
+import path from "node:path";
 
 import {
   listOfflineOrders,
@@ -230,4 +232,14 @@ test("concurrent sync requests send a pending order once", async () => {
 test("validation and 400 errors are not stored offline", () => {
   assert.equal(shouldStoreOfflineOrderDraft({ status: 400, message: "Invalid payload" }), false);
   assert.equal(shouldStoreOfflineOrderDraft({ status: 422, responseBody: { message: "Stock" } }), false);
+});
+
+test("POS checkout captures an offline-safe snapshot before the network request", () => {
+  const pagePath = path.join(process.cwd(), "src", "modules", "pos", "pages", "POSPro.jsx");
+  const source = fs.readFileSync(pagePath, "utf8");
+
+  assert.match(source, /let offlineCheckoutSnapshot = null;/);
+  assert.match(source, /offlineCheckoutSnapshot = \{/);
+  assert.match(source, /offlineCheckoutSnapshot && shouldStoreOfflineOrderDraft\(err\)/);
+  assert.match(source, /idempotency_key: draftIdempotencyKey/);
 });
