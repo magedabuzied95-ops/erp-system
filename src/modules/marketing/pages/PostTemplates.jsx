@@ -142,13 +142,13 @@ export default function PostTemplates() {
   };
 
   return (
-    <div className="min-h-full bg-[#060816] text-white">
+    <div className="min-h-full bg-[#0c0d0c] text-white">
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
         <MarketingStudioHeader />
-        <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
+        <section className="rounded-3xl border border-amber-300/20 bg-[#171815] p-5 shadow-2xl shadow-black/30">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-amber-200">
                 <LayoutTemplate className="h-3.5 w-3.5" />
                 {t("marketing.templates.eyebrow")}
               </div>
@@ -173,7 +173,7 @@ export default function PostTemplates() {
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-5 flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200/80">Template Library</div>
+              <div className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-200/80">Template Library</div>
               <h2 className="mt-2 text-2xl font-black tracking-tight text-white">Curated cards</h2>
               <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-300">
                 Six organized template cards for common marketing flows. These are presentation-only cards and do not change the AI prompt.
