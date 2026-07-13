@@ -119,13 +119,29 @@ function ProductClassifications() {
 
   const errorMessage = (error, fallbackKey) => error?.responseBody?.message || error?.response?.data?.message || error?.message || t(fallbackKey);
 
-  const restoreExistingOption = async (existingOption = null) => {
+  const restoreExistingOption = async (existingOption = null, draft = {}) => {
     if (existingOption?.id) {
       setDeletedOptionIds((current) => {
         const next = new Set(current);
         next.delete(String(existingOption.id));
         return next;
       });
+    }
+    if (existingOption?.id && existingOption.is_active === false) {
+      try {
+        await updateProductClassificationOption(existingOption.id, {
+          ...existingOption,
+          ...draft,
+          group_id: selectedGroup?.id,
+          is_active: true,
+        });
+        setOptionForm(emptyOptionForm);
+        toast.success(t("products.classifications.toast.optionRestored"));
+        await refresh();
+      } catch (error) {
+        toast.error(errorMessage(error, "products.classifications.toast.optionSaveFailed"));
+      }
+      return;
     }
     setOptionForm(emptyOptionForm);
     toast.error(t("products.classifications.toast.optionAlreadyExists"));
@@ -203,7 +219,7 @@ function ProductClassifications() {
     } catch (error) {
       if (isDuplicateClassificationOptionError(error)) {
         const latestOptions = await getProductClassificationOptions(selectedGroup.key, { includeInactive: true }).catch(() => []);
-        await restoreExistingOption(findMatchingClassificationOption(latestOptions, optionForm));
+        await restoreExistingOption(findMatchingClassificationOption(latestOptions, optionForm), optionForm);
         return;
       }
       toast.error(errorMessage(error, "products.classifications.toast.optionCreateFailed"));

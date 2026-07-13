@@ -401,19 +401,38 @@ let builtinRolesSeedPromise = null;
 let builtinRolesSeeded = false;
 
 const ensureBuiltInRolePermissions = async (client, role, permissionKeys = []) => {
-  const roleResult = await client.query(
+  const existingRole = await client.query(
     `
-    INSERT INTO roles (tenant_id, name, slug, description, is_system)
-    VALUES (1, $1, $2, $3, true)
-    ON CONFLICT (tenant_id, name) DO UPDATE SET
-      slug = EXCLUDED.slug,
-      description = EXCLUDED.description,
-      is_system = true,
-      updated_at = CURRENT_TIMESTAMP
-    RETURNING id, tenant_id, name, slug, description, is_system
+    SELECT id, tenant_id
+    FROM roles
+    WHERE LOWER(TRIM(name)) = LOWER(TRIM($1))
+    ORDER BY CASE WHEN tenant_id = 1 THEN 0 WHEN tenant_id IS NULL THEN 1 ELSE 2 END, id ASC
+    LIMIT 1
     `,
-    [role.name, role.slug, role.description || ""]
+    [role.name]
   );
+  const roleResult = existingRole.rows[0]?.id
+    ? await client.query(
+        `
+        UPDATE roles
+        SET tenant_id = 1,
+            slug = $1,
+            description = $2,
+            is_system = TRUE,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $3
+        RETURNING id, tenant_id, name, slug, description, is_system
+        `,
+        [role.slug, role.description || "", existingRole.rows[0].id]
+      )
+    : await client.query(
+        `
+        INSERT INTO roles (tenant_id, name, slug, description, is_system)
+        VALUES (1, $1, $2, $3, TRUE)
+        RETURNING id, tenant_id, name, slug, description, is_system
+        `,
+        [role.name, role.slug, role.description || ""]
+      );
   const roleRow = roleResult.rows[0];
   const roleId = roleRow?.id;
   if (!roleId) return null;
@@ -520,6 +539,8 @@ export const ensureRolesSchema = async (client) => {
   await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS tenant_id BIGINT`);
   await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS description TEXT`);
   await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS is_system BOOLEAN NOT NULL DEFAULT FALSE`);
+  await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+  await client.query(`ALTER TABLE roles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await client.query(`ALTER TABLE permissions ADD COLUMN IF NOT EXISTS description TEXT`);
   await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_permissions_module_action_unique ON permissions (module, action)`);
   await client.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_role_permissions_unique ON role_permissions (role_id, permission_id)`);

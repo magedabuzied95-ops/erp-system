@@ -153,7 +153,7 @@ const repairProductTypeGroupIfNeeded = async () => {
     if (repaired.rowCount > 0) {
       await client.query(`
         INSERT INTO product_classification_options (group_id, value, label_ar, label_en, icon, color, sort_order, is_active, deleted_at)
-        VALUES ($1, 'slippers', 'اسليبرز', 'Slippers', 'S', '', 4, TRUE, NULL)
+        VALUES ($1, 'slippers', 'سليبرز', 'Slippers', 'S', '', 4, TRUE, NULL)
         ON CONFLICT (group_id, value) DO UPDATE SET
           label_ar = EXCLUDED.label_ar,
           label_en = EXCLUDED.label_en,

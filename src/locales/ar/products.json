@@ -728,6 +728,7 @@
       "groupDeleted": "تم حذف المجموعة",
       "groupDeleteFailed": "فشل حذف المجموعة",
       "optionCreated": "تمت إضافة الخيار",
+      "optionRestored": "تمت إعادة تفعيل الخيار الموجود",
       "optionCreateFailed": "فشل إضافة الخيار",
       "optionSaved": "تم حفظ الخيار",
       "optionSaveFailed": "فشل حفظ الخيار",

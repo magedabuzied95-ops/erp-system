@@ -729,6 +729,7 @@
       "groupDeleted": "Group deleted",
       "groupDeleteFailed": "Failed to delete group",
       "optionCreated": "Option added",
+      "optionRestored": "Existing option reactivated",
       "optionCreateFailed": "Failed to add option",
       "optionSaved": "Option saved",
       "optionSaveFailed": "Failed to save option",

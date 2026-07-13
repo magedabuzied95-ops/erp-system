@@ -88,7 +88,7 @@ const ensureProductClassificationSchemaNow = async () => {
     if (repairedProductTypeGroup.rowCount > 0) {
       await client.query(`
         INSERT INTO product_classification_options (group_id, value, label_ar, label_en, icon, color, sort_order, is_active, deleted_at)
-        SELECT id, 'slippers', 'اسليبرز', 'Slippers', 'S', '', 4, TRUE, NULL
+        SELECT id, 'slippers', 'سليبرز', 'Slippers', 'S', '', 4, TRUE, NULL
         FROM product_classification_groups
         WHERE deleted_at IS NULL
           AND LOWER(TRIM(key)) = 'product_type'
@@ -102,6 +102,28 @@ const ensureProductClassificationSchemaNow = async () => {
           updated_at = CURRENT_TIMESTAMP
       `);
     }
+    // Repair the legacy hidden Slides option once. After its label is migrated to
+    // Slippers, a future deliberate deactivation remains respected on restarts.
+    await client.query(`
+      INSERT INTO product_classification_options (group_id, value, label_ar, label_en, icon, color, sort_order, is_active, deleted_at)
+      SELECT id, 'slippers', 'سليبرز', 'Slippers', 'S', '', 4, TRUE, NULL
+      FROM product_classification_groups
+      WHERE deleted_at IS NULL
+        AND LOWER(TRIM(key)) = 'product_type'
+      ON CONFLICT (group_id, value) DO UPDATE SET
+        label_ar = EXCLUDED.label_ar,
+        label_en = EXCLUDED.label_en,
+        icon = COALESCE(NULLIF(product_classification_options.icon, ''), EXCLUDED.icon),
+        sort_order = EXCLUDED.sort_order,
+        is_active = TRUE,
+        deleted_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE LOWER(TRIM(product_classification_options.label_en)) = 'slides'
+        AND (
+          product_classification_options.is_active = FALSE
+          OR product_classification_options.deleted_at IS NOT NULL
+        )
+    `);
     await client.query(`
       DO $$
       BEGIN
