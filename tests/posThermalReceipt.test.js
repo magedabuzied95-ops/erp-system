@@ -26,7 +26,7 @@ test("automatic printing is driven by the persisted POS setting and the complete
 });
 
 test("thermal receipt preserves business data with a clear compact product image", () => {
-  for (const label of ["رقم الفاتورة", "الكاشير", "العميل", "الهاتف", "الدفع", "خصم الفاتورة", "خصم الكوبون", "خصم الولاء", "الضريبة", "الإجمالي", "المدفوع", "المتبقي"]) {
+  for (const label of ["رقم الفاتورة", "البائع", "العميل", "الهاتف", "الدفع", "خصم الفاتورة", "خصم الكوبون", "خصم الولاء", "الضريبة", "الإجمالي", "المدفوع", "المتبقي"]) {
     assert.match(receiptSource, new RegExp(label));
   }
   const thermalBlock = receiptSource.slice(receiptSource.indexOf("function ThermalReceiptFinal"), receiptSource.indexOf("function ReceiptSocialLink"));
@@ -50,6 +50,18 @@ test("thermal receipt preserves business data with a clear compact product image
   assert.doesNotMatch(printServiceSource, /window\.open\(/);
   assert.doesNotMatch(printServiceSource, /width: 80mm|min-width: 80mm/);
   assert.match(printServiceSource, /printInFrame\(html, "browser-preview"\)/);
+});
+
+test("thermal receipt shows only the POS seller and standardizes typography", () => {
+  const thermalStart = receiptSource.indexOf("const THERMAL_RECEIPT_FINAL_CSS");
+  const thermalEnd = receiptSource.indexOf("function ReceiptSocialLink", thermalStart);
+  const thermalSource = receiptSource.slice(thermalStart, thermalEnd);
+
+  assert.match(thermalSource, /const salesperson = sellerName \|\| ""/);
+  assert.match(thermalSource, /<dt>البائع<\/dt>/);
+  assert.doesNotMatch(thermalSource, /<dt>الكاشير<\/dt>/);
+  assert.doesNotMatch(thermalSource, /thermal-tagline/);
+  assert.match(thermalSource, /font-family:Arial,sans-serif!important/);
 });
 
 test("invoice barcode opens the matching recent operation instead of product lookup", () => {

@@ -155,7 +155,7 @@ const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
 const POS_USE_SALE_PRICES_KEY = "pos.useSalePrices";
 const POS_MANIFEST_HREF = "/pos-manifest.webmanifest";
 const POS_SERVICE_WORKER_HREF = "/pos-sw.js";
-const POS_SERVICE_WORKER_VERSION = 7;
+const POS_SERVICE_WORKER_VERSION = 8;
 const POS_APP_TITLE = buildPageTitle("POS");
 const POS_APP_SHORT_TITLE = "POS";
 const POS_THEME_COLOR = "#07111f";
@@ -5805,6 +5805,12 @@ function POSPro() {
         order.seller_name ||
         order.sales_employee_name ||
         order.salesperson_name ||
+        order.assigned_seller_name ||
+        order.employee_name ||
+        order.sales_employee?.full_name ||
+        order.sales_employee?.name ||
+        order.seller?.full_name ||
+        order.seller?.name ||
         activeSalesperson?.full_name ||
         activeSalesperson?.name ||
         activeSalesperson?.employee_name ||
