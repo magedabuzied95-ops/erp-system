@@ -29,6 +29,8 @@ test("color audience survives variant normalization, persistence, and edit hydra
   assert.match(controller, /audience:\s*normalizeCopiedText\(\s*variant\.audience[\s\S]*?group\.audience/);
   assert.match(controller, /audience = \$11/);
   assert.match(controller, /String\(nextVariant\.audience \|\| nextVariant\.variant_audience \|\| ""\)/);
+  assert.match(controller, /audience = \$10,[\s\S]*?WHERE id = \$18/);
+  assert.match(controller, /audience: audience \|\| variant_audience \|\| ""/);
   assert.match(editor, /audience: row\.audience \|\| row\.variant_audience \|\| ""/);
   assert.match(editor, /group\.audience \|\| product\.audiences\?\.join\(","\) \|\| product\.gender \|\| ""/);
 });
