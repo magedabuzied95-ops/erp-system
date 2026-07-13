@@ -254,7 +254,7 @@ const normalizeCountVariant = (record = {}) => {
   const type = normalizeText(record.type || record.product_type || record.productType || "");
   const brand = normalizeText(record.brand || record.brand_name || "");
   const manufacturerName = normalizeText(record.manufacturer_name || record.manufacturer || "");
-  const gender = normalizeText(record.gender || "");
+  const gender = normalizeText(record.audience || record.variant_audience || record.gender || "");
   const color = normalizeText(record.color || record.variant_color || record.color_name || "");
   const size = normalizeText(record.size || record.variant_size || record.size_name || "");
   const sku = normalizeText(record.sku || record.variant_sku || "");

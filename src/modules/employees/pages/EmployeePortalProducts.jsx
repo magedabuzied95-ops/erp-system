@@ -58,6 +58,8 @@ const normalizeVariant = (variant = {}) => ({
   product_id: variant.product_id ?? null,
   color: text(variant.color || ""),
   size: variantSizeValue(variant),
+  audience: text(variant.audience || variant.variant_audience || variant.gender || ""),
+  variant_audience: text(variant.variant_audience || variant.audience || variant.gender || ""),
   sku: text(variant.sku || ""),
   barcode: text(variant.barcode || ""),
   article_code: text(variant.article_code || variant.product_code || ""),
@@ -74,6 +76,9 @@ const normalizeProduct = (product = {}) => {
   const colors = uniqueValues(variants.map((variant) => variant.color));
   const sizes = sortSizes(uniqueValues(variants.map((variant) => variant.size)));
   const totalStock = variants.reduce((sum, variant) => sum + Math.max(0, Number(variant.stock || 0)), 0);
+  const variantAudiences = uniqueValues(variants.flatMap((variant) =>
+    String(variant.audience || "").split(/[,|]+/).map(text).filter(Boolean)
+  ));
   const imageUrl =
     text(mappedProduct.product_image_url) ||
     text(mappedProduct.image_url) ||
@@ -93,7 +98,9 @@ const normalizeProduct = (product = {}) => {
     category: text(mappedProduct.category || mappedProduct.category_name || ""),
     type: text(mappedProduct.type || mappedProduct.product_type || mappedProduct.style || ""),
     brand: text(mappedProduct.brand || mappedProduct.brand_name || ""),
-    gender: text(mappedProduct.gender || ""),
+    gender: text(variantAudiences[0] || mappedProduct.gender || ""),
+    audiences: variantAudiences.length ? variantAudiences : mappedProduct.audiences || [],
+    product_audiences: variantAudiences.length ? variantAudiences : mappedProduct.product_audiences || [],
     style: text(mappedProduct.style || ""),
     sku: text(mappedProduct.sku || ""),
     barcode: text(mappedProduct.barcode || ""),

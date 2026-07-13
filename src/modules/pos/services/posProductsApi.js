@@ -161,6 +161,7 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     sourceProduct.manufacturer_id ??
     sourceProduct.variant_manufacturer_id ??
     null;
+  const audience = normalizeText(row.audience ?? row.variant_audience ?? row.gender);
   return {
     id: variantId ?? `product:${productId}`,
     product_id: productId,
@@ -169,6 +170,8 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     product_name: productName,
     color,
     size,
+    audience,
+    variant_audience: audience,
     sku,
     barcode,
     qr_token: qrToken,
@@ -206,7 +209,7 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     category_path: pickFirstText(row.category_path, row.categoryPath, sourceProduct.category_path, sourceProduct.categoryPath),
     audiences: Array.isArray(sourceProduct.audiences) ? sourceProduct.audiences : Array.isArray(sourceProduct.product_audiences) ? sourceProduct.product_audiences : [],
     product_audiences: Array.isArray(sourceProduct.product_audiences) ? sourceProduct.product_audiences : Array.isArray(sourceProduct.audiences) ? sourceProduct.audiences : [],
-    gender: pickClassificationText(row, sourceProduct, "gender", "gender"),
+    gender: audience || pickClassificationText(row, sourceProduct, "gender", "gender"),
     product_type: pickClassificationText(row, sourceProduct, "product_type", "productType"),
     productType: pickClassificationText(row, sourceProduct, "product_type", "productType"),
     grade: pickClassificationText(row, sourceProduct, "grade", "grade"),

@@ -32,5 +32,18 @@ test("color audience survives variant normalization, persistence, and edit hydra
   assert.match(controller, /audience = \$10,[\s\S]*?WHERE id = \$18/);
   assert.match(controller, /audience: audience \|\| variant_audience \|\| ""/);
   assert.match(editor, /audience: row\.audience \|\| row\.variant_audience \|\| ""/);
-  assert.match(editor, /group\.audience \|\| product\.audiences\?\.join\(","\) \|\| product\.gender \|\| ""/);
+  assert.match(editor, /audience: group\.audience \|\| ""/);
+});
+
+test("color audience is authoritative in product filters", () => {
+  const controller = readFileSync(new URL("../server/controllers/productsController.js", import.meta.url), "utf8");
+  const pos = readFileSync(new URL("../src/modules/pos/pages/POSPro.jsx", import.meta.url), "utf8");
+  const storefront = readFileSync(new URL("../src/storefront/Storefront.jsx", import.meta.url), "utf8");
+  const form = readFileSync(new URL("../src/modules/products/components/ProductForm.jsx", import.meta.url), "utf8");
+
+  assert.match(controller, /EXISTS \(\s*SELECT 1 FROM product_variants pvf[\s\S]*?pvf\.audience/);
+  assert.match(controller, /const variantAudiences = normalizeProductAudiences/);
+  assert.match(pos, /variants\.forEach\(\(variant\) => \{[\s\S]*?visit\(variant\.audience\)/);
+  assert.match(storefront, /Array\.isArray\(product\.variants\)[\s\S]*?visit\(variant\.audience\)/);
+  assert.doesNotMatch(form, /<AudienceCheckboxGroup/);
 });

@@ -1236,6 +1236,12 @@ const getProductAudienceKeys = (product = {}) => {
       .filter(Boolean)
       .forEach((audience) => seen.add(audience));
   };
+  const variants = Array.isArray(product.variants) ? product.variants : [];
+  variants.forEach((variant) => {
+    visit(variant.audience);
+    visit(variant.variant_audience);
+  });
+  if (seen.size > 0) return ["men", "women", "kids"].filter((audience) => seen.has(audience));
   visit(product.audiences);
   visit(product.product_audiences);
   visit(product.gender);

@@ -39,8 +39,6 @@ function ProductForm({
   onBrandChange,
   onUnitChange,
   onVariationModeChange,
-  onGenderChange,
-  onAudiencesChange,
   onProductTypeChange,
   onGradeChange,
   onIsOfferStoryChange,
@@ -299,17 +297,6 @@ function ProductForm({
         </div>
 
         <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
-          <div className="2xl:col-span-2">
-          <AudienceCheckboxGroup
-            label={t("products.form.gender", "الجمهور")}
-            value={selectedAudiences}
-            onChange={(next) => {
-              onAudiencesChange?.(next);
-              onGenderChange?.(next[0] || "");
-            }}
-          />
-          </div>
-
           <SmartClassificationSelect
             label={t("products.form.productType")}
             value={productType}
@@ -488,45 +475,6 @@ function normalizeAudiences(...sources) {
   };
   sources.forEach(visit);
   return PRODUCT_AUDIENCE_OPTIONS.map((option) => option.value).filter((value) => seen.has(value));
-}
-
-function AudienceCheckboxGroup({ label, value = [], onChange }) {
-  const selected = normalizeAudiences(value);
-  const toggle = (nextValue) => {
-    const next = selected.includes(nextValue)
-      ? selected.filter((item) => item !== nextValue)
-      : [...selected, nextValue];
-    onChange?.(next);
-  };
-
-  return (
-    <div>
-      <p className="text-sm font-semibold text-zinc-300">{label}</p>
-      <div className="mt-2 grid grid-cols-3 gap-2">
-        {PRODUCT_AUDIENCE_OPTIONS.map((option) => {
-          const checked = selected.includes(option.value);
-          return (
-            <label
-              key={option.value}
-              className={`flex h-12 cursor-pointer items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-bold transition ${
-                checked
-                  ? "border-emerald-300/45 bg-emerald-300/15 text-emerald-100"
-                  : "border-white/8 bg-zinc-950/80 text-zinc-300 hover:border-white/16 hover:bg-white/8"
-              }`}
-            >
-              <input
-                type="checkbox"
-                checked={checked}
-                onChange={() => toggle(option.value)}
-                className="h-4 w-4 rounded border-white/20 bg-zinc-950 accent-emerald-400"
-              />
-              <span>{option.label}</span>
-            </label>
-          );
-        })}
-      </div>
-    </div>
-  );
 }
 
 function SmartClassificationSelect({ label, value, onChange, options = [], placeholder }) {

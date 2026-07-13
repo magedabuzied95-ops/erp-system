@@ -97,6 +97,11 @@ const productListingAudienceValues = (product = {}) => {
       .filter(Boolean)
       .forEach((entry) => seen.add(entry));
   };
+  (Array.isArray(product.variants) ? product.variants : []).forEach((variant) => {
+    visit(variant.audience);
+    visit(variant.variant_audience);
+  });
+  if (seen.size > 0) return Array.from(seen);
   visit(product.audience);
   visit(product.audiences);
   visit(product.gender);

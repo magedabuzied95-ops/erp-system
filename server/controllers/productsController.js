@@ -1103,10 +1103,15 @@ const withProductAudiences = async (clientOrPool, products = []) => {
   const audienceMap = await loadProductAudienceMap(clientOrPool, ids);
   return rows.map((product) => {
     const productId = String(product.id ?? product.product_id ?? "");
-    const audiences = audienceMap.get(productId) || normalizeProductAudiences(product.audiences, product.product_audiences, product.gender);
+    const variantAudiences = normalizeProductAudiences(
+      (Array.isArray(product.variants) ? product.variants : []).map((variant) => variant.audience ?? variant.variant_audience)
+    );
+    const audiences = variantAudiences.length
+      ? variantAudiences
+      : audienceMap.get(productId) || normalizeProductAudiences(product.audiences, product.product_audiences, product.gender);
     return {
       ...product,
-      gender: product.gender || audiences[0] || "",
+      gender: audiences[0] || product.gender || "",
       audiences,
       product_audiences: audiences,
     };
@@ -1763,11 +1768,28 @@ const buildProductsAdminListFiltersClause = async ({ values, filters = {} }) => 
   if (rawGender && rawGender !== "all") {
     values.push(rawGender);
     parts.push(`
-      EXISTS (
-        SELECT 1
-        FROM product_audiences paf
-        WHERE paf.product_id = p.id
-          AND LOWER(TRIM(COALESCE(paf.audience, ''))) = LOWER(TRIM($${values.length}))
+      (
+        EXISTS (
+          SELECT 1 FROM product_variants pvf
+          WHERE pvf.product_id = p.id
+            AND pvf.is_active IS DISTINCT FROM FALSE
+            AND pvf.deleted_at IS NULL
+            AND LOWER(TRIM(COALESCE(pvf.audience, ''))) = LOWER(TRIM($${values.length}))
+        )
+        OR (
+          NOT EXISTS (
+            SELECT 1 FROM product_variants pva_any
+            WHERE pva_any.product_id = p.id
+              AND pva_any.is_active IS DISTINCT FROM FALSE
+              AND pva_any.deleted_at IS NULL
+              AND TRIM(COALESCE(pva_any.audience, '')) <> ''
+          )
+          AND EXISTS (
+            SELECT 1 FROM product_audiences paf
+            WHERE paf.product_id = p.id
+              AND LOWER(TRIM(COALESCE(paf.audience, ''))) = LOWER(TRIM($${values.length}))
+          )
+        )
       )
     `);
     applied.gender = rawGender;
@@ -2818,7 +2840,7 @@ const archiveProductVariantsByIds = async (client, { productId, tenantId, varian
 const loadActiveProductVariantSnapshot = async (client, { productId, tenantId }) => {
   const result = await client.query(
     `
-    SELECT id, color, size, stock, default_purchase_qty, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error, is_active, deleted_at
+    SELECT id, color, size, audience, stock, default_purchase_qty, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error, is_active, deleted_at
     FROM product_variants
     WHERE product_id = $1
       AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
@@ -2913,15 +2935,23 @@ export const getProductsAdminList = async (req, res) => {
       `
       : "";
 
-    const audienceJoinSql = hasProductAudiences
-      ? `
+    const audienceJoinSql = `
+        LEFT JOIN (
+          SELECT product_id, jsonb_agg(DISTINCT audience) AS audiences
+          FROM product_variants
+          WHERE is_active IS DISTINCT FROM FALSE
+            AND deleted_at IS NULL
+            AND TRIM(COALESCE(audience, '')) <> ''
+          GROUP BY product_id
+        ) pva ON pva.product_id = p.id
+        ${hasProductAudiences ? `
         LEFT JOIN (
           SELECT product_id, jsonb_agg(audience ORDER BY audience) AS audiences
           FROM product_audiences
           GROUP BY product_id
         ) pa ON pa.product_id = p.id
-      `
-      : "";
+        ` : ""}
+      `;
 
     const result = await db.query(
       `
@@ -2998,7 +3028,7 @@ export const getProductsAdminList = async (req, res) => {
             AND sv_count.is_active IS DISTINCT FROM FALSE
             AND sv_count.deleted_at IS NULL
         ), 0) AS active_variant_count,
-        ${hasProductAudiences ? "COALESCE(pa.audiences, '[]'::jsonb)" : "'[]'::jsonb"} AS product_audiences,
+        COALESCE(pva.audiences, ${hasProductAudiences ? "pa.audiences" : "NULL"}, '[]'::jsonb) AS product_audiences,
         COUNT(*) OVER()::int AS total_count
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
