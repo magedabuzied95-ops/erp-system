@@ -24,21 +24,22 @@ export default function MarketingStudioHeader({
   eyebrow = "Marketing Studio",
   title = "Marketing Suite",
   description = "Navigate the marketing workspace from one shared header.",
+  size = "default",
 }) {
   const { t } = useTranslation();
 
   return (
-    <section className="rounded-3xl border border-[var(--border)] bg-[var(--card)] px-4 py-3 shadow-[var(--shadow-card)] sm:px-5 sm:py-4">
+    <section className={`${size === "large" ? "rounded-[2rem] px-6 py-5 sm:px-7 sm:py-6" : "rounded-3xl px-4 py-3 sm:px-5 sm:py-4"} border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-card)]`}>
       <div className="flex flex-col gap-2">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-[color-mix(in_srgb,var(--primary)_35%,var(--border))] bg-[var(--primary-soft)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--primary)]">
             <MessageCircleMore className="h-3.5 w-3.5" />
             {t("marketing.studio.eyebrow", eyebrow)}
           </div>
-          <h1 className="mt-2 text-2xl font-black tracking-tight text-white sm:text-[2rem] xl:text-[2.35rem]">
+          <h1 className={`${size === "large" ? "mt-3 text-3xl sm:text-4xl xl:text-[2.75rem]" : "mt-2 text-2xl sm:text-[2rem] xl:text-[2.35rem]"} font-black tracking-tight text-white`}>
             {t("marketing.studio.title", title)}
           </h1>
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-300">{t("marketing.studio.description", description)}</p>
+          <p className={`${size === "large" ? "mt-2 max-w-3xl text-base leading-7" : "mt-1.5 max-w-2xl text-sm leading-6"} text-slate-300`}>{t("marketing.studio.description", description)}</p>
         </div>
       </div>
 

@@ -109,25 +109,25 @@ export default function MarketingAnalytics() {
   const syncWarnings = Array.isArray(analytics?.sync?.warnings) ? analytics.sync.warnings : [];
 
   return (
-    <div className="min-h-full w-full overflow-x-hidden bg-[#060816] text-white">
-      <div className="mx-auto flex w-full max-w-7xl flex-col gap-6 px-4 py-6 md:px-6 lg:px-8">
-        <MarketingStudioHeader />
-        <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 p-5 shadow-2xl shadow-black/30">
+    <div className="min-h-full w-full overflow-x-hidden bg-[radial-gradient(circle_at_85%_0%,rgba(217,164,65,0.12),transparent_30rem),radial-gradient(circle_at_12%_18%,rgba(34,211,238,0.08),transparent_28rem),#090a0d] text-white">
+      <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-7 px-4 py-6 md:px-6 lg:px-8 2xl:px-10 2xl:py-8">
+        <MarketingStudioHeader size="large" />
+        <section className="rounded-[2rem] border border-cyan-300/20 bg-gradient-to-br from-slate-950 via-[#10182a] to-slate-950 p-6 shadow-2xl shadow-black/35 md:p-7 2xl:p-8">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-2">
               <div className="inline-flex items-center gap-2 rounded-full border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.22em] text-cyan-200">
                 <BarChart3 className="h-3.5 w-3.5" />
                 {t("marketing.analytics.eyebrow")}
               </div>
-              <h1 className="text-3xl font-black tracking-tight md:text-4xl">{t("marketing.analytics.title")}</h1>
-              <p className="max-w-3xl text-sm leading-6 text-slate-300">{t("marketing.analytics.subtitle")}</p>
+              <h1 className="text-4xl font-black tracking-tight md:text-5xl">{t("marketing.analytics.title")}</h1>
+              <p className="max-w-4xl text-base leading-7 text-slate-300">{t("marketing.analytics.subtitle")}</p>
             </div>
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
                 onClick={refresh}
                 disabled={syncing || !canSync}
-                className="inline-flex items-center gap-2 rounded-2xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-400/20 disabled:opacity-60"
+                className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-amber-300/35 bg-amber-300/10 px-5 py-3 text-base font-bold text-amber-100 transition hover:bg-amber-300/20 disabled:opacity-60"
               >
                 <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} />
                 {t("marketing.analytics.sync")}
@@ -136,7 +136,7 @@ export default function MarketingAnalytics() {
                 type="button"
                 onClick={load}
                 disabled={loading}
-                className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60"
+                className="inline-flex min-h-12 items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.07] px-5 py-3 text-base font-bold text-white transition hover:bg-white/10 disabled:opacity-60"
               >
                 <Sparkles className="h-4 w-4 text-cyan-300" />
                 {t("marketing.common.refreshView")}
@@ -162,23 +162,23 @@ export default function MarketingAnalytics() {
           </div>
         ) : null}
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <MarketingMetricCard label={t("marketing.analytics.metrics.postsTracked")} value={loading ? "-" : summary.tracked_posts ?? 0} tone="cyan" icon={<Share2 className="h-5 w-5" />} />
-          <MarketingMetricCard label={t("marketing.analytics.metrics.likes")} value={loading ? "-" : summary.likes ?? 0} tone="emerald" icon={<Sparkles className="h-5 w-5" />} />
-          <MarketingMetricCard label={t("marketing.analytics.metrics.comments")} value={loading ? "-" : summary.comments ?? 0} tone="violet" icon={<BarChart3 className="h-5 w-5" />} />
-          <MarketingMetricCard label={t("marketing.analytics.metrics.shares")} value={loading ? "-" : summary.shares ?? 0} tone="amber" icon={<Share2 className="h-5 w-5" />} />
-          <MarketingMetricCard label={t("marketing.analytics.metrics.impressions")} value={loading ? "-" : summary.impressions ?? 0} tone="slate" icon={<Filter className="h-5 w-5" />} />
-          <MarketingMetricCard label={t("marketing.analytics.metrics.engagementRate")} value={loading ? "-" : formatPercent(summary.engagement_rate)} tone="rose" icon={<CalendarDays className="h-5 w-5" />} />
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+          <MarketingMetricCard size="large" label={t("marketing.analytics.metrics.postsTracked")} value={loading ? "-" : summary.tracked_posts ?? 0} tone="cyan" icon={<Share2 className="h-6 w-6" />} />
+          <MarketingMetricCard size="large" label={t("marketing.analytics.metrics.likes")} value={loading ? "-" : summary.likes ?? 0} tone="emerald" icon={<Sparkles className="h-6 w-6" />} />
+          <MarketingMetricCard size="large" label={t("marketing.analytics.metrics.comments")} value={loading ? "-" : summary.comments ?? 0} tone="violet" icon={<BarChart3 className="h-6 w-6" />} />
+          <MarketingMetricCard size="large" label={t("marketing.analytics.metrics.shares")} value={loading ? "-" : summary.shares ?? 0} tone="amber" icon={<Share2 className="h-6 w-6" />} />
+          <MarketingMetricCard size="large" label={t("marketing.analytics.metrics.impressions")} value={loading ? "-" : summary.impressions ?? 0} tone="slate" icon={<Filter className="h-6 w-6" />} />
+          <MarketingMetricCard size="large" label={t("marketing.analytics.metrics.engagementRate")} value={loading ? "-" : formatPercent(summary.engagement_rate)} tone="rose" icon={<CalendarDays className="h-6 w-6" />} />
         </section>
 
-        <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+        <section className="rounded-[2rem] border border-white/15 bg-white/[0.065] p-6 shadow-2xl shadow-black/25 md:p-7">
           <div className="grid gap-4 md:grid-cols-3">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">{t("marketing.social.platform")}</span>
               <select
                 value={filters.platform}
                 onChange={(event) => setFilters((current) => ({ ...current, platform: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="min-h-13 w-full rounded-2xl border border-white/15 bg-slate-950/80 px-4 py-3 text-base text-white outline-none focus:border-cyan-300/50"
               >
                 <option value="all">{t("marketing.social.allPlatforms")}</option>
                 <option value="facebook">{t("marketing.social.platforms.facebook")}</option>
@@ -191,7 +191,7 @@ export default function MarketingAnalytics() {
                 type="date"
                 value={filters.from}
                 onChange={(event) => setFilters((current) => ({ ...current, from: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="min-h-13 w-full rounded-2xl border border-white/15 bg-slate-950/80 px-4 py-3 text-base text-white outline-none focus:border-cyan-300/50"
               />
             </label>
             <label className="space-y-2">
@@ -200,7 +200,7 @@ export default function MarketingAnalytics() {
                 type="date"
                 value={filters.to}
                 onChange={(event) => setFilters((current) => ({ ...current, to: event.target.value }))}
-                className="w-full rounded-2xl border border-white/10 bg-slate-950/80 px-4 py-3 text-sm text-white outline-none"
+                className="min-h-13 w-full rounded-2xl border border-white/15 bg-slate-950/80 px-4 py-3 text-base text-white outline-none focus:border-cyan-300/50"
               />
             </label>
           </div>

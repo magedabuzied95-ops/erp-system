@@ -188,21 +188,21 @@ export default function MarketingCampaignAnalyticsPanel({
   };
 
   return (
-    <section className="space-y-5 rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-2xl shadow-black/20">
+    <section className="space-y-6 rounded-[2rem] border border-white/15 bg-white/[0.06] p-5 shadow-2xl shadow-black/25 md:p-6 2xl:p-7">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-2 text-cyan-100">
             <BarChart3 className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-lg font-black text-white">Campaign Analytics</h2>
-            <p className="text-sm text-slate-400">Overview, timeline, history, and top posts.</p>
+            <h2 className="text-xl font-black text-white md:text-2xl">Campaign Analytics</h2>
+            <p className="text-base text-slate-300">Overview, timeline, history, and top posts.</p>
           </div>
         </div>
         <button
           type="button"
           onClick={onRefresh}
-          className="inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/[0.08]"
+          className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/15 bg-white/[0.07] px-4 py-2 text-base font-semibold text-white transition hover:bg-white/[0.11]"
         >
           <RefreshCcw className="h-4 w-4" />
           Refresh
@@ -210,22 +210,22 @@ export default function MarketingCampaignAnalyticsPanel({
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-[1.5rem] border border-emerald-400/20 bg-emerald-400/10 p-4">
+        <div className="rounded-[1.5rem] border border-emerald-400/25 bg-emerald-400/12 p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-100">Published</div>
-          <div className="mt-2 text-3xl font-black text-white">{loading ? "-" : summary.published ?? analyticsCounts.published}</div>
+          <div className="mt-3 text-4xl font-black text-white">{loading ? "-" : summary.published ?? analyticsCounts.published}</div>
           <div className="mt-1 text-xs text-emerald-100/80">Number of published posts.</div>
         </div>
-        <div className="rounded-[1.5rem] border border-amber-400/20 bg-amber-400/10 p-4">
+        <div className="rounded-[1.5rem] border border-amber-400/25 bg-amber-400/12 p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-100">Scheduled</div>
-          <div className="mt-2 text-3xl font-black text-white">{loading ? "-" : summary.scheduled ?? analyticsCounts.scheduled}</div>
+          <div className="mt-3 text-4xl font-black text-white">{loading ? "-" : summary.scheduled ?? analyticsCounts.scheduled}</div>
           <div className="mt-1 text-xs text-amber-100/80">Posts queued for later.</div>
         </div>
-        <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4">
+        <div className="rounded-[1.5rem] border border-white/15 bg-white/[0.055] p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-slate-400">Drafts</div>
-          <div className="mt-2 text-3xl font-black text-white">{loading ? "-" : summary.drafts ?? analyticsCounts.drafts}</div>
+          <div className="mt-3 text-4xl font-black text-white">{loading ? "-" : summary.drafts ?? analyticsCounts.drafts}</div>
           <div className="mt-1 text-xs text-slate-400">Draft content in progress.</div>
         </div>
-        <div className="rounded-[1.5rem] border border-cyan-400/20 bg-cyan-400/10 p-4">
+        <div className="rounded-[1.5rem] border border-cyan-400/25 bg-cyan-400/12 p-5">
           <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-100">First Comments</div>
           <div className="mt-2 grid grid-cols-3 gap-2 text-center text-white">
             <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-2 py-2">
@@ -244,8 +244,8 @@ export default function MarketingCampaignAnalyticsPanel({
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.95fr)]">
-        <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-4">
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(22rem,0.85fr)]">
+        <div className="rounded-[1.75rem] border border-white/15 bg-slate-950/65 p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Charts</div>
@@ -278,7 +278,7 @@ export default function MarketingCampaignAnalyticsPanel({
           </div>
         </div>
 
-        <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-4">
+        <div className="rounded-[1.75rem] border border-white/15 bg-slate-950/65 p-5">
           <div className="flex items-center gap-2">
             <Activity className="h-4 w-4 text-cyan-200" />
             <div>
@@ -327,11 +327,11 @@ export default function MarketingCampaignAnalyticsPanel({
         </div>
       </div>
 
-      <section className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-4">
+      <section className="rounded-[1.75rem] border border-white/15 bg-slate-950/65 p-5 md:p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-black text-white">History Table</h3>
-            <p className="text-sm text-slate-400">Recent social publisher posts with caption and first comment previews.</p>
+            <h3 className="text-xl font-black text-white">History Table</h3>
+            <p className="text-base text-slate-300">Recent social publisher posts with caption and first comment previews.</p>
           </div>
         </div>
 
@@ -504,7 +504,7 @@ export default function MarketingCampaignAnalyticsPanel({
         )}
       </section>
 
-      <section className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-4">
+      <section className="rounded-[1.75rem] border border-white/15 bg-slate-950/65 p-5 md:p-6">
         <div className="mb-4 flex items-center gap-2">
           <Sparkles className="h-4 w-4 text-cyan-200" />
           <div>

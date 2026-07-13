@@ -1,4 +1,4 @@
-export default function MarketingMetricCard({ label, value, hint, icon, tone = "slate" }) {
+export default function MarketingMetricCard({ label, value, hint, icon, tone = "slate", size = "default" }) {
   const tones = {
     emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
     cyan: "border-cyan-500/20 bg-cyan-500/10 text-cyan-200",
@@ -9,13 +9,13 @@ export default function MarketingMetricCard({ label, value, hint, icon, tone = "
   };
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-lg shadow-black/10 backdrop-blur">
+    <div className={`${size === "large" ? "min-h-32 rounded-[1.65rem] p-5" : "rounded-2xl p-4"} border border-white/15 bg-white/[0.07] shadow-xl shadow-black/15 backdrop-blur`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[11px] uppercase tracking-[0.22em] text-slate-400">{label}</div>
-          <div className="mt-2 text-3xl font-black text-white">{value}</div>
+          <div className={`${size === "large" ? "text-xs" : "text-[11px]"} font-semibold uppercase tracking-[0.18em] text-slate-300`}>{label}</div>
+          <div className={`${size === "large" ? "mt-3 text-4xl" : "mt-2 text-3xl"} font-black text-white`}>{value}</div>
         </div>
-        <div className={`flex h-11 w-11 items-center justify-center rounded-xl border ${tones[tone] || tones.slate}`}>
+        <div className={`flex ${size === "large" ? "h-13 w-13 rounded-2xl" : "h-11 w-11 rounded-xl"} items-center justify-center border ${tones[tone] || tones.slate}`}>
           {icon}
         </div>
       </div>
