@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
 import { getQueueStatusInfo, canPublishQueueItem } from "../../src/modules/marketing/lib/queueStatus.js";
 import { __aiMarketingCenterTestHooks } from "../../server/services/aiMarketingCenterService.js";
 
@@ -10,6 +11,19 @@ const {
   publishedPlatformsFromResults,
   normalizeQueueRow,
 } = __aiMarketingCenterTestHooks;
+
+const serviceSource = fs.readFileSync(
+  new URL("../../server/services/aiMarketingCenterService.js", import.meta.url),
+  "utf8"
+);
+
+test("schema initialization is coalesced and timed-out jobs retain their worker slot", () => {
+  assert.match(serviceSource, /let aiMarketingSchemaPromise = null/);
+  assert.match(serviceSource, /if \(aiMarketingSchemaReady\) return undefined/);
+  assert.match(serviceSource, /if \(!aiMarketingSchemaPromise\)/);
+  assert.match(serviceSource, /const runPromise = Promise\.resolve\(\)\.then\(\(\) => job\.run\(\)\)/);
+  assert.match(serviceSource, /runPromise\s*\.catch\(\(\) => undefined\)\s*\.finally/);
+});
 
 test("publishing lifecycle statuses normalize to visible labels", () => {
   assert.equal(getQueueStatusInfo({ status: "ready" }).displayStatus, "Ready");

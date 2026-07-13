@@ -572,7 +572,10 @@ const normalizeQueueRow = (row = {}) => {
   };
 };
 
-export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
+let aiMarketingSchemaReady = false;
+let aiMarketingSchemaPromise = null;
+
+const applyAiMarketingCenterSchema = async (clientOrPool = db) => {
   await ensureProductVariantImagesSchema(clientOrPool);
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS ai_marketing_settings (
@@ -767,6 +770,22 @@ export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
     )
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_ai_marketing_runs_tenant_started ON ai_marketing_generation_runs (tenant_id, started_at DESC)`);
+};
+
+export const ensureAiMarketingCenterSchema = async (clientOrPool = db) => {
+  if (clientOrPool !== db) return applyAiMarketingCenterSchema(clientOrPool);
+  if (aiMarketingSchemaReady) return undefined;
+  if (!aiMarketingSchemaPromise) {
+    aiMarketingSchemaPromise = applyAiMarketingCenterSchema(db)
+      .then(() => {
+        aiMarketingSchemaReady = true;
+      })
+      .catch((error) => {
+        aiMarketingSchemaPromise = null;
+        throw error;
+      });
+  }
+  return aiMarketingSchemaPromise;
 };
 
 export const getAiMarketingSettings = async (tenantId) => {
@@ -1586,8 +1605,8 @@ const processGenerationJobs = () => {
   while (activeGenerationJobs < GENERATION_JOB_CONCURRENCY && generationJobQueue.length) {
     const job = generationJobQueue.shift();
     activeGenerationJobs += 1;
-    Promise.resolve()
-      .then(() => withTimeout(job.run(), job.timeoutMs || GENERATION_JOB_TIMEOUT_MS, job.label || "AI marketing generation job"))
+    const runPromise = Promise.resolve().then(() => job.run());
+    withTimeout(runPromise, job.timeoutMs || GENERATION_JOB_TIMEOUT_MS, job.label || "AI marketing generation job")
       .catch((error) => {
         console.error("[ai-marketing-generation-job-failed]", {
           type: job.type || "",
@@ -1595,8 +1614,11 @@ const processGenerationJobs = () => {
           runId: job.runId || null,
           queueId: job.queueId || null,
           error: error?.message || "Generation job failed",
+          worker_slot_retained_until_settled: Number(error?.status || 0) === 504,
         });
-      })
+      });
+    runPromise
+      .catch(() => undefined)
       .finally(() => {
         activeGenerationJobs = Math.max(0, activeGenerationJobs - 1);
         setImmediate(processGenerationJobs);
