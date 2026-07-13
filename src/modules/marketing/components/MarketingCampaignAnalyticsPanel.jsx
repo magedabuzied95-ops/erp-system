@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, Eye, RefreshCcw, Repeat2, Share2, Trash2, CalendarDays, BarChart3, Filter, Sparkles, Copy } from "lucide-react";
+import { Activity, Eye, RefreshCcw, Repeat2, Share2, Trash2, CalendarDays, BarChart3, Filter, Sparkles, Copy, ImageIcon, Play } from "lucide-react";
 import toast from "react-hot-toast";
+import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 
 const formatDateTime = (value) => {
   if (!value) return "-";
@@ -38,6 +39,61 @@ const deriveTemplateLabel = (post = {}) => {
   if (post.post_type) return post.post_type;
   return `Post #${post.id ?? "-"}`;
 };
+
+const firstMediaValue = (value) => {
+  if (Array.isArray(value)) return value.find((item) => String(item || "").trim()) || "";
+  if (typeof value === "string" && value.trim().startsWith("[")) {
+    try {
+      return firstMediaValue(JSON.parse(value));
+    } catch {
+      return value;
+    }
+  }
+  return value || "";
+};
+
+const getPostMediaUrl = (post = {}) =>
+  resolveProductImageUrl(
+    post.media_url ||
+      post.image_url ||
+      post.primary_image_url ||
+      post.thumbnail_url ||
+      firstMediaValue(post.media_urls) ||
+      post.metadata?.media_url ||
+      post.metadata?.image_url ||
+      ""
+  );
+
+function PostMediaPreview({ post, className = "" }) {
+  const mediaUrl = getPostMediaUrl(post);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => setFailed(false), [mediaUrl]);
+
+  if (!mediaUrl || failed) {
+    return (
+      <div className={`flex flex-col items-center justify-center gap-2 bg-[#181916] text-center text-slate-500 ${className}`}>
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.04]">
+          <ImageIcon className="h-6 w-6" />
+        </span>
+        <span className="px-3 text-xs font-semibold">No post image</span>
+      </div>
+    );
+  }
+
+  if (String(post.media_type || "").toLowerCase() === "video") {
+    return (
+      <div className={`relative overflow-hidden bg-black ${className}`}>
+        <video src={mediaUrl} muted playsInline preload="metadata" onError={() => setFailed(true)} className="h-full w-full object-cover" />
+        <span className="absolute inset-0 m-auto flex h-12 w-12 items-center justify-center rounded-full border border-white/20 bg-black/55 text-white backdrop-blur">
+          <Play className="h-5 w-5 fill-current" />
+        </span>
+      </div>
+    );
+  }
+
+  return <img src={mediaUrl} alt={deriveTemplateLabel(post)} loading="lazy" onError={() => setFailed(true)} className={`bg-[#181916] object-cover ${className}`} />;
+}
 
 const getHistoryStatusDetails = (status, errorMessage = "") => {
   const normalized = String(status || "").trim().toLowerCase();
@@ -328,11 +384,16 @@ export default function MarketingCampaignAnalyticsPanel({
       </div>
 
       <section className="rounded-[1.75rem] border border-white/10 bg-[#121310] p-5 md:p-6">
-        <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 className="text-xl font-black text-white">History Table</h3>
-            <p className="text-base text-slate-300">Recent social publisher posts with caption and first comment previews.</p>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-200">
+              <ImageIcon className="h-3.5 w-3.5" />
+              Published content
+            </div>
+            <h3 className="text-2xl font-black text-white">Post History</h3>
+            <p className="mt-1 text-sm leading-6 text-slate-400">Creative, caption, first comment, and publishing status in one place.</p>
           </div>
+          <div className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-slate-300">{visiblePosts.length} posts</div>
         </div>
 
         {visiblePosts.length === 0 ? (
@@ -348,7 +409,8 @@ export default function MarketingCampaignAnalyticsPanel({
                 );
                 const publishedAtLabel = post.published_at ? formatDateTime(post.published_at) : post.scheduled_at ? formatDateTime(post.scheduled_at) : "-";
                 return (
-                  <article key={post.id} className="rounded-[1.5rem] border border-white/10 bg-slate-950/55 p-4">
+                  <article key={post.id} className="rounded-[1.5rem] border border-white/10 bg-[#1a1b18] p-4 shadow-xl shadow-black/15">
+                    <PostMediaPreview post={post} className="mb-4 h-56 w-full rounded-2xl" />
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="truncate text-sm font-semibold text-white">{getPrimaryPlatformLabel(post)}</div>
@@ -401,15 +463,16 @@ export default function MarketingCampaignAnalyticsPanel({
               })}
             </div>
 
-            <div className="hidden md:block">
-              <table className="w-full table-fixed border-separate border-spacing-y-3">
+            <div className="hidden overflow-x-auto md:block">
+              <table className="min-w-[1280px] table-fixed border-separate border-spacing-y-3">
                 <thead>
                   <tr className="text-left text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                    <th className="w-[16%] px-3">Platform</th>
+                    <th className="w-[14%] px-3">Creative</th>
+                    <th className="w-[11%] px-3">Platform</th>
                     <th className="w-[14%] px-3">Template</th>
                     <th className="w-[12%] px-3">Status</th>
-                    <th className="w-[24%] px-3">Caption</th>
-                    <th className="w-[20%] px-3">First Comment</th>
+                    <th className="w-[19%] px-3">Caption</th>
+                    <th className="w-[17%] px-3">First Comment</th>
                     <th className="w-[10%] px-3">Published</th>
                     <th className="w-[14%] px-3">Actions</th>
                   </tr>
@@ -424,6 +487,11 @@ export default function MarketingCampaignAnalyticsPanel({
                     const publishedAtLabel = post.published_at ? formatDateTime(post.published_at) : post.scheduled_at ? formatDateTime(post.scheduled_at) : "-";
                     return (
                       <tr key={post.id} className="align-top">
+                        <td className="px-3">
+                          <div className="overflow-hidden rounded-[1.35rem] border border-white/10 bg-[#1a1b18] p-1.5 shadow-lg shadow-black/15">
+                            <PostMediaPreview post={post} className="h-32 w-full rounded-2xl" />
+                          </div>
+                        </td>
                         <td className="px-3">
                           <div className="rounded-[1.35rem] border border-white/10 bg-slate-950/55 p-3">
                             <div className="truncate text-sm font-semibold text-white" title={getPrimaryPlatformLabel(post)}>
@@ -581,6 +649,7 @@ export default function MarketingCampaignAnalyticsPanel({
               </button>
             </div>
             <div className="max-h-[78vh] overflow-y-auto p-4 md:p-6">
+              <PostMediaPreview post={selectedPost} className="mb-4 h-72 w-full rounded-3xl md:h-96" />
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
                   <div className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500">Platform</div>
