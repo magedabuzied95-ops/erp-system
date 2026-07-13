@@ -1,8 +1,10 @@
 import crypto from "node:crypto";
+import { readFileSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { Buffer } from "node:buffer";
+import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const CANVAS_WIDTH = 1080;
@@ -17,6 +19,10 @@ const configuredMaxStorySlides = Number(process.env.MAX_STORY_SLIDES || 6);
 const MAX_STORY_SLIDES = Number.isFinite(configuredMaxStorySlides)
   ? Math.min(6, Math.max(1, Math.round(configuredMaxStorySlides)))
   : 6;
+const STORY_FONT_PATH = fileURLToPath(new URL("../../src/assets/fonts/customer-statement-arabic.ttf", import.meta.url));
+const STORY_FONT_BASE64 = readFileSync(STORY_FONT_PATH).toString("base64");
+const STORY_FONT_FAMILY = "M1Story";
+const storyFontFaceSvg = () => `<style>@font-face{font-family:'${STORY_FONT_FAMILY}';src:url(data:font/ttf;base64,${STORY_FONT_BASE64}) format('truetype');font-style:normal;font-weight:100 1000;}text{font-family:'${STORY_FONT_FAMILY}','DejaVu Sans',sans-serif;}</style>`;
 sharp.cache(false);
 sharp.concurrency(1);
 
@@ -487,10 +493,31 @@ const roundedRectMaskSvg = ({ width, height, radius }) => `
   <rect width="${width}" height="${height}" rx="${radius}" ry="${radius}" fill="#ffffff"/>
 </svg>`;
 
-const storySvgText = ({ lines, x, y, size, weight = 700, color = "#111827", anchor = "middle", lineHeight = 1.18 }) => `
-  <text x="${x}" y="${y}" text-anchor="${anchor}" font-family="Arial, Helvetica, sans-serif" font-size="${size}" font-weight="${weight}" letter-spacing="0" fill="${color}">
+const storySvgText = ({ lines, x, y, size, weight = 700, color = "#111827", anchor = "middle", lineHeight = 1.18, opacity = 1 }) => `
+  <text x="${x}" y="${y}" text-anchor="${anchor}" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="${size}" font-weight="${weight}" letter-spacing="0" fill="${color}" opacity="${opacity}">
     ${lines.map((line, index) => `<tspan x="${x}" dy="${index === 0 ? 0 : Math.round(size * lineHeight)}">${escapeXml(line)}</tspan>`).join("")}
   </text>`;
+
+const escapePangoMarkup = (value) => trimString(value)
+  .replace(/&/g, "&amp;")
+  .replace(/</g, "&lt;")
+  .replace(/>/g, "&gt;");
+
+const createStoryTextComposite = async ({ text, left, top, width, height, size, color, align = "left", weight = "bold" }) => {
+  if (!trimString(text)) return null;
+  const input = await sharp({
+    text: {
+      text: `<span foreground="${color}" weight="${weight}" size="${size}pt">${escapePangoMarkup(text)}</span>`,
+      font: "Candara",
+      fontfile: STORY_FONT_PATH,
+      width,
+      height,
+      align,
+      rgba: true,
+    },
+  }).png().toBuffer();
+  return { input, left, top };
+};
 
 const storyAssetPrice = (story = {}, design = {}) => {
   const rawPrice = trimString(story.price || story.product_price || design.price || design.product_price);
@@ -645,7 +672,7 @@ const storyAssetAudioTitle = (story = {}, design = {}) =>
 const storyAssetBrandName = (story = {}, design = {}) =>
   trimString(story.store_name || story.storeName || story.brand_name || design.store_name || design.storeName || design.brand_name || process.env.STORY_BRAND_NAME || "M1 STORE");
 
-export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitle = "", brandName = "M1 STORE", theme = DESIGNED_STORY_THEMES.premium }) => {
+export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitle = "", brandName = "M1 STORE", theme = DESIGNED_STORY_THEMES.premium, renderText = true }) => {
   const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*•\s*/g, " \u2022 ");
   const titleLines = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 });
   const sizesLines = storyAssetTextLines(cleanSizes, { maxChars: 40, maxLines: 1 });
@@ -653,11 +680,12 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, au
   const headingLines = storyAssetTextLines(badge || "NEW COLLECTION", { maxChars: 22, maxLines: 1 });
   const audioLines = storyAssetTextLines(audioTitle, { maxChars: 34, maxLines: 1 });
   const safeBrandName = trimString(brandName || "M1 STORE").slice(0, 32);
-  const sizesWidth = Math.min(952, Math.max(420, cleanSizes.length * 24 + 132));
+  const sizesWidth = Math.min(952, Math.max(520, cleanSizes.length * 38 + 160));
   const audioWidth = Math.min(656, Math.max(280, audioTitle.length * 13 + 100));
   return `
 <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" viewBox="0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <defs>
+    ${storyFontFaceSvg()}
     <radialGradient id="primaryGlow" cx="22%" cy="18%" r="30%">
       <stop offset="0" stop-color="${theme.glowPrimary}" stop-opacity="0.28"/>
       <stop offset="1" stop-color="${theme.glowPrimary}" stop-opacity="0"/>
@@ -701,15 +729,15 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, au
   <g opacity="0.96">
     <rect x="60" y="72" width="${Math.min(410, Math.max(172, safeBrandName.length * 17 + 72))}" height="52" rx="26" fill="#ffffff" fill-opacity="0.72" stroke="#ffffff" stroke-opacity="0.34"/>
     <circle cx="92" cy="98" r="13" fill="${theme.accentDark}"/>
-    <text x="118" y="107" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="950" letter-spacing="1.2" fill="#0f172a">${escapeXml(safeBrandName)}</text>
+    <text x="118" y="107" text-anchor="start" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="22" font-weight="950" letter-spacing="1.2" fill="#0f172a" opacity="${renderText ? 1 : 0}">${escapeXml(safeBrandName)}</text>
   </g>
-  <text x="1018" y="105" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="900" letter-spacing="3" fill="#0f172a" fill-opacity="0.64">${escapeXml(theme.label)}</text>
+  <text x="1018" y="105" text-anchor="end" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="18" font-weight="900" letter-spacing="3" fill="#0f172a" fill-opacity="0.64" opacity="${renderText ? 1 : 0}">${escapeXml(theme.label)}</text>
 
   ${audioTitle ? `
     <g>
       <rect x="60" y="144" width="${audioWidth}" height="44" rx="22" fill="#000000" fill-opacity="0.34" stroke="#ffffff" stroke-opacity="0.10"/>
-      <text x="88" y="172" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="950" fill="${theme.accent}">M</text>
-      ${storySvgText({ lines: audioLines, x: 116, y: 172, size: 19, weight: 900, color: "#ffffff", anchor: "start", lineHeight: 1 })}
+      <text x="88" y="172" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="19" font-weight="950" fill="${theme.accent}" opacity="${renderText ? 1 : 0}">M</text>
+      ${storySvgText({ lines: audioLines, x: 116, y: 172, size: 19, weight: 900, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
     </g>
   ` : ""}
 
@@ -721,16 +749,33 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, au
   <ellipse cx="540" cy="974" rx="430" ry="98" fill="#ffffff" fill-opacity="0.11" filter="url(#stageShadow)"/>
 
   <rect x="60" y="1074" width="${Math.min(390, Math.max(220, (badge || "NEW COLLECTION").length * 13 + 72))}" height="44" rx="22" fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.22"/>
-  ${storySvgText({ lines: headingLines, x: 94, y: 1103, size: 22, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1 })}
-  ${storySvgText({ lines: titleLines, x: 60, y: 1200, size: 86, weight: 980, color: "#ffffff", anchor: "start", lineHeight: 1.02 })}
-  ${storySvgText({ lines: priceLines, x: 60, y: 1424, size: 110, weight: 980, color: "#ffffff", anchor: "start", lineHeight: 1 })}
+  ${storySvgText({ lines: headingLines, x: 94, y: 1103, size: 22, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  ${storySvgText({ lines: titleLines, x: 60, y: 1200, size: 86, weight: 980, color: "#ffffff", anchor: "start", lineHeight: 1.02, opacity: renderText ? 1 : 0 })}
+  ${storySvgText({ lines: priceLines, x: 60, y: 1424, size: 110, weight: 980, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
   <g filter="url(#ctaGlow)">
     <rect x="604" y="1352" width="416" height="90" rx="45" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.30"/>
-    <text x="812" y="1409" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="950" fill="${theme.accentDark}">${escapeXml(cta || "View details")}</text>
+    <text x="812" y="1409" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="36" font-weight="950" fill="${theme.accentDark}" opacity="${renderText ? 1 : 0}">${escapeXml(cta || "View details")}</text>
   </g>
   <rect x="60" y="1500" width="${sizesWidth}" height="82" rx="41" fill="#ffffff" fill-opacity="0.94" stroke="#ffffff" stroke-opacity="0.12"/>
-  ${storySvgText({ lines: sizesLines, x: 104, y: 1554, size: 37, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1 })}
+  ${storySvgText({ lines: sizesLines, x: 104, y: 1554, size: 37, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
 </svg>`;
+};
+
+export const createDesignedStoryTextComposites = async ({ badge, title, price, sizes, cta, audioTitle = "", brandName = "M1 STORE", theme = DESIGNED_STORY_THEMES.premium }) => {
+  const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*â€¢\s*/g, " \u2022 ");
+  const titleText = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 }).join("\n");
+  const composites = await Promise.all([
+    createStoryTextComposite({ text: trimString(brandName || "M1 STORE").slice(0, 32), left: 118, top: 78, width: 330, height: 42, size: 20, color: "#0f172a" }),
+    createStoryTextComposite({ text: theme.label, left: 710, top: 78, width: 308, height: 38, size: 17, color: "#475569", align: "right" }),
+    createStoryTextComposite({ text: audioTitle ? "M" : "", left: 76, top: 151, width: 24, height: 34, size: 17, color: theme.accent, align: "center" }),
+    createStoryTextComposite({ text: audioTitle, left: 116, top: 150, width: 540, height: 38, size: 18, color: "#ffffff" }),
+    createStoryTextComposite({ text: badge || "NEW COLLECTION", left: 94, top: 1078, width: 360, height: 40, size: 20, color: "#ffffff" }),
+    createStoryTextComposite({ text: titleText, left: 60, top: 1128, width: 940, height: 184, size: 72, color: "#ffffff" }),
+    createStoryTextComposite({ text: price || "Available now", left: 60, top: 1322, width: 520, height: 124, size: 82, color: "#ffffff" }),
+    createStoryTextComposite({ text: cta || "View details", left: 624, top: 1370, width: 376, height: 58, size: 28, color: theme.accentDark, align: "center" }),
+    createStoryTextComposite({ text: cleanSizes || "AVAILABLE NOW", left: 104, top: 1515, width: 850, height: 58, size: 29, color: "#0f172a" }),
+  ]);
+  return composites.filter(Boolean);
 };
 
 const normalizeInputImage = async (source) => {
@@ -1062,6 +1107,16 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         image_url: slideSource,
       };
       const storyTheme = resolveDesignedStoryTheme(slideStory, slideDesign);
+      const storyText = {
+        badge: storyAssetBadge(slideStory, slideDesign),
+        title: storyAssetTitle(slideStory, slideDesign),
+        price: storyAssetPrice(slideStory, slideDesign),
+        sizes: storyAssetSizes(slideStory, slideDesign),
+        cta: storyAssetCta(slideStory, slideDesign),
+        audioTitle: storyAssetAudioTitle(slideStory, slideDesign),
+        brandName: storyAssetBrandName(slideStory, slideDesign),
+        theme: storyTheme,
+      };
       let imageComposite = await createContainedImageComposite({
         source: slideSource,
         boxX: 70,
@@ -1072,6 +1127,7 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         useSafeLimit: false,
         borderRadius: 32,
       });
+      let textComposites = await createDesignedStoryTextComposites(storyText);
       logStoryMemory("slide-before-write-upload", {
         queueId: story.id || postId || null,
         slideIndex: index + 1,
@@ -1079,19 +1135,11 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       });
       const outputUrl = await writeStoryFile({
         filename: storyFilename({ tenantId, postId, suffix: `ai-center-story-${index + 1}` }),
-        background: designedStoryBackgroundSvg({
-          badge: storyAssetBadge(slideStory, slideDesign),
-          title: storyAssetTitle(slideStory, slideDesign),
-          price: storyAssetPrice(slideStory, slideDesign),
-          sizes: storyAssetSizes(slideStory, slideDesign),
-          cta: storyAssetCta(slideStory, slideDesign),
-          audioTitle: storyAssetAudioTitle(slideStory, slideDesign),
-          brandName: storyAssetBrandName(slideStory, slideDesign),
-          theme: storyTheme,
-        }),
-        composites: [imageComposite],
+        background: designedStoryBackgroundSvg({ ...storyText, renderText: false }),
+        composites: [imageComposite, ...textComposites],
       });
       imageComposite = null;
+      textComposites = null;
       outputSlides.push({
         index,
         source_product_image_url: slideSource,

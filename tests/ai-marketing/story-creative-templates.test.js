@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-import { designedStoryBackgroundSvg, resolveDesignedStoryTheme } from "../../server/services/storyImageService.js";
+import { createDesignedStoryTextComposites, designedStoryBackgroundSvg, resolveDesignedStoryTheme } from "../../server/services/storyImageService.js";
 
 const previewSource = fs.readFileSync(
   new URL("../../src/modules/marketing/components/PostEditorModal.jsx", import.meta.url),
@@ -33,6 +33,9 @@ test("rendered 9:16 asset carries the selected theme and complete selling hierar
   });
 
   assert.match(svg, /width="1080" height="1920"/);
+  assert.match(svg, /@font-face/);
+  assert.match(svg, /data:font\/ttf;base64,/);
+  assert.match(svg, /font-family:'M1Story'/);
   for (const value of ["LIMITED DROP", "LAST SIZE", "Nike Air Max 97", "1750 EGP", "41 • 42 • 43", "View details", "M1 Store"]) {
     assert.match(svg, new RegExp(value));
   }
@@ -44,5 +47,20 @@ test("story preview mirrors professional strategy themes and store identity", ()
     assert.match(previewSource, new RegExp(marker.replace(".", "\\.")));
   }
   assert.doesNotMatch(previewSource, />ERP<\/div>/);
-  assert.match(marketingServiceSource, /ai_marketing_story_commercial_templates_v3/);
+  assert.match(marketingServiceSource, /ai_marketing_story_commercial_templates_v5_explicit_fontfile/);
+});
+
+test("production story text is rasterized with the bundled font file", async () => {
+  const theme = resolveDesignedStoryTheme({ strategy_type: "new_arrivals" });
+  const composites = await createDesignedStoryTextComposites({
+    badge: "NEW COLLECTION",
+    title: "Adidas Terrex حذاء جديد",
+    price: "1750 EGP",
+    sizes: "41, 42, 43",
+    cta: "View details",
+    brandName: "M1 Store",
+    theme,
+  });
+  assert.equal(composites.length, 7);
+  for (const composite of composites) assert.ok(Buffer.isBuffer(composite.input) && composite.input.length > 100);
 });
