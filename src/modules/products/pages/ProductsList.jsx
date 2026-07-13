@@ -117,6 +117,14 @@ const isInactiveProduct = (row = {}) =>
 const isStatusToggleableProduct = (row = {}) =>
   !["archived", "deleted", "draft"].includes(productStatusValue(row));
 
+const getProductTypeValue = (row = {}) =>
+  String(row.product_type ?? row.productType ?? "").trim();
+
+const isMeaningfulCategory = (value = "") => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return Boolean(normalized) && !["uncategorized", "غير مصنف", "بدون تصنيف"].includes(normalized);
+};
+
 const isInlineRowActionVisible = (action = {}, viewportWidth = 0) => {
   const visibleFrom = action.visibleFrom || "lg";
   const minWidth = ROW_ACTION_BREAKPOINTS[visibleFrom] || ROW_ACTION_BREAKPOINTS.lg;
@@ -2471,7 +2479,7 @@ function ProductsList() {
                     />
                   </th>
                   <th className="px-4 py-2">{t("products.table.product")}</th>
-                  <th className="px-4 py-2">{t("products.table.categoryBrand")}</th>
+                  <th className="px-4 py-2">{t("products.table.typeCategoryBrand")}</th>
                   <th className="px-4 py-2">{t("products.table.stock")}</th>
                   <th className="px-4 py-2">{t("products.table.costSale", "التكلفة / البيع")}</th>
                   <th className="px-4 py-2">{t("products.table.status")}</th>
@@ -2504,6 +2512,8 @@ function ProductsList() {
                     const sellingPrice = formatCardPrice(row.selling_price ?? 0);
                     const salePrice = row.sale_price != null ? formatCardPrice(row.sale_price) : "غير متاح";
                     const displaySku = cleanSkuDisplay(row.sku);
+                    const productType = getProductTypeValue(row);
+                    const category = isMeaningfulCategory(row.category) ? String(row.category).trim() : "";
                     const barcodeTitle = cleanSkuDisplay(row.barcode) ? `${displaySku ? `${displaySku} / ` : ""}${row.barcode}` : displaySku;
                     const inactiveProduct = isInactiveProduct(row);
                     const storefrontVisible = isStorefrontVisibleValue(row);
@@ -2557,7 +2567,12 @@ function ProductsList() {
                           </button>
                         </td>
                         <td className="px-4 py-4 align-middle">
-                          <p className="truncate font-semibold text-white">{row.category || t("products.selected.category")}</p>
+                          <p className="truncate font-semibold text-white">
+                            {productType || category || t("products.selected.category")}
+                          </p>
+                          {productType && category && category.toLowerCase() !== productType.toLowerCase() ? (
+                            <p className="truncate text-xs font-semibold text-cyan-300">{category}</p>
+                          ) : null}
                           <p className="truncate text-sm text-zinc-400">{row.brand || t("products.selected.brand")}</p>
                           <div className="mt-2">
                             <span
@@ -3118,6 +3133,8 @@ function BarcodeQueueBulkModal({
 
 const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, displayCost, sellingPrice, salePrice, displaySku, actions, t }) {
   const visibleActions = (actions || []).slice(0, 4);
+  const productType = getProductTypeValue(row);
+  const category = isMeaningfulCategory(row.category) ? String(row.category).trim() : "";
 
   return (
     <article className="rounded-2xl border border-white/8 bg-white/[0.045] p-3 shadow-xl shadow-black/10">
@@ -3176,8 +3193,11 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
           <div className="mt-0.5 text-[11px] font-semibold text-zinc-500">{t("products.stock.lowAlert")} {lowStockAlert}</div>
         </div>
         <div className="rounded-xl border border-white/8 bg-black/15 p-2">
-          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{t("products.table.categoryBrand")}</div>
-          <div className="mt-1 truncate text-sm font-black text-white">{row.category || t("products.selected.category")}</div>
+          <div className="text-[10px] font-black uppercase tracking-[0.12em] text-zinc-500">{t("products.table.typeCategoryBrand")}</div>
+          <div className="mt-1 truncate text-sm font-black text-white">{productType || category || t("products.selected.category")}</div>
+          {productType && category && category.toLowerCase() !== productType.toLowerCase() ? (
+            <div className="mt-0.5 truncate text-[11px] font-semibold text-cyan-300">{category}</div>
+          ) : null}
           <div className="mt-0.5 truncate text-[11px] font-semibold text-zinc-500">{row.brand || t("products.selected.brand")}</div>
         </div>
       </div>

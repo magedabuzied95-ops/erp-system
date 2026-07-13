@@ -29,6 +29,7 @@
     "product": "Product",
     "skuBarcode": "SKU / Barcode",
     "categoryBrand": "Category / Brand",
+    "typeCategoryBrand": "Product type / Category / Brand",
     "stock": "Stock",
     "costSale": "Cost / Sell / Sale",
     "status": "Status",

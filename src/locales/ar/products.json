@@ -29,6 +29,7 @@
     "product": "المنتج",
     "skuBarcode": "SKU / الباركود",
     "categoryBrand": "القسم / العلامة التجارية",
+    "typeCategoryBrand": "نوع المنتج / القسم / العلامة التجارية",
     "stock": "المخزون",
     "costSale": "التكلفة / البيع / السيل",
     "status": "الحالة",
