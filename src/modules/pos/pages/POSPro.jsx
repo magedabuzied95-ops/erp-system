@@ -838,6 +838,103 @@ const firstImageValue = (...values) => {
 
 const getDisplayImageUrl = (...values) => resolvePosImageUrl(firstTextValue(...values));
 
+const POS_COLLAPSED_COLOR_COUNT = 8;
+
+const PosVariantColorPicker = ({
+  options = [],
+  selectedColor = "",
+  onSelect,
+  showAll = false,
+  onToggle,
+  label,
+  defaultLabel,
+  showMoreLabel,
+  showLessLabel,
+}) => {
+  const selectedOption = options.find(
+    (option) => String(option.color || "") === String(selectedColor || "")
+  );
+  const collapsedOptions = options.slice(0, POS_COLLAPSED_COLOR_COUNT);
+  if (
+    selectedOption &&
+    options.length > POS_COLLAPSED_COLOR_COUNT &&
+    !collapsedOptions.some((option) => String(option.color || "") === String(selectedColor || ""))
+  ) {
+    collapsedOptions[POS_COLLAPSED_COLOR_COUNT - 1] = selectedOption;
+  }
+  const visibleOptions = showAll ? options : collapsedOptions;
+  const hiddenCount = Math.max(0, options.length - POS_COLLAPSED_COLOR_COUNT);
+
+  return (
+    <div>
+      <div className="flex min-w-0 items-center justify-between gap-2">
+        <div className="shrink-0 text-[10px] font-black uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">
+          {label}
+        </div>
+        <div className="truncate text-[11px] font-black text-emerald-300" title={selectedColor || defaultLabel}>
+          {selectedColor || defaultLabel}
+        </div>
+      </div>
+
+      <div className="mt-2 grid grid-cols-4 gap-2">
+        {visibleOptions.map((option) => {
+          const color = option.color || "";
+          const selected = String(selectedColor || "") === String(color || "");
+          return (
+            <button
+              key={color || "default"}
+              type="button"
+              title={color || defaultLabel}
+              aria-label={color || defaultLabel}
+              aria-pressed={selected}
+              onClick={() => onSelect?.(color)}
+              className={`group relative aspect-square min-w-0 overflow-hidden rounded-xl border transition focus:outline-none focus:ring-2 focus:ring-emerald-400/70 ${
+                selected
+                  ? "border-emerald-400 bg-emerald-500/15 ring-2 ring-emerald-400/35"
+                  : "border-white/10 bg-black/30 hover:border-white/30 hover:bg-white/10"
+              }`}
+            >
+              <span className="absolute inset-0 flex items-center justify-center px-1 text-center text-[9px] font-black leading-tight text-zinc-200">
+                {color || defaultLabel}
+              </span>
+              {option.imageUrl ? (
+                <img
+                  src={option.imageUrl}
+                  alt=""
+                  loading="lazy"
+                  decoding="async"
+                  className="absolute inset-0 h-full w-full bg-white object-contain p-0.5"
+                  onError={(event) => {
+                    event.currentTarget.style.display = "none";
+                  }}
+                />
+              ) : null}
+              <span className="absolute bottom-1 left-1 rounded-md bg-black/75 px-1.5 py-0.5 text-[9px] font-black text-white">
+                {option.stock}
+              </span>
+              {selected ? (
+                <span className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-emerald-500 text-black shadow-lg">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+
+      {hiddenCount > 0 ? (
+        <button
+          type="button"
+          onClick={onToggle}
+          className="mt-2 min-h-9 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-1.5 text-[11px] font-black text-zinc-200 transition hover:bg-white/10"
+        >
+          {showAll ? showLessLabel : `${showMoreLabel} (${hiddenCount})`}
+        </button>
+      ) : null}
+    </div>
+  );
+};
+
 const getProductVisibleStock = (product = {}) => {
   const variants = Array.isArray(product.variants) ? product.variants : [];
   if (variants.length > 0) {
@@ -1579,6 +1676,7 @@ function POSPro() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
+  const [showAllVariantColors, setShowAllVariantColors] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState(generateInvoiceNumber());
   const [lastOrder, setLastOrder] = useState(null);
   const [lastShareContext, setLastShareContext] = useState(null);
@@ -6517,6 +6615,48 @@ function POSPro() {
     if (!activeProduct) return null;
     const variants = Array.isArray(activeProduct.variants) ? activeProduct.variants : [];
     const colors = [...new Set(variants.map((variant) => variant.color || ""))];
+    const allColorOptions = colors.map((color) => {
+      const colorVariants = variants.filter(
+        (variant) => String(variant.color || "") === String(color || "")
+      );
+      const preferredVariant =
+        colorVariants.find(
+          (variant) =>
+            getVariantStockQuantity(variant) > 0 &&
+            firstImageValue(
+              variant.variant_image_url,
+              variant.color_image_url,
+              variant.primary_image_url,
+              variant.image_url,
+              variant.images
+            )
+        ) ||
+        colorVariants.find((variant) =>
+          firstImageValue(
+            variant.variant_image_url,
+            variant.color_image_url,
+            variant.primary_image_url,
+            variant.image_url,
+            variant.images
+          )
+        ) ||
+        colorVariants.find((variant) => getVariantStockQuantity(variant) > 0) ||
+        colorVariants[0];
+      const rawImageUrl = firstImageValue(
+        preferredVariant?.variant_image_url,
+        preferredVariant?.color_image_url,
+        preferredVariant?.primary_image_url,
+        preferredVariant?.image_url,
+        preferredVariant?.images
+      );
+      return {
+        color,
+        imageUrl: rawImageUrl ? getDisplayImageUrl(rawImageUrl) : "",
+        stock: colorVariants.reduce((sum, variant) => sum + getVariantStockQuantity(variant), 0),
+      };
+    });
+    const availableColorOptions = allColorOptions.filter((option) => option.stock > 0);
+    const colorOptions = availableColorOptions.length > 0 ? availableColorOptions : allColorOptions;
     const sizes = [
       ...new Set(
         variants
@@ -6525,10 +6665,27 @@ function POSPro() {
       ),
     ];
     return {
-      colors,
+      colors: colorOptions.map((option) => option.color),
+      colorOptions,
       sizes,
     };
   }, [activeProduct, selectedColor]);
+
+  const handleSelectVariantColor = useCallback((color) => {
+    setSelectedColor(color);
+    const firstForColor = (activeProduct?.variants || []).find(
+      (variant) =>
+        String(variant.color || "") === String(color || "") &&
+        getVariantStockQuantity(variant) > 0
+    ) || (activeProduct?.variants || []).find(
+      (variant) => String(variant.color || "") === String(color || "")
+    );
+    setSelectedSize(firstForColor?.size || "");
+  }, [activeProduct]);
+
+  useEffect(() => {
+    setShowAllVariantColors(false);
+  }, [activeProduct?.id]);
 
   const saleMode = useMemo(() => normalizeSaleModeSettings(saleModeSettings), [saleModeSettings]);
   const salePricesEnabled = Boolean(saleMode.sale_mode_enabled);
@@ -7350,33 +7507,17 @@ function POSPro() {
 
               <div className="grid gap-3">
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-zinc-500">{t("pos.labels.color")}</div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {topSelectionInfo.colors.map((color) => (
-                      <button
-                        key={color || "default"}
-                        type="button"
-                        onClick={() => {
-                          setSelectedColor(color);
-                          const firstForColor = (activeProduct.variants || []).find(
-                            (variant) =>
-                              String(variant.color || "") === String(color || "") &&
-                              normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0
-                          ) || (activeProduct.variants || []).find(
-                            (variant) => String(variant.color || "") === String(color || "")
-                          );
-                          setSelectedSize(firstForColor?.size || "");
-                        }}
-                        className={`min-h-10 rounded-full border px-3 py-2 text-xs font-black transition ${
-                          selectedColor === color
-                            ? "border-emerald-400/30 bg-emerald-500 text-black"
-                            : "border-white/10 bg-black/30 text-white hover:bg-white/10"
-                        }`}
-                      >
-                        {color || t("pos.labels.default")}
-                      </button>
-                    ))}
-                  </div>
+                  <PosVariantColorPicker
+                    options={topSelectionInfo.colorOptions}
+                    selectedColor={selectedColor}
+                    onSelect={handleSelectVariantColor}
+                    showAll={showAllVariantColors}
+                    onToggle={() => setShowAllVariantColors((current) => !current)}
+                    label={t("pos.labels.color")}
+                    defaultLabel={t("pos.labels.default")}
+                    showMoreLabel={t("pos.labels.showRemainingColors")}
+                    showLessLabel={t("pos.labels.showFewerColors")}
+                  />
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
@@ -7507,33 +7648,17 @@ function POSPro() {
                 <div className="space-y-3 sm:space-y-4">
                   <div className="grid gap-2 sm:gap-4 md:grid-cols-2">
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 sm:rounded-3xl sm:p-4">
-                      <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">{t("pos.labels.color")}</div>
-                      <div className="mt-2 flex flex-wrap gap-1.5 sm:mt-3 sm:gap-2">
-                        {topSelectionInfo.colors.map((color) => (
-                          <button
-                            key={color || "default"}
-                            type="button"
-                          onClick={() => {
-                            setSelectedColor(color);
-                            const firstForColor = (activeProduct.variants || []).find(
-                              (variant) =>
-                                String(variant.color || "") === String(color || "") &&
-                                normalizeStockQuantity(variant.stock_quantity ?? variant.stock) > 0
-                            ) || (activeProduct.variants || []).find(
-                              (variant) => String(variant.color || "") === String(color || "")
-                            );
-                            setSelectedSize(firstForColor?.size || "");
-                            }}
-                            className={`min-h-9 rounded-full px-3 py-1.5 text-xs font-black transition sm:px-4 sm:py-2 sm:text-sm ${
-                              selectedColor === color
-                                ? "bg-emerald-500 text-black"
-                                : "border border-white/10 bg-black/30 text-white hover:bg-white/10"
-                            }`}
-                          >
-                            {color || t("pos.labels.default")}
-                          </button>
-                        ))}
-                      </div>
+                      <PosVariantColorPicker
+                        options={topSelectionInfo.colorOptions}
+                        selectedColor={selectedColor}
+                        onSelect={handleSelectVariantColor}
+                        showAll={showAllVariantColors}
+                        onToggle={() => setShowAllVariantColors((current) => !current)}
+                        label={t("pos.labels.color")}
+                        defaultLabel={t("pos.labels.default")}
+                        showMoreLabel={t("pos.labels.showRemainingColors")}
+                        showLessLabel={t("pos.labels.showFewerColors")}
+                      />
                     </div>
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-2.5 sm:rounded-3xl sm:p-4">
                       <div className="text-[10px] uppercase tracking-[0.16em] text-zinc-500 sm:text-xs sm:tracking-[0.18em]">{t("pos.labels.size")}</div>

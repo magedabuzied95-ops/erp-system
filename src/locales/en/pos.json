@@ -38,6 +38,8 @@
     "all": "All",
     "default": "Default",
     "color": "Color",
+    "showRemainingColors": "Show remaining colors",
+    "showFewerColors": "Show fewer colors",
     "size": "Size",
     "oneSize": "One size",
     "variant": "Variant",
