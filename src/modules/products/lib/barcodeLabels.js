@@ -80,6 +80,9 @@ const svgTextAttrs = (value = "") => {
   return `direction="${direction}" style="direction:${direction}; unicode-bidi:plaintext; text-rendering:geometricPrecision"`;
 };
 
+const pdfFontPointsToSvgUnits = (value = 0) =>
+  (Math.max(0, Number(value || 0)) * 25.4) / 72;
+
 const sanitizeThermalUrl = (value = "", ...blockedValues) => {
   const candidate = String(value || "").trim();
   if (!candidate) return "";
@@ -879,12 +882,22 @@ export const getBarcodeSvg = (value, { width = 360, height = 92, displayText = "
   `;
 };
 
-const buildBarcodeSvgParts = (value, { width = 360, height = 92, displayText = "", barTop = 14, barHeight } = {}) => {
+const buildBarcodeSvgParts = (value, {
+  width = 360,
+  height = 92,
+  displayText = "",
+  barTop = 14,
+  barHeight,
+  barLeft = 0,
+  quietZone = 10,
+  minimumModuleWidth = 0.8,
+} = {}) => {
   const safeWidth = Math.max(1, Number(width || 360));
   const safeHeight = Math.max(34, Number(height || 92));
   const barcode = normalizeBarcode(value, displayText);
   const text = displayText || barcode;
-  const quietZone = 10;
+  const resolvedQuietZone = Math.max(0, Number(quietZone || 0));
+  const resolvedBarLeft = Number.isFinite(Number(barLeft)) ? Number(barLeft) : 0;
   const codes = [Code128Reader.CODE_START_B];
 
   for (const char of barcode) {
@@ -903,11 +916,14 @@ const buildBarcodeSvgParts = (value, { width = 360, height = 92, displayText = "
     const pattern = Code128Reader.CODE_PATTERNS[code] || [];
     return sum + pattern.reduce((widthSum, moduleWidth) => widthSum + moduleWidth, 0);
   }, 0);
-  const moduleWidth = Math.max(0.8, (safeWidth - quietZone * 2) / Math.max(1, moduleCount));
+  const moduleWidth = Math.max(
+    Math.max(0.01, Number(minimumModuleWidth || 0.8)),
+    (safeWidth - resolvedQuietZone * 2) / Math.max(1, moduleCount),
+  );
   const barY = Number.isFinite(Number(barTop)) ? Number(barTop) : 14;
   const barRectHeight = Number.isFinite(Number(barHeight)) ? Math.max(0, Number(barHeight)) : Math.max(0, safeHeight - 30);
 
-  let cursorX = quietZone;
+  let cursorX = resolvedBarLeft + resolvedQuietZone;
   let bars = "";
   codes.forEach((code, codeIndex) => {
     const pattern = Code128Reader.CODE_PATTERNS[code] || [];
@@ -1449,11 +1465,14 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
   const articleBaseFontSize = Math.max(layout.sizeValueFontSize * 0.92, layout.articleFontSize);
   const articleFontSize = fitThermalArticleValueFontSize(skuValue, layout.articleValueWidth, articleBaseFontSize, layout.articleFontSizeCompact);
   const barcodeParts = buildBarcodeSvgParts(item?.barcodeValue, {
-    width: barcodeCell.w + 2,
-    height: 8,
+    width: barcodeCell.w,
+    height: barcodeCell.h,
     displayText: barcodeValue,
     barTop: barcodeCell.y,
     barHeight: barcodeCell.h,
+    barLeft: barcodeCell.x,
+    quietZone: 1.2,
+    minimumModuleWidth: 0.12,
   });
   const titleLayout = fitThermalTitleLayout(productName, titleCell.w - 1.2, layout.titleMaxLines, layout.titleFontSize);
   const titleLines = titleLayout.lines;
@@ -1462,9 +1481,9 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
     ? (() => {
         const centerY = titleCell.y + (titleCell.h / 2);
         const startY = centerY - (((titleLines.length - 1) * layout.titleLineStepMm) / 2);
-        return titleLines.map((line, index) => `<text x="${titleCell.x + 0.85}" y="${startY + (index * layout.titleLineStepMm)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * (index === 0 ? 0.48 : 0.45)}" font-weight="900" ${svgTextAttrs(line)}>${escapeHtml(line)}</text>`).join("");
+        return titleLines.map((line, index) => `<text x="${titleCell.x + 0.85}" y="${startY + (index * layout.titleLineStepMm)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${pdfFontPointsToSvgUnits(titleLayout.fontSize)}" font-weight="900" ${svgTextAttrs(line)}>${escapeHtml(line)}</text>`).join("");
       })()
-    : `<text x="${titleCell.x + 0.85}" y="${titleCell.y + (titleCell.h / 2)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${titleLayout.fontSize * 0.48}" font-weight="900" ${svgTextAttrs("Unnamed product")}>${escapeHtml("Unnamed product")}</text>`;
+    : `<text x="${titleCell.x + 0.85}" y="${titleCell.y + (titleCell.h / 2)}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${pdfFontPointsToSvgUnits(titleLayout.fontSize)}" font-weight="900" ${svgTextAttrs("Unnamed product")}>${escapeHtml("Unnamed product")}</text>`;
 
   return `
     <svg class="barcode-print-svg" xmlns="http://www.w3.org/2000/svg" width="100mm" height="50mm" viewBox="0 0 100 50" preserveAspectRatio="none" role="img" aria-label="${escapeHtml(productName || barcodeValue || "Barcode label")}" style="direction:ltr; unicode-bidi:isolate;">
@@ -1473,27 +1492,28 @@ export const buildLandscapePrintSvg = (item, printCopy = {}) => {
 
       ${imageUrl ? `<image href="${escapeHtml(imageUrl)}" x="${imageCell.x}" y="${imageCell.y}" width="${imageCell.w}" height="${imageCell.h}" preserveAspectRatio="xMidYMid meet" />` : `<rect x="${imageCell.x}" y="${imageCell.y}" width="${imageCell.w}" height="${imageCell.h}" fill="#f8fafc" stroke="#e2e8f0" stroke-width="0.25" />`}
 
+      <rect data-label-part="title" x="${titleCell.x}" y="${titleCell.y}" width="${titleCell.w}" height="${titleCell.h}" rx="1.8" fill="#020617" stroke="#020617" stroke-width="0.18" />
       ${productText}
 
       <rect x="${sizeCell.x}" y="${sizeCell.y}" width="${layout.sizeBadgeWidth}" height="${layout.sizeBadgeHeight}" rx="1.8" fill="#020617" />
-      <text x="${sizeCell.x + layout.sizeLabelX}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16" ${svgTextAttrs(printCopy.size || "SIZE")}>${escapeHtml(printCopy.size || "SIZE")}</text>
+      <text x="${sizeCell.x + layout.sizeLabelX}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${pdfFontPointsToSvgUnits(smallLabelFontSize)}" font-weight="900" letter-spacing="0.16" ${svgTextAttrs(printCopy.size || "SIZE")}>${escapeHtml(printCopy.size || "SIZE")}</text>
       <line x1="${sizeCell.x + layout.sizeDividerX}" y1="${sizeCell.y + 1}" x2="${sizeCell.x + layout.sizeDividerX}" y2="${sizeCell.y + layout.sizeBadgeHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
-      <text x="${sizeCell.x + layout.sizeValueX + (layout.sizeValueWidth / 2)}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalSizeValueFontSize(sizeValue, layout.sizeValueWidth, layout.sizeValueFontSize)}" font-weight="900" ${svgTextAttrs(sizeValue)}>${escapeHtml(sizeValue)}</text>
+      <text x="${sizeCell.x + layout.sizeValueX + (layout.sizeValueWidth / 2)}" y="${sizeCell.y + (layout.sizeBadgeHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${pdfFontPointsToSvgUnits(fitThermalSizeValueFontSize(sizeValue, layout.sizeValueWidth, layout.sizeValueFontSize))}" font-weight="900" ${svgTextAttrs(sizeValue)}>${escapeHtml(sizeValue)}</text>
       ${hasArticleBox ? `
       <rect x="${articleCell.x}" y="${articleCell.y}" width="${layout.articleBoxWidth}" height="${layout.articleBoxHeight}" rx="1.8" fill="#020617" stroke="#020617" stroke-width="0.18" />
-      <text x="${articleCell.x + layout.articleLabelX}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16" ${svgTextAttrs("ART")}>ART</text>
+      <text x="${articleCell.x + layout.articleLabelX}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${pdfFontPointsToSvgUnits(smallLabelFontSize)}" font-weight="900" letter-spacing="0.16" ${svgTextAttrs("ART")}>ART</text>
       <line x1="${articleCell.x + layout.articleDividerX}" y1="${articleCell.y + 1}" x2="${articleCell.x + layout.articleDividerX}" y2="${articleCell.y + layout.articleBoxHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
-      <text x="${articleCell.x + layout.articleValueX + (layout.articleValueWidth / 2)}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${articleFontSize}" font-weight="900" ${svgTextAttrs(skuValue)}>${escapeHtml(skuValue)}</text>
+      <text x="${articleCell.x + layout.articleValueX + (layout.articleValueWidth / 2)}" y="${articleCell.y + (layout.articleBoxHeight / 2) + 0.12}" text-anchor="middle" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${pdfFontPointsToSvgUnits(articleFontSize)}" font-weight="900" ${svgTextAttrs(skuValue)}>${escapeHtml(skuValue)}</text>
       ` : ""}
 
       <rect x="${colorCell.x}" y="${colorCell.y}" width="${colorCell.w}" height="${layout.colorBoxHeight}" rx="1" fill="#020617" stroke="#020617" stroke-width="0.18" />
-      <text x="${colorCell.x + layout.colorLabelX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${smallLabelFontSize}" font-weight="900" letter-spacing="0.16" ${svgTextAttrs(printCopy.color || "COLOR")}>${escapeHtml(printCopy.color || "COLOR")}</text>
+      <text x="${colorCell.x + layout.colorLabelX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${pdfFontPointsToSvgUnits(smallLabelFontSize)}" font-weight="900" letter-spacing="0.16" ${svgTextAttrs(printCopy.color || "COLOR")}>${escapeHtml(printCopy.color || "COLOR")}</text>
       <line x1="${colorCell.x + layout.colorDividerX}" y1="${colorCell.y + 1}" x2="${colorCell.x + layout.colorDividerX}" y2="${colorCell.y + layout.colorBoxHeight - 1}" stroke="#ffffff" stroke-opacity="0.45" stroke-width="0.18" />
-      <text x="${colorCell.x + layout.colorValueX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${fitThermalColorValueFontSize(colorValue, layout.colorValueWidth, layout.colorValueFontSize)}" font-weight="900" ${svgTextAttrs(colorValue)}>${escapeHtml(colorValue)}</text>
+      <text x="${colorCell.x + layout.colorValueX}" y="${colorCell.y + (layout.colorBoxHeight / 2) + 0.15}" text-anchor="start" dominant-baseline="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${pdfFontPointsToSvgUnits(fitThermalColorValueFontSize(colorValue, layout.colorValueWidth, layout.colorValueFontSize))}" font-weight="900" ${svgTextAttrs(colorValue)}>${escapeHtml(colorValue)}</text>
 
       ${hasArticleBox ? "" : `<text x="${layout.page.width / 2}" y="${barcodeCell.y - 0.1}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="4.6" font-weight="900" ${svgTextAttrs(skuValue)}>${escapeHtml(skuValue)}</text>`}
       ${barcodeParts.bars}
-      <text x="${layout.page.width / 2}" y="${barcodeCell.textY}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${barcodeCell.fontSize * 0.42}" font-weight="900" ${svgTextAttrs(barcodeValue)}>${escapeHtml(barcodeValue)}</text>
+      <text x="${layout.page.width / 2}" y="${barcodeCell.textY}" text-anchor="middle" fill="#111827" font-family="Arial, Helvetica, sans-serif" font-size="${pdfFontPointsToSvgUnits(barcodeCell.fontSize)}" font-weight="900" ${svgTextAttrs(barcodeValue)}>${escapeHtml(barcodeValue)}</text>
     </svg>
   `;
 };

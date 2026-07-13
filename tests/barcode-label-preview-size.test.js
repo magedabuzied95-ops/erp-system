@@ -6,6 +6,10 @@ const labelsPage = readFileSync(
   new URL("../src/modules/products/pages/BarcodeLabels.jsx", import.meta.url),
   "utf8",
 );
+const barcodeLabels = readFileSync(
+  new URL("../src/modules/products/lib/barcodeLabels.js", import.meta.url),
+  "utf8",
+);
 const pdfGenerator = readFileSync(
   new URL("../src/modules/products/lib/barcodePdfGenerator.js", import.meta.url),
   "utf8",
@@ -17,5 +21,8 @@ test("landscape label preview keeps the downloaded label's 2:1 reference size", 
   assert.match(labelsPage, /referenceScale\s*=\s*Math\.min/);
   assert.match(labelsPage, /availableWidthPx \/ intrinsicWidthPx/);
   assert.match(labelsPage, /buildLandscapePrintSvg\(item, \{ size: "SIZE", color: "COLOR" \}\)/);
+  assert.match(barcodeLabels, /pdfFontPointsToSvgUnits/);
+  assert.match(barcodeLabels, /minimumModuleWidth:\s*0\.12/);
+  assert.match(barcodeLabels, /barLeft:\s*barcodeCell\.x/);
   assert.match(pdfGenerator, /orientation:\s*"landscape"[\s\S]*?format:\s*\[100, 50\]/);
 });
