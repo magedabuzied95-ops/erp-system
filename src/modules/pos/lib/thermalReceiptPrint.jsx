@@ -33,12 +33,12 @@ export const buildThermalPrintDocument = ({ receiptHtml, title = "Sales Receipt"
     <title>${escapeHtml(title)}</title>
     <style>
       * { box-sizing: border-box; }
-      html, body { width: 80mm; margin: 0; padding: 0; background: #fff; color: #000; }
+      html, body { width: 100%; min-width: 0; margin: 0; padding: 0; overflow: visible; background: #fff; color: #000; }
       body { font-family: Arial, Tahoma, "Segoe UI", sans-serif; }
       /* Chromium ignores an automatic page length; the thermal driver owns the roll length. */
       @page { margin: 0; }
       @media print {
-        html, body { width: 80mm !important; min-width: 80mm !important; }
+        html, body { width: 100% !important; min-width: 0 !important; margin: 0 !important; padding: 0 !important; }
         body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
       }
     </style>

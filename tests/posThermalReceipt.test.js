@@ -32,22 +32,28 @@ test("thermal receipt preserves business data with a clear compact product image
   const thermalBlock = receiptSource.slice(receiptSource.indexOf("function ThermalReceiptFinal"), receiptSource.indexOf("function ReceiptSocialLink"));
   assert.match(thermalBlock, /thermal-item-image/);
   assert.match(thermalBlock, /resolveProductImageUrl/);
-  assert.doesNotMatch(thermalBlock, /M1-Store|01000659301|m1store-egy\.com/);
+  assert.doesNotMatch(thermalBlock, /M1-Store|01000659301/);
+  assert.match(thermalBlock, /www\.m1store-egy\.com/);
   assert.match(thermalBlock, /store\.logoUrl/);
   assert.match(receiptSource, /@page\{margin:0\}/);
-  assert.match(receiptSource, /width:72mm/);
+  assert.match(receiptSource, /\.thermal-final\{width:100%/);
   assert.match(receiptSource, /formatCurrency\([^;]+, "ar"\)/);
   assert.match(receiptSource, /الموقع الإلكتروني الرسمي/);
-  assert.match(receiptSource, /POSINV:/);
+  assert.match(receiptSource, /9919.*padStart\(12/);
+  assert.match(receiptSource, /M1_RECEIPT_FALLBACK_LOGO/);
+  assert.doesNotMatch(receiptSource, /www\.workspace\.com/);
+  assert.doesNotMatch(receiptSource, /امسح لفتح الفاتورة في العمليات الأخيرة/);
   assert.doesNotMatch(thermalBlock, /thermal-barcode-number/);
   assert.doesNotMatch(printServiceSource, /window\.open\(/);
+  assert.doesNotMatch(printServiceSource, /width: 80mm|min-width: 80mm/);
   assert.match(printServiceSource, /printInFrame\(html, "browser-preview"\)/);
 });
 
 test("invoice barcode opens the matching recent operation instead of product lookup", () => {
-  assert.match(posSource, /rawValue\.match\(\/\^POSINV:/);
+  assert.match(posSource, /rawValue\.match\(\/\^9919\(\\d\{12\}\)\$\//);
   assert.match(posSource, /setScannedInvoiceNumber\(scannedInvoice\)/);
   assert.match(posSource, /requestedInvoiceNumber=\{scannedInvoiceNumber\}/);
-  assert.match(drawerSource, /getOrderInvoiceNumber\(order\).*=== requested/);
+  assert.match(drawerSource, /requestedDigits/);
+  assert.match(drawerSource, /invoiceDigits === requestedDigits/);
   assert.match(drawerSource, /setSelectedOrder\(loadedOrder\)/);
 });

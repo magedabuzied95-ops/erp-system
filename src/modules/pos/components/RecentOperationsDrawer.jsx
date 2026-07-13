@@ -428,7 +428,12 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     if (!open || !requestedInvoiceNumber || loading || !orders.length) return;
     const requested = String(requestedInvoiceNumber).trim().toLowerCase();
     if (!requested || autoOpenedInvoiceRef.current === requested) return;
-    const matchedOrder = orders.find((order) => getOrderInvoiceNumber(order).trim().toLowerCase() === requested);
+    const requestedDigits = requested.replace(/\D/g, "").replace(/^0+/, "");
+    const matchedOrder = orders.find((order) => {
+      const invoiceNumber = getOrderInvoiceNumber(order).trim().toLowerCase();
+      const invoiceDigits = invoiceNumber.replace(/\D/g, "").replace(/^0+/, "");
+      return invoiceNumber === requested || (requestedDigits && invoiceDigits === requestedDigits);
+    });
     if (!matchedOrder) return;
     autoOpenedInvoiceRef.current = requested;
     void loadOrderSummary(matchedOrder)

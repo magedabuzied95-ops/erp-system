@@ -34,11 +34,12 @@ const numberOrNull = (value) => {
 export const getPosReceiptRuntimeSettings = async (req, res) => {
   try {
     const tenantId = getTenantId(req, req.user?.tenant_id);
-    const [autoPrint, template, officialWebsite, storefrontLogo, storefrontName, companyResult] = await Promise.all([
+    const [autoPrint, template, officialWebsite, storefrontLogo, companyLogo, storefrontName, companyResult] = await Promise.all([
       getSetting("pos.print_receipt_automatically", false),
       getSetting("pos.receipt_template", "compact"),
       getSetting("storefront.public_url", ""),
       getSetting("storefront.store_logo_url", ""),
+      getSetting("general.company_logo_url", ""),
       getSetting("storefront.store_name", ""),
       tenantId
         ? db.query(
@@ -57,7 +58,7 @@ export const getPosReceiptRuntimeSettings = async (req, res) => {
       },
       store: {
         name: storefrontName || company.company_name || "",
-        logoUrl: storefrontLogo || company.logo_url || "",
+        logoUrl: storefrontLogo || companyLogo || company.logo_url || "",
         address: company.address || "",
         phone: company.phone || "",
         website: officialWebsite || "",

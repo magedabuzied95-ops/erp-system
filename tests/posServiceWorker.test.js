@@ -24,12 +24,12 @@ test("POS registers a root service worker that can control the exact /pos route"
 
   assert.match(source, /POS_SERVICE_WORKER_HREF = "\/pos-sw\.js"/);
   assert.match(source, /register\(scriptUrl, \{ scope: "\/pos" \}\)/);
-  assert.match(source, /POS_SERVICE_WORKER_VERSION = 5/);
+  assert.match(source, /POS_SERVICE_WORKER_VERSION = 6/);
   assert.match(source, /addEventListener\("controllerchange", handleControllerChange\)/);
 });
 
 test("POS service worker cache version is bumped with the thermal receipt release", () => {
   const swPath = path.join(process.cwd(), "public", "pos-sw.js");
   const source = fs.readFileSync(swPath, "utf8");
-  assert.match(source, /VERSION = "pos-shell-v5"/);
+  assert.match(source, /VERSION = "pos-shell-v6"/);
 });

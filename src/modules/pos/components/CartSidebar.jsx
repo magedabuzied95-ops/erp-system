@@ -50,16 +50,28 @@ import { getBarcodeSvg } from "../../products/lib/barcodeLabels";
 import { accountingApi } from "../../accounting/services/accountingApi";
 
 const failedCartImageUrls = new Set();
+const M1_RECEIPT_FALLBACK_LOGO = "https://res.cloudinary.com/dpnyfsjvz/image/upload/v1781790446/erp/products/ocxppxsepj5qfewqgch6.png";
 
 const getStoreProfile = () => {
   const tenant = getCurrentTenant() || {};
   const settings = tenant.settings || {};
+  const isM1ProductionHost = typeof window !== "undefined" && /(^|\.)m1store-egy\.com$/i.test(window.location.hostname);
   return {
     name: tenant.companyName || tenant.company_name || tenant.name || settings.companyName || "YOUR STORE",
-    website: settings.website || tenant.website || "www.workspace.com",
+    website: "www.m1store-egy.com",
     phone: settings.phone || tenant.phone || "01234567890",
     address: settings.companyAddress || settings.address || tenant.address || "",
-    logoUrl: settings.logoUrl || settings.logo_url || tenant.logoUrl || tenant.logo_url || "",
+    logoUrl:
+      settings["storefront.store_logo_url"] ||
+      settings["general.company_logo_url"] ||
+      settings.logoUrl ||
+      settings.logo_url ||
+      tenant.companyLogoUrl ||
+      tenant.company_logo_url ||
+      tenant.logoUrl ||
+      tenant.logo_url ||
+      (isM1ProductionHost ? M1_RECEIPT_FALLBACK_LOGO : "") ||
+      "",
     tagline: settings.tagline || settings.companyTagline || tenant.tagline || "Premium Shoes",
     googleReviewUrl: settings.google_review_url || settings.googleReviewUrl || tenant.google_review_url || tenant.googleReviewUrl || "",
     facebookReviewUrl: settings.facebook_review_url || settings.facebookReviewUrl || tenant.facebook_review_url || tenant.facebookReviewUrl || "",
@@ -1359,7 +1371,8 @@ function DiscountLoyaltyModal({
 export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentSummary, paymentMode, loyaltyProfile, loyaltyValidation, walletCashbackToEarn = 0, sellerName = "", cashierName = "", createdAt, storeProfile, compact = false }) {
   const premiumStore = useMemo(() => mergeStoreProfile(getStoreProfile(), storeProfile), [storeProfile]);
   const premiumReceiptNumber = String(invoiceNumber || "DRAFT");
-  const receiptBarcodeValue = `POSINV:${premiumReceiptNumber}`;
+  const invoiceDigits = premiumReceiptNumber.replace(/\D/g, "").slice(-12);
+  const receiptBarcodeValue = invoiceDigits ? `9919${invoiceDigits.padStart(12, "0")}` : premiumReceiptNumber;
   const premiumBarcodeSvg = useMemo(
     () =>
       getBarcodeSvg(receiptBarcodeValue, {
@@ -1603,14 +1616,14 @@ function ReceiptMiniStat({ label, value }) {
 }
 
 const THERMAL_RECEIPT_FINAL_CSS = `
-.thermal-final{width:72mm;max-width:72mm;margin:0 auto;padding:2.5mm 1.5mm 3.5mm;box-sizing:border-box;direction:rtl;background:#fff;color:#000;font-family:Tahoma,Arial,"Segoe UI",sans-serif;font-size:12px;font-weight:700;line-height:1.4;-webkit-font-smoothing:none}
+.thermal-final{width:100%;max-width:none;margin:0;padding:2.5mm 4mm 3.5mm;box-sizing:border-box;direction:rtl;background:#fff;color:#000;font-family:Arial,Tahoma,"Segoe UI",sans-serif;font-size:12px;font-weight:700;line-height:1.4;-webkit-font-smoothing:none}
 .thermal-final *{box-sizing:border-box}.thermal-header{text-align:center}.thermal-logo{display:block;width:22mm;max-width:22mm;height:22mm;max-height:22mm;margin:0 auto 1mm;object-fit:contain;filter:none}.thermal-store-name{font-size:18px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}.thermal-tagline{margin-top:.6mm;font-size:10px;font-weight:800}
 .thermal-rule{height:0;border:0;border-top:1px dashed #000;margin:2mm 0}.thermal-rule-solid{border-top-style:solid;border-top-width:1.5px}.thermal-title{display:flex;align-items:center;justify-content:space-between;gap:3mm;font-size:12px;font-weight:900}
 .thermal-number{direction:ltr;unicode-bidi:isolate;text-align:left;font-weight:900;overflow-wrap:anywhere}.thermal-meta{display:grid;grid-template-columns:auto 1fr;gap:.8mm 2mm;margin-top:1.5mm}.thermal-meta dt{font-weight:900;white-space:nowrap}.thermal-meta dd{margin:0;min-width:0;text-align:left;font-weight:800;overflow-wrap:anywhere}.thermal-meta .ltr{direction:ltr;unicode-bidi:isolate}
-.thermal-items{width:100%;border-collapse:collapse;table-layout:fixed}.thermal-items th{padding:1.2mm .5mm;border-top:1.5px solid #000;border-bottom:1.5px solid #000;font-size:9.5px;font-weight:900}.thermal-items td{padding:1.5mm .5mm;border-bottom:1px dashed #777;vertical-align:middle;font-weight:800}.thermal-items th:first-child,.thermal-items td:first-child{text-align:right}.thermal-items th:not(:first-child),.thermal-items td:not(:first-child){text-align:left;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}.thermal-product{display:flex;align-items:center;gap:1.2mm;min-width:0}.thermal-item-image{width:11mm;height:11mm;flex:0 0 11mm;object-fit:contain;border:1px solid #555;background:#fff;filter:grayscale(1) contrast(1.2)}.thermal-item-copy{min-width:0}.thermal-item-name{font-weight:900;line-height:1.25;overflow-wrap:anywhere}.thermal-item-detail{margin-top:.4mm;font-size:9px;font-weight:700;color:#111}.thermal-col-qty{width:7mm}.thermal-col-price{width:15mm}.thermal-col-total{width:16mm}
+.thermal-items{width:100%;border-collapse:collapse;table-layout:fixed}.thermal-items th{padding:1.2mm .4mm;border-top:1.5px solid #000;border-bottom:1.5px solid #000;font-size:9px;font-weight:900}.thermal-items td{padding:1.5mm .4mm;border-bottom:1px dashed #777;vertical-align:middle;font-size:9.5px;font-weight:800;overflow:hidden}.thermal-items th:first-child,.thermal-items td:first-child{text-align:right}.thermal-items th:not(:first-child),.thermal-items td:not(:first-child){text-align:left;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums;white-space:nowrap}.thermal-product{display:flex;align-items:center;gap:1mm;min-width:0}.thermal-item-image{width:10mm;height:10mm;flex:0 0 10mm;object-fit:contain;border:1px solid #555;background:#fff;filter:grayscale(1) contrast(1.2)}.thermal-item-copy{min-width:0}.thermal-item-name{font-weight:900;line-height:1.25;overflow-wrap:anywhere}.thermal-item-detail{margin-top:.4mm;font-size:8.5px;font-weight:700;color:#111}.thermal-col-qty{width:6mm}.thermal-col-price{width:15mm}.thermal-col-total{width:16mm}
 .thermal-totals{margin-top:1.5mm}.thermal-row{display:flex;align-items:baseline;justify-content:space-between;gap:3mm;padding:.55mm 0}.thermal-row span:first-child{font-weight:700}.thermal-row strong{direction:ltr;unicode-bidi:isolate;text-align:left;font-weight:900;font-variant-numeric:tabular-nums}.thermal-grand{margin-top:1mm;padding:1.8mm 0;border-top:2px solid #000;border-bottom:2px solid #000;font-size:16px}.thermal-grand span:first-child,.thermal-grand strong{font-weight:900}
-.thermal-store-info{font-size:10px;line-height:1.45}.thermal-store-row{display:grid;grid-template-columns:auto 1fr;gap:2mm;padding:.35mm 0}.thermal-store-row span{font-weight:900}.thermal-store-row strong{text-align:left;font-weight:800;overflow-wrap:anywhere}.thermal-note{margin-top:1.8mm;text-align:center;font-size:9.5px;font-weight:800;line-height:1.45}.thermal-policy-title{font-size:10.5px;font-weight:900}.thermal-barcode{margin:2mm auto 0;text-align:center}.thermal-barcode-title{margin-bottom:.8mm;font-size:9px;font-weight:900}.thermal-barcode svg{display:block;width:64mm!important;height:16mm!important;max-width:100%;margin:auto}.thermal-barcode svg text{display:none}.thermal-barcode svg rect,.thermal-barcode svg path,.thermal-barcode svg line{shape-rendering:crispEdges}.thermal-footer{margin-top:1.5mm;text-align:center;font-size:9.5px;line-height:1.4}.thermal-thanks{font-size:11px;font-weight:900}.thermal-cut{margin-top:3mm;border-top:1px dashed #000}
-@page{margin:0}@media print{html,body{width:80mm!important;min-width:80mm!important;margin:0!important;padding:0!important;background:#fff!important}.thermal-final{width:72mm!important;max-width:72mm!important;margin:0 auto!important;page-break-inside:avoid;break-inside:avoid}}
+.thermal-store-info{font-size:10px;line-height:1.45}.thermal-store-row{display:grid;grid-template-columns:auto 1fr;gap:2mm;padding:.35mm 0}.thermal-store-row span{font-weight:900}.thermal-store-row strong{text-align:left;font-weight:800;overflow-wrap:anywhere}.thermal-note{margin-top:1.8mm;text-align:center;font-size:9.5px;font-weight:800;line-height:1.45}.thermal-policy-title{font-size:10.5px;font-weight:900}.thermal-barcode{margin:2mm auto 0;text-align:center}.thermal-barcode svg{display:block;width:100%!important;height:17mm!important;max-width:100%;margin:auto}.thermal-barcode svg text{display:none}.thermal-barcode svg rect,.thermal-barcode svg path,.thermal-barcode svg line{shape-rendering:crispEdges}.thermal-footer{margin-top:1.5mm;text-align:center;font-size:9.5px;line-height:1.4}.thermal-thanks{font-size:11px;font-weight:900}.thermal-cut{margin-top:3mm;border-top:1px dashed #000}
+@page{margin:0}@media print{html,body{width:100%!important;min-width:0!important;margin:0!important;padding:0!important;background:#fff!important}.thermal-final{width:100%!important;max-width:none!important;margin:0!important;padding-right:4mm!important;padding-left:4mm!important;page-break-inside:avoid;break-inside:avoid}}
 `;
 
 function ThermalReceiptFinal({
@@ -1627,11 +1640,12 @@ function ThermalReceiptFinal({
   storeProfile,
 }) {
   const money = (value) => formatCurrency(Number.isFinite(Number(value)) ? Number(value) : 0, "ar");
+  const amount = (value) => Number(Number(value || 0).toFixed(2)).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const store = mergeStoreProfile(getStoreProfile(), storeProfile);
   const receiptNumber = String(invoiceNumber || "DRAFT").trim();
   const receiptDate = createdAt ? new Date(createdAt) : new Date();
-  const dateLabel = Number.isNaN(receiptDate.getTime()) ? "-" : formatArabicDate(receiptDate);
-  const timeLabel = Number.isNaN(receiptDate.getTime()) ? "-" : formatArabicTime(receiptDate);
+  const dateLabel = Number.isNaN(receiptDate.getTime()) ? "-" : new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(receiptDate);
+  const timeLabel = Number.isNaN(receiptDate.getTime()) ? "-" : new Intl.DateTimeFormat("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }).format(receiptDate);
   const customerName = customer?.name || customer?.customer_name || "عميل نقدي";
   const customerPhone = customer?.phone || customer?.mobile || customer?.customer_phone || "";
   const cashier = cashierName || sellerName || "";
@@ -1649,7 +1663,7 @@ function ThermalReceiptFinal({
   const subtotal = Number(totals.subtotal ?? cart.reduce((sum, item) => sum + getReceiptItemUnitPrice(item) * Number(item.quantity || 0), 0));
   const total = Number(totals.total || 0);
   const totalQuantity = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
-  const officialWebsite = String(store.website || "").replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  const officialWebsite = "www.m1store-egy.com";
   const invoiceFooter = officialWebsite && String(store.invoiceFooter || "").toLowerCase().includes(officialWebsite.toLowerCase())
     ? ""
     : String(store.invoiceFooter || "").trim();
@@ -1686,7 +1700,7 @@ function ThermalReceiptFinal({
             return (
               <tr key={String(item.key || item.id || item.variant_id || `${item.name || "item"}-${index}`)}>
                 <td><div className="thermal-product">{imageUrl ? <img className="thermal-item-image" src={imageUrl} alt="" /> : null}<div className="thermal-item-copy"><div className="thermal-item-name">{item.name || item.product_name || "منتج"}</div>{details ? <div className="thermal-item-detail">{details}</div> : null}</div></div></td>
-                <td>{Number(item.quantity || 0)}</td><td>{money(getReceiptItemUnitPrice(item))}</td><td>{money(getReceiptItemTotal(item))}</td>
+                <td>{Number(item.quantity || 0)}</td><td>{amount(getReceiptItemUnitPrice(item))}</td><td>{amount(getReceiptItemTotal(item))}</td>
               </tr>
             );
           }) : <tr><td colSpan="4" style={{ textAlign: "center" }}>لا توجد منتجات</td></tr>}
@@ -1714,7 +1728,7 @@ function ThermalReceiptFinal({
         {officialWebsite ? <div className="thermal-store-row"><span>الموقع الإلكتروني الرسمي</span><strong dir="ltr">{officialWebsite}</strong></div> : null}
       </section></> : null}
       <div className="thermal-note"><div className="thermal-policy-title">سياسة الاستبدال والاسترجاع</div><div>{getReturnPolicyText()}</div></div>
-      <div className="thermal-barcode"><div className="thermal-barcode-title">امسح لفتح الفاتورة في العمليات الأخيرة</div><div dangerouslySetInnerHTML={{ __html: barcodeSvg }} /></div>
+      <div className="thermal-barcode"><div dangerouslySetInnerHTML={{ __html: barcodeSvg }} /></div>
       <footer className="thermal-footer"><div className="thermal-thanks">شكرًا لزيارتكم</div>{invoiceFooter ? <div>{invoiceFooter}</div> : null}</footer>
       <div className="thermal-cut" />
     </article>
