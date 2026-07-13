@@ -1900,6 +1900,24 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
     size: normalizeCopiedText(variant.size ?? variant.size_name ?? variant.sizeName ?? ""),
     sku: normalizeCopiedText(variant.sku ?? variant.variant_sku ?? ""),
     barcode: normalizeCopiedText(variant.barcode ?? variant.variant_barcode ?? ""),
+    audience: normalizeCopiedText(
+      variant.audience ??
+        variant.variant_audience ??
+        variant.gender ??
+        group.audience ??
+        group.variant_audience ??
+        group.gender ??
+        ""
+    ),
+    variant_audience: normalizeCopiedText(
+      variant.variant_audience ??
+        variant.audience ??
+        variant.gender ??
+        group.variant_audience ??
+        group.audience ??
+        group.gender ??
+        ""
+    ),
     article_code: normalizeCopiedText(
       variant.article_code ??
         variant.articleCode ??

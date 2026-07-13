@@ -21,3 +21,14 @@ test("product variant persistence stores manufacturer ids while retaining manufa
   assert.match(controller, /manufacturer_ids = \$2::bigint\[\]/);
   assert.match(controller, /normalizeIncomingManufacturerIds\(variant\.manufacturer_ids, variant\.manufacturer_id\)/);
 });
+
+test("color audience survives variant normalization, persistence, and edit hydration", () => {
+  const controller = readFileSync(new URL("../server/controllers/productsController.js", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../src/modules/products/pages/ProductEdit.jsx", import.meta.url), "utf8");
+
+  assert.match(controller, /audience:\s*normalizeCopiedText\(\s*variant\.audience[\s\S]*?group\.audience/);
+  assert.match(controller, /audience = \$11/);
+  assert.match(controller, /String\(nextVariant\.audience \|\| nextVariant\.variant_audience \|\| ""\)/);
+  assert.match(editor, /audience: row\.audience \|\| row\.variant_audience \|\| ""/);
+  assert.match(editor, /group\.audience \|\| product\.audiences\?\.join\(","\) \|\| product\.gender \|\| ""/);
+});
