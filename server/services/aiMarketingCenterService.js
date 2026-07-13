@@ -31,6 +31,9 @@ const GENERATION_JOB_TIMEOUT_MS = Math.max(30000, Math.round(Number(process.env.
 const GENERATION_JOB_CONCURRENCY = Math.min(2, Math.max(1, Math.round(Number(process.env.AI_MARKETING_GENERATION_CONCURRENCY) || 1)));
 const generationJobQueue = [];
 let activeGenerationJobs = 0;
+const aiMarketingMaintenanceJobs = new Map();
+const aiMarketingMaintenanceLastRun = new Map();
+const AI_MARKETING_MAINTENANCE_COOLDOWN_MS = 30_000;
 
 const ARABIC_TREND_AUDIO_LIBRARY = [
   {
@@ -979,6 +982,29 @@ const runAiMarketingLifecycleCleanup = async (tenantId) => {
   }
 };
 
+const scheduleAiMarketingReadMaintenance = (tenantId) => {
+  const key = String(tenantId || "default");
+  const lastRun = Number(aiMarketingMaintenanceLastRun.get(key) || 0);
+  if (aiMarketingMaintenanceJobs.has(key) || Date.now() - lastRun < AI_MARKETING_MAINTENANCE_COOLDOWN_MS) return;
+  const job = Promise.resolve()
+    .then(async () => {
+      await clearInvalidLastPieceQueueItems(tenantId);
+      await markStaleAiMarketingGenerationItemsFailed(tenantId);
+      await runAiMarketingLifecycleCleanup(tenantId);
+      aiMarketingMaintenanceLastRun.set(key, Date.now());
+    })
+    .catch((error) => {
+      console.warn("[ai-marketing-maintenance] background maintenance failed", {
+        tenantId,
+        error: error?.message || "AI marketing maintenance failed",
+      });
+    })
+    .finally(() => {
+      aiMarketingMaintenanceJobs.delete(key);
+    });
+  aiMarketingMaintenanceJobs.set(key, job);
+};
+
 const buildAiMarketingRecommendations = async (tenantId) => {
   const result = await db.query(
     `
@@ -1056,9 +1082,7 @@ const buildAiMarketingRecommendations = async (tenantId) => {
 
 export const getAiMarketingOverview = async (tenantId) => {
   await ensureAiMarketingCenterSchema();
-  await clearInvalidLastPieceQueueItems(tenantId);
-  await markStaleAiMarketingGenerationItemsFailed(tenantId);
-  await runAiMarketingLifecycleCleanup(tenantId);
+  scheduleAiMarketingReadMaintenance(tenantId);
   const settings = await getAiMarketingSettings(tenantId);
   const result = await db.query(
     `
@@ -1096,45 +1120,53 @@ export const getAiMarketingOverview = async (tenantId) => {
 
 export const listAiMarketingQueue = async (tenantId, filters = {}) => {
   await ensureAiMarketingCenterSchema();
-  await clearInvalidLastPieceQueueItems(tenantId);
-  await markStaleAiMarketingGenerationItemsFailed(tenantId);
-  await runAiMarketingLifecycleCleanup(tenantId);
+  scheduleAiMarketingReadMaintenance(tenantId);
   const params = [tenantId];
-  const clauses = ["tenant_id = $1"];
+  const clauses = ["q.tenant_id = $1"];
   if (filters.status && filters.status !== "all") {
     params.push(filters.status);
-    clauses.push(`status = $${params.length}`);
+    clauses.push(`q.status = $${params.length}`);
   } else if (filters.include_archived !== true && filters.include_archived !== "true") {
-    clauses.push(`status <> 'archived'`);
+    clauses.push(`q.status <> 'archived'`);
   }
   if (filters.content_type) {
     params.push(cleanText(filters.content_type));
-    clauses.push(`content_type = $${params.length}`);
+    clauses.push(`q.content_type = $${params.length}`);
   }
   const result = await db.query(
     `
-    SELECT *
-    FROM ai_marketing_content_queue
+    SELECT
+      q.*,
+      pv.stock AS current_variant_stock,
+      pv.color AS current_variant_color,
+      pv.size AS current_variant_size,
+      pv.is_active AS current_variant_active,
+      pv.deleted_at AS current_variant_deleted_at,
+      COALESCE(p.status, 'active') AS current_product_status
+    FROM ai_marketing_content_queue q
+    LEFT JOIN product_variants pv ON pv.id = q.variant_id
+    LEFT JOIN products p ON p.id = q.product_id AND p.tenant_id = q.tenant_id
     WHERE ${clauses.join(" AND ")}
-    ORDER BY scheduled_at ASC NULLS LAST, created_at DESC
+    ORDER BY q.scheduled_at ASC NULLS LAST, q.created_at DESC
     LIMIT 300
     `,
     params
   );
-  const rows = [];
-  for (const row of result.rows.map(normalizeQueueRow)) {
-    if (row.strategy_type !== "last_size") {
-      rows.push(await hydrateQueueStoryForRender(tenantId, row));
-      continue;
-    }
-    const validation = await validateLastPieceQueueItem(tenantId, row);
-    if (!validation.valid) {
-      await db.query(`DELETE FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2`, [row.id, tenantId]);
-      continue;
-    }
-    rows.push(await hydrateQueueStoryForRender(tenantId, applyCurrentLastPieceStock(row, validation.stock)));
-  }
-  return rows;
+  return result.rows.map((rawRow) => {
+    const row = normalizeQueueRow(rawRow);
+    const currentStock = row.strategy_type === "last_size" && rawRow.current_variant_stock !== null
+      ? {
+          variant_id: row.variant_id,
+          product_id: row.product_id,
+          stock: numberValue(rawRow.current_variant_stock, 0),
+          color: rawRow.current_variant_color,
+          size: rawRow.current_variant_size,
+          is_active: rawRow.current_variant_active !== false,
+          is_sellable: rawRow.current_variant_active !== false && !rawRow.current_variant_deleted_at && rawRow.current_product_status === "active" && numberValue(rawRow.current_variant_stock, 0) > 0,
+        }
+      : null;
+    return withStoryLinks(applyCurrentLastPieceStock(row, currentStock));
+  });
 };
 
 const imageFromGalleryItem = (item) => {
@@ -1415,27 +1447,6 @@ const hydrateQueueStoryMetadata = async (tenantId, item = {}) => {
     design_json: withAvailableSizes(design, availableSizes),
   } : item;
   return withStoryLinks(withSizes, link);
-};
-
-const hydrateQueueStoryForRender = async (tenantId, item = {}) => {
-  const hydrated = await hydrateQueueStoryMetadata(tenantId, item);
-  if (!isStoryQueueItem(hydrated) || queueStoryFinalAssetUrl(hydrated)) return hydrated;
-  try {
-    return await ensureQueueStoryRenderedAsset(tenantId, hydrated);
-  } catch (error) {
-    console.error("[ai-story-asset] render failed", {
-      tenant_id: tenantId,
-      queue_id: hydrated?.id || null,
-      error: error?.message || "Failed to render AI story asset",
-    });
-    return normalizeQueueRow({
-      ...hydrated,
-      metadata: {
-        ...(hydrated.metadata || {}),
-        story_asset_error: error?.message || "Failed to render AI story asset",
-      },
-    });
-  }
 };
 
 const resolveAiContentMedia = ({ product = {}, variant = null, strategy = "", contentType = "story" } = {}) => {

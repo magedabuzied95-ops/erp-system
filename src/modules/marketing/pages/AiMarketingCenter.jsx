@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import toast from "react-hot-toast";
 import {
   Bot,
@@ -372,6 +372,9 @@ function AiMarketingCenter() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [historyTarget, setHistoryTarget] = useState(null);
   const [historyRows, setHistoryRows] = useState([]);
+  const loadInFlightRef = useRef(null);
+  const queueRef = useRef(queue);
+  queueRef.current = queue;
   const canCreateMarketing = hasPermission("marketing.create");
 
   const storiesAll = useMemo(() => queue.filter((item) => {
@@ -398,46 +401,66 @@ function AiMarketingCenter() {
   );
 
   const load = async ({ logQueueCount = false, silent = false } = {}) => {
-    try {
-      if (!silent) setLoading(true);
-      const [settingsPayload, overviewPayload, queueRows] = await Promise.all([
-        getAutonomousAiMarketingSettings(),
-        getAutonomousAiMarketingOverview(),
-        getAutonomousAiMarketingQueue({ include_archived: true }),
-      ]);
-      const nextQueue = Array.isArray(queueRows) ? queueRows : [];
-      const nextSettings = unwrapSettings(settingsPayload);
-      setSettings({
-        ...EMPTY_SETTINGS,
-        ...nextSettings,
-        active_strategies: {
-          new_arrivals: nextSettings.active_strategies?.new_arrivals !== false,
-          last_size: nextSettings.active_strategies?.last_size !== false,
-          ai_posts: nextSettings.active_strategies?.ai_posts !== false,
-        },
-      });
-      setOverview(unwrapOverview(overviewPayload));
-      setQueue((current) => {
-        const previousIds = current.map((item) => item.id);
-        const nextIds = nextQueue.map((item) => item.id);
-        logQueueAuditDebug("[queue-status]", {
-          source: "api-load",
-          queueType: "all",
-          count: nextQueue.length,
-          previousIds,
-          nextIds,
-          staleRemainingIds: previousIds.filter((id) => !nextIds.some((nextId) => String(nextId) === String(id))),
-          items: nextQueue.map((item) => getQueueStatusInfo(item, { source: "api-load", queueType: item.content_type || item.strategy_type || "queue" })),
-        });
+    if (loadInFlightRef.current) return loadInFlightRef.current;
+    const request = (async () => {
+      try {
+        if (!silent) setLoading(true);
+        const [settingsResult, overviewResult, queueResult] = await Promise.allSettled([
+          getAutonomousAiMarketingSettings(),
+          getAutonomousAiMarketingOverview(),
+          getAutonomousAiMarketingQueue({ include_archived: true }),
+        ]);
+        if (settingsResult.status === "fulfilled") {
+          const nextSettings = unwrapSettings(settingsResult.value);
+          setSettings({
+            ...EMPTY_SETTINGS,
+            ...nextSettings,
+            active_strategies: {
+              new_arrivals: nextSettings.active_strategies?.new_arrivals !== false,
+              last_size: nextSettings.active_strategies?.last_size !== false,
+              ai_posts: nextSettings.active_strategies?.ai_posts !== false,
+            },
+          });
+        }
+        if (overviewResult.status === "fulfilled") setOverview(unwrapOverview(overviewResult.value));
+
+        let nextQueue = queueRef.current;
+        if (queueResult.status === "fulfilled") {
+          nextQueue = Array.isArray(queueResult.value) ? queueResult.value : [];
+          setQueue((current) => {
+            const previousIds = current.map((item) => item.id);
+            const nextIds = nextQueue.map((item) => item.id);
+            logQueueAuditDebug("[queue-status]", {
+              source: "api-load",
+              queueType: "all",
+              count: nextQueue.length,
+              previousIds,
+              nextIds,
+              staleRemainingIds: previousIds.filter((id) => !nextIds.some((nextId) => String(nextId) === String(id))),
+              items: nextQueue.map((item) => getQueueStatusInfo(item, { source: "api-load", queueType: item.content_type || item.strategy_type || "queue" })),
+            });
+            return nextQueue;
+          });
+          if (logQueueCount) logQueueDeleteDebug({ queueReloadResultCount: nextQueue.length });
+        }
+
+        const failures = [settingsResult, overviewResult, queueResult].filter((result) => result.status === "rejected");
+        if (failures.length && !silent) {
+          toast.error(formatApiError(failures[0].reason, failures.length === 3 ? "تعذر تحميل مركز التسويق بالذكاء الاصطناعي" : "تم تحميل الصفحة جزئيًا، حاول التحديث مرة أخرى"));
+        }
         return nextQueue;
-      });
-      if (logQueueCount) logQueueDeleteDebug({ queueReloadResultCount: nextQueue.length });
-      return nextQueue;
-    } catch (error) {
-      toast.error(formatApiError(error, "تعذر تحميل مركز تسويق الذكاء الاصطناعي"));
-      return [];
+      } catch (error) {
+        if (!silent) toast.error(formatApiError(error, "تعذر تحميل مركز التسويق بالذكاء الاصطناعي"));
+        return queueRef.current;
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    })();
+    loadInFlightRef.current = request;
+    try {
+      return await request;
     } finally {
-      if (!silent) setLoading(false);
+      if (loadInFlightRef.current === request) loadInFlightRef.current = null;
     }
   };
 
