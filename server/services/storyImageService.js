@@ -513,15 +513,79 @@ const storyAssetSizes = (story = {}, design = {}) => {
   return sizes.length ? sizes.join(" • ") : "AVAILABLE NOW";
 };
 
-const storyAssetBadge = (story = {}, design = {}) => {
-  const text = [story.strategy_type, story.layout_type, design.strategy_type, design.layout_type, story.caption, design.caption]
+const storyAssetSignalText = (story = {}, design = {}) =>
+  [story.strategy_type, story.layout_type, design.strategy_type, design.layout_type, story.caption, design.caption, story.title, design.title]
     .map(trimString)
     .join(" ")
     .toLowerCase();
+
+const storyAssetBadge = (story = {}, design = {}) => {
+  const text = storyAssetSignalText(story, design);
   const stock = numberValue(story.stock ?? design.stock, 0);
-  return text.includes("last_size") || text.includes("last piece") || text.includes("last size") || (stock > 0 && stock <= 2)
-    ? "LAST SIZE"
-    : "NEW COLLECTION";
+  if (text.includes("last_size") || text.includes("last piece") || text.includes("last size") || (stock > 0 && stock <= 2)) return "LAST SIZE";
+  if (/offer|sale|discount|deal|promotion/.test(text)) return "SPECIAL OFFER";
+  if (/popular|best.?seller|trending|social.?proof/.test(text)) return "MOST WANTED";
+  return "NEW COLLECTION";
+};
+
+const DESIGNED_STORY_THEMES = {
+  new_arrival: {
+    id: "new-arrival-emerald",
+    label: "FRESH DROP",
+    baseStart: "#f8fbf7",
+    baseMiddle: "#e7f4ed",
+    baseEnd: "#10251d",
+    glowPrimary: "#34d399",
+    glowSecondary: "#fbbf24",
+    accent: "#6ee7b7",
+    accentSoft: "#d1fae5",
+    accentDark: "#052e24",
+  },
+  last_piece: {
+    id: "last-piece-urgency",
+    label: "LIMITED DROP",
+    baseStart: "#fff7ed",
+    baseMiddle: "#f5e7d7",
+    baseEnd: "#2b100b",
+    glowPrimary: "#fb7185",
+    glowSecondary: "#f59e0b",
+    accent: "#fda4af",
+    accentSoft: "#ffe4e6",
+    accentDark: "#4c0519",
+  },
+  offer: {
+    id: "offer-coral",
+    label: "PRICE DROP",
+    baseStart: "#fff7f4",
+    baseMiddle: "#f7e5df",
+    baseEnd: "#32110f",
+    glowPrimary: "#fb7185",
+    glowSecondary: "#fdba74",
+    accent: "#fecdd3",
+    accentSoft: "#fff1f2",
+    accentDark: "#4c0519",
+  },
+  premium: {
+    id: "premium-midnight",
+    label: "M1 EDIT",
+    baseStart: "#f8fafc",
+    baseMiddle: "#e8eef5",
+    baseEnd: "#101827",
+    glowPrimary: "#38bdf8",
+    glowSecondary: "#fbbf24",
+    accent: "#a5f3fc",
+    accentSoft: "#cffafe",
+    accentDark: "#082f49",
+  },
+};
+
+export const resolveDesignedStoryTheme = (story = {}, design = {}) => {
+  const text = storyAssetSignalText(story, design);
+  const stock = numberValue(story.stock ?? design.stock, 0);
+  if (/last_size|last piece|last size|low.?stock|almost gone/.test(text) || (stock > 0 && stock <= 2)) return DESIGNED_STORY_THEMES.last_piece;
+  if (/offer|sale|discount|deal|promotion/.test(text)) return DESIGNED_STORY_THEMES.offer;
+  if (/new.?arrival|new_arrival|new arrivals|just landed|fresh drop/.test(text)) return DESIGNED_STORY_THEMES.new_arrival;
+  return DESIGNED_STORY_THEMES.premium;
 };
 
 const storyAssetTitle = (story = {}, design = {}) =>
@@ -581,7 +645,7 @@ const storyAssetAudioTitle = (story = {}, design = {}) =>
 const storyAssetBrandName = (story = {}, design = {}) =>
   trimString(story.store_name || story.storeName || story.brand_name || design.store_name || design.storeName || design.brand_name || process.env.STORY_BRAND_NAME || "M1 STORE");
 
-const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitle = "", brandName = "M1 STORE" }) => {
+export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitle = "", brandName = "M1 STORE", theme = DESIGNED_STORY_THEMES.premium }) => {
   const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*•\s*/g, " \u2022 ");
   const titleLines = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 });
   const sizesLines = storyAssetTextLines(cleanSizes, { maxChars: 40, maxLines: 1 });
@@ -594,18 +658,18 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitl
   return `
 <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" viewBox="0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <radialGradient id="cyanGlow" cx="22%" cy="18%" r="30%">
-      <stop offset="0" stop-color="#22d3ee" stop-opacity="0.24"/>
-      <stop offset="1" stop-color="#22d3ee" stop-opacity="0"/>
+    <radialGradient id="primaryGlow" cx="22%" cy="18%" r="30%">
+      <stop offset="0" stop-color="${theme.glowPrimary}" stop-opacity="0.28"/>
+      <stop offset="1" stop-color="${theme.glowPrimary}" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="goldGlow" cx="85%" cy="22%" r="26%">
-      <stop offset="0" stop-color="#fbbf24" stop-opacity="0.28"/>
-      <stop offset="1" stop-color="#fbbf24" stop-opacity="0"/>
+    <radialGradient id="secondaryGlow" cx="85%" cy="22%" r="26%">
+      <stop offset="0" stop-color="${theme.glowSecondary}" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="${theme.glowSecondary}" stop-opacity="0"/>
     </radialGradient>
     <linearGradient id="storyBase" x1="0.08" y1="0" x2="0.92" y2="1">
-      <stop offset="0" stop-color="#fbf7ef"/>
-      <stop offset="0.45" stop-color="#f1eee8"/>
-      <stop offset="1" stop-color="#121826"/>
+      <stop offset="0" stop-color="${theme.baseStart}"/>
+      <stop offset="0.45" stop-color="${theme.baseMiddle}"/>
+      <stop offset="1" stop-color="${theme.baseEnd}"/>
     </linearGradient>
     <linearGradient id="bottomFade" x1="0" y1="760" x2="0" y2="1920" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="#000000" stop-opacity="0"/>
@@ -613,43 +677,44 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitl
       <stop offset="1" stop-color="#000000" stop-opacity="0.82"/>
     </linearGradient>
     <linearGradient id="ctaFill" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#a5f3fc"/>
-      <stop offset="0.55" stop-color="#67e8f9"/>
-      <stop offset="1" stop-color="#38bdf8"/>
+      <stop offset="0" stop-color="${theme.accentSoft}"/>
+      <stop offset="0.55" stop-color="${theme.accent}"/>
+      <stop offset="1" stop-color="${theme.glowPrimary}"/>
     </linearGradient>
     <filter id="productShadow" x="-45%" y="-45%" width="190%" height="190%">
       <feDropShadow dx="0" dy="34" stdDeviation="28" flood-color="#000000" flood-opacity="0.50"/>
     </filter>
     <filter id="ctaGlow" x="-35%" y="-80%" width="170%" height="260%">
-      <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="#67e8f9" flood-opacity="0.22"/>
-      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="#082f49" flood-opacity="0.30"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="18" flood-color="${theme.accent}" flood-opacity="0.26"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="24" flood-color="${theme.accentDark}" flood-opacity="0.34"/>
     </filter>
     <filter id="whiteGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="80"/></filter>
     <filter id="cyanStageGlow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="74"/></filter>
     <filter id="stageShadow" x="-70%" y="-120%" width="240%" height="340%"><feGaussianBlur stdDeviation="28"/></filter>
   </defs>
-  <rect width="100%" height="100%" fill="#f6f2ea"/>
+  <rect width="100%" height="100%" fill="${theme.baseStart}"/>
   <rect width="100%" height="100%" fill="url(#storyBase)"/>
-  <rect width="100%" height="100%" fill="url(#cyanGlow)"/>
-  <rect width="100%" height="100%" fill="url(#goldGlow)"/>
+  <rect width="100%" height="100%" fill="url(#primaryGlow)"/>
+  <rect width="100%" height="100%" fill="url(#secondaryGlow)"/>
   <rect y="760" width="1080" height="1160" fill="url(#bottomFade)"/>
 
   <g opacity="0.96">
     <rect x="60" y="72" width="${Math.min(410, Math.max(172, safeBrandName.length * 17 + 72))}" height="52" rx="26" fill="#ffffff" fill-opacity="0.72" stroke="#ffffff" stroke-opacity="0.34"/>
-    <circle cx="92" cy="98" r="13" fill="#0f172a"/>
+    <circle cx="92" cy="98" r="13" fill="${theme.accentDark}"/>
     <text x="118" y="107" text-anchor="start" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="950" letter-spacing="1.2" fill="#0f172a">${escapeXml(safeBrandName)}</text>
   </g>
+  <text x="1018" y="105" text-anchor="end" font-family="Arial, Helvetica, sans-serif" font-size="18" font-weight="900" letter-spacing="3" fill="#0f172a" fill-opacity="0.64">${escapeXml(theme.label)}</text>
 
   ${audioTitle ? `
     <g>
       <rect x="60" y="144" width="${audioWidth}" height="44" rx="22" fill="#000000" fill-opacity="0.34" stroke="#ffffff" stroke-opacity="0.10"/>
-      <text x="88" y="172" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="950" fill="#a5f3fc">M</text>
+      <text x="88" y="172" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="19" font-weight="950" fill="${theme.accent}">M</text>
       ${storySvgText({ lines: audioLines, x: 116, y: 172, size: 19, weight: 900, color: "#ffffff", anchor: "start", lineHeight: 1 })}
     </g>
   ` : ""}
 
   <circle cx="540" cy="548" r="250" fill="#ffffff" fill-opacity="0.46" filter="url(#whiteGlow)"/>
-  <circle cx="540" cy="570" r="192" fill="#67e8f9" fill-opacity="0.16" filter="url(#cyanStageGlow)"/>
+  <circle cx="540" cy="570" r="192" fill="${theme.glowPrimary}" fill-opacity="0.16" filter="url(#cyanStageGlow)"/>
   <rect x="70" y="160" width="940" height="900" rx="32" ry="32" fill="#ffffff" fill-opacity="0.96" stroke="#ffffff" stroke-opacity="0.38" filter="url(#productShadow)"/>
   <rect x="70" y="160" width="940" height="900" rx="32" ry="32" fill="#ffffff" fill-opacity="0.90"/>
   <ellipse cx="540" cy="1016" rx="390" ry="50" fill="#000000" fill-opacity="0.34" filter="url(#stageShadow)"/>
@@ -661,7 +726,7 @@ const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitl
   ${storySvgText({ lines: priceLines, x: 60, y: 1424, size: 110, weight: 980, color: "#ffffff", anchor: "start", lineHeight: 1 })}
   <g filter="url(#ctaGlow)">
     <rect x="604" y="1352" width="416" height="90" rx="45" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.30"/>
-    <text x="812" y="1409" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="950" fill="#0f172a">${escapeXml(cta || "View details")}</text>
+    <text x="812" y="1409" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="36" font-weight="950" fill="${theme.accentDark}">${escapeXml(cta || "View details")}</text>
   </g>
   <rect x="60" y="1500" width="${sizesWidth}" height="82" rx="41" fill="#ffffff" fill-opacity="0.94" stroke="#ffffff" stroke-opacity="0.12"/>
   ${storySvgText({ lines: sizesLines, x: 104, y: 1554, size: 37, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1 })}
@@ -996,6 +1061,7 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         ...slide,
         image_url: slideSource,
       };
+      const storyTheme = resolveDesignedStoryTheme(slideStory, slideDesign);
       let imageComposite = await createContainedImageComposite({
         source: slideSource,
         boxX: 70,
@@ -1021,6 +1087,7 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
           cta: storyAssetCta(slideStory, slideDesign),
           audioTitle: storyAssetAudioTitle(slideStory, slideDesign),
           brandName: storyAssetBrandName(slideStory, slideDesign),
+          theme: storyTheme,
         }),
         composites: [imageComposite],
       });
@@ -1032,6 +1099,7 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
         image_url: outputUrl,
         final_asset_url: outputUrl,
         story_image_url: outputUrl,
+        template_id: storyTheme.id,
       });
       logStoryMemory("slide-render-success", {
         queueId: story.id || postId || null,

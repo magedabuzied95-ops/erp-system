@@ -322,6 +322,9 @@ const normalizeStorySlides = ({ form = {}, design = {}, mediaUrls = [] } = {}) =
     cta_url: storyCtaUrl(form, design),
     product_slug: storyProductSlug(form) || storyProductSlug(design),
     strategy_type: form.strategy_type || design.strategy_type || "",
+    layout_type: form.layout_type || design.layout_type || "",
+    store_name: form.store_name || form.storeName || design.store_name || design.storeName || "",
+    store_logo_url: form.store_logo_url || form.logo_url || design.store_logo_url || design.logo_url || "",
     available_sizes: availableSizes,
     sizes_label: sizesLabel,
     audio,
@@ -362,6 +365,36 @@ const storyIsLastPiece = (slide = {}) => {
   return text.includes("last_size") || text.includes("last piece") || text.includes("last-piece") || Number(slide.stock || 0) === 1;
 };
 
+const storyCreativeTheme = (slide = {}) => {
+  const signal = `${slide.strategy_type || ""} ${slide.layout_type || ""} ${slide.caption || ""} ${slide.title || ""}`.toLowerCase();
+  if (storyIsLastPiece(slide) || /low.?stock|almost gone/.test(signal)) {
+    return {
+      badge: "LAST SIZE", edition: "LIMITED DROP",
+      background: "bg-[radial-gradient(circle_at_22%_18%,rgba(251,113,133,.28),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(245,158,11,.3),transparent_26%),linear-gradient(155deg,#fff7ed_0%,#f5e7d7_45%,#2b100b_100%)]",
+      accent: "from-rose-100 via-rose-300 to-amber-400 text-rose-950 shadow-[0_0_24px_rgba(251,113,133,.25),0_18px_34px_rgba(76,5,25,.32)]", glow: "bg-rose-300/20",
+    };
+  }
+  if (/offer|sale|discount|deal|promotion/.test(signal)) {
+    return {
+      badge: "SPECIAL OFFER", edition: "PRICE DROP",
+      background: "bg-[radial-gradient(circle_at_22%_18%,rgba(251,113,133,.26),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(253,186,116,.3),transparent_26%),linear-gradient(155deg,#fff7f4_0%,#f7e5df_45%,#32110f_100%)]",
+      accent: "from-rose-100 via-rose-300 to-orange-300 text-rose-950 shadow-[0_0_24px_rgba(251,113,133,.24),0_18px_34px_rgba(76,5,25,.3)]", glow: "bg-rose-300/18",
+    };
+  }
+  if (/new.?arrival|new_arrival|new arrivals|just landed|fresh drop/.test(signal)) {
+    return {
+      badge: "NEW COLLECTION", edition: "FRESH DROP",
+      background: "bg-[radial-gradient(circle_at_22%_18%,rgba(52,211,153,.28),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(251,191,36,.24),transparent_26%),linear-gradient(155deg,#f8fbf7_0%,#e7f4ed_45%,#10251d_100%)]",
+      accent: "from-emerald-100 via-emerald-300 to-teal-400 text-emerald-950 shadow-[0_0_24px_rgba(52,211,153,.24),0_18px_34px_rgba(5,46,36,.3)]", glow: "bg-emerald-300/18",
+    };
+  }
+  return {
+    badge: "NEW COLLECTION", edition: "M1 EDIT",
+    background: "bg-[radial-gradient(circle_at_22%_18%,rgba(56,189,248,.24),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(251,191,36,.28),transparent_26%),linear-gradient(155deg,#f8fafc_0%,#e8eef5_45%,#101827_100%)]",
+    accent: "from-cyan-100 via-cyan-300 to-sky-400 text-sky-950 shadow-[0_0_24px_rgba(56,189,248,.24),0_18px_34px_rgba(8,47,73,.3)]", glow: "bg-cyan-200/18",
+  };
+};
+
 export const buildStoryCreativeSlides = ({ item = {}, form = {}, mediaUrls = [] } = {}) => {
   const design = item.design_json || item.designJson || item.raw?.design_json || form.design_json || form.designJson || form.raw?.design_json || {};
   return normalizeStorySlides({
@@ -380,6 +413,9 @@ export const buildStoryCreativeSlides = ({ item = {}, form = {}, mediaUrls = [] 
       cta_url: storyCtaUrl(item, form, design),
       product_slug: storyProductSlug(item) || storyProductSlug(form) || storyProductSlug(design),
       strategy_type: item.strategy_type || form.strategy_type || design.strategy_type,
+      layout_type: item.layout_type || form.layout_type || design.layout_type,
+      store_name: item.store_name || item.storeName || form.store_name || form.storeName || design.store_name || design.storeName,
+      store_logo_url: item.store_logo_url || item.logo_url || form.store_logo_url || form.logo_url || design.store_logo_url || design.logo_url,
       image_url: item.primary_image_url || item.image_url || form.image_url || design.image_url,
       available_sizes: item.available_sizes || form.available_sizes || design.available_sizes,
       sizes_label: item.sizes_label || form.sizes_label || design.sizes_label,
@@ -736,7 +772,10 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
   const cta = "View details";
   const price = formatPrice(slide.price, slide.currency);
   const urgency = "Available now";
-  const badge = "NEW COLLECTION";
+  const theme = storyCreativeTheme(slide);
+  const badge = theme.badge;
+  const storeName = cleanStoryText(slide.store_name || slide.storeName || slide.brand_name, "M1 Store");
+  const storeLogo = cleanStoryText(slide.store_logo_url || slide.logo_url || slide.store_logo);
   const sizeDisplay = storySizeDisplay(slide);
   const headlineClass = compact ? "text-[1.18rem]" : "text-[1.78rem]";
   const productTitleClass = compact ? "text-[0.98rem]" : "text-[1.18rem]";
@@ -745,7 +784,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
 
   return (
     <div className="story-creative-frame relative aspect-[9/16] w-full overflow-hidden rounded-[2rem] bg-[#f6f2ea] text-slate-950 shadow-2xl shadow-black/35">
-      <div className="story-creative-bg absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(34,211,238,.24),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(251,191,36,.28),transparent_26%),linear-gradient(155deg,#fbf7ef_0%,#f1eee8_45%,#121826_100%)]" />
+      <div className={`story-creative-bg absolute inset-0 ${theme.background}`} />
       <div className="absolute inset-x-0 bottom-0 h-[52%] bg-gradient-to-t from-black/82 via-black/44 to-transparent" />
       <div className="absolute left-4 right-4 top-3 z-20 flex gap-1.5">
         {Array.from({ length: Math.max(total, 1) }).map((_, itemIndex) => (
@@ -756,10 +795,12 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
       </div>
       <div className="absolute left-5 right-5 top-8 z-20 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <div className="grid h-9 w-9 place-items-center rounded-full bg-slate-950 text-xs font-black text-white">ERP</div>
+          <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-950 text-[10px] font-black text-white shadow-lg">
+            {storeLogo ? <img src={storeLogo} alt="" className="h-full w-full object-contain" /> : "M1"}
+          </div>
           <div>
-            <div className="text-xs font-black text-slate-950">erp.store</div>
-            <div className="text-[10px] font-bold uppercase tracking-normal text-slate-600">معاينة القصة</div>
+            <div className="max-w-32 truncate text-xs font-black text-slate-950">{storeName}</div>
+            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">{theme.edition}</div>
           </div>
         </div>
         <div className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-black text-slate-950 shadow-lg backdrop-blur">{badge}</div>
@@ -773,7 +814,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
 
       <div className="story-creative-image-stage absolute left-3 right-3 top-[12.75%] z-10 flex h-[49.5%] items-center justify-center">
         <div className="absolute h-80 w-80 rounded-full bg-white/50 blur-3xl" />
-        <div className="absolute h-60 w-60 rounded-full bg-cyan-200/18 blur-3xl" />
+        <div className={`absolute h-60 w-60 rounded-full blur-3xl ${theme.glow}`} />
         <div className="absolute bottom-4 h-10 w-72 rounded-[50%] bg-black/34 blur-xl" />
         <div className="absolute bottom-9 h-24 w-80 rounded-[50%] bg-white/12 blur-xl [transform:perspective(360px)_rotateX(68deg)]" />
         {slide.image_url ? (
@@ -810,7 +851,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
             onClick={(event) => {
               if (!ctaUrl) event.preventDefault();
             }}
-            className={`story-creative-cta max-w-[42%] shrink-0 rounded-full border border-white/30 bg-gradient-to-br from-cyan-200 via-cyan-300 to-sky-400 px-3.5 py-2.5 text-center text-[13px] font-black leading-4 text-slate-950 shadow-[0_0_24px_rgba(103,232,249,.22),0_18px_34px_rgba(8,47,73,.3)] transition hover:scale-[1.02] active:scale-[0.99] ${ctaUrl ? "" : "pointer-events-none opacity-70"}`}
+            className={`story-creative-cta max-w-[42%] shrink-0 rounded-full border border-white/30 bg-gradient-to-br px-3.5 py-2.5 text-center text-[13px] font-black leading-4 transition hover:scale-[1.02] active:scale-[0.99] ${theme.accent} ${ctaUrl ? "" : "pointer-events-none opacity-70"}`}
           >
             {cta}
           </a>
