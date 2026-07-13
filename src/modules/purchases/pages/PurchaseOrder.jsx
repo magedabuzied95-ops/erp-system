@@ -2658,6 +2658,7 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
   const { i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
   const [rows, setRows] = useState(() => toArray(data?.rows).map((row) => ({ ...row })));
+  const [bulkPriceFields, setBulkPriceFields] = useState({ purchasePrice: false, sellingPrice: false, salePrice: false });
   const labels = isArabic
     ? {
         eyebrow: "كميات الشراء",
@@ -2670,6 +2671,7 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
         purchasePrice: "سعر الشراء",
         sellingPrice: "سعر البيع",
         salePrice: "سعر السيل",
+        firstForAll: "الأول للكل",
         notSaved: "غير محفوظة",
         noChanges: "لا توجد كميات محفوظة قابلة للتطبيق",
         cancel: "إلغاء",
@@ -2686,6 +2688,7 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
         purchasePrice: "Purchase price",
         sellingPrice: "Selling price",
         salePrice: "Sale price",
+        firstForAll: "First for all",
         notSaved: "Not saved",
         noChanges: "No saved purchase quantities to apply",
         cancel: "Cancel",
@@ -2693,12 +2696,30 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
       };
   const canApply = rows.some((row) => row.savedQty !== null);
   const updateRowPrice = (lineId, field, value) => {
-    setRows((current) => current.map((row) =>
-      String(row.line_id) === String(lineId)
-        ? { ...row, [field]: value === "" ? "" : Math.max(0, money(value)) }
-        : row
-    ));
+    const nextValue = value === "" ? "" : Math.max(0, money(value));
+    setRows((current) => {
+      const isFirstRow = String(current[0]?.line_id || "") === String(lineId);
+      if (isFirstRow && bulkPriceFields[field]) return current.map((row) => ({ ...row, [field]: nextValue }));
+      return current.map((row) => String(row.line_id) === String(lineId) ? { ...row, [field]: nextValue } : row);
+    });
   };
+  const toggleBulkPriceField = (field, checked) => {
+    setBulkPriceFields((current) => ({ ...current, [field]: checked }));
+    if (!checked) return;
+    setRows((current) => {
+      const firstValue = current[0]?.[field] ?? "";
+      return current.map((row) => ({ ...row, [field]: firstValue }));
+    });
+  };
+  const priceHeader = (label, field) => (
+    <div className="flex min-w-24 flex-col items-center gap-1">
+      <span>{label}</span>
+      <label className="flex cursor-pointer items-center gap-1 text-[10px] font-bold normal-case text-emerald-300">
+        <input type="checkbox" checked={bulkPriceFields[field]} onChange={(event) => toggleBulkPriceField(field, event.target.checked)} className="h-3.5 w-3.5 accent-emerald-400" />
+        <span>{labels.firstForAll}</span>
+      </label>
+    </div>
+  );
   const priceInputClass = "h-9 w-24 rounded-xl border border-white/10 bg-zinc-950 px-2 text-center font-black text-white outline-none focus:border-emerald-400/50";
 
   return (
@@ -2717,15 +2738,20 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
                 <th className="px-3 py-2 font-black uppercase">{labels.current}</th>
                 <th className="px-3 py-2 font-black uppercase">{labels.saved}</th>
                 <th className="px-3 py-2 font-black uppercase">{labels.next}</th>
-                <th className="px-3 py-2 font-black uppercase">{labels.purchasePrice}</th>
-                <th className="px-3 py-2 font-black uppercase">{labels.sellingPrice}</th>
-                <th className="px-3 py-2 font-black uppercase">{labels.salePrice}</th>
+                <th className="px-3 py-2 font-black uppercase">{priceHeader(labels.purchasePrice, "purchasePrice")}</th>
+                <th className="px-3 py-2 font-black uppercase">{priceHeader(labels.sellingPrice, "sellingPrice")}</th>
+                <th className="px-3 py-2 font-black uppercase">{priceHeader(labels.salePrice, "salePrice")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
               {rows.map((row) => (
                 <tr key={String(row.line_id)} className="text-zinc-300">
-                  <td className="px-3 py-2 font-semibold text-white">{row.color} / {row.size}</td>
+                  <td className="px-3 py-2 font-semibold text-white">
+                    <div className="flex min-w-32 items-center gap-2">
+                      <ProductImage src={row.variant?.variant_image_url || row.variant?.color_image_url || row.variant?.image_url} name={`${row.color} ${row.size}`} className="h-10 w-10 shrink-0 rounded-lg border border-white/10 bg-white object-contain" />
+                      <span className="whitespace-nowrap">{row.color} / {row.size}</span>
+                    </div>
+                  </td>
                   <td className="px-3 py-2" dir="ltr">{row.currentQty}</td>
                   <td className={`px-3 py-2 font-black ${row.savedQty === null ? "text-zinc-500" : "text-amber-100"}`} dir="ltr">
                     {row.savedQty === null ? labels.notSaved : row.savedQty}

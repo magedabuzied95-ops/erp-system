@@ -23,3 +23,10 @@ test("applying saved quantities copies edited prices into invoice lines", () => 
   assert.match(purchaseOrder, /sale_price:\s*money\(row\.salePrice\)/);
   assert.match(purchaseOrder, /onApply=\{\(rows\) => applyProductPurchaseQty\(purchaseQtyModal\.group, rows\)\}/);
 });
+
+test("purchase quantity pricing supports color thumbnails and first-price bulk copy", () => {
+  assert.match(purchaseOrder, /row\.variant\?\.variant_image_url \|\| row\.variant\?\.color_image_url \|\| row\.variant\?\.image_url/);
+  assert.match(purchaseOrder, /bulkPriceFields\[field\]/);
+  assert.match(purchaseOrder, /toggleBulkPriceField\(field, event\.target\.checked\)/);
+  assert.match(purchaseOrder, /current\.map\(\(row\) => \(\{ \.\.\.row, \[field\]: firstValue \}\)\)/);
+});
