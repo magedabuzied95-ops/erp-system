@@ -146,6 +146,12 @@ const storeProductsPageSize = (value) => {
   }
 };
 
+const handleNavigableActionClick = (event, onClick) => {
+  if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  onClick?.();
+};
+
 const isInlineRowActionVisible = (action = {}, viewportWidth = 0) => {
   const visibleFrom = action.visibleFrom || "lg";
   const minWidth = ROW_ACTION_BREAKPOINTS[visibleFrom] || ROW_ACTION_BREAKPOINTS.lg;
@@ -1719,6 +1725,7 @@ function ProductsList() {
         icon: Eye,
         label: t("products.actionsMenu.view", "عرض"),
         placement: "dropdown",
+        href: `/products/${row.id}`,
         onClick: () => {
           console.log("[products:list] action click", { action: "view", productId: row.id });
           navigate(`/products/${row.id}`);
@@ -1756,6 +1763,7 @@ function ProductsList() {
         label: t("products.actionsMenu.stock", "المخزون"),
         placement: "primary",
         visibleFrom: "lg",
+        href: `/inventory/adjustments?productId=${encodeURIComponent(row.id)}`,
         onClick: () => handleOpenStock(row),
       },
       {
@@ -1766,6 +1774,7 @@ function ProductsList() {
         placement: "primary",
         visibleFrom: "xl",
         className: "hidden xl:inline-flex",
+        href: `/products/barcode-labels?productId=${encodeURIComponent(row.id)}&availableOnly=true`,
         onClick: () => handlePrintBarcode(row),
       },
       {
@@ -1773,6 +1782,7 @@ function ProductsList() {
         icon: Barcode,
         label: t("products.actionsMenu.barcodeShop", "باركود المتجر"),
         placement: "dropdown",
+        href: `/products/labels?mode=barcode-shop&productId=${encodeURIComponent(row.id)}`,
         onClick: () => handleOpenBarcodeShop(row),
       },
       {
@@ -2716,17 +2726,31 @@ function ProductsList() {
                               >
                                 {dropdownActions.map((action) => {
                                   const Icon = action.icon;
+                                  const itemClassName = `flex w-full items-center gap-2 px-4 py-3 text-left text-sm disabled:cursor-not-allowed disabled:opacity-40 ${
+                                    action.tone === "danger"
+                                      ? "text-red-300 hover:bg-red-500/10"
+                                      : "text-white hover:bg-white/5"
+                                  }`;
+                                  if (action.href && !action.disabled) {
+                                    return (
+                                      <Link
+                                        key={action.key}
+                                        to={action.href}
+                                        onClick={(event) => handleNavigableActionClick(event, action.onClick)}
+                                        className={itemClassName}
+                                      >
+                                        <Icon size={16} />
+                                        {action.label}
+                                      </Link>
+                                    );
+                                  }
                                   return (
                                     <button
                                       key={action.key}
                                       type="button"
                                       onClick={action.onClick}
                                       disabled={action.disabled}
-                                      className={`flex w-full items-center gap-2 px-4 py-3 text-left text-sm disabled:cursor-not-allowed disabled:opacity-40 ${
-                                        action.tone === "danger"
-                                          ? "text-red-300 hover:bg-red-500/10"
-                                          : "text-white hover:bg-white/5"
-                                      }`}
+                                      className={itemClassName}
                                     >
                                       <Icon size={16} />
                                       {action.label}
@@ -3240,20 +3264,38 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
       <div className="mt-3 grid grid-cols-2 gap-2">
         {visibleActions.map((action) => {
           const Icon = action.icon;
+          const actionClassName = `inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
+            action.tone === "danger"
+              ? "border-red-300/20 bg-red-500/10 text-red-200"
+              : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8"
+          }`;
+          const actionContent = (
+            <>
+              <Icon size={14} />
+              <span className="truncate">{action.inlineLabel || action.label}</span>
+            </>
+          );
+          if (action.href && !action.disabled) {
+            return (
+              <Link
+                key={action.key}
+                to={action.href}
+                onClick={(event) => handleNavigableActionClick(event, action.onClick)}
+                className={actionClassName}
+              >
+                {actionContent}
+              </Link>
+            );
+          }
           return (
             <button
               key={action.key}
               type="button"
               onClick={action.onClick}
               disabled={action.disabled}
-              className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                action.tone === "danger"
-                  ? "border-red-300/20 bg-red-500/10 text-red-200"
-                  : "border-white/10 bg-white/[0.04] text-zinc-100 hover:bg-white/8"
-              }`}
+              className={actionClassName}
             >
-              <Icon size={14} />
-              <span className="truncate">{action.inlineLabel || action.label}</span>
+              {actionContent}
             </button>
           );
         })}
@@ -3277,11 +3319,7 @@ function QuickRowAction({ icon: Icon, label, href = "", onClick, disabled = fals
     return (
       <Link
         to={href}
-        onClick={(event) => {
-          if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
-          event.preventDefault();
-          onClick?.();
-        }}
+        onClick={(event) => handleNavigableActionClick(event, onClick)}
         title={label}
         aria-label={label}
         className={sharedClassName}
