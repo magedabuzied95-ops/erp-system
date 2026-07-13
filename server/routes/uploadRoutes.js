@@ -1,9 +1,11 @@
 import express from "express";
 import { createHash } from "node:crypto";
-import { readFile, unlink } from "node:fs/promises";
+import path from "node:path";
+import { readFile, rename, unlink } from "node:fs/promises";
 
 import upload from "../config/multer.js";
 import { ensureLocalProductImageVariants, isLocalProductImageUrl } from "../services/productImageVariantService.js";
+import { detectImageFormat, getImageFormatDetails } from "../utils/imageUploadValidation.js";
 
 import { protect } from "../middleware/authMiddleware.js";
 
@@ -80,6 +82,29 @@ router.post(
           message: "No Image Uploaded"
         });
       }
+
+      const fileBuffer = await readFile(req.file.path);
+      const detectedFormat = detectImageFormat(fileBuffer);
+      const detectedDetails = getImageFormatDetails(detectedFormat);
+
+      if (!detectedDetails) {
+        await unlink(req.file.path).catch(() => {});
+        return res.status(400).json({
+          success: false,
+          message: "Invalid image upload",
+        });
+      }
+
+      const currentExtension = path.extname(req.file.filename);
+      const normalizedFilename = `${path.basename(req.file.filename, currentExtension)}${detectedDetails.extension}`;
+      const normalizedPath = path.join(path.dirname(req.file.path), normalizedFilename);
+      if (normalizedPath !== req.file.path) {
+        await rename(req.file.path, normalizedPath);
+        req.file.path = normalizedPath;
+        req.file.filename = normalizedFilename;
+      }
+      req.file.mimetype = detectedDetails.mimetype;
+      req.file.originalname = `${path.basename(req.file.originalname || "product-image", path.extname(req.file.originalname || ""))}${detectedDetails.extension}`;
 
       const cloudinaryResult = await uploadToCloudinary(req.file);
       if (cloudinaryResult?.secure_url) {
