@@ -1676,6 +1676,8 @@ function POSPro() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
+  const [recentlyAddedVariantKey, setRecentlyAddedVariantKey] = useState("");
+  const variantAddedIndicatorTimerRef = useRef(null);
   const [showAllVariantColors, setShowAllVariantColors] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState(generateInvoiceNumber());
   const [lastOrder, setLastOrder] = useState(null);
@@ -4100,6 +4102,26 @@ function POSPro() {
       );
     }
   }, [products, t]);
+
+  const handleVariantSizeDoubleClick = useCallback((size, variant) => {
+    if (!activeProduct || !variant || getVariantStockQuantity(variant) <= 0) return;
+    setSelectedSize(size);
+    addVariantToCart(activeProduct, variant);
+    setRecentlyAddedVariantKey(`${String(variant.color || selectedColor || "")}::${String(size || "")}`);
+    if (variantAddedIndicatorTimerRef.current) {
+      window.clearTimeout(variantAddedIndicatorTimerRef.current);
+    }
+    variantAddedIndicatorTimerRef.current = window.setTimeout(() => {
+      setRecentlyAddedVariantKey("");
+      variantAddedIndicatorTimerRef.current = null;
+    }, 1200);
+  }, [activeProduct, addVariantToCart, selectedColor]);
+
+  useEffect(() => () => {
+    if (variantAddedIndicatorTimerRef.current) {
+      window.clearTimeout(variantAddedIndicatorTimerRef.current);
+    }
+  }, []);
 
   const openProductVariantPicker = useCallback((product) => {
     const variants = Array.isArray(product.variants) ? product.variants : [];
@@ -7531,14 +7553,18 @@ function POSPro() {
                       );
                       const stock = normalizeStockQuantity(sizeVariant?.stock_quantity ?? sizeVariant?.stock);
                       const disabled = !sizeVariant || stock <= 0;
+                      const recentlyAdded = recentlyAddedVariantKey === `${String(selectedColor || "")}::${String(size || "")}`;
                       return (
                         <button
                           key={size || "one-size"}
                           type="button"
                           onClick={() => setSelectedSize(size)}
+                          onDoubleClick={() => handleVariantSizeDoubleClick(size, sizeVariant)}
                           disabled={disabled}
                           className={`min-h-10 rounded-full border px-3 py-2 text-xs font-black transition ${
-                            selectedSize === size
+                            recentlyAdded
+                              ? "border-emerald-300 bg-emerald-300 text-black ring-4 ring-emerald-400/20"
+                              : selectedSize === size
                               ? "border-emerald-400/30 bg-emerald-500 text-black"
                               : disabled
                                 ? "cursor-not-allowed border-white/5 bg-black/20 text-zinc-600"
@@ -7549,6 +7575,11 @@ function POSPro() {
                           <span className={`block text-[10px] leading-tight ${disabled ? "text-zinc-600" : "text-zinc-300"}`}>
                             {t("pos.labels.stock")}: {stock}
                           </span>
+                          {recentlyAdded ? (
+                            <span className="mt-0.5 block text-[9px] font-black leading-tight text-emerald-950">
+                              {t("pos.labels.addedShort")} ✓
+                            </span>
+                          ) : null}
                         </button>
                       );
                     })}
@@ -7594,7 +7625,14 @@ function POSPro() {
         ) : null}
 
         {!viewportIsMobile && selectedProduct && topSelectionInfo ? (
-          <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-2 py-2 sm:px-4 sm:py-6 lg:items-center">
+          <div
+            className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 px-2 py-2 sm:px-4 sm:py-6 lg:items-center"
+            onMouseDown={(event) => {
+              if (event.target !== event.currentTarget) return;
+              setSelectedProduct(null);
+              setMobileProductQuantity(1);
+            }}
+          >
             <div className="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-[1.25rem] border border-white/10 bg-zinc-950 shadow-2xl shadow-black/50 sm:rounded-[2rem]">
               <div className="flex items-start justify-between gap-3 border-b border-white/10 p-3 sm:gap-4 sm:p-5">
                 <div>
@@ -7671,14 +7709,18 @@ function POSPro() {
                           );
                           const stock = normalizeStockQuantity(sizeVariant?.stock_quantity ?? sizeVariant?.stock);
                           const disabled = !sizeVariant || stock <= 0;
+                          const recentlyAdded = recentlyAddedVariantKey === `${String(selectedColor || "")}::${String(size || "")}`;
                           return (
                             <button
                             key={size || "one-size"}
                             type="button"
                             onClick={() => setSelectedSize(size)}
+                            onDoubleClick={() => handleVariantSizeDoubleClick(size, sizeVariant)}
                             disabled={disabled}
                             className={`min-h-9 rounded-full px-3 py-1.5 text-xs font-black transition sm:px-4 sm:py-2 sm:text-sm ${
-                              selectedSize === size
+                              recentlyAdded
+                                ? "bg-emerald-300 text-black ring-4 ring-emerald-400/20"
+                                : selectedSize === size
                                 ? "bg-emerald-500 text-black"
                                 : disabled
                                   ? "cursor-not-allowed border border-white/5 bg-black/20 text-zinc-600"
@@ -7689,6 +7731,11 @@ function POSPro() {
                             <span className={`block text-[10px] leading-tight ${disabled ? "text-zinc-600" : "text-zinc-300"}`}>
                               {t("pos.labels.stock")}: {stock}
                             </span>
+                            {recentlyAdded ? (
+                              <span className="mt-0.5 block text-[9px] font-black leading-tight text-emerald-950">
+                                {t("pos.labels.addedShort")} ✓
+                              </span>
+                            ) : null}
                           </button>
                           );
                         })}
