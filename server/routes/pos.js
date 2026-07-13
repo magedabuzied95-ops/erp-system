@@ -7,6 +7,7 @@ import {
   createQuickPosExpense,
   getActivePosShift,
   getPosPaymentAccountStatus,
+  getPosReceiptRuntimeSettings,
   getPosSellerUsers,
   getPosShiftReport,
   openPosShift,
@@ -31,6 +32,7 @@ router.post("/shifts/:id/close", protect, closePosShift);
 router.post("/expenses", protect, permit("pos.expenses", "create"), createQuickPosExpense);
 router.get("/seller-users", protect, getPosSellerUsers);
 router.get("/payment-account-status", protect, getPosPaymentAccountStatus);
+router.get("/receipt-settings", protect, getPosReceiptRuntimeSettings);
 router.post("/payments/paymob-terminal", protect, sendPaymobTerminalPayment);
 router.get("/payments/paymob-terminal/status/:transactionId", protect, getPaymobTerminalPaymentStatus);
 router.post("/payments/paymob-terminal/:transactionId/manual-confirm", protect, manuallyConfirmPaymobTerminalPayment);

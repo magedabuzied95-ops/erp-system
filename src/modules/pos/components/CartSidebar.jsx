@@ -42,7 +42,6 @@ import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import { matchesPhoneSearch, normalizePhone } from "../lib/phoneSearch";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
-import { resolveInvoiceItemImageValue } from "../../../shared/lib/invoiceItemImages";
 import { getCurrentTenant } from "../../../shared/auth/authStorage";
 import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 
@@ -67,6 +66,12 @@ const getStoreProfile = () => {
     instagramUrl: settings.instagram_url || settings.instagramUrl || tenant.instagram_url || tenant.instagramUrl || "",
   };
 };
+
+const mergeStoreProfile = (base = {}, override = {}) =>
+  Object.entries(override || {}).reduce(
+    (result, [key, value]) => (value === undefined || value === null || value === "" ? result : { ...result, [key]: value }),
+    { ...base }
+  );
 
 const getReceiptDate = () =>
   new Intl.DateTimeFormat(undefined, {
@@ -102,8 +107,6 @@ const getReceiptItemTotal = (item = {}) => {
   const discount = Number(item.discount_amount ?? Number(item.lineDiscount || 0) * quantity);
   return Math.max(0, unitPrice * quantity - discount);
 };
-
-const getInvoiceItemImage = (item = {}) => resolveInvoiceItemImageValue(item);
 
 const formatReceiptPrice = (value) => {
   const numeric = Number(value || 0);
@@ -1353,17 +1356,17 @@ function DiscountLoyaltyModal({
   );
 }
 
-export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentSummary, paymentMode, loyaltyProfile, loyaltyValidation, walletCashbackToEarn = 0, sellerName = "", compact = false }) {
-  const premiumStore = useMemo(() => getStoreProfile(), []);
+export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentSummary, paymentMode, loyaltyProfile, loyaltyValidation, walletCashbackToEarn = 0, sellerName = "", cashierName = "", createdAt, storeProfile, compact = false }) {
+  const premiumStore = useMemo(() => mergeStoreProfile(getStoreProfile(), storeProfile), [storeProfile]);
   const premiumReceiptNumber = String(invoiceNumber || "DRAFT");
+  const receiptBarcodeValue = `POSINV:${premiumReceiptNumber}`;
   const premiumBarcodeSvg = useMemo(
     () =>
-      getBarcodeSvg(premiumReceiptNumber, {
-        width: 224,
-        height: 29,
-        displayText: premiumReceiptNumber,
+      getBarcodeSvg(receiptBarcodeValue, {
+        width: 440,
+        height: 110,
       }),
-    [premiumReceiptNumber]
+    [receiptBarcodeValue]
   );
   const premiumDate = useMemo(() => formatArabicDate(), []);
   const premiumTime = useMemo(() => formatArabicTime(), []);
@@ -1385,9 +1388,13 @@ export function ReceiptPreview({ invoiceNumber, customer, cart, totals, paymentS
         cart={cart}
         totals={totals}
         paymentSummary={paymentSummary}
+        paymentMode={paymentMode}
         barcodeSvg={premiumBarcodeSvg}
-        premiumDate={premiumDate}
-        premiumTime={premiumTime}
+        customer={customer}
+        sellerName={sellerName}
+        cashierName={cashierName}
+        createdAt={createdAt}
+        storeProfile={premiumStore}
       />
     );
   }
@@ -1596,410 +1603,121 @@ function ReceiptMiniStat({ label, value }) {
 }
 
 const THERMAL_RECEIPT_FINAL_CSS = `
-.thermal-final {
-  width: 100%;
-  max-width: 80mm;
-  box-sizing: border-box;
-  padding: 8px 10px;
-  direction: rtl;
-  font-family: Arial, Tahoma, sans-serif;
-  color: #000;
-  background: #fff;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.thermal-header {
-  text-align: center;
-  margin-bottom: 8px;
-}
-
-.thermal-store-name {
-  font-size: 20px;
-  font-weight: 900;
-  line-height: 1.2;
-}
-
-.thermal-thanks {
-  font-size: 13px;
-  font-weight: 700;
-  margin-top: 3px;
-}
-
-.thermal-divider {
-  border-top: 1px dashed #000;
-  margin: 8px 0;
-}
-
-.thermal-field {
-  margin: 6px 0;
-  text-align: right;
-  overflow: hidden;
-}
-
-.thermal-label {
-  font-size: 12px;
-  font-weight: 800;
-  margin-bottom: 2px;
-}
-
-.thermal-value {
-  font-size: 14px;
-  font-weight: 500;
-  word-break: break-word;
-}
-
-.thermal-invoice-box {
-  border: 1.5px solid #000;
-  padding: 8px;
-  margin: 8px 0;
-}
-
-.thermal-products-box {
-  border: 1.5px solid #000;
-  margin: 8px 0;
-}
-
-.thermal-products-table {
-  width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
-}
-
-.thermal-products-table th,
-.thermal-products-table td {
-  border: 1px solid #000;
-  padding: 5px 4px;
-  text-align: center;
-  vertical-align: middle;
-  overflow: hidden;
-  font-size: 12px;
-}
-
-.thermal-products-table th {
-  font-size: 11px;
-  font-weight: 900;
-  background: #f4f4f4;
-}
-
-.thermal-col-image {
-  width: 16mm;
-}
-
-.thermal-col-qty {
-  width: 10mm;
-}
-
-.thermal-col-price,
-.thermal-col-total {
-  width: 16mm;
-}
-
-.thermal-item-image {
-  width: 12mm;
-  height: 12mm;
-  margin: 0 auto;
-  border: 1px solid #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  background: #fff;
-}
-
-.thermal-item-image img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.thermal-item-placeholder {
-  font-size: 10px;
-  font-weight: 900;
-}
-
-.thermal-money-text {
-  font-weight: 900;
-  direction: ltr;
-  unicode-bidi: embed;
-}
-
-.thermal-summary {
-  border: 1.5px solid #000;
-  padding: 8px;
-  margin: 8px 0;
-}
-
-.thermal-money-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  margin: 5px 0;
-}
-
-.thermal-money-row strong {
-  font-weight: 900;
-  direction: ltr;
-  unicode-bidi: embed;
-}
-
-.thermal-grand-total {
-  border-top: 2px solid #000;
-  border-bottom: 2px solid #000;
-  padding: 8px 0;
-  margin: 10px 0;
-  text-align: center;
-}
-
-.thermal-grand-total div {
-  font-size: 15px;
-  font-weight: 900;
-}
-
-.thermal-grand-total strong {
-  display: block;
-  font-size: 20px;
-  font-weight: 900;
-  margin-top: 3px;
-  direction: ltr;
-  unicode-bidi: embed;
-}
-
-.thermal-policy {
-  border: 1px dashed #000;
-  padding: 7px;
-  margin: 10px 0;
-  text-align: center;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.thermal-policy-title {
-  font-weight: 900;
-  margin-bottom: 4px;
-}
-
-.thermal-barcode {
-  text-align: center;
-  margin: 10px 0 6px;
-  border: 1.5px solid #000;
-  padding: 8px 6px;
-}
-
-.thermal-barcode svg {
-  width: 100% !important;
-  max-width: 100% !important;
-  height: 24mm !important;
-  display: block;
-}
-
-.thermal-barcode svg rect,
-.thermal-barcode svg path,
-.thermal-barcode svg line {
-  shape-rendering: crispEdges;
-}
-
-.thermal-footer {
-  border-top: 1px dashed #000;
-  padding-top: 7px;
-  text-align: center;
-  font-size: 12px;
-  line-height: 1.5;
-  direction: ltr;
-}
-
-@media print {
-  @page {
-    size: 80mm auto;
-    margin: 0;
-  }
-
-  html, body {
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #fff !important;
-  }
-
-  .thermal-final {
-    max-width: none !important;
-    width: 80mm !important;
-    padding: 8px 10px !important;
-    margin: 0 auto !important;
-  }
-}
+.thermal-final{width:72mm;max-width:72mm;margin:0 auto;padding:2.5mm 1.5mm 3.5mm;box-sizing:border-box;direction:rtl;background:#fff;color:#000;font-family:Tahoma,Arial,"Segoe UI",sans-serif;font-size:12px;font-weight:700;line-height:1.4;-webkit-font-smoothing:none}
+.thermal-final *{box-sizing:border-box}.thermal-header{text-align:center}.thermal-logo{display:block;width:22mm;max-width:22mm;height:22mm;max-height:22mm;margin:0 auto 1mm;object-fit:contain;filter:none}.thermal-store-name{font-size:18px;font-weight:900;line-height:1.15;overflow-wrap:anywhere}.thermal-tagline{margin-top:.6mm;font-size:10px;font-weight:800}
+.thermal-rule{height:0;border:0;border-top:1px dashed #000;margin:2mm 0}.thermal-rule-solid{border-top-style:solid;border-top-width:1.5px}.thermal-title{display:flex;align-items:center;justify-content:space-between;gap:3mm;font-size:12px;font-weight:900}
+.thermal-number{direction:ltr;unicode-bidi:isolate;text-align:left;font-weight:900;overflow-wrap:anywhere}.thermal-meta{display:grid;grid-template-columns:auto 1fr;gap:.8mm 2mm;margin-top:1.5mm}.thermal-meta dt{font-weight:900;white-space:nowrap}.thermal-meta dd{margin:0;min-width:0;text-align:left;font-weight:800;overflow-wrap:anywhere}.thermal-meta .ltr{direction:ltr;unicode-bidi:isolate}
+.thermal-items{width:100%;border-collapse:collapse;table-layout:fixed}.thermal-items th{padding:1.2mm .5mm;border-top:1.5px solid #000;border-bottom:1.5px solid #000;font-size:9.5px;font-weight:900}.thermal-items td{padding:1.5mm .5mm;border-bottom:1px dashed #777;vertical-align:middle;font-weight:800}.thermal-items th:first-child,.thermal-items td:first-child{text-align:right}.thermal-items th:not(:first-child),.thermal-items td:not(:first-child){text-align:left;direction:ltr;unicode-bidi:isolate;font-variant-numeric:tabular-nums}.thermal-product{display:flex;align-items:center;gap:1.2mm;min-width:0}.thermal-item-image{width:11mm;height:11mm;flex:0 0 11mm;object-fit:contain;border:1px solid #555;background:#fff;filter:grayscale(1) contrast(1.2)}.thermal-item-copy{min-width:0}.thermal-item-name{font-weight:900;line-height:1.25;overflow-wrap:anywhere}.thermal-item-detail{margin-top:.4mm;font-size:9px;font-weight:700;color:#111}.thermal-col-qty{width:7mm}.thermal-col-price{width:15mm}.thermal-col-total{width:16mm}
+.thermal-totals{margin-top:1.5mm}.thermal-row{display:flex;align-items:baseline;justify-content:space-between;gap:3mm;padding:.55mm 0}.thermal-row span:first-child{font-weight:700}.thermal-row strong{direction:ltr;unicode-bidi:isolate;text-align:left;font-weight:900;font-variant-numeric:tabular-nums}.thermal-grand{margin-top:1mm;padding:1.8mm 0;border-top:2px solid #000;border-bottom:2px solid #000;font-size:16px}.thermal-grand span:first-child,.thermal-grand strong{font-weight:900}
+.thermal-store-info{font-size:10px;line-height:1.45}.thermal-store-row{display:grid;grid-template-columns:auto 1fr;gap:2mm;padding:.35mm 0}.thermal-store-row span{font-weight:900}.thermal-store-row strong{text-align:left;font-weight:800;overflow-wrap:anywhere}.thermal-note{margin-top:1.8mm;text-align:center;font-size:9.5px;font-weight:800;line-height:1.45}.thermal-policy-title{font-size:10.5px;font-weight:900}.thermal-barcode{margin:2mm auto 0;text-align:center}.thermal-barcode-title{margin-bottom:.8mm;font-size:9px;font-weight:900}.thermal-barcode svg{display:block;width:64mm!important;height:16mm!important;max-width:100%;margin:auto}.thermal-barcode svg text{display:none}.thermal-barcode svg rect,.thermal-barcode svg path,.thermal-barcode svg line{shape-rendering:crispEdges}.thermal-footer{margin-top:1.5mm;text-align:center;font-size:9.5px;line-height:1.4}.thermal-thanks{font-size:11px;font-weight:900}.thermal-cut{margin-top:3mm;border-top:1px dashed #000}
+@page{margin:0}@media print{html,body{width:80mm!important;min-width:80mm!important;margin:0!important;padding:0!important;background:#fff!important}.thermal-final{width:72mm!important;max-width:72mm!important;margin:0 auto!important;page-break-inside:avoid;break-inside:avoid}}
 `;
 
 function ThermalReceiptFinal({
   invoiceNumber,
-  cart,
-  totals,
-  paymentSummary,
+  cart = [],
+  totals = {},
+  paymentSummary = {},
+  paymentMode = "",
   barcodeSvg,
-  premiumDate = "",
-  premiumTime = "",
+  customer = {},
+  sellerName = "",
+  cashierName = "",
+  createdAt,
+  storeProfile,
 }) {
-  const safeText = (value) => String(value ?? "").trim() || "-";
-  const money = (value) => {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? formatCurrency(numeric) : "-";
-  };
-  const store = getStoreProfile();
-  const receiptNumber = safeText(invoiceNumber || "DRAFT");
-  const dateLabel = safeText(`${premiumDate} ${premiumTime}`.trim());
-  const itemDiscountTotal = Number(totals?.itemDiscountTotal || 0);
-  const invoiceDiscount = Number(totals?.invoiceDiscount || 0);
-  const loyaltyDiscount = Number(totals?.loyaltyDiscount || 0);
-  const grandTotal = Number(totals?.total || 0);
-  const totalDiscounts = itemDiscountTotal + invoiceDiscount;
-  const totalQuantity = Array.isArray(cart) ? cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0) : 0;
-  const paidAmount = Number(paymentSummary?.paidAmount || 0);
-  const remainingAmount = Math.max(0, Number(paymentSummary?.dueAmount || 0));
-  const fallbackAddress = "دمياط الجديدة - شارع البشبيشي بجوار الفرنسية جروب";
-  const storeAddress = safeText(store.address || fallbackAddress);
-  const storePhone = "01000659301";
-  const storeWebsite = "m1store-egy.com";
-  const storeLogoUrl = String(store.logoUrl || "").trim();
+  const money = (value) => formatCurrency(Number.isFinite(Number(value)) ? Number(value) : 0, "ar");
+  const store = mergeStoreProfile(getStoreProfile(), storeProfile);
+  const receiptNumber = String(invoiceNumber || "DRAFT").trim();
+  const receiptDate = createdAt ? new Date(createdAt) : new Date();
+  const dateLabel = Number.isNaN(receiptDate.getTime()) ? "-" : formatArabicDate(receiptDate);
+  const timeLabel = Number.isNaN(receiptDate.getTime()) ? "-" : formatArabicTime(receiptDate);
+  const customerName = customer?.name || customer?.customer_name || "عميل نقدي";
+  const customerPhone = customer?.phone || customer?.mobile || customer?.customer_phone || "";
+  const cashier = cashierName || sellerName || "";
+  const salesperson = sellerName && sellerName !== cashier ? sellerName : "";
+  const payment = getLocalizedPaymentLabel(paymentMode, paymentSummary);
+  const itemDiscount = Number(totals.itemDiscountTotal || 0);
+  const invoiceDiscount = Number(totals.invoiceDiscount ?? totals.discount ?? 0);
+  const couponDiscount = Number(totals.couponDiscount || 0);
+  const loyaltyDiscount = Number(totals.loyaltyDiscount || 0);
+  const tax = Number(totals.taxAmount ?? totals.tax ?? totals.vatAmount ?? totals.vat ?? 0);
+  const serviceFee = Number(totals.serviceFee ?? totals.service ?? 0);
+  const paidAmount = Number(paymentSummary.paidAmount ?? totals.total ?? 0);
+  const dueAmount = Math.max(0, Number(paymentSummary.dueAmount || 0));
+  const changeAmount = Math.max(0, Number(paymentSummary.changeAmount || 0));
+  const subtotal = Number(totals.subtotal ?? cart.reduce((sum, item) => sum + getReceiptItemUnitPrice(item) * Number(item.quantity || 0), 0));
+  const total = Number(totals.total || 0);
+  const totalQuantity = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const officialWebsite = String(store.website || "").replace(/^https?:\/\//i, "").replace(/\/$/, "");
+  const invoiceFooter = officialWebsite && String(store.invoiceFooter || "").toLowerCase().includes(officialWebsite.toLowerCase())
+    ? ""
+    : String(store.invoiceFooter || "").trim();
 
   return (
-    <div className="thermal-final" dir="rtl">
+    <article className="thermal-final" dir="rtl" aria-label={`فاتورة ${receiptNumber}`}>
       <style>{THERMAL_RECEIPT_FINAL_CSS}</style>
-      {/* GREEN_THERMAL_RECEIPT_IMAGE_ONLY_NO_QR */}
-      <div className="thermal-header">
-        {storeLogoUrl ? (
-          <div className="mx-auto mb-1 flex h-[18mm] w-[18mm] items-center justify-center overflow-hidden">
-            <img src={storeLogoUrl} alt="M1 Store" className="h-full w-full object-contain" />
-          </div>
-        ) : (
-          <div className="thermal-store-name">M1 Store</div>
-        )}
-        <div className="thermal-thanks">M1-Store</div>
-      </div>
+      <header className="thermal-header">
+        {store.logoUrl ? <img className="thermal-logo" src={store.logoUrl} alt={store.name || "شعار المتجر"} /> : null}
+        <div className="thermal-store-name">{store.name}</div>
+        {store.tagline ? <div className="thermal-tagline">{store.tagline}</div> : null}
+      </header>
 
-      <div className="thermal-divider" />
+      <hr className="thermal-rule thermal-rule-solid" />
+      <div className="thermal-title"><span>فاتورة بيع</span><span className="thermal-number">#{receiptNumber}</span></div>
+      <dl className="thermal-meta">
+        <dt>التاريخ</dt><dd className="ltr">{dateLabel} — {timeLabel}</dd>
+        {cashier ? <><dt>الكاشير</dt><dd>{cashier}</dd></> : null}
+        {salesperson ? <><dt>البائع</dt><dd>{salesperson}</dd></> : null}
+        <dt>العميل</dt><dd>{customerName}</dd>
+        {customerPhone ? <><dt>الهاتف</dt><dd className="ltr">{customerPhone}</dd></> : null}
+        <dt>الدفع</dt><dd>{payment}</dd>
+      </dl>
 
-      <div className="thermal-invoice-box">
-        <div className="thermal-label">فاتورة بيع - رقم الفاتورة</div>
-        <div className="thermal-value">{receiptNumber}</div>
-        <div className="thermal-label" style={{ marginTop: "6px" }}>التاريخ والوقت</div>
-        <div className="thermal-value">{dateLabel}</div>
-      </div>
-
-      <div className="thermal-divider" />
-
-      <div className="thermal-field">
-        <div className="thermal-label">المنتجات</div>
-        <div className="thermal-products-box">
-          <table className="thermal-products-table">
-            <thead>
-              <tr>
-                <th className="thermal-col-image">صورة</th>
-                <th className="thermal-col-qty">كمية</th>
-                <th className="thermal-col-price">سعر</th>
-                <th className="thermal-col-total">إجمالي</th>
+      <hr className="thermal-rule" />
+      <table className="thermal-items">
+        <thead><tr><th>الصنف</th><th className="thermal-col-qty">ك</th><th className="thermal-col-price">السعر</th><th className="thermal-col-total">الإجمالي</th></tr></thead>
+        <tbody>
+          {cart.length ? cart.map((item, index) => {
+            const details = [item.color, item.size].filter(Boolean).join(" / ");
+            const imageUrl = resolveProductImageUrl(
+              item.thermal_image_url || item.variant_color_thermal_image_url || item.color_thermal_image_url || item.image_url || item.product_image_url || item.image || item.photo_url || ""
+            );
+            return (
+              <tr key={String(item.key || item.id || item.variant_id || `${item.name || "item"}-${index}`)}>
+                <td><div className="thermal-product">{imageUrl ? <img className="thermal-item-image" src={imageUrl} alt="" /> : null}<div className="thermal-item-copy"><div className="thermal-item-name">{item.name || item.product_name || "منتج"}</div>{details ? <div className="thermal-item-detail">{details}</div> : null}</div></div></td>
+                <td>{Number(item.quantity || 0)}</td><td>{money(getReceiptItemUnitPrice(item))}</td><td>{money(getReceiptItemTotal(item))}</td>
               </tr>
-            </thead>
-            <tbody>
-              {Array.isArray(cart) && cart.length ? cart.map((item, index) => {
-                const unitPrice = getReceiptItemUnitPrice(item);
-                const lineTotal = getReceiptItemTotal(item);
-                const imageSrc = resolveInvoiceItemImageValue(item) || item?.image_url || item?.product_image_url || item?.image || item?.photo_url || "";
-                return (
-                  <tr key={String(item?.key || item?.id || `${item?.name || "item"}-${index}`)}>
-                    <td>
-                      <div className="thermal-item-image">
-                        {imageSrc ? (
-                          <img src={imageSrc} alt="" />
-                        ) : (
-                          <span className="thermal-item-placeholder">-</span>
-                        )}
-                      </div>
-                    </td>
-                    <td><span className="thermal-money-text">{safeText(item?.quantity)}</span></td>
-                    <td><span className="thermal-money-text">{money(unitPrice)}</span></td>
-                    <td><span className="thermal-money-text">{money(lineTotal)}</span></td>
-                  </tr>
-                );
-              }) : (
-                <tr>
-                  <td colSpan="4" className="thermal-value">-</td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+            );
+          }) : <tr><td colSpan="4" style={{ textAlign: "center" }}>لا توجد منتجات</td></tr>}
+        </tbody>
+      </table>
 
-      <div className="thermal-divider" />
+      <section className="thermal-totals">
+        <div className="thermal-row"><span>الإجمالي الفرعي</span><strong>{money(subtotal)}</strong></div>
+        <div className="thermal-row"><span>إجمالي الكمية</span><strong>{totalQuantity}</strong></div>
+        {itemDiscount > 0 ? <div className="thermal-row"><span>خصم المنتجات</span><strong>- {money(itemDiscount)}</strong></div> : null}
+        {invoiceDiscount > 0 ? <div className="thermal-row"><span>خصم الفاتورة</span><strong>- {money(invoiceDiscount)}</strong></div> : null}
+        {couponDiscount > 0 ? <div className="thermal-row"><span>خصم الكوبون</span><strong>- {money(couponDiscount)}</strong></div> : null}
+        {loyaltyDiscount > 0 ? <div className="thermal-row"><span>خصم الولاء</span><strong>- {money(loyaltyDiscount)}</strong></div> : null}
+        {tax > 0 ? <div className="thermal-row"><span>الضريبة</span><strong>{money(tax)}</strong></div> : null}
+        {serviceFee > 0 ? <div className="thermal-row"><span>رسوم الخدمة</span><strong>{money(serviceFee)}</strong></div> : null}
+        <div className="thermal-row thermal-grand"><span>الإجمالي</span><strong>{money(total)}</strong></div>
+        <div className="thermal-row"><span>المدفوع</span><strong>{money(paidAmount)}</strong></div>
+        {changeAmount > 0 ? <div className="thermal-row"><span>الباقي</span><strong>{money(changeAmount)}</strong></div> : null}
+        {dueAmount > 0 ? <div className="thermal-row"><span>المتبقي</span><strong>{money(dueAmount)}</strong></div> : null}
+      </section>
 
-      <div className="thermal-summary">
-        <div className="thermal-money-row">
-          <span>إجمالي الكمية</span>
-          <strong>{safeText(totalQuantity)}</strong>
-        </div>
-        {totalDiscounts > 0 ? (
-          <div className="thermal-money-row">
-            <span>الخصومات</span>
-            <strong>{`- ${money(totalDiscounts)}`}</strong>
-          </div>
-        ) : null}
-        {loyaltyDiscount > 0 ? (
-          <div className="thermal-money-row">
-            <span>خصم الولاء</span>
-            <strong>{`- ${money(loyaltyDiscount)}`}</strong>
-          </div>
-        ) : null}
-        <div className="thermal-money-row">
-          <span>المدفوع</span>
-          <strong>{money(paidAmount)}</strong>
-        </div>
-        {remainingAmount > 0 ? (
-          <div className="thermal-money-row">
-            <span>المتبقي</span>
-            <strong>{money(remainingAmount)}</strong>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="thermal-grand-total">
-        <div>الإجمالي</div>
-        <strong>{`${money(grandTotal)} EGP`}</strong>
-      </div>
-
-      <div className="thermal-divider" />
-
-      <div className="thermal-field">
-        <div className="thermal-label">العنوان</div>
-        <div className="thermal-value">{storeAddress}</div>
-      </div>
-      <div className="thermal-field">
-        <div className="thermal-label">خدمة العملاء</div>
-        <div className="thermal-value">{storePhone}</div>
-      </div>
-      <div className="thermal-field">
-        <div className="thermal-label">الموقع</div>
-        <div className="thermal-value">{storeWebsite}</div>
-      </div>
-
-      <div className="thermal-policy">
-        <div className="thermal-policy-title">سياسة الاستبدال والاسترجاع</div>
-        <div>يسمح بالاستبدال أو الاسترجاع خلال 14 يوم بشرط عدم الاستخدام والحفاظ على الحالة الأصلية وتقديم أصل الفاتورة.</div>
-        <div>ولا يسمح باستبدال أو استرجاع الشنط.</div>
-      </div>
-
-      <div className="thermal-divider" />
-
-      <div className="thermal-barcode">
-        <div dangerouslySetInnerHTML={{ __html: barcodeSvg }} />
-        <div className="thermal-value" style={{ fontSize: "12px", fontWeight: 900 }}>{receiptNumber}</div>
-      </div>
-
-      <div className="thermal-footer">
-        <div>www.m1store-egy.com</div>
-        <div>01000659301</div>
-      </div>
-    </div>
+      {(store.address || store.phone || officialWebsite) ? <><hr className="thermal-rule" /><section className="thermal-store-info">
+        {store.address ? <div className="thermal-store-row"><span>العنوان</span><strong>{store.address}</strong></div> : null}
+        {store.phone ? <div className="thermal-store-row"><span>خدمة العملاء</span><strong dir="ltr">{store.phone}</strong></div> : null}
+        {officialWebsite ? <div className="thermal-store-row"><span>الموقع الإلكتروني الرسمي</span><strong dir="ltr">{officialWebsite}</strong></div> : null}
+      </section></> : null}
+      <div className="thermal-note"><div className="thermal-policy-title">سياسة الاستبدال والاسترجاع</div><div>{getReturnPolicyText()}</div></div>
+      <div className="thermal-barcode"><div className="thermal-barcode-title">امسح لفتح الفاتورة في العمليات الأخيرة</div><div dangerouslySetInnerHTML={{ __html: barcodeSvg }} /></div>
+      <footer className="thermal-footer"><div className="thermal-thanks">شكرًا لزيارتكم</div>{invoiceFooter ? <div>{invoiceFooter}</div> : null}</footer>
+      <div className="thermal-cut" />
+    </article>
   );
 }
 

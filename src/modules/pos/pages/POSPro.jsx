@@ -89,6 +89,7 @@ import {
 import { normalizeSaleModeSettings } from "../../../shared/lib/saleMode";
 import { logPagePerf } from "../../../shared/lib/perfDebug";
 import { buildLoyaltyReceiptMessage, buildLoyaltyReceiptWhatsappUrl, normalizeReceiptPhone } from "../lib/whatsappReceiptMessage.js";
+import { printThermalReceipt } from "../lib/thermalReceiptPrint.jsx";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { getCrocsSizeInputDisplayLabel, isCrocsProductType } from "../../products/lib/variantBulkSizes";
 import {
@@ -105,7 +106,7 @@ import {
 } from "../lib/posCustomerCache";
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import ProductGrid from "../components/ProductGrid";
-import CartSidebar, { ReceiptPreview } from "../components/CartSidebar";
+import CartSidebar from "../components/CartSidebar";
 import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
 import SmartPosFilters from "../components/SmartPosFilters";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
@@ -154,7 +155,7 @@ const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
 const POS_USE_SALE_PRICES_KEY = "pos.useSalePrices";
 const POS_MANIFEST_HREF = "/pos-manifest.webmanifest";
 const POS_SERVICE_WORKER_HREF = "/pos-sw.js";
-const POS_SERVICE_WORKER_VERSION = 2;
+const POS_SERVICE_WORKER_VERSION = 5;
 const POS_APP_TITLE = buildPageTitle("POS");
 const POS_APP_SHORT_TITLE = "POS";
 const POS_THEME_COLOR = "#07111f";
@@ -1575,6 +1576,11 @@ function POSPro() {
   const [invoiceNumber, setInvoiceNumber] = useState(generateInvoiceNumber());
   const [lastOrder, setLastOrder] = useState(null);
   const [lastShareContext, setLastShareContext] = useState(null);
+  const [receiptRuntimeSettings, setReceiptRuntimeSettings] = useState({
+    printReceiptAutomatically: false,
+    receiptTemplate: "compact",
+    store: null,
+  });
   const [checkoutSuccessOpen, setCheckoutSuccessOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [marketingAttribution, setMarketingAttribution] = useState(() => readMarketingAttributionState());
@@ -1595,6 +1601,7 @@ function POSPro() {
   const [customerCreateOpen, setCustomerCreateOpen] = useState(false);
   const [recentOperationsOpen, setRecentOperationsOpen] = useState(false);
   const [recentOperationsOpenedAt, setRecentOperationsOpenedAt] = useState(0);
+  const [scannedInvoiceNumber, setScannedInvoiceNumber] = useState("");
   const [editingOrder, setEditingOrder] = useState(null);
   const [paymobTerminalState, setPaymobTerminalState] = useState(null);
   const [paymobTerminalLoading, setPaymobTerminalLoading] = useState(false);
@@ -1685,6 +1692,25 @@ function POSPro() {
   const cacheActiveShiftSnapshot = useCallback((shift, branch) => {
     writeCachedActivePosShift({ shift, branch, currentUser });
   }, [currentUser]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.get("/pos/receipt-settings", { timeoutMs: 10000 })
+      .then((response) => {
+        if (cancelled) return;
+        setReceiptRuntimeSettings({
+          printReceiptAutomatically: Boolean(response?.settings?.printReceiptAutomatically),
+          receiptTemplate: response?.settings?.receiptTemplate || "compact",
+          store: response?.store || null,
+        });
+      })
+      .catch((settingsError) => {
+        console.warn("[pos] receipt settings unavailable; using safe defaults", settingsError?.message || settingsError);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     activePosShiftRef.current = activePosShift;
@@ -1820,7 +1846,18 @@ function POSPro() {
 
     const debugQuery = POS_OFFLINE_DEBUG ? "&debug=1" : "";
     const scriptUrl = `${POS_SERVICE_WORKER_HREF}?v=${POS_SERVICE_WORKER_VERSION}${debugQuery}`;
+    const reloadMarker = `pos.sw.reloaded.v${POS_SERVICE_WORKER_VERSION}`;
     let cancelled = false;
+    let reloading = false;
+
+    const handleControllerChange = () => {
+      if (cancelled || reloading || window.sessionStorage.getItem(reloadMarker) === "1") return;
+      reloading = true;
+      window.sessionStorage.setItem(reloadMarker, "1");
+      window.location.reload();
+    };
+
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
 
     const register = async () => {
       try {
@@ -1853,6 +1890,7 @@ function POSPro() {
     return () => {
       cancelled = true;
       window.clearInterval(updateTimer);
+      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
     };
   }, [location.pathname]);
 
@@ -2762,7 +2800,7 @@ function POSPro() {
     setSelectedCustomerId(customerId);
     setCustomerSearch(selected.name || selected.phone || "");
     setLoyaltyRedeemPoints(0);
-    if (!Boolean(selected.allow_personal_transactions ?? selected.allowPersonalTransactions ?? false)) {
+    if (!(selected.allow_personal_transactions ?? selected.allowPersonalTransactions ?? false)) {
       setPaymentMode((current) => (String(current || "").toLowerCase() === "personal" ? "cash" : current));
       setPersonalSettlementType("");
       setPersonalNote("");
@@ -2832,7 +2870,7 @@ function POSPro() {
 
   useEffect(() => {
     if (String(paymentMode || "").toLowerCase() !== "personal") return;
-    if (!selectedCustomerId || !Boolean(customer?.allow_personal_transactions ?? customer?.allowPersonalTransactions ?? false)) {
+    if (!selectedCustomerId || !(customer?.allow_personal_transactions ?? customer?.allowPersonalTransactions ?? false)) {
       setPaymentMode("cash");
       setPersonalSettlementType("");
       setPersonalNote("");
@@ -3655,6 +3693,18 @@ function POSPro() {
         lastBarcodeSubmitRef.current = { value: "", timer: null };
       }, 250),
     };
+
+    const invoiceBarcodeMatch = rawValue.match(/^POSINV:(.+)$/i);
+    if (invoiceBarcodeMatch) {
+      const scannedInvoice = String(invoiceBarcodeMatch[1] || "").trim();
+      if (!scannedInvoice) return;
+      setSearch("");
+      setScannedInvoiceNumber(scannedInvoice);
+      setRecentOperationsOpenedAt(performance.now());
+      setRecentOperationsOpen(true);
+      toast.success(`تم العثور على الفاتورة ${scannedInvoice}`);
+      return;
+    }
 
     const exactVariant = barcodeLookup.variantsByCode.get(normalized);
 
@@ -4922,7 +4972,7 @@ function POSPro() {
         toast.error("اختر عميلًا أولًا قبل العملية الشخصية.");
         return null;
       }
-      if (!Boolean(customer.allow_personal_transactions ?? customer.allowPersonalTransactions ?? false)) {
+      if (!(customer.allow_personal_transactions ?? customer.allowPersonalTransactions ?? false)) {
         toast.error("هذا العميل غير مسموح له بالعمليات الشخصية.");
         return null;
       }
@@ -5516,6 +5566,11 @@ function POSPro() {
       normalizedOrder.publicToken = normalizedOrder.public_token;
       setLastOrder(normalizedOrder);
       setLastShareContext(normalizedOrder);
+      if (receiptRuntimeSettings.printReceiptAutomatically && (!paymobTerminalCheckout || paymobTerminalConfirmed)) {
+        void handlePrint(normalizedOrder, { silent: true }).catch((automaticPrintError) => {
+          console.error("[pos] automatic receipt print failed", automaticPrintError);
+        });
+      }
       const modalRenderStartedAt = performance.now();
       if (!paymobTerminalCheckout || paymobTerminalConfirmed) setCheckoutSuccessOpen(true);
       requestAnimationFrame(() => {
@@ -5712,14 +5767,21 @@ function POSPro() {
     const renderedTotals = {
       ...cartTotals,
       ...orderTotals,
+      subtotal: Number(order.subtotal ?? orderTotals.subtotal ?? cartTotals.subtotal ?? 0),
+      itemDiscountTotal: Number(order.item_discount_total ?? orderTotals.itemDiscountTotal ?? cartTotals.itemDiscountTotal ?? 0),
+      invoiceDiscount: Number(order.discount_amount ?? order.invoice_discount ?? orderTotals.invoiceDiscount ?? orderTotals.discount ?? cartTotals.invoiceDiscount ?? 0),
+      couponDiscount: Number(order.coupon_discount ?? orderTotals.couponDiscount ?? cartTotals.couponDiscount ?? 0),
+      loyaltyDiscount: Number(order.loyalty_discount ?? orderTotals.loyaltyDiscount ?? cartTotals.loyaltyDiscount ?? 0),
+      serviceFee: Number(order.service_fee ?? orderTotals.serviceFee ?? orderTotals.service ?? cartTotals.serviceFee ?? 0),
+      taxAmount: Number(order.tax_amount ?? order.vat_amount ?? orderTotals.taxAmount ?? orderTotals.tax ?? cartTotals.taxAmount ?? 0),
       total: Number(order.total ?? orderTotals.total ?? cartTotals.total ?? 0),
     };
     const renderedPaymentSummary = {
       ...paymentSummary,
       paymentStatus: order.paymentStatus || orderPayment.paymentStatus || paymentSummary.paymentStatus,
-      paidAmount: Number(orderPayment.paidAmount ?? paymentSummary.paidAmount ?? renderedTotals.total ?? 0),
-      dueAmount: Number(orderPayment.dueAmount ?? paymentSummary.dueAmount ?? 0),
-      changeAmount: Number(orderPayment.changeAmount ?? paymentSummary.changeAmount ?? 0),
+      paidAmount: Number(orderPayment.paidAmount ?? order.paid_amount ?? paymentSummary.paidAmount ?? renderedTotals.total ?? 0),
+      dueAmount: Number(orderPayment.dueAmount ?? order.due_amount ?? paymentSummary.dueAmount ?? 0),
+      changeAmount: Number(orderPayment.changeAmount ?? order.change_amount ?? paymentSummary.changeAmount ?? 0),
       exchangeMode: Boolean(order.exchange_mode || order.exchangeMode || orderPayment.exchangeMode),
       exchangeInvoiceNumber: order.exchange_invoice_number || order.exchangeInvoiceNumber || orderPayment.exchangeInvoiceNumber || "",
       exchangeCreditAmount: Number(order.exchange_credit_amount ?? order.exchangeCreditAmount ?? orderPayment.exchangeCreditAmount ?? 0),
@@ -5733,8 +5795,13 @@ function POSPro() {
       customer: {
         ...(customer || {}),
         name: order.customerName || order.customer_name || customer?.name || WALK_IN_CUSTOMER.name,
+        phone: order.customerPhone || order.customer_phone || order.customer?.phone || customer?.phone || "",
       },
       sellerName:
+        order.sellerName ||
+        order.seller_name ||
+        order.sales_employee_name ||
+        order.salesperson_name ||
         activeSalesperson?.full_name ||
         activeSalesperson?.name ||
         activeSalesperson?.employee_name ||
@@ -5742,6 +5809,16 @@ function POSPro() {
         activeSalesperson?.user_name ||
         activeSalesperson?.display_name ||
         "",
+      cashierName:
+        order.cashierName ||
+        order.cashier_name ||
+        order.created_by_name ||
+        currentUser?.name ||
+        currentUser?.full_name ||
+        currentUser?.email ||
+        "",
+      createdAt: order.createdAt || order.created_at || order.completed_at || new Date().toISOString(),
+      storeProfile: receiptRuntimeSettings.store || undefined,
       cart: renderedCart,
       totals: renderedTotals,
       paymentSummary: renderedPaymentSummary,
@@ -5752,64 +5829,20 @@ function POSPro() {
     };
   };
 
-  const handlePrint = async () => {
-    const receiptContext = getReceiptRenderContext();
-    if (!receiptContext.invoiceNumber) return;
+  const handlePrint = async (source = null, options = {}) => {
+    const safeSource = source?.nativeEvent ? null : source;
+    const receiptContext = getReceiptRenderContext(safeSource || undefined);
+    if (!receiptContext.invoiceNumber) return null;
     const startedAt = performance.now();
-    const { renderToStaticMarkup } = await import("react-dom/server");
-    logPagePerf("pos.receipt-print-renderer", startedAt, { heavy_component_load_ms: Math.round(performance.now() - startedAt) });
-    const receiptHtml = renderToStaticMarkup(<ReceiptPreview {...receiptContext} compact />);
-
-    const printWindow = window.open("", "_blank", "width=420,height=720");
-    if (!printWindow) {
-      toast.error(t("pos.toasts.popupBlocked"));
-      return;
+    try {
+      const result = await printThermalReceipt(receiptContext, { silent: Boolean(options?.silent) });
+      logPagePerf("pos.receipt-print", startedAt, { transport: result?.transport || "unknown" });
+      return result;
+    } catch (printError) {
+      if (printError?.message === "POPUP_BLOCKED") toast.error(t("pos.toasts.popupBlocked"));
+      else toast.error(t("pos.toasts.printFailed", "تعذر تجهيز الفاتورة للطباعة"));
+      throw printError;
     }
-
-    const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
-      .map((element) => element.outerHTML)
-      .join("\n");
-
-    const printLang = document.documentElement.lang || "en";
-    const printDir = document.documentElement.dir || "ltr";
-
-    printWindow.document.write(`
-      <html lang="${printLang}" dir="${printDir}">
-        <head>
-          <title>Sales Receipt</title>
-          ${styles}
-          <style>
-            * { box-sizing: border-box; }
-            body { margin: 0; padding: 14px; background: #fff; color: #111827; direction: inherit; font-family: var(--app-font), "Cairo", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, Arial, sans-serif; }
-            .pos-receipt { width: 100%; margin: 0 auto; direction: inherit; text-align: start; background: #fff !important; color: #111827 !important; border: 1px solid #bbf7d0 !important; box-shadow: none !important; page-break-inside: avoid; break-inside: avoid; }
-            [dir="rtl"] .pos-receipt { text-align: right; }
-            [dir="ltr"] .pos-receipt { text-align: left; }
-            .pos-receipt-thermal { width: min(80mm, 100%) !important; max-width: 80mm !important; border-radius: 0 !important; padding: 10px !important; }
-            .pos-receipt-a4 { max-width: 720px !important; border-radius: 0 !important; padding: 24px !important; }
-            .pos-receipt-barcode svg { display: block; width: 100%; max-width: 100%; height: auto; }
-            .pos-receipt-barcode svg text { display: none; }
-            .amount, .number, .tabular-nums, [dir="ltr"] { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; }
-            [dir="rtl"] .text-left { text-align: right !important; }
-            [dir="rtl"] .text-right { text-align: left !important; }
-            .text-emerald-600, .text-emerald-700 { color: #059669 !important; }
-            .bg-emerald-500, .bg-emerald-50, .bg-emerald-50\\/60 { background-color: #ecfdf5 !important; }
-            .border-emerald-100, .border-emerald-200, .border-emerald-300 { border-color: #bbf7d0 !important; }
-            .shadow-2xl, .shadow-black\\/20 { box-shadow: none !important; }
-            svg { display: inline-block; vertical-align: middle; }
-            @page { size: 80mm auto; margin: 4mm; }
-            @media print {
-              body { padding: 0; }
-              .pos-receipt { border-color: #bbf7d0 !important; }
-            }
-          </style>
-        </head>
-        <body>${receiptHtml}</body>
-      </html>
-    `);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
   };
 
   const handleDownloadInvoicePdf = async () => {
@@ -6949,6 +6982,7 @@ function POSPro() {
                 <button
                   type="button"
                   onClick={() => {
+                    setScannedInvoiceNumber("");
                     setRecentOperationsOpenedAt(performance.now());
                     setRecentOperationsOpen(true);
                   }}
@@ -7233,7 +7267,12 @@ function POSPro() {
             <RecentOperationsDrawer
               open={recentOperationsOpen}
               openedAt={recentOperationsOpenedAt}
-              onClose={() => setRecentOperationsOpen(false)}
+              requestedInvoiceNumber={scannedInvoiceNumber}
+              onClose={() => {
+                setRecentOperationsOpen(false);
+                setScannedInvoiceNumber("");
+              }}
+              onPrintOrder={(order) => handlePrint(order)}
               onEditOrder={handleEditRecentOrder}
               onExchangeStarted={handleExchangeStarted}
               currentCartTotal={cartTotals.total}

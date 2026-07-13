@@ -31,6 +31,47 @@ const numberOrNull = (value) => {
   return Number.isFinite(number) && number > 0 ? number : null;
 };
 
+export const getPosReceiptRuntimeSettings = async (req, res) => {
+  try {
+    const tenantId = getTenantId(req, req.user?.tenant_id);
+    const [autoPrint, template, officialWebsite, storefrontLogo, storefrontName, companyResult] = await Promise.all([
+      getSetting("pos.print_receipt_automatically", false),
+      getSetting("pos.receipt_template", "compact"),
+      getSetting("storefront.public_url", ""),
+      getSetting("storefront.store_logo_url", ""),
+      getSetting("storefront.store_name", ""),
+      tenantId
+        ? db.query(
+            `SELECT company_name, logo_url, address, phone, email, tax_number, invoice_footer
+             FROM company_profiles WHERE tenant_id = $1 LIMIT 1`,
+            [tenantId]
+          ).catch(() => ({ rows: [] }))
+        : Promise.resolve({ rows: [] }),
+    ]);
+    const company = companyResult.rows[0] || {};
+    return res.json({
+      success: true,
+      settings: {
+        printReceiptAutomatically: Boolean(autoPrint),
+        receiptTemplate: template || "compact",
+      },
+      store: {
+        name: storefrontName || company.company_name || "",
+        logoUrl: storefrontLogo || company.logo_url || "",
+        address: company.address || "",
+        phone: company.phone || "",
+        website: officialWebsite || "",
+        email: company.email || "",
+        taxNumber: company.tax_number || "",
+        invoiceFooter: company.invoice_footer || "",
+      },
+    });
+  } catch (error) {
+    console.error("[pos] receipt runtime settings error", error);
+    return res.status(500).json({ success: false, message: "Failed to load POS receipt settings" });
+  }
+};
+
 const employeeColumnsCache = new Map();
 const getTableColumns = async (clientOrPool, tableName) => {
   const cacheKey = String(tableName || "");

@@ -106,8 +106,6 @@ const getOrderSeller = (order = {}) => {
   );
 };
 
-const getOrderPhone = (order = {}) => order.customer_phone || order.customer_record_phone || "";
-
 const getPaymentMethod = (order = {}) => {
   const raw = String(order.payment_method || "").toLowerCase();
   const labels = {
@@ -220,14 +218,6 @@ const getItemVariantInfo = (item = {}) => {
   return colorSize || item.variant_name || item.variant?.name || "";
 };
 
-const escapeHtml = (value = "") =>
-  String(value ?? "")
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
-
 const returnReasons = ["مقاس غير مناسب", "عيب صناعة", "تغيير رأي العميل", "استبدال", "أخرى"];
 
 const returnModes = [
@@ -266,42 +256,7 @@ const buildAuditTimeline = (order = {}) => {
   ].filter(Boolean);
 };
 
-const buildInvoiceSnapshot = (order = {}) => {
-  const items = Array.isArray(order.items) ? order.items : [];
-  const subtotal = Number(order.subtotal || items.reduce((sum, item) => sum + Number(item.sale_price || item.price || 0) * Number(item.quantity || 0), 0));
-  const discount = Number(order.discount_amount || 0);
-  const service = Number(order.service_fee || 0);
-  const total = getOrderTotal(order);
-  return {
-    invoiceNumber: getOrderInvoiceNumber(order),
-    createdAt: order.created_at,
-    customerName: getOrderCustomer(order),
-    customerPhone: getOrderPhone(order),
-    sellerName: getOrderSeller(order),
-    payment_method: order.payment_method,
-    publicToken: order.public_token || "",
-    publicInvoiceUrl: order.public_invoice_url || order.invoice_public_url || "",
-    barcodeValue: getOrderInvoiceNumber(order),
-      items: items.map((item) => ({
-        ...item,
-        name: item.product_name || item.name || "منتج",
-        price: Number(item.sale_price || item.price || 0),
-        quantity: Number(item.quantity || 0),
-        total_amount: Number(item.total_amount || 0),
-      })),
-    totals: {
-      subtotal,
-      discount,
-      invoiceDiscount: discount,
-      itemDiscountTotal: 0,
-      serviceFee: service,
-      service,
-      total,
-    },
-  };
-};
-
-function RecentOperationsDrawer({ open, openedAt = 0, onClose, onEditOrder, onExchangeStarted, currentCartTotal = 0 }) {
+function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "", onClose, onEditOrder, onExchangeStarted, onPrintOrder, currentCartTotal = 0 }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -320,6 +275,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, onClose, onEditOrder, onEx
   const initialRenderLoggedRef = useRef(false);
   const pendingRenderStartedAtRef = useRef(0);
   const drawerOpenedAtRef = useRef(0);
+  const autoOpenedInvoiceRef = useRef("");
   const currentUser = useMemo(() => getCurrentUser() || { name: "أدمن", role: "admin", permissions: ["*"] }, []);
   const editLockHours = useMemo(() => readEditLockHours(), []);
 
@@ -407,6 +363,15 @@ function RecentOperationsDrawer({ open, openedAt = 0, onClose, onEditOrder, onEx
   }, [search]);
 
   useEffect(() => {
+    if (!open) return;
+    const invoiceNumber = String(requestedInvoiceNumber || "").trim();
+    if (!invoiceNumber) return;
+    autoOpenedInvoiceRef.current = "";
+    setSearch(invoiceNumber);
+    setDebouncedSearch(invoiceNumber);
+  }, [open, requestedInvoiceNumber]);
+
+  useEffect(() => {
     if (!open) {
       requestSeqRef.current += 1;
       setOrders([]);
@@ -459,60 +424,28 @@ function RecentOperationsDrawer({ open, openedAt = 0, onClose, onEditOrder, onEx
 
   const filteredOrders = orders;
 
+  useEffect(() => {
+    if (!open || !requestedInvoiceNumber || loading || !orders.length) return;
+    const requested = String(requestedInvoiceNumber).trim().toLowerCase();
+    if (!requested || autoOpenedInvoiceRef.current === requested) return;
+    const matchedOrder = orders.find((order) => getOrderInvoiceNumber(order).trim().toLowerCase() === requested);
+    if (!matchedOrder) return;
+    autoOpenedInvoiceRef.current = requested;
+    void loadOrderSummary(matchedOrder)
+      .then((loadedOrder) => setSelectedOrder(loadedOrder))
+      .catch((error) => {
+        autoOpenedInvoiceRef.current = "";
+        toast.error(error.message || "تعذر فتح الفاتورة المقروءة");
+      });
+  }, [loadOrderSummary, loading, open, orders, requestedInvoiceNumber]);
+
   const handleReprint = async (order) => {
     await runOrderAction(order, "print", async () => {
       try {
-      const loadedOrder = await loadOrderSummary(order);
-      await api.post(`/orders/${order.id}/reprint-log`, {});
-      const invoice = buildInvoiceSnapshot(loadedOrder);
-      const printWindow = window.open("", "_blank", "width=420,height=720");
-      if (!printWindow) {
-        toast.error("تعذر فتح نافذة الطباعة");
-        return;
-      }
-      const rows = (invoice.items || [])
-        .map(
-          (item) => `
-            <tr>
-              <td>${escapeHtml(item.name || item.product_name || "منتج")}</td>
-              <td>${Number(item.quantity || 0).toLocaleString("en-US")}</td>
-              <td>${escapeHtml(formatDrawerCurrency(item.total_amount ?? getItemSubtotal(item)))}</td>
-            </tr>
-          `
-        )
-        .join("");
-      printWindow.document.write(`
-        <html dir="rtl">
-          <head>
-            <title>${escapeHtml(invoice.invoiceNumber)}</title>
-            <style>
-              body{font-family:Arial,sans-serif;margin:0;padding:10px;color:#111;width:80mm}
-              h1{font-size:16px;margin:0 0 8px;text-align:center}
-              .meta{font-size:12px;margin:4px 0}
-              table{width:100%;border-collapse:collapse;margin-top:8px}
-              td,th{border-bottom:1px dashed #aaa;padding:5px 2px;font-size:11px;text-align:right}
-              .total{margin-top:10px;font-size:14px;font-weight:800;text-align:left}
-              @media print{button{display:none}body{width:auto}}
-            </style>
-          </head>
-          <body>
-            <button onclick="window.print()">طباعة</button>
-            <h1>${escapeHtml(invoice.invoiceNumber)}</h1>
-            <div class="meta">العميل: ${escapeHtml(invoice.customerName)}</div>
-            <div class="meta">الهاتف: ${escapeHtml(invoice.customerPhone)}</div>
-            <div class="meta">التاريخ: ${escapeHtml(formatDateTime(invoice.createdAt))}</div>
-            <table>
-              <thead><tr><th>الصنف</th><th>الكمية</th><th>الإجمالي</th></tr></thead>
-              <tbody>${rows || "<tr><td colspan=\"3\">لا توجد أصناف</td></tr>"}</tbody>
-            </table>
-            <div class="total">الإجمالي: ${escapeHtml(formatDrawerCurrency(invoice.totals?.total || 0))}</div>
-          </body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
-      toast.success("تم تجهيز الفاتورة للطباعة مرة أخرى");
+        const loadedOrder = await loadOrderSummary(order);
+        await onPrintOrder?.(loadedOrder);
+        await api.post(`/orders/${order.id}/reprint-log`, {});
+        toast.success("تم تجهيز الفاتورة للطباعة مرة أخرى");
       } catch (err) {
         toast.error(err.message || "تعذر إعادة الطباعة");
       }
