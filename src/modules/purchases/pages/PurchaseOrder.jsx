@@ -934,11 +934,11 @@ function PurchaseOrder() {
   const purchaseQtyLabels = isArabic
     ? {
         button: "استخدم كميات المنتج",
-        toastApplied: "تم إضافة الموديل وتطبيق كميات المنتج المحفوظة",
+        toastApplied: "تمت إضافة الموديل وتطبيق الكميات والأسعار",
       }
     : {
         button: "Use Product Purchase Qty",
-        toastApplied: "Model added and saved product purchase quantities applied",
+        toastApplied: "Model added with quantities and prices applied",
       };
 
   const subtotal = items.reduce((sum, item) => sum + money(item.subtotal ?? money(item.quantity) * money(item.cost_price)), 0);
@@ -1198,6 +1198,9 @@ function PurchaseOrder() {
           currentQty: existing ? money(existing.quantity) : 0,
           savedQty,
           newQty: savedQty,
+          purchasePrice: money(existing?.cost_price ?? existing?.purchase_price ?? variant.cost_price ?? variant.purchase_price),
+          sellingPrice: money(existing?.selling_price ?? existing?.price ?? variant.selling_price ?? variant.price),
+          salePrice: money(existing?.sale_price ?? variant.sale_price),
         };
       })
       .filter((row) => row.savedQty !== null);
@@ -1213,8 +1216,8 @@ function PurchaseOrder() {
     setPurchaseQtyModal({ group, rows });
   };
 
-  const applyProductPurchaseQty = (group) => {
-    const rows = buildPurchaseQtyRows(group);
+  const applyProductPurchaseQty = (group, editedRows = null) => {
+    const rows = Array.isArray(editedRows) ? editedRows : buildPurchaseQtyRows(group);
     if (!rows.length) {
       toast.error(t("purchases.create.noSavedPurchaseQty"));
       return false;
@@ -1226,7 +1229,17 @@ function PurchaseOrder() {
           const row =
             byLineId.get(String(item.line_id)) ||
             rows.find((candidate) => String(candidate.variant?.variant_id || "") === String(item.variant_id || ""));
-          return row ? normalizePurchaseItem({ ...item, quantity: row.savedQty }) : item;
+          return row ? normalizePurchaseItem({
+            ...item,
+            quantity: row.savedQty,
+            unit_cost: money(row.purchasePrice),
+            cost_price: money(row.purchasePrice),
+            purchase_price: money(row.purchasePrice),
+            selling_price: money(row.sellingPrice),
+            regular_price: money(row.sellingPrice),
+            price: money(row.sellingPrice),
+            sale_price: money(row.salePrice),
+          }) : item;
         }),
         ...rows
           .filter((row) =>
@@ -1235,7 +1248,18 @@ function PurchaseOrder() {
               String(item.variant_id || "") === String(row.variant?.variant_id || "")
             )
           )
-          .map((row) => normalizePurchaseItem({ ...row.variant, quantity: row.savedQty, received_quantity: 0 })),
+          .map((row) => normalizePurchaseItem({
+            ...row.variant,
+            quantity: row.savedQty,
+            received_quantity: 0,
+            unit_cost: money(row.purchasePrice),
+            cost_price: money(row.purchasePrice),
+            purchase_price: money(row.purchasePrice),
+            selling_price: money(row.sellingPrice),
+            regular_price: money(row.sellingPrice),
+            price: money(row.sellingPrice),
+            sale_price: money(row.salePrice),
+          })),
       ]
     );
     toast.success(purchaseQtyLabels.toastApplied);
@@ -2032,7 +2056,7 @@ function PurchaseOrder() {
       ) : bulkPriceModal ? (
         <BulkPriceModal mode={bulkPriceModal} items={items} onClose={() => setBulkPriceModal(null)} onApply={(payload) => applyBulkPrice({ type: bulkPriceModal, ...payload })} />
       ) : null}
-      {purchaseQtyModal ? <ProductPurchaseQtyModal data={purchaseQtyModal} onClose={() => setPurchaseQtyModal(null)} onApply={() => applyProductPurchaseQty(purchaseQtyModal.group)} /> : null}
+      {purchaseQtyModal ? <ProductPurchaseQtyModal data={purchaseQtyModal} onClose={() => setPurchaseQtyModal(null)} onApply={(rows) => applyProductPurchaseQty(purchaseQtyModal.group, rows)} /> : null}
       {supplierModalOpen ? <QuickSupplierModal form={supplierForm} setForm={setSupplierForm} saving={supplierSaving} error={supplierError} onClose={() => setSupplierModalOpen(false)} onSubmit={saveSupplierFromOrder} /> : null}
       {productModalOpen ? <QuickProductModal form={productForm} setForm={setProductForm} saving={productSaving} error={productError} onClose={() => setProductModalOpen(false)} onSubmit={createInlineProduct} /> : null}
       {confirmReceivedEditSave ? (
@@ -2633,35 +2657,49 @@ function VariantSelector({ group, onAdd, onClose }) {
 function ProductPurchaseQtyModal({ data, onClose, onApply }) {
   const { i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
-  const rows = toArray(data?.rows);
+  const [rows, setRows] = useState(() => toArray(data?.rows).map((row) => ({ ...row })));
   const labels = isArabic
     ? {
         eyebrow: "كميات الشراء",
         title: "استخدم كميات المنتج",
-        description: "راجع الكميات المحفوظة قبل تطبيقها على سطور فاتورة الشراء الحالية فقط.",
+        description: "راجع الكميات وحدد أسعار الشراء والبيع والسيل قبل إضافتها إلى فاتورة الشراء الحالية.",
         variant: "المقاس / اللون",
         current: "الكمية الحالية",
         saved: "كمية المنتج المحفوظة",
         next: "الكمية الجديدة",
+        purchasePrice: "سعر الشراء",
+        sellingPrice: "سعر البيع",
+        salePrice: "سعر السيل",
         notSaved: "غير محفوظة",
         noChanges: "لا توجد كميات محفوظة قابلة للتطبيق",
         cancel: "إلغاء",
-        apply: "تطبيق الكميات",
+        apply: "تطبيق الكميات والأسعار",
       }
     : {
         eyebrow: "Purchase quantities",
         title: "Use Product Purchase Qty",
-        description: "Review saved product quantities before applying them to current purchase invoice lines only.",
+        description: "Review quantities and set purchase, selling, and sale prices before adding them to the current invoice.",
         variant: "Size / color",
         current: "Current quantity",
         saved: "Saved product purchase qty",
         next: "New quantity",
+        purchasePrice: "Purchase price",
+        sellingPrice: "Selling price",
+        salePrice: "Sale price",
         notSaved: "Not saved",
         noChanges: "No saved purchase quantities to apply",
         cancel: "Cancel",
-        apply: "Apply quantities",
+        apply: "Apply quantities and prices",
       };
   const canApply = rows.some((row) => row.savedQty !== null);
+  const updateRowPrice = (lineId, field, value) => {
+    setRows((current) => current.map((row) =>
+      String(row.line_id) === String(lineId)
+        ? { ...row, [field]: value === "" ? "" : Math.max(0, money(value)) }
+        : row
+    ));
+  };
+  const priceInputClass = "h-9 w-24 rounded-xl border border-white/10 bg-zinc-950 px-2 text-center font-black text-white outline-none focus:border-emerald-400/50";
 
   return (
     <Modal eyebrow={labels.eyebrow} title={labels.title} onClose={onClose}>
@@ -2679,6 +2717,9 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
                 <th className="px-3 py-2 font-black uppercase">{labels.current}</th>
                 <th className="px-3 py-2 font-black uppercase">{labels.saved}</th>
                 <th className="px-3 py-2 font-black uppercase">{labels.next}</th>
+                <th className="px-3 py-2 font-black uppercase">{labels.purchasePrice}</th>
+                <th className="px-3 py-2 font-black uppercase">{labels.sellingPrice}</th>
+                <th className="px-3 py-2 font-black uppercase">{labels.salePrice}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/10">
@@ -2690,6 +2731,15 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
                     {row.savedQty === null ? labels.notSaved : row.savedQty}
                   </td>
                   <td className="px-3 py-2 font-black text-emerald-200" dir="ltr">{row.newQty}</td>
+                  <td className="px-3 py-2" dir="ltr">
+                    <input type="number" min="0" step="0.01" value={row.purchasePrice} onChange={(event) => updateRowPrice(row.line_id, "purchasePrice", event.target.value)} className={priceInputClass} aria-label={labels.purchasePrice} />
+                  </td>
+                  <td className="px-3 py-2" dir="ltr">
+                    <input type="number" min="0" step="0.01" value={row.sellingPrice} onChange={(event) => updateRowPrice(row.line_id, "sellingPrice", event.target.value)} className={priceInputClass} aria-label={labels.sellingPrice} />
+                  </td>
+                  <td className="px-3 py-2" dir="ltr">
+                    <input type="number" min="0" step="0.01" value={row.salePrice} onChange={(event) => updateRowPrice(row.line_id, "salePrice", event.target.value)} className={priceInputClass} aria-label={labels.salePrice} />
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -2702,7 +2752,7 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
           <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
             {labels.cancel}
           </button>
-          <button type="button" onClick={onApply} disabled={!canApply} className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
+          <button type="button" onClick={() => onApply(rows)} disabled={!canApply} className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
             {labels.apply}
           </button>
         </div>
