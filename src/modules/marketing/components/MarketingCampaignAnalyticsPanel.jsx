@@ -188,10 +188,10 @@ export default function MarketingCampaignAnalyticsPanel({
   };
 
   return (
-    <section className="space-y-6 rounded-[2rem] border border-white/15 bg-white/[0.06] p-5 shadow-2xl shadow-black/25 md:p-6 2xl:p-7">
+    <section className="space-y-6 rounded-[2rem] border border-white/10 bg-[#191a18] p-5 shadow-2xl shadow-black/25 md:p-6 2xl:p-7">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-2 text-cyan-100">
+          <div className="rounded-2xl border border-amber-400/30 bg-amber-400/10 p-2 text-amber-200">
             <BarChart3 className="h-5 w-5" />
           </div>
           <div>
@@ -225,8 +225,8 @@ export default function MarketingCampaignAnalyticsPanel({
           <div className="mt-3 text-4xl font-black text-white">{loading ? "-" : summary.drafts ?? analyticsCounts.drafts}</div>
           <div className="mt-1 text-xs text-slate-400">Draft content in progress.</div>
         </div>
-        <div className="rounded-[1.5rem] border border-cyan-400/25 bg-cyan-400/12 p-5">
-          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-cyan-100">First Comments</div>
+        <div className="rounded-[1.5rem] border border-white/10 bg-[#20211e] p-5">
+          <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-amber-200">First Comments</div>
           <div className="mt-2 grid grid-cols-3 gap-2 text-center text-white">
             <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-2 py-2">
               <div className="text-lg font-black">{loading ? "-" : summary.firstCommentPublished ?? analyticsCounts.firstCommentPublished}</div>
@@ -245,14 +245,14 @@ export default function MarketingCampaignAnalyticsPanel({
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(22rem,0.85fr)]">
-        <div className="rounded-[1.75rem] border border-white/15 bg-slate-950/65 p-5">
+        <div className="rounded-[1.75rem] border border-white/10 bg-[#121310] p-5">
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Charts</div>
               <div className="text-xs text-slate-500">Last 30 days</div>
             </div>
             <div className="flex items-center gap-2 text-xs text-slate-400">
-              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-cyan-400" />
+              <span className="inline-flex h-2.5 w-2.5 rounded-full bg-amber-400" />
               Total
             </div>
           </div>
@@ -264,7 +264,7 @@ export default function MarketingCampaignAnalyticsPanel({
                   <div key={day.key} className="flex min-w-0 flex-col items-center gap-2">
                     <div className="flex h-[112px] w-full items-end justify-center rounded-2xl border border-white/5 bg-black/10 px-1 py-2">
                       <div
-                        className="w-full rounded-t-2xl bg-gradient-to-t from-cyan-500 via-sky-400 to-emerald-300 shadow-lg shadow-cyan-500/20"
+                        className="w-full rounded-t-2xl bg-gradient-to-t from-amber-600 via-amber-400 to-yellow-200 shadow-lg shadow-amber-500/15"
                         style={{ height: `${height}px` }}
                         title={`${day.label}: ${day.total}`}
                       />
@@ -278,9 +278,9 @@ export default function MarketingCampaignAnalyticsPanel({
           </div>
         </div>
 
-        <div className="rounded-[1.75rem] border border-white/15 bg-slate-950/65 p-5">
+        <div className="rounded-[1.75rem] border border-white/10 bg-[#121310] p-5">
           <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-cyan-200" />
+            <Activity className="h-4 w-4 text-amber-300" />
             <div>
               <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Timeline</div>
               <div className="text-xs text-slate-500">Recent publishing activity</div>
@@ -327,7 +327,7 @@ export default function MarketingCampaignAnalyticsPanel({
         </div>
       </div>
 
-      <section className="rounded-[1.75rem] border border-white/15 bg-slate-950/65 p-5 md:p-6">
+      <section className="rounded-[1.75rem] border border-white/10 bg-[#121310] p-5 md:p-6">
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-xl font-black text-white">History Table</h3>
@@ -504,9 +504,9 @@ export default function MarketingCampaignAnalyticsPanel({
         )}
       </section>
 
-      <section className="rounded-[1.75rem] border border-white/15 bg-slate-950/65 p-5 md:p-6">
+      <section className="rounded-[1.75rem] border border-white/10 bg-[#121310] p-5 md:p-6">
         <div className="mb-4 flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-cyan-200" />
+          <Sparkles className="h-4 w-4 text-amber-300" />
           <div>
             <div className="text-sm font-black uppercase tracking-[0.18em] text-slate-400">Top Posts</div>
             <div className="text-xs text-slate-500">Best performing posts from analytics</div>
@@ -568,7 +568,7 @@ export default function MarketingCampaignAnalyticsPanel({
             role="dialog"
             aria-modal="true"
             aria-label="Campaign post details"
-            className="flex w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#07111f] text-white shadow-2xl shadow-black/60"
+            className="flex w-full max-w-3xl flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#171815] text-white shadow-2xl shadow-black/60"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-4 md:px-6">
