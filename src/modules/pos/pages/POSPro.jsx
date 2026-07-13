@@ -97,6 +97,11 @@ import {
   preloadPosCatalogThumbnails,
   savePosCatalogSnapshot,
 } from "../lib/posCatalogCache";
+import {
+  getPosCustomerSnapshot,
+  savePosCustomerSnapshot,
+  searchPosCustomerSnapshot,
+} from "../lib/posCustomerCache";
 import BarcodeScanner, { barcodeScannerMessages } from "../../../components/BarcodeScanner";
 import ProductGrid from "../components/ProductGrid";
 import CartSidebar, { ReceiptPreview } from "../components/CartSidebar";
@@ -1415,6 +1420,7 @@ function POSPro() {
 
   const currentTenant = useMemo(() => getCurrentTenant() || {}, []);
   const currentUser = useMemo(() => getCurrentUser() || {}, []);
+  const customerCacheTenantId = currentTenant?.id || currentTenant?.tenant_id || currentUser?.tenant_id || null;
 
   const [products, setProducts] = useState([]);
   const [saleModeSettings, setSaleModeSettings] = useState(() => normalizeSaleModeSettings({}));
@@ -2028,9 +2034,24 @@ function POSPro() {
       });
       const normalized = normalizeCustomersResponse(data);
       setCustomers(normalized);
+      void savePosCustomerSnapshot(normalized, {
+        tenantId: customerCacheTenantId,
+        merge: Boolean(String(searchValue || "").trim()),
+      });
       return normalized;
     } catch (err) {
       console.error("[pos] failed to load customers:", err);
+      if (isPosOfflineNetworkError(err) || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+        const snapshot = await getPosCustomerSnapshot({ tenantId: customerCacheTenantId });
+        const cachedRows = searchPosCustomerSnapshot(snapshot, searchValue, { limit: searchValue ? 30 : 200 });
+        setCustomers(cachedRows);
+        console.warn("POS_OFFLINE_CUSTOMERS_FALLBACK", {
+          cached_at: snapshot?.cached_at || null,
+          customer_count: cachedRows.length,
+          search: String(searchValue || "").trim(),
+        });
+        return cachedRows;
+      }
       return [];
     }
   };
@@ -2221,7 +2242,20 @@ function POSPro() {
           })
         );
 
-        setCustomers(normalizeCustomersResponse(customersRes));
+        const normalizedCustomers = normalizeCustomersResponse(customersRes);
+        if (normalizedCustomers.length > 0) {
+          setCustomers(normalizedCustomers);
+          void savePosCustomerSnapshot(normalizedCustomers, { tenantId: customerCacheTenantId });
+        } else if (customersResult.status === "rejected" && isPosOfflineNetworkError(customersResult.reason)) {
+          const customerSnapshot = await getPosCustomerSnapshot({ tenantId: customerCacheTenantId });
+          const cachedCustomers = searchPosCustomerSnapshot(customerSnapshot, "", { limit: 200 });
+          setCustomers(cachedCustomers);
+          console.warn("POS_OFFLINE_CUSTOMERS_FALLBACK", {
+            cached_at: customerSnapshot?.cached_at || null,
+            customer_count: cachedCustomers.length,
+            search: "",
+          });
+        }
       } catch (err) {
         const message = getErrorMessage(err, "Failed to load products from /products/with-variants.");
         console.error("[pos] product feed load failed:", {
@@ -2246,6 +2280,15 @@ function POSPro() {
           }
           setProducts(cachedSnapshot.products);
           setError("");
+
+          const customerSnapshot = await getPosCustomerSnapshot({ tenantId: customerCacheTenantId });
+          const cachedCustomers = searchPosCustomerSnapshot(customerSnapshot, "", { limit: 200 });
+          setCustomers(cachedCustomers);
+          console.warn("POS_OFFLINE_CUSTOMERS_FALLBACK", {
+            cached_at: customerSnapshot?.cached_at || null,
+            customer_count: cachedCustomers.length,
+            search: "",
+          });
         } else {
           setError(message);
           toast.error(message);
@@ -2259,7 +2302,7 @@ function POSPro() {
       active = false;
       controller.abort();
     };
-  }, [editingOrder?.id]);
+  }, [customerCacheTenantId, editingOrder?.id]);
 
   useEffect(() => {
     const rawSearch = String(deferredSearch ?? "");
@@ -2308,6 +2351,7 @@ function POSPro() {
           suppressErrorStatuses: [401],
         });
         const rows = normalizeCustomersResponse(response);
+        void savePosCustomerSnapshot(rows, { tenantId: customerCacheTenantId, merge: true });
         setCustomers((current) => {
           const existing = Array.isArray(current) ? current : [];
           const merged = new Map(existing.map((item) => [String(item?.id || item?.customer_id), item]));
@@ -2326,6 +2370,17 @@ function POSPro() {
           String(err?.message || "").toLowerCase().includes("canceled");
         if (aborted) return;
         console.error("[pos] failed to search customers:", err);
+        if (isPosOfflineNetworkError(err) || (typeof navigator !== "undefined" && navigator.onLine === false)) {
+          const snapshot = await getPosCustomerSnapshot({ tenantId: customerCacheTenantId });
+          const cachedRows = searchPosCustomerSnapshot(snapshot, searchValue, { limit: 30 });
+          if (controller.signal.aborted || customerSearchRequestSeqRef.current !== requestSeq) return;
+          setCustomers(cachedRows);
+          console.warn("POS_OFFLINE_CUSTOMERS_FALLBACK", {
+            cached_at: snapshot?.cached_at || null,
+            customer_count: cachedRows.length,
+            search: searchValue,
+          });
+        }
       }
     }, 180);
 
@@ -2333,7 +2388,7 @@ function POSPro() {
       controller.abort();
       window.clearTimeout(timeoutId);
     };
-  }, [activePosShift?.branch_id, customerSearch, posShiftBranch?.id, selectedCustomerId]);
+  }, [activePosShift?.branch_id, customerCacheTenantId, customerSearch, posShiftBranch?.id, selectedCustomerId]);
 
   useEffect(() => {
     if (catalogFallbackActiveRef.current) {
