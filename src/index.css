@@ -4540,6 +4540,12 @@ html[data-theme] .bg-zinc-950\/70 {
   min-height: 100dvh;
 }
 
+html.pos-recent-operations-open,
+body.pos-recent-operations-open {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
 html.sf-mobile-search-scroll-lock,
 body.sf-mobile-search-scroll-lock {
   overflow: hidden !important;

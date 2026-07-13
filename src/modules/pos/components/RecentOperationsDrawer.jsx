@@ -11,6 +11,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
@@ -588,13 +589,26 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
     await loadOrders({ reset: true });
   };
 
-  if (!open) return null;
+  useEffect(() => {
+    if (!open || typeof document === "undefined") return undefined;
+    document.documentElement.classList.add("pos-recent-operations-open");
+    document.body.classList.add("pos-recent-operations-open");
+    return () => {
+      document.documentElement.classList.remove("pos-recent-operations-open");
+      document.body.classList.remove("pos-recent-operations-open");
+    };
+  }, [open]);
 
-  return (
-    <div className="fixed inset-0 z-[95] bg-black/70 backdrop-blur-sm" dir="rtl">
-      <button type="button" className="absolute inset-0 h-full w-full cursor-default" onClick={onClose} aria-label="إغلاق" />
-      <aside className="absolute bottom-0 right-0 top-0 flex w-full max-w-[560px] flex-col overflow-hidden border-l border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/60 sm:rounded-l-[2rem]">
-        <div className="border-b border-white/10 p-4">
+  if (!open || typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[2147483000] isolate h-[100dvh] w-screen overflow-hidden bg-black/70 backdrop-blur-sm" dir="rtl">
+      <button type="button" className="absolute inset-0 z-0 h-full w-full cursor-default" onClick={onClose} aria-label="إغلاق" />
+      <aside
+        aria-label="العمليات الأخيرة"
+        className="absolute inset-y-0 right-0 z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden border-l border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/60 sm:w-[min(42rem,92vw)] sm:rounded-l-[2rem]"
+      >
+        <div className="shrink-0 border-b border-white/10 p-3 sm:p-4">
           <div className="flex items-start justify-between gap-3">
             <div>
               <div className="text-[11px] font-black uppercase tracking-[0.22em] text-emerald-200">POS</div>
@@ -621,7 +635,7 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 overscroll-contain overflow-y-auto p-3 sm:p-4">
           {loading && orders.length === 0 ? (
             <div className="space-y-3">
               {Array.from({ length: 5 }).map((_, index) => (
@@ -692,7 +706,8 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
           onConfirm={handlePermanentDelete}
         />
       ) : null}
-    </div>
+    </div>,
+    document.body
   );
 }
 
