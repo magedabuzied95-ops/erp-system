@@ -537,6 +537,13 @@ const ensureProductVariantManufacturerColumn = async () => {
       try {
         await client.query("BEGIN");
         await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS manufacturer_id BIGINT`);
+        await client.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS manufacturer_ids BIGINT[] NOT NULL DEFAULT '{}'`);
+        await client.query(`
+          UPDATE product_variants
+          SET manufacturer_ids = ARRAY[manufacturer_id]::bigint[]
+          WHERE manufacturer_id IS NOT NULL
+            AND COALESCE(cardinality(manufacturer_ids), 0) = 0
+        `);
         await client.query("COMMIT");
       } catch (error) {
         await client.query("ROLLBACK");
@@ -1191,6 +1198,10 @@ const normalizeVariantRow = (row = {}) => {
   color_article_code: String(row.color_article_code ?? row.colorArticleCode ?? "").trim(),
   colorArticleCode: String(row.colorArticleCode ?? row.color_article_code ?? "").trim(),
   manufacturer_id: row.variant_manufacturer_id ?? row.manufacturer_id ?? null,
+  manufacturer_ids: normalizeIncomingManufacturerIds(
+    row.variant_manufacturer_ids ?? row.manufacturer_ids,
+    row.variant_manufacturer_id ?? row.manufacturer_id
+  ),
   variant_manufacturer_name: row.variant_manufacturer_name ?? row.manufacturer_name ?? "",
   manufacturer_name: row.variant_manufacturer_name ?? row.manufacturer_name ?? "",
   edition_name: row.variant_edition_name ?? row.edition_name ?? "",
@@ -1861,6 +1872,14 @@ const runTimedProductQuery = async ({
 
 const normalizeIncomingManufacturerId = normalizeOptionalForeignKey;
 
+const normalizeIncomingManufacturerIds = (value, fallback = null) => {
+  const values = Array.isArray(value) ? value : value !== undefined && value !== null ? [value] : [];
+  const normalized = values.map(normalizeIncomingManufacturerId).filter(Boolean);
+  const fallbackId = normalizeIncomingManufacturerId(fallback);
+  if (fallbackId && !normalized.includes(fallbackId)) normalized.unshift(fallbackId);
+  return [...new Set(normalized)];
+};
+
 const normalizeIncomingVariant = (variant = {}, group = {}) => {
   const regularPrice = Number(
     variant.regular_price ??
@@ -2019,6 +2038,11 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
         ""
     ),
     manufacturer_id: normalizeIncomingManufacturerId(
+      variant.manufacturer_id ?? variant.manufacturerId ?? group.manufacturer_id ?? group.manufacturerId ??
+      variant.manufacturer_ids?.[0] ?? group.manufacturer_ids?.[0]
+    ),
+    manufacturer_ids: normalizeIncomingManufacturerIds(
+      variant.manufacturer_ids ?? variant.manufacturerIds ?? group.manufacturer_ids ?? group.manufacturerIds,
       variant.manufacturer_id ?? variant.manufacturerId ?? group.manufacturer_id ?? group.manufacturerId
     ),
     supplier_id: normalizeOptionalForeignKey(variant.supplier_id ?? variant.supplierId ?? group.supplier_id ?? group.supplierId),
@@ -2358,6 +2382,7 @@ const prepareVariantsForCreate = async (client, {
 
     return {
       manufacturer_id: variant.manufacturer_id,
+      manufacturer_ids: normalizeIncomingManufacturerIds(variant.manufacturer_ids, variant.manufacturer_id),
       supplier_id: variant.supplier_id,
       warehouse_id: variant.warehouse_id,
       branch_id: variant.branch_id,
@@ -2387,11 +2412,12 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
 
   const values = [];
   const placeholders = variants.map((variant, index) => {
-    const offset = index * 24;
+    const offset = index * 25;
     values.push(
       tenantId,
       productId,
       variant.manufacturer_id ?? null,
+      normalizeIncomingManufacturerIds(variant.manufacturer_ids, variant.manufacturer_id),
       variant.supplier_id ?? null,
       variant.warehouse_id ?? null,
       variant.branch_id ?? null,
@@ -2414,7 +2440,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       variant.default_purchase_qty ?? 0,
       true
     );
-    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, NULLIF($${offset + 11}, ''), $${offset + 12}, $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, $${offset + 24}, NULL)`;
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}::bigint[], $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, NULLIF($${offset + 12}, ''), $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, $${offset + 24}, $${offset + 25}, NULL)`;
   });
 
   const result = await client.query(
@@ -2423,6 +2449,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       tenant_id,
       product_id,
       manufacturer_id,
+      manufacturer_ids,
       supplier_id,
       warehouse_id,
       branch_id,
@@ -2484,6 +2511,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       tenant_id,
       product_id,
       manufacturer_id,
+      manufacturer_ids,
       supplier_id,
       warehouse_id,
       branch_id,
@@ -2507,13 +2535,14 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       is_active,
       deleted_at
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NULLIF($11, ''), $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, TRUE, NULL)
+    VALUES ($1, $2, $3, $4::bigint[], $5, $6, $7, $8, $9, $10, $11, NULLIF($12, ''), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, TRUE, NULL)
     RETURNING *
     `,
     [
       tenantId,
       productId,
       nextVariant.manufacturer_id,
+      normalizeIncomingManufacturerIds(nextVariant.manufacturer_ids, nextVariant.manufacturer_id),
       nextVariant.supplier_id,
       nextVariant.warehouse_id,
       nextVariant.branch_id,
@@ -2623,35 +2652,37 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
     UPDATE product_variants
     SET
       manufacturer_id = $1,
-      supplier_id = $2,
-      warehouse_id = $3,
-      branch_id = $4,
-      color = $5,
-      size = $6,
-      sku = $7,
-      barcode = $8,
-      article_code = NULLIF($9, ''),
-      audience = $10,
-      image_url = $11,
-      thermal_image_url = $12,
-      thermal_image_status = $13,
-      thermal_image_generated_at = $14,
-      thermal_image_error = $15,
-      cost_price = $16,
-      price = $17,
-      sale_price = $18,
-      edition_name = $19,
-      edition_slug = $20,
-      default_purchase_qty = COALESCE($21, default_purchase_qty),
+      manufacturer_ids = $2::bigint[],
+      supplier_id = $3,
+      warehouse_id = $4,
+      branch_id = $5,
+      color = $6,
+      size = $7,
+      sku = $8,
+      barcode = $9,
+      article_code = NULLIF($10, ''),
+      audience = $11,
+      image_url = $12,
+      thermal_image_url = $13,
+      thermal_image_status = $14,
+      thermal_image_generated_at = $15,
+      thermal_image_error = $16,
+      cost_price = $17,
+      price = $18,
+      sale_price = $19,
+      edition_name = $20,
+      edition_slug = $21,
+      default_purchase_qty = COALESCE($22, default_purchase_qty),
       is_active = TRUE,
       deleted_at = NULL
-    WHERE id = $22
-      AND product_id = $23
-      AND ($24::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $24::bigint)
+    WHERE id = $23
+      AND product_id = $24
+      AND ($25::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $25::bigint)
     RETURNING *
     `,
     [
       nextVariant.manufacturer_id,
+      normalizeIncomingManufacturerIds(nextVariant.manufacturer_ids, nextVariant.manufacturer_id),
       nextVariant.supplier_id,
       nextVariant.warehouse_id,
       nextVariant.branch_id,
@@ -5791,6 +5822,7 @@ export const createVariant = async (req, res) => {
       cost_price,
       default_purchase_qty,
       manufacturer_id,
+      manufacturer_ids,
       supplier_id,
       warehouse_id,
       branch_id,
@@ -5798,6 +5830,7 @@ export const createVariant = async (req, res) => {
       edition_slug,
     } = req.body || {};
     const normalizedManufacturerId = normalizeOptionalForeignKey(manufacturer_id);
+    const normalizedManufacturerIds = normalizeIncomingManufacturerIds(manufacturer_ids, normalizedManufacturerId);
     const productResult = await client.query(
       `SELECT sku, name, brand, category, product_type, gender, grade, image_url, thermal_image_url FROM products WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
       [req.params.id, tenantId]
@@ -5829,6 +5862,7 @@ export const createVariant = async (req, res) => {
         cost_price,
         default_purchase_qty,
         manufacturer_id: normalizedManufacturerId,
+        manufacturer_ids: normalizedManufacturerIds,
         supplier_id,
         warehouse_id,
         branch_id,
@@ -5937,6 +5971,7 @@ export const updateVariant = async (req, res) => {
       cost_price,
       default_purchase_qty,
       manufacturer_id,
+      manufacturer_ids,
       supplier_id,
       warehouse_id,
       branch_id,
@@ -5944,6 +5979,7 @@ export const updateVariant = async (req, res) => {
       edition_slug,
     } = req.body || {};
     const normalizedManufacturerId = normalizeOptionalForeignKey(manufacturer_id);
+    const normalizedManufacturerIds = normalizeIncomingManufacturerIds(manufacturer_ids, normalizedManufacturerId);
     const normalizedSupplierId = normalizeOptionalForeignKey(supplier_id);
     const normalizedWarehouseId = normalizeOptionalForeignKey(warehouse_id);
     const normalizedBranchId = normalizeOptionalForeignKey(branch_id);
@@ -6006,27 +6042,29 @@ export const updateVariant = async (req, res) => {
       UPDATE product_variants
       SET
         manufacturer_id = $1,
-        supplier_id = $2,
-        warehouse_id = $3,
-        branch_id = $4,
-        color = $5,
-        size = $6,
-        sku = $7,
-        barcode = $8,
-        image_url = $9,
-        cost_price = $10,
-        price = $11,
-        sale_price = $12,
-        edition_name = $13,
-        edition_slug = $14,
-        default_purchase_qty = COALESCE($15, default_purchase_qty),
+        manufacturer_ids = $2::bigint[],
+        supplier_id = $3,
+        warehouse_id = $4,
+        branch_id = $5,
+        color = $6,
+        size = $7,
+        sku = $8,
+        barcode = $9,
+        image_url = $10,
+        cost_price = $11,
+        price = $12,
+        sale_price = $13,
+        edition_name = $14,
+        edition_slug = $15,
+        default_purchase_qty = COALESCE($16, default_purchase_qty),
         is_active = TRUE,
         deleted_at = NULL
-      WHERE id = $16
+      WHERE id = $17
       RETURNING *
       `,
       [
         normalizedManufacturerId,
+        normalizedManufacturerIds,
         normalizedSupplierId,
         normalizedWarehouseId,
         normalizedBranchId,

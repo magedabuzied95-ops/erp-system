@@ -239,6 +239,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
   tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
   manufacturer_id BIGINT NULL,
+  manufacturer_ids BIGINT[] NOT NULL DEFAULT '{}',
   color VARCHAR(100),
   size VARCHAR(100),
   sku VARCHAR(120),

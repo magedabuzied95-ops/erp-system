@@ -165,11 +165,17 @@ const formatFieldValue = (value) => (value === null || value === undefined ? "" 
 
 const createEmptySizeRow = (defaults = {}) => createVariantRow(defaults);
 
+const normalizeManufacturerIds = (value, fallback = "") => {
+  const values = Array.isArray(value) ? value : value ? [value] : fallback ? [fallback] : [];
+  return [...new Set(values.map((item) => String(item || "").trim()).filter(Boolean))];
+};
+
 const createEmptyColorGroup = (defaults = {}) => ({
   id: makeId(),
   color: formatFieldValue(defaults.color),
   audience: formatFieldValue(defaults.audience ?? defaults.variant_audience ?? defaults.gender),
-  manufacturer_id: formatFieldValue(defaults.manufacturer_id),
+  manufacturer_id: normalizeManufacturerIds(defaults.manufacturer_ids ?? defaults.manufacturerIds, defaults.manufacturer_id)[0] || "",
+  manufacturer_ids: normalizeManufacturerIds(defaults.manufacturer_ids ?? defaults.manufacturerIds, defaults.manufacturer_id),
   manufacturer_override: Boolean(defaults.manufacturer_override),
   color_article_code: formatFieldValue(defaults.color_article_code ?? defaults.colorArticleCode),
   planned_qty: formatFieldValue(
@@ -566,6 +572,7 @@ const buildProductEditVariantContentSnapshot = (groups = []) =>
       color: String(group.color || "").trim(),
       audience: String(group.audience || "").trim(),
       manufacturer_id: String(group.manufacturer_id || "").trim(),
+      manufacturer_ids: normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id),
       manufacturer_override: Boolean(group.manufacturer_override),
     color_article_code: String(group.color_article_code || group.article_code || "").trim(),
       planned_qty: String(group.planned_qty || "").trim(),
@@ -696,6 +703,7 @@ const normalizeVariantForm = (row = {}) => ({
   edition_name: row.edition_name || row.variant_edition_name || "",
   edition_slug: row.edition_slug || row.variant_edition_slug || "",
   manufacturer_id: row.manufacturer_id ?? row.variant_manufacturer_id ?? "",
+  manufacturer_ids: normalizeManufacturerIds(row.manufacturer_ids ?? row.variant_manufacturer_ids, row.manufacturer_id ?? row.variant_manufacturer_id),
   audience: row.audience || row.variant_audience || "",
   variant_audience: row.variant_audience || row.audience || "",
   images: Array.isArray(row.images) ? row.images : Array.isArray(row.color_images) ? row.color_images : [],
@@ -787,6 +795,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
           color_article_code: row.color_article_code || row.colorArticleCode || "",
           thermal_image_url: row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "",
           manufacturer_id: normalizeManufacturerId(row.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
+          manufacturer_ids: normalizeManufacturerIds(row.manufacturer_ids, row.manufacturer_id || defaultManufacturerId),
           audience: String(row.audience || row.variant_audience || "").trim(),
           manufacturer_override:
             normalizeManufacturerId(row.manufacturer_id) !== normalizeManufacturerId(defaultManufacturerId),
@@ -854,6 +863,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
         price: row.price,
         image_url: row.image_url || row.variant_image_url || row.color_image_url || getPrimaryColorImage(group) || "",
         manufacturer_id: row.manufacturer_id || group.manufacturer_id || "",
+        manufacturer_ids: normalizeManufacturerIds(row.manufacturer_ids, row.manufacturer_id || group.manufacturer_id),
       })
     );
   });
@@ -861,6 +871,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
   return groups.map((group) => ({
     ...group,
     manufacturer_id: normalizeManufacturerId(group.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
+    manufacturer_ids: normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id || defaultManufacturerId),
     images: normalizeColorImages(group.images),
     color_article_code: formatFieldValue(group.color_article_code || group.article_code),
     thermal_image_url: formatFieldValue(group.thermal_image_url),
@@ -1665,7 +1676,7 @@ function ProductEdit() {
       .at(0)) || "",
     product_name: product.name,
     brand,
-    manufacturer: getManufacturerPayload(group.manufacturer_id).manufacturer_name || "",
+    manufacturer: getManufacturerPayload(group.manufacturer_ids || group.manufacturer_id).manufacturer_names.join(", "),
     color_name: group.color,
     color: group.color,
     images: normalizeColorImages(group.images)
@@ -1684,16 +1695,23 @@ function ProductEdit() {
     getManufacturerRecord(manufacturers, manufacturerId)?.label ||
     "No manufacturer selected";
 
-  const getManufacturerPayload = (manufacturerId) => {
-    const normalized = normalizeManufacturerId(manufacturerId);
+  const getManufacturerPayload = (manufacturerValue) => {
+    const manufacturerIds = normalizeManufacturerIds(manufacturerValue);
+    const normalized = normalizeManufacturerId(manufacturerIds[0]);
     const manufacturerRecord = normalized ? getManufacturerRecord(manufacturers, normalized) : null;
+    const manufacturerNames = manufacturerIds
+      .map((manufacturerId) => getManufacturerRecord(manufacturers, manufacturerId))
+      .map((record) => record?.name || record?.manufacturer_name || record?.manufacturerName || record?.label || "")
+      .filter(Boolean);
     const manufacturerName = manufacturerRecord
       ? manufacturerRecord.name || manufacturerRecord.manufacturer_name || manufacturerRecord.manufacturerName || manufacturerRecord.label || null
       : null;
     return {
       manufacturer_id: normalized || manufacturerRecord?.id || manufacturerRecord?.manufacturer_id || manufacturerRecord?.manufacturerId || null,
+      manufacturer_ids: manufacturerIds,
       manufacturer: manufacturerName,
       manufacturer_name: manufacturerName,
+      manufacturer_names: manufacturerNames,
     };
   };
 
@@ -1774,9 +1792,8 @@ function ProductEdit() {
   }, [existingSkuValues, isColorOnlyMode, isSimpleMode, loading, product.fixed_size_label, product.sku, uniqueSmartSkuPrefix]);
 
   const getGroupManufacturerSummary = (group) => {
-    const manufacturerId = normalizeManufacturerId(group?.manufacturer_id);
-    if (!manufacturerId) return "";
-    return getManufacturerName(manufacturerId);
+    const manufacturerIds = normalizeManufacturerIds(group?.manufacturer_ids, group?.manufacturer_id);
+    return manufacturerIds.map(getManufacturerName).filter(Boolean).join("، ");
   };
 
   const getGroupArticleSummary = (group) =>
@@ -1803,6 +1820,14 @@ function ProductEdit() {
                   ? {
                       manufacturer_override:
                         normalizeManufacturerId(value) !== normalizeManufacturerId(defaultManufacturerId),
+                    }
+                  : {}),
+                ...(field === "manufacturer_ids"
+                  ? {
+                      manufacturer_id: normalizeManufacturerIds(value)[0] || "",
+                      manufacturer_override:
+                        normalizeManufacturerIds(value)[0] !== normalizeManufacturerId(defaultManufacturerId) ||
+                        normalizeManufacturerIds(value).length > 1,
                     }
                   : {}),
               }
@@ -1939,6 +1964,7 @@ function ProductEdit() {
           : {
               ...group,
               manufacturer_id: normalized,
+              manufacturer_ids: normalized ? [normalized] : [],
               manufacturer_override: false,
             }
       )
@@ -2884,7 +2910,7 @@ function ProductEdit() {
       const groupEditionSlug = groupEditionName ? slugifyEdition(group.edition_slug || groupEditionName) : "";
       const groupArticleCode = String(group.color_article_code || "").trim();
       const groupThermalImageUrl = String(group.thermal_image_url || "").trim();
-      const groupManufacturerPayload = getManufacturerPayload(group.manufacturer_id);
+      const groupManufacturerPayload = getManufacturerPayload(group.manufacturer_ids || group.manufacturer_id);
       if (isColorOnlyMode) {
         const sourceRow = (Array.isArray(group.sizes) ? group.sizes : [])[0] || {};
         const purchaseQty = getVariantPurchaseQty(sourceRow, group);
@@ -4326,10 +4352,11 @@ function ProductEdit() {
                               </span>
                             </div>
                             <ManufacturerSelect
-                              value={group.manufacturer_id || ""}
-                              onChange={(value) => updateColorGroup(group.id, "manufacturer_id", value)}
+                              value={normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id)}
+                              onChange={(value) => updateColorGroup(group.id, "manufacturer_ids", value)}
                               manufacturers={manufacturers}
                               placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
+                              isMulti
                             />
                           </div>
                           <div>

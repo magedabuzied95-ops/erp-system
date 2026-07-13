@@ -12,23 +12,31 @@ const getManufacturerName = (manufacturer = {}) =>
       getManufacturerId(manufacturer)
   ).trim();
 
-export default function ManufacturerSelect({ manufacturers = [], value = "", onChange, placeholder }) {
+export default function ManufacturerSelect({ manufacturers = [], value = "", onChange, placeholder, isMulti = false }) {
   const options = manufacturers
     .map((manufacturer) => ({
       value: getManufacturerId(manufacturer),
       label: getManufacturerName(manufacturer),
     }))
     .filter((option) => option.value && option.label);
-  const selectedOption = options.find((option) => option.value === String(value || "")) || null;
+  const selectedValues = new Set(
+    (Array.isArray(value) ? value : value ? [value] : []).map((item) => String(item || ""))
+  );
+  const selectedOption = isMulti
+    ? options.filter((option) => selectedValues.has(option.value))
+    : options.find((option) => option.value === String(value || "")) || null;
 
   return (
     <Select
       value={selectedOption}
       options={options}
-      onChange={(option) => onChange?.(option?.value || "")}
+      onChange={(option) => onChange?.(
+        isMulti ? (Array.isArray(option) ? option.map((item) => item.value) : []) : option?.value || ""
+      )}
       placeholder={placeholder}
       noOptionsMessage={() => "لا توجد مصانع متاحة"}
       isClearable
+      isMulti={isMulti}
       isRtl
       menuPosition="fixed"
       menuPortalTarget={typeof document !== "undefined" ? document.body : null}
@@ -37,7 +45,7 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
         control: (base, state) => ({
           ...base,
           minHeight: 40,
-          height: 40,
+          height: isMulti ? "auto" : 40,
           borderRadius: 14,
           borderColor: state.isFocused ? "#a38220" : "rgba(255,255,255,.08)",
           backgroundColor: "#09090b",
@@ -47,9 +55,12 @@ export default function ManufacturerSelect({ manufacturers = [], value = "", onC
         }),
         valueContainer: (base) => ({ ...base, padding: "0 12px" }),
         singleValue: (base) => ({ ...base, color: "#fff", fontWeight: 700 }),
+        multiValue: (base) => ({ ...base, borderRadius: 8, backgroundColor: "rgba(163,130,32,.24)" }),
+        multiValueLabel: (base) => ({ ...base, color: "#fff", fontWeight: 700 }),
+        multiValueRemove: (base) => ({ ...base, color: "#d4d4d8", ":hover": { color: "#fff", backgroundColor: "#806719" } }),
         placeholder: (base) => ({ ...base, color: "#f4f4f5", fontWeight: 700 }),
         input: (base) => ({ ...base, color: "#fff" }),
-        indicatorsContainer: (base) => ({ ...base, height: 38 }),
+        indicatorsContainer: (base) => ({ ...base, minHeight: 38, height: isMulti ? "auto" : 38 }),
         indicatorSeparator: () => ({ display: "none" }),
         dropdownIndicator: (base) => ({ ...base, color: "#d4d4d8", padding: 8 }),
         clearIndicator: (base) => ({ ...base, color: "#a1a1aa", padding: 6 }),

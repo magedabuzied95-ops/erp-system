@@ -254,6 +254,13 @@ export const normalizeVariantPayload = (input = {}) => {
         source.manufacturerId ??
         source.variant_manufacturer_id
     ),
+    manufacturer_ids: [...new Set(
+      (Array.isArray(source.manufacturer_ids ?? source.manufacturerIds ?? source.variant_manufacturer_ids)
+        ? (source.manufacturer_ids ?? source.manufacturerIds ?? source.variant_manufacturer_ids)
+        : [source.manufacturer_id ?? source.manufacturerId ?? source.variant_manufacturer_id])
+        .map((value) => normalizeNullableText(value))
+        .filter(Boolean)
+    )],
     manufacturer: normalizeNullableText(source.manufacturer),
     manufacturer_name: normalizeNullableText(source.manufacturer_name ?? source.manufacturerName ?? source.manufacturer),
     purchase_price: normalizeNumber(

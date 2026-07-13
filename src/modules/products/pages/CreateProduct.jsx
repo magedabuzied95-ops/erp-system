@@ -210,13 +210,20 @@ const getColorGroupName = (group = {}) =>
     .map((value) => String(value ?? "").trim())
     .find(Boolean) || "";
 
+const normalizeManufacturerIds = (value, fallback = "") => {
+  const values = Array.isArray(value) ? value : value ? [value] : fallback ? [fallback] : [];
+  return [...new Set(values.map((item) => String(item || "").trim()).filter(Boolean))];
+};
+
 const createEmptyColorGroup = (defaults = {}) => {
   const source = typeof defaults === "string" ? { manufacturer_id: defaults } : defaults || {};
+  const manufacturerIds = normalizeManufacturerIds(source.manufacturer_ids ?? source.manufacturerIds, source.manufacturer_id);
   return {
     id: makeId(),
     color: getColorGroupName(source),
     audience: String(source.audience || source.variant_audience || "").trim(),
-    manufacturer_id: String(source.manufacturer_id || "").trim(),
+    manufacturer_id: manufacturerIds[0] || "",
+    manufacturer_ids: manufacturerIds,
     manufacturer_override: Boolean(source.manufacturer_override),
     planned_qty: String(
       source.default_purchase_qty ??
@@ -936,22 +943,25 @@ function CreateProduct() {
   const getManufacturerName = (manufacturerId) =>
     manufacturers.find((item) => String(item.id) === String(manufacturerId))?.name || "No manufacturer selected";
 
-  const getManufacturerPayload = (manufacturerId) => {
-    const normalized = normalizeManufacturerId(manufacturerId);
-    const manufacturerName = normalized
-      ? manufacturers.find((item) => String(item.id) === String(normalized))?.name || null
-      : null;
+  const getManufacturerPayload = (manufacturerValue) => {
+    const manufacturerIds = normalizeManufacturerIds(manufacturerValue);
+    const normalized = normalizeManufacturerId(manufacturerIds[0]);
+    const manufacturerNames = manufacturerIds
+      .map((id) => manufacturers.find((item) => String(item.id) === String(id))?.name || "")
+      .filter(Boolean);
+    const manufacturerName = manufacturerNames[0] || null;
     return {
       manufacturer_id: normalized || null,
+      manufacturer_ids: manufacturerIds,
       manufacturer: manufacturerName,
       manufacturer_name: manufacturerName,
+      manufacturer_names: manufacturerNames,
     };
   };
 
   const getGroupManufacturerSummary = (group) => {
-    const manufacturerId = normalizeManufacturerId(group?.manufacturer_id);
-    if (!manufacturerId) return "";
-    return getManufacturerName(manufacturerId);
+    const manufacturerIds = normalizeManufacturerIds(group?.manufacturer_ids, group?.manufacturer_id);
+    return manufacturerIds.map(getManufacturerName).filter(Boolean).join("، ");
   };
 
   const getGroupArticleSummary = (group) =>
@@ -1014,7 +1024,7 @@ function CreateProduct() {
       .at(0)) || "",
     product_name: name,
     brand,
-    manufacturer: getManufacturerPayload(group.manufacturer_id).manufacturer_name || "",
+    manufacturer: getManufacturerPayload(group.manufacturer_ids || group.manufacturer_id).manufacturer_names.join(", "),
     color_name: group.color,
     color: group.color,
     images: normalizeColorImages(group.images)
@@ -1101,6 +1111,7 @@ function CreateProduct() {
             price: Number(group.sizes?.[0]?.price || basePrice || 0),
             image_url: String(getPrimaryColorImage(group) || "").trim(),
             manufacturer_id: String(group.manufacturer_id || "").trim(),
+            manufacturer_ids: normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id),
           },
         ];
       });
@@ -1127,6 +1138,7 @@ function CreateProduct() {
           price: Number(row.price || basePrice || 0),
           image_url: String(getPrimaryColorImage(group) || "").trim(),
           manufacturer_id: String(group.manufacturer_id || "").trim(),
+          manufacturer_ids: normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id),
         }));
     });
   }, [colorGroups, existingSkuValues, fixedSizeLabel, isColorOnlyMode, isSimpleMode, regularPrice, skuPrefix, uniqueSmartSkuPrefix]);
@@ -1172,6 +1184,14 @@ function CreateProduct() {
                         normalizeManufacturerId(value) !== normalizeManufacturerId(defaultManufacturerId),
                     }
                   : {}),
+                ...(field === "manufacturer_ids"
+                  ? {
+                      manufacturer_id: normalizeManufacturerIds(value)[0] || "",
+                      manufacturer_override:
+                        normalizeManufacturerIds(value)[0] !== normalizeManufacturerId(defaultManufacturerId) ||
+                        normalizeManufacturerIds(value).length > 1,
+                    }
+                  : {}),
               }
             : group
         )
@@ -1189,6 +1209,7 @@ function CreateProduct() {
           : {
               ...group,
               manufacturer_id: normalized,
+              manufacturer_ids: normalized ? [normalized] : [],
               manufacturer_override: false,
             }
       )
@@ -1951,7 +1972,7 @@ function CreateProduct() {
         const groupEditionName = mirrorEditionEnabled ? String(group.edition_name || "").trim() : "";
         const groupEditionSlug = groupEditionName ? slugifyEdition(group.edition_slug || groupEditionName) : "";
         const groupArticleCode = String(group.color_article_code || "").trim();
-        const groupManufacturerPayload = getManufacturerPayload(group.manufacturer_id);
+        const groupManufacturerPayload = getManufacturerPayload(group.manufacturer_ids || group.manufacturer_id);
         if (!groupColor) return [];
 
         if (isColorOnlyMode) {
@@ -3616,10 +3637,11 @@ function CreateProduct() {
                                     </span>
                                   </div>
                                   <ManufacturerSelect
-                                    value={group.manufacturer_id || ""}
-                                    onChange={(value) => updateColorGroup(group.id, "manufacturer_id", value)}
+                                    value={normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id)}
+                                    onChange={(value) => updateColorGroup(group.id, "manufacturer_ids", value)}
                                     manufacturers={manufacturers}
                                     placeholder={t("products.editor.selectManufacturer", "Select manufacturer")}
+                                    isMulti
                                   />
                                 </div>
                                 <div>
