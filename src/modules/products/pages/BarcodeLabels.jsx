@@ -61,6 +61,10 @@ const PREMIUM_RETAIL_LABEL_HEIGHT_MM = 100;
 const PREMIUM_RETAIL_BARCODE_WIDTH = 680;
 const PREMIUM_RETAIL_BARCODE_HEIGHT = 288;
 const PREMIUM_RETAIL_GRID_ROWS = "33mm 12mm 11mm 11mm 20.8mm 7mm";
+const LANDSCAPE_PREVIEW_WIDTH_PX = 600;
+const LANDSCAPE_PREVIEW_HEIGHT_PX = 300;
+const CSS_PIXELS_PER_MM = 96 / 25.4;
+const DEFAULT_LANDSCAPE_PREVIEW_SCALE = LANDSCAPE_PREVIEW_WIDTH_PX / (100 * CSS_PIXELS_PER_MM);
 
 const resolveTemplatePrintContext = (template, settings, sheetMode) => {
   const normalized = normalizeBarcodePrintSettings({ ...settings, paperSize: sheetMode });
@@ -1200,7 +1204,7 @@ function BarcodeLabels() {
                             paddingBottom: `${activePrintSettings.marginBottomMm}mm`,
                             paddingLeft: `${activePrintSettings.marginLeftMm}mm`,
                             minHeight: isLandscapeTemplate
-                              ? "clamp(260px, 34vw, 430px)"
+                              ? `${LANDSCAPE_PREVIEW_HEIGHT_PX + 16}px`
                               : isPremiumRetailTemplate
                                 ? "clamp(720px, 82vh, 980px)"
                                 : `${activePaper.paperHeightMm}mm`,
@@ -1510,7 +1514,7 @@ function PremiumRetailLabel({ item, printSettings, print = false }) {
 
 function ThermalLandscapeLabel({ item, printSettings, print = false, preview = false }) {
   const { t } = useTranslation();
-  const [previewScale, setPreviewScale] = useState(1);
+  const [previewScale, setPreviewScale] = useState(DEFAULT_LANDSCAPE_PREVIEW_SCALE);
   const hostRef = useRef(null);
   const imageUrl = resolveBarcodeLabelImage(item);
   const safeImage = getSafeLabelImage(imageUrl, item);
@@ -1553,20 +1557,22 @@ function ThermalLandscapeLabel({ item, printSettings, print = false, preview = f
   useEffect(() => {
     if (!preview || print) return undefined;
 
-    const intrinsicWidthPx = (landscapeWidthMm * 96) / 25.4;
-    const intrinsicHeightPx = (landscapeHeightMm * 96) / 25.4;
+    const intrinsicWidthPx = landscapeWidthMm * CSS_PIXELS_PER_MM;
+    const intrinsicHeightPx = landscapeHeightMm * CSS_PIXELS_PER_MM;
+    const referenceScale = Math.min(
+      LANDSCAPE_PREVIEW_WIDTH_PX / intrinsicWidthPx,
+      LANDSCAPE_PREVIEW_HEIGHT_PX / intrinsicHeightPx,
+    );
     const updateScale = () => {
       const host = hostRef.current;
       const parent = host?.parentElement;
       if (!parent) return;
       const availableWidthPx = Math.max(0, parent.clientWidth - 16);
-      const availableHeightPx = Math.max(0, parent.clientHeight || parent.getBoundingClientRect().height);
       const nextScale = Math.min(
         availableWidthPx > 0 ? availableWidthPx / intrinsicWidthPx : 1,
-        availableHeightPx > 0 ? availableHeightPx / intrinsicHeightPx : 1,
-        2.2,
+        referenceScale,
       );
-      setPreviewScale(Number.isFinite(nextScale) && nextScale > 0 ? Math.max(1, nextScale) : 1);
+      setPreviewScale(Number.isFinite(nextScale) && nextScale > 0 ? Math.max(0.35, nextScale) : referenceScale);
     };
 
     updateScale();
