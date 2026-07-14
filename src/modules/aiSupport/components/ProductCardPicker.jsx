@@ -2,9 +2,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CheckCircle2, Loader2, Search, ShoppingBag, Square, X } from "lucide-react";
 
-import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 import { buildAvailableProductsMessage, buildAvailableProductsUrl } from "../utils/availableProductsLink";
 import { formatCurrency } from "../../../shared/lib/currency";
+import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -323,8 +323,8 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
     setLoading(true);
     setError("");
     Promise.resolve()
-      .then(() => getPosSellableProducts())
-      .then((data) => {
+      .then(() => loadCustomerProductCatalog())
+      .then(({ products: data }) => {
         if (!active) return;
         setProducts(asArray(data));
       })
@@ -1141,4 +1141,3 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   );
   return inlineFullscreenMode ? content : createPortal(content, document.body);
 }
-

@@ -41,7 +41,6 @@ import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/s
 import { formatCurrency } from "../../../shared/lib/currency";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
 import { useTheme } from "../../../theme/useTheme";
-import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import TranscriptMessage from "../components/TranscriptMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
@@ -49,6 +48,7 @@ import { SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsW
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
+import { loadCustomerProductCatalog } from "../services/customerProductCatalog";
 import "./AiInboxPwa.css";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
@@ -2658,6 +2658,7 @@ export default function AiInboxPwa() {
   const refreshQueueRef = useRef(null);
   const requestRefreshRef = useRef(null);
   const markReadLocalUpdateRef = useRef(0);
+  const productCatalogRef = useRef({ loading: false, products: [] });
   const refreshStateRef = useRef({
     pageVisible: false,
     socketHealthy: false,
@@ -2746,18 +2747,22 @@ export default function AiInboxPwa() {
     );
   }, []);
 
-  const loadProducts = useCallback(async () => {
-    if (productLoading || products.length) return;
+  const loadProducts = useCallback(async ({ force = false } = {}) => {
+    if (productCatalogRef.current.loading || (!force && productCatalogRef.current.products.length)) return;
+    productCatalogRef.current.loading = true;
     setProductLoading(true);
     try {
-      const payload = await getPosSellableProducts();
-      setProducts(asArray(payload));
+      const { products: nextProducts } = await loadCustomerProductCatalog({ headers });
+      const normalizedProducts = asArray(nextProducts);
+      productCatalogRef.current.products = normalizedProducts;
+      setProducts(normalizedProducts);
     } catch (loadError) {
       toast.error(loadError?.message || "Failed to load products");
     } finally {
+      productCatalogRef.current.loading = false;
       setProductLoading(false);
     }
-  }, [productLoading, products.length]);
+  }, [headers]);
 
   const loadSocialComments = useCallback(
     async ({ silent = false, seq = requestSeqRef.current, cursor = "", append = false } = {}) => {
@@ -3094,7 +3099,7 @@ export default function AiInboxPwa() {
 
   useEffect(() => {
     if (!productSheetOpen) return;
-    void loadProducts();
+    void loadProducts({ force: true });
   }, [loadProducts, productSheetOpen]);
 
   useEffect(() => {

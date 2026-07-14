@@ -471,6 +471,6 @@ export const normalizePosCatalogProduct = (product = {}) => {
   };
 };
 
-export const getPosSellableProducts = async () => {
-  return normalizePosSellableProducts(await getProductsWithVariants()).map((product) => normalizePosCatalogProduct(product));
+export const getPosSellableProducts = async (saleModeSettings = {}) => {
+  return normalizePosSellableProducts(await getProductsWithVariants(), saleModeSettings).map((product) => normalizePosCatalogProduct(product));
 };

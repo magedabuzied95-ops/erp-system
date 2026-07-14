@@ -1,4 +1,4 @@
-import { resolveSaleModePrice } from "../../../shared/lib/saleMode";
+import { normalizeSaleModeSettings, resolveSaleModePrice } from "../../../shared/lib/saleMode.js";
 
 const normalizeNumber = (value) => {
   const parsed = Number(value ?? 0);
@@ -25,6 +25,7 @@ export const shouldForceSalePriceForPos = (product = {}) =>
   ].some(truthy);
 
 export const getPosEffectivePrice = ({ product = {}, variant = null, saleModeSettings = {} } = {}) => {
+  const normalizedSaleMode = normalizeSaleModeSettings(saleModeSettings);
   const scope = { ...(product || {}), ...(variant || {}) };
   const regularPrice = pickPositiveNumber(
     variant?.regular_price,
@@ -45,7 +46,7 @@ export const getPosEffectivePrice = ({ product = {}, variant = null, saleModeSet
     product?.sale_price
   );
 
-  if (shouldForceSalePriceForPos(scope) && storedSalePrice > 0) {
+  if (normalizedSaleMode.sale_mode_enabled && shouldForceSalePriceForPos(scope) && storedSalePrice > 0) {
     return {
       regular_price: regularPrice,
       selling_price: regularPrice,
@@ -65,7 +66,7 @@ export const getPosEffectivePrice = ({ product = {}, variant = null, saleModeSet
       price: regularPrice,
       sale_price: storedSalePrice,
     },
-    saleModeSettings
+    normalizedSaleMode
   );
 
   return {
