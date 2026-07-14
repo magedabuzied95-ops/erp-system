@@ -4072,9 +4072,9 @@
     isolation: isolate;
     overflow-x: hidden;
     background:
-      radial-gradient(circle at 15% 0%, rgba(217, 164, 65, 0.18), transparent 32rem),
-      radial-gradient(circle at 88% 12%, rgba(148, 163, 184, 0.12), transparent 28rem),
-      linear-gradient(180deg, #08101d 0%, #111827 50%, #070d17 100%);
+      radial-gradient(circle at 15% 0%, rgba(217, 164, 65, 0.2), transparent 32rem),
+      radial-gradient(circle at 88% 12%, rgba(120, 92, 42, 0.1), transparent 28rem),
+      linear-gradient(180deg, #050505 0%, #0a0a0a 52%, #111111 100%);
   }
 
   .public-invoice-shell::before {
