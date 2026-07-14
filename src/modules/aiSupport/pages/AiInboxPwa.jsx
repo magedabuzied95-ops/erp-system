@@ -51,6 +51,25 @@ import "./AiInboxPwa.css";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
+
+const cleanMessageText = (value, depth = 0) => {
+  if (value == null || depth > 3) return "";
+  if (typeof value === "string" || typeof value === "number") {
+    const text = String(value).trim();
+    return text === "[object Object]" ? "" : text;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => cleanMessageText(item, depth + 1)).filter(Boolean).join("\n");
+  }
+  if (typeof value === "object") {
+    const textKeys = ["text", "body", "content", "message_text", "message", "value", "caption"];
+    for (const key of textKeys) {
+      const text = cleanMessageText(value?.[key], depth + 1);
+      if (text) return text;
+    }
+  }
+  return "";
+};
 const ENABLE_SOCIAL_FAST_CENTER = true;
 const truthy = (value) => ["1", "true", "yes", "on"].includes(String(value || "").toLowerCase());
 const DEBUG_SOCIAL_PERF = truthy(import.meta.env?.VITE_DEBUG_SOCIAL_PERF) || truthy(import.meta.env?.VITE_SOCIAL_PERF_DEBUG);
@@ -319,19 +338,24 @@ const isProductCardMessage = (message = {}) => {
   return messageType === "product_card" || messageType === "product_cards" || normalizeMessageProductCards(message).length > 0;
 };
 
-const messageDisplayText = (message = {}) =>
-  clean(
-    message.customer_message ||
-      message.ai_answer ||
-      message.staff_message ||
-      message.message_text ||
-      message.text ||
-      message.body ||
-      message.content ||
-      message.reply_text ||
-      message.caption ||
-      ""
-  );
+const messageDisplayText = (message = {}) => {
+  const candidates = [
+    message.customer_message,
+    message.ai_answer,
+    message.staff_message,
+    message.message_text,
+    message.text,
+    message.body,
+    message.content,
+    message.reply_text,
+    message.caption,
+  ];
+  for (const value of candidates) {
+    const text = cleanMessageText(value);
+    if (text) return text;
+  }
+  return "";
+};
 
 const isFromMeMessage = (message = {}) =>
   message?.from_me === true ||
@@ -406,15 +430,15 @@ const normalizeInboxMessage = (message = {}) => {
     client_request_id: clean(message.client_request_id || message.clientRequestId || ""),
     clientRequestId: clean(message.clientRequestId || message.client_request_id || ""),
     idempotency_key: clean(message.idempotency_key || message.idempotencyKey || message.message_identity_key || message.messageIdentityKey || ""),
-    text: clean(message.text || body),
-    body: clean(message.body || body),
-    content: clean(message.content || body),
-    message_text: clean(message.message_text || body),
+    text: cleanMessageText(message.text) || body,
+    body: cleanMessageText(message.body) || body,
+    content: cleanMessageText(message.content) || body,
+    message_text: cleanMessageText(message.message_text) || body,
     from_me: resolvedFromMe,
     fromMe: resolvedFromMe,
-    customer_message: clean(resolvedFromMe ? "" : message.customer_message || (direction === "inbound" ? body : "")),
-    ai_answer: clean(message.ai_answer || ((!isStaffSender && resolvedFromMe) && normalizedMessageType !== "product_card" ? body : "")),
-    staff_message: clean(message.staff_message || (normalizedSenderType === "staff" ? body : "")),
+    customer_message: resolvedFromMe ? "" : cleanMessageText(message.customer_message) || (direction === "inbound" ? body : ""),
+    ai_answer: cleanMessageText(message.ai_answer) || ((!isStaffSender && resolvedFromMe) && normalizedMessageType !== "product_card" ? body : ""),
+    staff_message: cleanMessageText(message.staff_message) || (normalizedSenderType === "staff" ? body : ""),
     product_cards: productCards,
     productCards,
   };
@@ -3693,7 +3717,8 @@ export default function AiInboxPwa() {
   }, [loadOlderMessages, selectedConversation?.conversationHydrated, selectedConversation?.session_id, tab]);
 
   const sendManualReply = useCallback(async (overrideText = "", options = {}) => {
-    const message = clean(overrideText || composerText);
+    const explicitText = typeof overrideText === "string" ? overrideText : "";
+    const message = cleanMessageText(explicitText || composerText);
     if (!selectedConversation?.session_id || !message) return;
     const clientRequestId = buildClientRequestId();
     const canonicalSessionId = selectedConversationRouteId || normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || "");
@@ -5543,7 +5568,7 @@ export default function AiInboxPwa() {
                 />
                 <button
                   type="button"
-                  onClick={sendManualReply}
+                  onClick={() => void sendManualReply()}
                   disabled={!clean(composerText) || sending}
                   className={`inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white disabled:opacity-50 ${composerMode !== "note" && (activeAiReplyConfidence.decision === "high_risk" || activeAiReplyValidation.violationsCount > 0) ? "bg-amber-500" : "bg-sky-600"}`}
                   aria-label={composerMode === "note" ? "Save note" : "Send reply"}
