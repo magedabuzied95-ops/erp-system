@@ -1433,13 +1433,39 @@ const conversationName = (conversation = {}) =>
     return clean(resolved || (isMessengerConversation(conversation) ? "Customer" : conversation.external_customer_id || conversation.phone || "Customer"));
   })();
 
-const productImage = (card = {}) =>
+const nestedProductImage = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(nestedProductImage).find(Boolean) || "";
+  }
+  if (value && typeof value === "object") {
+    return clean(value.image_url || value.url || value.src || value.path || value.secure_url || value.thumbnail_url || "");
+  }
+  return clean(value);
+};
+
+const variantProductImage = (variant = {}) =>
   clean(
-    card.image_url ||
+    variant?.variant_image_url ||
+      variant?.color_image_url ||
+      variant?.primary_image_url ||
+      variant?.image_url ||
+      variant?.thumbnail_url ||
+      variant?.image ||
+      nestedProductImage(variant?.images) ||
+      nestedProductImage(variant?.gallery_images) ||
+      ""
+  );
+
+const productImage = (card = {}, variant = null) =>
+  clean(
+    variantProductImage(variant || {}) ||
+      card.image_url ||
       card.product_image_url ||
       card.variant_image_url ||
+      card.color_image_url ||
       card.image ||
       card.thumbnail_url ||
+      nestedProductImage(card.images) ||
       ""
   );
 
@@ -1554,6 +1580,36 @@ const productColors = (product = {}) =>
       ])
       .filter(Boolean)
   )];
+
+const productColorOptions = (product = {}) => {
+  const variants = getVariantRows(product);
+  const colorImages = asArray(product?.color_images);
+  const imagesByColor = product?.images_by_color && typeof product.images_by_color === "object" && !Array.isArray(product.images_by_color)
+    ? product.images_by_color
+    : {};
+
+  return productColors(product).map((color) => {
+    const matchingVariants = variants.filter(
+      (variant) => normalizeKey(variant.color || variant.color_name || variant.variant_color || variant.selected_color) === normalizeKey(color)
+    );
+    const preferredVariant =
+      matchingVariants.find((variant) => Number(variant.stock_quantity ?? variant.stock ?? variant.quantity ?? 0) > 0 && variantProductImage(variant)) ||
+      matchingVariants.find((variant) => variantProductImage(variant)) ||
+      matchingVariants.find((variant) => Number(variant.stock_quantity ?? variant.stock ?? variant.quantity ?? 0) > 0) ||
+      matchingVariants[0] ||
+      null;
+    const matchingColorImage = colorImages.find(
+      (entry) => normalizeKey(entry?.color || entry?.color_name || entry?.name || entry?.label) === normalizeKey(color)
+    );
+    const mappedImage = Object.entries(imagesByColor).find(([key]) => normalizeKey(key) === normalizeKey(color))?.[1];
+    const imageUrl =
+      variantProductImage(preferredVariant || {}) ||
+      nestedProductImage(matchingColorImage) ||
+      nestedProductImage(mappedImage) ||
+      (productColors(product).length === 1 ? productImage(product) : "");
+    return { color, imageUrl, variant: preferredVariant };
+  });
+};
 
 const productSizes = (product = {}, color = "") => {
   const normalizedColor = normalizeKey(color);
@@ -2035,6 +2091,11 @@ function ProductSheet({
   const selectedProduct = selectedProductEntry?.product || null;
 
   const colors = useMemo(() => productColors(selectedProduct || {}), [selectedProduct]);
+  const colorOptions = useMemo(() => productColorOptions(selectedProduct || {}), [selectedProduct]);
+  const selectedColorOption = useMemo(
+    () => colorOptions.find((option) => normalizeKey(option.color) === normalizeKey(selectedColor)) || null,
+    [colorOptions, selectedColor]
+  );
   const sizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
   const needsColorSelection = colors.length > 0;
   const needsSizeSelection = sizes.length > 0;
@@ -2072,8 +2133,8 @@ function ProductSheet({
       (!needsSizeSelection || clean(selectedSize))
   );
   const previewImage = useMemo(
-    () => productImage(selectedProduct || {}, variant || null) || productImage(selectedProduct || {}),
-    [selectedProduct, variant]
+    () => productImage(selectedProduct || {}, variant || selectedColorOption?.variant || null) || productImage(selectedProduct || {}),
+    [selectedColorOption, selectedProduct, variant]
   );
   const previewPrice = Number(variant?.price ?? selectedProduct?.final_price ?? selectedProduct?.price ?? 0) || 0;
   const previewStock = Number(variant?.stock_quantity ?? variant?.stock ?? selectedProduct?.total_stock ?? selectedProduct?.stock ?? 0) || 0;
@@ -2293,7 +2354,6 @@ function ProductSheet({
                       <div className="text-base font-semibold text-slate-900">{selectedProduct?.name || selectedProduct?.product_name || "Select a product"}</div>
                       {previewPrice > 0 ? <div className="text-sm font-medium text-emerald-700">{money(previewPrice)}</div> : null}
                       <div className="flex flex-wrap gap-2">
-                        {selectedColor ? <PwaChip>{selectedColor}</PwaChip> : null}
                         {selectedSize ? <PwaChip>{selectedSize}</PwaChip> : null}
                         {variant?.available !== undefined ? (
                           <PwaChip tone={variant.available ? "emerald" : "rose"}>{variant.available ? `In stock ${previewStock}` : "Out of stock"}</PwaChip>
@@ -2306,23 +2366,48 @@ function ProductSheet({
 
                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
                     <div className="text-sm font-medium text-slate-700">Color</div>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {colors.length ? (
-                        colors.map((color) => {
-                          const active = normalizeKey(selectedColor) === normalizeKey(color);
+                    <div className="mt-3 grid grid-cols-4 gap-2.5">
+                      {colorOptions.length ? (
+                        colorOptions.map((option) => {
+                          const active = normalizeKey(selectedColor) === normalizeKey(option.color);
                           return (
                             <button
-                              key={color}
+                              key={option.color}
                               type="button"
+                              title={option.color}
+                              aria-label={`Select color ${option.color}`}
+                              aria-pressed={active}
                               onClick={() => {
-                                setSelectedColor(color);
+                                setSelectedColor(option.color);
                                 setSelectedSize("");
                               }}
-                              className={`rounded-full px-3 py-2 text-sm ${
-                                active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
+                              className={`group relative aspect-square min-w-0 overflow-hidden rounded-2xl border bg-slate-50 p-1 transition focus:outline-none focus:ring-2 focus:ring-emerald-500/60 ${
+                                active
+                                  ? "border-emerald-500 ring-2 ring-emerald-500/30"
+                                  : "border-slate-200 hover:border-slate-400"
                               }`}
                             >
-                              {color}
+                              {option.imageUrl ? (
+                                <img
+                                  src={option.imageUrl}
+                                  alt=""
+                                  loading="lazy"
+                                  decoding="async"
+                                  className="h-full w-full rounded-xl bg-white object-contain"
+                                  onError={(event) => {
+                                    event.currentTarget.style.display = "none";
+                                  }}
+                                />
+                              ) : (
+                                <span className="grid h-full w-full place-items-center rounded-xl bg-slate-100 text-slate-400">
+                                  <Image className="h-5 w-5" />
+                                </span>
+                              )}
+                              {active ? (
+                                <span className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-full bg-emerald-500 text-white shadow-lg ring-2 ring-white">
+                                  <CheckCheck className="h-3.5 w-3.5" />
+                                </span>
+                              ) : null}
                             </button>
                           );
                         })
