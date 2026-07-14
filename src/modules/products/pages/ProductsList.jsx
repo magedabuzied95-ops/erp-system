@@ -186,6 +186,41 @@ const getProductAudiences = (row = {}) => {
   return PRODUCT_AUDIENCE_OPTIONS.map((option) => option.value).filter((value) => seen.has(value));
 };
 
+const getProductArticleCodes = (row = {}) => {
+  const values = Array.isArray(row.article_codes)
+    ? row.article_codes
+    : Array.isArray(row.articleCodes)
+      ? row.articleCodes
+      : [];
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+};
+
+const ProductArticleBadges = ({ row = {}, limit = 3 }) => {
+  const articleCodes = getProductArticleCodes(row);
+  if (!articleCodes.length) return null;
+  const visibleCodes = articleCodes.slice(0, limit);
+  const remainingCount = Math.max(0, articleCodes.length - visibleCodes.length);
+
+  return (
+    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-1" title={articleCodes.join(" • ")}>
+      {visibleCodes.map((articleCode) => (
+        <span
+          key={articleCode}
+          dir="ltr"
+          className="inline-flex max-w-[7rem] items-center rounded-md border border-amber-300/20 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-black leading-4 text-amber-200"
+        >
+          <span className="truncate">{articleCode}</span>
+        </span>
+      ))}
+      {remainingCount ? (
+        <span className="inline-flex items-center rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-black leading-4 text-zinc-400">
+          +{remainingCount}
+        </span>
+      ) : null}
+    </div>
+  );
+};
+
 const ProductAudienceBadges = ({ row = {}, language = "ar" }) => {
   const audiences = getProductAudiences(row);
   const isArabic = String(language || "").toLowerCase().startsWith("ar");
@@ -2620,6 +2655,7 @@ function ProductsList() {
                                   {displaySku}
                                 </p>
                               ) : null}
+                              <ProductArticleBadges row={row} />
                             </div>
                           </button>
                         </td>
@@ -3209,6 +3245,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
           <div className="min-w-0 flex-1">
             <div className="line-clamp-2 text-sm font-black leading-5 text-white">{row.name}</div>
             {displaySku ? <div className="mt-1 truncate text-xs font-semibold text-zinc-500">SKU {displaySku}</div> : null}
+            <ProductArticleBadges row={row} />
             <div className="mt-2 flex flex-wrap gap-1.5">
               <span
                 className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-black ${

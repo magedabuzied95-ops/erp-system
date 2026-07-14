@@ -3040,6 +3040,24 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(p.product_type, '') AS product_type,
         COALESCE(p.grade, '') AS grade,
         COALESCE((
+          SELECT jsonb_agg(article_code ORDER BY article_code)
+          FROM (
+            SELECT DISTINCT TRIM(article_source.article_code) AS article_code
+            FROM (
+              SELECT pcg.color_article_code AS article_code
+              FROM product_color_groups pcg
+              WHERE pcg.product_id = p.id
+              UNION ALL
+              SELECT pv_article.article_code AS article_code
+              FROM product_variants pv_article
+              WHERE pv_article.product_id = p.id
+                AND pv_article.is_active IS DISTINCT FROM FALSE
+                AND pv_article.deleted_at IS NULL
+            ) article_source
+            WHERE TRIM(COALESCE(article_source.article_code, '')) <> ''
+          ) distinct_articles
+        ), '[]'::jsonb) AS article_codes,
+        COALESCE((
           SELECT COUNT(*)::int
           FROM product_variants sv_count
           WHERE sv_count.product_id = p.id
