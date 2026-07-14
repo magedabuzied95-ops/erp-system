@@ -44,6 +44,18 @@ test("post enrichment defines the raw Meta payload before using its permalink fi
   assert.ok(usageIndex > definitionIndex, "rawPayload must be defined before permalink lookup");
 });
 
+test("post enrichment keeps graph fallback diagnostics available to its catch handler", () => {
+  const enrichStart = centerSource.indexOf("const enrichSocialCommentPostRow");
+  const enrichEnd = centerSource.indexOf("const resolvePostIdentityFromRow", enrichStart);
+  const enrichSource = centerSource.slice(enrichStart, enrichEnd > enrichStart ? enrichEnd : enrichStart + 100000);
+  const definitionIndex = enrichSource.indexOf('let resolvedGraphId = "";');
+  const tryIndex = enrichSource.indexOf("try {", definitionIndex);
+  const catchUsageIndex = enrichSource.indexOf("resolved_graph_id: resolvedGraphId ||", tryIndex);
+  assert.ok(definitionIndex >= 0, "resolvedGraphId must be defined in post enrichment");
+  assert.ok(tryIndex > definitionIndex, "resolvedGraphId must be scoped outside the try block");
+  assert.ok(catchUsageIndex > tryIndex, "the catch handler must safely reuse resolvedGraphId");
+});
+
 test("desktop and PWA inboxes expose Instagram social content", () => {
   for (const source of [desktopSource, pwaSource]) {
     assert.match(source, /\{ key: "instagram", label: "Instagram" \}/);

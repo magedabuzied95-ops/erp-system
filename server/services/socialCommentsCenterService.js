@@ -1812,6 +1812,9 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
       object_id_thumbnail_present: false,
     });
   }
+  let graphPost = null;
+  let resolvedGraphId = "";
+  let graphErrorMessage = "";
   try {
     if (shouldLogMediaBackfill) {
       console.warn("[social-comments:media-backfill:start]", {
@@ -1822,9 +1825,6 @@ const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform 
         has_any_media_before: hasAnyMediaBefore,
       });
     }
-    let graphPost = null;
-    let resolvedGraphId = "";
-    let graphErrorMessage = "";
     for (const candidatePostId of graphLookupFallbackPostIds) {
       if (shouldLogMediaBackfill) {
         console.warn("[social-comments:graph-fetch]", {
@@ -2620,12 +2620,12 @@ const hasLinkedProductForSocialCommentPost = (value = {}) => {
     metadata.product_id ??
     null
   );
-  return linkedCount > 0 || Boolean(linkedProducts.length) || (Number.isFinite(productId) && productId > 0);
+  return linkedCount > 0 || linkedProducts.length > 0 || (Number.isFinite(productId) && productId > 0);
 };
 
 const buildSocialCommentAutomationConfigSelectionReason = (row = {}, canonicalPostId = "") => {
   if (!row || typeof row !== "object") return "no_row";
-  if (Boolean(row.enabled)) return "enabled_first";
+  if (row.enabled) return "enabled_first";
   if (row.product_id) return "product_id_present";
   if (text(row.post_id || "") === text(canonicalPostId || "")) return "canonical_exact";
   return "latest_updated";
