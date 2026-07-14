@@ -2516,7 +2516,7 @@ function PremiumHomePage(props) {
       };
     });
   }, [homepageProductPool, isRtl]);
-  const visibleBrands = useMemo(() => (Array.isArray(brands) ? brands : []).filter((brand) => brand?.id && brand?.name && brand?.logo_url).slice(0, 8), [brands]);
+  const visibleBrands = useMemo(() => (Array.isArray(brands) ? brands : []).filter((brand) => brand?.id && brand?.name && brand?.logo_url), [brands]);
   const homeSections = useMemo(() => {
     const used = new Set();
     const pick = ({ preferred = [], fallback = [], limit = 8, allowRepeatIfEmpty = false } = {}) => {
@@ -2811,56 +2811,50 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
   const isRtl = normalizeLanguage(lang) === "ar";
   const visibleBrands = Array.isArray(brands) ? brands.filter((brand) => brand?.id && brand?.name && brand?.logo_url) : [];
   if (!loading && !visibleBrands.length) return null;
+  const brandItems = loading && !visibleBrands.length ? Array.from({ length: 6 }) : visibleBrands;
+  const groups = brandItems.length > 1 ? [brandItems, brandItems] : [brandItems];
 
   return (
-    <section className="mx-auto max-w-[1400px] px-4 py-5 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: themeTokens.accent }}>
-            {isRtl ? "العلامات التجارية" : "Brand strip"}
-          </p>
-          <h2 className="mt-1 text-2xl font-black tracking-tight md:text-4xl" style={{ color: themeTokens.textPrimary }}>
-            {isRtl ? "أسماء موثوقة، مختارة بعناية" : "Trusted names, carefully curated"}
-          </h2>
-        </div>
-      </div>
-      <div className="flex gap-3 overflow-x-auto pb-2">
-        {(loading && !visibleBrands.length ? Array.from({ length: 6 }) : visibleBrands).map((brand, index) => (
-          <Link
-            key={brand?.id || index}
-            to={brand ? `/?brand=${encodeURIComponent(brand.id || brand.slug)}` : "#"}
-            className="group flex min-w-[150px] items-center gap-3 rounded-[1.35rem] border px-4 py-3 transition duration-300 hover:-translate-y-0.5"
-            style={{
-              background: themeTokens.card,
-              borderColor: themeTokens.border,
-              boxShadow: themeTokens.shadowSoft,
-            }}
-          >
-            {brand ? (
-              <>
-                <span className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border" style={{ background: themeTokens.surface, borderColor: themeTokens.border }}>
-                  <img
-                    src={imageFor(brand.logo_url)}
-                    alt={brand.name || ""}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-full w-full object-contain p-2"
-                    width="72"
-                    height="72"
+    <section className="mx-auto max-w-[1600px] py-7 md:py-11" dir={isRtl ? "rtl" : "ltr"}>
+      <h2 className="mb-5 px-5 text-xl font-black tracking-tight md:mb-8 md:px-8 md:text-3xl" style={{ color: themeTokens.textPrimary }}>
+        {isRtl ? "العلامات التجارية" : "Brands"}
+      </h2>
+
+      <div className="sf-brand-marquee" dir="ltr">
+        <div className={`sf-brand-marquee__track ${brandItems.length > 1 ? "sf-brand-marquee__track--animated" : ""}`}>
+          {groups.map((group, groupIndex) => (
+            <div key={groupIndex} className="sf-brand-marquee__group" aria-hidden={groupIndex > 0 ? "true" : undefined}>
+              {group.map((brand, index) => (
+                brand ? (
+                  <Link
+                    key={`${groupIndex}-${brand.id || index}`}
+                    to={`/?brand=${encodeURIComponent(brand.id || brand.slug)}`}
+                    className="sf-brand-marquee__item group"
+                    style={{ background: themeTokens.card, boxShadow: themeTokens.shadowSoft }}
+                    aria-label={brand.name || (isRtl ? "عرض العلامة التجارية" : "View brand")}
+                    tabIndex={groupIndex > 0 ? -1 : undefined}
+                  >
+                    <img
+                      src={imageFor(brand.logo_url)}
+                      alt={groupIndex === 0 ? brand.name || "" : ""}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-110"
+                      width="240"
+                      height="140"
+                    />
+                  </Link>
+                ) : (
+                  <div
+                    key={`${groupIndex}-skeleton-${index}`}
+                    className="sf-brand-marquee__item animate-pulse"
+                    style={{ background: themeTokens.cardSoft }}
                   />
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-black" style={{ color: themeTokens.textPrimary }}>{brand.name}</span>
-                  <span className="mt-0.5 block text-[11px] font-semibold" style={{ color: themeTokens.textSecondary }}>
-                    {isRtl ? "موجودة في المتجر" : "Available in store"}
-                  </span>
-                </span>
-              </>
-            ) : (
-              <div className="h-12 w-full animate-pulse rounded-[1rem]" style={{ background: themeTokens.cardSoft }} />
-            )}
-          </Link>
-        ))}
+                )
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     </section>
   );

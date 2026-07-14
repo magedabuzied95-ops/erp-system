@@ -494,6 +494,18 @@
     }
   }
 
+  @keyframes sfBrandMarqueePause {
+    0% {
+      transform: translate3d(0, 0, 0);
+    }
+    60% {
+      transform: translate3d(-50%, 0, 0);
+    }
+    100% {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+
   @keyframes wishlist-pop {
     0% {
       transform: scale(0.7);
@@ -508,6 +520,67 @@
 }
 
 @layer components {
+  .sf-brand-marquee {
+    width: 100%;
+    overflow: hidden;
+    padding-block: 0.35rem 0.85rem;
+    mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
+  }
+
+  .sf-brand-marquee__track {
+    display: flex;
+    width: max-content;
+    will-change: transform;
+  }
+
+  .sf-brand-marquee__track--animated {
+    animation: sfBrandMarqueePause 10s linear infinite;
+  }
+
+  .sf-brand-marquee:hover .sf-brand-marquee__track--animated,
+  .sf-brand-marquee:focus-within .sf-brand-marquee__track--animated {
+    animation-play-state: paused;
+  }
+
+  .sf-brand-marquee__group {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: clamp(1rem, 2.4vw, 2.5rem);
+    padding-inline: clamp(1rem, 2.4vw, 2.5rem) 0;
+  }
+
+  .sf-brand-marquee__item {
+    display: grid;
+    width: clamp(9.5rem, 16vw, 15rem);
+    height: clamp(6.25rem, 10vw, 8.75rem);
+    flex: none;
+    place-items: center;
+    overflow: hidden;
+    border-radius: clamp(1.1rem, 2vw, 1.75rem);
+    padding: clamp(0.9rem, 2vw, 1.7rem);
+    transition: transform 300ms ease, box-shadow 300ms ease;
+  }
+
+  .sf-brand-marquee__item:hover {
+    transform: translateY(-3px);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .sf-brand-marquee {
+      overflow-x: auto;
+      mask-image: none;
+    }
+
+    .sf-brand-marquee__track--animated {
+      animation: none;
+    }
+
+    .sf-brand-marquee__group[aria-hidden="true"] {
+      display: none;
+    }
+  }
+
   .storefront-shell {
     --sf-purple: #a47a12;
     --sf-purple-2: #d0a632;
