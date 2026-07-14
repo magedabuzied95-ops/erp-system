@@ -35,6 +35,24 @@
   transform: translateY(-1px);
 }
 
+.ai-pwa-conversation-identity {
+  flex: 1 1 auto;
+}
+
+.ai-pwa-contact-copy {
+  max-width: min(16rem, 34vw);
+}
+
+.ai-pwa-conversation-toolbar {
+  display: grid;
+  gap: 8px;
+}
+
+.ai-pwa-status-card {
+  min-width: 0;
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--shadow) 55%, transparent);
+}
+
 .ai-pwa-main {
   scrollbar-color: var(--border-strong) transparent;
   scrollbar-width: thin;
@@ -142,14 +160,14 @@ html[data-theme="dark"] .ai-inbox-pwa .hover\:bg-slate-100:hover {
     margin-inline: auto;
   }
 
-  .ai-pwa-conversation-header > .mt-2 {
+  .ai-pwa-conversation-toolbar {
     display: grid;
     grid-template-columns: minmax(320px, 1fr) minmax(280px, 0.8fr);
     gap: 12px 20px;
     align-items: start;
   }
 
-  .ai-pwa-conversation-header > .mt-2 > :last-child {
+  .ai-pwa-conversation-toolbar > :last-child {
     grid-column: 1 / -1;
   }
 
@@ -193,8 +211,8 @@ html[data-theme="dark"] .ai-inbox-pwa .hover\:bg-slate-100:hover {
   }
 
   .ai-pwa-header-actions {
-    max-width: 144px;
-    flex-wrap: wrap;
+    max-width: none;
+    flex-wrap: nowrap;
     justify-content: flex-end;
   }
 
@@ -202,10 +220,6 @@ html[data-theme="dark"] .ai-inbox-pwa .hover\:bg-slate-100:hover {
     margin: 0 !important;
   }
 
-  .ai-pwa-header-actions > button:nth-of-type(3) {
-    order: 3;
-    width: auto;
-  }
 }
 
 @media (max-width: 430px) {
@@ -218,12 +232,35 @@ html[data-theme="dark"] .ai-inbox-pwa .hover\:bg-slate-100:hover {
   }
 
   .ai-pwa-header-actions {
-    max-width: 108px;
+    max-width: none;
     gap: 6px;
   }
 
   .ai-pwa-header-actions .ai-pwa-icon-button {
-    width: 42px;
-    height: 42px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .ai-pwa-conversation-identity {
+    gap: 5px !important;
+  }
+
+  .ai-pwa-conversation-identity > button:first-child {
+    width: 40px;
+    height: 40px;
+  }
+
+  .ai-pwa-conversation-identity img,
+  .ai-pwa-conversation-identity > button:nth-child(2) {
+    width: 38px;
+    height: 38px;
+  }
+
+  .ai-pwa-contact-copy {
+    max-width: min(8.5rem, 30vw);
+  }
+
+  .ai-pwa-contact-copy > div:first-of-type {
+    gap: 4px;
   }
 }

@@ -5105,7 +5105,7 @@ export default function AiInboxPwa() {
             className="ai-pwa-fixed ai-pwa-conversation-header fixed inset-x-0 top-0 z-[60] mx-auto w-full border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur"
           >
             <div className="ai-pwa-conversation-top flex items-center justify-between gap-3" style={{ flexDirection: isRtlLayout ? "row-reverse" : "row" }}>
-              <div className="flex min-w-0 items-center gap-2.5">
+              <div className="ai-pwa-conversation-identity flex min-w-0 items-center gap-2.5">
                 <button
                   type="button"
                   onClick={handleBackNavigation}
@@ -5150,7 +5150,7 @@ export default function AiInboxPwa() {
                     <UserRound className="h-4.5 w-4.5" />
                   </button>
                 )}
-                <div className="min-w-0">
+                <div className="ai-pwa-contact-copy min-w-0">
                   <button
                     type="button"
                     onClick={() =>
@@ -5208,19 +5208,6 @@ export default function AiInboxPwa() {
                 </button>
                 <button
                   type="button"
-                  onClick={toggleConversationAi}
-                  disabled={aiToggling}
-                  className={`inline-flex h-11 items-center gap-1.5 rounded-full px-3 text-[11px] font-black shadow-sm ring-1 disabled:opacity-50 ${
-                    selectedConversationAiEnabled
-                      ? "bg-emerald-300 text-slate-950 ring-emerald-200"
-                      : "bg-rose-50 text-rose-700 ring-rose-200"
-                  }`}
-                >
-                  {aiToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-                  {selectedWorkflowStatus === "human_takeover" ? "Return to AI" : selectedConversationAiEnabled ? "AI ON" : "AI OFF"}
-                </button>
-                <button
-                  type="button"
                   ref={menuButtonRef}
                   onClick={() => setMenuOpen((current) => !current)}
                   className="ai-pwa-icon-button inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
@@ -5236,7 +5223,7 @@ export default function AiInboxPwa() {
                     {aiAssistantGlobalSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
                     {aiAssistantGlobalEnabled ? "AI Assistant Global ON" : "AI Assistant Global OFF"}
                   </button>
-                  <button type="button" onClick={toggleConversationAi} disabled={aiToggling} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
+                  <button type="button" onClick={() => { void toggleConversationAi(); setMenuOpen(false); }} disabled={aiToggling} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
                     {aiToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
                     {selectedWorkflowStatus === "human_takeover" ? "Return to AI" : isConversationAiEnabled(selectedConversation) ? "AI ON" : "AI OFF"}
                   </button>
@@ -5263,61 +5250,61 @@ export default function AiInboxPwa() {
               </div>
             </div>
             {!fullscreenConversation ? (
-              <div className="mt-2 space-y-2">
-              <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-                <div className="min-w-0">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Global AI Assistant</div>
-                  <div className="truncate text-[12px] font-semibold text-slate-700">
-                    {aiAssistantGlobalEnabled ? "تشغيل مساعد الذكاء الاصطناعي لكل المحادثات" : "مساعد الذكاء الاصطناعي متوقف على كل المحادثات"}
+              <div className="ai-pwa-conversation-toolbar mt-2">
+                <div className="ai-pwa-status-card flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${aiAssistantGlobalEnabled ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
+                      <Bot className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Global AI Assistant</div>
+                      <div className="truncate text-[12px] font-semibold text-slate-700">
+                        {aiAssistantGlobalEnabled ? "Active for all conversations" : "Paused for all conversations"}
+                      </div>
+                    </div>
                   </div>
+                  <button
+                    type="button"
+                    onClick={toggleGlobalAiAssistant}
+                    disabled={aiAssistantGlobalSaving}
+                    className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-[11px] font-black disabled:opacity-50 ${
+                      aiAssistantGlobalEnabled ? "bg-emerald-300 text-slate-950" : "border border-rose-200 bg-rose-50 text-rose-700"
+                    }`}
+                  >
+                    {aiAssistantGlobalSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                    {aiAssistantGlobalEnabled ? "ON" : "OFF"}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={toggleGlobalAiAssistant}
-                  disabled={aiAssistantGlobalSaving}
-                  className={`inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] font-black disabled:opacity-50 ${
-                    aiAssistantGlobalEnabled ? "bg-emerald-300 text-slate-950" : "border border-rose-200 bg-rose-50 text-rose-700"
-                  }`}
-                >
-                  {aiAssistantGlobalSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Bot className="h-3.5 w-3.5" />}
-                  {aiAssistantGlobalEnabled ? "ON" : "OFF"}
-                </button>
-              </div>
-              {!aiAssistantGlobalEnabled ? (
-                <div className="rounded-2xl border border-amber-300/20 bg-amber-100 px-3 py-2 text-[12px] font-semibold text-amber-800">
-                  مساعد الذكاء الاصطناعي متوقف على كل المحادثات.
-                </div>
-              ) : null}
-              <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">Lead status</div>
-                  <div className="mt-1 inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-2.5 py-1">
-                    <span className={`h-2 w-2 rounded-full ${
+                <div className="ai-pwa-status-card flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${
                       leadStatusTone(currentLeadStatus) === "amber"
                         ? "bg-amber-400"
                         : leadStatusTone(currentLeadStatus) === "emerald"
                           ? "bg-emerald-400"
                           : "bg-blue-400"
                     }`} />
-                    <span className="text-[11px] font-semibold text-slate-700">{leadStatusLabel(currentLeadStatus)}</span>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Lead status</div>
+                      <div className="truncate text-[12px] font-semibold text-slate-700">{leadStatusLabel(currentLeadStatus)}</div>
+                    </div>
                   </div>
+                  <label className="min-w-[8.5rem] shrink-0">
+                    <span className="sr-only">Change lead status</span>
+                    <select
+                      value={currentLeadStatus}
+                      onChange={(event) => void updateLeadStatus(event.target.value)}
+                      disabled={leadActionLoading === "lead_status"}
+                      className="h-8 w-full rounded-full border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 outline-none disabled:opacity-50"
+                    >
+                      {LEAD_STATUS_ORDER.map((status) => (
+                        <option key={status} value={status}>
+                          {leadStatusLabel(status)}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
-                <label className="min-w-[9rem]">
-                  <span className="sr-only">Change lead status</span>
-                  <select
-                    value={currentLeadStatus}
-                    onChange={(event) => void updateLeadStatus(event.target.value)}
-                    disabled={leadActionLoading === "lead_status"}
-                    className="h-9 w-full rounded-full border border-slate-200 bg-white px-3 text-[12px] font-medium text-slate-700 outline-none disabled:opacity-50"
-                  >
-                    {LEAD_STATUS_ORDER.map((status) => (
-                      <option key={status} value={status}>
-                        {leadStatusLabel(status)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </div>
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
