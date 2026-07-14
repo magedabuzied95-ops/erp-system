@@ -66,3 +66,11 @@ test("loading older messages does not put the send button into a loading state",
   assert.match(source, /const \[replySending, setReplySending\]/);
   assert.match(source, /leadActionLoading \|\| replySending \|\| productCardSending/);
 });
+
+test("PWA keeps older-message loading separate from reply sending", () => {
+  const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
+  assert.match(source, /loadingOlder=\{olderLoading\}/);
+  assert.match(source, /disabled=\{!clean\(composerText\) \|\| sending\}/);
+  assert.match(source, /message_count: payload\.total \?\? conversation\.message_count/);
+  assert.match(source, /markReadSignatureRef\.current = ""/);
+});

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
+const pwaSource = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
 const serviceSource = fs.readFileSync(new URL("../server/services/aiSalesAgentService.js", import.meta.url), "utf8");
 
 test("AI Inbox renders each direct-message channel with its own label", () => {
@@ -35,4 +36,17 @@ test("AI Inbox queues a filter refresh instead of dropping it during an active r
 
 test("AI Inbox prioritizes WhatsApp direct messages in the initial summary", () => {
   assert.match(serviceSource, /IN \('facebook_messenger', 'instagram', 'whatsapp'\) THEN 0/);
+});
+
+test("AI Inbox PWA renders direct-message channels with their brand icons", () => {
+  assert.match(pwaSource, /key === "whatsapp"\) return \{ label: "WhatsApp", icon: FaWhatsapp/);
+  assert.match(pwaSource, /key === "instagram" \? "Instagram DM"/);
+  assert.match(pwaSource, /icon: FaInstagram/);
+  assert.match(pwaSource, /icon: FaFacebookMessenger/);
+});
+
+test("AI Inbox PWA conversation list remains directly clickable and page-scrollable", () => {
+  assert.doesNotMatch(pwaSource, /VirtualList/);
+  assert.match(pwaSource, /filteredConversations\.map\(\(conversation\)/);
+  assert.match(pwaSource, /identifiers\.conversationKey \|\| identifiers\.sessionId \|\| identifiers\.conversationId/);
 });

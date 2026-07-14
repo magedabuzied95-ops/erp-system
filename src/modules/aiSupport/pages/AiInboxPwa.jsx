@@ -29,10 +29,10 @@ import {
   UserRound,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { FaFacebookMessenger, FaInstagram, FaWhatsapp } from "react-icons/fa";
 
 import { api } from "../../../shared/api/api";
 import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStorage";
-import { VirtualList } from "../../../shared/components/VirtualList";
 import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
@@ -1171,9 +1171,9 @@ const conversationMatchesRealtimeKeys = (conversation = {}, keys = {}) => {
 
 const channelMeta = (value = "") => {
   const key = normalizeConversationChannel({ channel: value });
-  if (key === "whatsapp") return { label: "WhatsApp", icon: MessageCircleMore, tone: "text-emerald-600" };
-  if (key === "instagram" || key === "instagram_comment") return { label: "Instagram", icon: Camera, tone: "text-rose-500" };
-  if (key === "messenger" || key === "facebook_comment") return { label: "Messenger", icon: MessageCircleMore, tone: "text-blue-600" };
+  if (key === "whatsapp") return { label: "WhatsApp", icon: FaWhatsapp, tone: "text-emerald-600" };
+  if (key === "instagram" || key === "instagram_comment") return { label: key === "instagram" ? "Instagram DM" : "Instagram", icon: FaInstagram, tone: "text-rose-500" };
+  if (key === "messenger" || key === "facebook_comment") return { label: "Messenger", icon: FaFacebookMessenger, tone: "text-blue-600" };
   return { label: "Web", icon: Globe, tone: "text-slate-500" };
 };
 
@@ -3413,6 +3413,7 @@ export default function AiInboxPwa() {
         { tenant_id: tenantId, conversation_id: sessionId, channel: conversation.channel || conversation.source || "" },
         { headers, perfComponent: "AiInboxPwa.markRead" }
       ).catch((markError) => {
+        markReadSignatureRef.current = "";
         if (import.meta?.env?.DEV) {
           console.warn("[AiInboxPwa] mark-read failed", {
             conversation_id: sessionId,
@@ -3504,7 +3505,12 @@ export default function AiInboxPwa() {
         navigate(nextUrl);
         return;
       }
-      updateUrlState({ nextConversationId: conversationIdentifiers(conversation).sessionId || conversationIdentifiers(conversation).conversationId, nextTab: "conversations" });
+      const identifiers = conversationIdentifiers(conversation);
+      const nextConversationId = clean(identifiers.conversationKey || identifiers.sessionId || identifiers.conversationId || "");
+      if (!nextConversationId) return;
+      restoreScrollStateRef.current = null;
+      setComposerText("");
+      updateUrlState({ nextConversationId, nextTab: "conversations" });
     },
     [buildSocialCommentsCenterUrl, navigate, socialPostIdentity, tenantId, updateUrlState]
   );
@@ -3647,6 +3653,7 @@ export default function AiInboxPwa() {
         return {
           ...conversation,
           messages: mergedMessages,
+          message_count: payload.total ?? conversation.message_count,
           older_messages_available: Boolean(payload.has_more),
           next_messages_before: payload.next_before || mergedMessages[0]?.created_at || "",
           next_messages_before_id: payload.next_before_id || mergedMessages[0]?.id || "",
@@ -5441,21 +5448,21 @@ export default function AiInboxPwa() {
                 <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
               </div>
             ) : filteredConversations.length ? (
-              <VirtualList
-                items={filteredConversations}
-                estimateSize={72}
-                className="h-[calc(100vh-7.85rem-env(safe-area-inset-bottom))]"
-                itemKey={(conversation) => conversation.conversation_key}
-                renderItem={(conversation) => (
-                  <div className="border-b border-slate-100 py-0.5">
-                    <ConversationListItem
-                      conversation={conversation}
-                      active={false}
-                      onSelect={openConversation}
-                    />
-                  </div>
-                )}
-              />
+              <div className="divide-y divide-slate-100 pb-2">
+                {filteredConversations.map((conversation) => {
+                  const identifiers = conversationIdentifiers(conversation);
+                  const itemKey = clean(identifiers.conversationKey || identifiers.sessionId || identifiers.conversationId || messageKey(conversation));
+                  return (
+                    <div key={itemKey} className="py-0.5">
+                      <ConversationListItem
+                        conversation={conversation}
+                        active={false}
+                        onSelect={openConversation}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
             ) : (
               <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
                 No conversations match the current filters.
