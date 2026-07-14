@@ -4518,18 +4518,30 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       conversation_id: conversationId,
       message_length: messageText.length,
     });
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
+    const findConversation = (items = []) => items.find((item) =>
+      item.session_id === conversationId ||
+      item.external_conversation_id === conversationId ||
+      item.external_customer_id === conversationId ||
+      item.conversation_key === conversationId
+    ) || null;
+    let inbox = await loadAiInbox({ tenantId, filter: "all", search: conversationId, limit: 50 });
     console.info("[ai-inbox:send-route]", {
       stage: "load_ai_inbox_done",
       tenant_id: tenantId,
       conversation_id: conversationId,
       loaded_count: inbox.conversations.length,
     });
-    conversation = inbox.conversations.find((item) =>
-      item.session_id === conversationId ||
-      item.external_conversation_id === conversationId ||
-      item.external_customer_id === conversationId
-    ) || null;
+    conversation = findConversation(inbox.conversations);
+    if (!conversation) {
+      console.info("[ai-inbox:send-route]", {
+        stage: "targeted_lookup_miss",
+        tenant_id: tenantId,
+        conversation_id: conversationId,
+        loaded_count: inbox.conversations.length,
+      });
+      inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
+      conversation = findConversation(inbox.conversations);
+    }
     perfLog("ai_inbox_send_session_lookup", {
       tenant_id: tenantId,
       conversation_id: conversationId,

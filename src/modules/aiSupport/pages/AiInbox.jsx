@@ -6116,9 +6116,10 @@ export default function AiInbox() {
     async ({ message = "" } = {}) => {
       if (!message) return;
       setAvailableBySizeSending(true);
+      closeProductCardPicker();
+      setToast({ tone: "amber", text: "جاري إرسال رابط المنتجات..." });
       try {
         await sendManualReply(message);
-        closeProductCardPicker();
       } finally {
         setAvailableBySizeSending(false);
       }

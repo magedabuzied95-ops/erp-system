@@ -641,42 +641,44 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
 
     const sizeContent = (
       <div
-        className={inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-white" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/70 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}
+        className={inlineFullscreenMode ? "fixed inset-x-0 bottom-0 top-0 z-[99999] isolate overflow-hidden bg-[#111310]" : "fixed inset-0 z-[99999] isolate overflow-hidden bg-black/75 backdrop-blur-sm sm:flex sm:items-center sm:justify-center sm:p-4"}
         style={{ position: "fixed", inset: 0, top: 0, left: 0, right: 0, bottom: 0, width: "100vw", height: "100dvh", zIndex: 2147483647, isolation: "isolate" }}
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) onClose?.();
         }}
       >
-        <div className="absolute inset-0 bg-black/70" aria-hidden="true" />
+        <div className="absolute inset-0 bg-black/75" aria-hidden="true" />
         <section
-          className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-white text-slate-900" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[640px] min-w-0 flex-col overflow-hidden rounded-none border border-white/10 bg-slate-950 shadow-[0_30px_90px_rgba(0,0,0,0.65)] sm:mx-auto sm:h-auto sm:max-h-[85dvh] sm:rounded-[1.35rem]"}
-          style={{ position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: "85dvh", margin: 0, borderRadius: "1.35rem" }}
+          data-testid="available-by-size-dialog"
+          className={inlineFullscreenMode ? "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden rounded-none bg-[#111310] text-white" : "relative z-10 flex h-[100dvh] max-h-[100dvh] w-full max-w-[760px] min-w-0 flex-col overflow-hidden rounded-none border border-amber-300/20 bg-[#151714] shadow-[0_30px_90px_rgba(0,0,0,0.68)] sm:mx-auto sm:h-auto sm:max-h-[82dvh] sm:rounded-[1.35rem]"}
+          style={{ position: "relative", inset: "auto", width: "100%", height: "auto", maxHeight: inlineFullscreenMode ? "100dvh" : "82dvh", margin: 0, borderRadius: inlineFullscreenMode ? 0 : "1.35rem" }}
           onMouseDown={(event) => event.stopPropagation()}
           role="dialog"
           aria-modal="true"
           aria-labelledby="ai-product-card-picker-title"
           dir="rtl"
         >
-          <div className={inlineFullscreenMode ? "flex items-start justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3" : "sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-white/10 bg-slate-950/95 px-4 py-3 backdrop-blur"}>
+          <div className="sticky top-0 z-20 flex items-start justify-between gap-3 border-b border-amber-300/15 bg-[#191b17]/95 px-4 py-3 backdrop-blur">
             <div className="min-w-0">
-              <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>AI INBOX</div>
-              <h3 id="ai-product-card-picker-title" className={inlineFullscreenMode ? "mt-1 text-lg font-black text-slate-900" : "mt-1 text-lg font-black text-white"}>المتاح بالمقاس</h3>
-              <p className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-zinc-500"}>اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.</p>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">AI INBOX</div>
+              <h3 id="ai-product-card-picker-title" className="mt-1 text-lg font-black text-white">المتاح بالمقاس</h3>
+              <p className="mt-1 text-xs font-semibold text-slate-400">اختر المقاس أو المقاسات ثم فلتر بالبراند أو النوع أو الجنس أو السعر، وسنرسل رابطًا واحدًا للمتجر.</p>
             </div>
             <button
+              data-testid="available-by-size-close"
               type="button"
               onClick={onClose}
-              className={inlineFullscreenMode ? "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-900" : "inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white"}
+              className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-white transition hover:border-amber-300/30 hover:bg-amber-300/10"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
 
-          <div className={inlineFullscreenMode ? "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-white p-4" : "flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-slate-950 p-4"}>
-            <div className={inlineFullscreenMode ? "rounded-3xl border border-slate-200 bg-slate-50 p-4" : "rounded-3xl border border-white/10 bg-white/[0.04] p-4"}>
-              <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Sizes</div>
-              <div className={inlineFullscreenMode ? "mt-2 text-lg font-black text-slate-900" : "mt-2 text-lg font-black text-white"}>اختر المقاس أو المقاسات</div>
-              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.</div>
+          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-[#111310] p-4">
+            <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">المقاسات</div>
+              <div className="mt-2 text-lg font-black text-white">اختر المقاس أو المقاسات</div>
+              <div className="mt-1 text-xs font-semibold text-slate-400">المتجر سيُفتح مع الفلاتر المحددة تلقائيًا.</div>
               <div className="mt-4 grid grid-cols-3 gap-2 sm:grid-cols-4 lg:grid-cols-6">
                 {availableSizes.length ? availableSizes.map((size) => {
                   const active = normalizedSelectedSizes.includes(size);
@@ -689,13 +691,13 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
                           current.includes(size) ? current.filter((item) => item !== size) : [...current, size]
                         ));
                       }}
-                      className={inlineFullscreenMode ? `min-h-12 rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "border-cyan-300/40 bg-cyan-50 text-cyan-900" : "border-slate-200 bg-white text-slate-900 hover:border-cyan-300/30 hover:bg-cyan-50"}` : `min-h-12 rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "border-cyan-300/40 bg-cyan-300/15 text-cyan-100" : "border-white/10 bg-black/30 text-white hover:border-cyan-300/30 hover:bg-cyan-300/10"}`}
+                      className={`min-h-12 rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "border-amber-300 bg-amber-300 text-slate-950 shadow-[0_8px_22px_rgba(252,211,77,0.16)]" : "border-white/10 bg-black/25 text-white hover:border-amber-300/35 hover:bg-amber-300/10"}`}
                     >
                       {size}
                     </button>
                   );
                 }) : (
-                  <div className={inlineFullscreenMode ? "col-span-full rounded-2xl border border-dashed border-slate-200 bg-white p-4 text-sm font-semibold text-slate-500" : "col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm font-semibold text-slate-500"}>
+                  <div className="col-span-full rounded-2xl border border-dashed border-white/10 bg-black/20 p-4 text-sm font-semibold text-slate-500">
                     لا توجد مقاسات متاحة حاليًا
                   </div>
                 )}
@@ -703,51 +705,52 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
             </div>
 
             <div className="grid gap-2 sm:grid-cols-2">
-              <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
+              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 focus-within:border-amber-300/30">
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Gender</span>
-                <select value={selectedLinkGender} onChange={(event) => setSelectedLinkGender(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
+                <select value={selectedLinkGender} onChange={(event) => setSelectedLinkGender(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none">
                   {genderOptions.map((option) => <option key={option} value={option}>{option === "all" ? "الكل" : option}</option>)}
                 </select>
               </label>
-              <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
+              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 focus-within:border-amber-300/30">
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Type</span>
-                <select value={selectedLinkType} onChange={(event) => setSelectedLinkType(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
+                <select value={selectedLinkType} onChange={(event) => setSelectedLinkType(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none">
                   <option value="all">الكل</option>
                   {typeOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
-              <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
+              <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 focus-within:border-amber-300/30">
                 <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Brand</span>
-                <select value={selectedLinkBrand} onChange={(event) => setSelectedLinkBrand(event.target.value)} className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"}>
+                <select value={selectedLinkBrand} onChange={(event) => setSelectedLinkBrand(event.target.value)} className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none">
                   <option value="all">الكل</option>
                   {brandOptions.map((item) => <option key={item} value={item}>{item}</option>)}
                 </select>
               </label>
               <div className="grid grid-cols-2 gap-2">
-                <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
+                <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 focus-within:border-amber-300/30">
                   <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Min</span>
-                  <input value={selectedLinkMinPrice} onChange={(event) => setSelectedLinkMinPrice(event.target.value)} inputMode="numeric" placeholder="0" className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"} />
+                  <input value={selectedLinkMinPrice} onChange={(event) => setSelectedLinkMinPrice(event.target.value)} inputMode="numeric" placeholder="0" className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none" />
                 </label>
-                <label className={inlineFullscreenMode ? "flex min-h-11 items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3" : "flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/70 px-3"}>
+                <label className="flex min-h-11 items-center gap-2 rounded-2xl border border-white/10 bg-black/25 px-3 focus-within:border-amber-300/30">
                   <span className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Max</span>
-                  <input value={selectedLinkMaxPrice} onChange={(event) => setSelectedLinkMaxPrice(event.target.value)} inputMode="numeric" placeholder="0" className={inlineFullscreenMode ? "min-w-0 flex-1 bg-transparent text-xs font-black text-slate-900 outline-none" : "min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none"} />
+                  <input value={selectedLinkMaxPrice} onChange={(event) => setSelectedLinkMaxPrice(event.target.value)} inputMode="numeric" placeholder="0" className="min-w-0 flex-1 bg-transparent text-xs font-black text-white outline-none" />
                 </label>
               </div>
             </div>
 
-            <div className={inlineFullscreenMode ? "rounded-3xl border border-slate-200 bg-white p-4" : "rounded-3xl border border-white/10 bg-white/[0.04] p-4"}>
-              <div className={inlineFullscreenMode ? "text-[10px] font-black uppercase tracking-[0.22em] text-slate-500" : "text-[10px] font-black uppercase tracking-[0.22em] text-cyan-200"}>Preview</div>
-              <div className={inlineFullscreenMode ? "mt-2 text-base font-black text-slate-900" : "mt-2 text-base font-black text-white"}>{normalizedSelectedSizes.length ? `سيتم البحث عن ${normalizedSelectedSizes.join("، ")}` : "اختر المقاس أولًا"}</div>
-              <div className={inlineFullscreenMode ? "mt-1 text-xs font-semibold text-slate-600" : "mt-1 text-xs font-semibold text-slate-400"}>النتائج المطابقة: {matchingCount}</div>
+            <div className="rounded-3xl border border-amber-300/15 bg-amber-300/[0.055] p-4">
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-amber-300">المعاينة</div>
+              <div className="mt-2 text-base font-black text-white">{normalizedSelectedSizes.length ? `سيتم البحث عن ${normalizedSelectedSizes.join("، ")}` : "اختر المقاس أولًا"}</div>
+              <div className="mt-1 text-xs font-semibold text-slate-400">النتائج المطابقة: {matchingCount}</div>
             </div>
           </div>
 
-          <div className={inlineFullscreenMode ? "sticky bottom-0 z-20 shrink-0 border-t border-slate-200 bg-white px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3" : "sticky bottom-0 z-10 shrink-0 border-t border-white/10 bg-slate-950/95 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur"}>
+          <div className="sticky bottom-0 z-20 shrink-0 border-t border-amber-300/15 bg-[#191b17]/95 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur">
             <button
+              data-testid="available-by-size-send"
               type="button"
               onClick={() => void submitSelectionWithSizeMode()}
               disabled={submitting || !normalizedSelectedSizes.length}
-              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-emerald-300 text-sm font-semibold text-slate-950 disabled:opacity-50"
+              className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-amber-300 text-sm font-black text-slate-950 transition hover:bg-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               إرسال الرابط
@@ -1138,7 +1141,4 @@ export default function ProductCardPicker({ open, onClose, onSubmit, onSubmitLin
   );
   return inlineFullscreenMode ? content : createPortal(content, document.body);
 }
-
-
-
 
