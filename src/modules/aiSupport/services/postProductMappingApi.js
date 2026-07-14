@@ -160,3 +160,21 @@ export const searchStorefrontProducts = async ({
     products: items,
   };
 };
+
+export const getStorefrontBrandOptions = async ({ timeoutMs = 15000 } = {}) => {
+  const response = await api.get("/storefront/brands", { timeoutMs });
+  const data = unwrapObject(response);
+  const rows = Array.isArray(data?.brands)
+    ? data.brands
+    : Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data)
+        ? data
+        : [];
+  return rows
+    .map((brand) => ({
+      value: clean(brand?.name || brand?.brand_name || brand?.slug || ""),
+      label: clean(brand?.name || brand?.brand_name || brand?.slug || ""),
+    }))
+    .filter((brand) => brand.value);
+};

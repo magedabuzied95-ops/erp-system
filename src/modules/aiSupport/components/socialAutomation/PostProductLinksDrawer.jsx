@@ -1,14 +1,43 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GripVertical, Loader2, Plus, RefreshCw, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
+import { Check, ChevronDown, GripVertical, Loader2, Plus, RefreshCw, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 
 import {
   getPostProductLinks,
+  getStorefrontBrandOptions,
   savePostProductLinks,
   searchStorefrontProducts,
 } from "../../services/postProductMappingApi.js";
 
 const clean = (value = "") => String(value ?? "").trim();
+const PRODUCT_TYPE_OPTIONS = [
+  { value: "sneakers", label: "Sneakers" },
+  { value: "shoes", label: "Shoes" },
+  { value: "running", label: "Running" },
+  { value: "casualshoes", label: "Casual shoes" },
+  { value: "crocs", label: "Crocs" },
+  { value: "slippers", label: "Slippers" },
+  { value: "bags", label: "Bags" },
+];
+const SIZE_OPTIONS = ["37", "38", "39", "40", "41", "42", "43", "44", "45"];
+
+const FilterSelect = ({ label, value, options = [], onChange }) => (
+  <label className="relative min-w-0">
+    <span className="sr-only">{label}</span>
+    <select
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      className={`h-11 w-full appearance-none rounded-xl border px-3 pr-9 text-xs font-bold outline-none transition ${value ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.04] text-slate-300"}`}
+    >
+      <option value="">All {label.toLowerCase()}</option>
+      {options.map((option) => {
+        const safeOption = typeof option === "string" ? { value: option, label: option } : option;
+        return <option key={safeOption.value} value={safeOption.value}>{safeOption.label}</option>;
+      })}
+    </select>
+    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+  </label>
+);
 const isSocialDebugEnabled = () => import.meta.env.DEV && window.localStorage.getItem("social_debug") === "1";
 const socialDebugLog = (...args) => {
   if (isSocialDebugEnabled()) console.log(...args);
@@ -206,6 +235,7 @@ export default function PostProductLinksDrawer({
   const [searchItems, setSearchItems] = useState([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [searchFilters, setSearchFilters] = useState({ gender: "", productType: "", brand: "", size: "", inStock: false });
+  const [brandOptions, setBrandOptions] = useState([]);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [primaryProductId, setPrimaryProductId] = useState(null);
   const [draggedId, setDraggedId] = useState(null);
@@ -397,6 +427,9 @@ export default function PostProductLinksDrawer({
     setPrimaryProductId(null);
     void loadMappings();
     void loadSearch({ reset: true });
+    void getStorefrontBrandOptions()
+      .then((options) => setBrandOptions(Array.isArray(options) ? options : []))
+      .catch(() => setBrandOptions([]));
     return () => {
       if (searchTimerRef.current) window.clearTimeout(searchTimerRef.current);
     };
@@ -724,29 +757,32 @@ export default function PostProductLinksDrawer({
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
-                      <input
+                      <FilterSelect
+                        label="Product types"
                         value={searchFilters.productType}
-                        onChange={(event) => setSearchFilters((current) => ({ ...current, productType: event.target.value }))}
-                        placeholder="Product type"
-                        className="h-10 min-w-0 rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white outline-none placeholder:text-slate-500"
+                        options={PRODUCT_TYPE_OPTIONS}
+                        onChange={(value) => setSearchFilters((current) => ({ ...current, productType: value }))}
                       />
-                      <input
+                      <FilterSelect
+                        label="Brands"
                         value={searchFilters.brand}
-                        onChange={(event) => setSearchFilters((current) => ({ ...current, brand: event.target.value }))}
-                        placeholder="Brand"
-                        className="h-10 min-w-0 rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white outline-none placeholder:text-slate-500"
+                        options={brandOptions}
+                        onChange={(value) => setSearchFilters((current) => ({ ...current, brand: value }))}
                       />
-                      <input
+                      <FilterSelect
+                        label="Sizes"
                         value={searchFilters.size}
-                        onChange={(event) => setSearchFilters((current) => ({ ...current, size: event.target.value }))}
-                        placeholder="Size"
-                        className="h-10 min-w-0 rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white outline-none placeholder:text-slate-500"
+                        options={SIZE_OPTIONS}
+                        onChange={(value) => setSearchFilters((current) => ({ ...current, size: value }))}
                       />
                       <button
                         type="button"
                         onClick={() => setSearchFilters((current) => ({ ...current, inStock: !current.inStock }))}
-                        className={`h-10 rounded-xl border px-3 text-xs font-black ${searchFilters.inStock ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-white/[0.04] text-slate-300"}`}
+                        className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black ${searchFilters.inStock ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-white/[0.04] text-slate-300"}`}
                       >
+                        <span className={`grid h-4 w-4 place-items-center rounded border ${searchFilters.inStock ? "border-emerald-300 bg-emerald-300 text-emerald-950" : "border-white/20"}`}>
+                          {searchFilters.inStock ? <Check className="h-3 w-3" /> : null}
+                        </span>
                         In stock only
                       </button>
                     </div>
