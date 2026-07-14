@@ -367,6 +367,7 @@ const normalizeInboxMessage = (message = {}) => {
   const body = messageDisplayText(message);
   const normalizedSenderType = senderType || (fromMe || direction === "outbound" ? "assistant" : "customer");
   const isStaffSender = ["staff", "agent", "human"].includes(normalizedSenderType.toLowerCase());
+  const resolvedFromMe = fromMe || direction === "outbound";
   const normalizedMessageType =
     clean(message.message_type || message.messageType || "") ||
     (productCards.length ? "product_card" : direction === "outbound" ? "ai_reply" : "customer_message");
@@ -405,10 +406,10 @@ const normalizeInboxMessage = (message = {}) => {
     body: clean(message.body || body),
     content: clean(message.content || body),
     message_text: clean(message.message_text || body),
-    from_me: fromMe,
-    fromMe,
-    customer_message: clean(message.customer_message || (!fromMe && direction === "inbound" ? body : "")),
-    ai_answer: clean(message.ai_answer || ((!isStaffSender && (fromMe || direction === "outbound")) && normalizedMessageType !== "product_card" ? body : "")),
+    from_me: resolvedFromMe,
+    fromMe: resolvedFromMe,
+    customer_message: clean(resolvedFromMe ? "" : message.customer_message || (direction === "inbound" ? body : "")),
+    ai_answer: clean(message.ai_answer || ((!isStaffSender && resolvedFromMe) && normalizedMessageType !== "product_card" ? body : "")),
     staff_message: clean(message.staff_message || (normalizedSenderType === "staff" ? body : "")),
     product_cards: productCards,
     productCards,

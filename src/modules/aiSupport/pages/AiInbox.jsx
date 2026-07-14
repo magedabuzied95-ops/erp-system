@@ -1277,15 +1277,16 @@ const normalizeTranscriptMessage = (message = {}) => {
   );
   const normalizedSenderType = senderType || (fromMe || direction === "outbound" ? "assistant" : "customer");
   const isStaffSender = ["staff", "agent", "human"].includes(normalizedSenderType);
+  const resolvedFromMe = fromMe || direction === "outbound";
   return {
     ...message,
-    from_me: fromMe,
-    fromMe,
+    from_me: resolvedFromMe,
+    fromMe: resolvedFromMe,
     direction: direction || message.direction || message.message_direction || "",
     sender_type: normalizedSenderType,
     senderType: normalizedSenderType,
-    customer_message: clean(message.customer_message || (!fromMe && direction === "inbound" ? body : "")),
-    ai_answer: clean(message.ai_answer || ((!isStaffSender && (fromMe || direction === "outbound")) ? body : "")),
+    customer_message: clean(resolvedFromMe ? "" : message.customer_message || (direction === "inbound" ? body : "")),
+    ai_answer: clean(message.ai_answer || ((!isStaffSender && resolvedFromMe) ? body : "")),
     staff_message: clean(message.staff_message || (normalizedSenderType === "staff" ? body : "")),
     message_text: clean(message.message_text || body),
     text: clean(message.text || body),

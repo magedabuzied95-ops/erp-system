@@ -892,38 +892,47 @@ const logAiInboxConversationFilterDebug = ({
   });
 };
 
-export const normalizeInboxMessage = (row = {}) => ({
-  id: row.id,
-  session_id: row.session_id,
-  channel: row.channel || "",
-  external_message_id: row.external_message_id || "",
-  external_reply_id: row.external_reply_id || "",
-  dedupe_key: row.dedupe_key || "",
-  customer_message: row.customer_message || row.message_text || "",
-  ai_answer: row.ai_answer || "",
-  staff_message: row.staff_message || "",
-  sender_type: row.sender_type || (row.staff_message ? "staff" : "customer"),
-  manual_message: row.manual_message === true,
-  staff_user_id: row.staff_user_id || null,
-  staff_user_name: row.staff_user_name || "",
-  delivery_status: row.delivery_status || "",
-  delivery_error: row.delivery_error || "",
-  error_code: row.error_code || "",
-  message_type: row.message_type || "",
-  confidence: Number(row.confidence || 0),
-  needs_human_support: row.needs_human_support === true,
-  detected_intent: row.detected_intent || "",
-  suggested_products: asArray(row.suggested_products),
-  product_cards: normalizeInboxProductCards(row),
-  productCards: normalizeInboxProductCards(row),
-  visual_attachments: asArray(row.visual_attachments),
-  suggested_actions: asArray(row.suggested_actions),
-  created_at: row.created_at,
-  system_events: [
-    row.needs_human_support ? { type: "handoff", label: "Human handoff requested", created_at: row.created_at } : null,
-    row.detected_intent === "order_draft_created" ? { type: "draft_created", label: "Draft created", created_at: row.created_at } : null,
-  ].filter(Boolean),
-});
+export const normalizeInboxMessage = (row = {}) => {
+  const senderType = text(row.sender_type || (row.staff_message ? "staff" : "customer")).toLowerCase();
+  const isOutbound = ["staff", "agent", "human", "assistant", "ai", "bot", "system"].includes(senderType);
+  const body = row.message_text || row.staff_message || row.ai_answer || row.customer_message || "";
+  return {
+    id: row.id,
+    session_id: row.session_id,
+    channel: row.channel || "",
+    external_message_id: row.external_message_id || "",
+    provider_message_id: row.provider_message_id || row.external_message_id || "",
+    external_reply_id: row.external_reply_id || "",
+    dedupe_key: row.dedupe_key || "",
+    customer_message: isOutbound ? "" : row.customer_message || body,
+    ai_answer: row.ai_answer || (["assistant", "ai", "bot", "system"].includes(senderType) ? body : ""),
+    staff_message: row.staff_message || (["staff", "agent", "human"].includes(senderType) ? body : ""),
+    sender_type: senderType,
+    direction: isOutbound ? "outbound" : "inbound",
+    from_me: isOutbound,
+    fromMe: isOutbound,
+    manual_message: row.manual_message === true,
+    staff_user_id: row.staff_user_id || null,
+    staff_user_name: row.staff_user_name || "",
+    delivery_status: row.delivery_status || "",
+    delivery_error: row.delivery_error || "",
+    error_code: row.error_code || "",
+    message_type: row.message_type || "",
+    confidence: Number(row.confidence || 0),
+    needs_human_support: row.needs_human_support === true,
+    detected_intent: row.detected_intent || "",
+    suggested_products: asArray(row.suggested_products),
+    product_cards: normalizeInboxProductCards(row),
+    productCards: normalizeInboxProductCards(row),
+    visual_attachments: asArray(row.visual_attachments),
+    suggested_actions: asArray(row.suggested_actions),
+    created_at: row.created_at,
+    system_events: [
+      row.needs_human_support ? { type: "handoff", label: "Human handoff requested", created_at: row.created_at } : null,
+      row.detected_intent === "order_draft_created" ? { type: "draft_created", label: "Draft created", created_at: row.created_at } : null,
+    ].filter(Boolean),
+  };
+};
 
 const normalizeAiReplyDraft = (value = {}) => {
   const draft = value && typeof value === "object" ? value : {};
