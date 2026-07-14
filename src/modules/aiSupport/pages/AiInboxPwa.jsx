@@ -5091,9 +5091,7 @@ export default function AiInboxPwa() {
                           selectedCommentKey=""
                           highlightedCommentKey=""
                           activePostPlatform={commentPlatform}
-                          replyDraft={replyDraft}
-                          previewReply={previewReply}
-                          suggestedReply={suggestedReply}
+                          replyDraft={templateText || genericTemplateText}
                           replyLoadingKey={socialActionLoading.startsWith("reply:") ? socialActionLoading.slice("reply:".length) : ""}
                           privateMessageLoadingKey={socialActionLoading.startsWith("private:") ? socialActionLoading.slice("private:".length) : ""}
                           privateMessageStatus={clean(comment.private_reply_status || comment.dm_status || selectedSocialThread?.post?.dm_status || "")}

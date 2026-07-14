@@ -81,3 +81,10 @@ test("AI Inbox PWA expands on desktop while keeping a mobile layout", () => {
   assert.match(pwaStyles, /@media \(min-width: 768px\)/);
   assert.match(pwaStyles, /@media \(max-width: 767px\)/);
 });
+
+test("AI Inbox PWA social comments use a defined reply template", () => {
+  assert.doesNotMatch(pwaSource, /replyDraft=\{replyDraft\}/);
+  assert.doesNotMatch(pwaSource, /previewReply=\{previewReply\}/);
+  assert.doesNotMatch(pwaSource, /suggestedReply=\{suggestedReply\}/);
+  assert.match(pwaSource, /replyDraft=\{templateText \|\| genericTemplateText\}/);
+});
