@@ -160,6 +160,14 @@ function TranscriptMessage({
               {message.delivery_status === "failed" && message.delivery_error ? (
                 <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
               ) : null}
+              {mediaUrls.length ? (
+                <div className="mt-2 grid gap-2">
+                  {mediaUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer"><img src={url} alt="Attachment" className="aspect-video w-full rounded-xl object-cover" loading="lazy" decoding="async" /></a>)}
+                </div>
+              ) : null}
+              {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-2 w-full" />)}
+              {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-2 max-h-72 w-full rounded-xl" />)}
+              {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-2 inline-flex rounded-lg border border-emerald-200 bg-white px-3 py-2 text-xs font-black text-emerald-700">فتح الملف</a>)}
             </div>
           </div>
         </div>
@@ -266,6 +274,9 @@ function TranscriptMessage({
                 ))}
               </div>
             ) : null}
+            {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-3 w-full" />)}
+            {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-3 max-h-80 w-full rounded-2xl border border-white/10 bg-slate-950/80" />)}
+            {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-xs font-black text-cyan-100">فتح الملف</a>)}
           </div>
         </div>
       ) : null}
