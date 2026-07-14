@@ -198,7 +198,7 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
       <div className="flex gap-3">
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
           {media.thumbnail ? (
-            <img src={media.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
+            <img src={media.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" />
           ) : media.videoUrl ? (
             <video src={media.videoUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" />
           ) : (

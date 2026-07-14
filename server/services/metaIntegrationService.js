@@ -4313,7 +4313,7 @@ export const fetchMetaPageFeedPostsForTenant = async ({ tenantId = null, limit =
   if (!token) return { success: false, posts: [], page_id: pageId, graph_error: "Page access token is missing" };
 
   const safeLimit = Math.min(500, Math.max(1, Number(limit) || 100));
-  const targetCount = Math.max(safeLimit, Math.min(500, safeLimit * 3));
+  const targetCount = safeLimit;
   const posts = [];
   let after = "";
   let pageCount = 0;

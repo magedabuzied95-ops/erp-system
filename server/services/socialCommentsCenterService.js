@@ -3490,7 +3490,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   };
 };
 
-const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 50 } = {}) => {
+const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 50, includeProductLinks = true } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
   if (!safeTenantId) return [];
@@ -3571,7 +3571,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     message: text(row.message || ""),
     comments_count: Number(row.comments_count || 0) || 0,
   }));
-  const effectiveFeedPosts = feedPosts.length ? feedPosts : fallbackPosts;
+  const effectiveFeedPosts = (feedPosts.length ? feedPosts : fallbackPosts).slice(0, safeLimit);
   if (!feedPosts.length && fallbackPosts.length) {
     console.log("SOCIAL_COMMENTS_POST_FEED_ERROR", {
       route: "/api/social-comments/posts",
@@ -3614,25 +3614,27 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     const coverImageUrl = resolveFacebookPostCoverImage(post);
     const postLinkKey = postId;
     const commentsCount = commentsByPostId.get(postId) || 0;
-    const mappingSummary = await getPostProductLinksV2({
-      tenantId: safeTenantId,
-      platform: normalizedPlatform,
-      postId: postLinkKey,
-      postLinkKey,
-      post: {
-        id: postId,
-        post_id: postId,
-        platform_post_id: postId,
-        canonical_post_id: postId,
-        source_post_id: postId,
-        permalink_url: text(post.permalink_url || ""),
-        cover_image_url: coverImageUrl,
-        full_picture: text(post.full_picture || ""),
-        picture: text(post.picture || ""),
-        message: text(post.message || ""),
-        caption: text(post.message || ""),
-      },
-    }).catch(() => null);
+    const mappingSummary = includeProductLinks
+      ? await getPostProductLinksV2({
+          tenantId: safeTenantId,
+          platform: normalizedPlatform,
+          postId: postLinkKey,
+          postLinkKey,
+          post: {
+            id: postId,
+            post_id: postId,
+            platform_post_id: postId,
+            canonical_post_id: postId,
+            source_post_id: postId,
+            permalink_url: text(post.permalink_url || ""),
+            cover_image_url: coverImageUrl,
+            full_picture: text(post.full_picture || ""),
+            picture: text(post.picture || ""),
+            message: text(post.message || ""),
+            caption: text(post.message || ""),
+          },
+        }).catch(() => null)
+      : null;
     const linkedProducts = Array.isArray(mappingSummary?.linked_products) ? mappingSummary.linked_products : [];
     const linkedProductsCount = Number(mappingSummary?.count || linkedProducts.length || 0) || 0;
     const hasDirectProductLink = linkedProductsCount > 0;

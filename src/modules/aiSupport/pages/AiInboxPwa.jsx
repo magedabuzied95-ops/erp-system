@@ -3059,7 +3059,7 @@ export default function AiInboxPwa() {
       if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
       setSocialCommentsDebug((current) => ({ ...current, error: "" }));
 
-      const postsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=200`;
+      const postsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=200&include_product_links=0`;
       const fastRequestUrl = `/api/social-comments/fast-list?tenant_id=${encodeURIComponent(tenantId)}&limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
       const perfLabel = "AiInboxPwa.socialCommentsPosts";
       if (DEBUG_SOCIAL_PERF) console.time(perfLabel);
@@ -3076,7 +3076,7 @@ export default function AiInboxPwa() {
         if (!cursor) {
           try {
             const payload = await api.get("/social-comments/posts", {
-              params: { tenant_id: tenantId, limit: 200 },
+              params: { tenant_id: tenantId, limit: 200, include_product_links: 0 },
               headers,
               timeoutMs: 20000,
               perfComponent: "AiInboxPwa.socialCommentsPosts",
@@ -5457,7 +5457,7 @@ export default function AiInboxPwa() {
                 <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
                   <div className="flex flex-wrap items-start gap-3">
                     <div className="h-28 w-28 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
-                      {postImage ? <img src={postImage} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
+                      {postImage ? <img src={postImage} alt="" className="h-full w-full object-cover" loading="lazy" referrerPolicy="no-referrer" /> : null}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Post Preview</div>

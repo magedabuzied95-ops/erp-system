@@ -304,7 +304,13 @@ router.get("/posts", protect, permit("settings", "view"), async (req, res) => {
         platform,
       });
     }
-    const posts = await listSocialCommentPosts({ tenantId, platform, limit: req.query?.limit || 50 });
+    const includeProductLinks = !["0", "false", "no"].includes(String(req.query?.include_product_links || "1").trim().toLowerCase());
+    const posts = await listSocialCommentPosts({
+      tenantId,
+      platform,
+      limit: req.query?.limit || 50,
+      includeProductLinks,
+    });
     const responsePosts = posts.map((post) => ({
       ...post,
       display_post_time: String(post?.display_post_time || post?.post_created_time || post?.metadata_post_created_time || post?.metadata_post_object_created_time || "").trim() || null,
