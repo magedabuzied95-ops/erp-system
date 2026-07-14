@@ -2850,7 +2850,12 @@ export default function AiInboxPwa() {
             const nextMessages = mergeMessagesByIdentity([...existingMessages, normalizedMessage]);
             const isInbound = normalizeMessageDirection(normalizedMessage) === "inbound";
             const unreadCount = conversationUnreadCount(conversation);
-            const nextUnreadCount = isInbound ? (conversationMatchesRealtimeKeys(conversation, activeConversationKeys) ? 0 : Math.max(1, unreadCount + 1)) : unreadCount;
+            const isStaffReply = clean(normalizedMessage.sender_type).toLowerCase() === "staff";
+            const nextUnreadCount = isInbound
+              ? Math.max(1, unreadCount + 1)
+              : isStaffReply
+                ? 0
+                : unreadCount;
             const nextTimestamp = normalizedMessage.created_at || normalizedMessage.updated_at || new Date().toISOString();
 
             return {

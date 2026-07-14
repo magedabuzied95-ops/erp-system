@@ -43,4 +43,11 @@ test("desktop AI Inbox marks an opened unread conversation as read", () => {
   const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
   assert.match(source, /perfComponent: "AiInbox\.markRead"/);
   assert.match(source, /unread_count: 0/);
+  assert.match(source, /currentUnreadCount \+ 1/);
+});
+
+test("PWA keeps a live inbound message unread until the read endpoint records it", () => {
+  const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
+  assert.match(source, /unreadCount \+ 1/);
+  assert.doesNotMatch(source, /conversationMatchesRealtimeKeys\(conversation, activeConversationKeys\) \? 0/);
 });

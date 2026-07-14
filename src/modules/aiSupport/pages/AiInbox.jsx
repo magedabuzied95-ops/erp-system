@@ -4263,6 +4263,15 @@ export default function AiInbox() {
               return conversation;
             }
             const mergedMessages = mergeMessagesByIdentity([...asArray(conversation.messages), incoming]);
+            const senderType = clean(incoming.sender_type).toLowerCase();
+            const isInbound = senderType === "customer" || (Boolean(clean(incoming.customer_message)) && senderType !== "staff");
+            const isStaffReply = senderType === "staff";
+            const currentUnreadCount = Number(conversation.unread_count || conversation.unread || 0);
+            const nextUnreadCount = isInbound
+              ? Math.max(1, currentUnreadCount + 1)
+              : isStaffReply
+                ? 0
+                : currentUnreadCount;
             return {
               ...conversation,
               messages: mergedMessages,
@@ -4272,6 +4281,9 @@ export default function AiInbox() {
               ),
               latest_message_preview: incomingPreview || conversation.latest_message_preview,
               last_activity_at: incoming.created_at || new Date().toISOString(),
+              unread_count: nextUnreadCount,
+              pending_count: nextUnreadCount,
+              unread: nextUnreadCount > 0,
             };
           }),
         }));
