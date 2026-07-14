@@ -161,14 +161,9 @@ html[data-theme="dark"] .ai-inbox-pwa .hover\:bg-slate-100:hover {
   }
 
   .ai-pwa-conversation-toolbar {
-    display: grid;
-    grid-template-columns: minmax(320px, 1fr) minmax(280px, 0.8fr);
+    grid-template-columns: 1fr;
     gap: 12px 20px;
     align-items: start;
-  }
-
-  .ai-pwa-conversation-toolbar > :last-child {
-    grid-column: 1 / -1;
   }
 
   .ai-pwa-list-header > div {

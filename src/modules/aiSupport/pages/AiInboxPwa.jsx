@@ -5219,9 +5219,14 @@ export default function AiInboxPwa() {
                   anchorRef={menuButtonRef}
                   onClose={() => setMenuOpen(false)}
                 >
-                  <button type="button" onClick={() => { toggleGlobalAiAssistant(); setMenuOpen(false); }} disabled={aiAssistantGlobalSaving} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
-                    {aiAssistantGlobalSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-                    {aiAssistantGlobalEnabled ? "AI Assistant Global ON" : "AI Assistant Global OFF"}
+                  <button type="button" onClick={() => { void toggleGlobalAiAssistant(); setMenuOpen(false); }} disabled={aiAssistantGlobalSaving} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
+                    <span className="flex items-center gap-3">
+                      {aiAssistantGlobalSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
+                      Global AI Assistant
+                    </span>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-black ${aiAssistantGlobalEnabled ? "bg-emerald-100 text-emerald-700" : "bg-rose-50 text-rose-700"}`}>
+                      {aiAssistantGlobalEnabled ? "ON" : "OFF"}
+                    </span>
                   </button>
                   <button type="button" onClick={() => { void toggleConversationAi(); setMenuOpen(false); }} disabled={aiToggling} className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-100 disabled:opacity-50">
                     {aiToggling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
@@ -5251,30 +5256,6 @@ export default function AiInboxPwa() {
             </div>
             {!fullscreenConversation ? (
               <div className="ai-pwa-conversation-toolbar mt-2">
-                <div className="ai-pwa-status-card flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
-                  <div className="flex min-w-0 items-center gap-2.5">
-                    <span className={`inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${aiAssistantGlobalEnabled ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}>
-                      <Bot className="h-4 w-4" />
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">Global AI Assistant</div>
-                      <div className="truncate text-[12px] font-semibold text-slate-700">
-                        {aiAssistantGlobalEnabled ? "Active for all conversations" : "Paused for all conversations"}
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={toggleGlobalAiAssistant}
-                    disabled={aiAssistantGlobalSaving}
-                    className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3 text-[11px] font-black disabled:opacity-50 ${
-                      aiAssistantGlobalEnabled ? "bg-emerald-300 text-slate-950" : "border border-rose-200 bg-rose-50 text-rose-700"
-                    }`}
-                  >
-                    {aiAssistantGlobalSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                    {aiAssistantGlobalEnabled ? "ON" : "OFF"}
-                  </button>
-                </div>
                 <div className="ai-pwa-status-card flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5">
                   <div className="flex min-w-0 items-center gap-2.5">
                     <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${
