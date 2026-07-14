@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GripVertical, Loader2, Plus, RefreshCw, Search, Star, Trash2, X } from "lucide-react";
+import { GripVertical, Loader2, Plus, RefreshCw, Search, SlidersHorizontal, Star, Trash2, X } from "lucide-react";
 import toast from "react-hot-toast";
 
 import {
@@ -192,6 +192,8 @@ export default function PostProductLinksDrawer({
   const [searchHasMore, setSearchHasMore] = useState(true);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchItems, setSearchItems] = useState([]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [searchFilters, setSearchFilters] = useState({ gender: "", productType: "", brand: "", size: "", inStock: false });
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [primaryProductId, setPrimaryProductId] = useState(null);
   const [draggedId, setDraggedId] = useState(null);
@@ -203,6 +205,10 @@ export default function PostProductLinksDrawer({
 
   const selectedIdSet = useMemo(() => new Set(selectedProducts.map((item) => Number(item.id)).filter(Boolean)), [selectedProducts]);
   const selectedCount = selectedProducts.length;
+  const activeFilterCount = useMemo(
+    () => [searchFilters.gender, searchFilters.productType, searchFilters.brand, searchFilters.size, searchFilters.inStock ? "stock" : ""].filter(Boolean).length,
+    [searchFilters]
+  );
   const primaryProduct = useMemo(
     () => selectedProducts.find((item) => Number(item.id) === Number(primaryProductId)) || selectedProducts[0] || null,
     [primaryProductId, selectedProducts]
@@ -260,6 +266,11 @@ export default function PostProductLinksDrawer({
         query: searchTerm,
         offset: nextPage * 20,
         limit: 20,
+        gender: searchFilters.gender,
+        productType: searchFilters.productType,
+        brand: searchFilters.brand,
+        size: searchFilters.size,
+        inStock: searchFilters.inStock,
       });
       const items = Array.isArray(payload?.items) ? payload.items : Array.isArray(payload?.products) ? payload.products : [];
       const normalized = items.map(normalizeProduct).filter((item) => item.id);
@@ -391,7 +402,7 @@ export default function PostProductLinksDrawer({
       if (searchTimerRef.current) window.clearTimeout(searchTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm]);
+  }, [searchTerm, searchFilters.gender, searchFilters.productType, searchFilters.brand, searchFilters.size, searchFilters.inStock]);
 
   const handleToggleProduct = (product = {}) => {
     const safeId = Number(product.id || 0);
@@ -619,8 +630,8 @@ export default function PostProductLinksDrawer({
       <button type="button" aria-label="Close product links drawer" onClick={onClose} className="absolute inset-0 bg-slate-950/70 backdrop-blur-sm" />
 
       <aside className="absolute right-0 top-0 flex h-full w-full max-w-[58rem] flex-col overflow-hidden border-l border-white/10 bg-slate-950 shadow-[0_24px_80px_rgba(0,0,0,0.32)] max-[768px]:left-0 max-[768px]:top-auto max-[768px]:h-[92vh] max-[768px]:max-w-none max-[768px]:rounded-t-[28px]">
-        <div className="flex items-start justify-between gap-3 border-b border-white/10 px-4 py-4">
-          <div className="min-w-0">
+        <div className="flex items-center justify-end border-b border-white/10 px-4 py-3">
+          <div className="hidden" aria-hidden="true">
             <div className="text-[10px] font-black uppercase tracking-[0.24em] text-cyan-100">Link Products</div>
             <div className="mt-1 text-lg font-black text-white">{clean(post?.caption || post?.title || "Social post")}</div>
             <div className="mt-2 flex flex-wrap gap-2">
@@ -662,16 +673,82 @@ export default function PostProductLinksDrawer({
                     Refresh
                   </button>
                 </div>
-                <div className="mt-3 flex items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2">
-                  <Search className="h-4 w-4 text-slate-400" />
-                  <input
-                    type="text"
-                    value={searchTerm}
-                    onChange={(event) => setSearchTerm(event.target.value)}
-                    placeholder="Search by name, brand, SKU..."
-                    className="w-full bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
-                  />
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border border-white/10 bg-slate-950/60 px-3 py-2">
+                    <Search className="h-4 w-4 shrink-0 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
+                      placeholder="Search by model, name, brand, SKU..."
+                      className="w-full min-w-0 bg-transparent text-sm text-white outline-none placeholder:text-slate-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFiltersOpen((current) => !current)}
+                    className={`relative inline-flex h-10 shrink-0 items-center gap-2 rounded-2xl border px-3 text-xs font-black transition ${filtersOpen || activeFilterCount ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100" : "border-white/10 bg-white/[0.04] text-slate-200"}`}
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Filters
+                    {activeFilterCount ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-emerald-300 px-1 text-[10px] text-emerald-950">{activeFilterCount}</span> : null}
+                  </button>
                 </div>
+                {filtersOpen ? (
+                  <div className="mt-3 grid gap-3 rounded-2xl border border-white/10 bg-black/30 p-3">
+                    <div>
+                      <div className="mb-2 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Section</div>
+                      <div className="flex flex-wrap gap-2">
+                        {[["", "All"], ["men", "Men"], ["women", "Women"], ["kids", "Kids"]].map(([value, label]) => (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() => setSearchFilters((current) => ({ ...current, gender: value }))}
+                            className={`h-8 rounded-full border px-3 text-[11px] font-black ${searchFilters.gender === value ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-white/[0.04] text-slate-300"}`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        value={searchFilters.productType}
+                        onChange={(event) => setSearchFilters((current) => ({ ...current, productType: event.target.value }))}
+                        placeholder="Product type"
+                        className="h-10 min-w-0 rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white outline-none placeholder:text-slate-500"
+                      />
+                      <input
+                        value={searchFilters.brand}
+                        onChange={(event) => setSearchFilters((current) => ({ ...current, brand: event.target.value }))}
+                        placeholder="Brand"
+                        className="h-10 min-w-0 rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white outline-none placeholder:text-slate-500"
+                      />
+                      <input
+                        value={searchFilters.size}
+                        onChange={(event) => setSearchFilters((current) => ({ ...current, size: event.target.value }))}
+                        placeholder="Size"
+                        className="h-10 min-w-0 rounded-xl border border-white/10 bg-black/50 px-3 text-xs text-white outline-none placeholder:text-slate-500"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setSearchFilters((current) => ({ ...current, inStock: !current.inStock }))}
+                        className={`h-10 rounded-xl border px-3 text-xs font-black ${searchFilters.inStock ? "border-emerald-300/30 bg-emerald-400/15 text-emerald-100" : "border-white/10 bg-white/[0.04] text-slate-300"}`}
+                      >
+                        In stock only
+                      </button>
+                    </div>
+                    {activeFilterCount ? (
+                      <button
+                        type="button"
+                        onClick={() => setSearchFilters({ gender: "", productType: "", brand: "", size: "", inStock: false })}
+                        className="h-9 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 text-xs font-black text-amber-100"
+                      >
+                        Clear filters
+                      </button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
 
               <div ref={scrollRef} onScroll={handleScrollSearch} className="min-h-0 flex-1 overflow-y-auto p-3">

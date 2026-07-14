@@ -120,12 +120,27 @@ export const removePostProductLink = async ({ postId = "", platform = "", tenant
   };
 };
 
-export const searchStorefrontProducts = async ({ query = "", offset = 0, limit = 20, timeoutMs = 15000 } = {}) => {
+export const searchStorefrontProducts = async ({
+  query = "",
+  offset = 0,
+  limit = 20,
+  gender = "",
+  productType = "",
+  brand = "",
+  size = "",
+  inStock = false,
+  timeoutMs = 15000,
+} = {}) => {
   const response = await api.get("/storefront/products/search", {
     params: {
       q: clean(query),
       offset: Math.max(0, Number(offset) || 0),
       limit: Math.max(1, Math.min(50, Number(limit) || 20)),
+      ...(clean(gender) ? { gender: clean(gender) } : {}),
+      ...(clean(productType) ? { product_type: clean(productType) } : {}),
+      ...(clean(brand) ? { brand: clean(brand) } : {}),
+      ...(clean(size) ? { size: clean(size) } : {}),
+      ...(inStock ? { in_stock: 1 } : {}),
     },
     timeoutMs,
   });
