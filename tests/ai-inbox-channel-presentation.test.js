@@ -54,7 +54,15 @@ test("AI Inbox PWA conversation list remains directly clickable and page-scrolla
 test("AI Inbox PWA does not block conversations on secondary requests", () => {
   assert.match(pwaSource, /perfComponent: "AiInboxPwa\.conversations"/);
   assert.match(pwaSource, /timeoutMs: 20000,[\s\S]*?perfComponent: "AiInboxPwa\.conversations"/);
-  assert.match(pwaSource, /if \(!silent\) setLoading\(false\);[\s\S]*?void api\.get\("\/ai-agent\/settings\/ai-assistant-global"/);
+  assert.match(pwaSource, /setLoading\(false\);[\s\S]*?void api\.get\("\/ai-agent\/settings\/ai-assistant-global"/);
   assert.match(pwaSource, /void loadSocialComments\(/);
   assert.doesNotMatch(pwaSource, /await loadSocialComments\(\{ silent, seq \}\)/);
+});
+
+test("AI Inbox PWA first visible load always clears the initial spinner", () => {
+  assert.match(pwaSource, /const \[loading, setLoading\] = useState\(true\)/);
+  assert.match(pwaSource, /const isInitialLoad = requestSeqRef\.current === 0/);
+  assert.match(pwaSource, /requestRefresh\("visibility", \{ silent: !isInitialLoad, force: true \}\)/);
+  const loadingStops = pwaSource.match(/setLoading\(false\)/g) || [];
+  assert.ok(loadingStops.length >= 2);
 });

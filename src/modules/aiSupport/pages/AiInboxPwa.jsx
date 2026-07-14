@@ -2624,7 +2624,7 @@ export default function AiInboxPwa() {
             })
           );
         });
-        if (!silent) setLoading(false);
+        setLoading(false);
         void api.get("/ai-agent/settings/ai-assistant-global", {
           params: { tenant_id: tenantId },
           headers,
@@ -2658,7 +2658,7 @@ export default function AiInboxPwa() {
       } catch (loadError) {
         setError(loadError?.message || "Failed to load AI Social Media Center");
       } finally {
-        if (!silent) setLoading(false);
+        setLoading(false);
         refreshInFlightRef.current = false;
         window.requestAnimationFrame(() => {
           isHydratingConversationRef.current = false;
@@ -2807,7 +2807,8 @@ export default function AiInboxPwa() {
     if (!pageVisible) return;
 
     if (!previous.pageVisible) {
-      requestRefresh("visibility", { silent: true, force: true });
+      const isInitialLoad = requestSeqRef.current === 0;
+      requestRefresh("visibility", { silent: !isInitialLoad, force: true });
       return;
     }
 
