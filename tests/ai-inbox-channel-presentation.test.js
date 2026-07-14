@@ -50,3 +50,11 @@ test("AI Inbox PWA conversation list remains directly clickable and page-scrolla
   assert.match(pwaSource, /filteredConversations\.map\(\(conversation\)/);
   assert.match(pwaSource, /identifiers\.conversationKey \|\| identifiers\.sessionId \|\| identifiers\.conversationId/);
 });
+
+test("AI Inbox PWA does not block conversations on secondary requests", () => {
+  assert.match(pwaSource, /perfComponent: "AiInboxPwa\.conversations"/);
+  assert.match(pwaSource, /timeoutMs: 20000,[\s\S]*?perfComponent: "AiInboxPwa\.conversations"/);
+  assert.match(pwaSource, /if \(!silent\) setLoading\(false\);[\s\S]*?void api\.get\("\/ai-agent\/settings\/ai-assistant-global"/);
+  assert.match(pwaSource, /void loadSocialComments\(/);
+  assert.doesNotMatch(pwaSource, /await loadSocialComments\(\{ silent, seq \}\)/);
+});

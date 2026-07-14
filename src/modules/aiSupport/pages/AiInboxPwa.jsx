@@ -2461,6 +2461,7 @@ export default function AiInboxPwa() {
         .get("/social-comments/auto-reply/settings", {
           params: { tenant_id: tenantId },
           headers,
+          timeoutMs: 10000,
           perfComponent: "AiInboxPwa.socialCommentsSettings",
         })
         .catch(() => ({ settings: null }));
@@ -2471,6 +2472,7 @@ export default function AiInboxPwa() {
             const payload = await api.get("/social-comments/fast-list", {
               params: { tenant_id: tenantId, limit: 20, cursor },
               headers,
+              timeoutMs: 15000,
               perfComponent: "AiInboxPwa.socialCommentsFastList",
             });
             return { payload, request_url: fastRequestUrl, fast: true };
@@ -2485,6 +2487,7 @@ export default function AiInboxPwa() {
         const payload = await api.get("/social-comments/posts", {
           params: { tenant_id: tenantId, limit: 50 },
           headers,
+          timeoutMs: 20000,
           perfComponent: "AiInboxPwa.socialCommentsPosts",
         });
         return { payload, request_url: legacyRequestUrl, fast: false };
@@ -2569,13 +2572,9 @@ export default function AiInboxPwa() {
             message_limit: conversationParam ? 50 : 20,
           },
           headers,
+          timeoutMs: 20000,
           perfComponent: "AiInboxPwa.conversations",
         });
-        const globalAiPayload = await api.get("/ai-agent/settings/ai-assistant-global", {
-          params: { tenant_id: tenantId },
-          headers,
-          perfComponent: "AiInboxPwa.globalAi",
-        }).catch(() => ({ ai_assistant_global_enabled: true }));
 
         const nextConversations = asArray(payload.conversations)
           .map((conversation) => ({
@@ -2625,8 +2624,18 @@ export default function AiInboxPwa() {
             })
           );
         });
-        setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
-        await loadSocialComments({ silent, seq });
+        if (!silent) setLoading(false);
+        void api.get("/ai-agent/settings/ai-assistant-global", {
+          params: { tenant_id: tenantId },
+          headers,
+          timeoutMs: 10000,
+          perfComponent: "AiInboxPwa.globalAi",
+        }).then((globalAiPayload) => {
+          if (seq === requestSeqRef.current) {
+            setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
+          }
+        }).catch(() => {});
+        void loadSocialComments({ silent: tab !== "social_comments" ? true : silent, seq });
 
         if (conversationParam) {
           const normalizedConversationParam = normalizeConversationSessionId(conversationParam);
