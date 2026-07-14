@@ -3374,7 +3374,7 @@ export default function AiInboxPwa() {
 
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return undefined;
-    navigator.serviceWorker.register("/inbox-sw.js?v=1", { scope: "/inbox" }).catch(() => null);
+    navigator.serviceWorker.register("/inbox-sw.js?v=2", { scope: "/inbox" }).catch(() => null);
     return undefined;
   }, []);
 
