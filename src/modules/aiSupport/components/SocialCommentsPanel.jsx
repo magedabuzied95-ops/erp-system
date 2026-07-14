@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef } from "react";
-import { Clock3, ExternalLink, Image as ImageIcon, MessageSquareText, Play, RefreshCw, User } from "lucide-react";
+import { Clock3, ExternalLink, Image as ImageIcon, Link2, MessageSquareText, Play, RefreshCw, User } from "lucide-react";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
 
@@ -155,11 +155,9 @@ const socialCommentItemsEqual = (left = {}, right = {}) =>
   clean(left.product_name) === clean(right.product_name) &&
   Boolean(left.unread) === Boolean(right.unread);
 
-const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ item = {}, active = false, onSelectItem, onPrefetchItem }) {
+const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ item = {}, active = false, onSelectItem, onPrefetchItem, onLinkProduct }) {
   const platform = platformMeta(item.platform);
   const itemKey = socialCommentItemKey(item);
-  const title = clean(item.post_message || item.post_caption || item.last_message || item.last_comment_text || "Post");
-  const subtitle = clean(item.last_comment_text || item.last_message || item.post_caption || item.post_message || "");
   const media = postMedia(item);
   const handleSelect = useCallback(() => onSelectItem?.(item, itemKey), [item, itemKey, onSelectItem]);
   const hoverTimerRef = useRef(null);
@@ -193,7 +191,7 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
       className={`rounded-2xl border p-3 transition shadow-[0_8px_24px_rgba(15,23,42,0.05)] ${
         active ? "border-slate-300 ring-1 ring-slate-200" : "border-slate-200 hover:border-slate-300"
       }`}
-      style={{ minHeight: "176px" }}
+      style={{ minHeight: "112px" }}
     >
       <div className="flex gap-3">
         <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
@@ -214,25 +212,34 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
             </span>
           ) : null}
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0 flex-1">
-              <div className="line-clamp-2 text-sm font-black leading-6 text-slate-900">{title}</div>
-              <div className="mt-1 line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-slate-500">{subtitle || "No description"}</div>
-            </div>
+        <div className="flex min-w-0 flex-1 flex-col justify-between gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
             <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black ${platform.className}`}>
               <User className="h-3.5 w-3.5" />
               {platform.label}
             </span>
+            {onLinkProduct ? (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  onLinkProduct(item, itemKey);
+                }}
+                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 text-[10px] font-black text-amber-800 transition hover:bg-amber-100"
+              >
+                <Link2 className="h-3.5 w-3.5" />
+                {Number(item.linked_products_count || item.mapping_summary?.count || 0) > 0 ? "تعديل الربط" : "ربط منتج"}
+              </button>
+            ) : null}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
+          <div className="flex flex-wrap items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-slate-500">
             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{Number(item.comments_count || 0)} comments</span>
             <span className={`rounded-full border px-2.5 py-1 ${item.new_comments_count > 0 ? "border-[#FED7AA] bg-[#FFF7ED] text-[#C2410C]" : "border-slate-200 bg-white text-slate-600"}`}>{Number(item.new_comments_count || 0)} new</span>
             <span className={`rounded-full border px-2.5 py-1 ${toneClass(item.auto_reply_mode || item.session_status || "human_review")}`}>{clean(item.auto_reply_mode || item.session_status || item.reply_status || "manual").replace(/_/g, " ")}</span>
             {item.needsReply ? <span className="rounded-full border border-[#FED7AA] bg-[#FFF7ED] px-2.5 py-1 text-[#C2410C]">Needs reply</span> : null}
           </div>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
-            {subtitle ? <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-slate-600">{" "}{subtitle}</span> : null}
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
             <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-2.5 py-1 text-slate-600">
               <Clock3 className="h-3.5 w-3.5" />
               {(() => {
@@ -309,6 +316,7 @@ function SocialCommentsPanel({
   nextCursor = "",
   loadingMore = false,
   onPrefetchItem,
+  onLinkProduct,
 }) {
   const filters = mode === "posts" ? POST_FILTERS : COMMENT_FILTERS;
   const handleFilterChange = useCallback((itemKey) => onFilterChange?.(itemKey), [onFilterChange]);
@@ -393,20 +401,20 @@ function SocialCommentsPanel({
             {useVirtualRows ? (
               <VirtualList
                 items={filteredItems}
-                estimateSize={mode === "posts" ? 190 : 180}
+                estimateSize={mode === "posts" ? 126 : 180}
                 overscan={8}
                 className="max-h-[26rem]"
               itemKey={(item, index) => clean(item.id || item.conversation_id || item.comment_id || item.post_id || index)}
               renderItem={(item) => {
                   if (mode === "posts") {
-                    return <SocialCommentsPanelPostRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} />;
+                    return <SocialCommentsPanelPostRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} onLinkProduct={onLinkProduct} />;
                   }
                   return <SocialCommentsPanelCommentRow item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} fallbackPlatform={item.platform || "facebook"} />;
                 }}
               />
             ) : filteredItems.slice(0, 50).map((item) => {
               if (mode === "posts") {
-                return <SocialCommentsPanelPostRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} />;
+                return <SocialCommentsPanelPostRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} onLinkProduct={onLinkProduct} />;
               }
               return <SocialCommentsPanelCommentRow key={socialCommentItemKey(item)} item={item} active={clean(selectedItemId) === socialCommentItemKey(item)} onSelectItem={handleSelectItem} onPrefetchItem={onPrefetchItem} fallbackPlatform={item.platform || "facebook"} />;
             })}

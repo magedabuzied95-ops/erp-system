@@ -45,6 +45,7 @@ import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import TranscriptMessage from "../components/TranscriptMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
 import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
+import PostProductLinksDrawer from "../components/socialAutomation/PostProductLinksDrawer.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
@@ -2925,6 +2926,7 @@ export default function AiInboxPwa() {
   const [socialMobileDetailOpen, setSocialMobileDetailOpen] = useState(false);
   const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
   const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
+  const [productLinksPost, setProductLinksPost] = useState(null);
   const [socialActionLoading, setSocialActionLoading] = useState("");
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const mainScrollRef = useRef(null);
@@ -5407,6 +5409,7 @@ export default function AiInboxPwa() {
                 nextCursor={socialCommentsCursor}
                 onLoadMore={loadMoreSocialComments}
                 loadingMore={socialCommentsLoadingMore}
+                onLinkProduct={(item) => setProductLinksPost(item)}
                 onPrefetchItem={(item) => {
                   const postId = clean(item?.post_id || item?.conversation_id || item?.id || socialPostIdentity(item) || "");
                   if (!ENABLE_SOCIAL_FAST_CENTER || !postId) return;
@@ -5683,6 +5686,34 @@ export default function AiInboxPwa() {
             )}
           </div>
         </div>
+        <PostProductLinksDrawer
+          open={Boolean(productLinksPost)}
+          post={productLinksPost}
+          tenantId={tenantId}
+          onClose={() => setProductLinksPost(null)}
+          onSaved={(payload = {}) => {
+            const linkedProducts = asArray(payload?.linked_products);
+            const primaryProduct = payload?.primary_product || payload?.primary_linked_product || linkedProducts[0] || null;
+            const targetKey = socialPostIdentity(productLinksPost || {});
+            setSocialComments((current) => ({
+              ...current,
+              items: asArray(current.items).map((item) =>
+                socialPostIdentity(item) === targetKey
+                  ? {
+                      ...item,
+                      linked_products: linkedProducts,
+                      linked_products_count: Number(payload?.count ?? linkedProducts.length ?? 0) || 0,
+                      primary_product: primaryProduct,
+                      primary_linked_product: primaryProduct,
+                      product_name: clean(primaryProduct?.name || primaryProduct?.title || primaryProduct?.product_name || ""),
+                      product_id: primaryProduct?.id || primaryProduct?.product_id || null,
+                      product_link_source: linkedProducts.length ? "v2_direct" : "none",
+                    }
+                  : item
+              ),
+            }));
+          }}
+        />
       </div>
     );
   };
