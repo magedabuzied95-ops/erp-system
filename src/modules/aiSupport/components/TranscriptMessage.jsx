@@ -152,10 +152,10 @@ function TranscriptMessage({
     if (safeRow.kind === "customer") {
       return (
         <div className="flex justify-end">
-          <div className="max-w-[82%] rounded-[20px] rounded-br-md bg-emerald-50 px-3 py-2 shadow-sm ring-1 ring-emerald-100">
-            <div className="mb-1 text-right text-[10px] font-medium text-emerald-700/70">{createdAt}</div>
-            <div className="text-slate-900">
-              <LinkifiedText text={message.customer_message} className="text-slate-900" />
+          <div className="ai-pwa-message ai-pwa-message--customer max-w-[82%] rounded-[20px] rounded-br-md px-3 py-2 shadow-sm ring-1">
+            <div className="ai-pwa-message-meta mb-1 text-right text-[10px] font-medium">{createdAt}</div>
+            <div className="ai-pwa-message-body">
+              <LinkifiedText text={message.customer_message} className="text-[14px] leading-5.5" />
               {message.delivery_status === "failed" ? <span className="text-[11px] text-rose-500"> · Failed</span> : null}
               {message.delivery_status === "failed" && message.delivery_error ? (
                 <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
@@ -177,12 +177,12 @@ function TranscriptMessage({
     if (safeRow.kind === "ai") {
       return (
         <div className="flex justify-start">
-          <div className="max-w-[82%] rounded-[20px] rounded-bl-md bg-sky-50 px-3 py-2 shadow-sm ring-1 ring-sky-100">
-            <div className="mb-1 flex items-center gap-1 text-[10px] font-medium text-sky-700">
+          <div className="ai-pwa-message ai-pwa-message--ai max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ring-1">
+            <div className="ai-pwa-message-meta mb-1 flex items-center gap-1 text-[10px] font-medium">
               <Bot className="h-3.5 w-3.5" />
               AI
             </div>
-            <LinkifiedText text={message.ai_answer} className="text-[14px] leading-5.5 text-slate-800" />
+            <LinkifiedText text={message.ai_answer} className="ai-pwa-message-body text-[14px] leading-5.5" />
           </div>
         </div>
       );
@@ -191,11 +191,11 @@ function TranscriptMessage({
     if (safeRow.kind === "staff") {
       return (
         <div className="flex justify-start">
-          <div className={`max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "bg-rose-950 text-rose-50 ring-1 ring-rose-200" : "bg-slate-900 text-white"}`}>
-            <div className={`mb-1 text-[10px] font-medium ${message.delivery_status === "failed" ? "text-rose-200" : "text-slate-300"}`}>
+          <div className={`ai-pwa-message ai-pwa-message--staff max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "ai-pwa-message--failed ring-1" : ""}`}>
+            <div className="ai-pwa-message-meta mb-1 text-[10px] font-medium">
               {message.message_type === "internal_note" ? "ملاحظة داخلية" : staffSenderLabel(message)} · {createdAt}
             </div>
-            <LinkifiedText text={message.staff_message} className={`text-[14px] leading-5.5 ${message.delivery_status === "failed" ? "text-rose-50" : "text-white"}`} />
+            <LinkifiedText text={message.staff_message} className="ai-pwa-message-body text-[14px] leading-5.5" />
             {message.delivery_status === "failed" && message.delivery_error ? (
               <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
             ) : null}

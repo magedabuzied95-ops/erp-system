@@ -135,6 +135,74 @@ html[data-theme="dark"] .ai-inbox-pwa .hover\:bg-slate-100:hover {
   background: var(--surface-raised) !important;
 }
 
+.ai-inbox-pwa .ai-pwa-message--customer {
+  background: #ecfdf5 !important;
+  color: #163b32 !important;
+  --tw-ring-color: #a7f3d0 !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--customer .ai-pwa-message-meta {
+  color: #047857 !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--customer .ai-pwa-message-body {
+  color: #163b32 !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--customer a {
+  color: #0369a1 !important;
+  text-decoration-color: rgba(3, 105, 161, 0.35) !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--ai {
+  background: #eff6ff !important;
+  color: #172554 !important;
+  --tw-ring-color: #bfdbfe !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--ai .ai-pwa-message-meta {
+  color: #0369a1 !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--ai .ai-pwa-message-body {
+  color: #172554 !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--ai a {
+  color: #0369a1 !important;
+  text-decoration-color: rgba(3, 105, 161, 0.35) !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--staff {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  --tw-ring-color: #334155 !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--staff .ai-pwa-message-meta {
+  color: #cbd5e1 !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--staff .ai-pwa-message-body {
+  color: #f8fafc !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--staff a {
+  color: #67e8f9 !important;
+  text-decoration-color: rgba(103, 232, 249, 0.45) !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--failed {
+  background: #4c0519 !important;
+  color: #fff1f2 !important;
+  --tw-ring-color: #fda4af !important;
+}
+
+.ai-inbox-pwa .ai-pwa-message--failed .ai-pwa-message-meta,
+.ai-inbox-pwa .ai-pwa-message--failed .ai-pwa-message-body {
+  color: #ffe4e6 !important;
+}
+
 @media (min-width: 768px) {
   .ai-pwa-shell {
     width: min(calc(100% - 32px), 1280px);
