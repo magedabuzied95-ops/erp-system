@@ -4270,7 +4270,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
   ];
   const themeIsDark = effectiveTheme === "dark";
   const headerShellClassName = [
-    "sf-luxury-header sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent",
+    "sf-luxury-header sf-header-v2 sticky top-0 z-40 bg-transparent shadow-none backdrop-blur-2xl transition-all duration-300 dark:bg-transparent",
     themeIsDark ? "" : "border-b border-black/5 shadow-[0_8px_24px_rgba(0,0,0,0.04)]",
   ].join(" ");
   const themeToggleLabel = themeIsDark
@@ -4608,15 +4608,16 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
       data-compact={!compactDisabled && isCompact ? "true" : "false"}
       className={headerShellClassName}
     >
-      <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement overflow-hidden bg-[linear-gradient(90deg,#050505_0%,#0a0a0a_55%,#111111_100%)] text-white/90 backdrop-blur transition-all duration-300`}>
+      <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement overflow-hidden text-white/90 backdrop-blur transition-all duration-300`}>
         <div className="mx-auto flex h-8 w-full max-w-7xl items-center justify-center px-4 md:h-10">
-          <span key={announcementIndex} className="inline-flex w-full items-center justify-center text-center text-[10px] font-semibold tracking-[0.08em] text-stone-100/88 animate-[sfFadeUp_420ms_ease-out_both] md:text-[12px] md:font-medium md:tracking-wide">
+          <span key={announcementIndex} className="inline-flex w-full items-center justify-center gap-2 text-center text-[10px] font-bold tracking-[0.04em] text-stone-100/88 animate-[sfFadeUp_420ms_ease-out_both] md:text-[12px] md:tracking-wide">
+            <Sparkles className="sf-header-announcement-icon h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             {announcementItems[announcementIndex] || announcementItems[0]}
           </span>
         </div>
       </div>
       <div className="sf-mobile-header-shell md:hidden" dir="rtl">
-        <div className="px-3 pb-3 pt-[calc(0.55rem+env(safe-area-inset-top))]">
+        <div className="px-3 pb-2.5 pt-[calc(0.5rem+env(safe-area-inset-top))]">
           <div className="sf-mobile-header-row grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
             <button
               className="sf-mobile-header-button grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
@@ -4628,19 +4629,32 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             </button>
             <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
               <span
-                className="sf-mobile-header-logo grid h-11 w-11 place-items-center overflow-hidden rounded-full text-[0.7rem] font-black tracking-[0.16em] transition"
+                className="sf-mobile-header-logo grid h-12 w-12 place-items-center overflow-hidden rounded-full text-[0.7rem] font-black tracking-[0.16em] transition"
                 style={{ clipPath: "circle(50% at 50% 50%)", transform: "translateZ(0)", backfaceVisibility: "hidden" }}
               >
                 {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-[130%] w-[130%] object-cover object-center" style={{ imageRendering: "auto", transform: "translateZ(0)", backfaceVisibility: "hidden" }} loading="lazy" decoding="async" width="64" height="64" /> : brandInitials}
               </span>
             </Link>
-            <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title")} type="button">
-              <ShoppingCart className="h-5 w-5" />
-              {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchOpen(true);
+                  setMobileSearchOpen(true);
+                }}
+                className="sf-mobile-header-button grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
+                aria-label={t("storefront.header.search")}
+              >
+                <Search className="h-5 w-5" />
+              </button>
+              <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title")} type="button">
+                <ShoppingCart className="h-5 w-5" />
+                {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
+              </button>
+            </div>
           </div>
           {!isCheckoutMobile ? (
-            <div className="sf-mobile-category-chips hidden min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start md:flex">
+            <div className="sf-mobile-category-chips mt-2 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start">
               {mobileCategoryChips.map((item) => (
                 <Link
                   key={item.key}
@@ -4662,7 +4676,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
           )}
         </div>
       </div>
-      <div className="sf-utility-row hidden border-b border-white/10 bg-[linear-gradient(105deg,#09090b,#1c1917_42%,#312e81)] px-4 text-xs font-semibold text-white/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition-all duration-300 sm:block">
+      <div className="sf-utility-row hidden border-b px-4 text-xs font-semibold transition-all duration-300 sm:block">
         <div className="mx-auto flex h-9 max-w-7xl items-center justify-between gap-4">
           <div className="flex items-center gap-1.5">
             {utilityItems.map((item) => {
@@ -4687,33 +4701,33 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
           </div>
         </div>
       </div>
-      <div className="sf-main-row sf-header-main relative mx-auto hidden max-w-7xl px-4 py-3 md:block md:py-5">
+      <div className="sf-main-row sf-header-main sf-header-main-v2 relative mx-auto hidden max-w-7xl px-4 py-3 md:block">
         <div className="flex w-full items-center gap-3 md:gap-6" dir="rtl">
           <div className="flex shrink-0 items-center gap-2 md:gap-4">
             <button
-              className="grid h-12 w-12 shrink-0 place-items-center rounded-full border border-stone-200/80 bg-white/80 transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/5 dark:hover:bg-white/10 md:h-14 md:w-14"
+              className="sf-header-menu-button grid h-12 w-12 shrink-0 place-items-center rounded-full border transition duration-200 ease-out hover:-translate-y-px active:scale-[0.98]"
               onClick={() => setMobileMenuOpen((value) => !value)}
               aria-label={t("storefront.header.menu")}
               type="button"
             >
               {menuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
-            <span className="hidden h-14 w-px bg-stone-200/90 dark:bg-white/10 md:block" />
+            <span className="sf-header-divider hidden h-12 w-px md:block" />
             <Link to="/" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#d4af37] dark:text-white" aria-label={brandName || "MONE"}>
               <span
-                className="sf-header-logo-chip grid h-[78px] w-[78px] place-items-center overflow-hidden rounded-full border border-transparent bg-transparent text-base font-black tracking-[0.18em] text-white transition group-hover:scale-[1.01] md:h-[98px] md:w-[98px]"
+                className="sf-header-logo-chip grid h-16 w-16 place-items-center overflow-hidden rounded-full border border-transparent bg-transparent text-sm font-black tracking-[0.16em] text-white transition group-hover:scale-[1.02] md:h-[68px] md:w-[68px]"
                 style={{ clipPath: "circle(50% at 50% 50%)", transform: "translateZ(0)", backfaceVisibility: "hidden", border: "1px solid rgba(255,255,255,0.40)" }}
               >
                 {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-[130%] w-[130%] object-cover object-center" style={{ imageRendering: "auto", transform: "translateZ(0)", backfaceVisibility: "hidden" }} loading="lazy" decoding="async" width="104" height="104" /> : brandInitials}
               </span>
             </Link>
           </div>
-          <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center justify-center gap-2 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
+          <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
             {headerCategoryItems.map(({ label, to }) => (
               <NavLink
                 key={`${label}-${to}`}
                 to={to}
-                className={({ isActive }) => `sf-nav-link sf-header-nav-link relative overflow-hidden rounded-full px-4 py-2.5 transition duration-200 ease-out after:absolute after:inset-x-4 after:bottom-1 after:h-px after:origin-center after:bg-current after:transition-transform after:duration-200 ${isActive ? "text-stone-950 dark:text-white after:scale-x-100" : "text-stone-700/90 hover:bg-white/55 hover:text-stone-950 dark:text-stone-300/90 dark:hover:bg-white/8 dark:hover:text-white after:scale-x-0 hover:after:scale-x-100"}`}
+                className={({ isActive }) => `sf-nav-link sf-header-nav-link relative overflow-hidden rounded-full px-3.5 py-2.5 transition duration-200 ease-out after:absolute after:inset-x-4 after:bottom-1 after:h-px after:origin-center after:bg-current after:transition-transform after:duration-200 ${isActive ? "active text-stone-950 dark:text-white after:scale-x-100" : "text-stone-700/90 hover:bg-white/55 hover:text-stone-950 dark:text-stone-300/90 dark:hover:bg-white/8 dark:hover:text-white after:scale-x-0 hover:after:scale-x-100"}`}
               >
                 {label}
               </NavLink>
