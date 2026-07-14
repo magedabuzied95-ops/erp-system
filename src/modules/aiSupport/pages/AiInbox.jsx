@@ -1906,6 +1906,8 @@ function InboxChatHeader({
   showBack = false,
   isFullscreenConversation = false,
   onToggleFullscreen,
+  onOpenTools,
+  toolsOpen = false,
   onOpenCustomer360,
 }) {
   if (!conversation) return null;
@@ -2020,6 +2022,17 @@ function InboxChatHeader({
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <button
+            type="button"
+            onClick={() => onOpenTools?.()}
+            disabled={loading}
+            className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-black transition disabled:opacity-50 ${toolsOpen ? "border-amber-300/30 bg-amber-400/15 text-amber-100" : "border-white/10 bg-white/[0.06] text-slate-100 hover:border-amber-300/25"}`}
+            aria-label={toolsOpen ? "إغلاق تفاصيل العميل" : "فتح تفاصيل العميل"}
+            title={toolsOpen ? "إغلاق التفاصيل" : "تفاصيل العميل والأدوات"}
+          >
+            {toolsOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+            التفاصيل
+          </button>
           <button
             type="button"
             onClick={() => onToggleFullscreen?.()}
@@ -2239,8 +2252,19 @@ function LeadQuickActionsBar({
   }));
 
   return (
-    <div className="mb-1.5 rounded-2xl border border-white/10 bg-slate-950/60 p-2">
-      <div className="flex flex-col gap-1.5">
+    <details className="group mb-1.5 shrink-0 rounded-2xl border border-white/10 bg-slate-950/60">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3 py-2">
+        <div className="flex items-center gap-2 text-sm font-black text-white">
+          <ShoppingBag className="h-4 w-4 text-amber-300" />
+          أدوات البيع وخدمة العميل
+        </div>
+        <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
+          <span>إرسال منتج، إنشاء عميل، تعيين موظف</span>
+          <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
+        </div>
+      </summary>
+      <div className="border-t border-white/10 p-2">
+        <div className="flex flex-col gap-1.5">
         <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
           {isComment ? (
             <button type="button" onClick={onSendCommentReply} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-violet-300/20 bg-violet-400/10 px-2.5 text-[11px] font-black text-violet-100 disabled:opacity-50">
@@ -2292,8 +2316,9 @@ function LeadQuickActionsBar({
             تعيين لموظف
           </button>
         </div>
+        </div>
       </div>
-    </div>
+    </details>
   );
 }
 
@@ -2407,7 +2432,7 @@ function ManualReplyComposer({
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
   const canSendLive = conversation.live_sending_available === true || isCommentConversation;
-  const submitLabel = isCommentConversation ? "إرسال الرد" : "Send now";
+  const submitLabel = isCommentConversation ? "إرسال الرد" : "إرسال الآن";
   const submitTitle = isCommentConversation ? "إرسال رد علني على الكومنت" : "Send now through Meta";
   const textareaRef = useRef(null);
   const normalizedValidation = normalizeValidationSummary(validationSummary || {});
@@ -2431,7 +2456,7 @@ function ManualReplyComposer({
     return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">المحادثة مغلقة. تم تعطيل الرد اليدوي.</div>;
   }
   return (
-    <div className="sticky bottom-0 w-full rounded-2xl border border-white/10 bg-slate-950/95 p-2 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur md:p-2.5">
+    <div className="sticky bottom-0 w-full rounded-2xl border border-amber-300/20 bg-slate-950/95 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1" />
         {canSendLive ? (
@@ -2497,8 +2522,8 @@ function ManualReplyComposer({
         />
       ) : null}
       <div className="flex flex-col gap-1.5">
-        <div className="flex min-w-0 flex-col gap-1.5 rounded-2xl border border-white/10 bg-slate-950/70 p-1.5 focus-within:border-cyan-300/40 sm:flex-row sm:items-end">
-          <button type="button" title="Emoji picker coming soon" className="grid h-7 w-7 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">?</button>
+        <div className="flex min-w-0 flex-col gap-2 rounded-2xl border border-white/10 bg-[#111411] p-2 focus-within:border-amber-300/40 sm:flex-row sm:items-end">
+          <button type="button" title="Emoji picker coming soon" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-base font-black text-slate-300">☺</button>
           <textarea
             ref={textareaRef}
             dir={isRtlText(value) ? "rtl" : "auto"}
@@ -2516,23 +2541,23 @@ function ManualReplyComposer({
             }}
             rows={1}
             placeholder={canSendLive ? "اكتب رد العميل..." : "Write an internal note. It will not be sent to Meta yet."}
-            className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-1 py-1 text-[14px] font-bold leading-6 text-white outline-none placeholder:text-slate-600"
+            className="min-h-12 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2 text-base font-bold leading-7 text-white outline-none placeholder:text-slate-500"
           />
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:hidden ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-slate-950 disabled:opacity-50 sm:hidden ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{submitLabel}</button>
         </div>
-        <div className="flex items-center justify-end gap-1.5">
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`hidden h-7 items-center justify-center gap-1.5 rounded-xl px-2.5 text-[10px] font-black text-slate-950 disabled:opacity-50 sm:inline-flex ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Send className="h-3 w-3" />}{submitLabel}</button>
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`hidden h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-slate-950 disabled:opacity-50 sm:inline-flex ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{submitLabel}</button>
           <button
             type="button"
             onClick={() => onOpenProductPicker?.()}
             disabled={loading}
-            className="hidden h-7 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50 sm:inline-flex"
+            className="hidden h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50 sm:inline-flex"
           >
             <ShoppingCart className="h-3 w-3" />
             إرسال منتج
           </button>
-          <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="hidden h-7 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2.5 text-[10px] font-black text-slate-100 disabled:opacity-50 sm:inline-flex">Save draft</button>
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="hidden h-7 items-center justify-center rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50 sm:inline-flex">Approve AI reply</button>
+          <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="hidden h-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100 disabled:opacity-50 sm:inline-flex">حفظ مسودة</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="hidden h-10 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50 sm:inline-flex">اعتماد رد AI</button>
           <details className="relative sm:hidden">
             <summary className="list-none cursor-pointer grid h-7 w-7 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-slate-200">?</summary>
             <div className="absolute right-0 z-20 mt-2 w-44 rounded-2xl border border-white/10 bg-slate-950/98 p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
@@ -3805,7 +3830,7 @@ export default function AiInbox() {
   const [modeSaving, setModeSaving] = useState(false);
   const [unseenSessions, setUnseenSessions] = useState([]);
   const [toolsTab, setToolsTab] = useState("customer");
-  const [profileOpen, setProfileOpen] = useState(true);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [customerDrawer, setCustomerDrawer] = useState({ open: false, customer: null, customerId: "", context: {} });
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [replyText, setReplyText] = useState("");
@@ -6848,8 +6873,8 @@ export default function AiInbox() {
           ) : null}
         </section>
 
-        <section className={`${fullscreenConversation ? "flex min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
-          <div className={`${fullscreenConversation ? "hidden" : "hidden xl:block"} w-[72px] shrink-0`}>
+        <section className={`relative ${fullscreenConversation ? "flex min-h-0 flex-1 gap-0 overflow-hidden" : "flex min-h-0 flex-1 gap-2 overflow-hidden"}`}>
+          <div className={`${fullscreenConversation ? "hidden" : "hidden xl:block"} w-[60px] shrink-0`}>
             <InboxChannelSidebar
               channels={fixedChannelSummaries}
               allUnread={channelSummaries.all.unread}
@@ -6862,7 +6887,7 @@ export default function AiInbox() {
             />
           </div>
 
-	          <aside className={`${isSocialMode ? "hidden" : ""} flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[300px] md:max-w-[300px] xl:w-[20%] xl:max-w-[20%] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
+	          <aside className={`${isSocialMode ? "hidden" : ""} flex min-h-0 w-full shrink-0 flex-col overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 shadow-[0_16px_50px_rgba(0,0,0,0.18)] md:w-[280px] md:max-w-[280px] xl:w-[300px] xl:max-w-[300px] ${mobileView === "chat" ? "hidden md:flex" : "flex"}`}>
 	            <div className="shrink-0 space-y-3">
 	              {inboxSection === "conversations" ? (
 	                <div className="flex flex-col gap-3">
@@ -7049,10 +7074,12 @@ export default function AiInbox() {
                     onTakeover={() => updateConversationAction("takeover")}
                     onReturnToAi={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "return")}
                     onClose={() => updateConversationAction(selectedConversation.conversation_status === "closed" ? "reopen" : "close")}
-                    onOpenTools={() => setToolsTab("customer")}
+                    toolsOpen={profileOpen}
+                    onOpenTools={() => setProfileOpen((current) => !current)}
                     isFullscreenConversation={conversationExpanded}
                     onToggleFullscreen={handleToggleConversationExpansion}
                     showBack
+                    onOpenCustomer360={openCustomerDrawer}
                   />
                   {conversationExpanded ? null : (
                     <LeadQuickActionsBar
@@ -7084,7 +7111,7 @@ export default function AiInbox() {
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />
                     </div>
-                    <div className="sticky bottom-0 z-20 shrink-0 border-t border-white/10 bg-slate-950/90 p-3 backdrop-blur">
+                    <div className="z-20 shrink-0 border-t border-white/10 bg-slate-950/80 p-2 backdrop-blur">
                       <ManualReplyComposer
                         conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
                         value={replyText}
@@ -7109,8 +7136,17 @@ export default function AiInbox() {
                     </div>
                   </div>
                 </div>
-                {!fullscreenConversation ? (
-                  <RightToolsTabsPanel
+                {!fullscreenConversation && profileOpen ? (
+                  <div className="absolute inset-y-0 right-0 z-40 hidden xl:flex">
+                    <button
+                      type="button"
+                      onClick={() => setProfileOpen(false)}
+                      className="absolute -left-11 top-3 grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-slate-950/95 text-slate-100 shadow-xl"
+                      aria-label="إغلاق لوحة التفاصيل"
+                    >
+                      <PanelRightClose className="h-4 w-4" />
+                    </button>
+                    <RightToolsTabsPanel
                     activeTab={toolsTab}
                     onTabChange={setToolsTab}
                     conversation={selectedConversation}
@@ -7141,7 +7177,8 @@ export default function AiInbox() {
                     profileDebugging={profileDebugging}
                     onResetAiState={resetAiState}
                     resettingAiState={resettingAiState}
-                  />
+                    />
+                  </div>
                 ) : null}
               </div>
             ) : (
