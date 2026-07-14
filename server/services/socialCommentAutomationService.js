@@ -5282,7 +5282,25 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
         thread_kind
       )
       VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $7, '', 0.98, TRUE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, $8, '', 'comment_inbound', '', 'customer', FALSE, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
-      ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO NOTHING
+      ON CONFLICT (tenant_id, session_id, dedupe_key) WHERE dedupe_key <> '' DO UPDATE SET
+        customer_name = CASE
+          WHEN COALESCE(NULLIF(ai_support_messages.customer_name, ''), '') = ''
+            OR LOWER(ai_support_messages.customer_name) IN ('customer', 'unknown', 'guest', 'anonymous', 'عميل', 'العميل')
+            OR ai_support_messages.customer_name ~ '^[0-9]+$'
+            THEN COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_messages.customer_name)
+          ELSE ai_support_messages.customer_name
+        END,
+        customer_avatar_url = COALESCE(NULLIF(ai_support_messages.customer_avatar_url, ''), NULLIF(EXCLUDED.customer_avatar_url, ''), ''),
+        commenter_id = COALESCE(NULLIF(EXCLUDED.commenter_id, ''), ai_support_messages.commenter_id),
+        commenter_name = CASE
+          WHEN COALESCE(NULLIF(ai_support_messages.commenter_name, ''), '') = ''
+            OR LOWER(ai_support_messages.commenter_name) IN ('customer', 'unknown', 'guest', 'anonymous', 'عميل', 'العميل')
+            OR ai_support_messages.commenter_name ~ '^[0-9]+$'
+            THEN COALESCE(NULLIF(EXCLUDED.commenter_name, ''), ai_support_messages.commenter_name)
+          ELSE ai_support_messages.commenter_name
+        END,
+        commenter_profile_picture_url = COALESCE(NULLIF(ai_support_messages.commenter_profile_picture_url, ''), NULLIF(EXCLUDED.commenter_profile_picture_url, ''), ''),
+        updated_at = NOW()
       RETURNING *
       `,
       [
@@ -5993,12 +6011,29 @@ export const materializeSocialCommentInboxConversation = async ({
       `
       UPDATE social_comment_automation_runs
       SET inbox_conversation_id = COALESCE(NULLIF(inbox_conversation_id, ''), $3::text),
+          commenter_id = COALESCE(NULLIF($5::text, ''), commenter_id),
+          commenter_name = CASE
+            WHEN COALESCE(NULLIF(commenter_name, ''), '') = ''
+              OR LOWER(commenter_name) IN ('customer', 'unknown', 'guest', 'anonymous', 'عميل', 'العميل')
+              OR commenter_name ~ '^[0-9]+$'
+              THEN COALESCE(NULLIF($6::text, ''), commenter_name)
+            ELSE commenter_name
+          END,
+          commenter_profile_picture_url = COALESCE(NULLIF(commenter_profile_picture_url, ''), NULLIF($7::text, ''), ''),
           updated_at = CURRENT_TIMESTAMP
       WHERE tenant_id = $1::bigint
         AND platform = $2::text
         AND comment_id = $4::text
       `,
-      [safeTenantId, platform, resolvedSessionId, commentId]
+      [
+        safeTenantId,
+        platform,
+        resolvedSessionId,
+        commentId,
+        text(event.commenter_id || ""),
+        resolveSocialCommentCustomerName(event),
+        resolveSocialCommentAvatarUrl(event),
+      ]
     );
     runLinkUpdated = Number(runLinkResult.rowCount || 0) > 0;
   }

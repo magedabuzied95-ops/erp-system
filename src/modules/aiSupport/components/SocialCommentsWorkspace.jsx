@@ -35,6 +35,8 @@ import { CommentTimelineCard, getSocialCommentRealTimestamp } from "./socialComm
 import { useRef } from "react";
 
 const clean = (value = "") => String(value ?? "").trim();
+const isGenericCommenterName = (value = "") => /^(customer|unknown|guest|anonymous|عميل|العميل|\d+)$/i.test(clean(value));
+const firstCommenterName = (...values) => values.map((value) => clean(value)).find((value) => value && !isGenericCommenterName(value)) || "";
 const isSocialDebugEnabled = () => import.meta.env.DEV && window.localStorage.getItem("social_debug") === "1";
 const socialDebugLog = (...args) => {
   if (isSocialDebugEnabled()) console.log(...args);
@@ -161,6 +163,10 @@ const absoluteTime = (value) => {
 function normalizeComment(raw) {
   const comment = raw || {};
   const metadata = comment.metadata && typeof comment.metadata === "object" && !Array.isArray(comment.metadata) ? comment.metadata : {};
+  const rawPayload = comment.raw_payload && typeof comment.raw_payload === "object" && !Array.isArray(comment.raw_payload) ? comment.raw_payload : {};
+  const rawValue = rawPayload.value && typeof rawPayload.value === "object" && !Array.isArray(rawPayload.value) ? rawPayload.value : {};
+  const rawComment = rawValue.comment || rawPayload.comment || {};
+  const rawFrom = rawValue.from || rawPayload.from || rawComment.from || {};
   const automationState = comment.automation_state && typeof comment.automation_state === "object" && !Array.isArray(comment.automation_state) ? comment.automation_state : {};
   const runtimeMonitor =
     automationState.runtime_monitor && typeof automationState.runtime_monitor === "object" && !Array.isArray(automationState.runtime_monitor)
@@ -172,15 +178,17 @@ function normalizeComment(raw) {
       : automationState.social_comment_runtime?.ai_sales && typeof automationState.social_comment_runtime.ai_sales === "object" && !Array.isArray(automationState.social_comment_runtime.ai_sales)
         ? automationState.social_comment_runtime.ai_sales
         : {};
-  const customerName = clean(
-    comment.customer_name ||
-      comment.commenter_name ||
-      comment.from?.name ||
-      metadata.customer_name ||
-      metadata.commenter_name ||
-      metadata.from?.name ||
-      "عميل"
-  );
+  const customerName = firstCommenterName(
+    comment.customer_name,
+    comment.commenter_name,
+    comment.from?.name,
+    metadata.customer_name,
+    metadata.commenter_name,
+    metadata.from?.name,
+    rawFrom?.name,
+    rawFrom?.full_name,
+    rawFrom?.username
+  ) || "عميل";
   const customerAvatarUrl = clean(
     comment.customer_avatar_url ||
       comment.commenter_profile_picture_url ||
@@ -200,6 +208,9 @@ function normalizeComment(raw) {
       metadata.avatar ||
       metadata.avatar_url ||
       metadata.profile_pic ||
+      pictureUrlFrom(rawFrom?.picture) ||
+      pictureUrlFrom(rawFrom?.profile_pic) ||
+      pictureUrlFrom(rawFrom?.profile_picture_url) ||
       ""
   );
   const createdAt = getSocialCommentRealTimestamp({ ...comment, raw: comment }).timestamp;
@@ -1410,9 +1421,9 @@ const SocialCommentsWorkspaceCommentRow = memo(function SocialCommentsWorkspaceC
       parent_comment_id: clean(comment.parent_comment_id || comment.parentId || comment.parent_id || ""),
       page_id: clean(comment.page_id || ""),
       platform: clean(comment.platform || activePostPlatform || "facebook"),
-      customer_name: clean(comment.customer_name || comment.commenter_name || comment.from?.name || ""),
-      customerName: clean(comment.customer_name || comment.commenter_name || comment.from?.name || ""),
-      customer_avatar_url: clean(comment.customer_avatar_url || comment.commenter_profile_picture_url || pictureUrlFrom(comment.from?.picture) || ""),
+      customer_name: firstCommenterName(comment.customer_name, comment.customerName, comment.commenter_name, comment.from?.name) || "عميل",
+      customerName: firstCommenterName(comment.customerName, comment.customer_name, comment.commenter_name, comment.from?.name) || "عميل",
+      customer_avatar_url: clean(comment.customer_avatar_url || comment.customerAvatar || comment.commenter_profile_picture_url || pictureUrlFrom(comment.from?.picture) || ""),
       customer_profile_id: clean(comment.customer_profile_id || comment.customerProfileId || ""),
       automation_status: clean(comment.automation_status || comment.reply_status || comment.auto_reply_mode || ""),
       private_reply_status: clean(comment.private_reply_status || comment.dm_status || ""),

@@ -2,6 +2,8 @@ import { memo } from "react";
 import { Clock3, MessageSquareText, UserRound } from "lucide-react";
 
 const clean = (value = "") => String(value ?? "").trim();
+const isGenericCommenterName = (value = "") => /^(customer|unknown|guest|anonymous|عميل|العميل|\d+)$/i.test(clean(value));
+const firstCommenterName = (...values) => values.map((value) => clean(value)).find((value) => value && !isGenericCommenterName(value)) || "";
 
 const initialsFromName = (value = "") => {
   const parts = clean(value)
@@ -21,6 +23,17 @@ const pictureUrlFrom = (value = "") => {
   if (typeof value === "string") return clean(value);
   if (typeof value !== "object") return clean(value);
   return clean(value.data?.url || value.url || value.picture?.data?.url || value.picture?.url || value.profile_pic_url || value.profile_pic || value.source || "");
+};
+
+const nestedCommentIdentity = (value = {}) => {
+  const payload = value?.raw_payload && typeof value.raw_payload === "object" ? value.raw_payload : {};
+  const payloadValue = payload?.value && typeof payload.value === "object" ? payload.value : {};
+  const payloadComment = payloadValue?.comment || payload?.comment || {};
+  const from = payloadValue?.from || payload?.from || payloadComment?.from || {};
+  return {
+    name: clean(from?.name || from?.full_name || from?.username || ""),
+    avatar: pictureUrlFrom(from?.picture || from?.profile_pic || from?.profile_picture_url || ""),
+  };
 };
 
 const normalizeTimestampValue = (value) => {
@@ -197,24 +210,29 @@ export const getSocialCommentTimestamp = (comment = {}) => resolveSocialCommentT
 export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "facebook") => {
   const raw = comment && typeof comment === "object" ? comment.raw || comment : {};
   const metadata = raw.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
+  const commentIdentity = nestedCommentIdentity(comment);
+  const rawIdentity = nestedCommentIdentity(raw);
+  const metadataIdentity = nestedCommentIdentity(metadata);
   const automationState =
     (comment.automation_state && typeof comment.automation_state === "object" && comment.automation_state) ||
     (raw.automation_state && typeof raw.automation_state === "object" && raw.automation_state) ||
     (metadata.automation_state && typeof metadata.automation_state === "object" && metadata.automation_state) ||
     {};
 
-  const customerName = clean(
-    comment.customer_name ||
-      comment.commenter_name ||
-      comment.from?.name ||
-      raw.customer_name ||
-      raw.commenter_name ||
-      raw.from?.name ||
-      metadata.customer_name ||
-      metadata.commenter_name ||
-      metadata.from?.name ||
-      "عميل"
-  );
+  const customerName = firstCommenterName(
+    comment.customer_name,
+    comment.commenter_name,
+    comment.from?.name,
+    raw.customer_name,
+    raw.commenter_name,
+    raw.from?.name,
+    metadata.customer_name,
+    metadata.commenter_name,
+    metadata.from?.name,
+    commentIdentity.name,
+    rawIdentity.name,
+    metadataIdentity.name
+  ) || "عميل";
 
   const customerAvatarUrl = clean(
     comment.customer_avatar_url ||
@@ -244,6 +262,9 @@ export const resolveCommentTimelineData = (comment = {}, fallbackPlatform = "fac
       metadata.avatar ||
       metadata.avatar_url ||
       metadata.profile_pic ||
+      commentIdentity.avatar ||
+      rawIdentity.avatar ||
+      metadataIdentity.avatar ||
       ""
   );
 

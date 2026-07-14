@@ -2292,6 +2292,11 @@ const buildSocialCommentTemplateContext = ({ post = {}, comment = {}, settings =
 };
 
 const firstText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+const isGenericSocialCommentName = (value = "") => {
+  const candidate = lower(value);
+  return !candidate || /^(customer|unknown|guest|anonymous|عميل|العميل)$/.test(candidate) || /^\d+$/.test(candidate);
+};
+const firstSocialCommentName = (...values) => values.map((value) => text(value)).find((value) => !isGenericSocialCommentName(value)) || "";
 
 const normalizeGraphPictureUrl = (value = "") => {
   if (!value) return "";
@@ -2311,25 +2316,28 @@ const normalizeGraphPictureUrl = (value = "") => {
 const hydrateSocialCommentTimelineIdentity = async ({ tenantId = null, row = {}, platform = "" } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const metadata = metadataObject(row.metadata || {});
-  const rawPayload = metadataObject(row.raw_payload || {});
+  const rawPayload = metadataObject(row.raw_payload || row.source_raw_payload || {});
   const rawValue = metadataObject(rawPayload.value || {});
+  const rawComment = metadataObject(rawPayload.comment || rawValue.comment || {});
+  const rawFrom = metadataObject(rawValue.from || rawPayload.from || rawComment.from || {});
   const commenterId = firstText(
     row.commenter_id,
+    row.source_commenter_id,
     row.external_customer_id,
     row.profile_id,
     row.customer_profile_id,
-    rawValue.from?.id,
-    rawPayload.from?.id,
-    rawValue.from?.user_id,
-    rawPayload.from?.user_id,
+    rawFrom.id,
+    rawFrom.user_id,
     metadata.commenter_id
   );
-  const currentName = firstText(
+  const currentName = firstSocialCommentName(
     row.customer_name,
     row.commenter_name,
+    row.source_commenter_name,
     row.from?.name,
-    rawValue.from?.name,
-    rawPayload.from?.name,
+    rawFrom.name,
+    rawFrom.full_name,
+    rawFrom.username,
     metadata.customer_name,
     metadata.commenter_name,
     metadata.from?.name
@@ -2337,9 +2345,11 @@ const hydrateSocialCommentTimelineIdentity = async ({ tenantId = null, row = {},
   const currentAvatar = normalizeGraphPictureUrl(
     row.customer_avatar_url ||
     row.commenter_profile_picture_url ||
+    row.source_commenter_profile_picture_url ||
     row.from?.picture ||
-    rawValue.from?.picture ||
-    rawPayload.from?.picture ||
+    rawFrom.picture ||
+    rawFrom.profile_pic ||
+    rawFrom.profile_picture_url ||
     metadata.customer_avatar_url ||
     metadata.commenter_profile_picture_url ||
     metadata.from?.picture ||
@@ -3975,8 +3985,21 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
     FROM ai_support_messages msg
     LEFT JOIN social_comment_auto_reply_runs run
       ON run.tenant_id = msg.tenant_id
-     AND run.platform = $3::text
+     AND run.platform = $5::text
      AND run.comment_id = msg.comment_id
+    LEFT JOIN LATERAL (
+      SELECT
+        source.commenter_id AS source_commenter_id,
+        source.commenter_name AS source_commenter_name,
+        source.commenter_profile_picture_url AS source_commenter_profile_picture_url,
+        source.raw_payload AS source_raw_payload
+      FROM social_comment_automation_runs source
+      WHERE source.tenant_id = msg.tenant_id
+        AND source.platform = $5::text
+        AND source.comment_id = msg.comment_id
+      ORDER BY source.updated_at DESC, source.id DESC
+      LIMIT 1
+    ) source_identity ON TRUE
     WHERE msg.tenant_id = $1::bigint
       AND (
         msg.session_id = ANY($2::text[])
@@ -3988,7 +4011,7 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
       AND msg.message_type = 'comment_inbound'
     ORDER BY NULLIF(msg.comment_created_time, '') ASC NULLS LAST, msg.created_at ASC, msg.id ASC
     `,
-    [safeTenantId, sessionIds, sessionPatterns, canonicalPostId || safePostId]
+    [safeTenantId, sessionIds, sessionPatterns, canonicalPostId || safePostId, normalizedPlatform]
   );
   logSocialSqlTiming({
     logName: "SOCIAL_SQL_THREAD_DETAIL_MS",
@@ -4131,8 +4154,8 @@ const normalizeSocialCommentFastListRow = (row = {}) => {
     platform: text(row.platform || "facebook") || "facebook",
     post_id: text(row.post_id || ""),
     external_comment_id: text(row.external_comment_id || row.comment_id || ""),
-    customer_name: text(row.customer_name || row.commenter_name || "Customer") || "Customer",
-    customer_avatar_url: text(row.customer_avatar_url || row.commenter_profile_picture_url || ""),
+    customer_name: firstSocialCommentName(row.customer_name, row.commenter_name, row.raw_commenter_name) || "Customer",
+    customer_avatar_url: normalizeGraphPictureUrl(row.customer_avatar_url || row.commenter_profile_picture_url || row.raw_commenter_picture || ""),
     message_preview: text(row.message_preview || row.original_comment_text || row.comment_text || row.message || "").slice(0, 160),
     last_activity_at: activityAt,
     post_created_time: postCreatedTime,
@@ -4207,6 +4230,8 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
         ${hasResolvedProductIdColumn ? "resolved_product_id" : "NULL::bigint AS resolved_product_id"},
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(original_comment_text, ''), NULLIF(raw_payload->>'message', ''), NULLIF(raw_payload->>'comment_text', ''), '')" : "COALESCE(NULLIF(original_comment_text, ''), '')"} AS message_preview,
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->>'post_created_time', ''), NULLIF(raw_payload->'value'->'post'->>'created_time', ''), NULLIF(raw_payload->'metadata'->>'post_created_time', ''))" : "NULL::text"} AS post_created_time,
+        ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'value'->'from'->>'name', ''), NULLIF(raw_payload->'from'->>'name', ''), NULLIF(raw_payload->'comment'->'from'->>'name', ''), NULLIF(raw_payload->'value'->'comment'->'from'->>'name', ''), '')" : "''"} AS raw_commenter_name,
+        ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'value'->'from'->'picture'->'data'->>'url', ''), NULLIF(raw_payload->'value'->'from'->>'picture', ''), NULLIF(raw_payload->'from'->'picture'->'data'->>'url', ''), NULLIF(raw_payload->'from'->>'picture', ''), NULLIF(raw_payload->'comment'->'from'->>'profile_pic_url', ''), '')" : "''"} AS raw_commenter_picture,
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'product_context'->>'product_id', ''), NULLIF(resolved_product_id::text, ''))" : "NULLIF(resolved_product_id::text, '')"} AS product_id_text,
         ${hasRawPayloadColumn ? "COALESCE(NULLIF(raw_payload->'product_context'->>'product_name', ''), '')" : "''"} AS product_name,
         COALESCE(updated_at, processed_at, created_at) AS last_activity_at
@@ -4218,8 +4243,10 @@ export const listSocialCommentCenterFastList = async ({ tenantId = null, platfor
       source_rows.platform,
       source_rows.post_id,
       source_rows.comment_id,
-      COALESCE(NULLIF(source_rows.commenter_name, ''), 'Customer') AS customer_name,
-      COALESCE(NULLIF(source_rows.commenter_profile_picture_url, ''), '') AS customer_avatar_url,
+      COALESCE(NULLIF(source_rows.commenter_name, ''), NULLIF(source_rows.raw_commenter_name, ''), 'Customer') AS customer_name,
+      COALESCE(NULLIF(source_rows.commenter_profile_picture_url, ''), NULLIF(source_rows.raw_commenter_picture, ''), '') AS customer_avatar_url,
+      source_rows.raw_commenter_name,
+      source_rows.raw_commenter_picture,
       source_rows.message_preview,
       source_rows.last_activity_at,
       source_rows.post_created_time,
