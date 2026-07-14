@@ -1925,17 +1925,26 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
   const inboxBaseStartedAt = Date.now();
   const result = await db.query(
     `
-    SELECT *
-    FROM (
-      SELECT DISTINCT ON (COALESCE(NULLIF(message_identity_key, ''), NULLIF(provider_message_id, ''), NULLIF(external_message_id, ''), id::text))
-        *
+    WITH ranked_messages AS (
+      SELECT
+        *,
+        ROW_NUMBER() OVER (
+          PARTITION BY COALESCE(NULLIF(message_identity_key, ''), NULLIF(provider_message_id, ''), NULLIF(external_message_id, ''), id::text)
+          ORDER BY created_at DESC, id DESC
+        ) AS identity_rank
       FROM ai_support_messages
       WHERE tenant_id = $1
         AND session_id = $2
         ${beforeClause}
-      ORDER BY COALESCE(NULLIF(message_identity_key, ''), NULLIF(provider_message_id, ''), NULLIF(external_message_id, ''), id::text), created_at DESC, id DESC
+    ), paged_messages AS (
+      SELECT *
+      FROM ranked_messages
+      WHERE identity_rank = 1
+      ORDER BY created_at DESC, id DESC
       LIMIT $3
-    ) recent_messages
+    )
+    SELECT *
+    FROM paged_messages
     ORDER BY created_at ASC, id ASC
     `,
     params

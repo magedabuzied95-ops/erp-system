@@ -3615,9 +3615,11 @@ export default function AiInboxPwa() {
 
   const loadOlderMessages = useCallback(async () => {
     if (!selectedConversation?.session_id || olderLoading || isLoadingOlderRef.current) return;
-    const before = selectedConversation.next_messages_before || selectedConversation.messages?.[0]?.created_at || "";
-    const beforeId = selectedConversation.messages?.[0]?.id || "";
-    if (!before) return;
+    const currentMessages = asArray(selectedConversation.messages);
+    const shouldHydrateFullPage = currentMessages.length <= 1 && Number(selectedConversation.message_count || 0) > currentMessages.length;
+    const before = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before || currentMessages[0]?.created_at || "";
+    const beforeId = shouldHydrateFullPage ? "" : currentMessages[0]?.id || "";
+    if (!shouldHydrateFullPage && !before) return;
     const scroller = mainScrollRef.current;
     if (scroller) {
       restoreScrollStateRef.current = {
@@ -3629,7 +3631,7 @@ export default function AiInboxPwa() {
     setOlderLoading(true);
     try {
       const payload = await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || normalizeConversationSessionId(selectedConversation.session_id, selectedConversation.channel || selectedConversation.source || selectedConversation.provider || selectedConversation.platform || ""), "/messages"), {
-        params: { tenant_id: tenantId, before, before_id: beforeId, limit: 30 },
+        params: { tenant_id: tenantId, ...(before ? { before, before_id: beforeId } : {}), limit: 30 },
         headers,
         perfComponent: "AiInboxPwa.messages",
       });

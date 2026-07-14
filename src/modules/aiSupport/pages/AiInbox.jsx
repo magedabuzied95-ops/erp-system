@@ -5338,8 +5338,11 @@ export default function AiInbox() {
     if (!selectedConversation?.session_id || olderMessagesLoading || isLoadingOlderRef.current || isRefreshingRef.current) return;
     const sessionId = selectedConversation.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
-    const before = selectedConversation.next_messages_before || selectedConversation.messages?.[0]?.created_at || "";
-    if (!before) return;
+    const currentMessages = asArray(selectedConversation.messages);
+    const shouldHydrateFullPage = currentMessages.length <= 1 && Number(selectedConversation.message_count || 0) > currentMessages.length;
+    const before = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before || currentMessages[0]?.created_at || "";
+    const beforeId = shouldHydrateFullPage ? "" : currentMessages[0]?.id || "";
+    if (!shouldHydrateFullPage && !before) return;
     const scroller = transcriptScrollRef.current;
     if (scroller) {
       restoreScrollStateRef.current = {
@@ -5351,7 +5354,7 @@ export default function AiInbox() {
     setOlderMessagesLoading(true);
     try {
       const payload = await api.get(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/messages"), {
-        params: { tenant_id: tenantId, before, limit: 30 },
+        params: { tenant_id: tenantId, ...(before ? { before, before_id: beforeId } : {}), limit: 30 },
         headers,
         perfComponent: "AiInbox.messages.loadOlder",
       });
@@ -5363,6 +5366,7 @@ export default function AiInbox() {
           message_count: payload.total ?? conversation.message_count,
           older_messages_available: Boolean(payload.has_more),
           next_messages_before: payload.next_before || mergedMessages[0]?.created_at || "",
+          conversationHydrated: true,
         };
       });
     } catch (err) {
