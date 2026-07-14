@@ -2810,9 +2810,71 @@ function HomeCategoryCards({ cards = [], lang = "ar", themeTokens = {}, loading 
 function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = false }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const visibleBrands = Array.isArray(brands) ? brands.filter((brand) => brand?.id && brand?.name && brand?.logo_url) : [];
-  if (!loading && !visibleBrands.length) return null;
   const brandItems = loading && !visibleBrands.length ? Array.from({ length: 6 }) : visibleBrands;
   const groups = brandItems.length > 1 ? [brandItems, brandItems] : [brandItems];
+  const brandTrackRef = useRef(null);
+  const brandResetFrameRef = useRef(null);
+  const [brandSlideIndex, setBrandSlideIndex] = useState(0);
+  const [brandStepPx, setBrandStepPx] = useState(0);
+  const [brandTransitionEnabled, setBrandTransitionEnabled] = useState(true);
+
+  useLayoutEffect(() => {
+    const track = brandTrackRef.current;
+    if (!track || brandItems.length < 2) {
+      setBrandStepPx(0);
+      return undefined;
+    }
+
+    const updateBrandStep = () => {
+      const firstItem = track.querySelector(".sf-brand-marquee__item");
+      const firstGroup = track.querySelector(".sf-brand-marquee__group");
+      if (!firstItem || !firstGroup) return;
+      const groupStyles = window.getComputedStyle(firstGroup);
+      const gap = Number.parseFloat(groupStyles.columnGap || groupStyles.gap || "0") || 0;
+      setBrandStepPx(firstItem.getBoundingClientRect().width + gap);
+    };
+
+    updateBrandStep();
+    const resizeObserver = typeof ResizeObserver !== "undefined" ? new ResizeObserver(updateBrandStep) : null;
+    resizeObserver?.observe(track);
+    window.addEventListener("resize", updateBrandStep);
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener("resize", updateBrandStep);
+    };
+  }, [brandItems.length]);
+
+  useEffect(() => {
+    setBrandSlideIndex(0);
+    setBrandTransitionEnabled(false);
+    if (loading || brandItems.length < 2 || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
+
+    const enableFrame = window.requestAnimationFrame(() => {
+      brandResetFrameRef.current = window.requestAnimationFrame(() => setBrandTransitionEnabled(true));
+    });
+    const firstMoveTimer = window.setTimeout(() => setBrandSlideIndex(1), 1200);
+    const moveTimer = window.setInterval(() => {
+      setBrandSlideIndex((currentIndex) => (currentIndex < brandItems.length ? currentIndex + 1 : currentIndex));
+    }, 4000);
+
+    return () => {
+      window.cancelAnimationFrame(enableFrame);
+      if (brandResetFrameRef.current) window.cancelAnimationFrame(brandResetFrameRef.current);
+      window.clearTimeout(firstMoveTimer);
+      window.clearInterval(moveTimer);
+    };
+  }, [brandItems.length, loading]);
+
+  const handleBrandTransitionEnd = () => {
+    if (brandItems.length < 2 || brandSlideIndex < brandItems.length) return;
+    setBrandTransitionEnabled(false);
+    setBrandSlideIndex(0);
+    brandResetFrameRef.current = window.requestAnimationFrame(() => {
+      brandResetFrameRef.current = window.requestAnimationFrame(() => setBrandTransitionEnabled(true));
+    });
+  };
+
+  if (!loading && !visibleBrands.length) return null;
 
   return (
     <section className="mx-auto max-w-[1600px] py-7 md:py-11" dir={isRtl ? "rtl" : "ltr"}>
@@ -2821,7 +2883,12 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
       </h2>
 
       <div className="sf-brand-marquee" dir="ltr">
-        <div className={`sf-brand-marquee__track ${brandItems.length > 1 ? "sf-brand-marquee__track--animated" : ""}`}>
+        <div
+          ref={brandTrackRef}
+          className={`sf-brand-marquee__track ${brandTransitionEnabled ? "sf-brand-marquee__track--stepping" : ""}`}
+          style={{ transform: `translate3d(-${brandSlideIndex * brandStepPx}px, 0, 0)` }}
+          onTransitionEnd={handleBrandTransitionEnd}
+        >
           {groups.map((group, groupIndex) => (
             <div key={groupIndex} className="sf-brand-marquee__group" aria-hidden={groupIndex > 0 ? "true" : undefined}>
               {group.map((brand, index) => (
@@ -2834,15 +2901,17 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
                     aria-label={brand.name || (isRtl ? "عرض العلامة التجارية" : "View brand")}
                     tabIndex={groupIndex > 0 ? -1 : undefined}
                   >
-                    <img
-                      src={imageFor(brand.logo_url)}
-                      alt={groupIndex === 0 ? brand.name || "" : ""}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-contain transition-transform duration-300 group-hover:scale-110"
-                      width="240"
-                      height="140"
-                    />
+                    <span className="sf-brand-marquee__logo-frame">
+                      <img
+                        src={imageFor(brand.logo_url)}
+                        alt={groupIndex === 0 ? brand.name || "" : ""}
+                        loading="lazy"
+                        decoding="async"
+                        className="sf-brand-marquee__logo"
+                        width="240"
+                        height="140"
+                      />
+                    </span>
                   </Link>
                 ) : (
                   <div

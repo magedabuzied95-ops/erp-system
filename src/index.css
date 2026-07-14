@@ -494,18 +494,6 @@
     }
   }
 
-  @keyframes sfBrandMarqueePause {
-    0% {
-      transform: translate3d(0, 0, 0);
-    }
-    60% {
-      transform: translate3d(-50%, 0, 0);
-    }
-    100% {
-      transform: translate3d(-50%, 0, 0);
-    }
-  }
-
   @keyframes wishlist-pop {
     0% {
       transform: scale(0.7);
@@ -533,13 +521,8 @@
     will-change: transform;
   }
 
-  .sf-brand-marquee__track--animated {
-    animation: sfBrandMarqueePause 10s linear infinite;
-  }
-
-  .sf-brand-marquee:hover .sf-brand-marquee__track--animated,
-  .sf-brand-marquee:focus-within .sf-brand-marquee__track--animated {
-    animation-play-state: paused;
+  .sf-brand-marquee__track--stepping {
+    transition: transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   .sf-brand-marquee__group {
@@ -566,14 +549,39 @@
     transform: translateY(-3px);
   }
 
+  .sf-brand-marquee__logo-frame {
+    display: flex;
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sf-brand-marquee__logo {
+    display: block;
+    width: auto;
+    height: auto;
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    object-position: center;
+    transition: transform 300ms ease;
+  }
+
+  .sf-brand-marquee__item:hover .sf-brand-marquee__logo {
+    transform: scale(1.06);
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .sf-brand-marquee {
       overflow-x: auto;
       mask-image: none;
     }
 
-    .sf-brand-marquee__track--animated {
-      animation: none;
+    .sf-brand-marquee__track--stepping {
+      transition: none;
     }
 
     .sf-brand-marquee__group[aria-hidden="true"] {
