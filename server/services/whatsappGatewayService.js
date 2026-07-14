@@ -1,5 +1,8 @@
 ﻿import crypto from "crypto";
 
+import fs from "node:fs/promises";
+import path from "node:path";
+
 import db from "../database/db.js";
 import { buildWhatsappTextDebug } from "../utils/whatsapp.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
@@ -10,7 +13,7 @@ import {
 } from "./aiChannelAdapterService.js";
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
-import { appendAiGeneratedSupportReply, appendChannelOutboundSupportReply, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus } from "./aiSupportLogService.js";
+import { appendAiGeneratedSupportReply, appendChannelOutboundSupportReply, appendInboundAiSupportMessage, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus } from "./aiSupportLogService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
@@ -52,7 +55,7 @@ export const getEvolutionWebhookSkipReason = ({ event = "", remoteJid = "", mess
     return WHATSAPP_WEBHOOK_SKIP_REASONS.nonMessageEvent;
   }
   if (!String(messageId || "").trim()) return WHATSAPP_WEBHOOK_SKIP_REASONS.missingMessageId;
-  if (!hasMessageContent && !(fromMe === true && hasMedia === true)) return WHATSAPP_WEBHOOK_SKIP_REASONS.missingText;
+  if (!hasMessageContent && !hasMedia) return WHATSAPP_WEBHOOK_SKIP_REASONS.missingText;
   return "";
 };
 
@@ -2584,6 +2587,70 @@ export const extractWhatsappMediaDescriptor = (payload = {}) => {
   return { type, label, url, mimeType, fileName, durationSeconds, visualAttachments };
 };
 
+const whatsappMediaExtension = (mimeType = "", mediaType = "") => {
+  const normalizedMime = text(mimeType).toLowerCase().split(";")[0];
+  const byMime = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "audio/ogg": "ogg",
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "video/mp4": "mp4",
+    "application/pdf": "pdf",
+  };
+  return byMime[normalizedMime] || ({ image: "jpg", audio: "ogg", video: "mp4", document: "bin", sticker: "webp" }[mediaType] || "bin");
+};
+
+const whatsappMediaPublicBaseUrl = () => text(
+  process.env.PUBLIC_BACKEND_URL || process.env.PUBLIC_BASE_URL || process.env.WEBHOOK_PUBLIC_URL || ""
+).replace(/\/api\/?$/i, "").replace(/\/+$/g, "");
+
+const materializeEvolutionWebhookMedia = async ({ payload = {}, descriptor = {}, messageId = "", instance = "" } = {}) => {
+  if (!descriptor?.type || !messageId) return descriptor;
+  const publicBaseUrl = whatsappMediaPublicBaseUrl();
+  if (!publicBaseUrl) return descriptor;
+  try {
+    const media = await evolutionFetch(`/chat/getBase64FromMediaMessage/${encodeURIComponent(instance || instanceName())}`, {
+      method: "POST",
+      body: JSON.stringify({ message: primaryEvolutionData(payload) }),
+    });
+    const base64 = text(media?.base64 || media?.data?.base64 || "");
+    if (!base64) return descriptor;
+    const bytes = Buffer.from(base64, "base64");
+    if (!bytes.length || bytes.length > 30 * 1024 * 1024) {
+      console.warn("[whatsapp:media-materialize-skipped]", { message_id: messageId, size: bytes.length, reason: "invalid_size" });
+      return descriptor;
+    }
+    const mimeType = text(media?.mimetype || descriptor.mimeType || "");
+    const extension = whatsappMediaExtension(mimeType, descriptor.type);
+    const safeMessageId = text(messageId).replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 120) || crypto.randomUUID();
+    const directory = path.join(process.cwd(), "uploads", "whatsapp-media");
+    await fs.mkdir(directory, { recursive: true });
+    const fileName = `${safeMessageId}.${extension}`;
+    await fs.writeFile(path.join(directory, fileName), bytes);
+    const url = `${publicBaseUrl}/uploads/whatsapp-media/${fileName}`;
+    return {
+      ...descriptor,
+      url,
+      mimeType,
+      fileName: descriptor.fileName || text(media?.fileName || fileName),
+      visualAttachments: [{
+        type: descriptor.type,
+        media_type: descriptor.type,
+        url,
+        media_url: url,
+        mime_type: mimeType,
+        file_name: descriptor.fileName || text(media?.fileName || fileName),
+        duration_seconds: descriptor.durationSeconds || 0,
+      }],
+    };
+  } catch (error) {
+    console.warn("[whatsapp:media-materialize-failed]", { message_id: messageId, type: descriptor.type, message: error?.message || String(error) });
+    return descriptor;
+  }
+};
+
 const extractWhatsappWebhookEnvelope = (payload = {}) => {
   const data = primaryEvolutionData(payload);
   const key = data?.key || payload?.key || {};
@@ -3638,7 +3705,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
   const envelope = extractWhatsappWebhookEnvelope(payload);
   const sanitizedPayload = redactSensitive(payload);
   const fullPayloadText = extractMessageText(envelope.data, payload);
-  const mediaDescriptor = extractWhatsappMediaDescriptor(payload);
+  let mediaDescriptor = extractWhatsappMediaDescriptor(payload);
   const webhookMessage = envelope.data?.message || envelope.data?.messages?.[0]?.message || payload?.body?.data?.message || payload?.body?.message || payload?.message || {};
   const webhookMessageType = text(
     envelope.data?.messageType ||
@@ -3751,6 +3818,12 @@ export const handleIncomingWebhook = async (payload = {}) => {
       inbox: { saved: false, reason: skipReason },
     };
   }
+  mediaDescriptor = await materializeEvolutionWebhookMedia({
+    payload,
+    descriptor: mediaDescriptor,
+    messageId: envelope.messageId,
+    instance: envelope.instance,
+  });
   const fullPayloadLog = {
     event: envelope.event,
     rawEvent: envelope.rawEvent || "",
@@ -4028,6 +4101,65 @@ export const handleIncomingWebhook = async (payload = {}) => {
     return { ...normalized, received_at: normalized.timestamp, trace_id: trace?.id || null, inbox: { saved: false, reason: "missing_phone" } };
   }
   if (!normalized.text) {
+    if (mediaDescriptor.type) {
+      const sessionId = normalizeWhatsappSessionId(normalized.resolvedReplyJid || normalized.phone, normalized.resolvedPhone || normalized.phone);
+      const mediaMessage = mediaDescriptor.label || "📎 مرفق";
+      await upsertChannelConversationMapping({
+        tenantId: traceTenantId,
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        externalConversationId: sessionId,
+        externalCustomerId: normalized.phone,
+        customerName: normalized.senderName,
+        metadata: {
+          phone: normalized.phone,
+          remote_jid: normalized.remoteJid,
+          resolved_reply_jid: normalized.resolvedReplyJid,
+          resolved_phone: normalized.resolvedPhone || normalized.phone,
+          instance: normalized.instance,
+          source: "evolution_api",
+          last_message: mediaMessage,
+          provider_message_id: normalized.messageId,
+        },
+        lastMessageAt: normalized.timestamp,
+      });
+      const mediaRow = await appendInboundAiSupportMessage({
+        tenantId: traceTenantId,
+        sessionId,
+        message: mediaMessage,
+        messageType: mediaDescriptor.type,
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        customerName: normalized.senderName,
+        deliveryStatus: "received",
+        externalMessageId: normalized.messageId,
+        providerMessageId: normalized.messageId,
+        visualAttachments: mediaDescriptor.visualAttachments,
+        source: "whatsapp_provider_media",
+        sourcePath: "whatsapp_provider_media",
+        insertSource: "whatsapp_provider_media",
+        whatsappInstance: normalized.instance,
+        remoteJid: normalized.remoteJid,
+        resolvedReplyJid: normalized.resolvedReplyJid,
+        resolvedPhone: normalized.resolvedPhone || normalized.phone,
+      });
+      await setTraceInboundMessage(trace, mediaRow?.id || null);
+      await finishTrace(trace, { status: "saved", reason: "media_only_no_ai" });
+      return {
+        ...normalized,
+        text: "",
+        received_at: normalized.timestamp,
+        customer_name: normalized.senderName,
+        message_id: normalized.messageId,
+        instanceName: normalized.instance,
+        trace_id: trace?.id || null,
+        inbox: {
+          saved: Boolean(mediaRow),
+          duplicate: !mediaRow,
+          reason: mediaRow ? "media_saved" : "duplicate",
+          message: mediaRow || null,
+          session_id: sessionId,
+        },
+      };
+    }
     console.info("[whatsapp:inbox-skipped]", { reason: "missing_text", phoneSuffix: normalized.phone.slice(-4), message_id: normalized.messageId });
     await finishTrace(trace, { status: "skipped", reason: "missing_text" });
     return { ...normalized, received_at: normalized.timestamp, trace_id: trace?.id || null, inbox: { saved: false, reason: "missing_text" } };

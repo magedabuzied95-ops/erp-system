@@ -40,14 +40,14 @@ test("outbound WhatsApp media without a caption is accepted and described", () =
   }), "");
 });
 
-test("inbound captionless media stays outside the AI text route", () => {
+test("inbound captionless media reaches persistence without becoming AI text", () => {
   assert.equal(getEvolutionWebhookSkipReason({
     event: "messages.upsert",
     remoteJid: "201001234567@s.whatsapp.net",
     messageId: "customer-media-1",
     hasMedia: true,
     fromMe: false,
-  }), "missing_text");
+  }), "");
 });
 
 test("AI Inbox renders saved WhatsApp voice messages with an audio player", () => {
