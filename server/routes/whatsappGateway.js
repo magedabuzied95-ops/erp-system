@@ -10,6 +10,7 @@ import {
   normalizeEgyptPhone,
   sendTextMessage,
   sendWhatsAppButtonsDebugTest,
+  syncWhatsappCustomerProfilePictures,
   triggerWhatsappAiAutoReply,
   verifyWebhookSecret,
 } from "../services/whatsappGatewayService.js";
@@ -52,6 +53,24 @@ router.get("/webhook/debug-events", protect, permit("settings", "view"), async (
     success: true,
     ...debugEvents,
   });
+});
+
+router.post("/profile-pictures/sync", protect, permit("settings", "edit"), async (req, res) => {
+  try {
+    const result = await syncWhatsappCustomerProfilePictures({
+      tenantId: tenantScope(req),
+      limit: req.body?.limit,
+      force: req.body?.force === true,
+    });
+    emitToRooms([`tenant:${tenantScope(req)}`], "ai_inbox:refresh", {
+      tenant_id: tenantScope(req),
+      source: "whatsapp_profile_picture_sync",
+      at: new Date().toISOString(),
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    return sendError(res, error, "Failed to sync WhatsApp profile pictures");
+  }
 });
 
 router.post("/send-test", protect, permit("settings", "edit"), async (req, res) => {

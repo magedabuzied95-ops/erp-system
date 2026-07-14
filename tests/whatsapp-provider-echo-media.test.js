@@ -3,12 +3,15 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 import {
+  extractEvolutionProfilePictureUrl,
   extractWhatsappMediaDescriptor,
   getEvolutionStatusUpdateDecision,
   getEvolutionWebhookSkipReason,
 } from "../server/services/whatsappGatewayService.js";
 
 const transcriptSource = fs.readFileSync(new URL("../src/modules/aiSupport/components/TranscriptMessage.jsx", import.meta.url), "utf8");
+const desktopInboxSource = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
+const pwaInboxSource = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
 
 const outboundPayload = (message, status = "sent") => ({
   event: "messages.upsert",
@@ -53,4 +56,19 @@ test("inbound captionless media reaches persistence without becoming AI text", (
 test("AI Inbox renders saved WhatsApp voice messages with an audio player", () => {
   assert.match(transcriptSource, /<audio key=\{url\} controls preload="metadata"/);
   assert.match(transcriptSource, /typedMediaUrls\(message, \["audio", "voice", "ptt"\]\)/);
+});
+
+test("Evolution profile picture responses resolve a safe nested image URL", () => {
+  assert.equal(
+    extractEvolutionProfilePictureUrl({ data: { profilePictureUrl: "https://pps.whatsapp.net/avatar.jpg" } }),
+    "https://pps.whatsapp.net/avatar.jpg"
+  );
+  assert.equal(extractEvolutionProfilePictureUrl({ data: { profilePictureUrl: "javascript:alert(1)" } }), "");
+});
+
+test("desktop and PWA inboxes render the shared customer avatar field", () => {
+  assert.match(desktopInboxSource, /source\.customer_avatar_url/);
+  assert.match(pwaInboxSource, /conversation\.customer_avatar_url/);
+  assert.match(desktopInboxSource, /<img[\s\S]*?src=\{avatarUrl\}/);
+  assert.match(pwaInboxSource, /<img[\s\S]*?src=\{avatar\}/);
 });

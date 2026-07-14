@@ -743,6 +743,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
           thread_kind TEXT NOT NULL DEFAULT 'dm',
           ai_enabled BOOLEAN NOT NULL DEFAULT TRUE,
           customer_name TEXT NOT NULL DEFAULT '',
+          customer_avatar_url TEXT NOT NULL DEFAULT '',
           last_message TEXT NOT NULL DEFAULT '',
           assigned_user_id BIGINT NULL,
           assigned_user_name TEXT NOT NULL DEFAULT '',
@@ -812,6 +813,7 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm'`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS ai_enabled BOOLEAN NOT NULL DEFAULT TRUE`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS customer_name TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS customer_avatar_url TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS external_customer_id TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS last_message TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_sessions ADD COLUMN IF NOT EXISTS assigned_user_id BIGINT NULL`);

@@ -34,7 +34,10 @@ const sentImageDuplicateCache = new Map();
 const recentEvolutionWebhookEvents = [];
 const evolutionWebhookEventCounts = new Map();
 const trackedEvolutionButtonMessages = new Map();
+const evolutionProfilePictureCache = new Map();
 const EVOLUTION_BUTTONS_DELIVERY_TIMEOUT_MS = 30000;
+const EVOLUTION_PROFILE_PICTURE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const EVOLUTION_PROFILE_PICTURE_EMPTY_TTL_MS = 30 * 60 * 1000;
 
 const text = (value, fallback = "") => String(value ?? fallback).trim();
 const previewText = (value = "", limit = 180) => text(value).replace(/\s+/g, " ").slice(0, limit);
@@ -325,6 +328,109 @@ export const normalizeEgyptPhone = (phone = "") => {
   if (digits.startsWith("0") && digits.length === 11) return `20${digits.slice(1)}`;
   if (digits.startsWith("1") && digits.length === 10) return `20${digits}`;
   return digits;
+};
+
+export const extractEvolutionProfilePictureUrl = (value = {}) => {
+  const queue = [value];
+  const visited = new Set();
+  const pictureKeys = ["profilePictureUrl", "profilePicUrl", "profile_picture_url", "profile_pic_url", "pictureUrl", "picture", "avatarUrl", "avatar"];
+  while (queue.length) {
+    const current = queue.shift();
+    if (!current || typeof current !== "object" || visited.has(current)) continue;
+    visited.add(current);
+    for (const key of pictureKeys) {
+      const candidate = text(current?.[key]);
+      if (/^https?:\/\//i.test(candidate)) return candidate;
+    }
+    Object.values(current).forEach((item) => {
+      if (item && typeof item === "object") queue.push(item);
+    });
+  }
+  return "";
+};
+
+export const fetchWhatsappCustomerProfilePicture = async ({ phone = "", instance = "", force = false } = {}) => {
+  const normalizedPhone = normalizeEgyptPhone(phone);
+  if (!normalizedPhone || config().provider !== "evolution") return "";
+  const selectedInstance = text(instance || instanceName());
+  const cacheKey = `${selectedInstance}|${normalizedPhone}`;
+  const cached = evolutionProfilePictureCache.get(cacheKey);
+  if (!force && cached && cached.expiresAt > Date.now()) return cached.url;
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 6000);
+  let profilePictureUrl = "";
+  try {
+    const response = await evolutionFetch(`/chat/fetchProfilePictureUrl/${encodeURIComponent(selectedInstance)}`, {
+      method: "POST",
+      body: JSON.stringify({ number: normalizedPhone }),
+      signal: controller.signal,
+    });
+    profilePictureUrl = extractEvolutionProfilePictureUrl(response);
+  } catch (error) {
+    console.warn("[whatsapp:profile-picture-unavailable]", {
+      phoneSuffix: normalizedPhone.slice(-4),
+      instance: selectedInstance,
+      code: error?.code || error?.name || "",
+      message: error?.message || String(error),
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+  evolutionProfilePictureCache.set(cacheKey, {
+    url: profilePictureUrl,
+    expiresAt: Date.now() + (profilePictureUrl ? EVOLUTION_PROFILE_PICTURE_CACHE_TTL_MS : EVOLUTION_PROFILE_PICTURE_EMPTY_TTL_MS),
+  });
+  return profilePictureUrl;
+};
+
+export const syncWhatsappCustomerProfilePictures = async ({ tenantId = null, limit = 250, force = false } = {}) => {
+  await ensureAiSupportLogSchema();
+  const safeLimit = Math.max(1, Math.min(1000, Number(limit) || 250));
+  const params = tenantId ? [Number(tenantId), safeLimit] : [safeLimit];
+  const tenantFilter = tenantId ? "AND tenant_id = $1" : "";
+  const limitParam = tenantId ? "$2" : "$1";
+  const result = await db.query(
+    `
+    SELECT tenant_id, external_conversation_id, external_customer_id, customer_avatar_url, metadata
+    FROM ai_channel_conversations
+    WHERE channel = 'whatsapp'
+      ${tenantFilter}
+      AND COALESCE(NULLIF(external_customer_id, ''), metadata->>'resolved_phone', metadata->>'phone', '') <> ''
+      ${force ? "" : "AND COALESCE(customer_avatar_url, '') = ''"}
+    ORDER BY COALESCE(last_message_at, updated_at) DESC
+    LIMIT ${limitParam}
+    `,
+    params
+  );
+  let updated = 0;
+  let unavailable = 0;
+  const rows = result.rows || [];
+  const concurrency = 4;
+  for (let index = 0; index < rows.length; index += concurrency) {
+    const batch = rows.slice(index, index + concurrency);
+    await Promise.all(batch.map(async (row) => {
+      const metadata = row.metadata && typeof row.metadata === "object" ? row.metadata : {};
+      const phone = normalizeEgyptPhone(row.external_customer_id || metadata.resolved_phone || metadata.phone || "");
+      const avatarUrl = await fetchWhatsappCustomerProfilePicture({ phone, instance: metadata.instance, force });
+      if (!avatarUrl) {
+        unavailable += 1;
+        return;
+      }
+      await Promise.all([
+        db.query(
+          `UPDATE ai_channel_conversations SET customer_avatar_url = $1 WHERE tenant_id = $2 AND channel = 'whatsapp' AND external_conversation_id = $3`,
+          [avatarUrl, row.tenant_id, row.external_conversation_id]
+        ),
+        db.query(
+          `UPDATE ai_support_sessions SET customer_avatar_url = $1 WHERE tenant_id = $2 AND session_id = $3`,
+          [avatarUrl, row.tenant_id, row.external_conversation_id]
+        ),
+      ]);
+      updated += 1;
+    }));
+  }
+  return { scanned: rows.length, updated, unavailable };
 };
 
 export const getStatus = async () => {
@@ -2846,6 +2952,7 @@ const extractIncomingWhatsapp = async (payload = {}) => {
       payload?.profileName ||
       findFirstString(data, ["pushName", "pushname", "profileName", "profile_name", "senderName", "sender_name"])
   );
+  const customerAvatarUrl = extractEvolutionProfilePictureUrl({ data, payload });
   const messageText = extractMessageText(data, payload);
   const intentPayload = normalizeArabicIntentPayload(messageText);
   const normalizedMessage = intentPayload.normalizedText || normalizeArabicMessage(messageText);
@@ -2950,6 +3057,7 @@ const extractIncomingWhatsapp = async (payload = {}) => {
     aiConversationMemoryV2: conversationMemoryV2,
     followup_context_v2: followupContextV2,
     senderName,
+    customerAvatarUrl,
     messageId,
     timestamp,
     instance,
@@ -3293,6 +3401,10 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
   const remoteJid = normalizeWhatsappSessionId(message.remoteJid || message.resolvedReplyJid || message.phone, message.phone);
   const resolvedReplyJid = normalizeWhatsappSessionId(message.resolvedReplyJid || message.remoteJid || message.phone, message.phone);
   const resolvedPhone = normalizeWhatsappPhone(message.resolvedPhone || message.phone || "");
+  const customerAvatarUrl = text(
+    message.customerAvatarUrl ||
+    await fetchWhatsappCustomerProfilePicture({ phone: resolvedPhone || message.phone, instance })
+  );
   const dedupeKey = externalMessageId
     ? dedupeHash([channel, instance, remoteJid, externalMessageId].join("|"))
     : "";
@@ -3341,6 +3453,7 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
     externalConversationId: sessionId,
     externalCustomerId: message.phone,
     customerName,
+    customerAvatarUrl,
     metadata: {
       phone: message.phone,
       remote_jid: remoteJid,
@@ -3380,17 +3493,18 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
 
   const session = await db.query(
     `
-    INSERT INTO ai_support_sessions (tenant_id, session_id, source, channel, customer_name, last_message, updated_at)
-    VALUES ($1, $2, 'whatsapp', 'whatsapp', $3::text, $4::text, NOW())
+    INSERT INTO ai_support_sessions (tenant_id, session_id, source, channel, customer_name, customer_avatar_url, last_message, updated_at)
+    VALUES ($1, $2, 'whatsapp', 'whatsapp', $3::text, $4::text, $5::text, NOW())
     ON CONFLICT (tenant_id, session_id) DO UPDATE SET
       source = 'whatsapp',
       channel = 'whatsapp',
       customer_name = COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name),
+      customer_avatar_url = COALESCE(NULLIF(EXCLUDED.customer_avatar_url, ''), ai_support_sessions.customer_avatar_url),
       last_message = EXCLUDED.last_message,
       updated_at = NOW()
     RETURNING id
     `,
-    [tenantId, sessionId, customerName, body]
+    [tenantId, sessionId, customerName, customerAvatarUrl, body]
   );
 
   console.info("[whatsapp-insert-attempt]", {
@@ -4100,6 +4214,12 @@ export const handleIncomingWebhook = async (payload = {}) => {
     await finishTrace(trace, { status: "skipped", reason: "missing_phone" });
     return { ...normalized, received_at: normalized.timestamp, trace_id: trace?.id || null, inbox: { saved: false, reason: "missing_phone" } };
   }
+  if (!normalized.customerAvatarUrl) {
+    normalized.customerAvatarUrl = await fetchWhatsappCustomerProfilePicture({
+      phone: normalized.resolvedPhone || normalized.phone,
+      instance: normalized.instance,
+    });
+  }
   if (!normalized.text) {
     if (mediaDescriptor.type) {
       const sessionId = normalizeWhatsappSessionId(normalized.resolvedReplyJid || normalized.phone, normalized.resolvedPhone || normalized.phone);
@@ -4110,6 +4230,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
         externalConversationId: sessionId,
         externalCustomerId: normalized.phone,
         customerName: normalized.senderName,
+        customerAvatarUrl: normalized.customerAvatarUrl,
         metadata: {
           phone: normalized.phone,
           remote_jid: normalized.remoteJid,
@@ -4141,6 +4262,12 @@ export const handleIncomingWebhook = async (payload = {}) => {
         resolvedReplyJid: normalized.resolvedReplyJid,
         resolvedPhone: normalized.resolvedPhone || normalized.phone,
       });
+      if (normalized.customerAvatarUrl) {
+        await db.query(
+          `UPDATE ai_support_sessions SET customer_avatar_url = $1 WHERE tenant_id = $2 AND session_id = $3`,
+          [normalized.customerAvatarUrl, traceTenantId, sessionId]
+        );
+      }
       await setTraceInboundMessage(trace, mediaRow?.id || null);
       await finishTrace(trace, { status: "saved", reason: "media_only_no_ai" });
       return {
