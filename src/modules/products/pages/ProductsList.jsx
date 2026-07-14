@@ -96,9 +96,9 @@ const CLASSIFICATION_FILTER_FIELDS = [
   { key: "grade", field: "grade", labelKey: "products.filters.sourceQuality", fallbackLabel: "Source / quality" },
 ];
 const PRODUCT_AUDIENCE_OPTIONS = [
-  { value: "men", label_en: "رجال", label_ar: "رجال" },
-  { value: "women", label_en: "نساء", label_ar: "نساء" },
-  { value: "kids", label_en: "أطفال", label_ar: "أطفال" },
+  { value: "men", label_en: "Men", label_ar: "رجالي", tone: "border-sky-400/20 bg-sky-500/15 text-sky-300" },
+  { value: "women", label_en: "Women", label_ar: "حريمي", tone: "border-rose-400/20 bg-rose-500/15 text-rose-300" },
+  { value: "kids", label_en: "Kids", label_ar: "أطفال", tone: "border-amber-400/20 bg-amber-500/15 text-amber-300" },
 ];
 
 const productStatusValue = (row = {}) => String(row.status || "").trim().toLowerCase();
@@ -184,6 +184,26 @@ const getProductAudiences = (row = {}) => {
   visit(row.product_audiences);
   visit(row.gender);
   return PRODUCT_AUDIENCE_OPTIONS.map((option) => option.value).filter((value) => seen.has(value));
+};
+
+const ProductAudienceBadges = ({ row = {}, language = "ar" }) => {
+  const audiences = getProductAudiences(row);
+  const isArabic = String(language || "").toLowerCase().startsWith("ar");
+  if (!audiences.length) {
+    return (
+      <span className="inline-flex items-center rounded-full border border-zinc-400/15 bg-zinc-500/10 px-2.5 py-1 text-[10px] font-black text-zinc-400">
+        {isArabic ? "غير محدد" : "Not specified"}
+      </span>
+    );
+  }
+  return audiences.map((audience) => {
+    const option = PRODUCT_AUDIENCE_OPTIONS.find((item) => item.value === audience);
+    return option ? (
+      <span key={audience} className={`inline-flex items-center rounded-full border px-2.5 py-1 text-[10px] font-black ${option.tone}`}>
+        {isArabic ? option.label_ar : option.label_en}
+      </span>
+    ) : null;
+  });
 };
 
 const getActionMenuPosition = (rect, itemCount = 8) => {
@@ -2488,6 +2508,7 @@ function ProductsList() {
                     storefrontVisible={storefrontVisible}
                     actions={dropdownActions}
                     t={t}
+                    language={i18n.language}
                   />
                 );
               })
@@ -2610,22 +2631,8 @@ function ProductsList() {
                             <p className="truncate text-xs font-semibold text-cyan-300">{category}</p>
                           ) : null}
                           <p className="truncate text-sm text-zinc-400">{row.brand || t("products.selected.brand")}</p>
-                          <div className="mt-2">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] ${
-                                row.variation_mode === "simple"
-                                  ? "bg-sky-500/15 text-sky-300"
-                                  : row.variation_mode === "color_only"
-                                    ? "bg-cyan-500/15 text-cyan-300"
-                                    : "bg-emerald-500/15 text-emerald-300"
-                              }`}
-                            >
-                              {row.variation_mode === "simple"
-                                ? t("products.variantMode.simple")
-                                : row.variation_mode === "color_only"
-                                  ? t("products.variantMode.colorOnly")
-                                  : t("products.variantMode.fullVariations")}
-                            </span>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            <ProductAudienceBadges row={row} language={i18n.language} />
                           </div>
                         </td>
                         <td className="px-4 py-4 align-middle">
@@ -3182,7 +3189,7 @@ function BarcodeQueueBulkModal({
   );
 }
 
-const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, displayCost, sellingPrice, salePrice, displaySku, actions, t }) {
+const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, displayCost, sellingPrice, salePrice, displaySku, actions, t, language }) {
   const visibleActions = (actions || []).slice(0, 4);
   const productType = getProductTypeValue(row);
   const category = isMeaningfulCategory(row.category) ? String(row.category).trim() : "";
@@ -3225,13 +3232,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
                   ? t("products.storefront.visible", "ظاهر بالموقع")
                   : t("products.storefront.hidden", "مخفي من الموقع")}
               </span>
-              <span className="inline-flex items-center rounded-full bg-sky-500/10 px-2.5 py-1 text-[10px] font-black text-sky-200">
-                {row.variation_mode === "simple"
-                  ? t("products.variantMode.simple")
-                  : row.variation_mode === "color_only"
-                    ? t("products.variantMode.colorOnly")
-                    : t("products.variantMode.fullVariations")}
-              </span>
+              <ProductAudienceBadges row={row} language={language} />
             </div>
           </div>
         </button>
