@@ -18,6 +18,7 @@ test("Instagram media and historical comments are loaded from the connected busi
   assert.match(metaSource, /INSTAGRAM_COMMENT_SYNC_TTL_MS = 5 \* 60 \* 1000/);
   assert.match(metaSource, /META_INSTAGRAM_COMMENTS_POLL_ERROR/);
   assert.match(metaSource, /syncMetaInstagramCommentsForTenant\(\{[\s\S]*?skipAutomation: false/);
+  assert.match(metaSource, /SELECT id, tenant_id, facebook_page_id, instagram_business_account_id/);
 });
 
 test("Instagram comment webhooks use the media id and accept the native comments payload", () => {

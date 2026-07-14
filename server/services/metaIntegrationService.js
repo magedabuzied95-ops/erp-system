@@ -4132,7 +4132,7 @@ const loadMetaCommentPollingConfigs = async ({ tenantId = null } = {}) => {
   const whereSql = filters.length ? `WHERE ${filters.join(" AND ")}` : "";
   const result = await db.query(
     `
-    SELECT id, tenant_id, facebook_page_id, page_name, page_access_token_encrypted, status, webhook_enabled, subscribed_apps_verified, last_webhook_at, last_meta_poll_at, last_meta_poll_success_at, last_meta_poll_error_at, meta_poll_backoff_until, meta_poll_error_count
+    SELECT id, tenant_id, facebook_page_id, instagram_business_account_id, page_name, page_access_token_encrypted, status, webhook_enabled, subscribed_apps_verified, last_webhook_at, last_meta_poll_at, last_meta_poll_success_at, last_meta_poll_error_at, meta_poll_backoff_until, meta_poll_error_count
     FROM meta_integration_configs
     ${whereSql}
     ORDER BY tenant_id ASC, updated_at DESC, id DESC
