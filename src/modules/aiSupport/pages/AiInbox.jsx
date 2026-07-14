@@ -2456,16 +2456,16 @@ function ManualReplyComposer({
     return <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 p-4 text-sm font-bold text-rose-100">المحادثة مغلقة. تم تعطيل الرد اليدوي.</div>;
   }
   return (
-    <div className="sticky bottom-0 w-full rounded-2xl border border-amber-300/20 bg-slate-950/95 p-3 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
+    <div className="sticky bottom-0 w-full rounded-2xl border border-amber-300/20 bg-slate-950/95 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.3)] backdrop-blur">
+      <div className="mb-1 flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1" />
         {canSendLive ? (
-          <Pill tone="emerald" className="px-2 py-0.5 text-[10px]">
-            <Radio className="h-3 w-3" />
+          <Pill tone="emerald" className="px-2 py-0.5 text-[9px]">
+            <Radio className="h-2.5 w-2.5" />
             Live send ready
           </Pill>
         ) : (
-          <Pill tone="amber" className="px-2 py-0.5 text-[10px]">
+          <Pill tone="amber" className="px-2 py-0.5 text-[9px]">
             Live channel unavailable
           </Pill>
         )}
@@ -2521,9 +2521,9 @@ function ManualReplyComposer({
           onDismiss={onDismissAiSuggestion}
         />
       ) : null}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex min-w-0 flex-col gap-2 rounded-2xl border border-white/10 bg-[#111411] p-2 focus-within:border-amber-300/40 sm:flex-row sm:items-end">
-          <button type="button" title="Emoji picker coming soon" className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-base font-black text-slate-300">☺</button>
+      <div className="flex flex-col gap-1">
+        <div className="flex min-w-0 flex-col gap-1.5 rounded-xl border border-white/10 bg-[#111411] p-1.5 focus-within:border-amber-300/40 sm:flex-row sm:items-center">
+          <button type="button" title="Emoji picker coming soon" className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-white/10 bg-white/[0.055] text-sm font-black text-slate-300">☺</button>
           <textarea
             ref={textareaRef}
             dir={isRtlText(value) ? "rtl" : "auto"}
@@ -2541,23 +2541,23 @@ function ManualReplyComposer({
             }}
             rows={1}
             placeholder={canSendLive ? "اكتب رد العميل..." : "Write an internal note. It will not be sent to Meta yet."}
-            className="min-h-12 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-2 text-base font-bold leading-7 text-white outline-none placeholder:text-slate-500"
+            className="min-h-9 min-w-0 flex-1 resize-none overflow-hidden border-0 bg-transparent px-2 py-1.5 text-sm font-bold leading-6 text-white outline-none placeholder:text-slate-500"
           />
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-slate-950 disabled:opacity-50 sm:hidden ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{submitLabel}</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-black text-slate-950 disabled:opacity-50 sm:hidden ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}{submitLabel}</button>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`hidden h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-black text-slate-950 disabled:opacity-50 sm:inline-flex ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{submitLabel}</button>
+        <div className="flex flex-wrap items-center justify-end gap-1.5">
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} title={submitTitle} className={`hidden h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-black text-slate-950 disabled:opacity-50 sm:inline-flex ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "bg-amber-300" : "bg-emerald-300"}`}>{loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}{submitLabel}</button>
           <button
             type="button"
             onClick={() => onOpenProductPicker?.()}
             disabled={loading}
-            className="hidden h-10 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-300/10 px-3 text-xs font-black text-amber-100 disabled:opacity-50 sm:inline-flex"
+            className="hidden h-9 items-center justify-center gap-1.5 rounded-lg border border-amber-300/20 bg-amber-300/10 px-3 text-[11px] font-black text-amber-100 disabled:opacity-50 sm:inline-flex"
           >
             <ShoppingCart className="h-3 w-3" />
             إرسال منتج
           </button>
-          <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="hidden h-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-3 text-xs font-black text-slate-100 disabled:opacity-50 sm:inline-flex">حفظ مسودة</button>
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="hidden h-10 items-center justify-center rounded-xl border border-violet-300/20 bg-violet-300/10 px-3 text-xs font-black text-violet-100 disabled:opacity-50 sm:inline-flex">اعتماد رد AI</button>
+          <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="hidden h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-100 disabled:opacity-50 sm:inline-flex">حفظ مسودة</button>
+          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="hidden h-9 items-center justify-center rounded-lg border border-violet-300/20 bg-violet-300/10 px-3 text-[11px] font-black text-violet-100 disabled:opacity-50 sm:inline-flex">اعتماد رد AI</button>
           <details className="relative sm:hidden">
             <summary className="list-none cursor-pointer grid h-7 w-7 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-slate-200">?</summary>
             <div className="absolute right-0 z-20 mt-2 w-44 rounded-2xl border border-white/10 bg-slate-950/98 p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
@@ -7111,7 +7111,7 @@ export default function AiInbox() {
                         olderMessagesAvailable={Boolean(selectedConversation?.older_messages_available)}
                       />
                     </div>
-                    <div className="z-20 shrink-0 border-t border-white/10 bg-slate-950/80 p-2 backdrop-blur">
+                    <div className="z-20 shrink-0 border-t border-white/10 bg-slate-950/80 p-1.5 backdrop-blur">
                       <ManualReplyComposer
                         conversation={{ ...safeConversation, live_sending_available: Boolean(selectedChannelStatus.effective_enabled) || isMetaChannel(safeConversation.channel || safeConversation.source) }}
                         value={replyText}
