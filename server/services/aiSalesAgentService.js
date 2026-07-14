@@ -2116,7 +2116,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     ) m ON TRUE
     WHERE ${clauses.join(" AND ")}
     ORDER BY
-      CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram') THEN 0 ELSE 1 END,
+      CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram', 'whatsapp') THEN 0 ELSE 1 END,
       COALESCE(c.last_message_at, s.updated_at) DESC,
       s.updated_at DESC
     LIMIT $2

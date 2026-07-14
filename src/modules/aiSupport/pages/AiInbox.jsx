@@ -3972,7 +3972,14 @@ export default function AiInbox() {
   }, [inboxSection]);
 
   const loadAll = useCallback(async ({ silent = false } = {}) => {
-    if (isRefreshingRef.current) return;
+    if (isRefreshingRef.current) {
+      const queuedRefresh = refreshQueueRef.current;
+      refreshQueueRef.current = {
+        source: "filters",
+        silent: queuedRefresh?.silent === false ? false : silent,
+      };
+      return;
+    }
     isRefreshingRef.current = true;
     isHydratingConversationRef.current = true;
     const seq = ++requestSeqRef.current;
