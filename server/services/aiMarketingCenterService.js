@@ -8,6 +8,8 @@ import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
 import { getPublicBackendUrl } from "../utils/publicUrl.js";
 import { getSetting } from "./settingsService.js";
+import { getWebsiteSettings } from "./liveActivityService.js";
+import { resolveSaleModePrice } from "./saleModeService.js";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -1438,15 +1440,28 @@ const hydrateQueueStoryMetadata = async (tenantId, item = {}) => {
   const design = item.design_json || {};
   const isStory = item.content_type === "story" || cleanText(design.layout_type).toLowerCase().includes("story");
   if (!isStory) return item;
-  const availableSizes = await fetchAvailableSizesForQueueItem(tenantId, item);
-  const link = (!item.product_url || !design.product_url || !design.cta_url || !design.product_slug)
-    ? await fetchProductLinkForQueueItem(tenantId, item)
-    : null;
-  const withSizes = availableSizes.length ? {
+  const [availableSizes, link, currentPrice] = await Promise.all([
+    fetchAvailableSizesForQueueItem(tenantId, item),
+    (!item.product_url || !design.product_url || !design.cta_url || !design.product_slug)
+      ? fetchProductLinkForQueueItem(tenantId, item)
+      : Promise.resolve(null),
+    fetchCurrentPriceForQueueItem(tenantId, item),
+  ]);
+  const nextDesign = availableSizes.length ? withAvailableSizes(design, availableSizes) : design;
+  const pricedDesign = currentPrice > 0 ? {
+    ...nextDesign,
+    price: currentPrice,
+    product_price: currentPrice,
+    slides: Array.isArray(nextDesign.slides)
+      ? nextDesign.slides.map((slide) => ({ ...slide, price: currentPrice }))
+      : nextDesign.slides,
+  } : nextDesign;
+  const hydrated = {
     ...item,
-    design_json: withAvailableSizes(design, availableSizes),
-  } : item;
-  return withStoryLinks(withSizes, link);
+    ...(currentPrice > 0 ? { price: currentPrice } : {}),
+    design_json: pricedDesign,
+  };
+  return withStoryLinks(hydrated, link);
 };
 
 const resolveAiContentMedia = ({ product = {}, variant = null, strategy = "", contentType = "story" } = {}) => {
@@ -1475,10 +1490,96 @@ const getProductImage = (product = {}, variant = {}) =>
   cleanText(variant.primary_image_url || variant.variant_image_url || variant.image_url || product.image_url || product.product_image_url || imageFromGallery(product.gallery_images));
 
 const getProductPrice = (product = {}, variant = {}) => {
-  const variantSale = numberValue(variant.sale_price, 0);
-  const variantPrice = numberValue(variant.price, 0);
-  const productSale = product.sale_price_enabled ? numberValue(product.sale_price, 0) : 0;
-  return variantSale || variantPrice || productSale || numberValue(product.price, 0) || numberValue(product.regular_price, 0);
+  const regularPrice = numberValue(
+    variant.selling_price || variant.regular_price || variant.price ||
+    product.selling_price || product.regular_price || product.price,
+    0
+  );
+  const storedSalePrice = numberValue(variant.sale_price || product.sale_price, 0);
+  const salePriceEnabled = variant.sale_price_enabled ?? product.sale_price_enabled ?? false;
+  const resolved = resolveSaleModePrice(
+    {
+      ...product,
+      ...variant,
+      id: product.id,
+      product_id: product.id,
+      regular_price: regularPrice,
+      price: regularPrice,
+      sale_price: storedSalePrice,
+      sale_price_enabled: salePriceEnabled,
+    },
+    product.sale_mode_settings || { sale_mode_enabled: false }
+  );
+  return numberValue(resolved.final_price, 0) || regularPrice;
+};
+
+const fetchCurrentPriceForQueueItem = async (tenantId, item = {}) => {
+  const design = item.design_json || {};
+  const productId = Number(item.product_id || design.product_id || 0);
+  const variantId = Number(item.variant_id || design.variant_id || 0);
+  if (!Number.isInteger(productId) || productId <= 0) return numberValue(item.price || design.price, 0);
+  const [result, saleModeSettings] = await Promise.all([
+    db.query(
+      `
+      SELECT
+        p.id,
+        p.price,
+        p.selling_price,
+        p.regular_price,
+        p.sale_price,
+        p.sale_price_enabled,
+        p.sale_start_at,
+        p.sale_end_at,
+        p.sale_reason,
+        pv.id AS variant_id,
+        pv.price AS variant_price,
+        pv.selling_price AS variant_selling_price,
+        pv.regular_price AS variant_regular_price,
+        pv.sale_price AS variant_sale_price,
+        pv.sale_price_enabled AS variant_sale_price_enabled,
+        pv.sale_start_at AS variant_sale_start_at,
+        pv.sale_end_at AS variant_sale_end_at,
+        pv.sale_reason AS variant_sale_reason
+      FROM products p
+      LEFT JOIN product_variants pv
+        ON pv.product_id = p.id
+       AND pv.id = $3::bigint
+       AND pv.deleted_at IS NULL
+      WHERE p.id = $1
+        AND ($2::bigint IS NULL OR p.tenant_id = $2::bigint)
+      LIMIT 1
+      `,
+      [productId, tenantId, Number.isInteger(variantId) && variantId > 0 ? variantId : null]
+    ),
+    getWebsiteSettings({ tenantId }),
+  ]);
+  const row = result.rows[0];
+  if (!row) return numberValue(item.price || design.price, 0);
+  return getProductPrice(
+    {
+      id: row.id,
+      price: row.price,
+      selling_price: row.selling_price,
+      regular_price: row.regular_price,
+      sale_price: row.sale_price,
+      sale_price_enabled: row.sale_price_enabled,
+      sale_start_at: row.sale_start_at,
+      sale_end_at: row.sale_end_at,
+      sale_reason: row.sale_reason,
+      sale_mode_settings: saleModeSettings,
+    },
+    row.variant_id ? {
+      id: row.variant_id,
+      price: row.variant_price,
+      selling_price: row.variant_selling_price,
+      regular_price: row.variant_regular_price,
+      sale_price: row.variant_sale_price,
+      sale_price_enabled: row.variant_sale_price_enabled,
+      sale_start_at: row.variant_sale_start_at,
+      sale_end_at: row.variant_sale_end_at,
+      sale_reason: row.variant_sale_reason,
+    } : {}
+  );
 };
 
 const getCurrentVariantStock = async (tenantId, variantId) => {
@@ -1952,7 +2053,7 @@ const rawStoryImageUrls = (item = {}) => {
 };
 
 const storyProductImageUrl = (item = {}) => rawStoryImageUrls(item)[0] || "";
-const AI_MARKETING_STORY_RENDERER = "ai_marketing_story_commercial_templates_v6_clean_product_first";
+const AI_MARKETING_STORY_RENDERER = "ai_marketing_story_commercial_templates_v7_directional_pos_pricing";
 
 const isValidRenderedStoryAsset = (item = {}, assetUrl = "") => {
   const selectedAsset = cleanImageUrl(assetUrl);
@@ -2534,7 +2635,8 @@ const segmentMatches = (product = {}, quota = {}) => {
 };
 
 const loadProducts = async (tenantId) => {
-  const result = await db.query(
+  const [result, saleModeSettings] = await Promise.all([
+    db.query(
     `
     SELECT
       p.id,
@@ -2544,9 +2646,13 @@ const loadProducts = async (tenantId) => {
       p.image_url,
       p.gallery_images,
       p.price,
+      p.selling_price,
       p.regular_price,
       p.sale_price,
       p.sale_price_enabled,
+      p.sale_start_at,
+      p.sale_end_at,
+      p.sale_reason,
       p.id AS product_freshness_rank,
       p.gender,
       p.product_type,
@@ -2562,7 +2668,13 @@ const loadProducts = async (tenantId) => {
       pv.size,
       pv.article_code,
       pv.price AS variant_price,
+      pv.selling_price AS variant_selling_price,
+      pv.regular_price AS variant_regular_price,
       pv.sale_price AS variant_sale_price,
+      pv.sale_price_enabled AS variant_sale_price_enabled,
+      pv.sale_start_at AS variant_sale_start_at,
+      pv.sale_end_at AS variant_sale_end_at,
+      pv.sale_reason AS variant_sale_reason,
       pv.stock AS variant_stock,
       pv.is_active AS variant_is_active,
       pv.image_url AS variant_image_url,
@@ -2597,8 +2709,10 @@ const loadProducts = async (tenantId) => {
     ORDER BY p.id DESC, pv.color ASC NULLS LAST, pv.size ASC NULLS LAST
     LIMIT 2000
     `,
-    [tenantId]
-  );
+      [tenantId]
+    ),
+    getWebsiteSettings({ tenantId }),
+  ]);
 
   const byProduct = new Map();
   for (const row of result.rows) {
@@ -2610,9 +2724,14 @@ const loadProducts = async (tenantId) => {
       image_url: row.image_url || "",
       gallery_images: row.gallery_images,
       price: row.price,
+      selling_price: row.selling_price,
       regular_price: row.regular_price,
       sale_price: row.sale_price,
       sale_price_enabled: row.sale_price_enabled,
+      sale_start_at: row.sale_start_at,
+      sale_end_at: row.sale_end_at,
+      sale_reason: row.sale_reason,
+      sale_mode_settings: saleModeSettings,
       freshness_rank: numberValue(row.product_freshness_rank, row.id),
       gender: row.gender || "",
       product_type: row.product_type || "",
@@ -2634,7 +2753,13 @@ const loadProducts = async (tenantId) => {
         size: row.size || "",
         article_code: row.article_code || "",
         price: row.variant_price,
+        selling_price: row.variant_selling_price,
+        regular_price: row.variant_regular_price,
         sale_price: row.variant_sale_price,
+        sale_price_enabled: row.variant_sale_price_enabled,
+        sale_start_at: row.variant_sale_start_at,
+        sale_end_at: row.variant_sale_end_at,
+        sale_reason: row.variant_sale_reason,
         stock: numberValue(row.variant_stock, 0),
         is_active: row.variant_is_active !== false,
         images: variantImages,
@@ -4707,6 +4832,7 @@ export const __aiMarketingCenterTestHooks = {
   platformIdsFromResults,
   publishedPlatformsFromResults,
   normalizeQueueRow,
+  getProductPrice,
 };
 
 export const setAiMarketingAutomationActive = async (tenantId, active) => {

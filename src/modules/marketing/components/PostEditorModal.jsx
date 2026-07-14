@@ -778,6 +778,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
   const productTitleClass = compact ? "text-[0.98rem]" : "text-[1.18rem]";
   const priceClass = compact ? "text-[1.5rem]" : "text-[1.78rem]";
   const ctaUrl = storyCtaUrl(slide);
+  const copyDirection = /[\u0600-\u06ff]/.test(`${title} ${sizeDisplay || ""}`) ? "rtl" : "ltr";
 
   return (
     <div className="story-creative-frame relative aspect-[9/16] w-full overflow-hidden rounded-[2rem] bg-[#f6f2ea] text-slate-950 shadow-2xl shadow-black/35">
@@ -812,7 +813,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
         )}
       </div>
 
-      <div className="story-creative-copy absolute bottom-5 left-5 right-5 top-[61%] z-20 flex flex-col text-white">
+      <div dir={copyDirection} className="story-creative-copy absolute bottom-5 left-5 right-5 top-[61%] z-20 flex flex-col text-start text-white">
         <div className="self-start rounded-full bg-white/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-950 shadow-lg">{badge}</div>
         {sizeDisplay ? (
           <div className="story-creative-sizes mt-2.5 inline-flex max-w-full self-start rounded-full border border-white/12 bg-white/92 px-3 py-1 text-[10px] font-black leading-4 text-slate-950 shadow-lg shadow-black/10 backdrop-blur-md">

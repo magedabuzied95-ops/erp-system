@@ -10,6 +10,7 @@ const {
   platformIdsFromResults,
   publishedPlatformsFromResults,
   normalizeQueueRow,
+  getProductPrice,
 } = __aiMarketingCenterTestHooks;
 
 const serviceSource = fs.readFileSync(
@@ -23,6 +24,31 @@ test("schema initialization is coalesced and timed-out jobs retain their worker 
   assert.match(serviceSource, /if \(!aiMarketingSchemaPromise\)/);
   assert.match(serviceSource, /const runPromise = Promise\.resolve\(\)\.then\(\(\) => job\.run\(\)\)/);
   assert.match(serviceSource, /runPromise\s*\.catch\(\(\) => undefined\)\s*\.finally/);
+});
+
+test("marketing price follows the POS sale toggle instead of stored sale values", () => {
+  const product = {
+    id: 40,
+    price: 1550,
+    selling_price: 1550,
+    regular_price: 1550,
+    sale_price: 1450,
+    sale_price_enabled: true,
+  };
+  const variant = {
+    price: 1550,
+    selling_price: 1550,
+    regular_price: 1550,
+    sale_price: 1450,
+    sale_price_enabled: true,
+  };
+
+  assert.equal(getProductPrice({ ...product, sale_mode_settings: { sale_mode_enabled: false } }, variant), 1550);
+  assert.equal(getProductPrice({ ...product, sale_mode_settings: { sale_mode_enabled: true } }, variant), 1450);
+  assert.equal(getProductPrice(
+    { ...product, sale_mode_settings: { sale_mode_enabled: true } },
+    { ...variant, sale_price_enabled: false }
+  ), 1550);
 });
 
 test("publishing lifecycle statuses normalize to visible labels", () => {

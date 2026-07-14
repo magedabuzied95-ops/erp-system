@@ -52,7 +52,9 @@ test("story preview mirrors professional themes without store or audio chrome", 
   assert.doesNotMatch(previewSource, />ERP<\/div>/);
   assert.doesNotMatch(previewSource, /storeLogo/);
   assert.doesNotMatch(previewSource, /story-creative-audio/);
-  assert.match(marketingServiceSource, /ai_marketing_story_commercial_templates_v6_clean_product_first/);
+  assert.match(previewSource, /const copyDirection = \/\[\\u0600-\\u06ff\]\//);
+  assert.match(previewSource, /dir=\{copyDirection\}/);
+  assert.match(marketingServiceSource, /ai_marketing_story_commercial_templates_v7_directional_pos_pricing/);
 });
 
 test("production story text is rasterized with the bundled font file", async () => {
