@@ -2895,7 +2895,6 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
                     key={`${groupIndex}-${brand.id || index}`}
                     to={`/?brand=${encodeURIComponent(brand.id || brand.slug)}`}
                     className="sf-brand-marquee__item group"
-                    style={{ background: themeTokens.card, boxShadow: themeTokens.shadowSoft }}
                     aria-label={brand.name || (isRtl ? "عرض العلامة التجارية" : "View brand")}
                     tabIndex={groupIndex > 0 ? -1 : undefined}
                   >

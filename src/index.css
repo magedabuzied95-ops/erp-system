@@ -541,8 +541,10 @@
     place-items: center;
     overflow: hidden;
     border-radius: clamp(1.1rem, 2vw, 1.75rem);
-    padding: clamp(0.9rem, 2vw, 1.7rem);
-    transition: transform 300ms ease, box-shadow 300ms ease;
+    padding: clamp(0.3rem, 0.8vw, 0.75rem);
+    background: transparent;
+    box-shadow: none;
+    transition: transform 300ms ease;
   }
 
   .sf-brand-marquee__item:hover {
@@ -567,11 +569,12 @@
     max-height: 100%;
     object-fit: contain;
     object-position: center;
+    transform: scale(1.18);
     transition: transform 300ms ease;
   }
 
   .sf-brand-marquee__item:hover .sf-brand-marquee__logo {
-    transform: scale(1.06);
+    transform: scale(1.24);
   }
 
   @media (prefers-reduced-motion: reduce) {
