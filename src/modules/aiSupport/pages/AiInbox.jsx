@@ -3883,6 +3883,7 @@ export default function AiInbox() {
   const [profileDebugging, setProfileDebugging] = useState(false);
   const [resettingAiState, setResettingAiState] = useState(false);
   const [olderMessagesLoading, setOlderMessagesLoading] = useState(false);
+  const [replySending, setReplySending] = useState(false);
   const [correctionModal, setCorrectionModal] = useState({ open: false, draft: buildReplyCorrectionDraft() });
   const [correctionSaving, setCorrectionSaving] = useState(false);
   const [leadFunnelExpanded, setLeadFunnelExpanded] = useState(false);
@@ -4025,6 +4026,7 @@ export default function AiInbox() {
             message_count: Math.max(Number(existing.message_count || 0), Number(summary.message_count || 0), mergedMessages.length),
             older_messages_available: existing.older_messages_available ?? summary.older_messages_available,
             next_messages_before: existing.next_messages_before || summary.next_messages_before || "",
+            next_messages_before_id: existing.next_messages_before_id || summary.next_messages_before_id || "",
           };
         });
         if (activeConversationSelectedId && !nextConversations.some((item) => item.conversation_key === activeConversationSelectedId) && cachedSelected?.conversation_key === activeConversationSelectedId) {
@@ -5384,13 +5386,13 @@ export default function AiInbox() {
   }, [loadAiTrace]);
 
   const loadOlderMessages = useCallback(async () => {
-    if (!selectedConversation?.session_id || olderMessagesLoading || isLoadingOlderRef.current || isRefreshingRef.current) return;
+    if (!selectedConversation?.session_id || olderMessagesLoading || isLoadingOlderRef.current) return;
     const sessionId = selectedConversation.session_id;
     const conversationIdentifier = selectedConversation.conversation_key || sessionId;
     const currentMessages = asArray(selectedConversation.messages);
     const shouldHydrateFullPage = currentMessages.length <= 1 && Number(selectedConversation.message_count || 0) > currentMessages.length;
     const before = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before || currentMessages[0]?.created_at || "";
-    const beforeId = shouldHydrateFullPage ? "" : currentMessages[0]?.id || "";
+    const beforeId = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before_id || currentMessages[0]?.id || "";
     if (!shouldHydrateFullPage && !before) return;
     const scroller = transcriptScrollRef.current;
     if (scroller) {
@@ -5415,6 +5417,7 @@ export default function AiInbox() {
           message_count: payload.total ?? conversation.message_count,
           older_messages_available: Boolean(payload.has_more),
           next_messages_before: payload.next_before || mergedMessages[0]?.created_at || "",
+          next_messages_before_id: payload.next_before_id || mergedMessages[0]?.id || "",
           conversationHydrated: true,
         };
       });
@@ -5424,7 +5427,7 @@ export default function AiInbox() {
       setOlderMessagesLoading(false);
       isLoadingOlderRef.current = false;
     }
-  }, [headers, olderMessagesLoading, patchConversation, selectedConversation, tenantId]);
+  }, [headers, olderMessagesLoading, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
 
   useEffect(() => {
     if (!selectedConversation?.session_id) return;
@@ -5832,7 +5835,7 @@ export default function AiInbox() {
       updated_at: now,
     }));
     setReplyText("");
-    setLoading(true);
+    setReplySending(true);
     setError("");
     try {
       const payload = await api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/send"), { tenant_id: tenantId, message, client_request_id: clientRequestId, message_identity_key: messageIdentityKey }, { headers, perfComponent: "AiInbox.sendManualReply" });
@@ -5896,7 +5899,7 @@ export default function AiInbox() {
           : asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: friendlyError } : item),
       }));
     } finally {
-      setLoading(false);
+      setReplySending(false);
     }
   };
 
@@ -7210,7 +7213,7 @@ export default function AiInbox() {
                         onCopyDraft={copySuggestedReply}
                         commentDraftText={latestCommentReplyDraft}
                         isCommentConversation={isCommentConversation(selectedConversation || {})}
-                        loading={Boolean(leadActionLoading || loading || productCardSending || availableBySizeSending)}
+                        loading={Boolean(leadActionLoading || replySending || productCardSending || availableBySizeSending)}
                         validationSummary={activeAiReplyValidation}
                         confidenceEngineSummary={activeAiReplyConfidence}
                         aiSuggestionText={activeAiSuggestionText}
@@ -8040,7 +8043,7 @@ export default function AiInbox() {
                         onCopyDraft={copySuggestedReply}
                         commentDraftText={latestCommentReplyDraft}
                         isCommentConversation={isCommentConversation(selectedConversation || {})}
-                        loading={Boolean(leadActionLoading || loading || productCardSending || availableBySizeSending)}
+                        loading={Boolean(leadActionLoading || replySending || productCardSending || availableBySizeSending)}
                         validationSummary={activeAiReplyValidation}
                         confidenceEngineSummary={activeAiReplyConfidence}
                         aiSuggestionText={activeAiSuggestionText}

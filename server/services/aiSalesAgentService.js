@@ -1937,7 +1937,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
     return { messages: [], total: 0, has_more: false, next_before: "" };
   }
   const messageLimit = Math.min(100, Math.max(1, int(limit, 30)));
-  const params = [tenantId, safeConversationId, messageLimit];
+  const params = [tenantId, safeConversationId, messageLimit + 1];
   const beforeClause = before
     ? (() => {
       params.push(before);
@@ -1996,7 +1996,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
     `,
     [tenantId, safeConversationId]
   );
-  const messages = result.rows.map((row) => {
+  const fetchedMessages = result.rows.map((row) => {
     const canonicalSessionId = lower(row.channel || row.session_id || "").startsWith("whatsapp")
       ? normalizeWhatsappSessionId(row.session_id, row.resolved_phone || row.remote_jid || "")
       : "";
@@ -2009,13 +2009,16 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
       resolved_reply_jid: canonicalSessionId || row.resolved_reply_jid || "",
     });
   });
+  const hasMore = fetchedMessages.length > messageLimit;
+  const messages = hasMore ? fetchedMessages.slice(1) : fetchedMessages;
   const oldest = messages[0] || null;
   const total = Number(countResult.rows[0]?.total || 0);
   return {
     messages,
     total,
-    has_more: before ? messages.length === messageLimit : total > messages.length,
+    has_more: hasMore,
     next_before: oldest?.created_at || "",
+    next_before_id: oldest?.id || "",
   };
 };
 
@@ -2307,6 +2310,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         messages: summaryMessages,
         older_messages_available: summaryMessages.length > 0,
         next_messages_before: summaryMessages[0]?.created_at || "",
+        next_messages_before_id: summaryMessages[0]?.id || "",
         anyFullMessages: false,
       };
     }));
@@ -3073,6 +3077,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         message_count: totalMessages,
         older_messages_available: totalMessages > summaryMessages.length,
         next_messages_before: summaryMessages[0]?.created_at || "",
+        next_messages_before_id: summaryMessages[0]?.id || "",
         anyFullMessages: false,
       };
     }
@@ -3111,6 +3116,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       message_count: totalMessages,
       older_messages_available: totalMessages > summaryMessages.length,
       next_messages_before: summaryMessages[0]?.created_at || "",
+      next_messages_before_id: summaryMessages[0]?.id || "",
       memories,
       followups: conversationFollowups,
       draft_orders: draftOrders,

@@ -51,3 +51,18 @@ test("PWA keeps a live inbound message unread until the read endpoint records it
   assert.match(source, /unreadCount \+ 1/);
   assert.doesNotMatch(source, /conversationMatchesRealtimeKeys\(conversation, activeConversationKeys\) \? 0/);
 });
+
+test("older-message pagination uses an exact timestamp and id cursor", () => {
+  const service = fs.readFileSync(new URL("../server/services/aiSalesAgentService.js", import.meta.url), "utf8");
+  const desktop = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
+  assert.match(service, /messageLimit \+ 1/);
+  assert.match(service, /next_before_id: oldest\?\.id/);
+  assert.match(desktop, /payload\.next_before_id/);
+  assert.doesNotMatch(desktop, /isLoadingOlderRef\.current \|\| isRefreshingRef\.current/);
+});
+
+test("loading older messages does not put the send button into a loading state", () => {
+  const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
+  assert.match(source, /const \[replySending, setReplySending\]/);
+  assert.match(source, /leadActionLoading \|\| replySending \|\| productCardSending/);
+});

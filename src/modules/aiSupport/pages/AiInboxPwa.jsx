@@ -1077,6 +1077,7 @@ const mergeConversationSummaryRefresh = (currentConversation = {}, nextConversat
     messages: currentConversation.messages,
     older_messages_available: currentConversation.older_messages_available,
     next_messages_before: currentConversation.next_messages_before,
+    next_messages_before_id: currentConversation.next_messages_before_id,
     conversationHydrated: currentConversation.conversationHydrated,
   };
 };
@@ -3624,7 +3625,7 @@ export default function AiInboxPwa() {
     const currentMessages = asArray(selectedConversation.messages);
     const shouldHydrateFullPage = currentMessages.length <= 1 && Number(selectedConversation.message_count || 0) > currentMessages.length;
     const before = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before || currentMessages[0]?.created_at || "";
-    const beforeId = shouldHydrateFullPage ? "" : currentMessages[0]?.id || "";
+    const beforeId = shouldHydrateFullPage ? "" : selectedConversation.next_messages_before_id || currentMessages[0]?.id || "";
     if (!shouldHydrateFullPage && !before) return;
     const scroller = mainScrollRef.current;
     if (scroller) {
@@ -3648,6 +3649,7 @@ export default function AiInboxPwa() {
           messages: mergedMessages,
           older_messages_available: Boolean(payload.has_more),
           next_messages_before: payload.next_before || mergedMessages[0]?.created_at || "",
+          next_messages_before_id: payload.next_before_id || mergedMessages[0]?.id || "",
           conversationHydrated: true,
         };
       });
