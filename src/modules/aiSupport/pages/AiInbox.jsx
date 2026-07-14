@@ -2457,19 +2457,6 @@ function ManualReplyComposer({
   }
   return (
     <div className="sticky bottom-0 w-full rounded-2xl border border-amber-300/20 bg-slate-950/95 p-2 shadow-[0_18px_50px_rgba(0,0,0,0.3)] backdrop-blur">
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <div className="min-w-0 flex-1" />
-        {canSendLive ? (
-          <Pill tone="emerald" className="px-2 py-0.5 text-[9px]">
-            <Radio className="h-2.5 w-2.5" />
-            Live send ready
-          </Pill>
-        ) : (
-          <Pill tone="amber" className="px-2 py-0.5 text-[9px]">
-            Live channel unavailable
-          </Pill>
-        )}
-      </div>
       {status !== "human_takeover" && canSendLive && !isCommentConversation ? <div className="mb-1.5 rounded-xl border border-cyan-300/15 bg-cyan-300/8 px-2 py-1 text-[10px] font-bold leading-4 text-cyan-100">Sending a staff reply will take over this conversation and pause AI automation.</div> : null}
       {hasValidation ? (
         <div className={`mb-1.5 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${validationTone === "amber" ? "border-amber-300/25 bg-amber-400/10 text-amber-50" : validationTone === "zinc" ? "border-white/10 bg-white/[0.045] text-slate-200" : "border-emerald-300/20 bg-emerald-400/10 text-emerald-50"}`}>
