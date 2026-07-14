@@ -1159,9 +1159,61 @@ const normalizeFastSocialCommentItem = (item = {}) => {
     unread,
     post_caption: clean(item?.post_caption || messagePreview),
     post_message: clean(item?.post_message || messagePreview),
+    thumbnail_url: commentThreadPostImageUrl(item),
     permalink_url: clean(item?.permalink_url || ""),
     platform: clean(item?.platform || "facebook").toLowerCase(),
   };
+};
+
+const groupSocialCommentPosts = (items = []) => {
+  const groups = new Map();
+
+  asArray(items).forEach((rawItem) => {
+    const item = normalizeFastSocialCommentItem(rawItem);
+    const platform = clean(item.platform || "facebook").toLowerCase();
+    const postId = clean(item.post_id || item.conversation_id || item.id || "");
+    if (!postId) return;
+    const key = `${platform}:${postId}`;
+    const current = groups.get(key);
+    const imageUrl = commentThreadPostImageUrl(item);
+
+    if (!current) {
+      groups.set(key, {
+        ...item,
+        thumbnail_url: imageUrl,
+        _groupedItemCount: 1,
+        _groupedUnreadCount: item.unread ? 1 : 0,
+      });
+      return;
+    }
+
+    const currentActivity = socialPostSortValue(current);
+    const nextActivity = socialPostSortValue(item);
+    const newest = nextActivity > currentActivity ? item : current;
+    groups.set(key, {
+      ...current,
+      ...newest,
+      post_id: postId,
+      platform,
+      thumbnail_url: commentThreadPostImageUrl(newest) || current.thumbnail_url || imageUrl,
+      post_caption: clean(newest.post_caption || current.post_caption || item.post_caption || ""),
+      post_message: clean(newest.post_message || current.post_message || item.post_message || ""),
+      comments_count: Math.max(
+        Number(current.comments_count || 0),
+        Number(item.comments_count || 0),
+        Number(current._groupedItemCount || 1) + 1
+      ),
+      new_comments_count: Math.max(
+        Number(current.new_comments_count || 0),
+        Number(item.new_comments_count || 0),
+        Number(current._groupedUnreadCount || 0) + (item.unread ? 1 : 0)
+      ),
+      _groupedItemCount: Number(current._groupedItemCount || 1) + 1,
+      _groupedUnreadCount: Number(current._groupedUnreadCount || 0) + (item.unread ? 1 : 0),
+    });
+  });
+
+  return [...groups.values()].map(({ _groupedItemCount, _groupedUnreadCount, ...post }) => post);
 };
 
 const fastSocialCommentItemMatches = (left = {}, right = {}) => {
@@ -2819,6 +2871,7 @@ export default function AiInboxPwa() {
   });
   const [selectedSocialThread, setSelectedSocialThread] = useState({ post: null, comments: [], loading: false, error: "" });
   const [selectedSocialTemplate, setSelectedSocialTemplate] = useState({ template: null, loading: false, error: "" });
+  const [socialMobileDetailOpen, setSocialMobileDetailOpen] = useState(false);
   const [socialCommentsFilter, setSocialCommentsFilter] = useState("all");
   const [socialCommentsDebug, setSocialCommentsDebug] = useState({ request_url: "", tenant_id: "", status: "", count: "", error: "" });
   const [socialActionLoading, setSocialActionLoading] = useState("");
@@ -3588,19 +3641,27 @@ export default function AiInboxPwa() {
     if (pageId) params.set("pageId", pageId);
     return `/marketing/social-comments${params.toString() ? `?${params.toString()}` : ""}`;
   }, [socialPostIdentity, tenantId]);
+  const socialPosts = useMemo(
+    () =>
+      groupSocialCommentPosts(socialComments.items).filter((item) => {
+        const platform = clean(item.platform).toLowerCase();
+        return platform.includes("facebook") || platform.includes("instagram");
+      }),
+    [socialComments.items]
+  );
   const visibleSocialPosts = useMemo(() => {
     if (!isSocialMode) return [];
-    return [...asArray(socialComments.items)]
+    return [...socialPosts]
       .filter((item) => socialPostMatchesFilter(item, socialCommentsFilter))
       .sort((a, b) => socialPostSortValue(b) - socialPostSortValue(a));
-  }, [isSocialMode, socialComments.items, socialCommentsFilter]);
+  }, [isSocialMode, socialCommentsFilter, socialPosts]);
   const selectedSocialPost = useMemo(() => {
     if (!isSocialMode) return null;
     if (socialPostParam) {
-      return visibleSocialPosts.find((item) => socialPostIdentity(item) === socialPostParam) || socialComments.items.find((item) => socialPostIdentity(item) === socialPostParam) || null;
+      return visibleSocialPosts.find((item) => socialPostIdentity(item) === socialPostParam) || socialPosts.find((item) => socialPostIdentity(item) === socialPostParam) || null;
     }
-    return visibleSocialPosts[0] || socialComments.items[0] || null;
-  }, [isSocialMode, socialComments.items, socialPostIdentity, socialPostParam, visibleSocialPosts]);
+    return visibleSocialPosts[0] || socialPosts[0] || null;
+  }, [isSocialMode, socialPostIdentity, socialPostParam, socialPosts, visibleSocialPosts]);
   const selectedSocialThreadStatusLabel = useMemo(() => {
     const source = selectedSocialThread?.post || selectedSocialPost || {};
     const status = clean(
@@ -3621,11 +3682,11 @@ export default function AiInboxPwa() {
   useEffect(() => {
     if (!isSocialMode) return;
     if (socialPostParam) return;
-    const fallbackPost = visibleSocialPosts[0] || socialComments.items[0];
+    const fallbackPost = visibleSocialPosts[0] || socialPosts[0];
     const nextPostId = socialPostIdentity(fallbackPost || {});
     if (!nextPostId) return;
     updateUrlState({ nextTab: "social_comments", nextConversationId: "", nextPostId, replace: true });
-  }, [isSocialMode, socialComments.items, socialPostIdentity, socialPostParam, updateUrlState, visibleSocialPosts]);
+  }, [isSocialMode, socialPostIdentity, socialPostParam, socialPosts, updateUrlState, visibleSocialPosts]);
 
   useEffect(() => {
     if (!isSocialMode || !selectedSocialPost) return;
@@ -3652,6 +3713,7 @@ export default function AiInboxPwa() {
 
   useEffect(() => {
     if (!isSocialMode) {
+      setSocialMobileDetailOpen(false);
       if (selectedSocialThread.post || selectedSocialThread.comments.length || selectedSocialTemplate.template) {
         setSelectedSocialThread({ post: null, comments: [], loading: false, error: "" });
         setSelectedSocialTemplate({ template: null, loading: false, error: "" });
@@ -5160,7 +5222,7 @@ export default function AiInboxPwa() {
 
   const renderSocialCommentsWorkspace = () => {
     const selectedPost = selectedSocialPost || null;
-    const postImage = clean(selectedPost?.thumbnail_url || "");
+    const postImage = commentThreadPostImageUrl(selectedSocialThread?.post || selectedPost || {});
     const postCaption = clean(
       selectedPost?.post_caption ||
       selectedPost?.post_message ||
@@ -5189,7 +5251,7 @@ export default function AiInboxPwa() {
 
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <section className="rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+        <section className={`${socialMobileDetailOpen ? "hidden lg:block" : "block"} rounded-3xl border border-slate-200 bg-white p-3 shadow-sm`}>
           <div className="flex items-center justify-between gap-3">
             <div className="min-w-0">
               <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">AI Social Media Center PWA</div>
@@ -5205,14 +5267,14 @@ export default function AiInboxPwa() {
               Refresh
             </button>
           </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Facebook</div>
-              <div className="mt-1 text-xl font-black text-slate-900">{socialComments.items.filter((item) => clean(item.platform).toLowerCase().includes("facebook")).length}</div>
+              <div className="mt-1 text-xl font-black text-slate-900">{socialPosts.filter((item) => clean(item.platform).toLowerCase().includes("facebook")).length}</div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Instagram</div>
-              <div className="mt-1 text-xl font-black text-slate-900">{socialComments.items.filter((item) => clean(item.platform).toLowerCase().includes("instagram")).length}</div>
+              <div className="mt-1 text-xl font-black text-slate-900">{socialPosts.filter((item) => clean(item.platform).toLowerCase().includes("instagram")).length}</div>
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">New comments</div>
@@ -5220,14 +5282,14 @@ export default function AiInboxPwa() {
             </div>
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
               <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Needs reply</div>
-              <div className="mt-1 text-xl font-black text-slate-900">{socialComments.items.filter((item) => socialPostMatchesFilter(item, "needs_reply")).length}</div>
+              <div className="mt-1 text-xl font-black text-slate-900">{socialPosts.filter((item) => socialPostMatchesFilter(item, "needs_reply")).length}</div>
             </div>
           </div>
         </section>
 
         <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
-          <aside className="min-h-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
-            <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
+          <aside className={`${socialMobileDetailOpen ? "hidden lg:block" : "block"} min-h-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-sm`}>
+            <div className="hidden rounded-2xl border border-slate-200 bg-slate-950/5 p-3 lg:block">
               <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Global Auto Reply System</div>
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 <button
@@ -5283,9 +5345,9 @@ export default function AiInboxPwa() {
               </div>
             </div>
 
-            <div className="mt-2 min-h-0 overflow-hidden">
+            <div className="min-h-0 overflow-hidden lg:mt-2">
               <SocialCommentsPanel
-                items={socialComments.items}
+                items={socialPosts}
                 loading={socialComments.loading}
                 error={socialComments.error}
                 filter={socialCommentsFilter}
@@ -5293,7 +5355,7 @@ export default function AiInboxPwa() {
                 mode="posts"
                 selectedItemId={socialPostIdentity(selectedPost || {})}
                 onSelectItem={(item) => {
-                  const nextUrl = buildSocialCommentsCenterUrl(item);
+                  const nextPostId = socialPostIdentity(item);
                   console.info("AI_INBOX_OPEN_SOCIAL_COMMENT", {
                     post_id: clean(item?.post_id || item?.conversation_id || item?.id || socialPostIdentity(item) || ""),
                     comment_id: clean(item?.comment_id || item?.external_comment_id || item?.provider_comment_id || item?.metadata?.comment_id || item?.channel_metadata?.comment_id || ""),
@@ -5301,9 +5363,11 @@ export default function AiInboxPwa() {
                     tenant: clean(tenantId),
                     page_id: clean(item?.page_id || item?.metadata?.page_id || item?.channel_metadata?.page_id || ""),
                     customer_name: clean(item?.customer_name || item?.commenter_name || item?.author_name || item?.from_name || item?.metadata?.customer_name || item?.metadata?.commenter_name || ""),
-                    url: nextUrl,
+                    url: `/inbox?tab=social_comments&postId=${encodeURIComponent(nextPostId)}`,
                   });
-                  navigate(nextUrl);
+                  updateUrlState({ nextTab: "social_comments", nextConversationId: "", nextPostId, replace: false });
+                  setSocialMobileDetailOpen(true);
+                  window.requestAnimationFrame(() => mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
                 }}
                 onFilterChange={setSocialCommentsFilter}
                 onRefresh={() => void requestRefresh("manual", { silent: true })}
@@ -5325,9 +5389,20 @@ export default function AiInboxPwa() {
             </div>
           </aside>
 
-          <div className="min-h-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-sm">
+          <div className={`${socialMobileDetailOpen ? "block" : "hidden lg:block"} min-h-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-sm`}>
             {selectedPost ? (
-              <div className="flex min-h-0 h-full flex-col gap-2">
+              <div className="flex min-h-0 flex-col gap-2 lg:h-full">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSocialMobileDetailOpen(false);
+                    window.requestAnimationFrame(() => mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
+                  }}
+                  className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-900 lg:hidden"
+                >
+                  <ChevronLeft className="h-5 w-5" />
+                  Back to posts
+                </button>
                 <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
                   <div className="flex flex-wrap items-start gap-3">
                     <div className="h-28 w-28 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
@@ -5349,7 +5424,7 @@ export default function AiInboxPwa() {
                         <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.dm_status || selectedPost?.dm_status || selectedPost?.private_reply_status || "Manual")}</span>
                         <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.product_name || selectedPost?.product_name || selectedSocialThread?.post?.product_id || selectedPost?.product_id || "Product")}</span>
                       </div>
-                      <details className="mt-3 rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2">
+                      <details className="mt-3 hidden rounded-2xl border border-[#E2E8F0] bg-[#F8FAFC] px-3 py-2 lg:block">
                         <summary className="cursor-pointer list-none text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Developer Info</summary>
                         <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
                           {[
@@ -5381,7 +5456,7 @@ export default function AiInboxPwa() {
                   </div>
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
+                <div className="hidden rounded-2xl border border-slate-200 bg-slate-950/5 p-3 lg:block">
                   <div className="flex items-center justify-between gap-2">
                     <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Linked Product</div>
                     <button type="button" className="inline-flex h-8 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-[11px] font-black text-slate-600" disabled>
@@ -5428,7 +5503,7 @@ export default function AiInboxPwa() {
                   )}
                 </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
+                <div className="hidden rounded-2xl border border-slate-200 bg-slate-950/5 p-3 lg:block">
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Post Auto Reply Template</div>
@@ -5502,7 +5577,7 @@ export default function AiInboxPwa() {
                   )}
                 </div>
 
-                <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-slate-950/5 p-3">
+                <div className="rounded-2xl border border-slate-200 bg-slate-950/5 p-3 lg:min-h-0 lg:flex-1 lg:overflow-hidden">
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">Comments Timeline</div>
@@ -5513,7 +5588,7 @@ export default function AiInboxPwa() {
                   {selectedSocialThread.error ? (
                     <div className="mt-2 rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{selectedSocialThread.error}</div>
                   ) : null}
-                  <div className="mt-2 min-h-0 flex-1 overflow-y-auto space-y-2 pr-1">
+                  <div className="mt-2 space-y-2 pr-1 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
                     {showTimelineSkeleton ? (
                       <div className="space-y-2">
                         {[1, 2, 3].map((item) => (
@@ -6041,7 +6116,10 @@ export default function AiInboxPwa() {
                 <button
                   key={item.key}
                   type="button"
-                  onClick={() => updateUrlState({ nextConversationId: item.key === "conversations" ? conversationParam : "", nextTab: item.key })}
+                  onClick={() => {
+                    if (item.key === "social_comments") setSocialMobileDetailOpen(false);
+                    updateUrlState({ nextConversationId: item.key === "conversations" ? conversationParam : "", nextTab: item.key });
+                  }}
                   className={`flex flex-col items-center gap-0.5 rounded-2xl px-2 py-1.5 text-[10px] font-medium ${
                     active ? "bg-slate-900 text-white" : "text-slate-500"
                   }`}
