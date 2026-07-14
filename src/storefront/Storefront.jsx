@@ -2545,17 +2545,21 @@ function PremiumHomePage(props) {
   const heroCopy = isRtl
     ? {
         badge: "مختارات M1 Store",
-        title: "واجهة بسيطة، اختيار Premium، وتجربة شراء واضحة.",
-        subtitle: "تصميم نظيف، صور كبيرة، ومساحات مريحة تخلّي التصفح أسرع وأوضح من غير زحمة بصرية.",
-        primary: "تسوق الآن",
-        secondary: "العروض",
+        title: "اختيارات مميزة.\nستايل يلفت من أول خطوة.",
+        subtitle: "اكتشف أحدث الموديلات والمقاسات المتاحة، مع توصيل سريع ودفع عند الاستلام.",
+        mobileTitle: "ستايلك يبدأ من هنا",
+        mobileSubtitle: "أحدث الموديلات والمقاسات في مكان واحد",
+        primary: "تسوق الجديد",
+        secondary: "استكشف العروض",
       }
     : {
         badge: "Curated by M1 Store",
-        title: "Clean design. Premium picks. A faster shopping flow.",
-        subtitle: "A refined storefront built around large visuals, calm spacing, and a sharper first impression.",
-        primary: "Shop now",
-        secondary: "Offers",
+        title: "Standout picks.\nStyle that starts with every step.",
+        subtitle: "Discover the latest models and available sizes, with fast delivery and cash on delivery.",
+        mobileTitle: "Your style starts here",
+        mobileSubtitle: "The latest models and sizes in one place",
+        primary: "Shop new arrivals",
+        secondary: "Explore offers",
       };
 
   return (
@@ -2605,114 +2609,98 @@ function PremiumHomePage(props) {
 function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}, loading = false, heroSlide = null, heroCollection = null, heroCopy = {} }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const heroImage = heroSlide?.image || heroCollection?.image || heroCollection?.hero_image || "";
-  const heroTitle = heroCopy.title || (isRtl ? "واجهة بسيطة، اختيار Premium، وتجربة شراء واضحة." : "Clean design. Premium picks. A faster shopping flow.");
-  const heroSubtitle = heroCopy.subtitle || (isRtl ? "تصميم نظيف، صور كبيرة، ومساحات مريحة تخلّي التصفح أسرع وأوضح من غير زحمة بصرية." : "A refined storefront built around large visuals, calm spacing, and a sharper first impression.");
-  const heroMobileTitle = heroCopy.mobileTitle || (isRtl ? "اكتشف أحدث الموديلات" : "Discover the latest models");
-  const heroMobileSubtitle = heroCopy.mobileSubtitle || (isRtl ? "رجالي • حريمي • أطفال • كروكس" : "Men • Women • Kids • Crocs");
+  const heroTitle = heroCopy.title || (isRtl ? "اختيارات مميزة.\nستايل يلفت من أول خطوة." : "Standout picks.\nStyle that starts with every step.");
+  const heroSubtitle = heroCopy.subtitle || (isRtl ? "اكتشف أحدث الموديلات والمقاسات المتاحة، مع توصيل سريع ودفع عند الاستلام." : "Discover the latest models and available sizes, with fast delivery and cash on delivery.");
+  const heroMobileTitle = heroCopy.mobileTitle || (isRtl ? "ستايلك يبدأ من هنا" : "Your style starts here");
+  const heroMobileSubtitle = heroCopy.mobileSubtitle || (isRtl ? "أحدث الموديلات والمقاسات في مكان واحد" : "The latest models and sizes in one place");
   const heroPrice = Number(heroSlide?.price || 0) > 0 ? money(heroSlide.price) : "";
+  const heroProduct = heroSlide?.product || {};
+  const heroProductHref = heroProduct?.id ? productUrl(heroProduct) : "/products";
+  const heroSizes = extractOfferSizes(heroProduct).slice(0, 4);
+  const trustItems = [
+    { icon: Truck, ar: "شحن سريع", en: "Fast delivery" },
+    { icon: PackageCheck, ar: "دفع عند الاستلام", en: "Cash on delivery" },
+    { icon: RefreshCcw, ar: "استبدال سهل", en: "Easy exchange" },
+  ];
 
   return (
-    <section className="mx-auto max-w-[1400px] px-4 pt-3 md:pt-8">
+    <section className="sf-home-hero-v2 mx-auto max-w-[1400px] px-3 pt-3 sm:px-4 md:pt-8">
       <div
-        className="relative overflow-hidden rounded-[2.2rem] border"
-        style={{
-          background: themeTokens.heroGradient,
-          borderColor: themeTokens.border,
-          boxShadow: themeTokens.shadow,
-        }}
+        className="relative overflow-hidden rounded-[1.7rem] border md:rounded-[2.4rem]"
+        style={{ background: themeTokens.heroGradient, borderColor: themeTokens.border, boxShadow: themeTokens.shadow }}
       >
         <div className="pointer-events-none absolute inset-0" style={{ background: themeTokens.heroGlow }} />
-        <div className="relative grid gap-4 lg:grid-cols-[1.08fr_0.92fr] md:gap-6">
-          <div className="flex min-w-0 flex-col justify-center px-5 py-5 text-right md:px-8 md:py-9 lg:px-10 lg:py-11">
-            <h1 className="max-w-2xl text-[2rem] font-black leading-[1.02] tracking-[-0.04em] md:text-[3.5rem] lg:text-[4.55rem]" style={{ color: themeTokens.textPrimary }}>
+        <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full border border-[#b4860b]/10" />
+        <div className="relative grid items-stretch gap-0 lg:grid-cols-[1.02fr_0.98fr]">
+          <div className="order-2 flex min-w-0 flex-col justify-center px-5 pb-7 pt-5 text-start sm:px-7 md:px-10 md:pb-10 lg:order-1 lg:px-14 lg:py-14 xl:px-16">
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#b4860b]/20 bg-[#fff7df]/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#8a6508] shadow-sm md:px-4 md:py-2 md:text-xs">
+              <Sparkles className="h-3.5 w-3.5" />
+              {heroCopy.badge || (isRtl ? "مختارات M1 Store" : "Curated by M1 Store")}
+            </div>
+            <h1 className="mt-4 max-w-2xl whitespace-pre-line text-[2.15rem] font-black leading-[1.04] tracking-[-0.035em] sm:text-[2.7rem] md:mt-6 md:text-[3.65rem] lg:text-[4.35rem] xl:text-[4.8rem]" style={{ color: themeTokens.textPrimary }}>
               <span className="md:hidden">{heroMobileTitle}</span>
               <span className="hidden md:inline">{heroTitle}</span>
             </h1>
-            <p className="mt-2 max-w-2xl text-[0.95rem] font-bold leading-6 md:mt-4 md:text-lg md:leading-8" style={{ color: themeTokens.textSecondary }}>
+            <p className="mt-3 max-w-xl text-[0.95rem] font-bold leading-7 md:mt-5 md:text-lg md:leading-8" style={{ color: themeTokens.textSecondary }}>
               <span className="md:hidden">{heroMobileSubtitle}</span>
               <span className="hidden md:inline">{heroSubtitle}</span>
             </p>
-            <div className="mt-4 flex flex-wrap gap-3 md:mt-7">
-              <Link
-                to="/products"
-                className="inline-flex min-h-12 items-center justify-center rounded-full px-5 text-sm font-black transition duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
-                style={{
-                  background: themeTokens.accent,
-                  color: themeTokens.accentText,
-                  boxShadow: `0 18px 42px ${themeTokens.accentSoft}`,
-                }}
-              >
-                {heroCopy.primary || (isRtl ? "تسوق الآن" : "Shop now")}
+            <div className="mt-5 flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:flex-wrap md:mt-8 md:gap-3">
+              <Link to="/products?sort=newest" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-stone-950 px-6 text-sm font-black text-white shadow-[0_16px_34px_rgba(28,25,23,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-stone-800 active:scale-[0.99] md:min-h-14 md:px-7 md:text-base">
+                {heroCopy.primary || (isRtl ? "تسوق الجديد" : "Shop new arrivals")}
+                <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
               </Link>
-              <Link
-                to="/offers"
-                className="inline-flex min-h-12 items-center justify-center rounded-full border px-5 text-sm font-black transition duration-200 hover:-translate-y-0.5 active:scale-[0.99]"
-                style={{
-                  background: themeTokens.card,
-                  color: themeTokens.textPrimary,
-                  borderColor: themeTokens.border,
-                }}
-              >
-                {heroCopy.secondary || (isRtl ? "العروض" : "Offers")}
+              <Link to="/offers" className="inline-flex min-h-12 items-center justify-center rounded-full border px-6 text-sm font-black transition duration-200 hover:-translate-y-0.5 active:scale-[0.99] md:min-h-14 md:px-7 md:text-base" style={{ background: themeTokens.card, color: themeTokens.textPrimary, borderColor: themeTokens.borderStrong }}>
+                {heroCopy.secondary || (isRtl ? "استكشف العروض" : "Explore offers")}
               </Link>
+            </div>
+            <div className="mt-6 grid grid-cols-3 gap-2 border-t pt-5 md:mt-9 md:gap-3 md:pt-6" style={{ borderColor: themeTokens.border }}>
+              {trustItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <div key={item.en} className="flex min-w-0 flex-col items-center gap-1.5 text-center sm:flex-row sm:text-start">
+                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#fff7df] text-[#8a6508] md:h-9 md:w-9"><Icon className="h-4 w-4" /></span>
+                    <span className="text-[10px] font-black leading-4 sm:text-[11px] md:text-xs" style={{ color: themeTokens.textSecondary }}>{isRtl ? item.ar : item.en}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          <div className="relative px-5 pb-4 pt-0 md:px-8 md:pb-8 lg:px-10 lg:pt-7 lg:pb-10">
-            <div
-              className="relative overflow-hidden rounded-[2rem] border p-4 md:p-5"
-              style={{
-                background: themeTokens.card,
-                borderColor: themeTokens.borderStrong,
-                boxShadow: themeTokens.shadowSoft,
-              }}
-            >
-              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_24%,rgba(212,175,55,0.12),transparent_42%)]" />
-              <div
-                className="relative flex min-h-[220px] items-center justify-center overflow-hidden rounded-[1.5rem] border p-4 md:min-h-[430px]"
-                style={{ background: themeTokens.surface, borderColor: themeTokens.border }}
-              >
+          <div className="order-1 relative min-h-[330px] p-3 sm:min-h-[420px] sm:p-5 md:min-h-[520px] md:p-7 lg:order-2 lg:min-h-[640px] lg:p-9">
+            <Link to={heroProductHref} className="group relative flex h-full min-h-[306px] items-center justify-center overflow-hidden rounded-[1.45rem] border p-5 sm:min-h-[380px] md:min-h-[466px] md:rounded-[2rem] md:p-8 lg:min-h-[568px]" style={{ background: themeTokens.surface, borderColor: themeTokens.borderStrong, boxShadow: themeTokens.shadowSoft }}>
+              <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_32%,rgba(212,175,55,0.14),transparent_46%)]" />
+              <span className="absolute end-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-stone-800 shadow-lg backdrop-blur md:end-6 md:top-6 md:px-4 md:py-2 md:text-xs">
+                <Sparkles className="h-3.5 w-3.5 text-[#b4860b]" />
+                {isRtl ? "وصل حديثًا" : "Fresh drop"}
+              </span>
+              <div className="relative flex h-full w-full items-center justify-center pb-20 md:pb-24">
                 {loading && !heroImage ? (
-                  <div className="h-[180px] w-[82%] animate-pulse rounded-[1.5rem] md:h-[240px]" style={{ background: themeTokens.cardSoft }} />
+                  <div className="h-[180px] w-[82%] animate-pulse rounded-[1.5rem] md:h-[300px]" style={{ background: themeTokens.cardSoft }} />
                 ) : heroImage ? (
-                  <img
-                    src={imageFor(heroImage)}
-                    {...responsiveImageProps(heroImage, "hero")}
-                    alt={heroSlide?.product?.name || brandName}
-                    onError={fallbackProductImage}
-                    className="h-full w-full max-h-[220px] object-contain md:max-h-[420px]"
-                    loading="eager"
-                    decoding="async"
-                    width="900"
-                    height="720"
-                  />
+                  <img src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="h-full w-full max-h-[230px] object-contain transition duration-500 ease-out group-hover:scale-[1.035] sm:max-h-[310px] md:max-h-[420px] lg:max-h-[470px]" loading="eager" decoding="async" width="900" height="720" />
                 ) : (
-                  <div className="flex h-[240px] w-[82%] items-center justify-center rounded-[1.5rem] border border-dashed text-center text-sm font-black" style={{ color: themeTokens.textSecondary, borderColor: themeTokens.border }}>
+                  <div className="flex h-[220px] w-[82%] items-center justify-center rounded-[1.5rem] border border-dashed text-center text-sm font-black" style={{ color: themeTokens.textSecondary, borderColor: themeTokens.border }}>
                     {isRtl ? "صورة العرض تظهر هنا" : "Hero image appears here"}
                   </div>
                 )}
               </div>
-              <div className="relative mt-4 flex items-end justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: themeTokens.accent }}>
-                    {isRtl ? "القطعة المختارة" : "Featured drop"}
-                  </p>
-                  <h2 className="mt-1 line-clamp-2 text-xl font-black leading-7" style={{ color: themeTokens.textPrimary }}>
-                    {heroSlide?.product?.name || brandName}
-                  </h2>
+              <div className="absolute inset-x-3 bottom-3 z-10 rounded-[1.2rem] border border-white/70 bg-white/90 p-3 shadow-[0_16px_40px_rgba(28,25,23,0.12)] backdrop-blur-xl sm:inset-x-4 sm:bottom-4 md:rounded-[1.5rem] md:p-4">
+                <div className="flex items-end justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#9a7108] md:text-[10px]">{isRtl ? "القطعة المختارة" : "Featured pick"}</p>
+                    <h2 className="mt-1 line-clamp-1 text-base font-black leading-6 text-stone-900 md:text-xl md:leading-7">{heroProduct?.name || brandName}</h2>
+                  </div>
+                  {heroPrice ? <div className="shrink-0 rounded-full bg-stone-950 px-3 py-2 text-xs font-black text-white md:px-4 md:text-base">{heroPrice}</div> : null}
                 </div>
-                {heroPrice ? (
-                  <div className="shrink-0 rounded-full border px-4 py-2 text-base font-black" style={{ background: themeTokens.surface, borderColor: themeTokens.border, color: themeTokens.textPrimary }}>
-                    {heroPrice}
+                {heroSizes.length ? (
+                  <div className="mt-2.5 flex items-center gap-1.5 overflow-hidden md:mt-3">
+                    <span className="shrink-0 text-[10px] font-bold text-stone-500">{isRtl ? "المقاسات:" : "Sizes:"}</span>
+                    {heroSizes.map((size) => <span key={size} className="grid h-7 min-w-7 place-items-center rounded-full border border-stone-200 bg-stone-50 px-1.5 text-[10px] font-black text-stone-700 md:h-8 md:min-w-8 md:text-xs">{size}</span>)}
                   </div>
                 ) : null}
               </div>
-              {heroCollection?.subtitle ? (
-                <p className="relative mt-2 text-sm font-semibold leading-6" style={{ color: themeTokens.textSecondary }}>
-                  {heroCollection.subtitle}
-                </p>
-              ) : null}
-            </div>
+            </Link>
           </div>
         </div>
       </div>
