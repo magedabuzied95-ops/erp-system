@@ -43,7 +43,7 @@ const WHATSAPP_WEBHOOK_SKIP_REASONS = {
   nonMessageEvent: "non_message_event",
 };
 
-const getEvolutionWebhookSkipReason = ({ event = "", remoteJid = "", messageId = "", textValue = "" } = {}) => {
+export const getEvolutionWebhookSkipReason = ({ event = "", remoteJid = "", messageId = "", textValue = "", hasMedia = false, fromMe = false } = {}) => {
   const normalizedEvent = String(event || "").toLowerCase();
   const hasMessageContent = Boolean(String(textValue || "").trim());
 
@@ -52,7 +52,7 @@ const getEvolutionWebhookSkipReason = ({ event = "", remoteJid = "", messageId =
     return WHATSAPP_WEBHOOK_SKIP_REASONS.nonMessageEvent;
   }
   if (!String(messageId || "").trim()) return WHATSAPP_WEBHOOK_SKIP_REASONS.missingMessageId;
-  if (!hasMessageContent) return WHATSAPP_WEBHOOK_SKIP_REASONS.missingText;
+  if (!hasMessageContent && !(fromMe === true && hasMedia === true)) return WHATSAPP_WEBHOOK_SKIP_REASONS.missingText;
   return "";
 };
 
@@ -2554,6 +2554,36 @@ const extractMessageText = (data = {}, payload = {}) => {
   return "";
 };
 
+export const extractWhatsappMediaDescriptor = (payload = {}) => {
+  const data = primaryEvolutionData(payload);
+  let message = data?.message || data?.messages?.[0]?.message || payload?.body?.data?.message || payload?.body?.message || payload?.message || {};
+  const wrapperKeys = ["ephemeralMessage", "viewOnceMessage", "viewOnceMessageV2", "viewOnceMessageV2Extension", "documentWithCaptionMessage"];
+  for (let index = 0; index < 5; index += 1) {
+    const wrapperKey = wrapperKeys.find((key) => message?.[key]);
+    if (!wrapperKey) break;
+    message = message[wrapperKey]?.message || message[wrapperKey] || {};
+  }
+  const definitions = [
+    ["imageMessage", "image", "📷 صورة"],
+    ["audioMessage", "audio", "🎤 رسالة صوتية"],
+    ["videoMessage", "video", "🎬 فيديو"],
+    ["documentMessage", "document", "📎 ملف"],
+    ["documentWithCaptionMessage", "document", "📎 ملف"],
+    ["stickerMessage", "sticker", "🖼️ ملصق"],
+  ];
+  const match = definitions.find(([key]) => message?.[key]);
+  if (!match) return { type: "", label: "", url: "", mimeType: "", fileName: "", durationSeconds: 0, visualAttachments: [] };
+  const [key, type, label] = match;
+  const media = message[key] || {};
+  const rawUrl = text(media.url || media.mediaUrl || media.media_url || data?.mediaUrl || data?.media_url || "");
+  const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : "";
+  const mimeType = text(media.mimetype || media.mimeType || media.mime_type || "");
+  const fileName = text(media.fileName || media.filename || media.file_name || "");
+  const durationSeconds = number(media.seconds || media.duration || media.durationSeconds || 0, 0);
+  const visualAttachments = url ? [{ type, media_type: type, url, media_url: url, mime_type: mimeType, file_name: fileName, duration_seconds: durationSeconds }] : [];
+  return { type, label, url, mimeType, fileName, durationSeconds, visualAttachments };
+};
+
 const extractWhatsappWebhookEnvelope = (payload = {}) => {
   const data = primaryEvolutionData(payload);
   const key = data?.key || payload?.key || {};
@@ -2864,7 +2894,7 @@ const extractIncomingWhatsapp = async (payload = {}) => {
 
 const normalizeEvolutionWebhookEvent = (value = "") => text(value).toLowerCase().replace(/[_\s]+/g, ".");
 
-const getEvolutionStatusUpdateDecision = (payload = {}, envelope = null) => {
+export const getEvolutionStatusUpdateDecision = (payload = {}, envelope = null) => {
   const data = primaryEvolutionData(payload);
   const normalizedEvent = normalizeEvolutionWebhookEvent(envelope?.event || envelope?.rawEvent || payload?.event || payload?.type || payload?.name || data?.event || data?.type || data?.name || "");
   const eventSources = [
@@ -2887,6 +2917,7 @@ const getEvolutionStatusUpdateDecision = (payload = {}, envelope = null) => {
   const hasStatusEvent = eventSources.includes("status.update") || eventSources.includes("messages.status") || eventSources.includes("message.status");
   const isMessagesUpdate = normalizedEvent === "messages.update" || eventSources.includes("messages.update") || eventSources.includes("message.update");
   const isFromMe = envelope?.fromMe === true;
+  const hasMessageContent = Boolean(extractMessageText(data, payload) || extractWhatsappMediaDescriptor(payload).type);
 
   if (normalizedEvent === "messages.upsert" && envelope?.fromMe === false) {
     return {
@@ -2902,7 +2933,7 @@ const getEvolutionStatusUpdateDecision = (payload = {}, envelope = null) => {
     hasDeliveryAck ||
     hasStatusEvent ||
     hasStatusesPayload ||
-    (isFromMe && hasStatusField);
+    (isFromMe && hasStatusField && !hasMessageContent);
 
   return {
     isStatusUpdate,
@@ -2925,6 +2956,7 @@ const getEvolutionStatusUpdateDecision = (payload = {}, envelope = null) => {
       hasStatusesPayload,
       hasStatusField,
       isFromMe,
+      hasMessageContent,
     },
   };
 };
@@ -3606,6 +3638,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
   const envelope = extractWhatsappWebhookEnvelope(payload);
   const sanitizedPayload = redactSensitive(payload);
   const fullPayloadText = extractMessageText(envelope.data, payload);
+  const mediaDescriptor = extractWhatsappMediaDescriptor(payload);
   const webhookMessage = envelope.data?.message || envelope.data?.messages?.[0]?.message || payload?.body?.data?.message || payload?.body?.message || payload?.message || {};
   const webhookMessageType = text(
     envelope.data?.messageType ||
@@ -3668,6 +3701,8 @@ export const handleIncomingWebhook = async (payload = {}) => {
     remoteJid: envelope.remoteJid,
     messageId: envelope.messageId,
     textValue: fullPayloadText,
+    hasMedia: Boolean(mediaDescriptor.type),
+    fromMe: envelope.fromMe === true,
   });
   if (skipReason) {
     console.info("[whatsapp:webhook-early-skip]", {
@@ -3822,14 +3857,17 @@ export const handleIncomingWebhook = async (payload = {}) => {
   if (envelope.fromMe) {
     const tenantId = tenantIdForWhatsapp(payload);
     const sessionId = normalizeWhatsappSessionId(normalized.remoteJid || normalized.resolvedReplyJid || normalized.phone, normalized.resolvedPhone || normalized.phone);
-    const outboundRow = normalized.text ? await appendChannelOutboundSupportReply({
+    const outboundMessage = normalized.text || mediaDescriptor.label;
+    const outboundRow = outboundMessage ? await appendChannelOutboundSupportReply({
       tenantId,
       sessionId,
-      message: normalized.text,
+      message: outboundMessage,
+      messageType: mediaDescriptor.type || "text",
       channel: AI_AGENT_CHANNELS.WHATSAPP,
       senderType: "staff",
-      staffMessage: normalized.text,
+      staffMessage: outboundMessage,
       staffUserName: "أنا",
+      visualAttachments: mediaDescriptor.visualAttachments,
       source: "whatsapp_provider_echo",
       sourcePath: "whatsapp_provider_echo",
       insertSource: "whatsapp_provider_echo",

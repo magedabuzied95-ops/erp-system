@@ -21,15 +21,30 @@ const absoluteTime = (value) => {
   });
 };
 
+const attachmentType = (attachment = {}) => clean(attachment.type || attachment.media_type || attachment.message_type || "").toLowerCase();
+const attachmentUrl = (attachment = {}) => clean(attachment.url || attachment.image_url || attachment.media_url || attachment.attachment_url || attachment.file_url || "");
+
 const imageUrlsForMessage = (message = {}) =>
   [
     message.image_url,
-    message.media_url,
+    !["audio", "voice", "ptt", "video", "document", "file"].includes(clean(message.message_type).toLowerCase()) ? message.media_url : "",
     message.attachment_url,
     message.file_url,
     message.preview_url,
     message.thumbnail_url,
-    ...asArray(message.visual_attachments).map((attachment) => attachment?.url || attachment?.image_url || attachment?.media_url),
+    ...asArray(message.visual_attachments)
+      .filter((attachment) => !["audio", "voice", "ptt", "video", "document", "file"].includes(attachmentType(attachment)))
+      .map((attachment) => attachmentUrl(attachment)),
+  ]
+    .map((value) => clean(value))
+    .filter(Boolean);
+
+const typedMediaUrls = (message = {}, types = []) =>
+  [
+    ...(types.includes(clean(message.message_type).toLowerCase()) ? [message.media_url, message.attachment_url, message.file_url] : []),
+    ...asArray(message.visual_attachments)
+      .filter((attachment) => types.includes(attachmentType(attachment)))
+      .map((attachment) => attachmentUrl(attachment)),
   ]
     .map((value) => clean(value))
     .filter(Boolean);
@@ -93,6 +108,9 @@ function TranscriptMessage({
   const message = safeRow.message || {};
   const cards = asArray(safeRow.cards);
   const mediaUrls = useMemo(() => imageUrlsForMessage(message).slice(0, 4), [message]);
+  const audioUrls = useMemo(() => typedMediaUrls(message, ["audio", "voice", "ptt"]).slice(0, 4), [message]);
+  const videoUrls = useMemo(() => typedMediaUrls(message, ["video"]).slice(0, 4), [message]);
+  const documentUrls = useMemo(() => typedMediaUrls(message, ["document", "file"]).slice(0, 4), [message]);
   const createdAt = safeRow.createdAt || absoluteTime(message.created_at);
   const isCommentMessage =
     safeRow.kind === "comment" ||
@@ -323,6 +341,9 @@ function TranscriptMessage({
                 ))}
               </div>
             ) : null}
+            {audioUrls.map((url) => <audio key={url} controls preload="metadata" src={url} className="mt-3 w-full" />)}
+            {videoUrls.map((url) => <video key={url} controls preload="metadata" src={url} className="mt-3 max-h-80 w-full rounded-2xl border border-white/10 bg-slate-950/80" />)}
+            {documentUrls.map((url) => <a key={url} href={url} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-xs font-black text-cyan-100">فتح الملف</a>)}
             {message.delivery_error ? <p className="mt-2 text-xs font-bold text-rose-200">{message.delivery_error}</p> : null}
           </div>
         </div>
