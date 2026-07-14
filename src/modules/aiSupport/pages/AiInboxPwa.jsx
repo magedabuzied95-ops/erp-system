@@ -21,10 +21,12 @@ import {
   Minimize2,
   PackagePlus,
   Ruler,
+  RotateCcw,
   Search,
   Send,
   ShieldBan,
   ShoppingBag,
+  SlidersHorizontal,
   Sparkles,
   Sun,
   Moon,
@@ -142,6 +144,117 @@ const getVariantRows = (product = {}) => [
   ...(Array.isArray(product.variantRows) ? product.variantRows : []),
   ...(Array.isArray(product.variant_options) ? product.variant_options : []),
 ].filter(Boolean);
+
+const PRODUCT_FILTER_DEFAULTS = Object.freeze({
+  audience: "all",
+  brand: "all",
+  mainCategory: "all",
+  subCategory: "all",
+  childCategory: "all",
+  productType: "all",
+  grade: "all",
+  manufacturer: "all",
+  stock: "all",
+});
+
+const normalizeProductFilterValue = (value = "") =>
+  clean(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u064b-\u065f\u0670]/g, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ");
+
+const productAudienceKeys = (product = {}) => {
+  const keys = new Set();
+  const visit = (value) => {
+    if (Array.isArray(value)) return value.forEach(visit);
+    normalizeProductFilterValue(value)
+      .split(/[,|/]+/)
+      .filter(Boolean)
+      .forEach((item) => {
+        if (/^(men|man|male|mens)$/.test(item) || /رجال|رجالي|ذكور/.test(item)) keys.add("men");
+        if (/^(women|woman|female|ladies|womens)$/.test(item) || /حريم|حريمي|نساء|نسائي|اناث/.test(item)) keys.add("women");
+        if (/^(kids|kid|children|child|boys|girls)$/.test(item) || /اطفال|طفل|ولادي|بناتي/.test(item)) keys.add("kids");
+      });
+  };
+  getVariantRows(product).forEach((variant) => visit(variant.audience || variant.variant_audience || variant.gender));
+  visit(product.audiences || product.product_audiences || product.audience || product.gender);
+  return keys;
+};
+
+const firstProductField = (product = {}, fields = []) => {
+  const sources = [product, ...getVariantRows(product)];
+  for (const source of sources) {
+    for (const field of fields) {
+      const value = source?.[field];
+      if (value !== null && value !== undefined && clean(value)) return clean(value);
+    }
+  }
+  return "";
+};
+
+const productFilterMeta = (product = {}) => {
+  const field = (keys) => normalizeProductFilterValue(firstProductField(product, keys));
+  const variants = getVariantRows(product);
+  const stockValues = [product.total_stock, product.stock, product.stock_quantity, ...variants.flatMap((variant) => [variant.stock_quantity, variant.stock])]
+    .map(Number)
+    .filter(Number.isFinite);
+  const available = variants.some((variant) => variant.available === true || Number(variant.stock_quantity ?? variant.stock ?? 0) > 0) || stockValues.some((value) => value > 0);
+  return {
+    audience: productAudienceKeys(product),
+    brand: field(["brand_name", "brand"]),
+    mainCategory: field(["main_category_name", "main_category", "category_name", "category"]),
+    subCategory: field(["sub_category_name", "sub_category", "subcategory_name", "subcategory"]),
+    childCategory: field(["child_category_name", "child_category"]),
+    productType: field(["product_type", "productType", "type"]),
+    grade: field(["grade", "product_grade"]),
+    manufacturer: field(["manufacturer_name", "manufacturer"]),
+    stock: available ? "in" : "out",
+  };
+};
+
+const productSheetIdentity = (product = {}, index = 0) =>
+  clean(product.product_id || product.id || product.uuid || product.sku || product.barcode || product.slug) ||
+  `product-${normalizeProductFilterValue(product.name || product.product_name || "item")}-${index}`;
+
+const buildProductFilterOptions = (entries, field) => {
+  const labels = new Map();
+  entries.forEach(({ product, meta }) => {
+    const value = meta[field];
+    if (!value || labels.has(value)) return;
+    const fieldMap = {
+      brand: ["brand_name", "brand"],
+      mainCategory: ["main_category_name", "main_category", "category_name", "category"],
+      subCategory: ["sub_category_name", "sub_category", "subcategory_name", "subcategory"],
+      childCategory: ["child_category_name", "child_category"],
+      productType: ["product_type", "productType", "type"],
+      grade: ["grade", "product_grade"],
+      manufacturer: ["manufacturer_name", "manufacturer"],
+    };
+    labels.set(value, firstProductField(product, fieldMap[field] || []) || value);
+  });
+  return Array.from(labels, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label, "ar"));
+};
+
+function ProductFilterSelect({ label, value, options, onChange, allLabel = "الكل" }) {
+  if (!options.length) return null;
+  return (
+    <label className="min-w-0">
+      <span className="mb-1 block text-[11px] font-semibold text-slate-500">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-800 outline-none transition focus:border-slate-400"
+      >
+        <option value="all">{allLabel}</option>
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
 
 const tenantIdFromAuth = () => {
   const tenant = getCurrentTenant?.() || {};
@@ -1765,6 +1878,8 @@ function ProductSheet({
   const [selectedColor, setSelectedColor] = useState("");
   const [selectedSize, setSelectedSize] = useState("");
   const [view, setView] = useState("list");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [productFilters, setProductFilters] = useState(() => ({ ...PRODUCT_FILTER_DEFAULTS }));
 
   useEffect(() => {
     if (!open) return;
@@ -1772,12 +1887,38 @@ function ProductSheet({
     setSelectedColor("");
     setSelectedSize("");
     setView("list");
+    setFiltersOpen(false);
+    setProductFilters({ ...PRODUCT_FILTER_DEFAULTS });
   }, [open, selectedConversation?.session_id]);
 
-  const filteredProducts = useMemo(() => {
+  const productEntries = useMemo(
+    () =>
+      asArray(products)
+        .filter((product) => product && typeof product === "object")
+        .map((product, index) => ({ product, sheetId: productSheetIdentity(product, index), meta: productFilterMeta(product) })),
+    [products]
+  );
+
+  const filterOptions = useMemo(
+    () => ({
+      brand: buildProductFilterOptions(productEntries, "brand"),
+      mainCategory: buildProductFilterOptions(productEntries, "mainCategory"),
+      subCategory: buildProductFilterOptions(productEntries, "subCategory"),
+      childCategory: buildProductFilterOptions(productEntries, "childCategory"),
+      productType: buildProductFilterOptions(productEntries, "productType"),
+      grade: buildProductFilterOptions(productEntries, "grade"),
+      manufacturer: buildProductFilterOptions(productEntries, "manufacturer"),
+    }),
+    [productEntries]
+  );
+
+  const filteredProductEntries = useMemo(() => {
     const normalized = clean(query).toLowerCase();
-    if (!normalized) return products;
-    return products.filter((product) => {
+    return productEntries.filter(({ product, meta }) => {
+      if (productFilters.audience !== "all" && !meta.audience.has(productFilters.audience)) return false;
+      if (["brand", "mainCategory", "subCategory", "childCategory", "productType", "grade", "manufacturer"].some((field) => productFilters[field] !== "all" && meta[field] !== productFilters[field])) return false;
+      if (productFilters.stock !== "all" && meta.stock !== productFilters.stock) return false;
+      if (!normalized) return true;
       const searchable = [
         product.name,
         product.product_name,
@@ -1804,24 +1945,27 @@ function ProductSheet({
         .filter(Boolean);
       return searchable.some((item) => item.includes(normalized));
     });
-  }, [products, query]);
+  }, [productEntries, productFilters, query]);
+
+  const activeProductFilterCount = useMemo(
+    () => Object.entries(productFilters).filter(([key, value]) => key !== "audience" && value !== "all").length + (productFilters.audience === "all" ? 0 : 1),
+    [productFilters]
+  );
 
   useEffect(() => {
     if (!open) return;
-    setView("list");
-    const firstId = String(filteredProducts[0]?.product_id || filteredProducts[0]?.id || "");
-    if (!selectedProductId || !filteredProducts.some((product) => String(product.product_id || product.id || "") === selectedProductId)) {
+    const firstId = filteredProductEntries[0]?.sheetId || "";
+    if (!selectedProductId || !filteredProductEntries.some((entry) => entry.sheetId === selectedProductId)) {
       setSelectedProductId(firstId);
+      if (view === "detail") setView("list");
     }
-  }, [filteredProducts, open, selectedProductId]);
+  }, [filteredProductEntries, open, selectedProductId, view]);
 
-  const selectedProduct = useMemo(
-    () =>
-      filteredProducts.find((product) => String(product.product_id || product.id || "") === String(selectedProductId)) ||
-      filteredProducts[0] ||
-      null,
-    [filteredProducts, selectedProductId]
+  const selectedProductEntry = useMemo(
+    () => filteredProductEntries.find((entry) => entry.sheetId === selectedProductId) || filteredProductEntries[0] || null,
+    [filteredProductEntries, selectedProductId]
   );
+  const selectedProduct = selectedProductEntry?.product || null;
 
   const colors = useMemo(() => productColors(selectedProduct || {}), [selectedProduct]);
   const sizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
@@ -1891,16 +2035,16 @@ function ProductSheet({
     <div
       className={
         mobileFullscreenMode
-          ? "fixed inset-0 z-[99999] isolate flex items-stretch justify-center overflow-hidden bg-white text-slate-900 [padding-top:max(0.75rem,env(safe-area-inset-top))] [padding-bottom:max(0.85rem,env(safe-area-inset-bottom))]"
-          : "fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-2 pb-2 pt-14 sm:px-4 sm:pb-4 sm:pt-16"
+          ? "ai-pwa-product-sheet ai-pwa-product-sheet--mobile fixed inset-0 z-[99999] isolate flex items-stretch justify-center overflow-hidden bg-white text-slate-900 [padding-top:max(0.75rem,env(safe-area-inset-top))] [padding-bottom:max(0.85rem,env(safe-area-inset-bottom))]"
+          : "ai-pwa-product-sheet fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-2 pb-2 pt-14 sm:px-4 sm:pb-4 sm:pt-16"
       }
       onClick={onClose}
     >
       <div
         className={
           mobileFullscreenMode
-            ? "flex h-[100dvh] w-screen min-w-0 max-w-[100vw] flex-col overflow-hidden bg-white"
-            : "flex h-[82dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-16px_40px_rgba(15,23,42,0.18)] sm:h-[min(88dvh,52rem)]"
+            ? "ai-pwa-product-sheet__panel flex h-[100dvh] w-screen min-w-0 max-w-[100vw] flex-col overflow-hidden bg-white"
+            : "ai-pwa-product-sheet__panel flex h-[82dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-16px_40px_rgba(15,23,42,0.18)] sm:h-[min(88dvh,52rem)]"
         }
         style={mobileFullscreenMode ? { width: "100vw", maxWidth: "100vw", height: "100dvh" } : undefined}
         onClick={(event) => event.stopPropagation()}
@@ -1925,31 +2069,92 @@ function ProductSheet({
             <div className="space-y-3">
               {view === "list" ? (
                 <>
-                  <label className="relative block">
-                <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={query}
-                  onChange={(event) => onQueryChange(event.target.value)}
-                  placeholder="Search product"
-                  className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
-                />
-              </label>
+                  <div className="flex gap-2">
+                    <label className="relative min-w-0 flex-1">
+                      <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        value={query}
+                        onChange={(event) => onQueryChange(event.target.value)}
+                        placeholder="ابحث باسم المنتج أو الكود"
+                        className="h-11 w-full rounded-2xl border border-slate-200 bg-slate-50 pl-11 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setFiltersOpen((current) => !current)}
+                      className={`relative inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-2xl border px-3 text-sm font-semibold transition ${filtersOpen || activeProductFilterCount ? "border-amber-400 bg-amber-50 text-amber-800" : "border-slate-200 bg-white text-slate-700"}`}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                      فلاتر
+                      {activeProductFilterCount ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-amber-500 px-1 text-[10px] font-black text-slate-950">{activeProductFilterCount}</span> : null}
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      ["all", "الكل"],
+                      ["men", "رجالي"],
+                      ["women", "حريمي"],
+                      ["kids", "أطفال"],
+                    ].map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setProductFilters((current) => ({ ...current, audience: value }))}
+                        className={`h-9 rounded-xl border text-xs font-semibold transition ${productFilters.audience === value ? "border-slate-900 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-700"}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {filtersOpen ? (
+                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
+                        <ProductFilterSelect label="البراند" value={productFilters.brand} options={filterOptions.brand} onChange={(value) => setProductFilters((current) => ({ ...current, brand: value }))} />
+                        <ProductFilterSelect label="القسم الرئيسي" value={productFilters.mainCategory} options={filterOptions.mainCategory} onChange={(value) => setProductFilters((current) => ({ ...current, mainCategory: value, subCategory: "all", childCategory: "all" }))} />
+                        <ProductFilterSelect label="القسم الفرعي" value={productFilters.subCategory} options={filterOptions.subCategory} onChange={(value) => setProductFilters((current) => ({ ...current, subCategory: value, childCategory: "all" }))} />
+                        <ProductFilterSelect label="القسم الدقيق" value={productFilters.childCategory} options={filterOptions.childCategory} onChange={(value) => setProductFilters((current) => ({ ...current, childCategory: value }))} />
+                        <ProductFilterSelect label="نوع المنتج" value={productFilters.productType} options={filterOptions.productType} onChange={(value) => setProductFilters((current) => ({ ...current, productType: value }))} />
+                        <ProductFilterSelect label="التصنيف" value={productFilters.grade} options={filterOptions.grade} onChange={(value) => setProductFilters((current) => ({ ...current, grade: value }))} />
+                        <ProductFilterSelect label="المصنّع" value={productFilters.manufacturer} options={filterOptions.manufacturer} onChange={(value) => setProductFilters((current) => ({ ...current, manufacturer: value }))} />
+                        <ProductFilterSelect
+                          label="المخزون"
+                          value={productFilters.stock}
+                          options={[{ value: "in", label: "متوفر" }, { value: "out", label: "غير متوفر" }]}
+                          onChange={(value) => setProductFilters((current) => ({ ...current, stock: value }))}
+                        />
+                      </div>
+                      <div className="mt-3 flex items-center justify-between gap-3">
+                        <span className="text-xs font-medium text-slate-500">{filteredProductEntries.length} منتج</span>
+                        <button
+                          type="button"
+                          onClick={() => setProductFilters({ ...PRODUCT_FILTER_DEFAULTS })}
+                          disabled={!activeProductFilterCount}
+                          className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-700 disabled:opacity-40"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          مسح الفلاتر
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
 
               <div className="space-y-2 pb-4">
                 {loading ? (
                   <div className="grid min-h-32 place-items-center rounded-2xl border border-slate-200 bg-slate-50 text-sm text-slate-500">
                     <Loader2 className="h-4 w-4 animate-spin" />
                   </div>
-                ) : filteredProducts.length ? (
-                  filteredProducts.slice(0, 80).map((product) => {
-                    const active = String(product.product_id || product.id || "") === String(selectedProduct?.product_id || selectedProduct?.id || "");
+                ) : filteredProductEntries.length ? (
+                  filteredProductEntries.slice(0, 120).map(({ product, sheetId }) => {
+                    const active = sheetId === selectedProductEntry?.sheetId;
                     const previewImage = productImage(product);
                     return (
                       <button
-                        key={`${product.product_id || product.id}`}
+                        key={sheetId}
                         type="button"
                         onClick={() => {
-                          setSelectedProductId(String(product.product_id || product.id || ""));
+                          setSelectedProductId(sheetId);
                           setSelectedColor("");
                           setSelectedSize("");
                           setView("detail");
@@ -1976,7 +2181,7 @@ function ProductSheet({
                   })
                 ) : (
                   <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 p-6 text-center text-sm text-slate-500">
-                    No products match this search.
+                    لا توجد منتجات مطابقة للبحث والفلاتر.
                   </div>
                 )}
               </div>

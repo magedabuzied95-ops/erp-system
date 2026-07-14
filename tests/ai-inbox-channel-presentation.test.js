@@ -88,3 +88,21 @@ test("AI Inbox PWA social comments use a defined reply template", () => {
   assert.doesNotMatch(pwaSource, /suggestedReply=\{suggestedReply\}/);
   assert.match(pwaSource, /replyDraft=\{templateText \|\| genericTemplateText\}/);
 });
+
+test("AI Inbox PWA product picker keeps product details open and exposes POS filters", () => {
+  assert.doesNotMatch(pwaSource, /if \(!open\) return;\s*setView\("list"\);\s*const firstId/);
+  assert.match(pwaSource, /PRODUCT_FILTER_DEFAULTS/);
+  assert.match(pwaSource, /\["men", "رجالي"\]/);
+  assert.match(pwaSource, /label="البراند"/);
+  assert.match(pwaSource, /label="القسم الرئيسي"/);
+  assert.match(pwaSource, /label="نوع المنتج"/);
+  assert.match(pwaSource, /label="المصنّع"/);
+  assert.match(pwaSource, /label="المخزون"/);
+});
+
+test("AI Inbox PWA product picker follows light and dark mode even through its mobile portal", () => {
+  assert.match(pwaSource, /ai-pwa-product-sheet ai-pwa-product-sheet--mobile/);
+  assert.match(pwaStyles, /html\[data-theme="dark"\] \.ai-pwa-product-sheet--mobile/);
+  assert.match(pwaStyles, /html\[data-theme="dark"\] \.ai-pwa-product-sheet input/);
+  assert.match(pwaStyles, /html\[data-theme="dark"\] \.ai-pwa-product-sheet select/);
+});
