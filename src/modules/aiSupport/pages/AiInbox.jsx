@@ -909,18 +909,59 @@ const isMessageThread = (item = {}) => !isSocialCommentThread(item) && Boolean(g
 
 const getInboxItemKind = (item = {}) => (isSocialCommentThread(item) ? "comment" : "message");
 
-const commentThreadCommenterName = (conversation = {}) =>
-  firstNonEmpty(
+const latestCommentMessage = (conversation = {}) =>
+  [...uniqueMessages(conversation?.messages || [])].reverse().find((message) =>
+    clean(message?.message_type).toLowerCase() === "comment_inbound" ||
+    clean(message?.thread_kind).toLowerCase() === "comment" ||
+    clean(message?.commenter_name)
+  ) || conversation?.latest_comment || conversation?.last_comment || conversation?.comment || {};
+
+const isUsefulCommenterName = (value = "") => {
+  const name = clean(value);
+  return Boolean(name) && !/^\d+$/.test(name) && !["customer", "unknown", "guest", "anonymous", "commenter", "عميل", "العميل"].includes(name.toLowerCase());
+};
+
+const commentThreadCommenterName = (conversation = {}) => {
+  const message = latestCommentMessage(conversation);
+  const candidates = [
     conversation?.commenter_name,
-    conversation?.customer_name,
+    conversation?.last_commenter_name,
+    conversation?.latest_commenter_name,
+    conversation?.channel_metadata?.last_commenter_name,
     conversation?.channel_metadata?.commenter_name,
+    conversation?.metadata?.last_commenter_name,
     conversation?.metadata?.commenter_name,
+    message?.commenter_name,
+    message?.customer_name,
+    message?.from?.name,
+    message?.sender?.name,
+    conversation?.customer_name,
     conversation?.sender_name,
     conversation?.customer_profile?.name,
     conversation?.customer?.name,
-    conversation?.external_customer_id,
-    "Commenter"
+  ];
+  return clean(candidates.find(isUsefulCommenterName)) || "مستخدم فيسبوك";
+};
+
+const commentThreadCustomerAvatarUrl = (conversation = {}) => {
+  const message = latestCommentMessage(conversation);
+  return firstNonEmpty(
+    conversation?.commenter_profile_picture_url,
+    conversation?.latest_commenter_avatar_url,
+    conversation?.customer_avatar_url,
+    conversation?.channel_metadata?.commenter_profile_picture_url,
+    conversation?.channel_metadata?.last_commenter_avatar_url,
+    conversation?.channel_metadata?.customer_avatar_url,
+    conversation?.metadata?.commenter_profile_picture_url,
+    conversation?.metadata?.last_commenter_avatar_url,
+    message?.commenter_profile_picture_url,
+    message?.customer_avatar_url,
+    message?.from?.picture?.data?.url,
+    message?.from?.picture,
+    conversation?.customer_profile?.avatar_url,
+    conversation?.customer?.avatar_url
   );
+};
 
 const commentConversationPostUrl = (conversation = {}) =>
   firstNonEmpty(
@@ -944,10 +985,32 @@ const commentConversationPostUrl = (conversation = {}) =>
 
 const commentThreadPostImageUrl = (conversation = {}) =>
   firstNonEmpty(
+    conversation?.post_full_picture,
+    conversation?.post_image_url,
+    conversation?.media_url,
+    conversation?.thumbnail_url,
     conversation?.channel_metadata?.post_full_picture,
     conversation?.channel_metadata?.full_picture,
+    conversation?.channel_metadata?.post_image_url,
+    conversation?.channel_metadata?.media_url,
+    conversation?.channel_metadata?.thumbnail_url,
+    conversation?.channel_metadata?.post_thumbnail,
+    conversation?.channel_metadata?.attachment_image,
+    conversation?.channel_metadata?.picture,
+    conversation?.channel_metadata?.image_url,
     conversation?.metadata?.post_full_picture,
     conversation?.metadata?.full_picture,
+    conversation?.metadata?.post_image_url,
+    conversation?.metadata?.media_url,
+    conversation?.metadata?.thumbnail_url,
+    conversation?.metadata?.post_thumbnail,
+    conversation?.metadata?.attachment_image,
+    conversation?.metadata?.picture,
+    conversation?.metadata?.image_url,
+    latestCommentMessage(conversation)?.post_full_picture,
+    latestCommentMessage(conversation)?.post_image_url,
+    latestCommentMessage(conversation)?.media_url,
+    latestCommentMessage(conversation)?.attachment?.media?.image?.src,
     conversation?.full_picture,
     conversation?.image_url
   );
@@ -1544,7 +1607,8 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
     : isMessengerConversation(item)
       ? messengerDisplayName(item)
       : getConversationDisplayName(item);
-  const avatarUrl = isCommentThread ? commentThreadPostImageUrl(item) : customerAvatarUrl(item);
+  const avatarUrl = isCommentThread ? commentThreadCustomerAvatarUrl(item) : customerAvatarUrl(item);
+  const postImageUrl = isCommentThread ? commentThreadPostImageUrl(item) : "";
   const postTitle = isCommentThread ? commentThreadDisplayName(item) : "";
   const commentCount = isCommentThread ? commentThreadCommentCount(item) : 0;
   const lastComment = isCommentThread ? commentThreadLastComment(item) : "";
@@ -1672,9 +1736,12 @@ const ConversationListItem = memo(function ConversationListItem({ item, active, 
             <span className="shrink-0 text-[11px] font-bold text-slate-500">{lastActivity}</span>
           </div>
           {isCommentThread ? (
-            <div className="mt-2 space-y-1.5 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
-              {postTitle ? <div className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTitle}</div> : null}
-              {lastComment ? <div className="line-clamp-2 text-[12.5px] font-medium leading-4.5 text-slate-200">{lastComment}</div> : null}
+            <div className="mt-2 flex gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-2.5">
+              {postImageUrl ? <img src={postImageUrl} alt="" className="h-12 w-12 shrink-0 rounded-xl bg-white object-cover ring-1 ring-white/10" loading="lazy" /> : null}
+              <div className="min-w-0 flex-1 space-y-1.5">
+                {postTitle ? <div className="line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">{postTitle}</div> : null}
+                {lastComment ? <div className="line-clamp-2 text-[12.5px] font-medium leading-4.5 text-slate-200">{lastComment}</div> : null}
+              </div>
             </div>
           ) : (
             <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unreadCount ? "text-slate-700" : "text-slate-500"}`}>
@@ -1928,9 +1995,9 @@ function InboxChatHeader({
 }) {
   if (!conversation) return null;
   const status = conversation.conversation_status || conversation.status || "ai_active";
-  const avatarUrl = isCommentConversation(conversation) ? commentThreadPostImageUrl(conversation) : customerAvatarUrl(conversation);
+  const avatarUrl = isCommentConversation(conversation) ? commentThreadCustomerAvatarUrl(conversation) : customerAvatarUrl(conversation);
   const name = isCommentConversation(conversation)
-    ? commentThreadDisplayName(conversation)
+    ? commentThreadCommenterName(conversation)
     : isMessengerConversation(conversation)
       ? messengerDisplayName(conversation)
       : getConversationDisplayName(conversation);

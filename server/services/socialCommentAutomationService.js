@@ -5124,6 +5124,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       customer_name = CASE
         WHEN COALESCE(NULLIF(ai_support_sessions.customer_name, ''), '') = ''
           OR LOWER(ai_support_sessions.customer_name) IN ('customer', 'unknown', 'guest', 'anonymous', 'عميل', 'العميل')
+          OR ai_support_sessions.customer_name ~ '^[0-9]+$'
           THEN COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_support_sessions.customer_name)
         ELSE ai_support_sessions.customer_name
       END,
@@ -5196,6 +5197,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
       customer_name = CASE
         WHEN COALESCE(NULLIF(ai_channel_conversations.customer_name, ''), '') = ''
           OR LOWER(ai_channel_conversations.customer_name) IN ('customer', 'unknown', 'guest', 'anonymous', 'عميل', 'العميل')
+          OR ai_channel_conversations.customer_name ~ '^[0-9]+$'
           THEN COALESCE(NULLIF(EXCLUDED.customer_name, ''), ai_channel_conversations.customer_name)
         ELSE ai_channel_conversations.customer_name
       END,

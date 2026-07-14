@@ -2144,7 +2144,18 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       m.delivery_error,
       m.error_code,
       m.provider_message_id,
-      m.confidence
+      m.confidence,
+      cm.commenter_name AS latest_commenter_name,
+      cm.customer_name AS latest_comment_customer_name,
+      cm.commenter_profile_picture_url AS latest_commenter_avatar_url,
+      cm.customer_avatar_url AS latest_comment_customer_avatar_url,
+      cm.post_full_picture AS latest_comment_post_full_picture,
+      cm.post_permalink_url AS latest_comment_post_permalink_url,
+      cm.post_message AS latest_comment_post_message,
+      cm.post_caption AS latest_comment_post_caption,
+      cm.post_created_time AS latest_comment_post_created_time,
+      cm.comment_created_time AS latest_comment_created_time,
+      cm.comment_id AS latest_comment_id
     FROM ai_support_sessions s
     LEFT JOIN ai_channel_conversations c ON c.tenant_id = s.tenant_id AND c.channel = s.channel AND c.external_conversation_id = s.session_id
     LEFT JOIN LATERAL (
@@ -2171,6 +2182,30 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       ORDER BY msg.created_at DESC, msg.id DESC
       LIMIT 1
     ) m ON TRUE
+    LEFT JOIN LATERAL (
+      SELECT
+        comment_msg.commenter_name,
+        comment_msg.customer_name,
+        comment_msg.commenter_profile_picture_url,
+        comment_msg.customer_avatar_url,
+        comment_msg.post_full_picture,
+        comment_msg.post_permalink_url,
+        comment_msg.post_message,
+        comment_msg.post_caption,
+        comment_msg.post_created_time,
+        comment_msg.comment_created_time,
+        comment_msg.comment_id
+      FROM ai_support_messages comment_msg
+      WHERE comment_msg.tenant_id = s.tenant_id
+        AND comment_msg.session_id = s.session_id
+        AND (
+          comment_msg.message_type = 'comment_inbound'
+          OR comment_msg.thread_kind = 'comment'
+          OR COALESCE(comment_msg.commenter_name, '') <> ''
+        )
+      ORDER BY comment_msg.created_at DESC, comment_msg.id DESC
+      LIMIT 1
+    ) cm ON TRUE
     WHERE ${clauses.join(" AND ")}
     ORDER BY
       CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram', 'whatsapp') THEN 0 ELSE 1 END,
@@ -2234,8 +2269,67 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       });
     const channel = canonicalInboxChannel(conversation.channel || conversation.session_channel || conversation.source || "web_chat") || "web_chat";
     const canonicalSessionId = canonicalInboxConversationSessionId(conversation);
-    const customerName = resolveConversationDisplayName({ conversation, customerName: conversation.customer_name || "" });
-    const customerAvatarUrl = conversation.customer_avatar_url || conversation.session_customer_avatar_url || "";
+    const isCommentThread =
+      ["facebook_comment", "instagram_comment", "tiktok_comment"].includes(channel) ||
+      lower(conversation.thread_kind || conversation.channel_thread_kind || conversation.channel_metadata?.thread_kind || "") === "comment";
+    const existingChannelMetadata = conversation.channel_metadata && typeof conversation.channel_metadata === "object"
+      ? conversation.channel_metadata
+      : {};
+    const latestCommenterName = text(
+      conversation.latest_commenter_name ||
+      conversation.latest_comment_customer_name ||
+      existingChannelMetadata.last_commenter_name ||
+      existingChannelMetadata.commenter_name ||
+      ""
+    );
+    const latestCommenterAvatarUrl = text(
+      conversation.latest_commenter_avatar_url ||
+      conversation.latest_comment_customer_avatar_url ||
+      existingChannelMetadata.commenter_profile_picture_url ||
+      existingChannelMetadata.last_commenter_avatar_url ||
+      existingChannelMetadata.customer_avatar_url ||
+      conversation.customer_avatar_url ||
+      conversation.session_customer_avatar_url ||
+      ""
+    );
+    const readableCommenterName = [
+      latestCommenterName,
+      conversation.channel_customer_name,
+      conversation.session_customer_name,
+    ].find((value) => isHumanReadableDisplayName(value, {
+      sessionId: canonicalSessionId,
+      externalConversationId: conversation.external_conversation_id,
+    }));
+    const customerName = isCommentThread
+      ? text(readableCommenterName || "مستخدم فيسبوك")
+      : resolveConversationDisplayName({ conversation, customerName: conversation.customer_name || "" });
+    const customerAvatarUrl = isCommentThread
+      ? latestCommenterAvatarUrl
+      : text(conversation.customer_avatar_url || conversation.session_customer_avatar_url || "");
+    const postFullPicture = text(
+      conversation.latest_comment_post_full_picture ||
+      existingChannelMetadata.post_full_picture ||
+      existingChannelMetadata.full_picture ||
+      existingChannelMetadata.post_image_url ||
+      existingChannelMetadata.media_url ||
+      ""
+    );
+    const channelMetadata = {
+      ...existingChannelMetadata,
+      ...(latestCommenterName ? { commenter_name: latestCommenterName, last_commenter_name: latestCommenterName } : {}),
+      ...(latestCommenterAvatarUrl ? {
+        commenter_profile_picture_url: latestCommenterAvatarUrl,
+        customer_avatar_url: latestCommenterAvatarUrl,
+        last_commenter_avatar_url: latestCommenterAvatarUrl,
+      } : {}),
+      ...(postFullPicture ? { post_full_picture: postFullPicture, full_picture: postFullPicture } : {}),
+      ...(conversation.latest_comment_post_permalink_url ? { post_permalink_url: conversation.latest_comment_post_permalink_url } : {}),
+      ...(conversation.latest_comment_post_message ? { post_message: conversation.latest_comment_post_message } : {}),
+      ...(conversation.latest_comment_post_caption ? { post_caption: conversation.latest_comment_post_caption } : {}),
+      ...(conversation.latest_comment_post_created_time ? { post_created_time: conversation.latest_comment_post_created_time } : {}),
+      ...(conversation.latest_comment_created_time ? { comment_created_time: conversation.latest_comment_created_time } : {}),
+      ...(conversation.latest_comment_id ? { comment_id: conversation.latest_comment_id } : {}),
+    };
     const summaryDirection = isOutboundMessageRow(conversation) ? "outbound" : text(conversation.direction || conversation.message_direction || "");
     const summaryCustomerMessage = summaryDirection === "outbound" ? "" : text(conversation.customer_message || conversation.message_text || "");
     const summaryAiAnswer = summaryDirection === "outbound" ? text(conversation.ai_answer || conversation.message_text || conversation.staff_message || "") : text(conversation.ai_answer || "");
@@ -2272,6 +2366,15 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         closed_at: conversation.closed_at,
         customer_name: customerName,
         customer_avatar_url: customerAvatarUrl,
+        commenter_name: latestCommenterName || customerName,
+        commenter_profile_picture_url: latestCommenterAvatarUrl,
+        post_full_picture: postFullPicture,
+        post_permalink_url: text(conversation.latest_comment_post_permalink_url || channelMetadata.post_permalink_url || channelMetadata.post_permalink || ""),
+        post_message: text(conversation.latest_comment_post_message || channelMetadata.post_message || ""),
+        post_caption: text(conversation.latest_comment_post_caption || channelMetadata.post_caption || ""),
+        post_created_time: conversation.latest_comment_post_created_time || channelMetadata.post_created_time || null,
+        comment_created_time: conversation.latest_comment_created_time || channelMetadata.comment_created_time || null,
+        comment_id: conversation.latest_comment_id || channelMetadata.comment_id || "",
         phone: "",
         sender_name: "",
         profile_name: "",
@@ -2298,7 +2401,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
           hot_lead: false,
           waiting: false,
         },
-        channel_metadata: conversation.channel_metadata || {},
+        channel_metadata: channelMetadata,
         customer_profile: {
           name: customerName,
           avatar_url: customerAvatarUrl,

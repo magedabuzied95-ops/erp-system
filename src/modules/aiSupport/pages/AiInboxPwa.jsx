@@ -693,18 +693,59 @@ const COMMENT_PLATFORM_FILTERS = [
   { key: "tiktok", label: "TikTok" },
 ];
 
-const commentThreadCommenterName = (conversation = {}) =>
-  firstNonEmpty(
+const latestCommentMessage = (conversation = {}) =>
+  [...uniqueMessages(conversation?.messages || [])].reverse().find((message) =>
+    clean(message?.message_type).toLowerCase() === "comment_inbound" ||
+    clean(message?.thread_kind).toLowerCase() === "comment" ||
+    clean(message?.commenter_name)
+  ) || conversation?.latest_comment || conversation?.last_comment || conversation?.comment || {};
+
+const isUsefulCommenterName = (value = "") => {
+  const name = clean(value);
+  return Boolean(name) && !/^\d+$/.test(name) && !["customer", "unknown", "guest", "anonymous", "commenter", "عميل", "العميل"].includes(name.toLowerCase());
+};
+
+const commentThreadCommenterName = (conversation = {}) => {
+  const message = latestCommentMessage(conversation);
+  const candidates = [
     conversation?.commenter_name,
-    conversation?.customer_name,
+    conversation?.last_commenter_name,
+    conversation?.latest_commenter_name,
+    conversation?.channel_metadata?.last_commenter_name,
     conversation?.channel_metadata?.commenter_name,
+    conversation?.metadata?.last_commenter_name,
     conversation?.metadata?.commenter_name,
+    message?.commenter_name,
+    message?.customer_name,
+    message?.from?.name,
+    message?.sender?.name,
+    conversation?.customer_name,
     conversation?.sender_name,
     conversation?.customer_profile?.name,
     conversation?.customer?.name,
-    conversation?.external_customer_id,
-    "Commenter"
+  ];
+  return clean(candidates.find(isUsefulCommenterName)) || "مستخدم فيسبوك";
+};
+
+const commentThreadCustomerAvatarUrl = (conversation = {}) => {
+  const message = latestCommentMessage(conversation);
+  return firstNonEmpty(
+    conversation?.commenter_profile_picture_url,
+    conversation?.latest_commenter_avatar_url,
+    conversation?.customer_avatar_url,
+    conversation?.channel_metadata?.commenter_profile_picture_url,
+    conversation?.channel_metadata?.last_commenter_avatar_url,
+    conversation?.channel_metadata?.customer_avatar_url,
+    conversation?.metadata?.commenter_profile_picture_url,
+    conversation?.metadata?.last_commenter_avatar_url,
+    message?.commenter_profile_picture_url,
+    message?.customer_avatar_url,
+    message?.from?.picture?.data?.url,
+    message?.from?.picture,
+    conversation?.customer_profile?.avatar_url,
+    conversation?.customer?.avatar_url
   );
+};
 
 const getConversationSourceLabel = (item = {}) => {
   const { channelMetadata, metadata } = getConversationThreadMetadata(item);
@@ -743,10 +784,32 @@ const commentThreadPostUrl = (conversation = {}) =>
 
 const commentThreadPostImageUrl = (conversation = {}) =>
   firstNonEmpty(
+    conversation?.post_full_picture,
+    conversation?.post_image_url,
+    conversation?.media_url,
+    conversation?.thumbnail_url,
     conversation?.channel_metadata?.post_full_picture,
     conversation?.channel_metadata?.full_picture,
+    conversation?.channel_metadata?.post_image_url,
+    conversation?.channel_metadata?.media_url,
+    conversation?.channel_metadata?.thumbnail_url,
+    conversation?.channel_metadata?.post_thumbnail,
+    conversation?.channel_metadata?.attachment_image,
+    conversation?.channel_metadata?.picture,
+    conversation?.channel_metadata?.image_url,
     conversation?.metadata?.post_full_picture,
     conversation?.metadata?.full_picture,
+    conversation?.metadata?.post_image_url,
+    conversation?.metadata?.media_url,
+    conversation?.metadata?.thumbnail_url,
+    conversation?.metadata?.post_thumbnail,
+    conversation?.metadata?.attachment_image,
+    conversation?.metadata?.picture,
+    conversation?.metadata?.image_url,
+    latestCommentMessage(conversation)?.post_full_picture,
+    latestCommentMessage(conversation)?.post_image_url,
+    latestCommentMessage(conversation)?.media_url,
+    latestCommentMessage(conversation)?.attachment?.media?.image?.src,
     conversation?.full_picture,
     conversation?.image_url
   );
@@ -1578,8 +1641,9 @@ function ConversationListItem({ conversation, active, onSelect }) {
   const SourceIcon = getConversationSourceIcon(conversation);
   const unreadCount = conversationUnreadCount(conversation);
   const isCommentThread = isCommentConversation(conversation) || isSocialComment;
-  const avatar = isCommentThread ? commentThreadPostImageUrl(conversation) : customerAvatarUrl(conversation);
-  const title = isCommentThread ? commentThreadDisplayName(conversation) : conversationName(conversation);
+  const avatar = isCommentThread ? commentThreadCustomerAvatarUrl(conversation) : customerAvatarUrl(conversation);
+  const postImage = isCommentThread ? commentThreadPostImageUrl(conversation) : "";
+  const title = isCommentThread ? commentThreadCommenterName(conversation) : conversationName(conversation);
   const commenterName = isCommentThread ? commentThreadCommenterName(conversation) : "";
   const preview = isCommentThread ? commentThreadLastComment(conversation) || "No comments yet" : conversationPreview(conversation) || "No messages yet";
   const commentCount = isCommentThread ? commentThreadCommentCount(conversation) : 0;
@@ -1675,9 +1739,12 @@ function ConversationListItem({ conversation, active, onSelect }) {
           </div>
         </div>
         {inboxKind === "comment" ? (
-          <div className={`mt-1.5 rounded-2xl border p-2.5 text-[12.5px] leading-5 ${active ? "border-white/10 bg-white/5 text-slate-200" : unread ? "border-slate-200 bg-slate-50 text-slate-700" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
-            <div className="mb-1 text-[10px] font-black uppercase tracking-[0.14em] opacity-70">{commentThreadDisplayName(conversation)}</div>
-            <span className="line-clamp-2 font-medium">{preview}</span>
+          <div className={`mt-1.5 flex gap-2 rounded-2xl border p-2.5 text-[12.5px] leading-5 ${active ? "border-white/10 bg-white/5 text-slate-200" : unread ? "border-slate-200 bg-slate-50 text-slate-700" : "border-slate-200 bg-slate-50 text-slate-500"}`}>
+            {postImage ? <img src={postImage} alt="" className="h-12 w-12 shrink-0 rounded-xl bg-white object-cover ring-1 ring-black/5" loading="lazy" /> : null}
+            <div className="min-w-0 flex-1">
+              <div className="mb-1 line-clamp-1 text-[10px] font-black uppercase tracking-[0.14em] opacity-70">{commentThreadDisplayName(conversation)}</div>
+              <span className="line-clamp-2 font-medium">{preview}</span>
+            </div>
           </div>
         ) : (
           <div className={`mt-1.5 flex items-start gap-1.5 text-[12.5px] leading-4.5 ${active ? "text-slate-300" : unread ? "text-slate-700" : "text-slate-500"}`}>
@@ -4892,7 +4959,7 @@ export default function AiInboxPwa() {
   const currentLeadStatus = conversationLeadStatus(selectedConversation || {});
   const selectedWorkflowStatus = conversationWorkflowStatus(selectedConversation || {});
   const selectedConversationAiEnabled = isConversationAiEnabled(selectedConversation || {});
-  const selectedAvatar = isCommentConversation(selectedConversation || {}) ? commentThreadPostImageUrl(selectedConversation || {}) : customerAvatarUrl(selectedConversation || {});
+  const selectedAvatar = isCommentConversation(selectedConversation || {}) ? commentThreadCustomerAvatarUrl(selectedConversation || {}) : customerAvatarUrl(selectedConversation || {});
   const selectedLastSeen = relativeSeenLabel(
     selectedConversation?.last_activity_at || selectedConversation?.updated_at
   );
@@ -5357,7 +5424,7 @@ export default function AiInboxPwa() {
                   >
                     <img
                       src={selectedAvatar}
-                      alt={isCommentConversation(selectedConversation || {}) ? commentThreadDisplayName(selectedConversation || {}) : conversationName(selectedConversation)}
+                      alt={isCommentConversation(selectedConversation || {}) ? commentThreadCommenterName(selectedConversation || {}) : conversationName(selectedConversation)}
                       className="h-10 w-10 shrink-0 rounded-full object-cover"
                       loading="lazy"
                     />
@@ -5390,7 +5457,7 @@ export default function AiInboxPwa() {
                     }
                     className="truncate text-left text-[15px] font-semibold leading-5 text-slate-900 hover:underline"
                   >
-                    {isCommentConversation(selectedConversation || {}) ? commentThreadDisplayName(selectedConversation || {}) : conversationName(selectedConversation)}
+                    {isCommentConversation(selectedConversation || {}) ? commentThreadCommenterName(selectedConversation || {}) : conversationName(selectedConversation)}
                   </button>
                   <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-slate-500">
                     <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-1.5 py-0.5 font-medium text-slate-600">
