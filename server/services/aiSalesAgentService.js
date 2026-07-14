@@ -2108,6 +2108,24 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       c.metadata AS channel_metadata,
       COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) AS last_message_at,
       COALESCE(c.read_at, s.read_at) AS read_at,
+      (
+        SELECT COUNT(*)::int
+        FROM ai_support_messages unread_msg
+        WHERE unread_msg.tenant_id = s.tenant_id
+          AND unread_msg.session_id = s.session_id
+          AND unread_msg.sender_type = 'customer'
+          AND unread_msg.created_at > GREATEST(
+            COALESCE(c.read_at, TIMESTAMP 'epoch'),
+            COALESCE(s.read_at, TIMESTAMP 'epoch'),
+            COALESCE((
+              SELECT MAX(staff_msg.created_at)
+              FROM ai_support_messages staff_msg
+              WHERE staff_msg.tenant_id = s.tenant_id
+                AND staff_msg.session_id = s.session_id
+                AND staff_msg.sender_type = 'staff'
+            ), TIMESTAMP 'epoch')
+          )
+      ) AS unread_count,
       m.latest_message_id,
       m.customer_message,
       m.message_text,
@@ -2201,12 +2219,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
           }))
         : null;
       const summaryMessages = summaryMessage ? [summaryMessage] : [];
-      const unreadCount = (() => {
-        const lastActivityAt = new Date(conversation.last_message_at || conversation.updated_at || 0).getTime() || 0;
-        const readAt = new Date(conversation.read_at || 0).getTime() || 0;
-        const requiresAttention = conversation.latest_sender_type === "customer" || conversation.needs_human_support === true || conversation.conversation_status === "human_takeover";
-        return requiresAttention && (!readAt || lastActivityAt > readAt) ? 1 : 0;
-      })();
+      const unreadCount = Math.max(0, numeric(conversation.unread_count, 0));
       const leadStatus = normalizedSummaryLeadStatus(conversation.lead_status || conversation.channel_metadata?.lead_status || "new");
       const leadType = leadTypeFrom({
         memoryScore: 0,
@@ -2367,6 +2380,24 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       acm.updated_at AS conversation_memory_updated_at,
       COALESCE(m.created_at, c.last_message_at, s.updated_at) AS last_message_at,
       COALESCE(c.read_at, s.read_at) AS read_at,
+      (
+        SELECT COUNT(*)::int
+        FROM ai_support_messages unread_msg
+        WHERE unread_msg.tenant_id = s.tenant_id
+          AND unread_msg.session_id = s.session_id
+          AND unread_msg.sender_type = 'customer'
+          AND unread_msg.created_at > GREATEST(
+            COALESCE(c.read_at, TIMESTAMP 'epoch'),
+            COALESCE(s.read_at, TIMESTAMP 'epoch'),
+            COALESCE((
+              SELECT MAX(staff_msg.created_at)
+              FROM ai_support_messages staff_msg
+              WHERE staff_msg.tenant_id = s.tenant_id
+                AND staff_msg.session_id = s.session_id
+                AND staff_msg.sender_type = 'staff'
+            ), TIMESTAMP 'epoch')
+          )
+      ) AS unread_count,
       e.last_webhook_event_at,
       e.last_webhook_status,
       m.customer_message,
@@ -2968,12 +2999,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
         "new"
       );
       const lastMessagePreview = conversation.customer_message || conversation.message_text || conversation.ai_answer || conversation.session_last_message || "";
-      const unreadCount = (() => {
-        const lastActivityAt = new Date(conversation.last_message_at || conversation.updated_at || 0).getTime() || 0;
-        const readAt = new Date(conversation.read_at || 0).getTime() || 0;
-        const requiresAttention = conversation.latest_sender_type === "customer" || conversation.needs_human_support === true || conversation.conversation_status === "human_takeover";
-        return requiresAttention && (!readAt || lastActivityAt > readAt) ? 1 : 0;
-      })();
+      const unreadCount = Math.max(0, numeric(conversation.unread_count, 0));
       const conversationSessionId = canonicalInboxConversationSessionId(conversation);
       return {
         session_id: conversationSessionId || conversation.session_id,
@@ -3117,12 +3143,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       lead_type: leadType,
       lead_badge: leadBadgeKey(leadType),
       lead_score: Math.max(numeric(conversation.memory_score, 0), numeric(conversation.conversation_memory_lead_quality_score, 0), numeric(conversation.conversation_memory_intent_score, 0)),
-      unread: (() => {
-        const lastActivityAt = new Date(conversation.last_message_at || conversation.updated_at || 0).getTime() || 0;
-        const readAt = new Date(conversation.read_at || 0).getTime() || 0;
-        const requiresAttention = conversation.latest_sender_type === "customer" || conversation.needs_human_support === true || conversation.conversation_status === "human_takeover";
-        return requiresAttention && (!readAt || lastActivityAt > readAt);
-      })(),
+      unread: Math.max(0, numeric(conversation.unread_count, 0)) > 0,
       waiting: conversation.due_followup_count > 0 || (conversation.updated_at && Date.now() - new Date(conversation.updated_at).getTime() > 15 * 60 * 1000),
       last_activity_at: conversation.last_message_at || conversation.updated_at,
     };

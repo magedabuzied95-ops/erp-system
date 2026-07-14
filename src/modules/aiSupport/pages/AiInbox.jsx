@@ -3953,6 +3953,7 @@ export default function AiInbox() {
   const selectedSessionIdRef = useRef("");
   const selectedSocialCommentIdRef = useRef("");
   const selectedSocialCommentFetchKeyRef = useRef("");
+  const markReadSignatureRef = useRef("");
   const inboxSectionRef = useRef(inboxSection);
   const selectedConversationCacheRef = useRef(null);
   const lastEnabledAutoReplyModeRef = useRef({});
@@ -4951,6 +4952,41 @@ export default function AiInbox() {
       }),
     }));
   }, []);
+  useEffect(() => {
+    if (inboxSection !== "conversations" || !selectedConversation?.session_id) return;
+    const unreadCount = Number(selectedConversation.unread_count || selectedConversation.unread || 0);
+    if (unreadCount <= 0) return;
+    const sessionId = clean(selectedConversation.session_id);
+    const conversationIdentifier = selectedConversation.conversation_key || sessionId;
+    const signature = `${sessionId}:${selectedConversation.last_activity_at || selectedConversation.updated_at || ""}`;
+    if (markReadSignatureRef.current === signature) return;
+    markReadSignatureRef.current = signature;
+    const readAt = new Date().toISOString();
+    patchConversation(conversationIdentifier, (conversation) => ({
+      ...conversation,
+      unread_count: 0,
+      unseen_count: 0,
+      pending_count: 0,
+      unread: false,
+      read_at: readAt,
+    }));
+    void api.post(
+      aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/read"),
+      {
+        tenant_id: tenantId,
+        conversation_id: sessionId,
+        channel: selectedConversation.channel || selectedConversation.source || "",
+      },
+      { headers, perfComponent: "AiInbox.markRead" }
+    ).catch((markError) => {
+      console.warn("[AiInbox] mark-read failed", {
+        conversation_id: sessionId,
+        status: markError?.status || 0,
+        message: markError?.message || "",
+      });
+      markReadSignatureRef.current = "";
+    });
+  }, [headers, inboxSection, patchConversation, selectedConversation, selectedConversationRouteId, tenantId]);
   const syncMessengerProfile = useCallback(async (options = {}) => {
     const silent = Boolean(options?.silent);
     if (!selectedConversation?.session_id || !canSyncMessengerProfile(selectedConversation)) return;

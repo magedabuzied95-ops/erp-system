@@ -3498,43 +3498,29 @@ const handleMarkConversationRead = async (req, res) => {
       });
     }
 
-    void Promise.resolve()
-      .then(() => markAiSupportConversationRead({
-        tenantId,
-        sessionId: conversationId,
-        channel,
-      }))
-      .then((conversation) => {
-        console.log("[ai-inbox][mark-read] background success", {
-          tenant_id: tenantId,
-          conversation_id: conversationId,
-          channel,
-          read_at: conversation?.read_at || "",
-          read_updated: conversation?.read_updated === true,
-        });
-      })
-      .catch((error) => {
-        console.warn("[ai-inbox][mark-read] background failure", {
-          tenant_id: tenantId,
-          raw_conversation_id: rawConversationId,
-          decoded_conversation_id: conversationId,
-          channel,
-          code: error?.code || "",
-          message: error?.message || "",
-        });
-      });
+    const conversation = await markAiSupportConversationRead({
+      tenantId,
+      sessionId: conversationId,
+      channel,
+    });
+    if (conversation?.read_updated !== true) {
+      throw Object.assign(new Error("Conversation was not found or could not be marked as read"), { status: 404 });
+    }
+    console.log("[ai-inbox][mark-read] success", {
+      tenant_id: tenantId,
+      conversation_id: conversationId,
+      channel,
+      read_at: conversation?.read_at || "",
+      read_updated: conversation?.read_updated === true,
+    });
 
     return res.status(200).json({
       success: true,
-      queued: true,
-      conversation: {
-        session_id: conversationId,
-        channel,
-        read_at: new Date().toISOString(),
-      },
+      queued: false,
+      conversation,
     });
   } catch (error) {
-    console.warn("[ai-inbox][mark-read] best-effort fallback", {
+    console.warn("[ai-inbox][mark-read] failure", {
       tenant_id: toTenantId(req),
       raw_conversation_id: envText(req.params.conversationId),
       decoded_conversation_id: decodeRouteId(req.params.conversationId),
@@ -3543,11 +3529,10 @@ const handleMarkConversationRead = async (req, res) => {
       message: error?.message || "",
       stack: error?.stack || "",
     });
-    return res.status(200).json({
-      success: true,
-      queued: false,
+    return res.status(error?.status || 500).json({
+      success: false,
       conversation: null,
-      message: "mark-as-read is best-effort",
+      message: error?.message || "Failed to mark conversation as read",
     });
   }
 };

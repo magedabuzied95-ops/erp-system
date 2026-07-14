@@ -3403,7 +3403,7 @@ export default function AiInboxPwa() {
         unread: false,
       }));
       void api.post(
-        aiInboxConversationEndpoint(conversationIdentifiers(selectedConversation).conversationId || sessionId, "/read"),
+        aiInboxConversationEndpoint(identifiers.conversationId || sessionId, "/read"),
         { tenant_id: tenantId, conversation_id: sessionId, channel: conversation.channel || conversation.source || "" },
         { headers, perfComponent: "AiInboxPwa.markRead" }
       ).catch((markError) => {

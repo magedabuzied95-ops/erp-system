@@ -31,3 +31,16 @@ test("AI Inbox ordering uses the latest message timestamp before session update 
   assert.match(source, /COALESCE\(m\.latest_message_created_at, c\.last_message_at, s\.updated_at\) DESC/);
   assert.match(source, /COALESCE\(m\.created_at, c\.last_message_at, s\.updated_at\) DESC/);
 });
+
+test("AI Inbox unread count is based on new customer messages after read or staff reply", () => {
+  const source = fs.readFileSync(new URL("../server/services/aiSalesAgentService.js", import.meta.url), "utf8");
+  assert.match(source, /unread_msg\.sender_type = 'customer'/);
+  assert.match(source, /staff_msg\.sender_type = 'staff'/);
+  assert.doesNotMatch(source, /requiresAttention && \(!readAt \|\| lastActivityAt > readAt\)/);
+});
+
+test("desktop AI Inbox marks an opened unread conversation as read", () => {
+  const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
+  assert.match(source, /perfComponent: "AiInbox\.markRead"/);
+  assert.match(source, /unread_count: 0/);
+});
