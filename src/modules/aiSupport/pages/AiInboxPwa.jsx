@@ -1690,6 +1690,35 @@ function MessageText({ text = "" }) {
   );
 }
 
+function PwaReplyEditor({ value = "", onChange, placeholder = "Type a reply" }) {
+  const editorRef = useRef(null);
+
+  useEffect(() => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const currentText = String(editor.innerText || "").replace(/\u00a0/g, " ");
+    if (currentText !== String(value || "")) editor.innerText = String(value || "");
+  }, [value]);
+
+  return (
+    <div
+      ref={editorRef}
+      role="textbox"
+      aria-label={placeholder}
+      aria-multiline="true"
+      contentEditable
+      suppressContentEditableWarning
+      inputMode="text"
+      enterKeyHint="enter"
+      spellCheck
+      dir="auto"
+      data-placeholder={placeholder}
+      onInput={(event) => onChange?.(String(event.currentTarget.innerText || "").replace(/\u00a0/g, " "))}
+      className="ai-pwa-reply-editor max-h-28 min-h-12 flex-1 overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
+    />
+  );
+}
+
 function ConversationListItem({ conversation, active, onSelect }) {
   const isSocialComment = isSocialCommentThread(conversation);
   const inboxKind = getInboxItemKind(conversation);
@@ -3753,17 +3782,6 @@ export default function AiInboxPwa() {
     ),
     [activeAiReplyDraft?.confidence_engine, activeAiReplyDraft?.metadata?.confidence_engine, selectedConversation?.last_ai_reply_confidence_engine]
   );
-  const activeAiReplyShadow = useMemo(
-    () => activeAiReplyDraft?.metadata?.auto_reply_shadow || selectedConversation?.last_ai_reply_draft?.metadata?.auto_reply_shadow || null,
-    [activeAiReplyDraft?.metadata?.auto_reply_shadow, selectedConversation?.last_ai_reply_draft?.metadata?.auto_reply_shadow]
-  );
-  const autoReplyShadowLabel = activeAiReplyShadow?.evaluated
-    ? `Auto eligible: ${activeAiReplyShadow.eligible ? "yes" : "no"}`
-    : "Auto eligible: n/a";
-  const autoReplyShadowTone = activeAiReplyShadow?.evaluated
-    ? (activeAiReplyShadow.eligible ? "emerald" : "amber")
-    : "zinc";
-
   useEffect(() => {
     setEditingAiDraft(false);
   }, [selectedConversation?.session_id]);
@@ -5865,10 +5883,6 @@ export default function AiInboxPwa() {
                   {activeAiReplyValidation.details.length ? <div className="mt-1.5 space-y-1">{activeAiReplyValidation.details.slice(0, 3).map((item) => <div key={item} className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 rounded-full bg-current/80" /><span>{item}</span></div>)}</div> : null}
                 </div>
               ) : null}
-              <div className="mb-2 flex items-center gap-2">
-                <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-black ${autoReplyShadowTone === "emerald" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : autoReplyShadowTone === "amber" ? "border-amber-300/40 bg-amber-50 text-amber-900" : "border-slate-200 bg-slate-50 text-slate-700"}`}>{autoReplyShadowLabel}</span>
-                {activeAiReplyShadow?.reason ? <span className="text-[10px] font-bold text-slate-500">{activeAiReplyShadow.reason}</span> : null}
-              </div>
               {Boolean(activeAiReplyConfidence.reasonsCount || activeAiReplyConfidence.riskFlagsCount || activeAiReplyConfidence.score) ? (
                 <div className={`mb-2 rounded-2xl border px-3 py-2 text-[11px] leading-5 ${activeAiReplyConfidence.tone === "rose" ? "border-rose-300/40 bg-rose-50 text-rose-900" : activeAiReplyConfidence.tone === "amber" ? "border-amber-300/40 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
                   <div className="flex flex-wrap items-center gap-2">
@@ -5926,13 +5940,10 @@ export default function AiInboxPwa() {
                   className="hidden"
                   aria-hidden="true"
                 />
-                <textarea
+                <PwaReplyEditor
                   value={composerText}
-                  onChange={(event) => setComposerText(event.target.value)}
-                  rows={1}
+                  onChange={setComposerText}
                   placeholder={composerMode === "note" ? "Write an internal note" : "Type a reply"}
-                  dir="auto"
-                  className="max-h-28 min-h-12 flex-1 resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-[16px] leading-normal outline-none transition focus:border-slate-400 focus:bg-white"
                 />
                 <button
                   type="button"

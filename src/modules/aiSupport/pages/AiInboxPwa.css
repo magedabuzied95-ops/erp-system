@@ -69,6 +69,16 @@
   backdrop-filter: blur(18px);
 }
 
+.ai-pwa-reply-editor:empty::before {
+  content: attr(data-placeholder);
+  color: var(--muted);
+  pointer-events: none;
+}
+
+.ai-pwa-reply-editor:focus:empty::before {
+  color: color-mix(in srgb, var(--muted) 78%, transparent);
+}
+
 .ai-pwa-nav {
   max-width: 720px;
   background: color-mix(in srgb, var(--surface) 94%, transparent) !important;
