@@ -356,6 +356,13 @@ const requestClientRequestId = (req) =>
       req.headers?.["x-idempotency-key"] ||
       ""
   );
+const friendlyOutboundDeliveryError = (value = "") => {
+  const raw = envText(value);
+  if (/\(#?10\)|outside.*(?:24|window)|خارج الإطار الزمني|policy-overview/i.test(raw)) {
+    return "لم يتم الإرسال لأن آخر تفاعل من العميل مر عليه أكثر من 24 ساعة. اطلب من العميل إرسال رسالة جديدة أولًا.";
+  }
+  return raw || "لم يتم إرسال الرسالة";
+};
 const regressionMockDeliveryRequested = (req) =>
   req.body?.mock_delivery === true ||
   req.body?.mockDelivery === true ||
@@ -4805,7 +4812,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     }
     deliveryStatus = sendResult?.delivery_status || (sendResult?.sent ? "sent" : "failed");
     if (deliveryStatus === "failed" && !deliveryError) {
-      deliveryError = sendResult?.delivery_error || sendResult?.message || "Message was not delivered";
+      deliveryError = friendlyOutboundDeliveryError(sendResult?.delivery_error || sendResult?.message || "Message was not delivered");
     }
     const message = await appendManualAiSupportReply({
       tenantId,
@@ -4926,6 +4933,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       error: error?.message || "Unknown error",
     });
     let failedMessage = null;
+    const friendlyError = friendlyOutboundDeliveryError(error?.message || "Meta send failed");
     if (tenantId && conversationId && messageText) {
       failedMessage = await appendManualAiSupportReply({
         tenantId,
@@ -4937,7 +4945,7 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         source: conversation?.channel || conversation?.source || "admin_console",
         channel: conversation?.channel || conversation?.source || "",
         deliveryStatus: "failed",
-        deliveryError: error?.message || "Meta send failed",
+        deliveryError: friendlyError,
       }).catch(() => null);
       if (failedMessage) {
         emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message: failedMessage, at: new Date().toISOString() });
@@ -4968,8 +4976,9 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
     return res.status(error?.status || 502).json({
       success: false,
       delivery_status: "failed",
-      delivery_error: error?.message || "Failed to send message",
-      message: error?.message || "Failed to send message",
+      delivery_error: friendlyError,
+      message: friendlyError,
+      failed_message: failedMessage,
       code: error?.code || "",
       error_code: error?.code || "",
       conversation_id: conversationId,

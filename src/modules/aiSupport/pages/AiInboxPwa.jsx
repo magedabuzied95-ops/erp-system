@@ -212,6 +212,9 @@ const buildMessageIdentityKey = ({ tenantId = "", sessionId = "", direction = "o
 const messageIdentityKeys = (message = {}) =>
   [
     clean(message.message_identity_key || message.messageIdentityKey || ""),
+    clean(message.client_request_id || message.clientRequestId || ""),
+    clean(message.idempotency_key || message.idempotencyKey || ""),
+    clean(message.dedupe_key || message.dedupeKey || ""),
     clean(message.provider_message_id || message.providerMessageId || ""),
     clean(message.external_message_id || message.externalMessageId || ""),
     clean(message.id || ""),
@@ -3861,7 +3864,7 @@ export default function AiInboxPwa() {
       setComposerText("");
       if (composerMode === "note") setComposerMode("reply");
     } catch (sendError) {
-      toast.error(sendError?.message || "Failed to send");
+      toast.error(sendError?.responseBody?.delivery_error || sendError?.responseBody?.message || sendError?.message || "فشل الإرسال");
     } finally {
       setSending(false);
     }

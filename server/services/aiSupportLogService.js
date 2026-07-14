@@ -280,7 +280,10 @@ const buildOutboundTranscriptIdentityKey = ({
   insertSource,
   productCards = [],
 } = {}) => {
-  const canonicalSessionId = normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId || "");
+  const safeChannel = toText(channel).toLowerCase();
+  const canonicalSessionId = safeChannel === "whatsapp"
+    ? normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId || "")
+    : toText(sessionId);
   const stableRequestKey = toText(clientRequestId || idempotencyKey || providerMessageId || externalMessageId || externalReplyId);
   if (!tenantId || !canonicalSessionId || !stableRequestKey) return "";
   return [
@@ -883,6 +886,19 @@ export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS delivery_status TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS delivery_error TEXT NOT NULL DEFAULT ''`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS error_code TEXT NOT NULL DEFAULT ''`);
+      await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await clientOrPool.query(`
+        UPDATE ai_support_messages
+        SET delivery_error = 'لم يتم الإرسال لأن آخر تفاعل من العميل مر عليه أكثر من 24 ساعة. اطلب من العميل إرسال رسالة جديدة أولًا.',
+            updated_at = CURRENT_TIMESTAMP
+        WHERE delivery_error <> ''
+          AND (
+            delivery_error ILIKE '%(#10)%'
+            OR delivery_error ILIKE '%خارج الإطار الزمني%'
+            OR delivery_error ILIKE '%policy-overview%'
+          )
+          AND delivery_error <> 'لم يتم الإرسال لأن آخر تفاعل من العميل مر عليه أكثر من 24 ساعة. اطلب من العميل إرسال رسالة جديدة أولًا.'
+      `);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS clicked_product_id BIGINT NULL`);
       await clientOrPool.query(`ALTER TABLE ai_support_messages ADD COLUMN IF NOT EXISTS added_to_cart_after_chat BOOLEAN NULL`);
       await clientOrPool.query(`

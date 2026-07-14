@@ -1211,6 +1211,9 @@ const needsHumanAttention = (conversation = {}) =>
 const messageIdentityKeys = (message = {}) =>
   [
     clean(message.message_identity_key || message.messageIdentityKey || ""),
+    clean(message.client_request_id || message.clientRequestId || ""),
+    clean(message.idempotency_key || message.idempotencyKey || ""),
+    clean(message.dedupe_key || message.dedupeKey || ""),
     clean(message.provider_message_id || message.providerMessageId || ""),
     clean(message.external_message_id || message.externalMessageId || ""),
     clean(message.id || ""),
@@ -5796,11 +5799,18 @@ export default function AiInbox() {
         setToast({ tone: "emerald", text: "Message sent" });
       }
     } catch (err) {
-      setToast({ tone: "rose", text: err?.message || "فشل الإرسال" });
-      setError(err?.message || "تعذر إرسال الرد اليدوي");
+      const failedMessage = err?.responseBody?.failed_message || null;
+      const friendlyError = err?.responseBody?.delivery_error || err?.responseBody?.message || err?.message || "فشل الإرسال";
+      setToast({ tone: "rose", text: friendlyError });
+      setError(friendlyError);
       patchConversation(conversationIdentifier, (conversation) => ({
         ...conversation,
-      messages: asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: err?.message || "فشل الإرسال" } : item),
+        messages: failedMessage
+          ? mergeMessagesByIdentity([
+              ...asArray(conversation.messages).filter((item) => item.id !== optimistic.id),
+              failedMessage,
+            ])
+          : asArray(conversation.messages).map((item) => item.id === optimistic.id ? { ...item, delivery_status: "failed", delivery_error: friendlyError } : item),
       }));
     } finally {
       setLoading(false);
