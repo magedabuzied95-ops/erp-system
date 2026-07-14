@@ -5298,48 +5298,12 @@ export default function AiInboxPwa() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => void sendLeadPrivateMessage()}
-                  disabled={quickActionBusy}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
-                >
-                  <Send className="h-3.5 w-3.5" />
-                  إرسال رسالة خاصة
-                </button>
-                <button
-                  type="button"
                   onClick={() => openAvailableBySizePicker()}
                   disabled={quickActionBusy}
                   className="inline-flex items-center gap-1.5 rounded-full border border-cyan-200 bg-cyan-50 px-3 py-2 text-[11px] font-semibold text-cyan-700 disabled:opacity-50"
                 >
                   <Ruler className="h-3.5 w-3.5" />
                   المتاح بالمقاس
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void sendLeadCommentReply()}
-                  disabled={quickActionBusy || !isCommentConversation(selectedConversation || {})}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
-                >
-                  <MessageCircleMore className="h-3.5 w-3.5" />
-                  رد على التعليق
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void createLeadCustomer()}
-                  disabled={quickActionBusy}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
-                >
-                  <UserRound className="h-3.5 w-3.5" />
-                  إنشاء عميل
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void createLeadOpportunity()}
-                  disabled={quickActionBusy}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-3 py-2 text-[11px] font-semibold text-slate-700 disabled:opacity-50"
-                >
-                  <PackagePlus className="h-3.5 w-3.5" />
-                  إنشاء فرصة بيع
                 </button>
               </div>
               </div>
