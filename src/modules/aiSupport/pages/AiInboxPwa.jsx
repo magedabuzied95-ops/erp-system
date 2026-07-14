@@ -3725,11 +3725,11 @@ export default function AiInboxPwa() {
       source.private_reply_status ||
       ""
     ).toLowerCase();
-    if (["sent", "success", "successfully_sent", "done", "delivered", "replied", "auto_replied"].includes(status)) return "Auto replied";
-    if (["private_reply_sent", "dm_sent", "private_reply"].includes(status)) return "Private reply sent";
-    if (["failed", "error", "blocked"].includes(status)) return "Failed";
-    if (["human_takeover", "human_review", "manual_review"].includes(status)) return "Human takeover";
-    return "Waiting";
+    if (["sent", "success", "successfully_sent", "done", "delivered", "replied", "auto_replied"].includes(status)) return "تم الرد تلقائيًا";
+    if (["private_reply_sent", "dm_sent", "private_reply"].includes(status)) return "تم إرسال رد خاص";
+    if (["failed", "error", "blocked"].includes(status)) return "فشل الرد";
+    if (["human_takeover", "human_review", "manual_review"].includes(status)) return "متابعة بشرية";
+    return "بانتظار الرد";
   }, [selectedSocialPost, selectedSocialThread?.post]);
 
   useEffect(() => {
@@ -5291,7 +5291,11 @@ export default function AiInboxPwa() {
       ""
     );
     const platformLabel = clean(selectedPost?.platform || "facebook");
-    const commentCount = Number(selectedPost?.comments_count || 0);
+    const commentCount = Math.max(
+      Number(selectedPost?.comments_count || selectedPost?.comment_count || 0),
+      Number(selectedSocialThread?.post?.comments_count || selectedSocialThread?.post?.comment_count || 0),
+      selectedSocialThread.comments.length
+    );
     const newCommentCount = Number(selectedPost?.new_comments_count || 0);
     const selectedTemplate = selectedSocialTemplate.template || null;
     const templateText = clean(selectedTemplate?.template || "");
@@ -5450,13 +5454,12 @@ export default function AiInboxPwa() {
                       <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-black text-slate-500">
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{platformLabel}</span>
                         <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">Comment</span>
-                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{commentCount} comments</span>
-                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{newCommentCount} new</span>
-                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{selectedSocialThreadStatusLabel}</span>
+                        <span title="إجمالي التعليقات الفعلي المسجل لدى المنصة" className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{commentCount} تعليق</span>
+                        <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{newCommentCount} جديد</span>
+                        <span title="يوجد تعليق لم يُسجل له رد مكتمل بعد" className="rounded-full border border-slate-200 bg-white px-2.5 py-1">{selectedSocialThreadStatusLabel}</span>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
                         <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialPost?.platform || selectedSocialThread?.post?.platform || "Facebook")}</span>
-                        <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThreadStatusLabel || "Waiting")}</span>
                         <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.dm_status || selectedPost?.dm_status || selectedPost?.private_reply_status || "Manual")}</span>
                         <span className="rounded-full border border-[#E2E8F0] bg-white px-3 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-slate-600">{clean(selectedSocialThread?.post?.product_name || selectedPost?.product_name || selectedSocialThread?.post?.product_id || selectedPost?.product_id || "Product")}</span>
                       </div>

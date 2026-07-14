@@ -4280,7 +4280,7 @@ const shouldSkipMetaPolling = (accountOrPage = {}) => {
   };
 };
 
-const META_PAGE_FEED_FIELDS = "id,created_time,message,permalink_url,full_picture,picture,attachments{media,type,url,subattachments},status_type";
+const META_PAGE_FEED_FIELDS = "id,created_time,message,permalink_url,full_picture,picture,attachments{media,type,url,subattachments},status_type,comments.limit(0).summary(true)";
 
 const fetchMetaPagePostsPage = async ({ pageId, token, limit = 100, after = "" } = {}) => {
   debugSocialCommentsLog("META_COMMENTS_POLL_GRAPH_REQUEST", {

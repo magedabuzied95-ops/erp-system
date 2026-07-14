@@ -3617,7 +3617,9 @@ const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "
     const postTime = text(post.created_time || post.post_created_time || "");
     const coverImageUrl = resolveFacebookPostCoverImage(post);
     const postLinkKey = postId;
-    const commentsCount = Math.max(commentsByPostId.get(postId) || 0, Number(post.comments_count || post.comment_count || 0) || 0);
+    const importedCommentsCount = commentsByPostId.get(postId) || 0;
+    const metaCommentsCount = Number(post.comments?.summary?.total_count ?? post.comments_count ?? post.comment_count ?? 0) || 0;
+    const commentsCount = Math.max(importedCommentsCount, metaCommentsCount);
     const mappingSummary = includeProductLinks
       ? await getPostProductLinksV2({
           tenantId: safeTenantId,
@@ -3681,6 +3683,9 @@ const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "
       video_url: text(post.media_type || "").toLowerCase().includes("video") ? text(post.media_url || "") : "",
       comments_count: commentsCount,
       comment_count: commentsCount,
+      imported_comments_count: importedCommentsCount,
+      meta_comments_count: metaCommentsCount,
+      comments_count_source: metaCommentsCount >= importedCommentsCount ? "meta_summary" : "imported_comments",
       linked_products: linkedProducts,
       linked_products_count: linkedProductsCount,
       has_direct_product_link: hasDirectProductLink,
