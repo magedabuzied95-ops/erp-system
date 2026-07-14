@@ -577,6 +577,10 @@
     transform: scale(1.24);
   }
 
+  .storefront-shell:not(.storefront-dark) .sf-brand-marquee__logo {
+    mix-blend-mode: multiply;
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .sf-brand-marquee {
       overflow-x: auto;
