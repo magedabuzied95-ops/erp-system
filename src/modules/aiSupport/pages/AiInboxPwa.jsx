@@ -1611,23 +1611,72 @@ const productColorOptions = (product = {}) => {
   });
 };
 
-const productSizes = (product = {}, color = "") => {
+const variantColorValue = (variant = {}) =>
+  clean(
+    variant.color ||
+      variant.color_name ||
+      variant.variant_color ||
+      variant.selected_color ||
+      variant.variant?.color ||
+      variant.variant?.color_name ||
+      ""
+  );
+
+const variantSizeValue = (variant = {}) =>
+  clean(
+    variant.size ||
+      variant.size_name ||
+      variant.variant_size ||
+      variant.selected_size ||
+      variant.variant?.size ||
+      variant.variant?.size_name ||
+      ""
+  );
+
+const variantStockQuantity = (variant = {}) =>
+  Math.max(
+    0,
+    Number(
+      variant.stock_quantity ??
+        variant.stock ??
+        variant.quantity ??
+        variant.qty ??
+        variant.available_quantity ??
+        variant.inventory_quantity ??
+        variant.current_stock ??
+        0
+    ) || 0
+  );
+
+const productSizeOptions = (product = {}, color = "") => {
+  const variants = getVariantRows(product);
   const normalizedColor = normalizeKey(color);
-  return [
+  const hasColorVariants = productColors(product).length > 0;
+  const allSizes = [
     ...new Set(
-      getVariantRows(product)
-        .filter((variant) => {
-          if (!normalizedColor) return true;
-          return normalizeKey(variant.color || variant.color_name || variant.variant_color || variant.selected_color) === normalizedColor;
-        })
-        .flatMap((variant) => [
-          clean(variant.size || variant.size_name || variant.variant_size || variant.selected_size),
-          clean(variant.variant?.size || variant.variant?.size_name || ""),
-          clean(product.size || product.size_name || product.variant_size || ""),
-        ])
+      variants
+        .map(variantSizeValue)
+        .concat(clean(product.size || product.size_name || product.variant_size || ""))
         .filter(Boolean)
     ),
   ];
+
+  return allSizes.map((size) => {
+    const normalizedSize = normalizeKey(size);
+    const matchingVariants = variants.filter((variant) => {
+      const sizeMatch = normalizeKey(variantSizeValue(variant)) === normalizedSize;
+      const colorMatch = !hasColorVariants || (normalizedColor && normalizeKey(variantColorValue(variant)) === normalizedColor);
+      return sizeMatch && colorMatch;
+    });
+    const availableVariant = matchingVariants.find((variant) => variantStockQuantity(variant) > 0) || null;
+
+    return {
+      size,
+      available: Boolean(availableVariant),
+      stock: matchingVariants.reduce((total, variant) => total + variantStockQuantity(variant), 0),
+      variant: availableVariant || matchingVariants[0] || null,
+    };
+  });
 };
 
 const findVariant = (product = {}, color = "", size = "") => {
@@ -1636,8 +1685,8 @@ const findVariant = (product = {}, color = "", size = "") => {
   const variants = getVariantRows(product);
   return (
     variants.find((variant) => {
-      const variantColor = normalizeKey(variant.color || variant.color_name || variant.variant_color || variant.selected_color);
-      const variantSize = normalizeKey(variant.size || variant.size_name || variant.variant_size || variant.selected_size);
+      const variantColor = normalizeKey(variantColorValue(variant));
+      const variantSize = normalizeKey(variantSizeValue(variant));
       const colorMatch = !normalizedColor || variantColor === normalizedColor;
       const sizeMatch = !normalizedSize || variantSize === normalizedSize;
       return colorMatch && sizeMatch;
@@ -2125,7 +2174,15 @@ function ProductSheet({
     () => colorOptions.find((option) => normalizeKey(option.color) === normalizeKey(selectedColor)) || null,
     [colorOptions, selectedColor]
   );
-  const sizes = useMemo(() => productSizes(selectedProduct || {}, selectedColor), [selectedColor, selectedProduct]);
+  const sizeOptions = useMemo(
+    () => productSizeOptions(selectedProduct || {}, selectedColor),
+    [selectedColor, selectedProduct]
+  );
+  const sizes = useMemo(() => sizeOptions.map((option) => option.size), [sizeOptions]);
+  const selectedSizeOption = useMemo(
+    () => sizeOptions.find((option) => normalizeKey(option.size) === normalizeKey(selectedSize)) || null,
+    [selectedSize, sizeOptions]
+  );
   const needsColorSelection = colors.length > 0;
   const needsSizeSelection = sizes.length > 0;
 
@@ -2134,6 +2191,11 @@ function ProductSheet({
     setSelectedColor("");
     setSelectedSize("");
   }, [selectedProductId, selectedProduct]);
+
+  useEffect(() => {
+    if (!clean(selectedSize)) return;
+    if (!selectedSizeOption?.available) setSelectedSize("");
+  }, [selectedSize, selectedSizeOption]);
 
   const variant = useMemo(() => {
     if (!selectedProduct) return null;
@@ -2159,7 +2221,7 @@ function ProductSheet({
     selectedConversation?.session_id &&
       selectedProduct &&
       (!needsColorSelection || clean(selectedColor)) &&
-      (!needsSizeSelection || clean(selectedSize))
+      (!needsSizeSelection || (clean(selectedSize) && selectedSizeOption?.available))
   );
   const previewImage = useMemo(
     () => productImage(selectedProduct || {}, variant || selectedColorOption?.variant || null) || productImage(selectedProduct || {}),
@@ -2449,16 +2511,23 @@ function ProductSheet({
                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
                     <div className="text-sm font-medium text-slate-700">Size</div>
                     <div className="mt-2 flex flex-wrap gap-2">
-                      {sizes.length ? (
-                        sizes.map((size) => {
-                          const active = normalizeKey(selectedSize) === normalizeKey(size);
+                      {sizeOptions.length ? (
+                        sizeOptions.map(({ size, available, stock }) => {
+                          const active = available && normalizeKey(selectedSize) === normalizeKey(size);
                           return (
                             <button
                               key={size}
                               type="button"
+                              disabled={!available}
                               onClick={() => setSelectedSize(size)}
-                              className={`rounded-full px-3 py-2 text-sm ${
-                                active ? "bg-slate-900 text-white" : "bg-slate-100 text-slate-700"
+                              aria-label={`${size} - ${available ? `${stock} in stock` : "out of stock"}`}
+                              title={available ? `${stock} in stock` : "Out of stock"}
+                              className={`relative min-w-11 rounded-full border px-3 py-2 text-sm font-medium transition ${
+                                active
+                                  ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                                  : available
+                                    ? "border-slate-200 bg-slate-100 text-slate-700 hover:border-slate-400 hover:bg-slate-200"
+                                    : "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400 line-through decoration-rose-500 decoration-2 opacity-70"
                               }`}
                             >
                               {size}
@@ -2469,6 +2538,9 @@ function ProductSheet({
                         <div className="text-xs text-slate-500">No size data available.</div>
                       )}
                     </div>
+                    {needsColorSelection && !clean(selectedColor) ? (
+                      <div className="mt-2 text-xs text-slate-500">Select a color to see its available sizes.</div>
+                    ) : null}
                   </div>
                 </div>
               )}
