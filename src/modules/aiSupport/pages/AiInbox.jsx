@@ -67,7 +67,6 @@ import SocialCommentsWorkspace from "../components/SocialCommentsWorkspace.jsx";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import { getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import { useTenant } from "../../saas/context/TenantContext";
-import { VirtualList } from "../../../shared/components/VirtualList";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { publicProductUrl, publicStorefrontUrl } from "../../../shared/lib/publicStorefront";
 import { toast } from "react-hot-toast";
@@ -4911,12 +4910,23 @@ export default function AiInbox() {
     if (kind === "comment") {
       openSocialCommentThread(item);
     } else {
-      const identifiers = conversationIdentifiers(item);
-      const nextConversationId = identifiers.sessionId || identifiers.conversationKey || identifiers.conversationId || "";
+      const nextConversationId = clean(
+        item?.conversation_key ||
+        conversationKey(item) ||
+        item?.session_id ||
+        item?.conversation_id ||
+        item?.id ||
+        ""
+      );
+      if (!nextConversationId) return;
+      selectedConversationCacheRef.current = item;
       setSelectedSessionId(nextConversationId);
       setSelectedSocialCommentId("");
+      setMobileView("chat");
+      setReplyText("");
+      setUnseenSessions((current) => current.filter((id) => id !== nextConversationId));
     }
-  }, [openSocialCommentThread, socialCommentIdentity]);
+  }, [openSocialCommentThread]);
   useEffect(() => {
     if (inboxSection === "conversations" && selectedConversation?.session_id) {
       selectedConversationCacheRef.current = selectedConversation;
@@ -6929,27 +6939,25 @@ export default function AiInbox() {
 	                </div>
 	              ) : null}
 	            </div>
-	            <div className="min-h-0 flex-1 overflow-hidden pr-1">
+	            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
 	              {inboxSection === "conversations" ? (
 	                <>
 	                  {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
 	                  {filteredConversations.length ? (
-	                    <VirtualList
-	                      items={filteredConversations}
-	                      estimateSize={84}
-	                      className="h-full pr-1"
-	                      itemKey={(item) => item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`}
-	                      renderItem={(item) => (
-	                        <div className="pb-1.5">
+	                    <div className="space-y-1.5 pr-1">
+	                      {filteredConversations.map((item) => {
+	                        const itemKey = item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`;
+	                        return (
 	                          <InboxConversationCard
+	                            key={itemKey}
 	                            item={item}
-	                            unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
-	                            active={selectedConversation?.conversation_key === (item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+	                            unseen={unseenSessions.includes(itemKey)}
+	                            active={selectedConversation?.conversation_key === itemKey}
 	                            onSelect={handleSelectConversation}
 	                          />
-	                        </div>
-	                      )}
-	                    />
+	                        );
+	                      })}
+	                    </div>
 	                  ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد رسائل Meta حقيقية بعد. بيانات العرض مخفية كي تبقى محادثات الويبهوك الحية واضحة." : "لا توجد محادثات حقيقية تطابق المرشحات المحددة."} /> : null}
 	                </>
 	              ) : null}
@@ -8018,26 +8026,24 @@ export default function AiInbox() {
                     </label>
                   </div>
 	                </div>
-	                <div className="min-h-0 flex-1 overflow-hidden pr-1">
+	                <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
                   {loading && !conversations.length ? <LoadingBlock text="جارٍ تحميل المحادثات..." /> : null}
                   {filteredConversations.length ? (
-                    <VirtualList
-                      items={filteredConversations}
-                      estimateSize={96}
-                      className="h-full pr-1"
-                      itemKey={(item) => item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`}
-                      renderItem={(item) => (
-                        <div className="pb-2">
+                    <div className="space-y-2 pr-1">
+                      {filteredConversations.map((item) => {
+                        const itemKey = item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`;
+                        return (
                           <ConversationListItem
+                            key={itemKey}
                             item={item}
-                            unseen={unseenSessions.includes(item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
-                            active={selectedConversation?.conversation_key === (item.conversation_key || `${normalizeConversationChannel(item)}:${item.session_id}`)}
+                            unseen={unseenSessions.includes(itemKey)}
+                            active={selectedConversation?.conversation_key === itemKey}
                             onSelect={handleSelectConversation}
                             onOpenCustomer360={openCustomerDrawer}
                           />
-                        </div>
-                      )}
-                    />
+                        );
+                      })}
+                    </div>
                   ) : !loading ? <EmptyBlock text={leadFilter === "all" && filter === "all" ? "لا توجد محادثات Meta بعد. سيظهر النشاط هنا مع بدء استقبال الرسائل والتعليقات." : "لا توجد محادثات مطابقة للفلاتر الحالية."} /> : null}
                 </div>
               </>
