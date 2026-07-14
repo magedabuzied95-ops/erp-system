@@ -14,6 +14,17 @@ const socialDebugLog = (...args) => {
   if (isSocialDebugEnabled()) console.log(...args);
 };
 
+const enabledFlag = (value) =>
+  value === true || value === 1 || ["true", "1", "yes", "on"].includes(clean(value).toLowerCase());
+
+const productDisplayPrice = (raw = {}) => {
+  const sellingPrice = Number(raw.selling_price ?? raw.price ?? raw.regular_price ?? raw.final_price ?? 0) || 0;
+  const salePrice = Number(raw.sale_price ?? 0) || 0;
+  const saleModeOn = enabledFlag(raw.sale_mode_enabled) || enabledFlag(raw.global_sale_enabled) || enabledFlag(raw.sale_prices_enabled);
+  const saleApplied = saleModeOn && enabledFlag(raw.sale_mode_applied) && salePrice > 0 && (sellingPrice <= 0 || salePrice < sellingPrice);
+  return saleApplied ? salePrice : sellingPrice;
+};
+
 const normalizeProduct = (raw = {}) => {
   const image = clean(raw.image_url || raw.product_image_url || raw.cover_image_url || raw.primary_media_url || raw.thumbnail_url || raw.thumbnailUrl || raw.image || raw.main_image || raw.variant_image_url || "");
   const variantSources = [];
@@ -49,16 +60,17 @@ const normalizeProduct = (raw = {}) => {
   ) || 0;
   const inStock = currentStock > 0;
   const stockLabel = inStock ? "IN STOCK" : "OUT OF STOCK";
+  const displayPrice = productDisplayPrice(raw);
   return {
     id: Number(raw.id ?? raw.product_id ?? 0) || 0,
     name: clean(raw.name || raw.title || raw.product_name || "Product"),
     title: clean(raw.title || raw.name || raw.product_name || "Product"),
     brand: clean(raw.brand_name || raw.brand || raw.manufacturer_name || raw.manufacturer || ""),
     image_url: image,
-    price: Number(raw.final_price ?? raw.sale_price ?? raw.price ?? raw.selling_price ?? raw.regular_price ?? 0) || 0,
-    sale_price: Number(raw.sale_price ?? raw.final_price ?? raw.price ?? raw.selling_price ?? 0) || 0,
-    final_price: Number(raw.final_price ?? raw.sale_price ?? raw.price ?? raw.selling_price ?? 0) || 0,
-    selling_price: Number(raw.selling_price ?? raw.price ?? raw.final_price ?? raw.sale_price ?? 0) || 0,
+    price: displayPrice,
+    sale_price: Number(raw.sale_price ?? 0) || 0,
+    final_price: displayPrice,
+    selling_price: Number(raw.selling_price ?? raw.price ?? raw.regular_price ?? raw.final_price ?? 0) || 0,
     regular_price: Number(raw.regular_price ?? raw.price ?? raw.final_price ?? raw.sale_price ?? 0) || 0,
     stock: currentStock,
     current_stock: currentStock,
@@ -76,7 +88,7 @@ const normalizeProduct = (raw = {}) => {
 };
 
 const priceText = (product = {}) => {
-  const price = Number(product.final_price || product.sale_price || product.price || product.selling_price || product.regular_price || 0);
+  const price = Number(product.final_price || product.price || product.selling_price || product.regular_price || 0);
   if (!Number.isFinite(price) || price <= 0) return "—";
   return price.toLocaleString("en-US");
 };

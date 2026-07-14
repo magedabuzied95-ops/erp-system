@@ -68,7 +68,7 @@ export const storefrontForceSaleForOffer = (product = {}, variant = {}) =>
   truthyStorefrontFlag(product?.show_in_offer_story) ||
   truthyStorefrontFlag(product?.showInOfferStory);
 
-export const storefrontSaleModeOn = (product = {}, variant = {}) =>
+export const storefrontSaleModeOn = (product = {}, variant = {}) => Boolean(
   truthyStorefrontFlag(variant?.sale_price_enabled) ||
   truthyStorefrontFlag(variant?.sale_enabled) ||
   truthyStorefrontFlag(variant?.on_sale) ||
@@ -85,8 +85,8 @@ export const storefrontSaleModeOn = (product = {}, variant = {}) =>
   truthyStorefrontFlag(variant?.sale_mode_enabled) ||
   truthyStorefrontFlag(product?.global_sale_enabled) ||
   truthyStorefrontFlag(product?.sale_prices_enabled) ||
-  truthyStorefrontFlag(product?.sale_mode_enabled) ||
-  Number(variant?.sale_price || product?.sale_price || 0) > 0;
+  truthyStorefrontFlag(product?.sale_mode_enabled)
+);
 
 export const storefrontSellingPrice = (product = {}, variant = {}) =>
   parseStorefrontPriceValue(variant?.selling_price || variant?.price || product?.selling_price || product?.price || product?.regular_price || 0);
@@ -128,11 +128,11 @@ export const storefrontOriginalPrice = (product = {}, variant = {}) => {
   return candidates.find((value) => value > activePrice) || candidates[0] || 0;
 };
 
-export const getDisplayPricing = (product = {}, saleModeEnabled = true, variant = null) => {
+export const getDisplayPricing = (product = {}, saleModeEnabled = false, variant = null) => {
   const resolvedVariant = variant || pickPrimaryStorefrontVariant(product?.variants || []);
   const sellingPrice = storefrontSellingPrice(product, resolvedVariant || {});
   const salePrice = parseStorefrontPriceValue(resolvedVariant?.sale_price ?? product?.sale_price ?? resolvedVariant?.offer_price ?? product?.offer_price ?? 0);
-  const enabled = parseSaleModeEnabled(saleModeEnabled, true);
+  const enabled = parseSaleModeEnabled(saleModeEnabled, false);
   const forceSaleForOffer = storefrontForceSaleForOffer(product, resolvedVariant || {});
   const shouldUseSale = enabled || forceSaleForOffer;
   const shouldForceOfferSalePrice = forceSaleForOffer && salePrice > 0;
@@ -195,11 +195,11 @@ export const getDisplayPricing = (product = {}, saleModeEnabled = true, variant 
 };
 
 export const displaySellingPrice = (product = {}, variant = {}) => {
-  return getDisplayPricing(product, true, variant).price;
+  return getDisplayPricing(product, storefrontSaleModeOn(product, variant), variant).price;
 };
 
 export const resolveStorefrontPrice = (product = {}, variant = {}) => {
-  const pricing = getDisplayPricing(product, true, variant);
+  const pricing = getDisplayPricing(product, storefrontSaleModeOn(product, variant), variant);
   return {
     base_price: pricing.sellingPrice,
     sale_price: pricing.isOnSale ? pricing.salePrice : 0,

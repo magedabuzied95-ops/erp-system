@@ -338,7 +338,7 @@ const resolveStorefrontActivePrice = ({ originalPrice, sellingPrice, salePrice, 
   const selling = roundMoney(sellingPrice);
   const sale = roundMoney(salePrice);
   const enabled = saleModeEnabled(pricingSettings);
-  const activeSale = enabled && sale > 0;
+  const activeSale = enabled && sale > 0 && (selling <= 0 || sale < selling);
   const activePrice = activeSale ? sale : selling;
   const compareAtPrice = original > activePrice && activePrice > 0 ? original : 0;
   return {
@@ -349,11 +349,19 @@ const resolveStorefrontActivePrice = ({ originalPrice, sellingPrice, salePrice, 
   };
 };
 
-const resolveCustomerFacingDisplayPrice = (product = {}, variant = {}) => {
+const resolveCustomerFacingDisplayPrice = (product = {}, variant = {}, pricingSettings = null) => {
   const sale = roundMoney(variant.sale_price ?? product.sale_price ?? 0);
   const selling = roundMoney(variant.selling_price ?? variant.price ?? product.selling_price ?? product.price ?? product.regular_price ?? 0);
-  const selected_display_price = sale > 0 ? sale : selling;
-  const selected_price_source = sale > 0 ? "sale_price" : "selling_price";
+  const explicitSaleMode = pricingSettings && typeof pricingSettings === "object"
+    ? saleModeEnabled(pricingSettings)
+    : saleModeEnabled({
+        sale_mode_enabled: variant.sale_mode_enabled ?? product.sale_mode_enabled,
+        global_sale_enabled: variant.global_sale_enabled ?? product.global_sale_enabled,
+        sale_prices_enabled: variant.sale_prices_enabled ?? product.sale_prices_enabled,
+      });
+  const saleApplied = explicitSaleMode && sale > 0 && (selling <= 0 || sale < selling);
+  const selected_display_price = saleApplied ? sale : selling;
+  const selected_price_source = saleApplied ? "sale_price" : "selling_price";
   const wholesale_price = roundMoney(variant.wholesale_price ?? product.wholesale_price ?? variant.purchase_price ?? product.purchase_price ?? variant.average_cost ?? product.average_cost ?? variant.last_purchase_price ?? product.last_purchase_price ?? 0);
   const cost_price = roundMoney(variant.cost_price ?? product.cost_price ?? 0);
   console.log("[ai-price-source]", {
@@ -1098,11 +1106,11 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     ? roundMoney(productCompareFields.custom_compare_price)
     : 0;
   const rowOriginalPrice = roundMoney(row.original_price || row.base_price || row.list_price || row.compare_at_price || customOriginalPrice || row.regular_price);
-  const rowPublicPrice = resolveCustomerFacingDisplayPrice(row, {});
+  const rowPublicPrice = resolveCustomerFacingDisplayPrice(row, {}, pricingSettings);
   const rowSellingPrice = roundMoney(rowPublicPrice.selling_price || row.selling_price || row.price || row.regular_price);
   const rowSalePrice = roundMoney(rowPublicPrice.sale_price || row.sale_price || row.offer_price);
   const variants = parseJsonArray(row.variants).map((variant) => {
-    const variantPublicPrice = resolveCustomerFacingDisplayPrice(row, variant);
+    const variantPublicPrice = resolveCustomerFacingDisplayPrice(row, variant, pricingSettings);
     const variantSellingPrice = roundMoney(variantPublicPrice.selling_price || variant.selling_price || variant.price || rowSellingPrice);
     const variantOriginalCandidates = [
       variant.original_price,
@@ -1135,13 +1143,13 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
       custom_compare_price: variantOriginalPrice,
       selling_price: variantSellingPrice,
       regular_price: variantOriginalPrice,
-      price: variantPublicPrice.selected_display_price || variantSellingPrice,
+      price: currentPrice || variantSellingPrice,
       sale_price: variantSalePrice,
       purchase_sale_price: roundMoney(variant.purchase_sale_price),
       purchase_invoice_sale_price: roundMoney(variant.purchase_invoice_sale_price ?? variant.purchase_sale_price),
       purchase_invoice_selling_price: roundMoney(variant.purchase_invoice_selling_price),
       last_piece_sale_price: roundMoney(variant.last_piece_sale_price ?? variant.purchase_sale_price),
-      final_price: variantPublicPrice.selected_display_price || currentPrice,
+      final_price: currentPrice || variantSellingPrice,
       sale_price_enabled: resolvedPrice.saleActive,
       sale_prices_enabled: resolvedPrice.saleModeOn,
       global_sale_enabled: resolvedPrice.saleModeOn,
@@ -1165,9 +1173,7 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
   const sellingPrice = rowSellingPrice || bestVariantPrice?.selling_price || bestVariantPrice?.price || 0;
   const productResolvedPrice = resolveStorefrontActivePrice({ originalPrice, sellingPrice, salePrice: rowSalePrice, pricingSettings });
   const currentPrice = bestVariantPrice?.final_price || productResolvedPrice.activePrice || sellingPrice;
-  const selectedDisplayPrice = bestVariantPrice?.price > 0 || bestVariantPrice?.final_price > 0
-    ? bestVariantPrice?.price || bestVariantPrice?.final_price || currentPrice
-    : currentPrice;
+  const selectedDisplayPrice = currentPrice;
   const saleModeActive = productResolvedPrice.saleActive || Boolean(bestVariantPrice?.sale_mode_applied);
   const compareAtPrice = bestVariantPrice?.compare_at_price || productResolvedPrice.compareAtPrice;
   const discount = compareAtPrice > currentPrice && currentPrice > 0;
@@ -2250,9 +2256,16 @@ const expandProductsToColorCards = (products = []) => {
       if (groupStock <= 0) continue;
       const groupSizes = [...new Set(group.variants.filter((variant) => toNumber(variant.stock) > 0 && variant.size).map((variant) => variant.size))];
       const groupImage = groupPrimaryImage?.image_url || groupPrimaryImage?.preview || variantCardImage(selectedVariant, product);
-      const sellingPrice = roundMoney(selectedVariant.selling_price || selectedVariant.price || product.selling_price || product.price);
+      const sellingPrice = roundMoney(selectedVariant.selling_price || product.selling_price || selectedVariant.price || product.price);
       const salePrice = roundMoney(selectedVariant.sale_price ?? product.sale_price);
-      const finalPrice = roundMoney(selectedVariant.final_price || product.final_price || sellingPrice);
+      const saleModeOn = selectedVariant.sale_mode_enabled === true ||
+        selectedVariant.global_sale_enabled === true ||
+        selectedVariant.sale_prices_enabled === true ||
+        product.sale_mode_enabled === true ||
+        product.global_sale_enabled === true ||
+        product.sale_prices_enabled === true;
+      const saleApplied = saleModeOn && salePrice > 0 && (sellingPrice <= 0 || salePrice < sellingPrice);
+      const finalPrice = saleApplied ? salePrice : sellingPrice;
       const comparePrice = roundMoney(selectedVariant.compare_at_price || product.compare_at_price);
       cards.push({
         ...product,
@@ -2293,13 +2306,13 @@ const expandProductsToColorCards = (products = []) => {
         regular_price: selectedVariant.regular_price || product.regular_price,
         compare_at_price: comparePrice,
         old_price: comparePrice,
-        sale_price_enabled: selectedVariant.sale_price_enabled ?? product.sale_price_enabled,
-        sale_prices_enabled: selectedVariant.sale_prices_enabled ?? product.sale_prices_enabled,
-        global_sale_enabled: selectedVariant.global_sale_enabled ?? product.global_sale_enabled,
-        sale_mode_enabled: selectedVariant.sale_mode_enabled ?? product.sale_mode_enabled,
-        sale_source: selectedVariant.sale_source || product.sale_source,
-        sale_badge: selectedVariant.sale_badge || product.sale_badge,
-        sale_mode_applied: selectedVariant.sale_mode_applied ?? product.sale_mode_applied,
+        sale_price_enabled: saleApplied,
+        sale_prices_enabled: saleModeOn,
+        global_sale_enabled: saleModeOn,
+        sale_mode_enabled: saleModeOn,
+        sale_source: saleApplied ? "product" : "regular",
+        sale_badge: saleApplied ? (selectedVariant.sale_badge || product.sale_badge) : "",
+        sale_mode_applied: saleApplied,
       });
       if (ERP_PERF_DEBUG) console.log("[storefront-color-card]", {
         parent_product_id: product.id,

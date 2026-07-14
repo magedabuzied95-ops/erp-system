@@ -1,4 +1,5 @@
 import db from "../database/db.js";
+import { getWebsiteSettings } from "../services/liveActivityService.js";
 
 const toMoney = (value = null) => {
   const amount = Number(value);
@@ -32,26 +33,35 @@ const trace = (payload) => {
 export const resolveCustomerDisplayPrice = (productOrVariant = {}) => {
   const product = productOrVariant?.product || productOrVariant?.parent_product || productOrVariant?.parent || productOrVariant;
   const variant = productOrVariant?.variant || productOrVariant?.selected_variant || productOrVariant?.matched_variant || productOrVariant;
-  const saleActive = truthy(
-    productOrVariant.sale_active ??
-      productOrVariant.is_sale_active ??
-      productOrVariant.on_sale ??
-      productOrVariant.sale_enabled ??
-      productOrVariant.discount_enabled ??
-      productOrVariant.has_sale ??
-      productOrVariant.use_sale_price ??
-      variant.sale_price_enabled ??
-      variant.sale_enabled ??
-      variant.on_sale ??
-      variant.is_sale_active ??
-      variant.discount_enabled ??
-      product.sale_price_enabled ??
-      product.sale_enabled ??
-      product.on_sale ??
-      product.is_sale_active ??
-      product.discount_enabled ??
-      product.has_sale
-  );
+  const saleModeOn = [
+    productOrVariant.sale_active,
+    productOrVariant.is_sale_active,
+    productOrVariant.on_sale,
+    productOrVariant.sale_enabled,
+    productOrVariant.discount_enabled,
+    productOrVariant.has_sale,
+    productOrVariant.use_sale_price,
+    productOrVariant.sale_mode_enabled,
+    productOrVariant.global_sale_enabled,
+    productOrVariant.sale_prices_enabled,
+    variant.sale_price_enabled,
+    variant.sale_mode_enabled,
+    variant.global_sale_enabled,
+    variant.sale_prices_enabled,
+    variant.sale_enabled,
+    variant.on_sale,
+    variant.is_sale_active,
+    variant.discount_enabled,
+    product.sale_price_enabled,
+    product.sale_enabled,
+    product.on_sale,
+    product.is_sale_active,
+    product.discount_enabled,
+    product.has_sale,
+    product.sale_mode_enabled,
+    product.global_sale_enabled,
+    product.sale_prices_enabled,
+  ].some((value) => Boolean(truthy(value)));
 
   const selling_price = toMoney(
     productOrVariant.selling_price ??
@@ -65,6 +75,7 @@ export const resolveCustomerDisplayPrice = (productOrVariant = {}) => {
       product.regular_price
   );
   const sale_price = toMoney(productOrVariant.sale_price ?? variant.sale_price ?? product.sale_price);
+  const saleActive = saleModeOn && sale_price > 0 && (selling_price <= 0 || sale_price < selling_price);
   const wholesale_price = toMoney(
     productOrVariant.wholesale_price ??
       variant.wholesale_price ??
@@ -84,8 +95,8 @@ export const resolveCustomerDisplayPrice = (productOrVariant = {}) => {
   );
   const cost_price = toMoney(productOrVariant.cost_price ?? variant.cost_price ?? product.cost_price);
 
-  let display_price = saleActive && sale_price > 0 ? sale_price : selling_price;
-  let price_source = saleActive && sale_price > 0 ? "sale_price" : "selling_price";
+  let display_price = saleActive ? sale_price : selling_price;
+  let price_source = saleActive ? "sale_price" : "selling_price";
   if (["wholesale_price", "cost_price", "purchase_price", "supplier_price"].includes(price_source)) {
     console.error("[ai-price-source]", {
       product_id: productOrVariant.product_id || product.id || null,
@@ -102,7 +113,7 @@ export const resolveCustomerDisplayPrice = (productOrVariant = {}) => {
     display_price = selling_price;
     price_source = "selling_price";
   }
-  const old_price = saleActive && sale_price > 0 && selling_price > sale_price ? selling_price : null;
+  const old_price = saleActive && selling_price > sale_price ? selling_price : null;
   const result = {
     display_price,
     old_price,
@@ -272,6 +283,8 @@ export const resolveSocialProductDisplayPrice = async ({
   context = {},
   callsite = "",
 } = {}) => {
+  const pricingSettings = await getWebsiteSettings({ tenantId }).catch(() => ({ sale_mode_enabled: false }));
+  const saleModeEnabled = Boolean(truthy(pricingSettings?.sale_mode_enabled));
   const productName = String(
     context.product_name ||
     productContext.product_name ||
@@ -300,10 +313,12 @@ export const resolveSocialProductDisplayPrice = async ({
     ...collectVariantPriceCandidates({ source: "variants", variants }),
     ...collectVariantPriceCandidates({ source: "available_variants", variants: availableVariants }),
   ];
-  let selectedCandidate = selectPositiveSocialPriceCandidate([
+  const activePriceCandidates = (candidates = []) =>
+    candidates.filter((candidate) => saleModeEnabled || candidate.field !== "sale_price");
+  let selectedCandidate = selectPositiveSocialPriceCandidate(activePriceCandidates([
     ...primarySourceCandidates,
     ...variantSourceCandidates,
-  ]);
+  ]));
 
   let dbFallback = { product: null, variants: [] };
   let dbProductCandidates = [];
@@ -313,10 +328,10 @@ export const resolveSocialProductDisplayPrice = async ({
     dbFallback = await loadSocialProductPriceDbFallback({ tenantId, productId });
     dbProductCandidates = collectObjectPriceCandidates({ source: "products", entity: dbFallback.product });
     dbVariantCandidates = collectVariantPriceCandidates({ source: "product_variants_db", variants: dbFallback.variants });
-    selectedCandidate = selectPositiveSocialPriceCandidate([
+    selectedCandidate = selectPositiveSocialPriceCandidate(activePriceCandidates([
       ...dbProductCandidates,
       ...dbVariantCandidates,
-    ]);
+    ]));
     if (selectedCandidate) {
       console.log("SOCIAL_COMMENT_PRICE_DB_FALLBACK_USED", {
         product_id: productId,
@@ -346,6 +361,7 @@ export const resolveSocialProductDisplayPrice = async ({
     selected_field: formatSelectedSocialPriceField(selectedCandidate),
     selected_price: selectedPrice,
     selected_display_price: selectedDisplayPrice,
+    sale_mode_enabled: saleModeEnabled,
     has_valid_price: Boolean(selectedDisplayPrice),
   };
   if (callsite) {
