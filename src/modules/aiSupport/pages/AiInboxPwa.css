@@ -1,0 +1,229 @@
+.ai-inbox-pwa {
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--primary) 8%, transparent), transparent 28rem),
+    var(--bg) !important;
+  color: var(--text) !important;
+}
+
+.ai-pwa-shell {
+  width: min(100%, 1280px);
+  background: var(--bg) !important;
+  border-inline: 1px solid var(--border);
+  box-shadow: 0 0 48px color-mix(in srgb, var(--shadow) 65%, transparent);
+}
+
+.ai-pwa-fixed {
+  max-width: 1280px;
+}
+
+.ai-pwa-conversation-header,
+.ai-pwa-list-header {
+  background: color-mix(in srgb, var(--bg) 92%, transparent) !important;
+  border-color: var(--border) !important;
+}
+
+.ai-pwa-icon-button {
+  color: var(--text) !important;
+  background: var(--surface) !important;
+  --tw-ring-color: var(--border) !important;
+  transition: transform 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.ai-pwa-icon-button:hover {
+  color: var(--primary) !important;
+  background: var(--primary-soft) !important;
+  transform: translateY(-1px);
+}
+
+.ai-pwa-main {
+  scrollbar-color: var(--border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+.ai-pwa-composer {
+  max-width: 1000px;
+}
+
+.ai-pwa-composer > div {
+  background: color-mix(in srgb, var(--surface) 96%, transparent) !important;
+  border-color: var(--border) !important;
+  box-shadow: 0 20px 55px color-mix(in srgb, var(--shadow) 90%, transparent) !important;
+  backdrop-filter: blur(18px);
+}
+
+.ai-pwa-nav {
+  max-width: 720px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent) !important;
+  border: 1px solid var(--border) !important;
+  border-bottom: 0 !important;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -10px 32px color-mix(in srgb, var(--shadow) 65%, transparent);
+}
+
+.ai-pwa-nav .bg-slate-900,
+.ai-pwa-list-header .bg-slate-900 {
+  background: var(--primary) !important;
+  color: var(--primary-contrast) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa :where(.bg-white) {
+  background-color: var(--surface) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa :where(.bg-slate-50) {
+  background-color: var(--surface-soft) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa :where(.bg-slate-100, .bg-slate-200) {
+  background-color: var(--card-soft) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa :where(.text-slate-900, .text-slate-950) {
+  color: var(--text) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa :where(.text-slate-700, .text-slate-800) {
+  color: var(--text-secondary) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa :where(.text-slate-400, .text-slate-500, .text-slate-600) {
+  color: var(--muted) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa :where(.border-slate-100, .border-slate-200, .border-slate-300) {
+  border-color: var(--border) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa :where(.ring-slate-100, .ring-slate-200, .ring-slate-300) {
+  --tw-ring-color: var(--border) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa input,
+html[data-theme="dark"] .ai-inbox-pwa textarea,
+html[data-theme="dark"] .ai-inbox-pwa select {
+  color: var(--text) !important;
+  background: var(--surface-soft) !important;
+  border-color: var(--border) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa input::placeholder,
+html[data-theme="dark"] .ai-inbox-pwa textarea::placeholder {
+  color: var(--muted) !important;
+}
+
+html[data-theme="dark"] .ai-inbox-pwa .hover\:bg-white:hover,
+html[data-theme="dark"] .ai-inbox-pwa .hover\:bg-slate-50:hover,
+html[data-theme="dark"] .ai-inbox-pwa .hover\:bg-slate-100:hover {
+  background: var(--surface-raised) !important;
+}
+
+@media (min-width: 768px) {
+  .ai-pwa-shell {
+    width: min(calc(100% - 32px), 1280px);
+  }
+
+  .ai-pwa-fixed {
+    width: min(calc(100% - 32px), 1280px) !important;
+  }
+
+  .ai-pwa-conversation-header,
+  .ai-pwa-list-header {
+    padding-inline: 24px !important;
+    padding-bottom: 14px !important;
+  }
+
+  .ai-pwa-main {
+    padding-inline: 28px !important;
+    padding-top: 16px;
+  }
+
+  .ai-pwa-main > * {
+    max-width: 1080px;
+    margin-inline: auto;
+  }
+
+  .ai-pwa-conversation-header > .mt-2 {
+    display: grid;
+    grid-template-columns: minmax(320px, 1fr) minmax(280px, 0.8fr);
+    gap: 12px 20px;
+    align-items: start;
+  }
+
+  .ai-pwa-conversation-header > .mt-2 > :last-child {
+    grid-column: 1 / -1;
+  }
+
+  .ai-pwa-list-header > div {
+    display: grid;
+    grid-template-columns: minmax(260px, 1fr) minmax(320px, 1.4fr);
+    align-items: center;
+    gap: 12px 20px;
+  }
+
+  .ai-pwa-list-header > div > :first-child {
+    grid-column: 1;
+  }
+
+  .ai-pwa-list-header > div > label {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .ai-pwa-list-header > div > div:not(:first-child) {
+    grid-column: 1 / -1;
+  }
+
+  .ai-pwa-composer {
+    padding-inline: 18px !important;
+  }
+
+  .ai-pwa-composer > div {
+    padding: 12px !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .ai-pwa-shell,
+  .ai-pwa-fixed {
+    max-width: 520px;
+  }
+
+  .ai-pwa-conversation-top {
+    align-items: flex-start !important;
+  }
+
+  .ai-pwa-header-actions {
+    max-width: 144px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
+  .ai-pwa-header-actions > button {
+    margin: 0 !important;
+  }
+
+  .ai-pwa-header-actions > button:nth-of-type(3) {
+    order: 3;
+    width: auto;
+  }
+}
+
+@media (max-width: 430px) {
+  .ai-pwa-conversation-header {
+    padding-inline: 8px !important;
+  }
+
+  .ai-pwa-conversation-top > :first-child {
+    gap: 6px !important;
+  }
+
+  .ai-pwa-header-actions {
+    max-width: 108px;
+    gap: 6px;
+  }
+
+  .ai-pwa-header-actions .ai-pwa-icon-button {
+    width: 42px;
+    height: 42px;
+  }
+}

@@ -26,6 +26,8 @@ import {
   ShieldBan,
   ShoppingBag,
   Sparkles,
+  Sun,
+  Moon,
   UserRound,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
@@ -36,6 +38,7 @@ import { getCurrentTenant, getCurrentUser } from "../../../shared/auth/authStora
 import { subscribeRealtime, useRealtimeStatus } from "../../../shared/realtime/socketStore";
 import { formatCurrency } from "../../../shared/lib/currency";
 import { buildPageTitle } from "../../../shared/hooks/usePageTitle";
+import { useTheme } from "../../../theme/useTheme";
 import { getPosSellableProducts } from "../../pos/services/posProductsApi";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import TranscriptMessage from "../components/TranscriptMessage";
@@ -44,6 +47,7 @@ import { SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsW
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
+import "./AiInboxPwa.css";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
@@ -2272,6 +2276,9 @@ export default function AiInboxPwa() {
   const navigate = useNavigate();
   const location = useLocation();
   const params = useParams();
+  const { theme, setTheme } = useTheme();
+  const isDarkTheme = theme?.mode === "dark";
+  const togglePwaTheme = useCallback(() => setTheme(isDarkTheme ? "light" : "dark"), [isDarkTheme, setTheme]);
   const tenantId = tenantIdFromAuth();
   const conversationParam = clean(params.conversationId);
   const pageVisible = usePageVisible();
@@ -5090,14 +5097,14 @@ export default function AiInboxPwa() {
   };
 
   return (
-    <div className="h-dvh overflow-hidden bg-slate-50 text-slate-900">
-      <div className="mx-auto flex h-full w-full max-w-[430px] flex-col bg-slate-50">
+    <div className="ai-inbox-pwa h-dvh overflow-hidden bg-slate-50 text-slate-900">
+      <div className="ai-pwa-shell mx-auto flex h-full w-full flex-col bg-slate-50">
         {contentScreen && tab === "conversations" ? (
           <header
             ref={conversationHeaderRef}
-            className="fixed inset-x-0 top-0 z-[60] mx-auto w-full max-w-[430px] border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur"
+            className="ai-pwa-fixed ai-pwa-conversation-header fixed inset-x-0 top-0 z-[60] mx-auto w-full border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur"
           >
-            <div className="flex items-center justify-between gap-2" style={{ flexDirection: isRtlLayout ? "row-reverse" : "row" }}>
+            <div className="ai-pwa-conversation-top flex items-center justify-between gap-3" style={{ flexDirection: isRtlLayout ? "row-reverse" : "row" }}>
               <div className="flex min-w-0 items-center gap-2.5">
                 <button
                   type="button"
@@ -5180,11 +5187,20 @@ export default function AiInboxPwa() {
                   ) : null}
                 </div>
               </div>
-              <div className="relative">
+              <div className="ai-pwa-header-actions relative flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={togglePwaTheme}
+                  className="ai-pwa-icon-button inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  aria-label={isDarkTheme ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
+                  title={isDarkTheme ? "Light mode" : "Dark mode"}
+                >
+                  {isDarkTheme ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
+                </button>
                 <button
                   type="button"
                   onClick={() => setIsFullscreenConversation((current) => !current)}
-                  className="mr-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  className="ai-pwa-icon-button inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
                   aria-label={fullscreenConversation ? "Restore conversation layout" : "Expand conversation layout"}
                   title={fullscreenConversation ? "Restore conversation layout" : "Expand conversation layout"}
                 >
@@ -5194,7 +5210,7 @@ export default function AiInboxPwa() {
                   type="button"
                   onClick={toggleConversationAi}
                   disabled={aiToggling}
-                  className={`mr-2 inline-flex h-11 items-center gap-1.5 rounded-full px-3 text-[11px] font-black shadow-sm ring-1 disabled:opacity-50 ${
+                  className={`inline-flex h-11 items-center gap-1.5 rounded-full px-3 text-[11px] font-black shadow-sm ring-1 disabled:opacity-50 ${
                     selectedConversationAiEnabled
                       ? "bg-emerald-300 text-slate-950 ring-emerald-200"
                       : "bg-rose-50 text-rose-700 ring-rose-200"
@@ -5207,7 +5223,7 @@ export default function AiInboxPwa() {
                   type="button"
                   ref={menuButtonRef}
                   onClick={() => setMenuOpen((current) => !current)}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  className="ai-pwa-icon-button inline-flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
                 >
                   <MoreHorizontal className="h-4.5 w-4.5" />
                 </button>
@@ -5362,10 +5378,19 @@ export default function AiInboxPwa() {
             ) : null}
           </header>
         ) : (
-          <header className="border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
+          <header className="ai-pwa-list-header border-b border-slate-200 bg-slate-50/95 px-2.5 pb-2 pt-[max(0.65rem,env(safe-area-inset-top))] backdrop-blur">
             <div className="space-y-2.5">
-              <div>
+              <div className="flex items-center justify-between gap-3">
                 <h1 className="text-[22px] font-semibold tracking-tight text-slate-900">AI Social Media Center</h1>
+                <button
+                  type="button"
+                  onClick={togglePwaTheme}
+                  className="ai-pwa-icon-button inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white shadow-sm ring-1 ring-slate-200"
+                  aria-label={isDarkTheme ? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"}
+                  title={isDarkTheme ? "Light mode" : "Dark mode"}
+                >
+                  {isDarkTheme ? <Sun className="h-4.5 w-4.5" /> : <Moon className="h-4.5 w-4.5" />}
+                </button>
               </div>
               <label className="relative block">
                 <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -5432,7 +5457,7 @@ export default function AiInboxPwa() {
             if (!scroller) return;
             setUserIsNearBottom(scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= 140);
           }}
-          className={`flex-1 min-h-0 overflow-y-auto px-2 ${contentScreen && tab === "conversations" ? "" : "pt-1.5"} ${showComposer ? "pb-[calc(5.9rem+env(safe-area-inset-bottom))]" : "pb-[calc(4.1rem+env(safe-area-inset-bottom))]"}`}
+          className={`ai-pwa-main flex-1 min-h-0 overflow-y-auto px-2 ${contentScreen && tab === "conversations" ? "" : "pt-1.5"} ${showComposer ? "pb-[calc(5.9rem+env(safe-area-inset-bottom))]" : "pb-[calc(4.1rem+env(safe-area-inset-bottom))]"}`}
           style={contentScreen && tab === "conversations" ? { paddingTop: `${conversationHeaderHeight || 88}px` } : undefined}
         >
           {error && !loading ? (
@@ -5495,7 +5520,7 @@ export default function AiInboxPwa() {
         </main>
 
         {showComposer ? (
-          <div className={`fixed inset-x-0 z-20 mx-auto w-full max-w-[430px] px-2 ${contentScreen ? "bottom-[max(0.4rem,env(safe-area-inset-bottom))]" : "bottom-[calc(4rem+env(safe-area-inset-bottom))]"}`}>
+          <div className={`ai-pwa-fixed ai-pwa-composer fixed inset-x-0 z-20 mx-auto w-full px-2 ${contentScreen ? "bottom-[max(0.4rem,env(safe-area-inset-bottom))]" : "bottom-[calc(4rem+env(safe-area-inset-bottom))]"}`}>
             <div className="rounded-[24px] border border-slate-200 bg-white p-2.5 shadow-[0_18px_40px_rgba(15,23,42,0.14)]">
               {composerMode === "note" ? (
                 <div className="mb-2 flex items-center gap-2 text-xs font-medium text-amber-700">
@@ -5599,7 +5624,7 @@ export default function AiInboxPwa() {
         ) : null}
 
         {!contentScreen ? (
-        <nav className="fixed inset-x-0 bottom-0 z-20 mx-auto w-full max-w-[430px] border-t border-slate-200 bg-white/95 px-2 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur">
+        <nav className="ai-pwa-fixed ai-pwa-nav fixed inset-x-0 bottom-0 z-20 mx-auto w-full border-t border-slate-200 bg-white/95 px-2 pb-[max(0.45rem,env(safe-area-inset-bottom))] pt-1.5 backdrop-blur">
           <div className="grid grid-cols-3 gap-1">
             {NAV_ITEMS.map((item) => {
               const active = tab === item.key;

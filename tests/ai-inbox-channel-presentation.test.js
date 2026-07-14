@@ -4,6 +4,7 @@ import fs from "node:fs";
 
 const source = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
 const pwaSource = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
+const pwaStyles = fs.readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.css", import.meta.url), "utf8");
 const serviceSource = fs.readFileSync(new URL("../server/services/aiSalesAgentService.js", import.meta.url), "utf8");
 
 test("AI Inbox renders each direct-message channel with its own label", () => {
@@ -65,4 +66,18 @@ test("AI Inbox PWA first visible load always clears the initial spinner", () => 
   assert.match(pwaSource, /requestRefresh\("visibility", \{ silent: !isInitialLoad, force: true \}\)/);
   const loadingStops = pwaSource.match(/setLoading\(false\)/g) || [];
   assert.ok(loadingStops.length >= 2);
+});
+
+test("AI Inbox PWA uses the shared M1 light and dark theme", () => {
+  assert.match(pwaSource, /const \{ theme, setTheme \} = useTheme\(\)/);
+  assert.match(pwaSource, /setTheme\(isDarkTheme \? "light" : "dark"\)/);
+  assert.match(pwaSource, /aria-label=\{isDarkTheme \? "تفعيل الوضع الفاتح" : "تفعيل الوضع الداكن"\}/);
+  assert.match(pwaStyles, /html\[data-theme="dark"\] \.ai-inbox-pwa/);
+});
+
+test("AI Inbox PWA expands on desktop while keeping a mobile layout", () => {
+  assert.doesNotMatch(pwaSource, /max-w-\[430px\]/);
+  assert.match(pwaStyles, /width: min\(100%, 1280px\)/);
+  assert.match(pwaStyles, /@media \(min-width: 768px\)/);
+  assert.match(pwaStyles, /@media \(max-width: 767px\)/);
 });
