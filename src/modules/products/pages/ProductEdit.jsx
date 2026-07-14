@@ -1811,6 +1811,14 @@ function ProductEdit() {
             ? {
                 ...group,
                 [field]: value,
+                ...(field === "color_article_code"
+                  ? {
+                      sizes: (Array.isArray(group.sizes) ? group.sizes : []).map((row) => ({
+                        ...row,
+                        article_code: String(value || ""),
+                      })),
+                    }
+                  : {}),
                 ...(field === "edition_name"
                   ? {
                       edition_slug: slugifyEdition(value),
@@ -4299,7 +4307,7 @@ function ProductEdit() {
                               placeholder="L122"
                               className="mt-1.5 h-10 w-full rounded-[14px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500"
                             />
-                            <p className="mt-1 text-xs text-zinc-500">{t("products.editor.articleCodeColorHelp", "Article code applies to this color. Stock is managed per size row.")}</p>
+                            <p className="mt-1 text-xs text-zinc-500">{t("products.editor.articleCodeColorHelp", "Article code is copied to every size in this color. You can then edit any size independently.")}</p>
                           </div>
                           {mirrorEditionEnabled ? (
                             <div className="relative">
