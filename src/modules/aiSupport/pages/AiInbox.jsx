@@ -2232,12 +2232,9 @@ function LeadQuickActionsBar({
   employees = [],
   selectedEmployeeId = "",
   onSelectedEmployeeIdChange,
-  onCreateCustomer,
   onCreateOpportunity,
   onSendPrivateMessage,
   onSendCommentReply,
-  onOpenProductPicker,
-  onOpenAvailableBySizePicker,
   onAssignEmployee,
   busy = false,
 }) {
@@ -2259,7 +2256,7 @@ function LeadQuickActionsBar({
           أدوات البيع وخدمة العميل
         </div>
         <div className="flex items-center gap-2 text-xs font-bold text-slate-400">
-          <span>إرسال منتج، إنشاء عميل، تعيين موظف</span>
+          <span>رسالة خاصة، فرصة بيع، تعيين موظف</span>
           <ChevronDown className="h-4 w-4 transition group-open:rotate-180" />
         </div>
       </summary>
@@ -2282,18 +2279,6 @@ function LeadQuickActionsBar({
               فتح البوست
             </a>
           ) : null}
-          <button type="button" onClick={onOpenProductPicker} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-2.5 text-[11px] font-black text-slate-100 disabled:opacity-50">
-            <ShoppingCart className="h-3.5 w-3.5" />
-            إرسال منتج
-          </button>
-          <button type="button" onClick={onOpenAvailableBySizePicker} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[11px] font-black text-cyan-100 disabled:opacity-50">
-            <Ruler className="h-3.5 w-3.5" />
-            المتاح بالمقاس
-          </button>
-          <button type="button" onClick={onCreateCustomer} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2.5 text-[11px] font-black text-emerald-100 disabled:opacity-50">
-            <UserPlus className="h-3.5 w-3.5" />
-            إنشاء عميل
-          </button>
           <button type="button" onClick={onCreateOpportunity} disabled={busy || isClosed} className="inline-flex h-8 items-center justify-center gap-2 rounded-xl border border-amber-300/20 bg-amber-400/10 px-2.5 text-[11px] font-black text-amber-100 disabled:opacity-50">
             <ArrowUpRight className="h-3.5 w-3.5" />
             إنشاء فرصة بيع
@@ -2413,8 +2398,9 @@ function ManualReplyComposer({
   value,
   onChange,
   onSend,
-  onSaveDraft,
   onOpenProductPicker,
+  onOpenAvailableBySizePicker,
+  onCreateCustomer,
   onLoadDraft,
   onCopyDraft,
   commentDraftText = "",
@@ -2543,8 +2529,24 @@ function ManualReplyComposer({
             <ShoppingCart className="h-3 w-3" />
             إرسال منتج
           </button>
-          <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="hidden h-9 items-center justify-center rounded-lg border border-white/10 bg-white/[0.055] px-3 text-[11px] font-black text-slate-100 disabled:opacity-50 sm:inline-flex">حفظ مسودة</button>
-          <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className="hidden h-9 items-center justify-center rounded-lg border border-violet-300/20 bg-violet-300/10 px-3 text-[11px] font-black text-violet-100 disabled:opacity-50 sm:inline-flex">اعتماد رد AI</button>
+          <button
+            type="button"
+            onClick={() => onOpenAvailableBySizePicker?.()}
+            disabled={loading}
+            className="hidden h-9 items-center justify-center gap-1.5 rounded-lg border border-cyan-300/20 bg-cyan-300/10 px-3 text-[11px] font-black text-cyan-100 disabled:opacity-50 sm:inline-flex"
+          >
+            <Ruler className="h-3 w-3" />
+            المتاح بالمقاس
+          </button>
+          <button
+            type="button"
+            onClick={() => onCreateCustomer?.()}
+            disabled={loading}
+            className="hidden h-9 items-center justify-center gap-1.5 rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-3 text-[11px] font-black text-emerald-100 disabled:opacity-50 sm:inline-flex"
+          >
+            <UserPlus className="h-3 w-3" />
+            إنشاء عميل
+          </button>
           <details className="relative sm:hidden">
             <summary className="list-none cursor-pointer grid h-7 w-7 place-items-center rounded-xl border border-white/10 bg-white/[0.055] text-slate-200">?</summary>
             <div className="absolute right-0 z-20 mt-2 w-44 rounded-2xl border border-white/10 bg-slate-950/98 p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.35)]">
@@ -2568,8 +2570,24 @@ function ManualReplyComposer({
                 <ShoppingCart className="h-3.5 w-3.5" />
                 إرسال منتج
               </button>
-              <button type="button" onClick={onSaveDraft} disabled={loading || !clean(value)} className="mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl border border-white/10 bg-white/[0.055] px-2.5 text-[10px] font-black text-slate-100 disabled:opacity-50">Save draft</button>
-              <button type="button" onClick={submit} disabled={loading || !clean(value) || !canSendLive} className={`mt-1 inline-flex h-8 w-full items-center justify-center rounded-xl px-2.5 text-[10px] font-black disabled:opacity-50 ${normalizedConfidence.decision === "high_risk" || normalizedValidation.violationsCount > 0 ? "border border-amber-300/30 bg-amber-300 text-slate-950" : "border border-cyan-300/20 bg-cyan-300/10 text-cyan-100"}`}>Approve AI reply</button>
+              <button
+                type="button"
+                onClick={() => onOpenAvailableBySizePicker?.()}
+                disabled={loading}
+                className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-300/10 px-2.5 text-[10px] font-black text-cyan-100 disabled:opacity-50"
+              >
+                <Ruler className="h-3.5 w-3.5" />
+                المتاح بالمقاس
+              </button>
+              <button
+                type="button"
+                onClick={() => onCreateCustomer?.()}
+                disabled={loading}
+                className="mt-1 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border border-emerald-300/20 bg-emerald-400/10 px-2.5 text-[10px] font-black text-emerald-100 disabled:opacity-50"
+              >
+                <UserPlus className="h-3.5 w-3.5" />
+                إنشاء عميل
+              </button>
             </div>
           </details>
         </div>
@@ -5543,12 +5561,6 @@ export default function AiInbox() {
     }
   };
 
-  const persistDraftReply = async (message) => {
-    const sessionId = selectedConversation?.session_id;
-    if (!sessionId || !clean(message)) return;
-    return api.post(aiInboxConversationEndpoint(selectedConversationRouteId || sessionId, "/reply"), { tenant_id: tenantId, message }, { headers, perfComponent: "AiInbox.saveDraftReply" });
-  };
-
   const saveEditedAiReplyCorrection = async ({ sentMessageId = "", aiReplyDraft = null, employeeCorrectAnswer = "", allowSameText = false, metadata = {} } = {}) => {
     const sessionId = selectedConversation?.session_id;
     const conversation = selectedConversation || {};
@@ -5936,31 +5948,6 @@ export default function AiInbox() {
       setError(err?.message || "تعذر تعيين الموظف");
     } finally {
       setLeadActionLoading("");
-    }
-  };
-
-  const saveDraftReply = async () => {
-    const message = clean(replyText);
-    if (!selectedConversation?.session_id || !message) return;
-    setLoading(true);
-    setError("");
-    try {
-      const payload = await persistDraftReply(message);
-      setReplyText("");
-      setToast({ tone: "emerald", text: "Draft saved" });
-      if (payload?.message) {
-        patchConversation(selectedConversation.conversation_key || selectedConversation.session_id, (conversation) => ({
-          ...conversation,
-          messages: mergeMessagesByIdentity([...asArray(conversation.messages), payload.message]),
-          latest_message_preview: message,
-          last_activity_at: payload.message.created_at || new Date().toISOString(),
-        }));
-      }
-    } catch (err) {
-      setToast({ tone: "rose", text: err?.message || "Save failed" });
-      setError(err?.message || "تعذر حفظ المسودة");
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -7074,12 +7061,9 @@ export default function AiInbox() {
                     employees={employees}
                     selectedEmployeeId={leadAssignEmployeeId}
                     onSelectedEmployeeIdChange={setLeadAssignEmployeeId}
-                    onCreateCustomer={createLeadCustomer}
                     onCreateOpportunity={createLeadOpportunity}
                     onSendPrivateMessage={sendLeadPrivateMessage}
                     onSendCommentReply={sendLeadCommentReplyQuick}
-                    onOpenProductPicker={() => openProductCardPicker()}
-                    onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                     onAssignEmployee={assignLeadEmployee}
                     busy={Boolean(leadActionLoading || loading || productCardSending || availableBySizeSending)}
                     />
@@ -7104,13 +7088,14 @@ export default function AiInbox() {
                         value={replyText}
                         onChange={setReplyText}
                         onSend={() => sendCurrentReply()}
-                        onSaveDraft={saveDraftReply}
                         onOpenProductPicker={() => openProductCardPicker()}
+                        onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
+                        onCreateCustomer={createLeadCustomer}
                         onLoadDraft={(text) => setReplyText(text)}
                         onCopyDraft={copySuggestedReply}
                         commentDraftText={latestCommentReplyDraft}
                         isCommentConversation={isCommentConversation(selectedConversation || {})}
-                        loading={loading || productCardSending || availableBySizeSending}
+                        loading={Boolean(leadActionLoading || loading || productCardSending || availableBySizeSending)}
                         validationSummary={activeAiReplyValidation}
                         confidenceEngineSummary={activeAiReplyConfidence}
                         aiSuggestionText={activeAiSuggestionText}
@@ -7730,12 +7715,9 @@ export default function AiInbox() {
                     employees={employees}
                     selectedEmployeeId={leadAssignEmployeeId}
                     onSelectedEmployeeIdChange={setLeadAssignEmployeeId}
-                    onCreateCustomer={createLeadCustomer}
                     onCreateOpportunity={createLeadOpportunity}
                     onSendPrivateMessage={sendLeadPrivateMessage}
                     onSendCommentReply={sendLeadCommentReplyQuick}
-                    onOpenProductPicker={() => openProductCardPicker()}
-                    onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
                     onAssignEmployee={assignLeadEmployee}
                     busy={Boolean(leadActionLoading || loading || productCardSending || availableBySizeSending)}
                   />
@@ -7936,13 +7918,14 @@ export default function AiInbox() {
                         value={replyText}
                         onChange={setReplyText}
                         onSend={() => sendCurrentReply()}
-                        onSaveDraft={saveDraftReply}
                         onOpenProductPicker={() => openProductCardPicker()}
+                        onOpenAvailableBySizePicker={() => openProductCardPicker({ sizeMode: true, allowMultiple: true })}
+                        onCreateCustomer={createLeadCustomer}
                         onLoadDraft={(text) => setReplyText(text)}
                         onCopyDraft={copySuggestedReply}
                         commentDraftText={latestCommentReplyDraft}
                         isCommentConversation={isCommentConversation(selectedConversation || {})}
-                        loading={loading}
+                        loading={Boolean(leadActionLoading || loading || productCardSending || availableBySizeSending)}
                         validationSummary={activeAiReplyValidation}
                         confidenceEngineSummary={activeAiReplyConfidence}
                         aiSuggestionText={activeAiSuggestionText}
