@@ -116,6 +116,7 @@ const META_OAUTH_SCOPES = [
   "pages_manage_posts",
   "pages_messaging",
   "instagram_basic",
+  "instagram_manage_comments",
   "instagram_manage_messages",
   "instagram_content_publish",
 ];
@@ -4349,6 +4350,306 @@ export const fetchMetaPageFeedPostsForTenant = async ({ tenantId = null, limit =
   return { success: true, posts: posts.slice(0, targetCount), page_id: pageId, graph_error: null };
 };
 
+const META_INSTAGRAM_MEDIA_FIELDS = [
+  "id",
+  "caption",
+  "media_type",
+  "media_product_type",
+  "media_url",
+  "thumbnail_url",
+  "permalink",
+  "timestamp",
+  "comments_count",
+  "like_count",
+  "children{id,media_type,media_url,thumbnail_url}",
+].join(",");
+
+const normalizeMetaInstagramMediaPost = (media = {}) => {
+  const children = asArray(media?.children?.data || media?.children);
+  const firstChild = children[0] || {};
+  const mediaType = text(media.media_type || media.media_product_type || "IMAGE");
+  const primaryMediaUrl = text(
+    media.thumbnail_url ||
+      media.media_url ||
+      firstChild.thumbnail_url ||
+      firstChild.media_url ||
+      ""
+  );
+  return {
+    ...media,
+    id: text(media.id || ""),
+    platform: "instagram",
+    created_time: text(media.timestamp || ""),
+    timestamp: text(media.timestamp || ""),
+    message: text(media.caption || ""),
+    caption: text(media.caption || ""),
+    permalink_url: text(media.permalink || ""),
+    permalink: text(media.permalink || ""),
+    full_picture: primaryMediaUrl,
+    picture: primaryMediaUrl,
+    cover_image_url: primaryMediaUrl,
+    thumbnail_url: text(media.thumbnail_url || primaryMediaUrl),
+    media_url: text(media.media_url || firstChild.media_url || primaryMediaUrl),
+    media_type: mediaType,
+    post_type: mediaType,
+    comments_count: Number(media.comments_count || 0) || 0,
+    like_count: Number(media.like_count || 0) || 0,
+  };
+};
+
+const resolveMetaInstagramContext = async ({ tenantId = null } = {}) => {
+  const safeTenantId = numberOrNull(tenantId);
+  if (!safeTenantId) return { safeTenantId: null, row: null, token: "", instagramAccountId: "", error: "tenant_id is required" };
+  const row = await getMetaIntegrationConfig({ tenantId: safeTenantId });
+  if (!row) return { safeTenantId, row: null, token: "", instagramAccountId: "", error: "Meta integration is not configured" };
+  const token = getTokenForConfig(row);
+  const instagramAccountId = text(row.instagram_business_account_id || "");
+  if (!instagramAccountId) return { safeTenantId, row, token, instagramAccountId: "", error: "Instagram business account id is missing" };
+  if (!token) return { safeTenantId, row, token: "", instagramAccountId, error: "Page access token is missing" };
+  return { safeTenantId, row, token, instagramAccountId, error: "" };
+};
+
+const fetchMetaInstagramMediaPages = async ({ instagramAccountId = "", token = "", limit = 100 } = {}) => {
+  const safeLimit = Math.min(500, Math.max(1, Number(limit) || 100));
+  const media = [];
+  let after = "";
+  let pageCount = 0;
+  while (media.length < safeLimit && pageCount < 5) {
+    debugSocialCommentsLog("META_INSTAGRAM_MEDIA_GRAPH_REQUEST", {
+      object_id: text(instagramAccountId),
+      url: `/${encodeURIComponent(text(instagramAccountId))}/media`,
+      fields: META_INSTAGRAM_MEDIA_FIELDS,
+    });
+    const payload = await callMetaGet({
+      endpoint: `/${encodeURIComponent(text(instagramAccountId))}/media`,
+      token,
+      params: {
+        fields: META_INSTAGRAM_MEDIA_FIELDS,
+        limit: String(Math.min(100, safeLimit - media.length)),
+        ...(after ? { after } : {}),
+      },
+    });
+    const pageRows = asArray(payload?.data);
+    media.push(...pageRows);
+    pageCount += 1;
+    const nextAfter = text(payload?.paging?.cursors?.after || "");
+    if (!nextAfter || !pageRows.length) break;
+    after = nextAfter;
+  }
+  return media.slice(0, safeLimit).map(normalizeMetaInstagramMediaPost).filter((post) => post.id);
+};
+
+const fetchMetaInstagramMediaComments = async ({ mediaId = "", token = "", limit = 100 } = {}) => {
+  const payload = await callMetaGet({
+    endpoint: `/${encodeURIComponent(text(mediaId))}/comments`,
+    token,
+    params: {
+      fields: "id,text,timestamp,like_count,from{id,username}",
+      limit: String(Math.min(100, Math.max(1, Number(limit) || 100))),
+    },
+  });
+  return asArray(payload?.data);
+};
+
+const buildMetaInstagramPolledCommentEvent = ({ tenantId = null, instagramAccountId = "", post = {}, comment = {} } = {}) => {
+  const commentId = text(comment.id || "");
+  const commenterId = text(comment.from?.id || comment.user?.id || comment.username || "");
+  const commenterName = text(comment.from?.username || comment.username || comment.from?.name || "");
+  const postId = text(post.id || "");
+  const postPermalink = text(post.permalink_url || post.permalink || "");
+  const commentCreatedTime = text(comment.timestamp || comment.created_time || new Date().toISOString());
+  const postCreatedTime = text(post.timestamp || post.created_time || "");
+  const postImage = text(post.thumbnail_url || post.full_picture || post.media_url || post.picture || "");
+  const commentText = text(comment.text || comment.message || "");
+  return {
+    tenant_id: tenantId,
+    platform: "instagram",
+    channel: "instagram_comment",
+    post_id: postId,
+    post_full_picture: postImage,
+    attachment_image: postImage,
+    post_thumbnail: postImage,
+    post_permalink: postPermalink,
+    post_permalink_url: postPermalink,
+    post_message: text(post.caption || post.message || ""),
+    post_caption: text(post.caption || post.message || ""),
+    post_created_time: postCreatedTime,
+    comment_id: commentId,
+    parent_comment_id: text(comment.parent_id || comment.parent?.id || ""),
+    root_comment_id: text(comment.parent_id || comment.parent?.id || commentId),
+    commenter_id: commenterId,
+    commenter_name: commenterName,
+    commenter_profile_picture_url: text(comment.from?.profile_picture_url || ""),
+    original_comment_text: commentText,
+    comment_created_time: commentCreatedTime,
+    comment_permalink_url: "",
+    comment_url: postPermalink,
+    classification_label: null,
+    classification_score: null,
+    action_taken: "ingested_history",
+    public_reply_status: null,
+    dm_status: null,
+    like_status: null,
+    inbox_conversation_id: null,
+    error_code: null,
+    automation_state: {},
+    raw_payload: {
+      source: "meta_instagram_comment_sync",
+      instagram_business_account_id: text(instagramAccountId),
+      post_id: postId,
+      media_id: postId,
+      post_message: text(post.caption || post.message || ""),
+      post_caption: text(post.caption || post.message || ""),
+      post_created_time: postCreatedTime,
+      post_full_picture: postImage,
+      post_permalink_url: postPermalink,
+      comment_created_time: commentCreatedTime,
+      comment_id: commentId,
+      post,
+      comment,
+      value: {
+        media_id: postId,
+        comment_id: commentId,
+        from: { id: commenterId, username: commenterName, name: commenterName },
+        text: commentText,
+        timestamp: commentCreatedTime,
+        media: { id: postId, media_product_type: text(post.media_product_type || post.media_type || "") },
+      },
+    },
+    processed_at: commentCreatedTime,
+  };
+};
+
+const filterNewInstagramCommentEvents = async ({ tenantId = null, events = [] } = {}) => {
+  const candidates = asArray(events).filter((event) => text(event?.comment_id));
+  if (!candidates.length) return [];
+  const commentIds = [...new Set(candidates.map((event) => text(event.comment_id)))];
+  const existing = await db.query(
+    `
+    SELECT comment_id
+    FROM social_comment_automation_runs
+    WHERE tenant_id = $1::bigint
+      AND platform = 'instagram'
+      AND comment_id = ANY($2::text[])
+    `,
+    [numberOrNull(tenantId), commentIds]
+  ).catch(() => ({ rows: [] }));
+  const existingIds = new Set(asArray(existing.rows).map((row) => text(row.comment_id)).filter(Boolean));
+  return candidates.filter((event) => !existingIds.has(text(event.comment_id)));
+};
+
+const instagramCommentSyncCache = new Map();
+const INSTAGRAM_COMMENT_SYNC_TTL_MS = 5 * 60 * 1000;
+
+export const syncMetaInstagramCommentsForTenant = async ({ tenantId = null, mediaIds = [], limit = 100, posts: providedPosts = [], skipAutomation = true } = {}) => {
+  const context = await resolveMetaInstagramContext({ tenantId });
+  if (context.error) return { success: false, posts: [], comments_seen: 0, comments_saved: 0, graph_error: context.error };
+  let posts = asArray(providedPosts).filter((post) => post && typeof post === "object");
+  if (!posts.length) {
+    posts = await fetchMetaInstagramMediaPages({
+      instagramAccountId: context.instagramAccountId,
+      token: context.token,
+      limit,
+    });
+  }
+  const requestedIds = new Set(asArray(mediaIds).map(text).filter(Boolean));
+  if (requestedIds.size) posts = posts.filter((post) => requestedIds.has(text(post.id)));
+  const postsWithComments = posts.filter((post) => Number(post.comments_count || 0) > 0).slice(0, 30);
+  let commentsSeen = 0;
+  let commentsSaved = 0;
+  const errors = [];
+  for (let index = 0; index < postsWithComments.length; index += 5) {
+    const batch = postsWithComments.slice(index, index + 5);
+    const batchResults = await Promise.all(batch.map(async (post) => {
+      try {
+        const comments = await fetchMetaInstagramMediaComments({ mediaId: post.id, token: context.token, limit: 100 });
+        const events = comments
+          .map((comment) => buildMetaInstagramPolledCommentEvent({
+            tenantId: context.safeTenantId,
+            instagramAccountId: context.instagramAccountId,
+            post,
+            comment,
+          }))
+          .filter((event) => event.comment_id);
+        const newEvents = await filterNewInstagramCommentEvents({ tenantId: context.safeTenantId, events });
+        if (newEvents.length) {
+          await storeSocialCommentAutomationRuns({
+            tenantId: context.safeTenantId,
+            events: newEvents,
+            skipAutomation,
+          });
+        }
+        return { seen: comments.length, saved: newEvents.length };
+      } catch (error) {
+        errors.push({ media_id: text(post.id), message: error?.message || "Unable to sync Instagram comments" });
+        return { seen: 0, saved: 0 };
+      }
+    }));
+    commentsSeen += batchResults.reduce((sum, item) => sum + item.seen, 0);
+    commentsSaved += batchResults.reduce((sum, item) => sum + item.saved, 0);
+  }
+  return {
+    success: errors.length === 0,
+    posts,
+    comments_seen: commentsSeen,
+    comments_saved: commentsSaved,
+    automation_skipped: Boolean(skipAutomation),
+    errors: errors.slice(0, 10),
+    graph_error: errors[0]?.message || null,
+  };
+};
+
+export const fetchMetaInstagramMediaForTenant = async ({ tenantId = null, limit = 100, syncComments = false } = {}) => {
+  const context = await resolveMetaInstagramContext({ tenantId });
+  if (context.error) {
+    return {
+      success: false,
+      posts: [],
+      instagram_account_id: context.instagramAccountId || "",
+      graph_error: context.error,
+    };
+  }
+  try {
+    const posts = await fetchMetaInstagramMediaPages({
+      instagramAccountId: context.instagramAccountId,
+      token: context.token,
+      limit,
+    });
+    let sync = null;
+    if (syncComments) {
+      const cacheKey = `${context.safeTenantId}:${context.instagramAccountId}`;
+      const lastSyncedAt = Number(instagramCommentSyncCache.get(cacheKey) || 0);
+      if (Date.now() - lastSyncedAt >= INSTAGRAM_COMMENT_SYNC_TTL_MS) {
+        sync = await syncMetaInstagramCommentsForTenant({ tenantId: context.safeTenantId, limit, posts });
+        if (sync?.success || Number(sync?.comments_saved || 0) > 0) {
+          instagramCommentSyncCache.set(cacheKey, Date.now());
+        }
+      } else {
+        sync = { success: true, skipped: true, reason: "recently_synced" };
+      }
+    }
+    return {
+      success: true,
+      posts,
+      instagram_account_id: context.instagramAccountId,
+      comments_sync: sync,
+      graph_error: sync?.graph_error || null,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      posts: [],
+      instagram_account_id: context.instagramAccountId,
+      graph_error: {
+        message: error?.message || "Unable to load Instagram media",
+        status: error?.status || null,
+        code: error?.meta?.code || error?.code || "",
+        subcode: error?.meta?.error_subcode || "",
+      },
+    };
+  }
+};
+
 const fetchMetaPagePostsForPolling = async ({ pageId, token }) => {
   const page = await fetchMetaPagePostsPage({ pageId, token, limit: 100 }).catch((error) => {
     if (isMetaRateLimitError(error)) throw error;
@@ -6561,6 +6862,42 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
   result.posted_fields = postedFields;
   result.optional_comment_fields_success = successfulCommentFields;
 
+  const instagramBusinessAccountId = text(row?.instagram_business_account_id || "");
+  result.instagram_subscription = {
+    account_id: instagramBusinessAccountId,
+    requested_fields: ["comments"],
+    subscribed: false,
+    error: "",
+  };
+  if (instagramBusinessAccountId) {
+    try {
+      const instagramSubscriptionMeta = await callMetaPostForm({
+        endpoint: `/${encodeURIComponent(instagramBusinessAccountId)}/subscribed_apps`,
+        token,
+        body: { subscribed_fields: "comments" },
+      });
+      result.instagram_subscription = {
+        ...result.instagram_subscription,
+        subscribed: instagramSubscriptionMeta?.success !== false,
+        meta: instagramSubscriptionMeta || null,
+      };
+      console.log("META_INSTAGRAM_COMMENTS_SUBSCRIPTION_SUCCESS", {
+        tenant_id: numberOrNull(tenantId),
+        instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
+        subscribed_fields: ["comments"],
+      });
+    } catch (error) {
+      result.instagram_subscription.error = error?.message || "Unable to subscribe Instagram comments webhook";
+      result.instagram_subscription.meta = error?.meta || null;
+      console.warn("META_INSTAGRAM_COMMENTS_SUBSCRIPTION_FAILED", {
+        tenant_id: numberOrNull(tenantId),
+        instagram_business_account_id: maskIdForLog(instagramBusinessAccountId),
+        message: result.instagram_subscription.error,
+        meta: error?.meta || null,
+      });
+    }
+  }
+
   const verification = await getPageSubscribedApps({ pageId: resolvedPageId, token });
   const verifiedFields = normalizeWebhookFields(verification.subscribed_fields);
   const subscribedFieldsBeforePersist = normalizeWebhookFields([
@@ -6574,8 +6911,16 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
   result.app_installed = Boolean(verification.app_installed || verification.ok || result.post_subscription_success);
   result.page_subscription_present = Boolean(verification.page_subscription_present || verification.ok || result.post_subscription_success);
   result.missing_required_fields = META_WEBHOOK_REQUIRED_FIELDS.filter((field) => !hasRequiredWebhookFields(result.subscribed_fields, [field]));
-  result.missing_optional_fields = META_WEBHOOK_COMMENT_FIELDS.filter((field) => !hasRequiredWebhookFields(result.subscribed_fields, [field]));
-  result.comments_available = result.subscribed_fields.includes("feed") || result.subscribed_fields.includes("comments") || result.subscribed_fields.includes("mentions");
+  result.missing_optional_fields = META_WEBHOOK_COMMENT_FIELDS.filter((field) => {
+    if (field === "comments" && result.instagram_subscription?.subscribed) return false;
+    return !hasRequiredWebhookFields(result.subscribed_fields, [field]);
+  });
+  result.comments_available = Boolean(
+    result.instagram_subscription?.subscribed ||
+    result.subscribed_fields.includes("feed") ||
+    result.subscribed_fields.includes("comments") ||
+    result.subscribed_fields.includes("mentions")
+  );
   console.log("[meta-webhook] subscribed_fields_before_persist", {
     tenant_id: numberOrNull(tenantId),
     facebook_page_id: maskIdForLog(resolvedPageId),
@@ -7540,6 +7885,9 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
     posts_checked: 0,
     comments_seen: 0,
     comments_saved: 0,
+    instagram_posts_checked: 0,
+    instagram_comments_seen: 0,
+    instagram_comments_saved: 0,
     duplicates: 0,
     errors: 0,
     skipped: 0,
@@ -7564,6 +7912,32 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
       continue;
     }
     if (!safeTenantId || !pageId || !token) continue;
+
+    // Instagram comment webhooks require a Meta app capability that is not
+    // available to every connected app. Poll the linked professional account
+    // independently so new Instagram comments still reach both inboxes.
+    if (text(config.instagram_business_account_id || "")) {
+      try {
+        const instagramSync = await syncMetaInstagramCommentsForTenant({
+          tenantId: safeTenantId,
+          limit: 100,
+          skipAutomation: false,
+        });
+        totals.instagram_posts_checked += asArray(instagramSync.posts).length;
+        totals.instagram_comments_seen += Number(instagramSync.comments_seen || 0);
+        totals.instagram_comments_saved += Number(instagramSync.comments_saved || 0);
+        totals.posts_checked += asArray(instagramSync.posts).length;
+        totals.comments_seen += Number(instagramSync.comments_seen || 0);
+        totals.comments_saved += Number(instagramSync.comments_saved || 0);
+        if (!instagramSync.success && instagramSync.graph_error) totals.errors += 1;
+      } catch (error) {
+        totals.errors += 1;
+        console.error("META_INSTAGRAM_COMMENTS_POLL_ERROR", {
+          tenant_id: safeTenantId,
+          message: error?.message || "Unable to poll Instagram comments",
+        });
+      }
+    }
 
     const skipDecision = shouldSkipMetaPolling(config);
     if (skipDecision.skip) {

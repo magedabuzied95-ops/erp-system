@@ -36,6 +36,8 @@ const getSocialCommentsMetaIntegrationDeps = async () => {
     socialCommentsMetaIntegrationDepsPromise = import("./metaIntegrationService.js")
       .then((module) => ({
         fetchMetaPageFeedPostsForTenant: module.fetchMetaPageFeedPostsForTenant,
+        fetchMetaInstagramMediaForTenant: module.fetchMetaInstagramMediaForTenant,
+        syncMetaInstagramCommentsForTenant: module.syncMetaInstagramCommentsForTenant,
         fetchMetaPostPreviewDetails: module.fetchMetaPostPreviewDetails,
       }))
       .catch((error) => {
@@ -3490,7 +3492,7 @@ export const loadSocialCommentPost = async ({ tenantId = null, platform = "", po
   };
 };
 
-const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 50, includeProductLinks = true } = {}) => {
+const listSocialCommentPostsForPlatform = async ({ tenantId = null, platform = "", limit = 50, includeProductLinks = true } = {}) => {
   const safeTenantId = toTenantId(tenantId);
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
   if (!safeTenantId) return [];
@@ -3553,7 +3555,9 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
   };
 
   const feedResult = await getSocialCommentsMetaIntegrationDeps()
-    .then(({ fetchMetaPageFeedPostsForTenant }) => fetchMetaPageFeedPostsForTenant({ tenantId: safeTenantId, limit: safeLimit }))
+    .then(({ fetchMetaPageFeedPostsForTenant, fetchMetaInstagramMediaForTenant }) => normalizedPlatform === "instagram"
+      ? fetchMetaInstagramMediaForTenant({ tenantId: safeTenantId, limit: safeLimit, syncComments: true })
+      : fetchMetaPageFeedPostsForTenant({ tenantId: safeTenantId, limit: safeLimit }))
     .catch((error) => ({
     success: false,
     posts: [],
@@ -3613,7 +3617,7 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     const postTime = text(post.created_time || post.post_created_time || "");
     const coverImageUrl = resolveFacebookPostCoverImage(post);
     const postLinkKey = postId;
-    const commentsCount = commentsByPostId.get(postId) || 0;
+    const commentsCount = Math.max(commentsByPostId.get(postId) || 0, Number(post.comments_count || post.comment_count || 0) || 0);
     const mappingSummary = includeProductLinks
       ? await getPostProductLinksV2({
           tenantId: safeTenantId,
@@ -3671,6 +3675,10 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
       post_full_picture: text(post.full_picture || ""),
       full_picture: text(post.full_picture || ""),
       picture: text(post.picture || ""),
+      media_type: text(post.media_type || post.media_product_type || post.post_type || ""),
+      media_product_type: text(post.media_product_type || post.media_type || ""),
+      media_url: text(post.media_url || ""),
+      video_url: text(post.media_type || "").toLowerCase().includes("video") ? text(post.media_url || "") : "",
       comments_count: commentsCount,
       comment_count: commentsCount,
       linked_products: linkedProducts,
@@ -3736,6 +3744,40 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
   });
 
   return sortedRows.slice(0, safeLimit);
+};
+
+const socialCommentPostSortTime = (post = {}) => {
+  const raw = text(post.display_post_time || post.post_created_time || post.published_at || post.created_time || "");
+  const parsed = raw ? Date.parse(raw) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 50, includeProductLinks = true } = {}) => {
+  const normalizedRequestedPlatform = lower(platform);
+  if (normalizedRequestedPlatform === "facebook" || normalizedRequestedPlatform === "instagram") {
+    return listSocialCommentPostsForPlatform({
+      tenantId,
+      platform: normalizedRequestedPlatform,
+      limit,
+      includeProductLinks,
+    });
+  }
+  const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
+  const [facebookPosts, instagramPosts] = await Promise.all([
+    listSocialCommentPostsForPlatform({ tenantId, platform: "facebook", limit: safeLimit, includeProductLinks }),
+    listSocialCommentPostsForPlatform({ tenantId, platform: "instagram", limit: safeLimit, includeProductLinks }),
+  ]);
+  const uniquePosts = new Map();
+  for (const post of [...facebookPosts, ...instagramPosts]) {
+    const postPlatform = lower(post.platform) === "instagram" ? "instagram" : "facebook";
+    const postId = text(post.post_id || post.id || post.platform_post_id || post.permalink_url || "");
+    const key = `${postPlatform}:${postId}`;
+    if (!postId || uniquePosts.has(key)) continue;
+    uniquePosts.set(key, { ...post, platform: postPlatform, channel: `${postPlatform}_comment` });
+  }
+  return [...uniquePosts.values()]
+    .sort((left, right) => socialCommentPostSortTime(right) - socialCommentPostSortTime(left))
+    .slice(0, safeLimit);
 };
 
 const backfillSocialCommentPostMedia = async ({ tenantId = null, platform = "", limit = 200 } = {}) => {
@@ -3948,6 +3990,20 @@ const listSocialCommentThreadComments = async ({ tenantId = null, platform = "",
   if (!safeTenantId || !safePostId) return [];
   await ensureSocialCommentsCenterSchema();
   const normalizedPlatform = normalizePlatform(platform);
+  if (normalizedPlatform === "instagram") {
+    const { syncMetaInstagramCommentsForTenant } = await getSocialCommentsMetaIntegrationDeps();
+    await syncMetaInstagramCommentsForTenant({
+      tenantId: safeTenantId,
+      mediaIds: [safePostId],
+      limit: 200,
+    }).catch((error) => {
+      console.warn("SOCIAL_INSTAGRAM_THREAD_SYNC_FAILED", {
+        tenant_id: safeTenantId,
+        post_id: safePostId,
+        message: error?.message || "",
+      });
+    });
+  }
   const channel = normalizedPlatform === "instagram" ? "instagram_comment" : "facebook_comment";
   const canonicalPostId = canonicalizeSocialCommentThreadPostId({ postId: safePostId, platform: normalizedPlatform });
   const sessionIds = buildSocialCommentThreadSessionVariants({ postId: canonicalPostId || safePostId, platform: normalizedPlatform });

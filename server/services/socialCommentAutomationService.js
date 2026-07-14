@@ -4943,6 +4943,8 @@ const resolveSocialCommentCustomerProfileId = async ({ tenantId = null, event = 
   const nameParts = commenterName.split(/\s+/).filter(Boolean);
   const firstName = nameParts[0] || commenterName || "";
   const lastName = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "";
+  const sourceChannel = lower(event.platform) === "instagram" ? "instagram" : "facebook";
+  const facebookName = sourceChannel === "facebook" ? commenterName : "";
   const inserted = await db.query(
     `
     INSERT INTO ai_customer_profiles (
@@ -4958,15 +4960,18 @@ const resolveSocialCommentCustomerProfileId = async ({ tenantId = null, event = 
       last_seen_at,
       updated_at
     )
-    VALUES ($1, $2, $3, 'facebook', $4, $5, $5, $5, $5, NOW(), NOW())
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $7, $6, NOW(), NOW())
+    ON CONFLICT DO NOTHING
     RETURNING id
     `,
     [
       safeTenantId,
       firstName,
       lastName,
+      sourceChannel,
       commenterId,
       commenterName,
+      facebookName,
     ]
   ).catch((error) => {
     socialCommentsError("[social-comments] profile upsert failed", {
@@ -6936,7 +6941,7 @@ const isCommentChange = (body = {}, change = {}) => {
   const item = lower(value.item);
   const verb = lower(value.verb);
   const allowedVerb = ["add", "created", "edited", "edit", ""].includes(verb);
-  if (body.object === "instagram" && (field === "comments" || field === "mentions") && item === "comment" && allowedVerb) return true;
+  if (lower(body.object) === "instagram" && (field === "comments" || field === "mentions") && allowedVerb) return true;
   if (field === "feed" && item === "comment" && allowedVerb) return true;
   return Boolean(value.comment_id || value.parent_id || value.post_id || value.media_id);
 };
@@ -6985,7 +6990,7 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   const value = change.value || {};
   const platform = normalizedPlatform(body);
   const channel = normalizedChannel(platform);
-  const postId = firstText(value.post_id, value.media_id, value.id, entry.id);
+  const postId = firstText(value.post_id, value.media_id, value.media?.id, value.media?.media_id, value.post?.id, entry.id, value.id);
   const postPermalink = firstText(value.permalink_url, value.post_permalink, value.permalink, value.link, value.url);
   const postMessage = firstText(value.post_message, value.post_caption, value.post?.message, value.post?.caption);
   const postCreatedTime = firstText(value.post_created_time, value.post?.created_time, value.post?.updated_time);
@@ -7004,7 +7009,7 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
   const normalizedPostCreatedTime = normalizeTimestampForDb(postCreatedTime, "normalizeCommentWebhookChange.post_created_time");
   const normalizedCommentCreatedTime = normalizeTimestampForDb(timestamp, "normalizeCommentWebhookChange.comment_created_time");
   console.info("SOCIAL_COMMENT_WEBHOOK_RAW", {
-    raw_post_id: firstText(value.post_id, value.media_id, value.id, entry.id),
+    raw_post_id: firstText(value.post_id, value.media_id, value.media?.id, value.media?.media_id, value.post?.id, entry.id, value.id),
     raw_object_id: firstText(body.object, change.object, entry.object, value.object_id, value.object),
     raw_parent_id: firstText(value.parent_id, value.parent_comment_id, value.parent?.id),
     raw_comment_id: firstText(value.comment_id, value.id, value.commentId, change.comment_id),
@@ -7040,11 +7045,11 @@ const normalizeCommentWebhookChange = ({ body = {}, entry = {}, change = {}, ten
     tenant_id: tenantId,
     platform,
     post_id: postId,
-    platform_post_id: firstText(value.post_id, value.media_id, value.id, entry.id),
+    platform_post_id: firstText(value.post_id, value.media_id, value.media?.id, value.media?.media_id, value.post?.id, entry.id, value.id),
     canonical_post_id: firstText(value.post?.id, value.post?.post_id, value.parent?.post_id, value.parent?.id, postId),
     conversation_id: firstText(value.conversation_id, value.thread_id, entry.conversation_id, entry.id, value.parent?.conversation_id),
     parent_id: parentCommentId,
-    raw_webhook_post_id: firstText(value.post_id, value.media_id, value.id, entry.id),
+    raw_webhook_post_id: firstText(value.post_id, value.media_id, value.media?.id, value.media?.media_id, value.post?.id, entry.id, value.id),
     raw_graph_post_id: firstText(value.post?.id, value.parent?.post_id, value.parent?.id, value.post?.object_id, value.graph_post_id),
     permalink_url: postPermalink,
     comment_id: commentId,
@@ -7145,7 +7150,7 @@ export const extractSocialCommentWebhookEvents = ({ body = {}, tenantId = null }
   return events;
 };
 
-export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events = [], deferAutomation = true } = {}) => {
+export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events = [], deferAutomation = true, skipAutomation = false } = {}) => {
   await ensureSocialCommentAutomationSchema();
   const stored = [];
   for (const event of asArray(events)) {
@@ -7355,6 +7360,27 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         source: text(storedRow.raw_payload?.source || event.raw_payload?.source || "meta_webhook"),
       });
       emitSocialCommentNew(storedRow);
+    }
+    if (skipAutomation) {
+      const materialization = await materializeSocialCommentInboxConversation({
+        tenantId: storedRow.tenant_id,
+        event: storedRow,
+        updateRunLink: true,
+      }).catch((error) => {
+        console.warn("SOCIAL_COMMENT_HISTORY_MATERIALIZE_FAILED", {
+          tenant_id: storedRow.tenant_id,
+          platform: storedRow.platform,
+          post_id: text(storedRow.post_id || ""),
+          comment_id: text(storedRow.comment_id || ""),
+          message: error?.message || "",
+        });
+        return null;
+      });
+      if (materialization?.conversation_id || materialization?.session_id) {
+        storedRow.inbox_conversation_id = text(materialization.conversation_id || materialization.session_id);
+      }
+      stored.push(storedRow);
+      continue;
     }
     if (deferAutomation) {
       const automationJob = {
