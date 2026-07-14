@@ -132,7 +132,7 @@ function TranscriptMessage({
             <div className="mb-1 text-right text-[10px] font-medium text-emerald-700/70">{createdAt}</div>
             <div className="text-slate-900">
               <LinkifiedText text={message.customer_message} className="text-slate-900" />
-              {message.delivery_status === "failed" ? <span className="text-[11px] text-rose-500"> آ· Failed</span> : null}
+              {message.delivery_status === "failed" ? <span className="text-[11px] text-rose-500"> · Failed</span> : null}
               {message.delivery_status === "failed" && message.delivery_error ? (
                 <p className="mt-1 text-[11px] leading-4 text-rose-200">{message.delivery_error}</p>
               ) : null}
@@ -161,7 +161,7 @@ function TranscriptMessage({
         <div className="flex justify-start">
           <div className={`max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "bg-rose-950 text-rose-50 ring-1 ring-rose-200" : "bg-slate-900 text-white"}`}>
             <div className={`mb-1 text-[10px] font-medium ${message.delivery_status === "failed" ? "text-rose-200" : "text-slate-300"}`}>
-              {message.message_type === "internal_note" ? "Internal Note" : "Team"} آ· {createdAt}
+              {message.message_type === "internal_note" ? "Internal Note" : "Team"} · {createdAt}
             </div>
             <LinkifiedText text={message.staff_message} className={`text-[14px] leading-5.5 ${message.delivery_status === "failed" ? "text-rose-50" : "text-white"}`} />
             {message.delivery_status === "failed" && message.delivery_error ? (
@@ -214,7 +214,7 @@ function TranscriptMessage({
   }
 
   return (
-    <div className="space-y-2" style={{ contentVisibility: "auto" }}>
+    <div className="space-y-2" style={{ contentVisibility: "auto", containIntrinsicBlockSize: "180px" }}>
       {safeRow.kind === "product_card" ? (
         <div className="flex justify-end">
           <div className="max-w-[88%]">
@@ -226,7 +226,7 @@ function TranscriptMessage({
         <div className="flex justify-start">
           <div className="max-w-[88%] rounded-3xl rounded-tl-sm border border-white/10 bg-white/[0.06] p-5 shadow-[0_10px_30px_rgba(0,0,0,0.15)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">
-              <span>ط§ظ„ط¹ظ…ظٹظ„</span>
+              <span>العميل</span>
               <span>/</span>
               <span>{channelLabel}</span>
               <span>/</span>
@@ -250,7 +250,7 @@ function TranscriptMessage({
           <div className="max-w-[88%] rounded-3xl rounded-tr-sm border border-cyan-300/15 bg-cyan-300/10 p-5 shadow-[0_10px_30px_rgba(8,145,178,0.14)]">
             <div className="flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] text-cyan-100">
               <Bot className="h-3.5 w-3.5" />
-              <span>{message.message_type === "comment_suggestion" ? "ظ…ط³ظˆط¯ط©" : "AI"}</span>
+              <span>{message.message_type === "comment_suggestion" ? "مسودة" : "AI"}</span>
               {message.message_type === "comment_suggestion" ? <span className="rounded-full border border-violet-300/20 bg-violet-400/10 px-2 py-0.5 text-[10px] font-black text-violet-100">Draft reply</span> : null}
               <span className="text-slate-500">{createdAt}</span>
               <span className="text-slate-500">conf {Number(message.confidence || 0).toFixed(2)}</span>
@@ -261,7 +261,7 @@ function TranscriptMessage({
                   className="inline-flex h-6 items-center gap-1 rounded-full border border-white/10 bg-white/[0.06] px-2 text-[10px] font-black text-slate-100"
                 >
                   <Sparkles className="h-3 w-3" />
-                  طھطµط­ظٹط­ ط§ظ„ط±ط¯
+                  تصحيح الرد
                 </button>
               ) : null}
             </div>

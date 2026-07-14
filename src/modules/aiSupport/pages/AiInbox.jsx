@@ -1278,20 +1278,19 @@ const normalizeTranscriptMessage = (message = {}) => {
   };
 };
 
-const messagesShareIdentity = (left = {}, right = {}) => {
-  const leftKeys = new Set(messageIdentityKeys(left));
-  return messageIdentityKeys(right).some((key) => leftKeys.has(key));
-};
-
 const mergeMessagesByIdentity = (messages = []) => {
   const merged = [];
+  const identityIndexes = new Map();
   for (const raw of asArray(messages)) {
     const message = raw && typeof raw === "object" ? raw : {};
-    const existingIndex = merged.findIndex((item) => messagesShareIdentity(item, message));
-    if (existingIndex >= 0) {
+    const keys = messageIdentityKeys(message);
+    const existingIndex = keys.reduce((found, key) => found ?? identityIndexes.get(key), undefined);
+    if (existingIndex !== undefined) {
       merged[existingIndex] = { ...merged[existingIndex], ...message };
+      messageIdentityKeys(merged[existingIndex]).forEach((key) => identityIndexes.set(key, existingIndex));
     } else {
-      merged.push(message);
+      const nextIndex = merged.push(message) - 1;
+      keys.forEach((key) => identityIndexes.set(key, nextIndex));
     }
   }
   return merged;
@@ -2797,15 +2796,15 @@ function SalesCloserPanel({ plan = {}, products = [], conversation = {}, loading
         ? "Ask the customer for product name or photo."
         : "Ask for size before recommending stock.";
   const practicalActions = [
-    { key: "ask_size", label: "Ask for size", enabled: !intent.size, action: () => onUseText(intent.product_model ? `طھظ…ط§ظ…طŒ ط§ظ„ظ…طھظˆظپط± ط¹ظ„ظ‰ ${intent.product_model}طŒ طھظ‚ظˆظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ„ظٹ ظ…ط­طھط§ط¬ظ‡طں` : "طھظ…ط§ظ…طŒ طھظ‚ظˆظ„ظٹ ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ„ظٹ ظ…ط­طھط§ط¬ظ‡طں") },
-    { key: "ask_product", label: "Ask for product clarification", enabled: !primary, action: () => onUseText("ظ…ظ…ظƒظ† طھط¨ط¹طھظ„ظٹ ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬ ط£ظˆ طµظˆط±ط© ط£ظˆط¶ط­ ط¹ط´ط§ظ† ط£ط¬ظٹط¨ ظ„ظƒ ط§ظ„ط£ظ†ط³ط¨طں") },
-    { key: "recommend_alternative", label: "Recommend alternative", enabled: Boolean(primary || products.length), action: () => onUseText(followup.alternative_message || "ظ„ظˆ ط§ظ„ظ…ظ‚ط§ط³ ط£ظˆ ط§ظ„ظ„ظˆظ† ط¯ظ‡ ط؛ظٹط± ظ…طھظˆظپط±طŒ ط£ظ‚ط¯ط± ط£ط±ط´ط­ ظ„ظƒ ط¨ط¯ظٹظ„ ظ‚ط±ظٹط¨ ط¬ط¯ظ‹ط§.") },
+    { key: "ask_size", label: "Ask for size", enabled: !intent.size, action: () => onUseText(intent.product_model ? `تمام، المتوفر على ${intent.product_model}، تقولي المقاس اللي محتاجه؟` : "تمام، تقولي المقاس اللي محتاجه؟") },
+    { key: "ask_product", label: "Ask for product clarification", enabled: !primary, action: () => onUseText("ممكن تبعتلي اسم المنتج أو صورة أوضح عشان أجيب لك الأنسب؟") },
+    { key: "recommend_alternative", label: "Recommend alternative", enabled: Boolean(primary || products.length), action: () => onUseText(followup.alternative_message || "لو المقاس أو اللون ده غير متوفر، أقدر أرشح لك بديل قريب جدًا.") },
     { key: "escalate_human", label: "Escalate to human", enabled: true, action: onTakeover },
     { key: "draft_order", label: "Draft order", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: false }) },
     { key: "reserve_stock", label: "Reserve stock", enabled: Boolean(primary), action: () => primary && onCreateDraft?.(primary, { reserve: true }) },
     { key: "available_by_size", label: "المتاح بالمقاس", enabled: true, action: () => openProductCardPicker({ sizeMode: true, allowMultiple: true }) },
     { key: "payment_link", label: "Send payment link", enabled: true, action: () => onPaymentAction?.("payment_link") },
-    { key: "follow_up", label: "Follow up", enabled: Boolean(followup.low_stock_message || followup.ten_minute_message), action: () => onUseText(followup.low_stock_message || followup.ten_minute_message || "ظ‡طھط§ط¨ط¹ ظ…ط¹ط§ظƒ ط£ظˆظ„ ظ…ط§ ظٹطھظˆظپط± ط§ظ„ظ…ظ‚ط§ط³ ط§ظ„ظ…ظ†ط§ط³ط¨.") },
+    { key: "follow_up", label: "Follow up", enabled: Boolean(followup.low_stock_message || followup.ten_minute_message), action: () => onUseText(followup.low_stock_message || followup.ten_minute_message || "هتابع معاك أول ما يتوفر المقاس المناسب.") },
   ];
   const chips = [
     intent.product_model ? `Model: ${intent.product_model}` : "",
@@ -6316,10 +6315,10 @@ export default function AiInbox() {
     const orderNumber = draft.invoice_number || draft.public_order_number || draft.id || "";
     const total = draft.total_amount || draft.total_price || draft.total || 0;
     if (type === "payment_link") {
-      setReplyText(`طھظ…ط§ظ…طŒ ط¯ظ‡ ظ„ظٹظ†ظƒ ط§ظ„ط¯ظپط¹ ظ„ظ„ط·ظ„ط¨ ${orderNumber}: ${draft.id ? `/orders/${draft.id}` : ""}`.trim());
+      setReplyText(`تمام، ده لينك الدفع للطلب ${orderNumber}: ${draft.id ? `/orders/${draft.id}` : ""}`.trim());
       return;
     }
-    setReplyText(`طھظ…ط§ظ…طŒ ظ…ظ…ظƒظ† ط§ظ„ط¯ظپط¹ ط¹ظ†ط¯ ط§ظ„ط§ط³طھظ„ط§ظ…${total ? ` ط¨ط¥ط¬ظ…ط§ظ„ظٹ ${money(total)}` : ""}. ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… ظˆط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ظ„طھط£ظƒظٹط¯ ط§ظ„ط·ظ„ط¨.`);
+    setReplyText(`تمام، ممكن الدفع عند الاستلام${total ? ` بإجمالي ${money(total)}` : ""}. ابعتلي الاسم ورقم الموبايل والعنوان لتأكيد الطلب.`);
   };
 
   const copySuggestedReply = useCallback(async (text) => {

@@ -911,13 +911,13 @@ const loadShareAvailableProducts = async (req = {}, filters = {}) => {
 const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = [], count = 0 } = {}) => {
   const imageGeneratorVersion = "V2";
   const sizeValue = filters.sizes?.[0] || "";
-  const title = escapeHtml(`╟су╩╟═ ╚╟су▐╟╙ ${sizeValue}`.trim() || "╟су╩╟═ ╚╟су▐╟╙");
+  const title = escapeHtml(`╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й ┘Д┘Д┘Е┘В╪з╪│ ${sizeValue}`.trim() || "╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й");
   const firstImageProduct = products.find((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || "")) || null;
   const primaryImage = normalizeImageUrlCandidate(firstImageProduct?.public_image_url || firstImageProduct?.image_url || "");
   const fallbackImage = buildShareAvailableFallbackImageUrl(req) || "";
   const selectedImage = primaryImage || fallbackImage || "";
   const routeBranch = primaryImage ? "single-product" : fallbackImage ? "fallback" : "empty";
-  const selectedTitle = title || "╟су╩╟═ ╚╟су▐╟╙";
+  const selectedTitle = title || "╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й";
   const imageTag = selectedImage
     ? `<image href="${escapeHtml(selectedImage)}" x="86" y="286" width="1028" height="248" preserveAspectRatio="xMidYMid meet" />`
     : "";
@@ -959,8 +959,8 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
   <rect width="1200" height="630" rx="36" fill="url(#frameGradient)" />
   <text x="92" y="112" fill="#f4e8bf" font-size="20" font-weight="800" font-family="Arial, sans-serif">M1 Store</text>
   <text x="92" y="178" fill="#ffffff" font-size="54" font-weight="900" font-family="Arial, sans-serif">${selectedTitle}</text>
-  <text x="92" y="220" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">╟▌╩═ ▀с ╟суф╩╠╟╩ ╟су╩╟═╔ ╟с┬ф ▌э M1 Store</text>
-  <text x="92" y="254" fill="#cbd5e1" font-size="18" font-weight="700" font-family="Arial, sans-serif">╟су▐╟╙ ╟су╩╟═ ╟с┬ф э┘х╤ у╚╟╘╤╔ ╧╟╬с ╟су╩╠╤</text>
+  <text x="92" y="220" fill="#e5e7eb" font-size="24" font-weight="700" font-family="Arial, sans-serif">┘Г┘Д ╪з┘Д┘Е┘И╪п┘К┘Д╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й ╪н╪з┘Д┘К┘Л╪з ┘Е┘Ж M1 Store</text>
+  <text x="92" y="254" fill="#cbd5e1" font-size="18" font-weight="700" font-family="Arial, sans-serif">╪з╪о╪к╪▒ ╪з┘Д┘Е┘Ж╪к╪м ╪з┘Д┘Е┘Ж╪з╪│╪и ┘И╪г┘Г┘Е┘Д ╪╖┘Д╪и┘Г ┘Е┘Ж ╪з┘Д┘Е╪к╪м╪▒</text>
   ${selectedImage
     ? `
       ${imageTag}
@@ -974,16 +974,18 @@ const buildShareAvailablePreviewSvg = ({ req = null, filters = {}, products = []
 const buildShareAvailableFallbackSvg = (options = {}) => buildShareAvailablePreviewSvg(options);
 
 const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "", targetUrl = "", products = [] } = {}) => {
-  const sizeLabel = filters.sizes?.length > 1 ? `╟су╩╟═ ╚╟су▐╟╙╟╩ ${filters.sizes.join("б ")}` : `╟су╩╟═ ╚╟су▐╟╙ ${filters.sizes?.[0] || ""}`.trim();
-  const title = escapeHtml(sizeLabel || "╟су╩╟═ ╚╟су▐╟╙");
-  const description = escapeHtml(Number(count || 0) > 0 ? `${count} уц╧эс у╩╟═ ╟с┬ф ▌э M1 Store` : "╟▌╩═ ╟суф╩╠╟╩ ╟су╩╟═╔ ╟с┬ф ▌э M1 Store");
+  const sizeLabel = filters.sizes?.length > 1
+    ? `╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й ┘Д┘Д┘Е┘В╪з╪│╪з╪к ${filters.sizes.join("╪М ")}`
+    : `╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й ┘Д┘Д┘Е┘В╪з╪│ ${filters.sizes?.[0] || ""}`.trim();
+  const title = escapeHtml(sizeLabel || "╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й");
+  const description = escapeHtml(Number(count || 0) > 0 ? `${count} ┘Е┘Ж╪к╪м ┘Е╪к╪з╪н ╪н╪з┘Д┘К┘Л╪з ┘Е┘Ж M1 Store` : "┘Г┘Д ╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й ╪н╪з┘Д┘К┘Л╪з ┘Е┘Ж M1 Store");
   const publicBaseUrl = getPublicAppUrl() || DEFAULT_PUBLIC_APP_URL;
   const absoluteUrl = escapeHtml(new URL(req.originalUrl || req.url || "/share/available", publicBaseUrl).toString());
   const absoluteImage = escapeHtml(ogImageUrl || buildShareAvailableOgImageUrl(req, filters, "png"));
   const fallbackTarget = escapeHtml(targetUrl || buildShareAvailableTargetUrl(req, filters));
   const productsPreview = products
     .slice(0, 4)
-    .map((product) => `<li>${escapeHtml(firstText(product.name, product.brand_name, product.brand, "с╟ ╩ц╠╧ ╒ц╤╔"))}</li>`)
+    .map((product) => `<li>${escapeHtml(firstText(product.name, product.brand_name, product.brand, "┘Е┘Ж╪к╪м ╪и╪п┘И┘Ж ╪з╪│┘Е"))}</li>`)
     .join("");
   return `<!doctype html>
 <html lang="ar" dir="rtl">
@@ -1018,8 +1020,8 @@ const renderShareAvailableHtml = ({ req, filters = {}, count = 0, ogImageUrl = "
       <section class="card">
         <h1 style="margin:0 0 12px;font-size:34px;">${title}</h1>
         <p style="margin:0 0 8px;font-size:18px;opacity:.92;">${description}</p>
-        <p style="margin:0 0 18px;opacity:.72;">╟с╤╟╚╪ хэ▌╩═ ╟суф╩╠╟╩ ╩с▐╟╞эЁ╟ ╬с╟с ╦╟фэ╔. сц у╟ ▌╩═╘б ╟╙╩╬╧у ╟с╥╤ ╚╟с├╙▌с.</p>
-        <a href="${fallbackTarget}">▌╩═ ╟суф╩╠╟╩</a>
+        <p style="margin:0 0 18px;opacity:.72;">╪з╪о╪к╪▒ ╪з┘Д┘Е┘Ж╪к╪м ╪з┘Д┘Е┘Ж╪з╪│╪и ┘И╪г┘Г┘Е┘Д ╪╖┘Д╪и┘Г ┘Е┘Ж ╪з┘Д┘Е╪к╪м╪▒. ┘Д┘И ┘Д╪п┘К┘Г ╪г┘К ╪│╪д╪з┘Д╪М ╪к┘И╪з╪╡┘Д ┘Е╪╣┘Ж╪з ┘И╪│┘Ж╪│╪з╪╣╪п┘Г.</p>
+        <a href="${fallbackTarget}">╪╣╪▒╪╢ ╪з┘Д┘Е┘Ж╪к╪м╪з╪к</a>
         ${productsPreview ? `<ul>${productsPreview}</ul>` : ""}
       </section>
     </main>
@@ -1047,7 +1049,8 @@ export const getPublicAvailableSharePage = async (req, res) => {
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
-    return res.status(200).type("html").send(html);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(html);
   } catch (error) {
     console.error("[share-available]", {
       query: req.query,
@@ -1064,7 +1067,8 @@ export const getPublicAvailableSharePage = async (req, res) => {
       targetUrl,
       products: [],
     });
-    return res.status(200).type("html").send(html);
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.status(200).send(html);
   }
 };
 
@@ -1091,8 +1095,10 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const ogImageUrls = products
       .map((product) => normalizeImageUrlCandidate(product.public_image_url || product.image_url || ""))
       .filter(Boolean);
-    const ogTitle = filters.sizes?.length > 1 ? `╟су╩╟═ ╚╟су▐╟╙╟╩ ${filters.sizes.join("б ")}` : `╟су╩╟═ ╚╟су▐╟╙ ${filters.sizes?.[0] || ""}`.trim();
-    const ogDescription = `${ogProductsCount} уц╧эс у╩╟═ ╟с┬ф ▌э M1 Store`;
+    const ogTitle = filters.sizes?.length > 1
+      ? `╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й ┘Д┘Д┘Е┘В╪з╪│╪з╪к ${filters.sizes.join("╪М ")}`
+      : `╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й ┘Д┘Д┘Е┘В╪з╪│ ${filters.sizes?.[0] || ""}`.trim();
+    const ogDescription = `${ogProductsCount} ┘Е┘Ж╪к╪м ┘Е╪к╪з╪н ╪н╪з┘Д┘К┘Л╪з ┘Е┘Ж M1 Store`;
     const ogImageUrl = buildShareAvailableOgImageUrl(req, filters, "png");
     const routeBranch = ogImageUrls[0] ? "single-product" : (buildShareAvailableFallbackImageUrl(req) ? "fallback" : "empty");
     const selectedImage = ogImageUrls[0] || buildShareAvailableFallbackImageUrl(req) || "";
@@ -1171,8 +1177,8 @@ export const getPublicAvailableOgImage = async (req, res) => {
     const ogProductsCount = 0;
     const svg = buildShareAvailableFallbackSvg({
       req,
-      title: filters.sizes?.length ? `╟су╩╟═ ╚╟су▐╟╙ ${filters.sizes.join("б ")}` : "╟су╩╟═ ╚╟су▐╟╙",
-      description: "╠╤°╚ у▐╟╙╟Ё ├ц ▌с╩╤╟Ё ┬╬╤",
+      title: filters.sizes?.length ? `╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й ┘Д┘Д┘Е┘В╪з╪│ ${filters.sizes.join("╪М ")}` : "╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й",
+      description: "┘Г┘Д ╪з┘Д┘Е┘Ж╪к╪м╪з╪к ╪з┘Д┘Е╪к╪з╪н╪й ╪н╪з┘Д┘К┘Л╪з ┘Е┘Ж M1 Store",
       targetUrl,
     });
     const png = await sharp(Buffer.from(svg, "utf8")).png().toBuffer();
