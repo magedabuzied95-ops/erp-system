@@ -1318,7 +1318,7 @@ const isHumanReadableDisplayName = (value = "", { sessionId = "", externalConver
   if (idCandidates.includes(compact)) return false;
   return true;
 };
-const resolveConversationDisplayName = ({ conversation = {}, customerProfile = {}, customerName = "" } = {}) => {
+export const resolveConversationDisplayName = ({ conversation = {}, customerProfile = {}, customerName = "" } = {}) => {
   const sourceChannel = lower(conversation.channel || conversation.session_channel || conversation.source || "");
   const isMessenger = isMessengerConversationChannel(sourceChannel);
   const profile = customerProfile && typeof customerProfile === "object"
@@ -1348,6 +1348,7 @@ const resolveConversationDisplayName = ({ conversation = {}, customerProfile = {
     messengerProfile.profile_name,
     messengerProfile.contact_name,
     [messengerProfile.first_name, messengerProfile.last_name].filter(Boolean).join(" "),
+    conversation.channel_customer_name,
     conversation.session_customer_name,
     customerName,
     conversation.customer_name,
@@ -1368,9 +1369,25 @@ const resolveConversationDisplayName = ({ conversation = {}, customerProfile = {
     const name = text(candidate);
     if (!name) continue;
     if (isMessenger && !isHumanReadableDisplayName(name, { sessionId, externalConversationId })) continue;
+    if (!isMessenger) {
+      const normalized = lower(name);
+      const compact = name.replace(/\s+/g, "");
+      const isPlaceholder = ["customer", "unknown", "عميل", "زبون", "client", "user"].includes(normalized)
+        || /^[.\-_]+$/.test(compact)
+        || normalized.startsWith("whatsapp:");
+      if (isPlaceholder || /^\d+$/.test(compact)) continue;
+    }
     return name;
   }
-  return isMessenger ? "" : text(conversation.external_customer_id || conversation.phone || "");
+  if (isMessenger) return "";
+  const whatsappIdentity = [
+    conversation.external_customer_id,
+    conversation.phone,
+    conversation.external_conversation_id,
+    conversation.session_id,
+  ].map((value) => text(value).replace(/^whatsapp:/i, "").replace(/@[^@]+$/i, "").replace(/\D/g, ""))
+    .find(Boolean);
+  return whatsappIdentity || "";
 };
 const buildCustomerProfilePayload = ({ conversation = {}, memories = [] } = {}) => {
   const profile = conversation.customer_profile || {};
@@ -2066,6 +2083,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       s.channel AS session_channel,
       s.thread_kind AS thread_kind,
       s.customer_name AS session_customer_name,
+      c.customer_name AS channel_customer_name,
       s.customer_avatar_url AS session_customer_avatar_url,
       s.last_message AS session_last_message,
       s.last_ai_reply_draft,
@@ -2088,7 +2106,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       COALESCE(c.lead_status, 'new') AS lead_status,
       c.customer_avatar_url,
       c.metadata AS channel_metadata,
-      COALESCE(c.last_message_at, s.updated_at) AS last_message_at,
+      COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) AS last_message_at,
       COALESCE(c.read_at, s.read_at) AS read_at,
       m.latest_message_id,
       m.customer_message,
@@ -2135,7 +2153,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     WHERE ${clauses.join(" AND ")}
     ORDER BY
       CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram', 'whatsapp') THEN 0 ELSE 1 END,
-      COALESCE(c.last_message_at, s.updated_at) DESC,
+      COALESCE(m.latest_message_created_at, c.last_message_at, s.updated_at) DESC,
       s.updated_at DESC
     LIMIT $2
     `;
@@ -2319,6 +2337,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       s.channel AS session_channel,
       s.thread_kind AS thread_kind,
       s.customer_name AS session_customer_name,
+      c.customer_name AS channel_customer_name,
       s.customer_avatar_url AS session_customer_avatar_url,
       s.last_message AS session_last_message,
       s.status AS conversation_status,
@@ -2346,7 +2365,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
       acm.engagement_score AS conversation_memory_engagement_score,
       acm.intent_score AS conversation_memory_intent_score,
       acm.updated_at AS conversation_memory_updated_at,
-      COALESCE(c.last_message_at, s.updated_at) AS last_message_at,
+      COALESCE(m.created_at, c.last_message_at, s.updated_at) AS last_message_at,
       COALESCE(c.read_at, s.read_at) AS read_at,
       e.last_webhook_event_at,
       e.last_webhook_status,
@@ -2426,7 +2445,7 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
     WHERE ${clauses.join(" AND ")}
     ORDER BY
       CASE WHEN COALESCE(c.channel, s.channel, s.source) IN ('facebook_messenger', 'instagram') THEN 0 ELSE 1 END,
-      COALESCE(c.last_message_at, s.updated_at) DESC,
+      COALESCE(m.created_at, c.last_message_at, s.updated_at) DESC,
       s.updated_at DESC
     LIMIT $2
     `,
