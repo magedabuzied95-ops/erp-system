@@ -672,16 +672,13 @@ const storyAssetAudioTitle = (story = {}, design = {}) =>
 const storyAssetBrandName = (story = {}, design = {}) =>
   trimString(story.store_name || story.storeName || story.brand_name || design.store_name || design.storeName || design.brand_name || process.env.STORY_BRAND_NAME || "M1 STORE");
 
-export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, audioTitle = "", brandName = "M1 STORE", theme = DESIGNED_STORY_THEMES.premium, renderText = true }) => {
+export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, theme = DESIGNED_STORY_THEMES.premium, renderText = true }) => {
   const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*•\s*/g, " \u2022 ");
   const titleLines = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 });
   const sizesLines = storyAssetTextLines(cleanSizes, { maxChars: 40, maxLines: 1 });
   const priceLines = storyAssetTextLines(price || "Available now", { maxChars: 20, maxLines: 1 });
   const headingLines = storyAssetTextLines(badge || "NEW COLLECTION", { maxChars: 22, maxLines: 1 });
-  const audioLines = storyAssetTextLines(audioTitle, { maxChars: 34, maxLines: 1 });
-  const safeBrandName = trimString(brandName || "M1 STORE").slice(0, 32);
   const sizesWidth = Math.min(952, Math.max(520, cleanSizes.length * 38 + 160));
-  const audioWidth = Math.min(656, Math.max(280, audioTitle.length * 13 + 100));
   return `
 <svg width="${CANVAS_WIDTH}" height="${CANVAS_HEIGHT}" viewBox="0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}" xmlns="http://www.w3.org/2000/svg">
   <defs>
@@ -726,54 +723,38 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, au
   <rect width="100%" height="100%" fill="url(#secondaryGlow)"/>
   <rect y="760" width="1080" height="1160" fill="url(#bottomFade)"/>
 
-  <g opacity="0.96">
-    <rect x="60" y="72" width="${Math.min(410, Math.max(172, safeBrandName.length * 17 + 72))}" height="52" rx="26" fill="#ffffff" fill-opacity="0.72" stroke="#ffffff" stroke-opacity="0.34"/>
-    <circle cx="92" cy="98" r="13" fill="${theme.accentDark}"/>
-    <text x="118" y="107" text-anchor="start" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="22" font-weight="950" letter-spacing="1.2" fill="#0f172a" opacity="${renderText ? 1 : 0}">${escapeXml(safeBrandName)}</text>
-  </g>
-  <text x="1018" y="105" text-anchor="end" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="18" font-weight="900" letter-spacing="3" fill="#0f172a" fill-opacity="0.64" opacity="${renderText ? 1 : 0}">${escapeXml(theme.label)}</text>
-
-  ${audioTitle ? `
-    <g>
-      <rect x="60" y="144" width="${audioWidth}" height="44" rx="22" fill="#000000" fill-opacity="0.34" stroke="#ffffff" stroke-opacity="0.10"/>
-      <text x="88" y="172" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="19" font-weight="950" fill="${theme.accent}" opacity="${renderText ? 1 : 0}">M</text>
-      ${storySvgText({ lines: audioLines, x: 116, y: 172, size: 19, weight: 900, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
-    </g>
-  ` : ""}
-
   <circle cx="540" cy="548" r="250" fill="#ffffff" fill-opacity="0.46" filter="url(#whiteGlow)"/>
   <circle cx="540" cy="570" r="192" fill="${theme.glowPrimary}" fill-opacity="0.16" filter="url(#cyanStageGlow)"/>
-  <rect x="70" y="160" width="940" height="900" rx="32" ry="32" fill="#ffffff" fill-opacity="0.96" stroke="#ffffff" stroke-opacity="0.38" filter="url(#productShadow)"/>
-  <rect x="70" y="160" width="940" height="900" rx="32" ry="32" fill="#ffffff" fill-opacity="0.90"/>
-  <ellipse cx="540" cy="1016" rx="390" ry="50" fill="#000000" fill-opacity="0.34" filter="url(#stageShadow)"/>
-  <ellipse cx="540" cy="974" rx="430" ry="98" fill="#ffffff" fill-opacity="0.11" filter="url(#stageShadow)"/>
+  <rect x="48" y="64" width="984" height="1016" rx="48" ry="48" fill="#ffffff" fill-opacity="0.96" stroke="#ffffff" stroke-opacity="0.42" filter="url(#productShadow)"/>
+  <rect x="48" y="64" width="984" height="1016" rx="48" ry="48" fill="#ffffff" fill-opacity="0.92"/>
+  <rect x="768" y="92" width="224" height="48" rx="24" fill="${theme.accentDark}" fill-opacity="0.88"/>
+  <text x="880" y="123" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="17" font-weight="650" letter-spacing="1.8" fill="#ffffff" opacity="${renderText ? 1 : 0}">${escapeXml(theme.label)}</text>
+  <ellipse cx="540" cy="1038" rx="390" ry="48" fill="#000000" fill-opacity="0.28" filter="url(#stageShadow)"/>
+  <ellipse cx="540" cy="996" rx="430" ry="92" fill="#ffffff" fill-opacity="0.10" filter="url(#stageShadow)"/>
 
-  <rect x="60" y="1074" width="${Math.min(390, Math.max(220, (badge || "NEW COLLECTION").length * 13 + 72))}" height="44" rx="22" fill="#ffffff" fill-opacity="0.16" stroke="#ffffff" stroke-opacity="0.22"/>
-  ${storySvgText({ lines: headingLines, x: 94, y: 1103, size: 22, weight: 950, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
-  ${storySvgText({ lines: titleLines, x: 60, y: 1200, size: 86, weight: 980, color: "#ffffff", anchor: "start", lineHeight: 1.02, opacity: renderText ? 1 : 0 })}
-  ${storySvgText({ lines: priceLines, x: 60, y: 1424, size: 110, weight: 980, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  <rect x="60" y="1112" width="${Math.min(360, Math.max(196, (badge || "NEW COLLECTION").length * 12 + 64))}" height="48" rx="24" fill="${theme.accent}" fill-opacity="0.92"/>
+  ${storySvgText({ lines: headingLines, x: 92, y: 1143, size: 20, weight: 700, color: theme.accentDark, anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  ${storySvgText({ lines: titleLines, x: 60, y: 1250, size: 74, weight: 720, color: "#ffffff", anchor: "start", lineHeight: 1.08, opacity: renderText ? 1 : 0 })}
+  ${storySvgText({ lines: priceLines, x: 60, y: 1430, size: 78, weight: 760, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
   <g filter="url(#ctaGlow)">
-    <rect x="604" y="1352" width="416" height="90" rx="45" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.30"/>
-    <text x="812" y="1409" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="36" font-weight="950" fill="${theme.accentDark}" opacity="${renderText ? 1 : 0}">${escapeXml(cta || "View details")}</text>
+    <rect x="644" y="1360" width="376" height="82" rx="41" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.26"/>
+    <text x="832" y="1412" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="30" font-weight="700" fill="${theme.accentDark}" opacity="${renderText ? 1 : 0}">${escapeXml(cta || "View details")}</text>
   </g>
-  <rect x="60" y="1500" width="${sizesWidth}" height="82" rx="41" fill="#ffffff" fill-opacity="0.94" stroke="#ffffff" stroke-opacity="0.12"/>
-  ${storySvgText({ lines: sizesLines, x: 104, y: 1554, size: 37, weight: 950, color: "#0f172a", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  <rect x="60" y="1512" width="${sizesWidth}" height="76" rx="38" fill="#ffffff" fill-opacity="0.94" stroke="#ffffff" stroke-opacity="0.12"/>
+  ${storySvgText({ lines: sizesLines, x: 104, y: 1562, size: 31, weight: 700, color: "#0f172a", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
 </svg>`;
 };
 
-export const createDesignedStoryTextComposites = async ({ badge, title, price, sizes, cta, audioTitle = "", brandName = "M1 STORE", theme = DESIGNED_STORY_THEMES.premium }) => {
+export const createDesignedStoryTextComposites = async ({ badge, title, price, sizes, cta, theme = DESIGNED_STORY_THEMES.premium }) => {
   const cleanSizes = trimString(sizes).replace(/^AVAILABLE SIZES:\s*/i, "").replace(/\s*,\s*/g, " \u2022 ").replace(/\s*â€¢\s*/g, " \u2022 ");
   const titleText = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 }).join("\n");
   const composites = await Promise.all([
-    createStoryTextComposite({ text: trimString(brandName || "M1 STORE").slice(0, 32), left: 118, top: 78, width: 330, height: 42, size: 20, color: "#0f172a" }),
-    createStoryTextComposite({ text: theme.label, left: 710, top: 78, width: 308, height: 38, size: 17, color: "#475569", align: "right" }),
-    createStoryTextComposite({ text: audioTitle ? "M" : "", left: 76, top: 151, width: 24, height: 34, size: 17, color: theme.accent, align: "center" }),
-    createStoryTextComposite({ text: audioTitle, left: 116, top: 150, width: 540, height: 38, size: 18, color: "#ffffff" }),
-    createStoryTextComposite({ text: badge || "NEW COLLECTION", left: 94, top: 1078, width: 360, height: 40, size: 20, color: "#ffffff" }),
-    createStoryTextComposite({ text: titleText, left: 60, top: 1128, width: 940, height: 184, size: 72, color: "#ffffff" }),
-    createStoryTextComposite({ text: price || "Available now", left: 60, top: 1322, width: 520, height: 124, size: 82, color: "#ffffff" }),
-    createStoryTextComposite({ text: cta || "View details", left: 624, top: 1370, width: 376, height: 58, size: 28, color: theme.accentDark, align: "center" }),
-    createStoryTextComposite({ text: cleanSizes || "AVAILABLE NOW", left: 104, top: 1515, width: 850, height: 58, size: 29, color: "#0f172a" }),
+    createStoryTextComposite({ text: theme.label, left: 784, top: 100, width: 192, height: 32, size: 14, color: "#ffffff", align: "center", weight: "semibold" }),
+    createStoryTextComposite({ text: badge || "NEW COLLECTION", left: 92, top: 1120, width: 320, height: 34, size: 17, color: theme.accentDark, weight: "semibold" }),
+    createStoryTextComposite({ text: titleText, left: 60, top: 1180, width: 940, height: 176, size: 60, color: "#ffffff", weight: "semibold" }),
+    createStoryTextComposite({ text: price || "Available now", left: 60, top: 1358, width: 540, height: 92, size: 58, color: "#ffffff", weight: "bold" }),
+    createStoryTextComposite({ text: cta || "View details", left: 664, top: 1374, width: 336, height: 54, size: 24, color: theme.accentDark, align: "center", weight: "semibold" }),
+    createStoryTextComposite({ text: cleanSizes || "AVAILABLE NOW", left: 104, top: 1526, width: 850, height: 48, size: 25, color: "#0f172a", weight: "semibold" }),
   ]);
   return composites.filter(Boolean);
 };
@@ -1119,13 +1100,13 @@ export const generateDesignedAiMarketingStoryImages = async ({ story = {}, postI
       };
       let imageComposite = await createContainedImageComposite({
         source: slideSource,
-        boxX: 70,
-        boxY: 160,
-        boxWidth: 940,
-        boxHeight: 900,
-        maxImageHeight: 900,
+        boxX: 48,
+        boxY: 64,
+        boxWidth: 984,
+        boxHeight: 1016,
+        maxImageHeight: 1016,
         useSafeLimit: false,
-        borderRadius: 32,
+        borderRadius: 48,
       });
       let textComposites = await createDesignedStoryTextComposites(storyText);
       logStoryMemory("slide-before-write-upload", {

@@ -774,10 +774,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
   const urgency = "Available now";
   const theme = storyCreativeTheme(slide);
   const badge = theme.badge;
-  const storeName = cleanStoryText(slide.store_name || slide.storeName || slide.brand_name, "M1 Store");
-  const storeLogo = cleanStoryText(slide.store_logo_url || slide.logo_url || slide.store_logo);
   const sizeDisplay = storySizeDisplay(slide);
-  const headlineClass = compact ? "text-[1.18rem]" : "text-[1.78rem]";
   const productTitleClass = compact ? "text-[0.98rem]" : "text-[1.18rem]";
   const priceClass = compact ? "text-[1.5rem]" : "text-[1.78rem]";
   const ctaUrl = storyCtaUrl(slide);
@@ -793,26 +790,11 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
           </div>
         ))}
       </div>
-      <div className="absolute left-5 right-5 top-8 z-20 flex items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <div className="grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-full bg-slate-950 text-[10px] font-black text-white shadow-lg">
-            {storeLogo ? <img src={storeLogo} alt="" className="h-full w-full object-contain" /> : "M1"}
-          </div>
-          <div>
-            <div className="max-w-32 truncate text-xs font-black text-slate-950">{storeName}</div>
-            <div className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-600">{theme.edition}</div>
-          </div>
-        </div>
-        <div className="rounded-full bg-white/80 px-3 py-1 text-[11px] font-black text-slate-950 shadow-lg backdrop-blur">{badge}</div>
+      <div className="absolute right-5 top-8 z-20">
+        <div className="rounded-full bg-slate-950/85 px-3.5 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-white shadow-lg backdrop-blur">{theme.edition}</div>
       </div>
-      {slide.audio?.title ? (
-        <div className="story-creative-audio absolute left-5 top-[11.25%] z-20 inline-flex max-w-[70%] items-center gap-1.5 rounded-full border border-white/10 bg-black/38 px-2.5 py-1.5 text-[10px] font-black leading-none text-white/82 shadow-lg shadow-black/20 backdrop-blur-md">
-          <Music2 className="h-3 w-3 shrink-0 text-cyan-200/80" />
-          <span className="truncate">{slide.audio.title}</span>
-        </div>
-      ) : null}
 
-      <div className="story-creative-image-stage absolute left-3 right-3 top-[12.75%] z-10 flex h-[49.5%] items-center justify-center">
+      <div className="story-creative-image-stage absolute left-3 right-3 top-[4%] z-10 flex h-[54%] items-center justify-center rounded-[1.9rem] bg-white/92">
         <div className="absolute h-80 w-80 rounded-full bg-white/50 blur-3xl" />
         <div className={`absolute h-60 w-60 rounded-full blur-3xl ${theme.glow}`} />
         <div className="absolute bottom-4 h-10 w-72 rounded-[50%] bg-black/34 blur-xl" />
@@ -830,17 +812,17 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
         )}
       </div>
 
-      <div className="story-creative-copy absolute bottom-5 left-5 right-5 top-[62.5%] z-20 flex flex-col text-white">
-        <div className={`min-h-[2.15rem] max-w-[92%] break-words font-black leading-[1.04] ${headlineClass}`}>{badge}</div>
+      <div className="story-creative-copy absolute bottom-5 left-5 right-5 top-[61%] z-20 flex flex-col text-white">
+        <div className="self-start rounded-full bg-white/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-950 shadow-lg">{badge}</div>
         {sizeDisplay ? (
           <div className="story-creative-sizes mt-2.5 inline-flex max-w-full self-start rounded-full border border-white/12 bg-white/92 px-3 py-1 text-[10px] font-black leading-4 text-slate-950 shadow-lg shadow-black/10 backdrop-blur-md">
             <span className="truncate [overflow-wrap:anywhere]">{sizeDisplay}</span>
           </div>
         ) : null}
-        <div className={`mt-2.5 line-clamp-2 min-h-[2.45rem] max-w-full break-words font-black leading-[1.12] [overflow-wrap:anywhere] ${productTitleClass}`}>{title}</div>
+        <div className={`mt-3 line-clamp-2 min-h-[2.45rem] max-w-full break-words font-semibold leading-[1.12] [overflow-wrap:anywhere] ${productTitleClass}`}>{title}</div>
         <div className="mt-3.5 flex items-end justify-between gap-3 pt-1">
           <div className="min-w-0">
-            {price ? <div className={`${priceClass} font-black leading-none`}>{price}</div> : null}
+            {price ? <div className={`${priceClass} font-bold leading-none`}>{price}</div> : null}
             <div className="mt-1.5 line-clamp-2 text-[13px] font-black leading-5 text-white/84">{urgency}</div>
           </div>
           <a

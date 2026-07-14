@@ -20,7 +20,7 @@ test("story renderer selects a commercial theme from the content strategy", () =
   assert.equal(resolveDesignedStoryTheme({ strategy_type: "featured" }).id, "premium-midnight");
 });
 
-test("rendered 9:16 asset carries the selected theme and complete selling hierarchy", () => {
+test("rendered 9:16 asset uses a clean product-first selling hierarchy", () => {
   const theme = resolveDesignedStoryTheme({ strategy_type: "last_size" });
   const svg = designedStoryBackgroundSvg({
     badge: "LAST SIZE",
@@ -29,6 +29,7 @@ test("rendered 9:16 asset carries the selected theme and complete selling hierar
     sizes: "41 • 42 • 43",
     cta: "View details",
     brandName: "M1 Store",
+    audioTitle: "Arabic trend audio",
     theme,
   });
 
@@ -36,18 +37,22 @@ test("rendered 9:16 asset carries the selected theme and complete selling hierar
   assert.match(svg, /@font-face/);
   assert.match(svg, /data:font\/ttf;base64,/);
   assert.match(svg, /font-family:'M1Story'/);
-  for (const value of ["LIMITED DROP", "LAST SIZE", "Nike Air Max 97", "1750 EGP", "41 • 42 • 43", "View details", "M1 Store"]) {
+  for (const value of ["LIMITED DROP", "LAST SIZE", "Nike Air Max 97", "1750 EGP", "41 • 42 • 43", "View details"]) {
     assert.match(svg, new RegExp(value));
   }
+  assert.doesNotMatch(svg, /M1 Store/i);
+  assert.doesNotMatch(svg, /Arabic trend audio/i);
   assert.match(svg, /#fb7185/i);
 });
 
-test("story preview mirrors professional strategy themes and store identity", () => {
-  for (const marker of ["LIMITED DROP", "PRICE DROP", "FRESH DROP", "M1 EDIT", "store_logo_url", "theme.background", "theme.accent"]) {
+test("story preview mirrors professional themes without store or audio chrome", () => {
+  for (const marker of ["LIMITED DROP", "PRICE DROP", "FRESH DROP", "M1 EDIT", "theme.background", "theme.accent"]) {
     assert.match(previewSource, new RegExp(marker.replace(".", "\\.")));
   }
   assert.doesNotMatch(previewSource, />ERP<\/div>/);
-  assert.match(marketingServiceSource, /ai_marketing_story_commercial_templates_v5_explicit_fontfile/);
+  assert.doesNotMatch(previewSource, /storeLogo/);
+  assert.doesNotMatch(previewSource, /story-creative-audio/);
+  assert.match(marketingServiceSource, /ai_marketing_story_commercial_templates_v6_clean_product_first/);
 });
 
 test("production story text is rasterized with the bundled font file", async () => {
@@ -61,6 +66,6 @@ test("production story text is rasterized with the bundled font file", async () 
     brandName: "M1 Store",
     theme,
   });
-  assert.equal(composites.length, 7);
+  assert.equal(composites.length, 6);
   for (const composite of composites) assert.ok(Buffer.isBuffer(composite.input) && composite.input.length > 100);
 });

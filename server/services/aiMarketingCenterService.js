@@ -1952,7 +1952,7 @@ const rawStoryImageUrls = (item = {}) => {
 };
 
 const storyProductImageUrl = (item = {}) => rawStoryImageUrls(item)[0] || "";
-const AI_MARKETING_STORY_RENDERER = "ai_marketing_story_commercial_templates_v5_explicit_fontfile";
+const AI_MARKETING_STORY_RENDERER = "ai_marketing_story_commercial_templates_v6_clean_product_first";
 
 const isValidRenderedStoryAsset = (item = {}, assetUrl = "") => {
   const selectedAsset = cleanImageUrl(assetUrl);
