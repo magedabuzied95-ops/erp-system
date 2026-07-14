@@ -1109,10 +1109,23 @@ const getConversationSourceLabel = (item = {}) => {
     if (platform.includes("facebook")) return "Facebook Comment";
     return "Comment";
   }
-  return leadSourceLabel(item);
+  const channel = normalizeConversationChannel(item);
+  if (channel === "whatsapp") return "WhatsApp";
+  if (channel === "instagram") return "Instagram DM";
+  if (channel === "messenger") return "Messenger";
+  if (channel === "web") return "Web Chat";
+  if (channel === "tiktok") return "TikTok DM";
+  return channelLabel(platform || channel);
 };
 
-const getConversationSourceIcon = (item = {}) => (isSocialCommentThread(item) ? MessageSquareText : FaFacebookMessenger);
+const getConversationSourceIcon = (item = {}) => {
+  if (isSocialCommentThread(item)) return MessageSquareText;
+  const channel = normalizeConversationChannel(item);
+  if (channel === "whatsapp") return FaWhatsapp;
+  if (channel === "instagram") return FaInstagram;
+  if (channel === "messenger") return FaFacebookMessenger;
+  return MessageSquareText;
+};
 
 const normalizeExternalSocialUrl = (value = "") => {
   const candidate = clean(value);
