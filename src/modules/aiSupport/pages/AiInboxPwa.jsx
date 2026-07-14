@@ -44,7 +44,7 @@ import { useTheme } from "../../../theme/useTheme";
 import Customer360Drawer from "../components/Customer360Drawer.jsx";
 import TranscriptMessage from "../components/TranscriptMessage";
 import SocialCommentsPanel from "../components/SocialCommentsPanel";
-import { SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
+import { normalizeSocialPostDisplay, SocialCommentsWorkspaceCommentRow } from "../components/SocialCommentsWorkspace.jsx";
 import { CommentTimelineCard, getSocialCommentRealTimestamp } from "../components/socialCommentTimeline.jsx";
 import ProductCardPicker from "../components/ProductCardPicker";
 import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCacheKey, primeSocialWorkspaceCache } from "../services/socialWorkspaceProgressiveLoad.js";
@@ -1109,7 +1109,22 @@ const socialPostMatchesFilter = (item = {}, filter = "all") => {
   return true;
 };
 
-const socialPostSortValue = (item = {}) => new Date(item.real_comment_created_time || item.last_activity_at || item.last_comment_at || item.updated_at || item.created_at || 0).getTime() || 0;
+const socialPostSortValue = (item = {}) =>
+  new Date(
+    item.display_created_at ||
+      item.displayCreatedAt ||
+      item.post_created_time ||
+      item.postCreatedTime ||
+      item.published_at ||
+      item.publishedAt ||
+      item.created_time ||
+      item.created_at ||
+      item.real_comment_created_time ||
+      item.last_activity_at ||
+      item.last_comment_at ||
+      item.updated_at ||
+      0
+  ).getTime() || 0;
 
 const normalizeFastSocialCommentItem = (item = {}) => {
   const messagePreview = clean(item?.message_preview || "");
@@ -1134,7 +1149,7 @@ const normalizeFastSocialCommentItem = (item = {}) => {
     customer_name: clean(item?.customer_name || "Customer"),
     customer_avatar_url: clean(item?.customer_avatar_url || ""),
     message_preview: messagePreview,
-    comments_count: Number(item?.comments_count || 1) || 1,
+    comments_count: Math.max(0, Number(item?.comments_count ?? item?.comment_count ?? item?.total_comments ?? 0) || 0),
     new_comments_count: Number(item?.new_comments_count ?? (unread ? 1 : 0)) || 0,
     last_comment_text: clean(item?.last_comment_text || messagePreview),
     last_comment_at: clean(item?.last_comment_at || activityAt),
@@ -1163,6 +1178,42 @@ const normalizeFastSocialCommentItem = (item = {}) => {
     permalink_url: clean(item?.permalink_url || ""),
     platform: clean(item?.platform || "facebook").toLowerCase(),
   };
+};
+
+const normalizeSocialPostForPwa = (rawItem = {}) => {
+  const display = normalizeSocialPostDisplay(rawItem);
+  const raw = display?.raw && typeof display.raw === "object" ? display.raw : rawItem;
+  const metadata = raw?.metadata && typeof raw.metadata === "object" && !Array.isArray(raw.metadata) ? raw.metadata : {};
+  const displayImage = clean(display?.displayImage || display?.thumbnailUrl || commentThreadPostImageUrl(raw));
+  const displayText = clean(display?.displayText || display?.caption || raw?.post_message || raw?.post_caption || "");
+  const displayCreatedAt = clean(
+    display?.displayCreatedAt ||
+      display?.publishedAt ||
+      raw?.post_created_time ||
+      raw?.published_at ||
+      raw?.created_time ||
+      raw?.created_at ||
+      metadata?.post_created_time ||
+      ""
+  );
+
+  return normalizeFastSocialCommentItem({
+    ...raw,
+    id: clean(display?.id || raw?.id || display?.postId || raw?.post_id || ""),
+    post_id: clean(display?.postId || raw?.post_id || raw?.id || ""),
+    platform: clean(display?.platform || raw?.platform || metadata?.platform || "facebook").toLowerCase(),
+    post_message: displayText,
+    post_caption: displayText,
+    thumbnail_url: displayImage,
+    post_image_url: displayImage,
+    comments_count: Math.max(0, Number(display?.displayCommentCount ?? display?.commentsCount ?? raw?.comments_count ?? 0) || 0),
+    new_comments_count: Math.max(0, Number(display?.newCount ?? raw?.new_comments_count ?? 0) || 0),
+    post_created_time: displayCreatedAt,
+    published_at: displayCreatedAt,
+    permalink_url: clean(display?.displayPermalink || display?.permalinkUrl || raw?.permalink_url || raw?.post_permalink_url || ""),
+    media_type: clean(raw?.media_type || raw?.post_type || raw?.type || metadata?.media_type || metadata?.post_type || ""),
+    video_url: clean(raw?.video_url || raw?.source_url || metadata?.video_url || metadata?.source_url || ""),
+  });
 };
 
 const groupSocialCommentPosts = (items = []) => {
@@ -3008,9 +3059,9 @@ export default function AiInboxPwa() {
       if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
       setSocialCommentsDebug((current) => ({ ...current, error: "" }));
 
+      const postsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=200`;
       const fastRequestUrl = `/api/social-comments/fast-list?tenant_id=${encodeURIComponent(tenantId)}&limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
-      const legacyRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=50`;
-      const perfLabel = "AiInboxPwa.socialCommentsFastList";
+      const perfLabel = "AiInboxPwa.socialCommentsPosts";
       if (DEBUG_SOCIAL_PERF) console.time(perfLabel);
       const settingsPromise = api
         .get("/social-comments/auto-reply/settings", {
@@ -3022,30 +3073,30 @@ export default function AiInboxPwa() {
         .catch(() => ({ settings: null }));
 
       const readListPayload = async () => {
-        if (ENABLE_SOCIAL_FAST_CENTER) {
+        if (!cursor) {
           try {
-            const payload = await api.get("/social-comments/fast-list", {
-              params: { tenant_id: tenantId, limit: 20, cursor },
+            const payload = await api.get("/social-comments/posts", {
+              params: { tenant_id: tenantId, limit: 200 },
               headers,
-              timeoutMs: 15000,
-              perfComponent: "AiInboxPwa.socialCommentsFastList",
+              timeoutMs: 20000,
+              perfComponent: "AiInboxPwa.socialCommentsPosts",
             });
-            return { payload, request_url: fastRequestUrl, fast: true };
-          } catch (fastError) {
-            console.warn("[AiInboxPwa][social-comments-fast-list-fallback]", {
+            return { payload, request_url: postsRequestUrl, fast: false };
+          } catch (postsError) {
+            console.warn("[AiInboxPwa][social-comments-posts-fallback]", {
               tenant_id: tenantId,
-              message: fastError?.message || "",
+              message: postsError?.message || "",
             });
           }
         }
 
-        const payload = await api.get("/social-comments/posts", {
-          params: { tenant_id: tenantId, limit: 50 },
+        const payload = await api.get("/social-comments/fast-list", {
+          params: { tenant_id: tenantId, limit: 20, cursor },
           headers,
-          timeoutMs: 20000,
-          perfComponent: "AiInboxPwa.socialCommentsPosts",
+          timeoutMs: 15000,
+          perfComponent: "AiInboxPwa.socialCommentsFastList",
         });
-        return { payload, request_url: legacyRequestUrl, fast: false };
+        return { payload, request_url: fastRequestUrl, fast: true };
       };
 
       try {
@@ -3053,15 +3104,15 @@ export default function AiInboxPwa() {
         if (seq !== requestSeqRef.current) return;
         const settingsPayload = await settingsPromise;
         if (seq !== requestSeqRef.current) return;
-        const rawItems = asArray(payload?.items || payload?.posts || payload?.data?.items || payload);
-        const items = fast ? rawItems.map(normalizeFastSocialCommentItem) : rawItems;
+        const rawItems = asArray(payload?.posts || payload?.items || payload?.data?.posts || payload?.data?.items || payload);
+        const items = fast ? rawItems.map(normalizeFastSocialCommentItem) : rawItems.map(normalizeSocialPostForPwa);
         setSocialComments((current) => ({
           items: append ? [...asArray(current.items), ...items] : items,
           loading: false,
           error: "",
-          next_cursor: clean(payload?.next_cursor || payload?.data?.next_cursor || ""),
+          next_cursor: fast ? clean(payload?.next_cursor || payload?.data?.next_cursor || "") : "",
         }));
-        setSocialCommentsCursor(clean(payload?.next_cursor || payload?.data?.next_cursor || ""));
+        setSocialCommentsCursor(fast ? clean(payload?.next_cursor || payload?.data?.next_cursor || "") : "");
         setSocialReplySettings({
           generic_enabled: Boolean(settingsPayload?.settings?.generic_enabled),
           generic_like_enabled: settingsPayload?.settings?.generic_like_enabled !== false,
@@ -3087,7 +3138,7 @@ export default function AiInboxPwa() {
           next_cursor: current?.next_cursor || "",
         }));
         setSocialCommentsDebug({
-          request_url: ENABLE_SOCIAL_FAST_CENTER ? fastRequestUrl : legacyRequestUrl,
+          request_url: postsRequestUrl,
           tenant_id: tenantId,
           status,
           count: 0,
@@ -5351,7 +5402,7 @@ export default function AiInboxPwa() {
                 loading={socialComments.loading}
                 error={socialComments.error}
                 filter={socialCommentsFilter}
-                debugInfo={socialCommentsDebug}
+                debugInfo={DEBUG_SOCIAL_PERF ? socialCommentsDebug : null}
                 mode="posts"
                 selectedItemId={socialPostIdentity(selectedPost || {})}
                 onSelectItem={(item) => {

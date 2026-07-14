@@ -1,5 +1,5 @@
 import { memo, useCallback, useMemo, useRef } from "react";
-import { Clock3, ExternalLink, MessageSquareText, RefreshCw, User } from "lucide-react";
+import { Clock3, ExternalLink, Image as ImageIcon, MessageSquareText, Play, RefreshCw, User } from "lucide-react";
 import { VirtualList } from "../../../shared/components/VirtualList";
 import { CommentTimelineCard } from "./socialCommentTimeline.jsx";
 
@@ -77,7 +77,20 @@ const postMatches = (item = {}, filter = "all") => {
 };
 
 const sortValueComment = (item = {}) => new Date(item.created_at || 0).getTime() || 0;
-const sortValuePost = (item = {}) => new Date(item.real_comment_created_time || 0).getTime() || 0;
+const sortValuePost = (item = {}) =>
+  new Date(
+    item.display_created_at ||
+      item.displayCreatedAt ||
+      item.post_created_time ||
+      item.postCreatedTime ||
+      item.published_at ||
+      item.publishedAt ||
+      item.created_time ||
+      item.created_at ||
+      item.real_comment_created_time ||
+      item.last_activity_at ||
+      0
+  ).getTime() || 0;
 
 const getPostVisibleTime = (item = {}) =>
   clean(
@@ -89,6 +102,32 @@ const getPostVisibleTime = (item = {}) =>
       item.commentCreatedTime ||
       ""
   );
+
+const postMedia = (item = {}) => {
+  const metadata = item?.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata) ? item.metadata : {};
+  const mediaType = clean(item.media_type || item.post_type || item.type || metadata.media_type || metadata.post_type).toLowerCase();
+  const permalink = clean(item.permalink_url || item.post_permalink_url || item.post_permalink || item.post_url || metadata.permalink_url).toLowerCase();
+  const isVideo = mediaType.includes("video") || mediaType.includes("reel") || permalink.includes("/reel/") || permalink.includes("/videos/");
+  const thumbnail = clean(
+    item.thumbnail_url ||
+      item.thumbnailUrl ||
+      item.displayImage ||
+      item.cover_image_url ||
+      item.post_image_url ||
+      item.post_full_picture ||
+      item.full_picture ||
+      item.picture ||
+      item.image_url ||
+      metadata.thumbnail_url ||
+      metadata.post_image_url ||
+      metadata.post_full_picture ||
+      metadata.full_picture ||
+      metadata.picture ||
+      metadata.image_url
+  );
+  const videoUrl = clean(item.video_url || item.source_url || metadata.video_url || metadata.source_url || (isVideo ? item.media_url || metadata.media_url : ""));
+  return { isVideo, thumbnail, videoUrl };
+};
 
 const socialCommentItemKey = (item = {}) =>
   clean(item.id || item.conversation_id || item.comment_id || item.post_id || `${item.platform || "social"}:${item.post_id || item.comment_id || ""}`);
@@ -121,7 +160,7 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
   const itemKey = socialCommentItemKey(item);
   const title = clean(item.post_message || item.post_caption || item.last_message || item.last_comment_text || "Post");
   const subtitle = clean(item.last_comment_text || item.last_message || item.post_caption || item.post_message || "");
-  const thumb = clean(item.thumbnail_url || "");
+  const media = postMedia(item);
   const handleSelect = useCallback(() => onSelectItem?.(item, itemKey), [item, itemKey, onSelectItem]);
   const hoverTimerRef = useRef(null);
   const handleKeyDown = useCallback(
@@ -157,8 +196,23 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
       style={{ minHeight: "176px" }}
     >
       <div className="flex gap-3">
-        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
-          {thumb ? <img src={thumb} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
+        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-200 bg-slate-50">
+          {media.thumbnail ? (
+            <img src={media.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" />
+          ) : media.videoUrl ? (
+            <video src={media.videoUrl} className="h-full w-full object-cover" muted playsInline preload="metadata" />
+          ) : (
+            <span className="grid h-full w-full place-items-center text-slate-300">
+              <ImageIcon className="h-6 w-6" />
+            </span>
+          )}
+          {media.isVideo ? (
+            <span className="absolute inset-0 grid place-items-center bg-slate-950/15">
+              <span className="grid h-8 w-8 place-items-center rounded-full bg-white/90 text-slate-900 shadow-sm">
+                <Play className="h-4 w-4 fill-current" />
+              </span>
+            </span>
+          ) : null}
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
@@ -279,7 +333,7 @@ function SocialCommentsPanel({
             {mode === "posts" ? "Social Posts" : "Social Comments"}
           </div>
           <div className="mt-1 text-sm font-black text-slate-900">
-            {mode === "posts" ? "Latest posts with comment activity" : "Latest comments in the system"}
+            {mode === "posts" ? "Facebook & Instagram posts and reels" : "Latest comments in the system"}
           </div>
           {debugInfo ? (
             <div className="mt-1 text-[11px] font-semibold leading-5 text-slate-400">
