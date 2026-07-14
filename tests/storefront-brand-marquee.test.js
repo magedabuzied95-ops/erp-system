@@ -13,6 +13,7 @@ test("home brand strip renders logo-only duplicated marquee groups", () => {
 
 test("brand carousel advances exactly one logo every four seconds and loops", () => {
   assert.match(storefrontSource, /setInterval\([\s\S]*?4000\)/);
+  assert.doesNotMatch(storefrontSource, /setTimeout\(\(\) => setBrandSlideIndex/);
   assert.match(storefrontSource, /currentIndex < brandItems\.length \? currentIndex \+ 1/);
   assert.match(storefrontSource, /brandSlideIndex \* brandStepPx/);
   assert.match(storefrontSource, /brandSlideIndex < brandItems\.length/);

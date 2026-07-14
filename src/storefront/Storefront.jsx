@@ -2852,7 +2852,6 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
     const enableFrame = window.requestAnimationFrame(() => {
       brandResetFrameRef.current = window.requestAnimationFrame(() => setBrandTransitionEnabled(true));
     });
-    const firstMoveTimer = window.setTimeout(() => setBrandSlideIndex(1), 1200);
     const moveTimer = window.setInterval(() => {
       setBrandSlideIndex((currentIndex) => (currentIndex < brandItems.length ? currentIndex + 1 : currentIndex));
     }, 4000);
@@ -2860,7 +2859,6 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
     return () => {
       window.cancelAnimationFrame(enableFrame);
       if (brandResetFrameRef.current) window.cancelAnimationFrame(brandResetFrameRef.current);
-      window.clearTimeout(firstMoveTimer);
       window.clearInterval(moveTimer);
     };
   }, [brandItems.length, loading]);
