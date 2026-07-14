@@ -1443,6 +1443,7 @@ const loadSocialPublisherFallbackMedia = async ({ tenantId = null, postId = "", 
 const enrichSocialCommentPostRow = async ({ tenantId = null, row = {}, platform = "" } = {}) => {
   const safeRow = { ...(row || {}) };
   const metadata = metadataObject(safeRow.metadata || {});
+  const rawPayload = metadataObject(safeRow.raw_payload || metadata.raw_payload || {});
   const storedPostId = text(
     metadata.post_id ||
     safeRow.automation_run_post_id ||

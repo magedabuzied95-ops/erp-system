@@ -34,6 +34,16 @@ test("social comments API merges Facebook and Instagram posts", () => {
   assert.match(centerSource, /syncMetaInstagramCommentsForTenant\(\{[\s\S]*?mediaIds: \[safePostId\]/);
 });
 
+test("post enrichment defines the raw Meta payload before using its permalink fields", () => {
+  const enrichStart = centerSource.indexOf("const enrichSocialCommentPostRow");
+  const enrichEnd = centerSource.indexOf("const resolvePostIdentityFromRow", enrichStart);
+  const enrichSource = centerSource.slice(enrichStart, enrichEnd > enrichStart ? enrichEnd : enrichStart + 12000);
+  const definitionIndex = enrichSource.indexOf("const rawPayload = metadataObject(");
+  const usageIndex = enrichSource.indexOf("rawPayload.permalink_url");
+  assert.ok(definitionIndex >= 0, "rawPayload must be defined in post enrichment");
+  assert.ok(usageIndex > definitionIndex, "rawPayload must be defined before permalink lookup");
+});
+
 test("desktop and PWA inboxes expose Instagram social content", () => {
   for (const source of [desktopSource, pwaSource]) {
     assert.match(source, /\{ key: "instagram", label: "Instagram" \}/);
