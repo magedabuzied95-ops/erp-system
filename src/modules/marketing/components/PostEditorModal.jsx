@@ -384,8 +384,8 @@ const storyCreativeTheme = (slide = {}) => {
   if (/new.?arrival|new_arrival|new arrivals|just landed|fresh drop/.test(signal)) {
     return {
       badge: "NEW COLLECTION", edition: "FRESH DROP",
-      background: "bg-[radial-gradient(circle_at_22%_18%,rgba(52,211,153,.28),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(251,191,36,.24),transparent_26%),linear-gradient(155deg,#f8fbf7_0%,#e7f4ed_45%,#10251d_100%)]",
-      accent: "from-emerald-100 via-emerald-300 to-teal-400 text-emerald-950 shadow-[0_0_24px_rgba(52,211,153,.24),0_18px_34px_rgba(5,46,36,.3)]", glow: "bg-emerald-300/18",
+      background: "bg-[radial-gradient(circle_at_22%_18%,rgba(239,68,68,.24),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(249,115,22,.18),transparent_26%),linear-gradient(155deg,#fff8f7_0%,#f1e5e3_43%,#170909_100%)]",
+      accent: "from-red-100 via-red-400 to-rose-600 text-red-950 shadow-[0_0_26px_rgba(239,68,68,.28),0_18px_34px_rgba(69,10,10,.38)]", glow: "bg-red-300/20",
     };
   }
   return {
@@ -775,8 +775,8 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
   const theme = storyCreativeTheme(slide);
   const badge = theme.badge;
   const sizeDisplay = storySizeDisplay(slide);
-  const productTitleClass = compact ? "text-[0.98rem]" : "text-[1.18rem]";
-  const priceClass = compact ? "text-[1.5rem]" : "text-[1.78rem]";
+  const productTitleClass = compact ? "text-[1.12rem]" : "text-[1.38rem]";
+  const priceClass = compact ? "text-[1.78rem]" : "text-[2.12rem]";
   const ctaUrl = storyCtaUrl(slide);
   const copyDirection = /[\u0600-\u06ff]/.test(`${title} ${sizeDisplay || ""}`) ? "rtl" : "ltr";
 
@@ -813,18 +813,19 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
         )}
       </div>
 
-      <div dir={copyDirection} className="story-creative-copy absolute bottom-5 left-5 right-5 top-[61%] z-20 flex flex-col text-start text-white">
-        <div className="self-start rounded-full bg-white/90 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-950 shadow-lg">{badge}</div>
+      <div dir={copyDirection} className="story-creative-copy absolute bottom-5 left-5 right-5 top-[60.5%] z-20 flex flex-col text-start text-white">
+        <div className="pointer-events-none absolute -left-5 top-0 h-[72%] w-1 rounded-r-full bg-gradient-to-b from-red-500 via-red-600 to-transparent shadow-[0_0_20px_rgba(239,68,68,.48)]" />
+        <div className="self-start rounded-full border border-red-300/35 bg-red-600 px-3.5 py-1.5 text-[11px] font-black uppercase tracking-[0.1em] text-white shadow-[0_10px_24px_rgba(127,29,29,.34)]">{badge}</div>
         {sizeDisplay ? (
-          <div className="story-creative-sizes mt-2.5 inline-flex max-w-full self-start rounded-full border border-white/12 bg-white/92 px-3 py-1 text-[10px] font-black leading-4 text-slate-950 shadow-lg shadow-black/10 backdrop-blur-md">
+          <div className="story-creative-sizes mt-2.5 inline-flex max-w-full self-start rounded-full border border-red-300/25 bg-white/95 px-3.5 py-1.5 text-[11px] font-black leading-4 tracking-[0.015em] text-slate-950 shadow-lg shadow-black/15 backdrop-blur-md">
             <span className="truncate [overflow-wrap:anywhere]">{sizeDisplay}</span>
           </div>
         ) : null}
-        <div className={`mt-3 line-clamp-2 min-h-[2.45rem] max-w-full break-words font-semibold leading-[1.12] [overflow-wrap:anywhere] ${productTitleClass}`}>{title}</div>
-        <div className="mt-3.5 flex items-end justify-between gap-3 pt-1">
+        <div className={`mt-3.5 line-clamp-2 min-h-[2.7rem] max-w-full break-words font-extrabold leading-[1.08] tracking-[-0.02em] [overflow-wrap:anywhere] ${productTitleClass}`}>{title}</div>
+        <div className="mt-3 flex items-end justify-between gap-3 border-t border-white/12 pt-3">
           <div className="min-w-0">
-            {price ? <div className={`${priceClass} font-bold leading-none`}>{price}</div> : null}
-            <div className="mt-1.5 line-clamp-2 text-[13px] font-black leading-5 text-white/84">{urgency}</div>
+            {price ? <div className={`${priceClass} font-black leading-none tracking-[-0.035em] text-white drop-shadow-[0_8px_18px_rgba(0,0,0,.3)]`}>{price}</div> : null}
+            <div className="mt-1.5 line-clamp-2 text-[13px] font-bold leading-5 text-red-100">{urgency}</div>
           </div>
           <a
             href={ctaUrl || undefined}
@@ -834,7 +835,7 @@ export function StoryCreativeFrame({ slide, total = 1, index = 0, compact = fals
             onClick={(event) => {
               if (!ctaUrl) event.preventDefault();
             }}
-            className={`story-creative-cta max-w-[42%] shrink-0 rounded-full border border-white/30 bg-gradient-to-br px-3.5 py-2.5 text-center text-[13px] font-black leading-4 transition hover:scale-[1.02] active:scale-[0.99] ${theme.accent} ${ctaUrl ? "" : "pointer-events-none opacity-70"}`}
+            className={`story-creative-cta max-w-[44%] shrink-0 rounded-full border border-white/35 bg-gradient-to-br px-4 py-3 text-center text-[13px] font-black leading-4 transition hover:scale-[1.02] active:scale-[0.99] ${theme.accent} ${ctaUrl ? "" : "pointer-events-none opacity-70"}`}
           >
             {cta}
           </a>

@@ -2053,7 +2053,7 @@ const rawStoryImageUrls = (item = {}) => {
 };
 
 const storyProductImageUrl = (item = {}) => rawStoryImageUrls(item)[0] || "";
-const AI_MARKETING_STORY_RENDERER = "ai_marketing_story_commercial_templates_v7_directional_pos_pricing";
+const AI_MARKETING_STORY_RENDERER = "ai_marketing_story_commercial_templates_v8_crimson_editorial_hierarchy";
 
 const isValidRenderedStoryAsset = (item = {}, assetUrl = "") => {
   const selectedAsset = cleanImageUrl(assetUrl);

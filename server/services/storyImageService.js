@@ -557,16 +557,16 @@ const storyAssetBadge = (story = {}, design = {}) => {
 
 const DESIGNED_STORY_THEMES = {
   new_arrival: {
-    id: "new-arrival-emerald",
+    id: "new-arrival-crimson",
     label: "FRESH DROP",
-    baseStart: "#f8fbf7",
-    baseMiddle: "#e7f4ed",
-    baseEnd: "#10251d",
-    glowPrimary: "#34d399",
-    glowSecondary: "#fbbf24",
-    accent: "#6ee7b7",
-    accentSoft: "#d1fae5",
-    accentDark: "#052e24",
+    baseStart: "#fff8f7",
+    baseMiddle: "#f1e5e3",
+    baseEnd: "#170909",
+    glowPrimary: "#ef4444",
+    glowSecondary: "#f97316",
+    accent: "#ef4444",
+    accentSoft: "#fee2e2",
+    accentDark: "#450a0a",
   },
   last_piece: {
     id: "last-piece-urgency",
@@ -732,16 +732,18 @@ export const designedStoryBackgroundSvg = ({ badge, title, price, sizes, cta, th
   <ellipse cx="540" cy="1038" rx="390" ry="48" fill="#000000" fill-opacity="0.28" filter="url(#stageShadow)"/>
   <ellipse cx="540" cy="996" rx="430" ry="92" fill="#ffffff" fill-opacity="0.10" filter="url(#stageShadow)"/>
 
-  <rect x="60" y="1112" width="${Math.min(360, Math.max(196, (badge || "NEW COLLECTION").length * 12 + 64))}" height="48" rx="24" fill="${theme.accent}" fill-opacity="0.92"/>
-  ${storySvgText({ lines: headingLines, x: 92, y: 1143, size: 20, weight: 700, color: theme.accentDark, anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
-  ${storySvgText({ lines: titleLines, x: 60, y: 1250, size: 74, weight: 720, color: "#ffffff", anchor: "start", lineHeight: 1.08, opacity: renderText ? 1 : 0 })}
-  ${storySvgText({ lines: priceLines, x: 60, y: 1430, size: 78, weight: 760, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  <rect x="48" y="1106" width="8" height="388" rx="4" fill="#ef4444" fill-opacity="0.94"/>
+  <rect x="72" y="1104" width="${Math.min(420, Math.max(236, (badge || "NEW COLLECTION").length * 15 + 76))}" height="62" rx="31" fill="#dc2626" fill-opacity="0.98"/>
+  ${storySvgText({ lines: headingLines, x: 112, y: 1145, size: 25, weight: 800, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  ${storySvgText({ lines: titleLines, x: 72, y: 1270, size: 84, weight: 800, color: "#ffffff", anchor: "start", lineHeight: 1.08, opacity: renderText ? 1 : 0 })}
+  <line x1="72" y1="1390" x2="1008" y2="1390" stroke="#ffffff" stroke-opacity="0.16" stroke-width="2"/>
+  ${storySvgText({ lines: priceLines, x: 72, y: 1480, size: 92, weight: 850, color: "#ffffff", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
   <g filter="url(#ctaGlow)">
-    <rect x="644" y="1360" width="376" height="82" rx="41" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.26"/>
-    <text x="832" y="1412" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="30" font-weight="700" fill="${theme.accentDark}" opacity="${renderText ? 1 : 0}">${escapeXml(cta || "View details")}</text>
+    <rect x="646" y="1410" width="362" height="88" rx="44" fill="url(#ctaFill)" stroke="#ffffff" stroke-opacity="0.32"/>
+    <text x="827" y="1466" text-anchor="middle" font-family="${STORY_FONT_FAMILY}, DejaVu Sans, sans-serif" font-size="31" font-weight="800" fill="${theme.accentDark}" opacity="${renderText ? 1 : 0}">${escapeXml(cta || "View details")}</text>
   </g>
-  <rect x="60" y="1512" width="${sizesWidth}" height="76" rx="38" fill="#ffffff" fill-opacity="0.94" stroke="#ffffff" stroke-opacity="0.12"/>
-  ${storySvgText({ lines: sizesLines, x: 104, y: 1562, size: 31, weight: 700, color: "#0f172a", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
+  <rect x="72" y="1540" width="${sizesWidth}" height="92" rx="46" fill="#ffffff" fill-opacity="0.96" stroke="#ef4444" stroke-opacity="0.24" stroke-width="2"/>
+  ${storySvgText({ lines: sizesLines, x: 120, y: 1600, size: 38, weight: 800, color: "#0f172a", anchor: "start", lineHeight: 1, opacity: renderText ? 1 : 0 })}
 </svg>`;
 };
 
@@ -750,11 +752,11 @@ export const createDesignedStoryTextComposites = async ({ badge, title, price, s
   const titleText = storyAssetTextLines(title, { maxChars: 24, maxLines: 2 }).join("\n");
   const composites = await Promise.all([
     createStoryTextComposite({ text: theme.label, left: 784, top: 100, width: 192, height: 32, size: 14, color: "#ffffff", align: "center", weight: "semibold" }),
-    createStoryTextComposite({ text: badge || "NEW COLLECTION", left: 92, top: 1120, width: 320, height: 34, size: 17, color: theme.accentDark, weight: "semibold" }),
-    createStoryTextComposite({ text: titleText, left: 60, top: 1180, width: 940, height: 176, size: 60, color: "#ffffff", weight: "semibold" }),
-    createStoryTextComposite({ text: price || "Available now", left: 60, top: 1358, width: 540, height: 92, size: 58, color: "#ffffff", weight: "bold" }),
-    createStoryTextComposite({ text: cta || "View details", left: 664, top: 1374, width: 336, height: 54, size: 24, color: theme.accentDark, align: "center", weight: "semibold" }),
-    createStoryTextComposite({ text: cleanSizes || "AVAILABLE NOW", left: 104, top: 1526, width: 850, height: 48, size: 25, color: "#0f172a", weight: "semibold" }),
+    createStoryTextComposite({ text: badge || "NEW COLLECTION", left: 112, top: 1118, width: 360, height: 42, size: 20, color: "#ffffff", weight: "bold" }),
+    createStoryTextComposite({ text: titleText, left: 72, top: 1190, width: 936, height: 190, size: 68, color: "#ffffff", weight: "bold" }),
+    createStoryTextComposite({ text: price || "Available now", left: 72, top: 1404, width: 560, height: 100, size: 70, color: "#ffffff", weight: "bold" }),
+    createStoryTextComposite({ text: cta || "View details", left: 666, top: 1426, width: 322, height: 58, size: 25, color: theme.accentDark, align: "center", weight: "bold" }),
+    createStoryTextComposite({ text: cleanSizes || "AVAILABLE NOW", left: 120, top: 1558, width: 840, height: 58, size: 31, color: "#0f172a", weight: "bold" }),
   ]);
   return composites.filter(Boolean);
 };

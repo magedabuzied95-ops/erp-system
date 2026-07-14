@@ -14,7 +14,7 @@ const marketingServiceSource = fs.readFileSync(
 );
 
 test("story renderer selects a commercial theme from the content strategy", () => {
-  assert.equal(resolveDesignedStoryTheme({ strategy_type: "new_arrivals" }).id, "new-arrival-emerald");
+  assert.equal(resolveDesignedStoryTheme({ strategy_type: "new_arrivals" }).id, "new-arrival-crimson");
   assert.equal(resolveDesignedStoryTheme({ strategy_type: "last_size", stock: 1 }).id, "last-piece-urgency");
   assert.equal(resolveDesignedStoryTheme({ layout_type: "special_offer_story" }).id, "offer-coral");
   assert.equal(resolveDesignedStoryTheme({ strategy_type: "featured" }).id, "premium-midnight");
@@ -54,7 +54,8 @@ test("story preview mirrors professional themes without store or audio chrome", 
   assert.doesNotMatch(previewSource, /story-creative-audio/);
   assert.match(previewSource, /const copyDirection = \/\[\\u0600-\\u06ff\]\//);
   assert.match(previewSource, /dir=\{copyDirection\}/);
-  assert.match(marketingServiceSource, /ai_marketing_story_commercial_templates_v7_directional_pos_pricing/);
+  assert.match(previewSource, /from-red-100 via-red-400 to-rose-600/);
+  assert.match(marketingServiceSource, /ai_marketing_story_commercial_templates_v8_crimson_editorial_hierarchy/);
 });
 
 test("production story text is rasterized with the bundled font file", async () => {
