@@ -10,7 +10,7 @@ import {
 } from "./aiChannelAdapterService.js";
 import { generateWhatsappAiAutoReply, logWhatsappAiOutbound } from "./aiInboxService.js";
 import { debugAiImagesLog, normalizeProductCards } from "./aiProductCards.js";
-import { appendAiGeneratedSupportReply, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus } from "./aiSupportLogService.js";
+import { appendAiGeneratedSupportReply, appendChannelOutboundSupportReply, appendWhatsappOutboundSupportReply, updateAiSupportMessageDeliveryStatus } from "./aiSupportLogService.js";
 import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 import { addTraceStep, failTrace, finishTrace, setTraceInboundMessage, startTrace } from "./aiReplyTraceService.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId } from "../utils/whatsappIdentity.js";
@@ -3818,7 +3818,42 @@ export const handleIncomingWebhook = async (payload = {}) => {
       delivery_status: statusUpdate.deliveryStatus || "",
     };
   }
+  const normalized = await extractIncomingWhatsapp(payload);
   if (envelope.fromMe) {
+    const tenantId = tenantIdForWhatsapp(payload);
+    const sessionId = normalizeWhatsappSessionId(normalized.remoteJid || normalized.resolvedReplyJid || normalized.phone, normalized.resolvedPhone || normalized.phone);
+    const outboundRow = normalized.text ? await appendChannelOutboundSupportReply({
+      tenantId,
+      sessionId,
+      message: normalized.text,
+      channel: AI_AGENT_CHANNELS.WHATSAPP,
+      senderType: "staff",
+      staffMessage: normalized.text,
+      staffUserName: "أنا",
+      source: "whatsapp_provider_echo",
+      sourcePath: "whatsapp_provider_echo",
+      insertSource: "whatsapp_provider_echo",
+      deliveryStatus: "sent",
+      externalMessageId: normalized.messageId,
+      providerMessageId: normalized.messageId,
+      whatsappInstance: normalized.instance,
+      remoteJid: normalized.remoteJid,
+      resolvedReplyJid: normalized.resolvedReplyJid,
+      resolvedPhone: normalized.resolvedPhone || normalized.phone,
+      sessionStatus: "ai_active",
+      preserveExistingOnProviderMatch: true,
+    }).catch((error) => {
+      console.warn("[whatsapp:provider-echo-save-failed]", { message_id: normalized.messageId, message: error?.message });
+      return null;
+    }) : null;
+    if (outboundRow) {
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", {
+        tenant_id: tenantId,
+        session_id: sessionId,
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        message: { ...outboundRow, from_me: true, direction: "outbound" },
+      });
+    }
     console.info("[whatsapp:skip-from-me-before-ai]", {
       event: envelope.event,
       rawEvent: envelope.rawEvent || "",
@@ -3837,7 +3872,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
       event: envelope.event,
       rawEvent: envelope.rawEvent,
       eventCandidates: envelope.eventCandidates,
-      phone: "",
+      phone: normalized.phone || normalized.resolvedPhone || "",
       remoteJid: envelope.remoteJid,
       resolvedReplyJid: "",
       resolvedPhone: "",
@@ -3850,7 +3885,7 @@ export const handleIncomingWebhook = async (payload = {}) => {
       configuredBotNumber: envelope.configuredBotNumber,
       isGroup: isGroupJid(envelope.remoteJid),
       isLid: isLidJid(envelope.remoteJid),
-      text: "",
+      text: normalized.text || "",
       senderName: "",
       messageId: envelope.messageId,
       timestamp: envelope.timestamp,
@@ -3861,10 +3896,9 @@ export const handleIncomingWebhook = async (payload = {}) => {
       message_id: envelope.messageId,
       instanceName: envelope.instance,
       trace_id: null,
-      inbox: { saved: false, reason: "from_me" },
+      inbox: { saved: Boolean(outboundRow), reason: outboundRow ? "from_me_saved" : "from_me" },
     };
   }
-  const normalized = await extractIncomingWhatsapp(payload);
   console.info("[evolution:message-extracted]", {
     event: normalized.event,
     rawEvent: normalized.rawEvent || "",

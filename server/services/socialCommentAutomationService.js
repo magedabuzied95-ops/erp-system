@@ -6557,14 +6557,16 @@ export const executeSocialCommentAutomation = async ({
     successLabel,
     failureLabel,
     buildExternalId,
+    buildTranscriptTarget,
   }) => {
     try {
       const response = await send();
       const externalReplyId = text(buildExternalId?.(response) || response?.id || response?.comment_id || response?.reply_id || "");
+      const transcriptTarget = buildTranscriptTarget?.(response) || {};
       await appendTranscript({
         tenantId: safeTenantId,
-        sessionId,
-        channel,
+        sessionId: text(transcriptTarget.sessionId || sessionId),
+        channel: text(transcriptTarget.channel || channel),
         messageType,
         message,
         deliveryStatus: deliveryStatusValue,
@@ -6703,6 +6705,7 @@ export const executeSocialCommentAutomation = async ({
         safeTenantId,
         {
           callsite: "socialCommentAutomationService.executeSocialCommentAutomation.private_message",
+          conversationId: sessionId,
           postId: safeRow.post_id || "",
           productContext: resolvedProductContext,
           customerName: templateContext.customerName || safeRow.commenter_name || safeRow.customer_name || "",
@@ -6712,6 +6715,13 @@ export const executeSocialCommentAutomation = async ({
       successLabel: "private message success",
       failureLabel: "private message failed",
       buildExternalId: (response) => response?.id || response?.message_id || response?.reply_id || "",
+      buildTranscriptTarget: (response) => {
+        const recipientId = text(response?.recipient_id || response?.recipientId || response?.recipient?.id || "");
+        const directChannel = text(safeRow.platform).toLowerCase().includes("instagram") ? "instagram" : "facebook_messenger";
+        return recipientId
+          ? { sessionId: `${directChannel}:${recipientId}`, channel: directChannel }
+          : { sessionId, channel };
+      },
     });
   } else if (decision.requested.privateMessage) {
     dmStatus = socialCommentAutomationStepFinal(dmStatus) ? dmStatus : "skipped";

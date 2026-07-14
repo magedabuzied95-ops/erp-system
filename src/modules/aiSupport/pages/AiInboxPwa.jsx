@@ -363,6 +363,7 @@ const normalizeInboxMessage = (message = {}) => {
   const fromMe = isFromMeMessage(message);
   const body = messageDisplayText(message);
   const normalizedSenderType = senderType || (fromMe || direction === "outbound" ? "assistant" : "customer");
+  const isStaffSender = ["staff", "agent", "human"].includes(normalizedSenderType.toLowerCase());
   const normalizedMessageType =
     clean(message.message_type || message.messageType || "") ||
     (productCards.length ? "product_card" : direction === "outbound" ? "ai_reply" : "customer_message");
@@ -404,7 +405,7 @@ const normalizeInboxMessage = (message = {}) => {
     from_me: fromMe,
     fromMe,
     customer_message: clean(message.customer_message || (!fromMe && direction === "inbound" ? body : "")),
-    ai_answer: clean(message.ai_answer || ((fromMe || direction === "outbound") && normalizedMessageType !== "product_card" ? body : "")),
+    ai_answer: clean(message.ai_answer || ((!isStaffSender && (fromMe || direction === "outbound")) && normalizedMessageType !== "product_card" ? body : "")),
     staff_message: clean(message.staff_message || (normalizedSenderType === "staff" ? body : "")),
     product_cards: productCards,
     productCards,
@@ -1574,8 +1575,9 @@ const Transcript = memo(function Transcript({ conversation, loadingOlder, onLoad
         const displayText = messageDisplayText(message);
         const isFromMe = isFromMeMessage(message);
         const isCustomer = Boolean(clean(message.customer_message)) && !isFromMe;
-        const isAi = Boolean(clean(message.ai_answer)) || message.sender_type === "assistant" || message.sender_type === "ai" || message.direction === "outbound" || isFromMe;
         const isStaff = Boolean(clean(message.staff_message)) && !hasProductCards;
+        const isAiSender = ["assistant", "ai", "bot", "system"].includes(clean(message.sender_type).toLowerCase());
+        const isAi = !isStaff && (isAiSender || Boolean(clean(message.ai_answer)) || (message.direction === "outbound" && !isFromMe));
         if (!isCustomer && !isAi && !isStaff && !hasProductCards) return null;
 
         return (
@@ -3353,14 +3355,15 @@ export default function AiInboxPwa() {
         const hasProductCards = cards.length > 0;
         const isFromMe = isFromMeMessage(normalizedMessage);
         const isCustomer = Boolean(clean(normalizedMessage.customer_message)) && !isFromMe;
-        const isAi = Boolean(clean(normalizedMessage.ai_answer)) || normalizedMessage.sender_type === "assistant" || normalizedMessage.sender_type === "ai" || normalizedMessage.direction === "outbound" || isFromMe;
         const isStaff = Boolean(clean(normalizedMessage.staff_message)) && !hasProductCards;
+        const isAiSender = ["assistant", "ai", "bot", "system"].includes(clean(normalizedMessage.sender_type).toLowerCase());
+        const isAi = !isStaff && (isAiSender || Boolean(clean(normalizedMessage.ai_answer)) || (normalizedMessage.direction === "outbound" && !isFromMe));
         if (!isCustomer && !isAi && !isStaff && !hasProductCards) return null;
         return {
           key: messageKey(normalizedMessage),
           message: normalizedMessage,
           cards,
-          kind: hasProductCards || normalizedMessage.message_type === "product_card" ? "product_card" : isCustomer ? "customer" : isAi ? "ai" : "staff",
+          kind: hasProductCards || normalizedMessage.message_type === "product_card" ? "product_card" : isCustomer ? "customer" : isStaff ? "staff" : "ai",
           visible: true,
           createdAt: absoluteTime(normalizedMessage.created_at),
           conversationMetadata: selectedConversation?.channel_metadata || selectedConversation?.metadata || {},
@@ -5620,4 +5623,3 @@ export default function AiInboxPwa() {
     </div>
   );
 }
-

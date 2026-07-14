@@ -5,6 +5,11 @@ import ProductCardMessage from "./ProductCardMessage";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
+const staffSenderLabel = (message = {}) => {
+  const source = clean(`${message.source_path || ""} ${message.insert_source || ""} ${message.message_type || ""}`).toLowerCase();
+  if (source.includes("automation") || source.includes("system")) return "النظام";
+  return "أنا";
+};
 
 const absoluteTime = (value) => {
   if (!value) return "";
@@ -24,6 +29,7 @@ const imageUrlsForMessage = (message = {}) =>
     message.file_url,
     message.preview_url,
     message.thumbnail_url,
+    ...asArray(message.visual_attachments).map((attachment) => attachment?.url || attachment?.image_url || attachment?.media_url),
   ]
     .map((value) => clean(value))
     .filter(Boolean);
@@ -161,7 +167,7 @@ function TranscriptMessage({
         <div className="flex justify-start">
           <div className={`max-w-[82%] rounded-[20px] rounded-bl-md px-3 py-2 shadow-sm ${message.delivery_status === "failed" ? "bg-rose-950 text-rose-50 ring-1 ring-rose-200" : "bg-slate-900 text-white"}`}>
             <div className={`mb-1 text-[10px] font-medium ${message.delivery_status === "failed" ? "text-rose-200" : "text-slate-300"}`}>
-              {message.message_type === "internal_note" ? "Internal Note" : "Team"} · {createdAt}
+              {message.message_type === "internal_note" ? "ملاحظة داخلية" : staffSenderLabel(message)} · {createdAt}
             </div>
             <LinkifiedText text={message.staff_message} className={`text-[14px] leading-5.5 ${message.delivery_status === "failed" ? "text-rose-50" : "text-white"}`} />
             {message.delivery_status === "failed" && message.delivery_error ? (
@@ -297,8 +303,8 @@ function TranscriptMessage({
           <div className={`max-w-[88%] rounded-3xl rounded-tr-sm p-5 shadow-[0_10px_30px_rgba(16,185,129,0.12)] ${message.message_type === "automation_error" ? "border border-rose-300/20 bg-rose-400/10" : "border border-emerald-300/15 bg-emerald-400/10"}`}>
             <div className={`flex flex-wrap items-center gap-2 text-[11px] font-black uppercase tracking-[0.14em] ${message.message_type === "automation_error" ? "text-rose-100" : "text-emerald-100"}`}>
               <UserCheck className="h-3.5 w-3.5" />
-              <span>Staff</span>
-              {message.staff_user_name ? <span className="text-slate-400">{message.staff_user_name}</span> : null}
+              <span>{staffSenderLabel(message)}</span>
+              {message.staff_user_name && message.staff_user_name !== "أنا" ? <span className="text-slate-400">{message.staff_user_name}</span> : null}
               {message.message_type ? (
                 <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${message.message_type === "automation_error" ? "border-rose-300/20 bg-rose-400/10 text-rose-100" : message.message_type === "comment_like" ? "border-white/10 bg-white/[0.055] text-slate-100" : message.message_type === "comment_private_reply" ? "border-cyan-300/20 bg-cyan-300/10 text-cyan-100" : "border-violet-300/20 bg-violet-400/10 text-violet-100"}`}>
                   {message.message_type}

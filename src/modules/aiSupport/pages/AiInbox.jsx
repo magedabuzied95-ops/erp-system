@@ -1261,6 +1261,7 @@ const normalizeTranscriptMessage = (message = {}) => {
       ""
   );
   const normalizedSenderType = senderType || (fromMe || direction === "outbound" ? "assistant" : "customer");
+  const isStaffSender = ["staff", "agent", "human"].includes(normalizedSenderType);
   return {
     ...message,
     from_me: fromMe,
@@ -1269,7 +1270,7 @@ const normalizeTranscriptMessage = (message = {}) => {
     sender_type: normalizedSenderType,
     senderType: normalizedSenderType,
     customer_message: clean(message.customer_message || (!fromMe && direction === "inbound" ? body : "")),
-    ai_answer: clean(message.ai_answer || ((fromMe || direction === "outbound") ? body : "")),
+    ai_answer: clean(message.ai_answer || ((!isStaffSender && (fromMe || direction === "outbound")) ? body : "")),
     staff_message: clean(message.staff_message || (normalizedSenderType === "staff" ? body : "")),
     message_text: clean(message.message_text || body),
     text: clean(message.text || body),
@@ -3982,11 +3983,33 @@ export default function AiInbox() {
       const activeConversationSelectedId = selectedSessionIdRef.current;
       const activeSocialCommentSelectedId = selectedSocialCommentIdRef.current;
       const cachedSelected = selectedConversationCacheRef.current;
-      const selectedStillPresent = activeConversationSelectedId && conversations.some((item) => item.conversation_key === activeConversationSelectedId);
-      const nextConversations = !selectedStillPresent && activeConversationSelectedId && cachedSelected?.conversation_key === activeConversationSelectedId
-        ? [cachedSelected, ...conversations.filter((item) => item.conversation_key !== activeConversationSelectedId)]
-        : conversations;
-      setInbox({ conversations: nextConversations, followups: asArray(inboxPayload.followups) });
+      let nextConversations = conversations;
+      setInbox((current) => {
+        const existingByKey = new Map(asArray(current.conversations).map((item) => [item.conversation_key || conversationKey(item), item]));
+        nextConversations = conversations.map((summary) => {
+          const key = summary.conversation_key || conversationKey(summary);
+          const existing = existingByKey.get(key) || (cachedSelected?.conversation_key === key ? cachedSelected : null);
+          if (!existing) return summary;
+          const mergedMessages = mergeMessagesByIdentity([
+            ...asArray(existing.messages),
+            ...asArray(summary.messages),
+          ]);
+          return {
+            ...existing,
+            ...summary,
+            messages: mergedMessages,
+            message_count: Math.max(Number(existing.message_count || 0), Number(summary.message_count || 0), mergedMessages.length),
+            older_messages_available: existing.older_messages_available ?? summary.older_messages_available,
+            next_messages_before: existing.next_messages_before || summary.next_messages_before || "",
+          };
+        });
+        if (activeConversationSelectedId && !nextConversations.some((item) => item.conversation_key === activeConversationSelectedId) && cachedSelected?.conversation_key === activeConversationSelectedId) {
+          nextConversations = [cachedSelected, ...nextConversations];
+        }
+        const selectedSnapshot = nextConversations.find((item) => item.conversation_key === activeConversationSelectedId);
+        if (selectedSnapshot) selectedConversationCacheRef.current = selectedSnapshot;
+        return { conversations: nextConversations, followups: asArray(inboxPayload.followups) };
+      });
       setDrafts(asArray(draftsPayload.drafts));
       setAnalytics(analyticsPayload.analytics || {});
       setChannelStatus(channelPayload.channels || {});
@@ -4184,7 +4207,7 @@ export default function AiInbox() {
       const conversationKey = channelKey === "whatsapp"
         ? normalizeWhatsappSessionIdentity(sessionId, payload.message?.resolved_phone || payload.message?.phone || "")
         : channelKey && channelKey !== "unknown"
-          ? `${channelKey}:${sessionId}`
+          ? (String(sessionId).startsWith(`${channelKey}:`) ? sessionId : `${channelKey}:${sessionId}`)
           : sessionId;
       const incoming = payload.message || null;
       if (incoming?.sender_type === "customer" || incoming?.customer_message) {
@@ -5081,14 +5104,15 @@ export default function AiInbox() {
           (normalizedMessage.thread_kind === "comment" && (normalizedMessage.sender_type === "customer" || normalizedMessage.sender_type === "user" || normalizedMessage.direction === "inbound"));
         const isFromMe = isFromMeMessage(normalizedMessage);
         const isCustomer = Boolean(clean(normalizedMessage.customer_message)) && !isFromMe;
-        const isAi = Boolean(clean(normalizedMessage.ai_answer)) || normalizedMessage.sender_type === "assistant" || normalizedMessage.sender_type === "ai" || normalizedMessage.direction === "outbound" || isFromMe;
         const isStaff = Boolean(clean(normalizedMessage.staff_message)) && !isProductCardMessage;
+        const isAiSender = ["assistant", "ai", "bot", "system"].includes(clean(normalizedMessage.sender_type).toLowerCase());
+        const isAi = !isStaff && (isAiSender || Boolean(clean(normalizedMessage.ai_answer)) || (normalizedMessage.direction === "outbound" && !isFromMe));
         if (!isCustomer && !isAi && !isStaff && !isProductCardMessage && !isCommentMessage) return null;
         return {
           key: messageKey(normalizedMessage),
           message: normalizedMessage,
           cards: productCards,
-          kind: isProductCardMessage ? "product_card" : isCommentMessage ? "comment" : isCustomer ? "customer" : isAi ? "ai" : "staff",
+          kind: isProductCardMessage ? "product_card" : isCommentMessage ? "comment" : isCustomer ? "customer" : isStaff ? "staff" : "ai",
           visible: true,
           createdAt: absoluteTime(normalizedMessage.created_at),
           channelLabel: channelLabel(normalizedMessage.channel || selectedConversation?.channel),

@@ -334,6 +334,8 @@ const persistOutboundTranscriptRow = async ({
   visualAttachments = [],
   suggestedActions = [],
   staffMessage = "",
+  direction = "outbound",
+  preserveExistingOnProviderMatch = false,
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeChannel = toText(channel || "web_chat");
@@ -341,6 +343,8 @@ const persistOutboundTranscriptRow = async ({
     ? normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId)
     : toText(sessionId);
   const safeSenderType = toText(senderType || (manualMessage ? "staff" : "ai") || "ai");
+  const safeDirection = toText(direction || "outbound").toLowerCase() === "inbound" ? "inbound" : "outbound";
+  const isInbound = safeDirection === "inbound";
   const safeMessageType = toText(messageType || "text") || "text";
   const safeMessage = preserveExactMessage ? String(message ?? answer ?? staffMessage ?? "") : repairText(message || answer || staffMessage);
   const safeAnswer = preserveExactMessage ? String(answer || message || staffMessage || "") : repairText(answer || message || staffMessage);
@@ -372,7 +376,7 @@ const persistOutboundTranscriptRow = async ({
   const safeMessageIdentityKey = buildOutboundTranscriptIdentityKey({
     tenantId: safeTenantId,
     sessionId: safeSessionId,
-    direction: "outbound",
+    direction: safeDirection,
     channel: safeChannel,
     senderType: safeSenderType,
     messageType: safeMessageType,
@@ -395,7 +399,7 @@ const persistOutboundTranscriptRow = async ({
   const safeDedupeKey = toText(dedupeKey) || buildOutboundTranscriptDedupeKey({
     tenantId: safeTenantId,
     sessionId: safeSessionId,
-    direction: "outbound",
+    direction: safeDirection,
     channel: safeChannel,
     senderType: safeSenderType,
     messageType: safeMessageType,
@@ -476,8 +480,8 @@ const persistOutboundTranscriptRow = async ({
     numberOrNull(staffUserId),
     safeSessionId,
     safeMessage || safeStaffMessage || safeAnswer,
-    "",
-    safeAnswer || safeMessage || safeStaffMessage || "",
+    isInbound ? (safeMessage || safeAnswer || safeStaffMessage || "") : "",
+    isInbound ? "" : (safeAnswer || safeMessage || safeStaffMessage || ""),
     Number(confidence) || 1,
     false,
     jsonValue([]),
@@ -486,7 +490,7 @@ const persistOutboundTranscriptRow = async ({
     jsonValue(safeSuggestedActions),
     safeDetectedIntent,
     "",
-    safeStaffMessage || (safeSenderType !== "ai" ? safeMessage : ""),
+    isInbound ? "" : (safeStaffMessage || (!["ai", "assistant", "system", "bot"].includes(safeSenderType) ? safeMessage : "")),
     safeSenderType,
     manualMessage,
     numberOrNull(staffUserId),
@@ -616,6 +620,10 @@ const persistOutboundTranscriptRow = async ({
       [safeTenantId, safeChannel, providerKey]
     );
     if (existingProvider.rows[0]?.id) {
+      if (preserveExistingOnProviderMatch) {
+        const existing = await db.query("SELECT * FROM ai_support_messages WHERE id = $1::bigint LIMIT 1", [existingProvider.rows[0].id]);
+        return existing.rows[0] || null;
+      }
       const updated = await db.query(updateSql, [existingProvider.rows[0].id, ...values]);
       return updated.rows[0] || null;
     }
@@ -1784,6 +1792,69 @@ export const appendWhatsappOutboundSupportReply = async ({
   suggestedActions,
   staffMessage,
 });
+
+// Shared channel transcript entry points. Webhook handlers use these before any
+// AI gate so the inbox remains a complete provider timeline even while AI is
+// paused, and provider echoes use the same dedupe path as application sends.
+export const appendInboundAiSupportMessage = async ({
+  tenantId,
+  sessionId,
+  message,
+  messageType = "text",
+  channel = "web_chat",
+  customerName = "",
+  deliveryStatus = "received",
+  externalMessageId = "",
+  providerMessageId = "",
+  visualAttachments = [],
+  source = "channel_webhook",
+  sourcePath = "channel_webhook",
+  insertSource = "channel_webhook",
+  whatsappInstance = "",
+  remoteJid = "",
+  resolvedReplyJid = "",
+  resolvedPhone = "",
+} = {}) => persistOutboundTranscriptRow({
+  tenantId,
+  sessionId,
+  message,
+  messageType,
+  senderType: "customer",
+  manualMessage: false,
+  source,
+  channel,
+  deliveryStatus,
+  externalMessageId,
+  providerMessageId,
+  visualAttachments,
+  preserveExactMessage: true,
+  upsertSession: true,
+  sessionStatus: "ai_active",
+  sessionSource: channel,
+  sessionChannel: channel,
+  sessionCustomerName: customerName,
+  sourcePath,
+  insertSource,
+  whatsappInstance,
+  remoteJid,
+  resolvedReplyJid,
+  resolvedPhone,
+  direction: "inbound",
+});
+
+export const appendChannelOutboundSupportReply = async (options = {}) =>
+  persistOutboundTranscriptRow({
+    ...options,
+    direction: "outbound",
+    senderType: options.senderType || "system",
+    preserveExactMessage: options.preserveExactMessage !== false,
+    upsertSession: options.upsertSession !== false,
+    sessionSource: options.sessionSource || options.channel || options.source || "channel_outbound",
+    sessionChannel: options.sessionChannel || options.channel || "web_chat",
+    sourcePath: options.sourcePath || "channel_outbound",
+    insertSource: options.insertSource || "channel_outbound",
+    preserveExistingOnProviderMatch: options.preserveExistingOnProviderMatch === true,
+  });
 
 export const upsertAiReplySuggestionDraft = async ({
   tenantId,

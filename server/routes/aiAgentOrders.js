@@ -101,6 +101,8 @@ import {
   searchRelevantCorrections,
 } from "../services/aiCorrectionMemoryService.js";
 import {
+  appendChannelOutboundSupportReply,
+  appendInboundAiSupportMessage,
   appendManualAiSupportReply,
   clearAiReplySuggestionDraft,
   assignAiSupportConversation,
@@ -774,6 +776,8 @@ const routeChannelMessageThroughAi = async ({ req, tenantId, message, channel })
         channel,
         external_conversation_id: message.external_conversation_id,
         external_customer_id: message.external_customer_id,
+        external_message_id: message.external_message_id || "",
+        provider_message_id: message.external_message_id || "",
         ai_tone: effectiveTone,
         ai_tone_instruction: getAIToneInstruction(effectiveTone),
         attachments: message.attachments || [],
@@ -1392,6 +1396,32 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
         results.push({ external_customer_id: message.external_customer_id, ignored: "empty_message" });
         continue;
       }
+      const inboundProviderId = envText(message.external_message_id || message.dedupe_key || "");
+      const inboundRow = await appendInboundAiSupportMessage({
+        tenantId,
+        sessionId: message.external_conversation_id,
+        message: message.message_text || "[attachment]",
+        channel: AI_AGENT_CHANNELS.WHATSAPP,
+        customerName: message.customer_name || "",
+        externalMessageId: inboundProviderId,
+        providerMessageId: inboundProviderId,
+        visualAttachments: message.attachments || [],
+        source: "whatsapp_cloud_webhook",
+        sourcePath: "whatsapp_cloud_webhook",
+        insertSource: "whatsapp_cloud_webhook",
+        resolvedPhone: message.external_customer_id,
+      }).catch((error) => {
+        console.warn("[ai-agent:whatsapp] inbound persistence failed", { tenantId, conversationId: message.external_conversation_id, message: error?.message });
+        return null;
+      });
+      if (inboundRow) {
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", {
+          tenant_id: tenantId,
+          session_id: message.external_conversation_id,
+          channel: AI_AGENT_CHANNELS.WHATSAPP,
+          message: { ...inboundRow, from_me: false, direction: "inbound" },
+        });
+      }
       await logChannelEvent({
         tenantId,
         channel: AI_AGENT_CHANNELS.WHATSAPP,
@@ -1515,6 +1545,34 @@ router.post("/channels/whatsapp/webhook", async (req, res) => {
           reply: whatsappReply,
           messageText: whatsappReplyText,
         });
+        const providerMessageId = envText(sendResult?.message_id || sendResult?.messages?.[0]?.id || sendResult?.results?.[0]?.message_id || "");
+        const outboundRow = await appendChannelOutboundSupportReply({
+          tenantId,
+          sessionId: message.external_conversation_id,
+          message: whatsappReplyText,
+          channel: AI_AGENT_CHANNELS.WHATSAPP,
+          senderType: "ai",
+          source: "whatsapp_ai_auto_reply",
+          sourcePath: "whatsapp_ai_auto_reply",
+          insertSource: "whatsapp_ai_auto_reply",
+          deliveryStatus: sendResult?.sent === true ? "sent" : "not_sent",
+          externalMessageId: providerMessageId,
+          providerMessageId,
+          visualAttachments: whatsappReply.visual_attachments || [],
+          productCards: reply.product_cards || aiPayload.suggested_products || [],
+          resolvedPhone: message.external_customer_id,
+        }).catch((error) => {
+          console.warn("[ai-agent:whatsapp] AI reply persistence failed", { tenantId, conversationId: message.external_conversation_id, message: error?.message });
+          return null;
+        });
+        if (outboundRow) {
+          emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", {
+            tenant_id: tenantId,
+            session_id: message.external_conversation_id,
+            channel: AI_AGENT_CHANNELS.WHATSAPP,
+            message: { ...outboundRow, from_me: true, direction: "outbound" },
+          });
+        }
         results.push({
           external_customer_id: message.external_customer_id,
           conversation_id: message.external_conversation_id,
@@ -1624,6 +1682,65 @@ router.post("/channels/meta/webhook", async (req, res) => {
       const conversationId = message.external_conversation_id;
       const customerMessage = envText(message.normalized_for_intent || message.message_text || "");
       const messageId = envText(message.external_message_id || message.dedupe_key || "");
+      const isProviderOutbound = message.from_me === true || message.direction === "outbound";
+      if (isProviderOutbound) {
+        const outboundRow = await appendChannelOutboundSupportReply({
+          tenantId,
+          sessionId: conversationId,
+          message: message.message_text || "[attachment]",
+          channel,
+          senderType: "staff",
+          staffMessage: message.message_text || "[attachment]",
+          staffUserName: "أنا",
+          source: "meta_provider_echo",
+          sourcePath: "meta_provider_echo",
+          insertSource: "meta_provider_echo",
+          deliveryStatus: "sent",
+          externalMessageId: messageId,
+          providerMessageId: messageId,
+          visualAttachments: message.attachments || [],
+          sessionCustomerName: message.customer_name || "",
+          sessionStatus: "ai_active",
+          preserveExistingOnProviderMatch: true,
+        }).catch((error) => {
+          console.warn("[ai-agent:meta] outbound echo persistence failed", { tenantId, channel, conversationId, message: error?.message });
+          return null;
+        });
+        if (outboundRow) {
+          emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", {
+            tenant_id: tenantId,
+            session_id: conversationId,
+            channel,
+            message: { ...outboundRow, from_me: true, direction: "outbound" },
+          });
+        }
+        results.push({ channel, conversation_id: conversationId, sent: true, provider_echo: true });
+        continue;
+      }
+      const inboundRow = await appendInboundAiSupportMessage({
+        tenantId,
+        sessionId: conversationId,
+        message: message.message_text || "[attachment]",
+        channel,
+        customerName: message.customer_name || "",
+        externalMessageId: messageId,
+        providerMessageId: messageId,
+        visualAttachments: message.attachments || [],
+        source: "meta_webhook",
+        sourcePath: "meta_webhook",
+        insertSource: "meta_webhook",
+      }).catch((error) => {
+        console.warn("[ai-agent:meta] inbound persistence failed", { tenantId, channel, conversationId, message: error?.message });
+        return null;
+      });
+      if (inboundRow) {
+        emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", {
+          tenant_id: tenantId,
+          session_id: conversationId,
+          channel,
+          message: { ...inboundRow, from_me: false, direction: "inbound" },
+        });
+      }
       const { inboundKey, inboundMetaMid } = resolveMetaInboundDedupeContext({ channel, conversationId, message });
       if (isDuplicateMessage(messageId)) {
         pushAIEvent({
@@ -1955,6 +2072,34 @@ router.post("/channels/meta/webhook", async (req, res) => {
           inboundKey,
           inboundMetaMid,
         });
+        const providerMessageId = envText(sendResult?.message_id || sendResult?.results?.find?.((item) => item?.message_id)?.message_id || "");
+        const outboundRow = await appendChannelOutboundSupportReply({
+          tenantId,
+          sessionId: message.external_conversation_id,
+          message: replyText,
+          channel,
+          senderType: "ai",
+          source: "meta_ai_auto_reply",
+          sourcePath: "meta_ai_auto_reply",
+          insertSource: "meta_ai_auto_reply",
+          deliveryStatus: sendResult?.sent === true ? "sent" : "not_sent",
+          externalMessageId: providerMessageId,
+          providerMessageId,
+          productCards: reply.product_cards || aiPayload.suggested_products || [],
+          visualAttachments: outboundAttachments,
+          detectedIntent: intent,
+        }).catch((error) => {
+          console.warn("[ai-agent:meta] AI reply persistence failed", { tenantId, channel, conversationId, message: error?.message });
+          return null;
+        });
+        if (outboundRow) {
+          emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", {
+            tenant_id: tenantId,
+            session_id: message.external_conversation_id,
+            channel,
+            message: { ...outboundRow, from_me: true, direction: "outbound" },
+          });
+        }
         console.log("[messenger-send] after sendMetaInboxOutboundMessage", {
           tenant_id: tenantId,
           conversation_id: message.external_conversation_id,

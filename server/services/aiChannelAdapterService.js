@@ -753,29 +753,9 @@ export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } 
       const pageId = toText(entry.id || recipientId);
       const isEcho = event.message?.is_echo === true || event.message?.app_id || event.message?.metadata;
       const senderLooksLikePage = channel === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER && pageId && senderId === pageId;
-      if (isEcho || senderLooksLikePage) {
-        console.log("[meta-webhook] skipped page-origin messenger event", {
-          channel,
-          sender_id: senderId ? "***" : "",
-          recipient_id: recipientId ? "***" : "",
-          page_id: pageId ? "***" : "",
-          is_echo: Boolean(isEcho),
-          sender_equals_page: Boolean(senderLooksLikePage),
-        });
-        console.log("META_WEBHOOK_ECHO_SKIP_RETURNED_CLEANLY", {
-          reason: isEcho ? "is_echo_or_page_origin" : "sender_looks_like_page",
-          channel,
-          sender_id: senderId ? "***" : "",
-          recipient_id: recipientId ? "***" : "",
-          page_id: pageId ? "***" : "",
-          is_echo: Boolean(isEcho),
-          sender_equals_page: Boolean(senderLooksLikePage),
-          attachment_types: Array.isArray(event?.message?.attachments)
-            ? event.message.attachments.map((attachment) => toText(attachment?.type || "")).filter(Boolean)
-            : [],
-        });
-        continue;
-      }
+      const isPageOrigin = Boolean(isEcho || senderLooksLikePage);
+      const customerId = isPageOrigin ? recipientId : senderId;
+      if (!customerId) continue;
       const messageText = extractMetaMessageText(event);
       const attachments = extractMetaAttachments(event);
       const externalMessageId = toText(event.message?.mid || event.message?.id || event.postback?.mid || event.postback?.payload || event.read?.watermark || event.delivery?.watermark);
@@ -800,11 +780,11 @@ export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } 
           event.message?.parent_mid
       );
       const timestamp = event.timestamp ? new Date(Number(event.timestamp)).toISOString() : new Date().toISOString();
-      messages.push(normalizeBaseIncomingMessage({
+      const normalized = normalizeBaseIncomingMessage({
         tenantId,
         channel,
-        externalConversationId: `${channel}:${senderId}`,
-        externalCustomerId: senderId,
+        externalConversationId: `${channel}:${customerId}`,
+        externalCustomerId: customerId,
         customerName: "",
         messageText,
         attachments,
@@ -813,20 +793,28 @@ export const extractMetaWebhookMessages = async ({ body = {}, tenantId = null } 
         postbackPayload: event.postback?.payload || "",
         externalMessageId,
         replyToMessageId,
-        dedupeKey: externalMessageId || dedupeHash([channel, senderId, event.recipient?.id, event.timestamp, messageText].map(toText).join("|")),
+        dedupeKey: externalMessageId || dedupeHash([channel, customerId, event.recipient?.id, event.timestamp, messageText].map(toText).join("|")),
         raw: {
           event,
           object: body.object || "",
           page_id: pageId,
           sender_psid: senderId,
-          customer_psid: senderId,
+          customer_psid: customerId,
           recipient_page_id: recipientId,
           reply_to_message_id: replyToMessageId,
           reply_to: event.message?.reply_to || event.message?.reply_to_message || event.message?.replied_message || event.message?.context || null,
           quick_reply_payload: event.message?.quick_reply?.payload || "",
           postback_payload: event.postback?.payload || "",
+          direction: isPageOrigin ? "outbound" : "inbound",
+          from_me: isPageOrigin,
         },
-      }));
+      });
+      messages.push({
+        ...normalized,
+        direction: isPageOrigin ? "outbound" : "inbound",
+        from_me: isPageOrigin,
+        sender_type: isPageOrigin ? "staff" : "customer",
+      });
     }
   }
   return messages;
