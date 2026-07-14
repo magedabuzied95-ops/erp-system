@@ -5318,24 +5318,6 @@ export default function AiInboxPwa() {
               Refresh
             </button>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Facebook</div>
-              <div className="mt-1 text-xl font-black text-slate-900">{socialPosts.filter((item) => clean(item.platform).toLowerCase().includes("facebook")).length}</div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Instagram</div>
-              <div className="mt-1 text-xl font-black text-slate-900">{socialPosts.filter((item) => clean(item.platform).toLowerCase().includes("instagram")).length}</div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">New comments</div>
-              <div className="mt-1 text-xl font-black text-slate-900">{newCommentCount}</div>
-            </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-              <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Needs reply</div>
-              <div className="mt-1 text-xl font-black text-slate-900">{socialPosts.filter((item) => socialPostMatchesFilter(item, "needs_reply")).length}</div>
-            </div>
-          </div>
         </section>
 
         <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
