@@ -2102,7 +2102,7 @@ function ProductSheet({
     <div
       className={
         mobileFullscreenMode
-          ? "ai-pwa-product-sheet ai-pwa-product-sheet--mobile fixed inset-0 z-[99999] isolate flex items-stretch justify-center overflow-hidden bg-white text-slate-900 [padding-top:max(0.75rem,env(safe-area-inset-top))] [padding-bottom:max(0.85rem,env(safe-area-inset-bottom))]"
+          ? "ai-pwa-product-sheet ai-pwa-product-sheet--mobile fixed inset-0 z-[99999] isolate flex items-stretch justify-center overflow-hidden bg-white text-slate-900 [padding-top:max(0.75rem,env(safe-area-inset-top))] [padding-bottom:max(1.25rem,env(safe-area-inset-bottom))]"
           : "ai-pwa-product-sheet fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-2 pb-2 pt-14 sm:px-4 sm:pb-4 sm:pt-16"
       }
       onClick={onClose}
@@ -2110,10 +2110,18 @@ function ProductSheet({
       <div
         className={
           mobileFullscreenMode
-            ? "ai-pwa-product-sheet__panel flex h-[100dvh] w-screen min-w-0 max-w-[100vw] flex-col overflow-hidden bg-white"
+            ? "ai-pwa-product-sheet__panel flex h-full w-screen min-w-0 max-w-[100vw] flex-col overflow-hidden bg-white"
             : "ai-pwa-product-sheet__panel flex h-[82dvh] w-full max-w-[720px] flex-col overflow-hidden rounded-t-[28px] bg-white shadow-[0_-16px_40px_rgba(15,23,42,0.18)] sm:h-[min(88dvh,52rem)]"
         }
-        style={mobileFullscreenMode ? { width: "100vw", maxWidth: "100vw", height: "100dvh" } : undefined}
+        style={
+          mobileFullscreenMode
+            ? {
+                width: "100vw",
+                maxWidth: "100vw",
+                height: "calc(100dvh - max(0.75rem, env(safe-area-inset-top)) - max(1.25rem, env(safe-area-inset-bottom)))",
+              }
+            : undefined
+        }
         onClick={(event) => event.stopPropagation()}
       >
         {mobileFullscreenMode ? null : <div className="mx-auto mt-2 h-1.5 w-12 shrink-0 rounded-full bg-slate-200" />}
@@ -2353,7 +2361,7 @@ function ProductSheet({
             </div>
           </div>
 
-          <div className={mobileFullscreenMode ? "sticky bottom-0 z-20 shrink-0 border-t border-slate-200 bg-white px-4 pt-3" : "sticky bottom-0 z-10 shrink-0 border-t border-slate-200 bg-white/95 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur"}>
+          <div className={mobileFullscreenMode ? "sticky bottom-0 z-20 shrink-0 border-t border-slate-200 bg-white px-4 pb-2 pt-3" : "sticky bottom-0 z-10 shrink-0 border-t border-slate-200 bg-white/95 px-4 pb-[max(0.85rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur"}>
             <button
               type="button"
               onClick={handleSendProduct}
