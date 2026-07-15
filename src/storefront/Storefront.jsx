@@ -3133,60 +3133,59 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const items = [
     {
-      icon: Crown,
-      title: isRtl ? "اختيارات Premium" : "Premium selection",
-      text: isRtl ? "منتجات منتقاة بعناية مع عرض بصري هادي وواضح." : "Curated products presented with a calm, premium visual tone.",
+      icon: PackageCheck,
+      title: isRtl ? "منتجات مختارة" : "Curated products",
+      text: isRtl ? "صور وأسعار واضحة" : "Clear imagery and pricing",
     },
     {
       icon: Truck,
-      title: isRtl ? "شحن سريع" : "Fast shipping",
-      text: isRtl ? "تجربة توصيل عملية مع خطوات واضحة ومبسطة." : "Practical delivery flow with clear and simple steps.",
+      title: isRtl ? "شحن لكل المحافظات" : "Nationwide delivery",
+      text: isRtl ? "متابعة حتى الاستلام" : "Tracked to your door",
     },
     {
       icon: RefreshCcw,
-      title: isRtl ? "استبدال سهل" : "Easy exchange",
-      text: isRtl ? "سياسة مرنة تخلّي تجربة الشراء أكثر راحة." : "Flexible policy that keeps the buying experience comfortable.",
+      title: isRtl ? "استبدال مرن" : "Easy exchanges",
+      text: isRtl ? "بخطوات بسيطة" : "Simple, clear steps",
     },
     {
       icon: ShieldCheck,
-      title: isRtl ? "ثقة ووضوح" : "Trust and clarity",
-      text: isRtl ? "معلومات أساسية وحضور بصري نظيف بدون زحمة." : "Essential details with a clean visual hierarchy and less clutter.",
+      title: isRtl ? "الدفع عند الاستلام" : "Cash on delivery",
+      text: isRtl ? "ادفع عند وصول طلبك" : "Pay when your order arrives",
     },
   ];
 
   return (
-    <section className="mx-auto max-w-[1400px] px-4 py-5 md:py-8">
-      <div className="mb-4 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: themeTokens.accent }}>
-            {isRtl ? "لماذا M1 Store" : "Why M1 Store"}
-          </p>
-          <h2 className="mt-1 text-2xl font-black tracking-tight md:text-4xl" style={{ color: themeTokens.textPrimary }}>
-            {isRtl ? "تجربة أهدأ، أوضح، وأرقى" : "A calmer, clearer, more premium experience"}
-          </h2>
+    <section data-testid="storefront-service-strip" className="mx-auto max-w-[1400px] px-4 pb-3 pt-7 md:pt-10">
+      <div className="overflow-hidden rounded-[1.75rem] bg-stone-950 text-white shadow-[0_24px_70px_rgba(28,25,23,0.18)] md:rounded-[2rem]">
+        <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-5 md:px-7 md:py-6">
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-[#d7aa2b]">M1 SERVICES</p>
+            <h2 className="mt-1.5 text-xl font-black tracking-tight md:text-2xl">
+              {isRtl ? "كل اللي تحتاجه لتسوّق أسهل" : "Everything you need to shop better"}
+            </h2>
+          </div>
+          <span className="hidden text-xs font-bold text-white/45 sm:block">
+            {isRtl ? "من الاختيار لحد باب البيت" : "From selection to your door"}
+          </span>
         </div>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {items.map((item) => {
-          const Icon = item.icon;
-          return (
-            <div
-              key={item.title}
-              className="rounded-[1.4rem] border p-4 transition duration-300 hover:-translate-y-0.5"
-              style={{
-                background: themeTokens.card,
-                borderColor: themeTokens.border,
-                boxShadow: themeTokens.shadowSoft,
-              }}
-            >
-              <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl" style={{ background: themeTokens.accentSoft, color: themeTokens.accent }}>
-                <Icon className="h-5 w-5" />
+        <div className="grid grid-cols-2 md:grid-cols-4">
+          {items.map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.title} className="group min-w-0 border-white/10 px-4 py-5 odd:border-e md:border-e md:px-6 md:py-7 md:last:border-e-0">
+                <div className="flex items-start gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#d7aa2b]/30 bg-[#d7aa2b]/10 text-[#efc84f] transition group-hover:bg-[#d7aa2b] group-hover:text-stone-950">
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <h3 className="text-[13px] font-black leading-5 text-white md:text-sm">{item.title}</h3>
+                    <p className="mt-1 text-[11px] font-semibold leading-5 text-white/50 md:text-xs">{item.text}</p>
+                  </div>
+                </div>
               </div>
-              <h3 className="mt-4 text-lg font-black" style={{ color: themeTokens.textPrimary }}>{item.title}</h3>
-              <p className="mt-2 text-sm font-semibold leading-6" style={{ color: themeTokens.textSecondary }}>{item.text}</p>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </section>
   );
@@ -3195,61 +3194,48 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
 function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const links = [
+    { label: isRtl ? "الرئيسية" : "Home", to: "/" },
     { label: isRtl ? "المنتجات" : "Products", to: "/products" },
     { label: isRtl ? "العروض" : "Offers", to: "/offers" },
     { label: isRtl ? "حسابي" : "Account", to: "/account" },
-    { label: "WhatsApp", to: "https://wa.me/", external: true },
   ];
+  const whatsappHref = buildWhatsAppHref(isRtl ? "مرحبًا، أحتاج مساعدة في اختيار منتج" : "Hi, I need help choosing a product");
+  const currentYear = new Date().getFullYear();
 
   return (
-    <footer className="mx-auto max-w-[1400px] px-4 pb-8 pt-4 md:pb-12">
-      <div
-        className="rounded-[1.6rem] border px-5 py-5 md:px-6 md:py-6"
-        style={{
-          background: themeTokens.surface,
-          borderColor: themeTokens.border,
-          boxShadow: themeTokens.shadowSoft,
-        }}
-      >
-        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-          <div className="min-w-0">
-            <div className="text-sm font-black uppercase tracking-[0.18em]" style={{ color: themeTokens.accent }}>M1 Store</div>
-            <p className="mt-1.5 max-w-xl text-sm font-semibold leading-6" style={{ color: themeTokens.textSecondary }}>
-              {isRtl ? "واجهة مرتبة، أقسام واضحة، واختيار منتجات بهوية Premium." : "A tidy storefront, clear categories, and premium product editing."}
+    <footer data-testid="storefront-modern-footer" className="mx-auto max-w-[1400px] px-4 pb-8 pt-3 md:pb-12">
+      <div className="overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white md:rounded-[2rem]">
+        <div className="grid gap-6 px-5 py-7 md:grid-cols-[1fr_auto] md:items-center md:px-8 md:py-9">
+          <div>
+            <div className="flex items-center gap-2.5">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#c99918]" />
+              <span className="text-base font-black uppercase tracking-[0.18em] text-stone-950">M1 STORE</span>
+            </div>
+            <p className="mt-3 max-w-lg text-sm font-semibold leading-6 text-stone-500">
+              {isRtl ? "موديلات مختارة، مقاسات واضحة، وتجربة شراء من غير تعقيد." : "Curated styles, clear sizing, and shopping without the friction."}
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {links.map((link) => (
-              link.external ? (
-                <a
-                  key={link.label}
-                  href={link.to}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-black transition hover:-translate-y-0.5"
-                  style={{
-                    background: themeTokens.card,
-                    borderColor: themeTokens.border,
-                    color: themeTokens.textPrimary,
-                  }}
-                >
-                  {link.label}
-                </a>
-              ) : (
-                <Link
-                  key={link.label}
-                  to={link.to}
-                  className="inline-flex min-h-10 items-center justify-center rounded-full border px-4 py-2 text-sm font-black transition hover:-translate-y-0.5"
-                  style={{
-                    background: themeTokens.card,
-                    borderColor: themeTokens.border,
-                    color: themeTokens.textPrimary,
-                  }}
-                >
+          <a
+            href={whatsappHref}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#128c5e] px-5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#0f7a52] md:w-auto"
+          >
+            <FaWhatsapp className="h-5 w-5" />
+            {isRtl ? "تواصل معنا" : "Chat with us"}
+            <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
+          </a>
+        </div>
+        <div className="border-t border-stone-200 px-5 py-5 md:px-8">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <nav aria-label={isRtl ? "روابط المتجر" : "Store links"} className="flex flex-wrap gap-x-5 gap-y-3">
+              {links.map((link) => (
+                <Link key={link.label} to={link.to} className="text-sm font-black text-stone-700 transition hover:text-[#a87900]">
                   {link.label}
                 </Link>
-              )
-            ))}
+              ))}
+            </nav>
+            <span className="text-[11px] font-bold text-stone-400">© {currentYear} M1 STORE</span>
           </div>
         </div>
       </div>
