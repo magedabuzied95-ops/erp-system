@@ -654,6 +654,12 @@ function SettingsCenterContent({ debugMode = false }) {
     navigate(`/settings?category=${next}`, { replace: true });
   };
 
+  const updateSettingsSearch = (nextValue) => {
+    const next = String(nextValue || "");
+    const looksLikeBrowserIdentityAutofill = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(next.trim());
+    setSearch(looksLikeBrowserIdentityAutofill ? "" : next);
+  };
+
   const updateValue = (key, value) => setValues((current) => ({ ...current, [key]: value }));
   const updateSocialAutomationValue = (key, value) => {
     setSocialAutomationSettings((current) => ({ ...current, [key]: value }));
@@ -925,6 +931,10 @@ function SettingsCenterContent({ debugMode = false }) {
       <input
         className={fieldClass}
         type={item.type === "number" ? "number" : item.type === "url" ? "url" : item.type === "secret" ? "password" : "text"}
+        name={item.isSecret ? `m1-system-secret-${item.key.replaceAll(".", "-")}` : undefined}
+        autoComplete={item.isSecret ? "new-password" : undefined}
+        data-1p-ignore={item.isSecret ? "true" : undefined}
+        data-lpignore={item.isSecret ? "true" : undefined}
         value={current}
         onChange={(event) => updateValue(item.key, event.target.value)}
         placeholder={item.isSecret
@@ -997,7 +1007,17 @@ function SettingsCenterContent({ debugMode = false }) {
             <div className="flex min-w-0 max-w-full flex-col gap-2 sm:flex-row sm:items-center">
               <label className="relative min-w-0 max-w-full sm:w-80">
                 <Search className="pointer-events-none absolute start-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" />
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder={ui.search} className="h-11 w-full rounded-2xl border border-slate-200 bg-white pe-3 ps-10 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15" />
+                <input
+                  type="search"
+                  name="m1-settings-filter-query"
+                  autoComplete="off"
+                  data-1p-ignore="true"
+                  data-lpignore="true"
+                  value={search}
+                  onChange={(event) => updateSettingsSearch(event.target.value)}
+                  placeholder={ui.search}
+                  className="h-11 w-full rounded-2xl border border-slate-200 bg-white pe-3 ps-10 text-sm font-semibold text-slate-950 outline-none focus:border-sky-400 focus:ring-4 focus:ring-sky-100 dark:border-white/10 dark:bg-slate-950 dark:text-white dark:placeholder:text-slate-500 dark:focus:border-blue-400 dark:focus:ring-blue-500/15"
+                />
               </label>
               {shouldShowPreviewPanel ? (
                 <button type="button" onClick={() => setPreviewOpen(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 text-sm font-black text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"><Eye className="h-4 w-4" />{ui.preview}</button>
