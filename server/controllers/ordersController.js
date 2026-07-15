@@ -4399,7 +4399,7 @@ const firstExistingColumn = (columns, candidates = []) => candidates.find((colum
 const isHardDeleteAdmin = (user = {}) => {
   if (isSuperAdminUser(user)) return true;
   const role = String(user.role || user.role_name || user.type || "").trim().toLowerCase();
-  return ["admin", "super admin", "super_admin", "superadmin", "owner"].includes(role);
+  return ["admin", "super admin", "super_admin", "superadmin", "owner", "cashier", "pos cashier", "pos_cashier"].includes(role);
 };
 
 const hardDeleteConfirmed = (value = "") => {
@@ -6292,7 +6292,7 @@ export const permanentDeleteOrder = async (req, res) => {
   const client = await db.connect();
   try {
     if (!isHardDeleteAdmin(req.user)) {
-      return res.status(403).json({ success: false, message: "Permanent delete is restricted to administrators." });
+      return res.status(403).json({ success: false, message: "Permanent delete is not allowed for this account." });
     }
     if (!hardDeleteConfirmed(req.body?.confirmation || req.body?.confirm)) {
       return res.status(400).json({ success: false, message: "Type DELETE or حذف to confirm permanent deletion." });

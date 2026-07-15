@@ -15,6 +15,8 @@ const CORE_PERMISSIONS = [
   ["purchases", "create"],
   ["purchases", "edit"],
   ["purchases", "delete"],
+  ["orders", "edit"],
+  ["orders", "delete"],
   ["products", "view"],
   ["branches", "view"],
   ["notifications", "view"],
@@ -121,6 +123,27 @@ const ensureCorePermissions = async () => {
           )
         `,
         CORE_PERMISSIONS.flat()
+      );
+
+      await db.query(
+        `
+        INSERT INTO role_permissions (role_id, permission_id)
+        SELECT r.id, p.id
+        FROM roles r
+        CROSS JOIN permissions p
+        WHERE (
+            LOWER(REPLACE(REPLACE(COALESCE(r.name, ''), '_', ' '), '-', ' ')) IN ('cashier', 'pos cashier')
+            OR LOWER(REPLACE(REPLACE(COALESCE(r.slug, ''), '_', ' '), '-', ' ')) IN ('cashier', 'pos cashier')
+          )
+          AND p.module = 'orders'
+          AND p.action IN ('edit', 'delete')
+          AND NOT EXISTS (
+            SELECT 1
+            FROM role_permissions rp
+            WHERE rp.role_id = r.id
+              AND rp.permission_id = p.id
+          )
+        `
       );
 
       await db.query(

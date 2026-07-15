@@ -299,6 +299,8 @@ const ROLE_SEED_DEFINITIONS = [
       "pos.sell",
       "orders.view",
       "orders.create",
+      "orders.edit",
+      "orders.delete",
       "customers.view",
       "customers.create",
       "loyalty.view",

@@ -284,6 +284,8 @@ export const DEFAULT_ROLES = [
     builtIn: true,
     permissions: [
       ...allow(["dashboard", "pos", "orders", "reports"], ["view", "create", "print"]),
+      "orders.edit",
+      "orders.delete",
       "customers.view",
       "customers.create",
       "loyalty.view",

@@ -157,11 +157,13 @@ const isManagerUser = (user = {}) => {
   return ["manager", "branch_manager", "store_manager", "admin", "super admin", "superadmin", "super_admin"].includes(role);
 };
 
-const isCashierUser = (user = {}) => getUserRole(user) === "cashier";
+const isCashierUser = (user = {}) => ["cashier", "pos cashier", "pos_cashier", "pos-cashier"].includes(getUserRole(user));
 
-const canEditInvoices = (user = {}) => !isCashierUser(user) && (hasPermission("orders.edit", user) || hasPermission("pos.edit", user) || isManagerUser(user));
+const canEditInvoices = (user = {}) => isCashierUser(user) || hasPermission("orders.edit", user) || hasPermission("pos.edit", user) || isManagerUser(user);
 
-const canEditOldInvoices = (user = {}) => isManagerUser(user) || hasPermission("pos.edit_old", user) || hasPermission("orders.approve", user);
+const canDeleteInvoices = (user = {}) => isCashierUser(user) || hasPermission("orders.delete", user) || isManagerUser(user);
+
+const canEditOldInvoices = (user = {}) => isCashierUser(user) || isManagerUser(user) || hasPermission("pos.edit_old", user) || hasPermission("orders.approve", user);
 
 const getInvoiceLock = (order = {}, user = getCurrentUser(), limitHours = readEditLockHours()) => {
   if (isCancelledOrder(order)) return { locked: true, reason: "الفاتورة ملغاة" };
@@ -823,7 +825,7 @@ function OrderCard({ order, loadingActions, currentUser, editLockHours, onReprin
                     <Action icon={RotateCcw} label="مرتجع" loading={returnLoading} disabled={!canReturnOrder(order) || returnLoading || isCashierUser(currentUser)} onClick={() => onReturn(order)} />
                     <Action icon={Pencil} label="تعديل" loading={editLoading} disabled={lock.locked || editLoading} title={lock.reason} onClick={() => onEdit(order)} />
                     <span className="mx-0.5 h-5 w-px bg-white/10" />
-                    <Action icon={Trash2} label="حذف نهائي" loading={deleteLoading} disabled={deleteLoading || isCashierUser(currentUser)} danger onClick={() => onPermanentDelete(order)} />
+                    <Action icon={Trash2} label="حذف نهائي" loading={deleteLoading} disabled={deleteLoading || !canDeleteInvoices(currentUser)} danger onClick={() => onPermanentDelete(order)} />
                   </div>
     </article>
   );

@@ -674,6 +674,20 @@ test("GET /api/roles seeds built-ins and exposes numeric Admin/Cashier roles", a
       return { rows: [{ count: state.roles.filter((role) => role.is_system).length }] };
     }
 
+    if (text.startsWith("SELECT id, tenant_id FROM roles") && text.includes("LOWER(TRIM(name))")) {
+      const expectedName = String(params[0] || "").trim().toLowerCase();
+      const role = state.roles.find((entry) => String(entry.name || "").trim().toLowerCase() === expectedName);
+      return { rows: role ? [{ id: role.id, tenant_id: role.tenant_id }] : [] };
+    }
+
+    if (text.startsWith("UPDATE roles SET tenant_id = 1")) {
+      const [slug, description, roleId] = params;
+      const role = state.roles.find((entry) => Number(entry.id) === Number(roleId));
+      if (!role) return { rows: [] };
+      Object.assign(role, { tenant_id: 1, slug, description, is_system: true });
+      return { rows: [{ ...role }] };
+    }
+
     if (text.startsWith("INSERT INTO roles")) {
       const [name, slug, description] = params;
       const existingIndex = state.roles.findIndex((role) => String(role.name).toLowerCase() === String(name).toLowerCase());
@@ -763,6 +777,8 @@ test("GET /api/roles seeds built-ins and exposes numeric Admin/Cashier roles", a
     assert.equal(Array.isArray(admin.permissions) && admin.permissions.includes("products.view_cost"), true);
     assert.equal(Array.isArray(accountant.permissions) && accountant.permissions.includes("products.view_cost"), true);
     assert.equal(Array.isArray(cashier.permissions) && cashier.permissions.includes("products.view_cost"), false);
+    assert.equal(Array.isArray(cashier.permissions) && cashier.permissions.includes("orders.edit"), true);
+    assert.equal(Array.isArray(cashier.permissions) && cashier.permissions.includes("orders.delete"), true);
     assert.equal(Number.isInteger(Number(cashier.id)) && Number(cashier.id) > 0, true);
   } finally {
     db.query = originalQuery;
