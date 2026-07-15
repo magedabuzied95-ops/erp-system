@@ -2570,7 +2570,7 @@ function ProductsList() {
                       onChange={toggleAll}
                     />
                   </th>
-                  <th className="px-4 py-2">{t("products.table.product")}</th>
+                  <th className="px-4 py-2 text-right">{t("products.table.product")}</th>
                   <th className="px-4 py-2">{t("products.table.typeCategoryBrand")}</th>
                   <th className="px-4 py-2">{t("products.table.stock")}</th>
                   <th className="px-4 py-2">{t("products.table.costSale", "التكلفة / البيع")}</th>
@@ -2645,7 +2645,7 @@ function ProductsList() {
                           <button
                             type="button"
                             onClick={() => handleOpenSelectedProduct(row)}
-                            className="mx-auto flex w-full min-w-0 items-center justify-center gap-3 text-start"
+                            className="flex w-full min-w-0 items-center justify-start gap-3 text-start"
                           >
                             <ProductThumbnail row={row} />
                             <div className="min-w-0 self-center">
