@@ -52,7 +52,6 @@ import {
   Users,
   Sun,
   X,
-  ContactRound,
 } from "lucide-react";
 import { api } from "../shared/api/api";
 import { API_BASE_URL } from "../shared/constants/app";
@@ -2465,6 +2464,7 @@ function PremiumHomePage(props) {
   const { brands, loading: brandsLoading } = useStorefrontBrands();
   const { products, loading } = useProducts({ limit: 24 });
   const { products: saleProducts } = useProducts({ offer_story: 1, limit: 12 });
+  const { products: mirrorProducts, loading: mirrorLoading } = useProducts({ quality: "mirror_original", sort: "newest", limit: 12 });
 
   useEffect(() => {
     if (!brandFilter || !isStorefrontHomePath(location.pathname)) return;
@@ -2499,10 +2499,20 @@ function PremiumHomePage(props) {
     () => homepageProductPool.filter((product) => isAvailableProduct(product) && homeProductWithImage(product)),
     [homepageProductPool]
   );
+  const mirrorHeroSlides = useMemo(() => {
+    const mirrorCandidates = uniqueProductsByIdentity([
+      ...(Array.isArray(mirrorProducts) ? mirrorProducts : []),
+      ...homepageProductPool.filter(isMirrorProduct),
+    ])
+      .filter((product) => isAvailableProduct(product) && homeProductWithImage(product))
+      .sort((a, b) => stockScore(b) - stockScore(a) || newestScore(b) - newestScore(a));
+    return mirrorCandidates.slice(0, 6).map(featuredSlideProduct);
+  }, [homepageProductPool, mirrorProducts]);
   const heroSlide = useMemo(() => {
+    if (mirrorHeroSlides.length) return mirrorHeroSlides[0];
     const candidate = storefrontHome.hero || homepageProductsWithImages[0] || homepageProductPool[0] || null;
     return candidate ? featuredSlideProduct(candidate) : null;
-  }, [homepageProductPool, homepageProductsWithImages, storefrontHome.hero]);
+  }, [homepageProductPool, homepageProductsWithImages, mirrorHeroSlides, storefrontHome.hero]);
   const heroCollection = storefrontHome.collections[0] || null;
   const homeCategoryCards = useMemo(() => {
     const sourceProducts = uniqueProductsByIdentity(homepageProductPool).filter((product) => product?.id && product?.name && isAvailableProduct(product));
@@ -2584,10 +2594,19 @@ function PremiumHomePage(props) {
         lang={lang}
         brandName={brandName}
         themeTokens={themeTokens}
-        loading={loading || storefrontHome.loading}
+        loading={loading || mirrorLoading || storefrontHome.loading}
         heroSlide={heroSlide}
+        heroSlides={mirrorHeroSlides}
         heroCollection={heroCollection}
-        heroCopy={heroCopy}
+        heroCopy={{
+          ...heroCopy,
+          badge: isRtl ? "ميرور أوريجنال • مختارات M1" : "Mirror Original • M1 Picks",
+          title: isRtl ? "ميرور أوريجنال.\nموديلات تستاهل تكون اختيارك." : "Mirror Original.\nModels made to stand out.",
+          subtitle: isRtl ? "اختيارات مميزة بصور واضحة وأسعار مباشرة، علشان تختار موديلك من أول نظرة." : "Premium picks, clear imagery, and direct pricing so you can choose at first sight.",
+          mobileTitle: isRtl ? "اختار ميرور أوريجنال" : "Choose Mirror Original",
+          mobileSubtitle: isRtl ? "موديلات مميزة، أسعار واضحة، ومقاسات جاهزة للطلب" : "Standout models, clear prices, and sizes ready to order",
+          primary: isRtl ? "تسوق ميرور أوريجنال" : "Shop Mirror Original",
+        }}
       />
       <HomeCategoryCards cards={homeCategoryCards} lang={lang} themeTokens={themeTokens} loading={loading || storefrontHome.loading} />
       <HomeBrandStrip lang={lang} themeTokens={themeTokens} brands={visibleBrands} loading={brandsLoading} />
@@ -2615,15 +2634,36 @@ function PremiumHomePage(props) {
   );
 }
 
-function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}, loading = false, heroSlide = null, heroCollection = null, heroCopy = {} }) {
+function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}, loading = false, heroSlide = null, heroSlides = [], heroCollection = null, heroCopy = {} }) {
   const isRtl = normalizeLanguage(lang) === "ar";
-  const heroImage = heroSlide?.image || heroCollection?.image || heroCollection?.hero_image || "";
+  const availableHeroSlides = useMemo(() => {
+    const slides = Array.isArray(heroSlides) ? heroSlides.filter((slide) => slide?.image && slide?.product) : [];
+    if (slides.length) return slides;
+    return heroSlide ? [heroSlide] : [];
+  }, [heroSlide, heroSlides]);
+  const [activeHeroIndex, setActiveHeroIndex] = useState(0);
+  useEffect(() => {
+    setActiveHeroIndex(0);
+  }, [availableHeroSlides.length]);
+  useEffect(() => {
+    if (availableHeroSlides.length < 2) return undefined;
+    const timer = window.setInterval(() => {
+      setActiveHeroIndex((current) => (current + 1) % availableHeroSlides.length);
+    }, 5200);
+    return () => window.clearInterval(timer);
+  }, [availableHeroSlides.length]);
+  const activeHeroSlide = availableHeroSlides[activeHeroIndex] || heroSlide;
+  const heroImage = activeHeroSlide?.image || heroCollection?.image || heroCollection?.hero_image || "";
   const heroTitle = heroCopy.title || (isRtl ? "اختيارات مميزة.\nستايل يلفت من أول خطوة." : "Standout picks.\nStyle that starts with every step.");
   const heroSubtitle = heroCopy.subtitle || (isRtl ? "اكتشف أحدث الموديلات والمقاسات المتاحة، مع توصيل سريع ودفع عند الاستلام." : "Discover the latest models and available sizes, with fast delivery and cash on delivery.");
   const heroMobileTitle = heroCopy.mobileTitle || (isRtl ? "ستايلك يبدأ من هنا" : "Your style starts here");
   const heroMobileSubtitle = heroCopy.mobileSubtitle || (isRtl ? "أحدث الموديلات والمقاسات في مكان واحد" : "The latest models and sizes in one place");
-  const heroPrice = Number(heroSlide?.price || 0) > 0 ? money(heroSlide.price) : "";
-  const heroProduct = heroSlide?.product || {};
+  const activePrice = Number(activeHeroSlide?.price || 0);
+  const comparePrice = Number(activeHeroSlide?.comparePrice || 0);
+  const heroPrice = activePrice > 0 ? money(activePrice) : "";
+  const heroComparePrice = comparePrice > activePrice && activePrice > 0 ? money(comparePrice) : "";
+  const heroDiscount = heroComparePrice ? Math.max(1, Math.round(((comparePrice - activePrice) / comparePrice) * 100)) : 0;
+  const heroProduct = activeHeroSlide?.product || {};
   const heroProductHref = heroProduct?.id ? productUrl(heroProduct) : "/products";
   const heroSizes = extractOfferSizes(heroProduct).slice(0, 4);
   const trustItems = [
@@ -2655,7 +2695,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
               <span className="hidden md:inline">{heroSubtitle}</span>
             </p>
             <div className="mt-5 flex w-full flex-col gap-2.5 sm:w-auto sm:flex-row sm:flex-wrap md:mt-8 md:gap-3">
-              <Link to="/products?sort=newest" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-stone-950 px-6 text-sm font-black text-white shadow-[0_16px_34px_rgba(28,25,23,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-stone-800 active:scale-[0.99] md:min-h-14 md:px-7 md:text-base">
+              <Link to={productsPath({ quality: "mirror_original", sort: "newest" })} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-stone-950 px-6 text-sm font-black text-white shadow-[0_16px_34px_rgba(28,25,23,0.18)] transition duration-200 hover:-translate-y-0.5 hover:bg-stone-800 active:scale-[0.99] md:min-h-14 md:px-7 md:text-base">
                 {heroCopy.primary || (isRtl ? "تسوق الجديد" : "Shop new arrivals")}
                 <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
               </Link>
@@ -2676,39 +2716,56 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
             </div>
           </div>
 
-          <div className="order-1 relative min-h-[330px] p-3 sm:min-h-[420px] sm:p-5 md:min-h-[520px] md:p-7 lg:order-2 lg:min-h-[640px] lg:p-9">
-            <Link to={heroProductHref} className="group relative flex h-full min-h-[306px] items-center justify-center overflow-hidden rounded-[1.45rem] border p-5 sm:min-h-[380px] md:min-h-[466px] md:rounded-[2rem] md:p-8 lg:min-h-[568px]" style={{ background: themeTokens.surface, borderColor: themeTokens.borderStrong, boxShadow: themeTokens.shadowSoft }}>
+          <div className="order-1 relative min-h-[390px] p-3 sm:min-h-[450px] sm:p-5 md:min-h-[540px] md:p-7 lg:order-2 lg:min-h-[640px] lg:p-9">
+            <Link to={heroProductHref} className="group relative flex h-full min-h-[366px] items-center justify-center overflow-hidden rounded-[1.45rem] border p-3 sm:min-h-[410px] md:min-h-[486px] md:rounded-[2rem] md:p-6 lg:min-h-[568px]" style={{ background: themeTokens.surface, borderColor: themeTokens.borderStrong, boxShadow: themeTokens.shadowSoft }}>
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_32%,rgba(212,175,55,0.14),transparent_46%)]" />
               <span className="absolute end-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-stone-800 shadow-lg backdrop-blur md:end-6 md:top-6 md:px-4 md:py-2 md:text-xs">
                 <Sparkles className="h-3.5 w-3.5 text-[#b4860b]" />
-                {isRtl ? "وصل حديثًا" : "Fresh drop"}
+                {isRtl ? "ميرور أوريجنال" : "Mirror Original"}
               </span>
-              <div className="relative flex h-full w-full items-center justify-center pb-20 md:pb-24">
+              <div className="relative flex h-full w-full items-center justify-center pb-28 pt-8 md:pb-32 md:pt-10">
                 {loading && !heroImage ? (
                   <div className="h-[180px] w-[82%] animate-pulse rounded-[1.5rem] md:h-[300px]" style={{ background: themeTokens.cardSoft }} />
                 ) : heroImage ? (
-                  <img src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="h-full w-full max-h-[230px] object-contain transition duration-500 ease-out group-hover:scale-[1.035] sm:max-h-[310px] md:max-h-[420px] lg:max-h-[470px]" loading="eager" decoding="async" width="900" height="720" />
+                  <img key={heroImage} src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="h-full w-full max-h-[290px] object-contain drop-shadow-[0_22px_28px_rgba(28,25,23,0.14)] transition duration-500 ease-out group-hover:scale-[1.045] sm:max-h-[340px] md:max-h-[440px] lg:max-h-[490px]" loading="eager" decoding="async" width="900" height="720" />
                 ) : (
                   <div className="flex h-[220px] w-[82%] items-center justify-center rounded-[1.5rem] border border-dashed text-center text-sm font-black" style={{ color: themeTokens.textSecondary, borderColor: themeTokens.border }}>
                     {isRtl ? "صورة العرض تظهر هنا" : "Hero image appears here"}
                   </div>
                 )}
               </div>
-              <div className="absolute inset-x-3 bottom-3 z-10 rounded-[1.2rem] border border-white/70 bg-white/90 p-3 shadow-[0_16px_40px_rgba(28,25,23,0.12)] backdrop-blur-xl sm:inset-x-4 sm:bottom-4 md:rounded-[1.5rem] md:p-4">
-                <div className="flex items-end justify-between gap-3">
+              <div className="absolute inset-x-3 bottom-3 z-10 rounded-[1.2rem] border border-white/80 bg-white/95 p-3.5 shadow-[0_18px_45px_rgba(28,25,23,0.16)] backdrop-blur-xl sm:inset-x-4 sm:bottom-4 md:rounded-[1.5rem] md:p-4.5">
+                <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#9a7108] md:text-[10px]">{isRtl ? "القطعة المختارة" : "Featured pick"}</p>
-                    <h2 className="mt-1 line-clamp-1 text-base font-black leading-6 text-stone-900 md:text-xl md:leading-7">{heroProduct?.name || brandName}</h2>
+                    <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#9a7108] md:text-[10px]">{isRtl ? "اختيار ميرور مميز" : "Featured mirror pick"}</p>
+                    <h2 className="mt-1 line-clamp-2 text-[1.05rem] font-black leading-6 text-stone-950 md:text-xl md:leading-7">{heroProduct?.name || brandName}</h2>
                   </div>
-                  {heroPrice ? <div className="shrink-0 rounded-full bg-stone-950 px-3 py-2 text-xs font-black text-white md:px-4 md:text-base">{heroPrice}</div> : null}
+                  {heroDiscount ? <span className="shrink-0 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-black text-white shadow-sm md:text-xs">{isRtl ? `وفر ${heroDiscount}%` : `Save ${heroDiscount}%`}</span> : null}
+                </div>
+                <div className="mt-2.5 flex items-end justify-between gap-3 border-t border-stone-200/80 pt-2.5">
+                  <div className="flex min-w-0 items-baseline gap-2">
+                    {heroPrice ? <span className="text-lg font-black text-stone-950 md:text-2xl">{heroPrice}</span> : null}
+                    {heroComparePrice ? <span className="text-[11px] font-bold text-stone-400 line-through md:text-sm">{heroComparePrice}</span> : null}
+                  </div>
+                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-stone-950 px-3 py-2 text-[11px] font-black text-white md:px-4 md:text-sm">
+                    <ShoppingBag className="h-3.5 w-3.5" />
+                    {isRtl ? "اطلب الآن" : "Shop now"}
+                  </span>
                 </div>
                 {heroSizes.length ? (
-                  <div className="mt-2.5 flex items-center gap-1.5 overflow-hidden md:mt-3">
+                  <div className="mt-2 flex items-center gap-1.5 overflow-hidden">
                     <span className="shrink-0 text-[10px] font-bold text-stone-500">{isRtl ? "المقاسات:" : "Sizes:"}</span>
                     {heroSizes.map((size) => <span key={size} className="grid h-7 min-w-7 place-items-center rounded-full border border-stone-200 bg-stone-50 px-1.5 text-[10px] font-black text-stone-700 md:h-8 md:min-w-8 md:text-xs">{size}</span>)}
                   </div>
                 ) : null}
               </div>
+              {availableHeroSlides.length > 1 ? (
+                <div className="absolute bottom-[8.75rem] start-1/2 z-10 flex -translate-x-1/2 gap-1.5 rounded-full border border-white/70 bg-white/85 px-2.5 py-1.5 shadow-lg backdrop-blur md:bottom-[10rem]">
+                  {availableHeroSlides.map((slide, index) => (
+                    <span key={productIdentityKey(slide.product, index)} className={`h-1.5 rounded-full transition-all duration-300 ${index === activeHeroIndex ? "w-6 bg-[#b4860b]" : "w-1.5 bg-stone-300"}`} />
+                  ))}
+                </div>
+              ) : null}
             </Link>
           </div>
         </div>
@@ -4296,17 +4353,6 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
     nextLanguage === "ar"
       ? t("storefront.header.languageArabic")
       : t("storefront.header.languageEnglish");
-  const getMobileCategoryChipIcon = (keyOrLabel = "") => {
-    const normalized = String(keyOrLabel || "").toLowerCase();
-    if (normalized.includes("men")) return UserRound;
-    if (normalized.includes("women")) return ContactRound;
-    if (normalized.includes("kids")) return Baby;
-    if (normalized.includes("bag")) return ShoppingBag;
-    return Tag;
-  };
-  const mobileCategoryChips = [
-    { key: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/products?type=crocs", active: location.pathname === "/products" && new URLSearchParams(location.search).get("type") === "crocs" },
-  ];
   const searchPlaceholders = getSearchPlaceholders();
   const announcementItems = [
     t("storefront.header.announcements.fastShipping"),
@@ -4722,27 +4768,6 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
               </button>
             </div>
           </div>
-          {!isCheckoutMobile ? (
-            <div className="sf-mobile-category-chips mt-2 flex min-w-0 flex-nowrap gap-2 overflow-x-auto pb-1 rtl:justify-start">
-              {mobileCategoryChips.map((item) => (
-                <Link
-                  key={item.key}
-                  to={item.to}
-                  aria-current={item.active ? "page" : undefined}
-                  dir="rtl"
-                  className={`sf-mobile-category-chip inline-flex h-[40px] shrink-0 items-center gap-1.5 rounded-full px-[14px] text-[12px] font-semibold transition duration-200 ease-out active:scale-[0.98] ${item.active ? "sf-mobile-category-chip--active" : "sf-mobile-category-chip--inactive"}`}
-                >
-                  {(() => {
-                    const Icon = getMobileCategoryChipIcon(item.key || item.label);
-                    return <Icon className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />;
-                  })()}
-                  <span className="truncate">{item.label}</span>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <div className="h-1" />
-          )}
         </div>
       </div>
       <div className="sf-utility-row hidden border-b px-4 text-xs font-semibold transition-all duration-300 sm:block">
