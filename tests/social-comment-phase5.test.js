@@ -91,7 +91,8 @@ test("high-confidence lead_price triggers automation when flags ON", async () =>
   assert.equal(likeCalls, 1);
   assert.equal(publicReplyCalls, 1);
   assert.equal(privateMessageCalls, 1);
-  assert.equal(publicReplyMessage, enabledSettings.public_reply_template.trim());
+  assert.ok(publicReplyMessage.endsWith(enabledSettings.public_reply_template.trim()));
+  assert.match(publicReplyMessage, /Test Buyer/);
   assert.equal(result.status, "completed");
   assert.equal(result.like_status, "sent");
   assert.equal(result.public_reply_status, "sent");

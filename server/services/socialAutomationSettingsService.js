@@ -1,11 +1,28 @@
 import db from "../database/db.js";
 
+export const DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS = [
+  "إزيك يا صديقي {{customer_name}} 👋",
+  "أهلاً وسهلاً يا {{customer_name}} ❤️",
+  "نورتنا يا صديقي {{customer_name}} ✨",
+  "منورنا يا {{customer_name}} 🙏",
+  "أهلاً بحضرتك يا {{customer_name}} 🌟",
+];
+
+export const DEFAULT_SOCIAL_PUBLIC_REPLY_BODY = [
+  "تم الرد عليك في الخاص يا صديقي ❤️",
+  "وعندنا شحن لكل المحافظات 📦🚚",
+  "━━━━━━━━━━━━━━━━━━",
+  "❤️ العنوان: دمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب",
+].join("\n");
+
 export const DEFAULT_SOCIAL_AUTOMATION_SETTINGS = {
   auto_like_enabled: false,
   auto_public_reply_enabled: false,
   auto_private_message_enabled: false,
   min_confidence: 0.9,
-  public_reply_template: "أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe",
+  public_reply_template: DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
+  public_reply_rotation_enabled: true,
+  public_reply_openers: DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS,
   private_message_template: null,
 };
 
@@ -49,6 +66,51 @@ const normalizePublicReplyTemplate = (value, fallback = DEFAULT_SOCIAL_AUTOMATIO
   return LEGACY_PUBLIC_REPLY_TEMPLATES.has(normalized) ? fallback : normalized;
 };
 
+const normalizePublicReplyOpeners = (value, fallback = DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS) => {
+  let parsed = value;
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = parsed.split(/\r?\n/);
+    }
+  }
+  const normalized = (Array.isArray(parsed) ? parsed : [])
+    .map((item) => text(item))
+    .filter(Boolean)
+    .filter((item, index, items) => items.indexOf(item) === index)
+    .slice(0, 10);
+  return normalized.length ? normalized : [...fallback];
+};
+
+const stableRotationIndex = (key = "", length = 0) => {
+  if (!length) return -1;
+  const source = String(key || "social-comment");
+  let hash = 2166136261;
+  for (let index = 0; index < source.length; index += 1) {
+    hash ^= source.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % length;
+};
+
+export const selectSocialPublicReplyTemplate = ({
+  baseTemplate = "",
+  openers = DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS,
+  rotationEnabled = true,
+  commentId = "",
+  postId = "",
+} = {}) => {
+  const normalizedBase = normalizeTemplate(baseTemplate, DEFAULT_SOCIAL_PUBLIC_REPLY_BODY, false);
+  const normalizedOpeners = normalizePublicReplyOpeners(openers);
+  if (!booleanFrom(rotationEnabled, true) || !normalizedOpeners.length) return normalizedBase;
+  const opener = normalizedOpeners[stableRotationIndex(`${postId}:${commentId}`, normalizedOpeners.length)] || normalizedOpeners[0];
+  if (normalizedBase.includes("{{social_reply_opener}}")) {
+    return normalizedBase.replaceAll("{{social_reply_opener}}", opener).trim();
+  }
+  return `${opener}\n${normalizedBase}`.trim();
+};
+
 const rowToSettings = (row = {}) => ({
   tenant_id: Number(row.tenant_id || 0) || null,
   auto_like_enabled: booleanFrom(row.auto_like_enabled, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.auto_like_enabled),
@@ -59,6 +121,8 @@ const rowToSettings = (row = {}) => ({
     row.public_reply_template,
     DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_template,
   ),
+  public_reply_rotation_enabled: booleanFrom(row.public_reply_rotation_enabled, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_rotation_enabled),
+  public_reply_openers: normalizePublicReplyOpeners(row.public_reply_openers, DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS),
   private_message_template: normalizeTemplate(
     row.private_message_template,
     DEFAULT_SOCIAL_AUTOMATION_SETTINGS.private_message_template,
@@ -75,6 +139,8 @@ const normalizePatch = (patch = {}) => ({
   ...(Object.prototype.hasOwnProperty.call(patch, "auto_private_message_enabled") ? { auto_private_message_enabled: booleanFrom(patch.auto_private_message_enabled, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.auto_private_message_enabled) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "min_confidence") ? { min_confidence: confidenceFrom(patch.min_confidence, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.min_confidence) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "public_reply_template") ? { public_reply_template: normalizePublicReplyTemplate(patch.public_reply_template, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_template) } : {}),
+  ...(Object.prototype.hasOwnProperty.call(patch, "public_reply_rotation_enabled") ? { public_reply_rotation_enabled: booleanFrom(patch.public_reply_rotation_enabled, true) } : {}),
+  ...(Object.prototype.hasOwnProperty.call(patch, "public_reply_openers") ? { public_reply_openers: normalizePublicReplyOpeners(patch.public_reply_openers, DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS) } : {}),
   ...(Object.prototype.hasOwnProperty.call(patch, "private_message_template") ? { private_message_template: normalizeTemplate(patch.private_message_template, DEFAULT_SOCIAL_AUTOMATION_SETTINGS.private_message_template, true) } : {}),
 });
 
@@ -102,6 +168,8 @@ export async function ensureSocialAutomationSettingsSchema(client = db) {
 
  اللوكيشن:
 https://share.google/1e0cM7JVmxyLTpWVe',
+          public_reply_rotation_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+          public_reply_openers JSONB NOT NULL DEFAULT '[]'::jsonb,
           private_message_template TEXT NULL,
           created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -123,6 +191,8 @@ https://share.google/1e0cM7JVmxyLTpWVe',
 
  اللوكيشن:
 https://share.google/1e0cM7JVmxyLTpWVe',
+          ADD COLUMN IF NOT EXISTS public_reply_rotation_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+          ADD COLUMN IF NOT EXISTS public_reply_openers JSONB NOT NULL DEFAULT '[]'::jsonb,
           ADD COLUMN IF NOT EXISTS private_message_template TEXT NULL,
           ADD COLUMN IF NOT EXISTS created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
           ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -163,11 +233,13 @@ export async function getSocialAutomationSettings(tenantId) {
           auto_private_message_enabled,
           min_confidence,
           public_reply_template,
+          public_reply_rotation_enabled,
+          public_reply_openers,
           private_message_template,
           created_at,
           updated_at
         )
-        VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT (tenant_id) DO UPDATE SET
           updated_at = social_automation_settings.updated_at
         RETURNING *
@@ -179,6 +251,8 @@ export async function getSocialAutomationSettings(tenantId) {
           DEFAULT_SOCIAL_AUTOMATION_SETTINGS.auto_private_message_enabled,
           DEFAULT_SOCIAL_AUTOMATION_SETTINGS.min_confidence,
           DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_template,
+          DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_rotation_enabled,
+          JSON.stringify(DEFAULT_SOCIAL_AUTOMATION_SETTINGS.public_reply_openers),
           DEFAULT_SOCIAL_AUTOMATION_SETTINGS.private_message_template,
         ]
       );
@@ -219,17 +293,21 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         auto_private_message_enabled,
         min_confidence,
         public_reply_template,
+        public_reply_rotation_enabled,
+        public_reply_openers,
         private_message_template,
         created_at,
         updated_at
       )
-      VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, COALESCE($8::timestamp, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
+      VALUES ($1::bigint, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, COALESCE($10::timestamp, CURRENT_TIMESTAMP), CURRENT_TIMESTAMP)
       ON CONFLICT (tenant_id) DO UPDATE SET
         auto_like_enabled = EXCLUDED.auto_like_enabled,
         auto_public_reply_enabled = EXCLUDED.auto_public_reply_enabled,
         auto_private_message_enabled = EXCLUDED.auto_private_message_enabled,
         min_confidence = EXCLUDED.min_confidence,
         public_reply_template = EXCLUDED.public_reply_template,
+        public_reply_rotation_enabled = EXCLUDED.public_reply_rotation_enabled,
+        public_reply_openers = EXCLUDED.public_reply_openers,
         private_message_template = EXCLUDED.private_message_template,
         updated_at = CURRENT_TIMESTAMP
       RETURNING *
@@ -241,6 +319,8 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
         next.auto_private_message_enabled,
         next.min_confidence,
         next.public_reply_template,
+        next.public_reply_rotation_enabled,
+        JSON.stringify(next.public_reply_openers),
         next.private_message_template,
         current.created_at || null,
       ]

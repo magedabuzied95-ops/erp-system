@@ -302,7 +302,15 @@ const defaultSocialAutomationSettings = {
   auto_public_reply_enabled: false,
   auto_private_message_enabled: false,
   min_confidence: 0.9,
-  public_reply_template: "أهلاً وسهلاً يا {{customer_name}} ❤️\nتم الرد في الخاص يا صديقي \nوعندنا شحن لجميع محافظات مصر \n━━━━━━━━━━━━━━━━━━\n العنوان:\nدمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب ❤️\n\n اللوكيشن:\nhttps://share.google/1e0cM7JVmxyLTpWVe",
+  public_reply_template: "تم الرد عليك في الخاص يا صديقي ❤️\nوعندنا شحن لكل المحافظات 📦🚚\n━━━━━━━━━━━━━━━━━━\n❤️ العنوان: دمياط الجديدة - شارع البشبيشي - بجوار الفرنسية جروب",
+  public_reply_rotation_enabled: true,
+  public_reply_openers: [
+    "إزيك يا صديقي {{customer_name}} 👋",
+    "أهلاً وسهلاً يا {{customer_name}} ❤️",
+    "نورتنا يا صديقي {{customer_name}} ✨",
+    "منورنا يا {{customer_name}} 🙏",
+    "أهلاً بحضرتك يا {{customer_name}} 🌟",
+  ],
   private_message_template: "",
 };
 
@@ -313,6 +321,10 @@ const normalizeSocialAutomationSettings = (value = {}) => ({
   auto_private_message_enabled: Boolean(value.auto_private_message_enabled),
   min_confidence: Math.min(1, Math.max(0, Number(value.min_confidence ?? defaultSocialAutomationSettings.min_confidence) || defaultSocialAutomationSettings.min_confidence)),
   public_reply_template: String(value.public_reply_template ?? defaultSocialAutomationSettings.public_reply_template),
+  public_reply_rotation_enabled: value.public_reply_rotation_enabled !== false,
+  public_reply_openers: (Array.isArray(value.public_reply_openers) ? value.public_reply_openers : defaultSocialAutomationSettings.public_reply_openers)
+    .map((item) => String(item || "").trim())
+    .filter(Boolean),
   private_message_template: String(value.private_message_template ?? ""),
 });
 
@@ -767,6 +779,10 @@ function SettingsCenterContent({ debugMode = false }) {
         auto_private_message_enabled: Boolean(socialAutomationSettings.auto_private_message_enabled),
         min_confidence: Number(socialAutomationSettings.min_confidence),
         public_reply_template: String(socialAutomationSettings.public_reply_template || ""),
+        public_reply_rotation_enabled: Boolean(socialAutomationSettings.public_reply_rotation_enabled),
+        public_reply_openers: Array.isArray(socialAutomationSettings.public_reply_openers)
+          ? socialAutomationSettings.public_reply_openers
+          : [],
         private_message_template: String(socialAutomationSettings.private_message_template || ""),
       }, { perfComponent: "SettingsCenterV2.saveSocialAutomation" });
       const next = normalizeSocialAutomationSettings(payload.settings || {});
@@ -1177,8 +1193,35 @@ function SettingsCenterContent({ debugMode = false }) {
                           className={inputClass}
                         />
                       </label>
+                      <button
+                        type="button"
+                        onClick={() => updateSocialAutomationValue("public_reply_rotation_enabled", !socialAutomationSettings.public_reply_rotation_enabled)}
+                        className={`flex min-h-14 items-center justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition ${socialAutomationSettings.public_reply_rotation_enabled ? "border-emerald-300/25 bg-emerald-400/10" : "border-white/10 bg-slate-950/55"}`}
+                      >
+                        <span>
+                          <span className="block text-sm font-black text-white">تدوير بدايات الرد تلقائيًا</span>
+                          <span className={`mt-1 block text-xs ${bodyText}`}>يتم اختيار بداية ثابتة لكل تعليق لمنع تكرار نفس الصيغة.</span>
+                        </span>
+                        <span className={`h-6 w-11 shrink-0 rounded-full p-1 transition ${socialAutomationSettings.public_reply_rotation_enabled ? "bg-emerald-300" : "bg-white/10"}`}>
+                          <span className={`block h-4 w-4 rounded-full bg-slate-950 transition ${socialAutomationSettings.public_reply_rotation_enabled ? "translate-x-5" : ""}`} />
+                        </span>
+                      </button>
                       <label className="block xl:col-span-2">
-                        <span className={`mb-2 block text-sm font-black ${headingText}`}>قالب الرد العام</span>
+                        <span className={`mb-2 block text-sm font-black ${headingText}`}>بدايات الرد المتنوعة — بداية واحدة في كل سطر</span>
+                        <textarea
+                          rows={6}
+                          value={(socialAutomationSettings.public_reply_openers || []).join("\n")}
+                          onChange={(event) => updateSocialAutomationValue(
+                            "public_reply_openers",
+                            event.target.value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean)
+                          )}
+                          className={inputClass}
+                          placeholder="أهلاً وسهلاً يا {{customer_name}} ❤️"
+                        />
+                        <span className={`mt-2 block text-xs ${bodyText}`}>استخدم <bdi>{"{{customer_name}}"}</bdi> ليظهر اسم العميل تلقائيًا. الحد الأقصى 10 بدايات.</span>
+                      </label>
+                      <label className="block xl:col-span-2">
+                        <span className={`mb-2 block text-sm font-black ${headingText}`}>نص الرد الثابت بعد التحية</span>
                         <textarea
                           rows={4}
                           value={socialAutomationSettings.public_reply_template}

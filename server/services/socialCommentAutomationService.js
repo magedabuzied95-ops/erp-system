@@ -21,6 +21,7 @@ import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCach
 import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
   getSocialAutomationSettings,
+  selectSocialPublicReplyTemplate,
 } from "./socialAutomationSettingsService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { buildSocialCommentPrivateReplyMessage } from "./socialCommentPrivateReplyService.js";
@@ -3059,17 +3060,26 @@ const executeSocialCommentAutomationRuntime = async ({
   }));
   const templateContext = buildAutomationTemplateContext({ row: safeRow, productContext: effectiveProductContext || {}, websiteLinks });
   const publicReplyTemplate = text(config.message_templates?.publicReplyTemplate || "");
+  const publicReplyRotationSettings = await getSocialAutomationSettings(safeTenantId)
+    .catch(() => ({ ...DEFAULT_SOCIAL_AUTOMATION_SETTINGS, persisted: false }));
+  const selectedPublicReplyTemplate = selectSocialPublicReplyTemplate({
+    baseTemplate: publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE,
+    openers: publicReplyRotationSettings.public_reply_openers,
+    rotationEnabled: publicReplyRotationSettings.public_reply_rotation_enabled,
+    commentId: safeCommentId,
+    postId: safePostId,
+  });
   const privateReplyTemplate = text(config.message_templates?.privateReplyTemplate || "");
   const aiOpeningPrompt = text(config.message_templates?.aiOpeningPrompt || "");
   const renderedAiOpeningPrompt = renderAutomationTemplate(aiOpeningPrompt, templateContext).trim();
-  const renderedPublicReply = renderAutomationTemplate(publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE, templateContext).trim() || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE;
+  const renderedPublicReply = renderAutomationTemplate(selectedPublicReplyTemplate, templateContext).trim() || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE;
   console.log("SOCIAL_COMMENT_PUBLIC_REPLY_TRANSFORM_TRACE", {
     tenant_id: safeTenantId,
     platform: normalizedPlatform,
     post_id: safePostId,
     comment_id: safeCommentId,
     stage: "rendered_public_reply",
-    source_template: publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE,
+    source_template: selectedPublicReplyTemplate,
     rendered_public_reply: renderedPublicReply,
   });
   const renderedPrivateReply = renderSocialCommentTemplateText(privateReplyTemplate || buildSocialCommentSuggestedReply({
@@ -6553,8 +6563,15 @@ export const executeSocialCommentAutomation = async ({
     templateContext,
   });
   const normalizedPlatform = text(safeRow.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  const selectedPublicReplyTemplate = selectSocialPublicReplyTemplate({
+    baseTemplate: decision.automationSettings?.public_reply_template || COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT,
+    openers: decision.automationSettings?.public_reply_openers,
+    rotationEnabled: decision.automationSettings?.public_reply_rotation_enabled,
+    commentId: safeRow.comment_id || safeRow.external_comment_id || "",
+    postId: safeRow.post_id || "",
+  });
   const renderedPublicReply = renderAutomationTemplate(
-    decision.automationSettings?.public_reply_template || COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT,
+    selectedPublicReplyTemplate,
     templateContext
   ).trim();
   const productAwarePublicReply = buildProductAwarePublicReply({
@@ -6581,7 +6598,7 @@ export const executeSocialCommentAutomation = async ({
     post_id: safeRow.post_id || "",
     comment_id: safeRow.comment_id || "",
     stage: "final_public_reply_text",
-    decision_public_reply_template: decision.automationSettings?.public_reply_template || "",
+    decision_public_reply_template: selectedPublicReplyTemplate,
     rendered_public_reply: renderedPublicReply,
     effective_rendered_public_reply: effectiveRenderedPublicReply,
     public_reply_text: publicReplyText,
@@ -8486,7 +8503,15 @@ export const testSocialCommentAutomationRuntime = async ({ tenantId = null, plat
     [safeTenantId, normalizedPlatform, duplicatePostIds]
   ).catch(() => ({ rows: [] }));
   const duplicateExists = Boolean(duplicateRun.rows?.[0] || duplicateAuditRun.rows?.[0]);
-  const publicTemplate = text(config?.message_templates?.publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE);
+  const previewRotationSettings = await getSocialAutomationSettings(safeTenantId)
+    .catch(() => ({ ...DEFAULT_SOCIAL_AUTOMATION_SETTINGS, persisted: false }));
+  const publicTemplate = selectSocialPublicReplyTemplate({
+    baseTemplate: text(config?.message_templates?.publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE),
+    openers: previewRotationSettings.public_reply_openers,
+    rotationEnabled: previewRotationSettings.public_reply_rotation_enabled,
+    commentId: "preview-comment",
+    postId: safePostId,
+  });
   const privateTemplate = text(config?.message_templates?.privateReplyTemplate || "");
   const warnings = {
     publicReplyTemplate: detectMissingTemplatePlaceholders(publicTemplate, templateContext),
