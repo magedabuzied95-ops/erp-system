@@ -5819,19 +5819,21 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   overflow: visible !important;
 }
 
-@keyframes sfHeaderLogoMOrbit {
+@keyframes sfHeaderLogoMVerticalSpin {
   0% {
-    transform: rotate(0deg);
+    transform: perspective(220px) rotateY(0deg);
   }
   100% {
-    transform: rotate(360deg);
+    transform: perspective(220px) rotateY(360deg);
   }
 }
 
 .storefront-shell .sf-header-logo-moving-m {
-  transform-origin: 50% 19%;
+  transform-origin: 50% 50%;
+  transform-style: preserve-3d;
+  backface-visibility: visible;
   will-change: transform;
-  animation: sfHeaderLogoMOrbit 6s linear infinite;
+  animation: sfHeaderLogoMVerticalSpin 4s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
