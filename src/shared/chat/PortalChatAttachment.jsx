@@ -7,6 +7,7 @@ import {
   formatPortalChatFileSize,
   isPortalChatAudioMessage,
   isPortalChatImageMessage,
+  isPortalChatVideoMessage,
   portalChatAttachmentMime,
   portalChatAttachmentName,
   portalChatAttachmentRawUrl,
@@ -32,6 +33,7 @@ export default function PortalChatAttachment({
 
   const isImage = isPortalChatImageMessage(message);
   const isAudio = isPortalChatAudioMessage(message);
+  const isVideo = isPortalChatVideoMessage(message);
   const name = portalChatAttachmentName(message) || (isImage ? labels.image || "صورة" : labels.file || "ملف");
 
   if (isImage) {
@@ -58,6 +60,21 @@ export default function PortalChatAttachment({
         read={read}
         duration={messageAttachmentDuration(message)}
       />
+    );
+  }
+
+  if (isVideo && href) {
+    return (
+      <div className="mb-2 overflow-hidden rounded-2xl border border-black/10 bg-black/15">
+        <video
+          src={href}
+          controls
+          playsInline
+          preload="metadata"
+          className="block max-h-[360px] w-full bg-black object-contain"
+          aria-label={name || labels.video || "فيديو"}
+        />
+      </div>
     );
   }
 

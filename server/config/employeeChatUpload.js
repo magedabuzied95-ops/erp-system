@@ -2,7 +2,7 @@ import fs from "fs";
 import multer from "multer";
 import path from "path";
 
-export const EMPLOYEE_CHAT_MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+export const EMPLOYEE_CHAT_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024;
 
 const employeeChatUploadDir = path.join(process.cwd(), "uploads", "employee-chat");
 
@@ -24,9 +24,13 @@ const allowedMimeTypes = new Set([
   "audio/mpeg",
   "audio/wav",
   "audio/x-wav",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-m4v",
 ]);
 
-const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".webm", ".m4a", ".mp4", ".mp3", ".wav"]);
+const allowedExtensions = new Set([".jpg", ".jpeg", ".png", ".webp", ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".webm", ".m4a", ".mp4", ".mp3", ".wav", ".mov", ".m4v"]);
 
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => {

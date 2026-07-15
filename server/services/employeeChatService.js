@@ -45,6 +45,7 @@ const attachmentLabelSql = (alias = "m") => `
     WHEN NULLIF(TRIM(${alias}.body), '') IS NOT NULL THEN ${alias}.body
     WHEN ${alias}.attachment_type = 'image' THEN 'صورة'
     WHEN ${alias}.attachment_type = 'audio' THEN 'رسالة صوتية'
+    WHEN ${alias}.attachment_type = 'video' THEN 'فيديو'
     WHEN ${alias}.attachment_url IS NOT NULL THEN 'ملف'
     ELSE ''
   END
@@ -62,6 +63,7 @@ const chatPushPreview = (message = {}) => {
     return `رسالة جديدة: ${shortText}`;
   }
   if (message.attachment_type === "image") return "تم إرسال صورة";
+  if (message.attachment_type === "video") return "تم إرسال فيديو";
   if (message.attachment_url) return "تم إرسال ملف";
   return "لديك رسالة جديدة في تطبيق الموظف";
 };
@@ -71,6 +73,7 @@ const employeeChatPushBody = (message = {}) => {
   if (body) return `رسالة جديدة: ${body.length > 80 ? `${body.slice(0, 77)}...` : body}`;
   if (message.attachment_type === "image") return "تم إرسال صورة";
   if (message.attachment_type === "audio") return "تم إرسال رسالة صوتية";
+  if (message.attachment_type === "video") return "تم إرسال فيديو";
   if (message.attachment_url) return "تم إرسال ملف";
   return "لديك رسالة جديدة في تطبيق الموظف";
 };
@@ -80,6 +83,7 @@ const employeeChatMessagePreview = (message = {}) => {
   if (body) return body.length > 80 ? `${body.slice(0, 77)}...` : body;
   if (message.attachment_type === "image") return "\u0635\u0648\u0631\u0629";
   if (message.attachment_type === "audio") return "\u0631\u0633\u0627\u0644\u0629 \u0635\u0648\u062a\u064a\u0629";
+  if (message.attachment_type === "video") return "\u0641\u064a\u062f\u064a\u0648";
   if (message.attachment_url) return "\u0645\u0644\u0641";
   return "";
 };
@@ -164,7 +168,13 @@ const parseAttachmentDuration = (value = null) => {
 const attachmentFromUpload = (file = null, attachmentDurationSeconds = null) => {
   if (!file) return null;
   const mimetype = String(file.mimetype || "");
-  const attachmentType = mimetype.startsWith("image/") ? "image" : mimetype.startsWith("audio/") ? "audio" : "file";
+  const attachmentType = mimetype.startsWith("image/")
+    ? "image"
+    : mimetype.startsWith("audio/")
+      ? "audio"
+      : mimetype.startsWith("video/")
+        ? "video"
+        : "file";
   return {
     attachment_url: `/uploads/employee-chat/${file.filename}`,
     attachment_type: attachmentType,

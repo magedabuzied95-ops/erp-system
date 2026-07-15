@@ -301,6 +301,52 @@ export default function SharedPortalChat({
   }, [loadThread, loadThreads, pollMs]);
 
   useEffect(() => {
+    if (!apiAdapter?.subscribe) return undefined;
+
+    const eventThreadId = (payload = {}) => String(payload?.thread?.id || payload?.message?.thread_id || payload?.thread_id || "");
+    const refreshActiveThread = (payload = {}) => {
+      const threadId = eventThreadId(payload);
+      if (threadId && threadId === String(selectedThreadIdRef.current || "")) {
+        void loadThread(threadId, { silent: true });
+      }
+    };
+
+    return apiAdapter.subscribe({
+      onMessage: (payload = {}) => {
+        const nextThread = payload?.thread || null;
+        const nextMessage = payload?.message || null;
+        const threadId = eventThreadId(payload);
+        if (nextThread) {
+          setThreads((current) => mergeChatThreads(current, [nextThread]));
+          if (threadId === String(selectedThreadIdRef.current || "")) setThread(nextThread);
+        }
+        if (threadId && nextMessage) {
+          setMessagesByThread((current) => ({
+            ...current,
+            [threadId]: mergeChatMessages(current[threadId] || [], [nextMessage]),
+          }));
+          if (threadId === String(selectedThreadIdRef.current || "")) void apiAdapter.markRead?.(threadId);
+        }
+      },
+      onThread: (payload = {}) => {
+        const nextThread = payload?.thread || payload;
+        if (nextThread?.id) setThreads((current) => mergeChatThreads(current, [nextThread]));
+      },
+      onRead: refreshActiveThread,
+      onTyping: (payload = {}) => {
+        const threadId = eventThreadId(payload);
+        if (threadId && threadId === String(selectedThreadIdRef.current || "")) {
+          setTypingLabel(payload?.sender_name || payload?.employee_name || "يكتب الآن...");
+        }
+      },
+      onStopTyping: (payload = {}) => {
+        const threadId = eventThreadId(payload);
+        if (!threadId || threadId === String(selectedThreadIdRef.current || "")) setTypingLabel("");
+      },
+    });
+  }, [apiAdapter, loadThread]);
+
+  useEffect(() => {
     window.setTimeout(() => {
       if (messagesRef.current) messagesRef.current.scrollTop = messagesRef.current.scrollHeight;
     }, 50);

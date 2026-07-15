@@ -732,6 +732,19 @@ export default function ManagerPortal() {
     markRead: (threadId) => managerPortalApi.markChatRead(token, threadId),
     emitTyping: (payload) => socketRef.current?.emit?.("employee-chat:typing", payload),
     emitStopTyping: (payload) => socketRef.current?.emit?.("employee-chat:stop-typing", payload),
+    subscribe: (handlers = {}) => {
+      const activeSocket = socketRef.current;
+      if (!activeSocket?.on) return () => {};
+      const bindings = [
+        ["employee-chat:new-message", handlers.onMessage],
+        ["employee-chat:thread-updated", handlers.onThread],
+        ["employee-chat:read", handlers.onRead],
+        ["employee-chat:typing", handlers.onTyping],
+        ["employee-chat:stop-typing", handlers.onStopTyping],
+      ].filter(([, handler]) => typeof handler === "function");
+      bindings.forEach(([eventName, handler]) => activeSocket.on(eventName, handler));
+      return () => bindings.forEach(([eventName, handler]) => activeSocket.off(eventName, handler));
+    },
   }), [token]);
   const taskList = tasks?.tasks || [];
   const taskCounts = useMemo(() => ({

@@ -13,6 +13,8 @@ export const CHAT_ATTACHMENT_ACCEPT = [
   ".webm",
   ".m4a",
   ".mp4",
+  ".mov",
+  ".m4v",
   ".mp3",
   ".wav",
   "image/jpeg",
@@ -23,6 +25,10 @@ export const CHAT_ATTACHMENT_ACCEPT = [
   "audio/mpeg",
   "audio/wav",
   "audio/x-wav",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-m4v",
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -44,6 +50,10 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
   "audio/mpeg",
   "audio/wav",
   "audio/x-wav",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+  "video/x-m4v",
 ]);
 
 const cleanText = (value = "") => String(value ?? "").trim();
@@ -189,15 +199,17 @@ export const portalChatAttachmentType = (message = {}) => {
     attachment.file_type,
     attachment.media_type
   ).toLowerCase();
-  if (["image", "audio", "voice", "file"].includes(explicit)) return explicit === "voice" ? "audio" : explicit;
+  if (["image", "audio", "voice", "video", "file"].includes(explicit)) return explicit === "voice" ? "audio" : explicit;
 
   const mime = portalChatAttachmentMime(message).toLowerCase();
   if (mime.startsWith("image/")) return "image";
   if (mime.startsWith("audio/")) return "audio";
+  if (mime.startsWith("video/")) return "video";
 
   const extension = attachmentExtension(message);
   if (["jpg", "jpeg", "png", "webp", "gif", "avif"].includes(extension)) return "image";
-  if (["webm", "m4a", "mp4", "mp3", "wav", "ogg", "oga"].includes(extension)) return "audio";
+  if (["m4a", "mp3", "wav", "ogg", "oga"].includes(extension)) return "audio";
+  if (["webm", "mp4", "mov", "m4v"].includes(extension)) return "video";
   return portalChatAttachmentRawUrl(message) ? "file" : "";
 };
 
@@ -224,6 +236,7 @@ export const portalChatMessagePreview = (message = {}, labels = {}) => {
   const type = message.reply_attachment_type || portalChatAttachmentType(message);
   if (type === "image") return labels.image || "صورة";
   if (type === "audio") return labels.voice || "رسالة صوتية";
+  if (type === "video") return labels.video || "فيديو";
   if (portalChatAttachmentRawUrl(message) || message.reply_attachment_name || portalChatAttachmentName(message)) return labels.file || "ملف";
   return labels.message || "رسالة";
 };
@@ -233,3 +246,6 @@ export const isPortalChatAudioMessage = (message = {}) =>
 
 export const isPortalChatImageMessage = (message = {}) =>
   portalChatAttachmentType(message) === "image";
+
+export const isPortalChatVideoMessage = (message = {}) =>
+  portalChatAttachmentType(message) === "video";
