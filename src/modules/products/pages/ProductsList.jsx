@@ -78,12 +78,12 @@ const ACTION_MENU_WIDTH = 224;
 const ACTION_MENU_ESTIMATED_HEIGHT = 480;
 const PRODUCT_TABLE_COLUMNS = {
   select: "w-12",
-  product: "w-[440px]",
-  categoryBrand: "w-[210px]",
-  stock: "w-[135px]",
-  costSale: "w-[175px]",
-  status: "w-[125px]",
-  actions: "w-[260px]",
+  product: "w-[320px]",
+  categoryBrand: "w-[250px]",
+  stock: "w-[145px]",
+  costSale: "w-[190px]",
+  status: "w-[130px]",
+  actions: "w-[310px]",
 };
 const ROW_ACTION_BREAKPOINTS = {
   lg: 1024,
@@ -728,7 +728,7 @@ function PriceLine({ label, value, varies = false, variesLabel = "متنوع", t
         : "text-zinc-300";
 
   return (
-    <div className="flex items-baseline justify-between gap-3">
+    <div className="flex items-baseline justify-center gap-2">
       <span className="shrink-0 font-bold text-zinc-500">{label}:</span>
       <span className={`min-w-0 truncate text-right font-black tabular-nums ${toneClass}`} title={`${label}: ${value}`}>
         {varies ? <span className="me-1 text-[10px] font-bold text-zinc-500">{variesLabel}</span> : null}

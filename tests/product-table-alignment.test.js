@@ -18,3 +18,13 @@ test("product header, thumbnails, and names share a stable right alignment", () 
   assert.match(source, /<th className="px-4 py-2 text-right">\{t\("products\.table\.product"\)\}<\/th>/);
   assert.match(source, /className="flex w-full min-w-0 items-center justify-start gap-3 text-start"/);
 });
+
+test("product and classification columns use a compact balanced distribution", () => {
+  assert.match(source, /product: "w-\[320px\]"/);
+  assert.match(source, /categoryBrand: "w-\[250px\]"/);
+});
+
+test("price labels stay close to their values", () => {
+  assert.match(source, /className="flex items-baseline justify-center gap-2"/);
+  assert.doesNotMatch(source, /className="flex items-baseline justify-between gap-3"/);
+});
