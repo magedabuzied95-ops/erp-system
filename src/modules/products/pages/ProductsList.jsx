@@ -2575,7 +2575,7 @@ function ProductsList() {
                   <th className="px-4 py-2">{t("products.table.stock")}</th>
                   <th className="px-4 py-2">{t("products.table.costSale", "التكلفة / البيع")}</th>
                   <th className="px-4 py-2">{t("products.table.status")}</th>
-                  <th className="px-4 py-2 text-right">{t("products.table.actions")}</th>
+                  <th className="px-4 py-2 text-center">{t("products.table.actions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -2632,7 +2632,7 @@ function ProductsList() {
                     return (
                       <tr
                         key={row.id}
-                        className={`group/product-row relative rounded-3xl border border-white/8 bg-white/5 ${openActionId === row.id ? "z-[100]" : "z-0"}`}
+                        className={`group/product-row relative rounded-3xl border border-white/8 bg-white/5 text-center ${openActionId === row.id ? "z-[100]" : "z-0"}`}
                       >
                         <td className="px-4 py-4 align-middle">
                           <input
@@ -2645,7 +2645,7 @@ function ProductsList() {
                           <button
                             type="button"
                             onClick={() => handleOpenSelectedProduct(row)}
-                            className="flex w-full min-w-0 items-center gap-3 text-left"
+                            className="mx-auto flex w-full min-w-0 items-center justify-center gap-3 text-start"
                           >
                             <ProductThumbnail row={row} />
                             <div className="min-w-0 self-center">
@@ -2667,7 +2667,7 @@ function ProductsList() {
                             <p className="truncate text-xs font-semibold text-cyan-300">{category}</p>
                           ) : null}
                           <p className="truncate text-sm text-zinc-400">{row.brand || t("products.selected.brand")}</p>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
+                          <div className="mt-2 flex flex-wrap justify-center gap-1.5">
                             <ProductAudienceBadges row={row} language={i18n.language} />
                           </div>
                         </td>
@@ -2683,7 +2683,7 @@ function ProductsList() {
                           </div>
                         </td>
                         <td className="px-4 py-4 align-middle">
-                          <div className="flex flex-col gap-2">
+                          <div className="flex flex-col items-center gap-2">
                             <span
                               className={`
                                 inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold
@@ -2712,7 +2712,7 @@ function ProductsList() {
                           </div>
                         </td>
                         <td className="px-4 py-4 align-middle">
-                          <div className={`relative flex min-h-10 items-center justify-end gap-2 ${openActionId === row.id ? "z-[100]" : "z-0"}`}>
+                          <div className={`relative flex min-h-10 items-center justify-center gap-2 ${openActionId === row.id ? "z-[100]" : "z-0"}`}>
                             <div className="hidden items-center gap-1.5 lg:flex">
                               {inlineActions.map((action) => (
                                 <QuickRowAction
