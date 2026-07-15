@@ -1,4 +1,4 @@
-import { generateBarcode } from "./catalog";
+import { generateBarcode } from "./catalog.js";
 
 export const CROCS_SIZE_LIBRARY = {
   adult: [
@@ -185,16 +185,8 @@ export const isPlaceholderVariantRow = (row = {}, productPrice = 0) => {
   );
 };
 
-const hasImages = (row = {}) =>
-  Boolean(
-    String(row.image_url || row.variant_image_url || row.color_image_url || row.image || "").trim() ||
-      (Array.isArray(row.images) && row.images.length > 0) ||
-      (Array.isArray(row.color_images) && row.color_images.length > 0)
-  );
-
-const isRemovableStarterRow = (row = {}, rows = [], productPrice = 0) => {
+const isRemovableStarterRow = (row = {}, productPrice = 0) => {
   const hasSavedId = Boolean(row.variantId || row.variant_id || row.idFromServer || row.database_id);
-  const isStarterRow = row.isStarter !== false || rows.length === 1;
   const hasManualSize = Boolean(row.sizeManualOverride);
   const hasManualSku = Boolean(row.skuManualOverride && String(row.sku || "").trim());
   const hasManualBarcode = Boolean(
@@ -213,15 +205,14 @@ const isRemovableStarterRow = (row = {}, rows = [], productPrice = 0) => {
   const hasPriceOverride = rowPrice > 0 && rowPrice !== currentPrice;
 
   return (
-    isStarterRow &&
     !hasSavedId &&
+    !String(row.size || "").trim() &&
     !hasManualSize &&
     !hasManualSku &&
     !hasManualBarcode &&
     !hasPlannedQty &&
     !hasRealStock &&
-    !hasPriceOverride &&
-    !hasImages(row)
+    !hasPriceOverride
   );
 };
 
@@ -233,9 +224,9 @@ const isStrictlyEmptyBulkRow = (row = {}) => {
   return !size && !sku && !barcode && stock === 0;
 };
 
-const isReusableBulkEmptyRow = (row = {}, rows = [], productPrice = 0) => {
+const isReusableBulkEmptyRow = (row = {}, productPrice = 0) => {
   if (isStrictlyEmptyBulkRow(row)) return true;
-  return isRemovableStarterRow(row, rows, productPrice);
+  return isRemovableStarterRow(row, productPrice);
 };
 
 export const applyBulkSizesToGroups = ({
@@ -257,7 +248,7 @@ export const applyBulkSizesToGroups = ({
     const originalRows = Array.isArray(group.sizes) ? group.sizes : [];
     const reusableRowIndexes = [];
     originalRows.forEach((row, index) => {
-      if (isReusableBulkEmptyRow(row, originalRows, price)) {
+      if (isReusableBulkEmptyRow(row, price)) {
         reusableRowIndexes.push(index);
       }
     });
@@ -279,8 +270,8 @@ export const applyBulkSizesToGroups = ({
     let consumedReusableRow = false;
     let nextMissingSizeIndex = 0;
     const nextRows = originalRows
-      .map((row, index) => {
-        if (!isReusableBulkEmptyRow(row, originalRows, price)) return row;
+      .map((row) => {
+        if (!isReusableBulkEmptyRow(row, price)) return row;
 
         if (!consumedReusableRow && nextMissingSizeIndex < missingSizes.length) {
           const size = missingSizes[nextMissingSizeIndex];
