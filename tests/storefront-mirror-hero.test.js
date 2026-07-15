@@ -20,4 +20,8 @@ test("home hero requests and prioritizes Mirror Original products", async () => 
   assert.match(source, /heroComparePrice/);
   assert.match(source, /وفر \$\{heroDiscount\}%/);
   assert.match(source, /اطلب الآن/);
+  assert.match(source, /min-h-\[516px\] flex-col/);
+  assert.match(source, /line-clamp-2 h-12 overflow-hidden/);
+  assert.match(source, /\{activeHeroIndex \+ 1\}\/\{availableHeroSlides\.length\}/);
+  assert.doesNotMatch(source, /bottom-\[8\.75rem\]/);
 });

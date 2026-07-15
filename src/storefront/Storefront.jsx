@@ -2716,29 +2716,37 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
             </div>
           </div>
 
-          <div className="order-1 relative min-h-[390px] p-3 sm:min-h-[450px] sm:p-5 md:min-h-[540px] md:p-7 lg:order-2 lg:min-h-[640px] lg:p-9">
-            <Link to={heroProductHref} className="group relative flex h-full min-h-[366px] items-center justify-center overflow-hidden rounded-[1.45rem] border p-3 sm:min-h-[410px] md:min-h-[486px] md:rounded-[2rem] md:p-6 lg:min-h-[568px]" style={{ background: themeTokens.surface, borderColor: themeTokens.borderStrong, boxShadow: themeTokens.shadowSoft }}>
+          <div className="order-1 relative min-h-[540px] p-3 sm:min-h-[580px] sm:p-5 md:min-h-[680px] md:p-7 lg:order-2 lg:min-h-[700px] lg:p-9">
+            <Link to={heroProductHref} className="group relative flex h-full min-h-[516px] flex-col overflow-hidden rounded-[1.45rem] border p-0 sm:min-h-[540px] md:min-h-[626px] md:rounded-[2rem] lg:min-h-[628px]" style={{ background: themeTokens.surface, borderColor: themeTokens.borderStrong, boxShadow: themeTokens.shadowSoft }}>
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_32%,rgba(212,175,55,0.14),transparent_46%)]" />
               <span className="absolute end-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-stone-800 shadow-lg backdrop-blur md:end-6 md:top-6 md:px-4 md:py-2 md:text-xs">
                 <Sparkles className="h-3.5 w-3.5 text-[#b4860b]" />
                 {isRtl ? "ميرور أوريجنال" : "Mirror Original"}
               </span>
-              <div className="relative flex h-full w-full items-center justify-center pb-28 pt-8 md:pb-32 md:pt-10">
+              {availableHeroSlides.length > 1 ? (
+                <div className="absolute start-4 top-4 z-10 flex items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-2.5 py-2 shadow-lg backdrop-blur md:start-6 md:top-6">
+                  <span className="me-0.5 text-[9px] font-black tabular-nums text-stone-600 md:text-[10px]">{activeHeroIndex + 1}/{availableHeroSlides.length}</span>
+                  {availableHeroSlides.map((slide, index) => (
+                    <span key={productIdentityKey(slide.product, index)} className={`h-1.5 rounded-full transition-all duration-300 ${index === activeHeroIndex ? "w-5 bg-[#b4860b]" : "w-1.5 bg-stone-300"}`} />
+                  ))}
+                </div>
+              ) : null}
+              <div className="relative z-[1] flex min-h-[315px] w-full flex-1 items-center justify-center px-3 pb-3 pt-14 sm:min-h-[350px] sm:px-5 md:min-h-[430px] md:px-7 md:pb-5 md:pt-20 lg:min-h-[440px]">
                 {loading && !heroImage ? (
                   <div className="h-[180px] w-[82%] animate-pulse rounded-[1.5rem] md:h-[300px]" style={{ background: themeTokens.cardSoft }} />
                 ) : heroImage ? (
-                  <img key={heroImage} src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="h-full w-full max-h-[290px] object-contain drop-shadow-[0_22px_28px_rgba(28,25,23,0.14)] transition duration-500 ease-out group-hover:scale-[1.045] sm:max-h-[340px] md:max-h-[440px] lg:max-h-[490px]" loading="eager" decoding="async" width="900" height="720" />
+                  <img key={heroImage} src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="h-full w-full max-h-[290px] object-contain drop-shadow-[0_22px_28px_rgba(28,25,23,0.14)] transition duration-500 ease-out group-hover:scale-[1.035] sm:max-h-[330px] md:max-h-[405px] lg:max-h-[420px]" loading="eager" decoding="async" width="900" height="720" />
                 ) : (
                   <div className="flex h-[220px] w-[82%] items-center justify-center rounded-[1.5rem] border border-dashed text-center text-sm font-black" style={{ color: themeTokens.textSecondary, borderColor: themeTokens.border }}>
                     {isRtl ? "صورة العرض تظهر هنا" : "Hero image appears here"}
                   </div>
                 )}
               </div>
-              <div className="absolute inset-x-3 bottom-3 z-10 rounded-[1.2rem] border border-white/80 bg-white/95 p-3.5 shadow-[0_18px_45px_rgba(28,25,23,0.16)] backdrop-blur-xl sm:inset-x-4 sm:bottom-4 md:rounded-[1.5rem] md:p-4.5">
+              <div className="relative z-10 mx-3 mb-3 w-[calc(100%-1.5rem)] shrink-0 rounded-[1.2rem] border border-white/80 bg-white/95 p-3.5 shadow-[0_18px_45px_rgba(28,25,23,0.16)] backdrop-blur-xl sm:mx-4 sm:mb-4 sm:w-[calc(100%-2rem)] md:rounded-[1.5rem] md:p-4.5">
                 <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
+                  <div className="min-w-0 flex-1">
                     <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#9a7108] md:text-[10px]">{isRtl ? "اختيار ميرور مميز" : "Featured mirror pick"}</p>
-                    <h2 className="mt-1 line-clamp-2 text-[1.05rem] font-black leading-6 text-stone-950 md:text-xl md:leading-7">{heroProduct?.name || brandName}</h2>
+                    <h2 className="mt-1 line-clamp-2 h-12 overflow-hidden break-words text-[1.05rem] font-black leading-6 text-stone-950 md:h-14 md:text-xl md:leading-7">{heroProduct?.name || brandName}</h2>
                   </div>
                   {heroDiscount ? <span className="shrink-0 rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-black text-white shadow-sm md:text-xs">{isRtl ? `وفر ${heroDiscount}%` : `Save ${heroDiscount}%`}</span> : null}
                 </div>
@@ -2752,20 +2760,15 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
                     {isRtl ? "اطلب الآن" : "Shop now"}
                   </span>
                 </div>
-                {heroSizes.length ? (
-                  <div className="mt-2 flex items-center gap-1.5 overflow-hidden">
+                <div className="mt-2 flex min-h-7 items-center gap-1.5 overflow-hidden">
+                  {heroSizes.length ? (
+                    <>
                     <span className="shrink-0 text-[10px] font-bold text-stone-500">{isRtl ? "المقاسات:" : "Sizes:"}</span>
                     {heroSizes.map((size) => <span key={size} className="grid h-7 min-w-7 place-items-center rounded-full border border-stone-200 bg-stone-50 px-1.5 text-[10px] font-black text-stone-700 md:h-8 md:min-w-8 md:text-xs">{size}</span>)}
-                  </div>
-                ) : null}
-              </div>
-              {availableHeroSlides.length > 1 ? (
-                <div className="absolute bottom-[8.75rem] start-1/2 z-10 flex -translate-x-1/2 gap-1.5 rounded-full border border-white/70 bg-white/85 px-2.5 py-1.5 shadow-lg backdrop-blur md:bottom-[10rem]">
-                  {availableHeroSlides.map((slide, index) => (
-                    <span key={productIdentityKey(slide.product, index)} className={`h-1.5 rounded-full transition-all duration-300 ${index === activeHeroIndex ? "w-6 bg-[#b4860b]" : "w-1.5 bg-stone-300"}`} />
-                  ))}
+                    </>
+                  ) : <span className="text-[10px] font-bold text-stone-400">{isRtl ? "اختر الموديل لمعرفة المقاسات" : "Open the model to view sizes"}</span>}
                 </div>
-              ) : null}
+              </div>
             </Link>
           </div>
         </div>
