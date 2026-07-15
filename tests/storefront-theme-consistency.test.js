@@ -8,6 +8,7 @@ const styles = fs.readFileSync("src/index.css", "utf8");
 
 test("storefront owns one synchronized light-dark theme state", () => {
   assert.match(storefrontSource, /root\.classList\.toggle\("dark", dark\)/);
+  assert.match(storefrontSource, /body\.classList\.toggle\("dark", dark\)/);
   assert.match(storefrontSource, /body\.classList\.toggle\("storefront-dark", dark\)/);
   assert.match(storefrontSource, /root\.setAttribute\("data-theme", themeMode\)/);
   assert.match(storefrontSource, /root\.style\.colorScheme = themeMode/);

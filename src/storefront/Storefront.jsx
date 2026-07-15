@@ -9553,6 +9553,7 @@ function Storefront() {
     const body = document.body;
     previousDocumentThemeRef.current = {
       rootDark: root.classList.contains("dark"),
+      bodyDark: body.classList.contains("dark"),
       rootTheme: root.getAttribute("data-theme"),
       bodyTheme: body.getAttribute("data-theme"),
       bodyStorefrontDark: body.classList.contains("storefront-dark"),
@@ -9565,6 +9566,7 @@ function Storefront() {
       body.classList.remove("storefront-shell");
       if (!previous) return;
       root.classList.toggle("dark", previous.rootDark);
+      body.classList.toggle("dark", previous.bodyDark);
       body.classList.toggle("storefront-dark", previous.bodyStorefrontDark);
       if (previous.rootTheme === null) root.removeAttribute("data-theme");
       else root.setAttribute("data-theme", previous.rootTheme);
@@ -9581,6 +9583,7 @@ function Storefront() {
     const root = document.documentElement;
     const body = document.body;
     root.classList.toggle("dark", dark);
+    body.classList.toggle("dark", dark);
     body.classList.toggle("storefront-dark", dark);
     root.setAttribute("data-theme", themeMode);
     body.setAttribute("data-theme", themeMode);
