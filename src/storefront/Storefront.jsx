@@ -4250,6 +4250,11 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
 }
 
 function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
+  const preferredHeaderLogoUrl = headerLogoUrl || brandLogoUrl;
+  const resolvedHeaderLogoUrl = resolveProductImageUrl(preferredHeaderLogoUrl);
+  const displayedHeaderLogoUrl = resolvedHeaderLogoUrl.includes("/branding/m-one-wordmark-orange.png")
+    ? `${resolvedHeaderLogoUrl.split("?")[0]}?v=20220228`
+    : resolvedHeaderLogoUrl;
   const { i18n: storefrontI18n, t } = useTranslation();
   const brandInitials = resolveBrandInitials(brandName);
   const [search, setSearch] = useState("");
@@ -4685,9 +4690,9 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
-              {headerLogoUrl || brandLogoUrl ? (
+              {preferredHeaderLogoUrl ? (
                 <span className="sf-mobile-header-logo sf-header-wordmark inline-flex h-14 w-14 items-center justify-center transition">
-                  <img src={resolveProductImageUrl(headerLogoUrl || brandLogoUrl)} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="160" height="160" />
+                  <img src={displayedHeaderLogoUrl} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="160" height="160" />
                 </span>
               ) : (
                 <span className="sf-mobile-header-logo grid h-12 w-12 place-items-center rounded-full text-[0.7rem] font-black tracking-[0.16em] transition">{brandInitials}</span>
@@ -4772,9 +4777,9 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             </button>
             <span className="sf-header-divider hidden h-12 w-px md:block" />
             <Link to="/" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#d4af37] dark:text-white" aria-label={brandName || "MONE"}>
-              {headerLogoUrl || brandLogoUrl ? (
+              {preferredHeaderLogoUrl ? (
                 <span className="sf-header-logo-chip sf-header-wordmark inline-flex h-[72px] w-[82px] items-center justify-center bg-transparent transition group-hover:scale-[1.02]">
-                  <img src={resolveProductImageUrl(headerLogoUrl || brandLogoUrl)} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="240" height="240" />
+                  <img src={displayedHeaderLogoUrl} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="240" height="240" />
                 </span>
               ) : (
                 <span className="sf-header-logo-chip grid h-16 w-16 place-items-center rounded-full text-sm font-black tracking-[0.16em] text-white transition group-hover:scale-[1.02] md:h-[68px] md:w-[68px]">{brandInitials}</span>
