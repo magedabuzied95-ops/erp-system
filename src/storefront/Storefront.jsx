@@ -2509,6 +2509,7 @@ function PremiumHomePage(props) {
   const { products, loading } = useProducts({ limit: 24 });
   const { products: saleProducts } = useProducts({ offer_story: 1, limit: 12 });
   const { products: mirrorProducts, loading: mirrorLoading } = useProducts({ quality: "mirror_original", sort: "newest", limit: 24 });
+  const { products: womenCategoryProducts, loading: womenCategoryLoading } = useProducts({ gender: "women", sort: "newest", limit: 24 });
 
   useEffect(() => {
     if (!brandFilter || !isStorefrontHomePath(location.pathname)) return;
@@ -2559,7 +2560,7 @@ function PremiumHomePage(props) {
   }, [homepageProductPool, homepageProductsWithImages, mirrorHeroSlides, storefrontHome.hero]);
   const heroCollection = storefrontHome.collections[0] || null;
   const homeCategoryCards = useMemo(() => {
-    const sourceProducts = uniqueProductsByIdentity(homepageProductPool).filter((product) => product?.id && product?.name && isAvailableProduct(product));
+    const sourceProducts = uniqueProductsByIdentity([...womenCategoryProducts, ...homepageProductPool]).filter((product) => product?.id && product?.name && isAvailableProduct(product));
     return mainHomeCategoryCards.slice(0, 4).map((definition) => {
       const matchingProducts = sourceProducts.filter((product) => {
         if (definition.id === "offers") return isOfferStory(product);
@@ -2589,7 +2590,7 @@ function PremiumHomePage(props) {
         count: totalMatches,
       };
     });
-  }, [homepageProductPool, isRtl, saleProducts]);
+  }, [homepageProductPool, isRtl, saleProducts, womenCategoryProducts]);
   const visibleBrands = useMemo(() => (Array.isArray(brands) ? brands : []).filter((brand) => brand?.id && brand?.name && brand?.logo_url), [brands]);
   const homeSections = useMemo(() => {
     const used = new Set();
@@ -2663,7 +2664,7 @@ function PremiumHomePage(props) {
           primary: isRtl ? "تسوق ميرور أوريجنال" : "Shop Mirror Original",
         }}
       />
-      <HomeCategoryCards cards={homeCategoryCards} lang={lang} themeTokens={themeTokens} loading={loading || storefrontHome.loading} />
+      <HomeCategoryCards cards={homeCategoryCards} lang={lang} themeTokens={themeTokens} loading={loading || womenCategoryLoading || storefrontHome.loading} />
       <HomeBrandStrip lang={lang} themeTokens={themeTokens} brands={visibleBrands} loading={brandsLoading} />
       <SimpleHomeProductGrid
         title={isRtl ? "الأكثر طلبًا" : "Most Wanted"}

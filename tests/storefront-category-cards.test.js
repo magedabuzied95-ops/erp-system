@@ -19,5 +19,7 @@ test("storefront category cards use full-bleed motion media", async () => {
   assert.match(source, /audiences\.includes\("men"\) && audiences\.includes\("women"\)/);
   assert.match(source, /test: \(product\) => isExclusiveCategoryAudience\(product, "men"\)/);
   assert.match(source, /test: \(product\) => isExclusiveCategoryAudience\(product, "women"\)/);
+  assert.match(source, /useProducts\(\{ gender: "women", sort: "newest", limit: 24 \}\)/);
+  assert.match(source, /uniqueProductsByIdentity\(\[\.\.\.womenCategoryProducts, \.\.\.homepageProductPool\]\)/);
   assert.match(source, /تسوّق الآن/);
 });
