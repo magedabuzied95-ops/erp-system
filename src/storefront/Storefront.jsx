@@ -3060,12 +3060,28 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
   if (!loading && !visibleBrands.length) return null;
 
   return (
-    <section className="mx-auto max-w-[1600px] py-7 md:py-11" dir={isRtl ? "rtl" : "ltr"}>
-      <h2 className="mb-5 px-5 text-xl font-black tracking-tight md:mb-8 md:px-8 md:text-3xl" style={{ color: themeTokens.textPrimary }}>
-        {isRtl ? "العلامات التجارية" : "Brands"}
-      </h2>
+    <section className="mx-auto max-w-[1400px] px-4 py-5 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
+      <div
+        className="overflow-hidden rounded-[2rem] border"
+        style={{
+          background: themeTokens.surface,
+          borderColor: themeTokens.border,
+          boxShadow: themeTokens.shadowSoft,
+        }}
+      >
+        <div className="border-b px-4 py-5 md:px-6" style={{ borderColor: themeTokens.border }}>
+          <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.18em]" style={{ color: themeTokens.accent }}>
+            {isRtl ? "تسوّق حسب الماركة" : "Shop by brand"}
+          </div>
+          <h2 className="text-[1.9rem] font-black tracking-tight md:text-[3.15rem]" style={{ color: themeTokens.textPrimary }}>
+            {isRtl ? "العلامات التجارية" : "Brands"}
+          </h2>
+          <p className="mt-1.5 text-xs font-bold md:text-sm" style={{ color: themeTokens.textSecondary }}>
+            {isRtl ? "اختار البراند المفضل وشاهد كل موديلاته المتاحة." : "Choose your favorite brand and browse every available model."}
+          </p>
+        </div>
 
-      <div className="sf-brand-marquee" dir="ltr">
+        <div className="sf-brand-marquee" dir="ltr">
         <div
           ref={brandTrackRef}
           className={`sf-brand-marquee__track ${brandTransitionEnabled ? "sf-brand-marquee__track--stepping" : ""}`}
@@ -3078,7 +3094,7 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
                 brand ? (
                   <Link
                     key={`${groupIndex}-${brand.id || index}`}
-                    to={`/?brand=${encodeURIComponent(brand.id || brand.slug)}`}
+                    to={`/products?brand=${encodeURIComponent(brand.name)}`}
                     className="sf-brand-marquee__item group"
                     aria-label={brand.name || (isRtl ? "عرض العلامة التجارية" : "View brand")}
                     tabIndex={groupIndex > 0 ? -1 : undefined}
@@ -3105,6 +3121,7 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
               ))}
             </div>
           ))}
+        </div>
         </div>
       </div>
     </section>

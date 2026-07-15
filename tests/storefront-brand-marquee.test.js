@@ -11,6 +11,13 @@ test("home brand strip renders logo-only duplicated marquee groups", () => {
   assert.doesNotMatch(storefrontSource.slice(storefrontSource.indexOf("function HomeBrandStrip"), storefrontSource.indexOf("function HomeWhySection")), /Available in store|Trusted names/);
 });
 
+test("brand cards share the home surface and filter products by brand name", () => {
+  assert.match(storefrontSource, /max-w-\[1400px\][\s\S]*?rounded-\[2rem\][\s\S]*?background: themeTokens\.surface/);
+  assert.match(storefrontSource, /to=\{`\/products\?brand=\$\{encodeURIComponent\(brand\.name\)\}`\}/);
+  assert.doesNotMatch(storefrontSource, /to=\{`\/\?brand=\$\{encodeURIComponent\(brand\.id/);
+  assert.match(stylesheetSource, /\.sf-brand-marquee__item[\s\S]*?border: 1px solid[\s\S]*?background: color-mix/);
+});
+
 test("brand carousel advances exactly one logo every four seconds and loops", () => {
   assert.match(storefrontSource, /setInterval\([\s\S]*?4000\)/);
   assert.doesNotMatch(storefrontSource, /setTimeout\(\(\) => setBrandSlideIndex/);

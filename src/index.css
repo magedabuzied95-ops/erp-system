@@ -520,7 +520,7 @@
   .sf-brand-marquee {
     width: 100%;
     overflow: hidden;
-    padding-block: 0.35rem 0.85rem;
+    padding-block: 1rem 1.25rem;
     mask-image: linear-gradient(to right, transparent, black 4%, black 96%, transparent);
   }
 
@@ -550,14 +550,17 @@
     place-items: center;
     overflow: hidden;
     border-radius: clamp(1.1rem, 2vw, 1.75rem);
-    padding: clamp(0.3rem, 0.8vw, 0.75rem);
-    background: transparent;
-    box-shadow: none;
-    transition: transform 300ms ease;
+    border: 1px solid color-mix(in srgb, currentColor 10%, transparent);
+    padding: clamp(0.65rem, 1vw, 0.95rem);
+    background: color-mix(in srgb, currentColor 4%, transparent);
+    box-shadow: 0 12px 32px rgb(15 23 42 / 0.06);
+    transition: transform 300ms ease, border-color 300ms ease, box-shadow 300ms ease;
   }
 
   .sf-brand-marquee__item:hover {
     transform: translateY(-3px);
+    border-color: color-mix(in srgb, #d4af37 45%, transparent);
+    box-shadow: 0 18px 38px rgb(15 23 42 / 0.1);
   }
 
   .sf-brand-marquee__logo-frame {
@@ -588,6 +591,10 @@
 
   .storefront-shell:not(.storefront-dark) .sf-brand-marquee__logo {
     mix-blend-mode: multiply;
+  }
+
+  .storefront-dark .sf-brand-marquee__item {
+    box-shadow: 0 14px 34px rgb(0 0 0 / 0.24);
   }
 
   @media (prefers-reduced-motion: reduce) {
