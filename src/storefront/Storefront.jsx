@@ -2464,7 +2464,7 @@ function PremiumHomePage(props) {
   const { brands, loading: brandsLoading } = useStorefrontBrands();
   const { products, loading } = useProducts({ limit: 24 });
   const { products: saleProducts } = useProducts({ offer_story: 1, limit: 12 });
-  const { products: mirrorProducts, loading: mirrorLoading } = useProducts({ quality: "mirror_original", sort: "newest", limit: 12 });
+  const { products: mirrorProducts, loading: mirrorLoading } = useProducts({ quality: "mirror_original", sort: "newest", limit: 24 });
 
   useEffect(() => {
     if (!brandFilter || !isStorefrontHomePath(location.pathname)) return;
@@ -2506,7 +2506,7 @@ function PremiumHomePage(props) {
     ])
       .filter((product) => isAvailableProduct(product) && homeProductWithImage(product))
       .sort((a, b) => stockScore(b) - stockScore(a) || newestScore(b) - newestScore(a));
-    return mirrorCandidates.slice(0, 6).map(featuredSlideProduct);
+    return mirrorCandidates.slice(0, 12).map(featuredSlideProduct);
   }, [homepageProductPool, mirrorProducts]);
   const heroSlide = useMemo(() => {
     if (mirrorHeroSlides.length) return mirrorHeroSlides[0];

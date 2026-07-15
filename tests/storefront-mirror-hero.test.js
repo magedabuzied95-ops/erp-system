@@ -14,8 +14,9 @@ test("mirror products are recognized from the compact storefront grade field", (
 test("home hero requests and prioritizes Mirror Original products", async () => {
   const source = await readFile(new URL("../src/storefront/Storefront.jsx", import.meta.url), "utf8");
 
-  assert.match(source, /useProducts\(\{ quality: "mirror_original", sort: "newest", limit: 12 \}\)/);
+  assert.match(source, /useProducts\(\{ quality: "mirror_original", sort: "newest", limit: 24 \}\)/);
   assert.match(source, /const mirrorHeroSlides = useMemo/);
+  assert.match(source, /mirrorCandidates\.slice\(0, 12\)/);
   assert.match(source, /productsPath\(\{ quality: "mirror_original", sort: "newest" \}\)/);
   assert.match(source, /heroComparePrice/);
   assert.match(source, /وفر \$\{heroDiscount\}%/);
