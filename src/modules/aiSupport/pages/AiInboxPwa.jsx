@@ -4,7 +4,6 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   AlertCircle,
   Bot,
-  Camera,
   CheckCheck,
   ChevronLeft,
   Clock3,
@@ -1097,12 +1096,27 @@ const isSocialPostSummary = (item = {}) =>
   Object.prototype.hasOwnProperty.call(item, "post_full_picture") ||
   Object.prototype.hasOwnProperty.call(item, "full_picture");
 
+const normalizedSocialPlatform = (item = {}) => {
+  const value = clean(
+    item.platform ||
+      item.source_platform ||
+      item.channel ||
+      item.source ||
+      item.metadata?.platform ||
+      item.channel_metadata?.platform ||
+      ""
+  ).toLowerCase();
+  if (value.includes("instagram")) return "instagram";
+  if (value.includes("facebook")) return "facebook";
+  return value;
+};
+
 const socialPostMatchesFilter = (item = {}, filter = "all") => {
   if (filter === "all") return true;
-  if (!isSocialPostSummary(item)) return true;
-  const platform = clean(item.platform).toLowerCase();
-  if (filter === "facebook") return platform === "facebook" || platform === "facebook_comment";
-  if (filter === "instagram") return platform === "instagram" || platform === "instagram_comment";
+  const platform = normalizedSocialPlatform(item);
+  if (filter === "facebook") return platform === "facebook";
+  if (filter === "instagram") return platform === "instagram";
+  if (!isSocialPostSummary(item)) return false;
   if (filter === "needs_human" || filter === "needs_reply") return Number(item.new_comments_count || 0) > 0 || clean(item.reply_status || item.auto_reply_mode).toLowerCase() !== "sent";
   if (filter === "ai_replied" || filter === "replied") return clean(item.reply_status || item.auto_reply_mode || item.session_status).toLowerCase() === "sent";
   if (filter === "unread") return Number(item.new_comments_count || 0) > 0;
@@ -3697,8 +3711,8 @@ export default function AiInboxPwa() {
   const socialPosts = useMemo(
     () =>
       groupSocialCommentPosts(socialComments.items).filter((item) => {
-        const platform = clean(item.platform).toLowerCase();
-        return platform.includes("facebook") || platform.includes("instagram");
+        const platform = normalizedSocialPlatform(item);
+        return platform === "facebook" || platform === "instagram";
       }),
     [socialComments.items]
   );
@@ -3711,10 +3725,10 @@ export default function AiInboxPwa() {
   const selectedSocialPost = useMemo(() => {
     if (!isSocialMode) return null;
     if (socialPostParam) {
-      return visibleSocialPosts.find((item) => socialPostIdentity(item) === socialPostParam) || socialPosts.find((item) => socialPostIdentity(item) === socialPostParam) || null;
+      return visibleSocialPosts.find((item) => socialPostIdentity(item) === socialPostParam) || visibleSocialPosts[0] || null;
     }
-    return visibleSocialPosts[0] || socialPosts[0] || null;
-  }, [isSocialMode, socialPostIdentity, socialPostParam, socialPosts, visibleSocialPosts]);
+    return visibleSocialPosts[0] || null;
+  }, [isSocialMode, socialPostIdentity, socialPostParam, visibleSocialPosts]);
   const selectedSocialThreadStatusLabel = useMemo(() => {
     const source = selectedSocialThread?.post || selectedSocialPost || {};
     const status = clean(
@@ -5308,24 +5322,6 @@ export default function AiInboxPwa() {
 
     return (
       <div className="flex min-h-0 flex-1 flex-col gap-2">
-        <section className={`${socialMobileDetailOpen ? "hidden lg:block" : "block"} rounded-3xl border border-slate-200 bg-white p-3 shadow-sm`}>
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
-              <div className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-500">AI Social Media Center PWA</div>
-              <div className="mt-1 text-lg font-black text-slate-900">Social Comments</div>
-            </div>
-            <button
-              type="button"
-              onClick={() => void requestRefresh("manual", { silent: true })}
-              disabled={loading}
-              className="inline-flex h-9 items-center gap-2 rounded-xl bg-slate-900 px-3 text-xs font-black text-white disabled:opacity-50"
-            >
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-              Refresh
-            </button>
-          </div>
-        </section>
-
         <div className="grid min-h-0 flex-1 gap-2 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
           <aside className={`${socialMobileDetailOpen ? "hidden lg:block" : "block"} min-h-0 overflow-hidden rounded-3xl border border-slate-200 bg-white p-2 shadow-sm`}>
             <div className="hidden rounded-2xl border border-slate-200 bg-slate-950/5 p-3 lg:block">
@@ -5386,7 +5382,8 @@ export default function AiInboxPwa() {
 
             <div className="min-h-0 overflow-hidden lg:mt-2">
               <SocialCommentsPanel
-                items={socialPosts}
+                items={visibleSocialPosts}
+                totalItemsCount={socialPosts.length}
                 loading={socialComments.loading}
                 error={socialComments.error}
                 filter={socialCommentsFilter}

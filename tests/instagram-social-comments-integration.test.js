@@ -7,6 +7,7 @@ const automationSource = readFileSync(new URL("../server/services/socialCommentA
 const centerSource = readFileSync(new URL("../server/services/socialCommentsCenterService.js", import.meta.url), "utf8");
 const desktopSource = readFileSync(new URL("../src/modules/aiSupport/pages/AiInbox.jsx", import.meta.url), "utf8");
 const pwaSource = readFileSync(new URL("../src/modules/aiSupport/pages/AiInboxPwa.jsx", import.meta.url), "utf8");
+const socialCommentsPanelSource = readFileSync(new URL("../src/modules/aiSupport/components/SocialCommentsPanel.jsx", import.meta.url), "utf8");
 
 test("Instagram media and historical comments are loaded from the connected business account", () => {
   assert.match(metaSource, /encodeURIComponent\(text\(instagramAccountId\)\)\}\/media/);
@@ -63,4 +64,14 @@ test("desktop and PWA inboxes expose Instagram social content", () => {
     assert.match(source, /\{ key: "instagram", label: "Instagram" \}/);
     assert.match(source, /instagram_comment/);
   }
+});
+
+test("PWA social post filters keep platforms isolated and hide removed controls", () => {
+  assert.match(pwaSource, /if \(filter === "instagram"\) return platform === "instagram"/);
+  assert.match(pwaSource, /items=\{visibleSocialPosts\}/);
+  assert.doesNotMatch(pwaSource, /AI Social Media Center PWA/);
+  assert.match(socialCommentsPanelSource, /if \(filter === "facebook"\) return platform === "facebook"/);
+  assert.match(socialCommentsPanelSource, /if \(filter === "instagram"\) return platform === "instagram"/);
+  assert.doesNotMatch(socialCommentsPanelSource, /\{ key: "replied", label: "Replied" \}/);
+  assert.doesNotMatch(socialCommentsPanelSource, /\{ key: "auto_reply_on", label: "Auto Reply" \}/);
 });

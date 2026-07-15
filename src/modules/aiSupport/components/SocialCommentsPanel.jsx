@@ -27,9 +27,22 @@ const POST_FILTERS = [
   { key: "facebook", label: "Facebook" },
   { key: "instagram", label: "Instagram" },
   { key: "needs_reply", label: "Needs Reply" },
-  { key: "replied", label: "Replied" },
-  { key: "auto_reply_on", label: "Auto Reply" },
 ];
+
+const normalizedPlatform = (item = {}) => {
+  const value = clean(
+    item.platform ||
+      item.source_platform ||
+      item.channel ||
+      item.source ||
+      item.metadata?.platform ||
+      item.channel_metadata?.platform ||
+      ""
+  ).toLowerCase();
+  if (value.includes("instagram")) return "instagram";
+  if (value.includes("facebook")) return "facebook";
+  return value;
+};
 
 const platformMeta = (platform = "") => {
   const key = clean(platform).toLowerCase();
@@ -67,9 +80,9 @@ const commentMatches = (item = {}, filter = "all") => {
 
 const postMatches = (item = {}, filter = "all") => {
   if (filter === "all") return true;
-  const platform = clean(item.platform).toLowerCase();
-  if (filter === "facebook") return platform === "facebook" || platform === "facebook_comment";
-  if (filter === "instagram") return platform === "instagram" || platform === "instagram_comment";
+  const platform = normalizedPlatform(item);
+  if (filter === "facebook") return platform === "facebook";
+  if (filter === "instagram") return platform === "instagram";
   if (filter === "needs_reply") return Number(item.new_comments_count || 0) > 0 || clean(item.reply_status || item.auto_reply_mode).toLowerCase() !== "sent";
   if (filter === "replied") return clean(item.reply_status || item.auto_reply_mode || item.session_status).toLowerCase() === "sent";
   if (filter === "auto_reply_on") return Boolean(item.auto_reply_enabled || item.template_enabled || item.generic_enabled);
@@ -130,7 +143,7 @@ const postMedia = (item = {}) => {
 };
 
 const socialCommentItemKey = (item = {}) =>
-  clean(item.id || item.conversation_id || item.comment_id || item.post_id || `${item.platform || "social"}:${item.post_id || item.comment_id || ""}`);
+  `${normalizedPlatform(item) || "social"}:${clean(item.id || item.conversation_id || item.comment_id || item.post_id || "unknown")}`;
 
 const socialCommentItemsEqual = (left = {}, right = {}) =>
   clean(left.id) === clean(right.id) &&
@@ -315,6 +328,7 @@ function SocialCommentsPanel({
   onLoadMore,
   nextCursor = "",
   loadingMore = false,
+  totalItemsCount,
   onPrefetchItem,
   onLinkProduct,
 }) {
@@ -364,7 +378,7 @@ function SocialCommentsPanel({
             Refresh
           </button>
           <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-[11px] font-black text-slate-600">
-            {filteredItems.length}/{items.length}
+            {filteredItems.length}/{Number.isFinite(Number(totalItemsCount)) ? Number(totalItemsCount) : items.length}
           </span>
         </div>
       </div>
