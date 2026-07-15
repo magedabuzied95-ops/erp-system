@@ -2553,15 +2553,13 @@ function PremiumHomePage(props) {
   const homeCategoryCards = useMemo(() => {
     const sourceProducts = uniqueProductsByIdentity(homepageProductPool).filter((product) => product?.id && product?.name && isAvailableProduct(product));
     return mainHomeCategoryCards.slice(0, 4).map((definition) => {
-      const match = sourceProducts.find((product) => {
+      const matchingProducts = sourceProducts.filter((product) => {
         if (definition.id === "offers") return isOfferStory(product);
         return definition.test(product, productSearchText(product));
       });
+      const match = matchingProducts.find((product) => homeProductWithImage(product)) || matchingProducts[0];
       const matchSlide = match ? homeProductWithImage(match) : null;
-      const totalMatches = sourceProducts.filter((product) => {
-        if (definition.id === "offers") return isOfferStory(product);
-        return definition.test(product, productSearchText(product));
-      }).length;
+      const totalMatches = matchingProducts.length;
       return {
         ...definition,
         title: isRtl ? definition.titleAr : definition.titleEn,

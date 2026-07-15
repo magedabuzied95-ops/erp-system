@@ -12,5 +12,6 @@ test("storefront category cards use full-bleed motion media", async () => {
   assert.match(source, /HomeCategoryMotionMedia video=\{card\.video\} image=\{card\.image\}/);
   assert.match(source, /h-full w-full object-cover transition/);
   assert.match(source, /match\?\.promo_video_url/);
+  assert.match(source, /matchingProducts\.find\(\(product\) => homeProductWithImage\(product\)\)/);
   assert.match(source, /تسوّق الآن/);
 });
