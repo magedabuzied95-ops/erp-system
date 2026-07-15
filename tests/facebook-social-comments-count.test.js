@@ -19,3 +19,9 @@ test("PWA shows the largest trustworthy count and a clear Arabic waiting status"
   assert.match(pwaSource, /return "بانتظار الرد"/);
   assert.match(pwaSource, /\{commentCount\} تعليق/);
 });
+
+test("PWA post details preserve the image from the selected post", () => {
+  assert.match(pwaSource, /const selectedPostImage = commentThreadPostImageUrl\(selectedPost \|\| \{\}\)/);
+  assert.match(pwaSource, /const threadPostImage = commentThreadPostImageUrl\(selectedSocialThread\?\.post \|\| \{\}\)/);
+  assert.match(pwaSource, /const postImage = selectedPostImage \|\| threadPostImage/);
+});

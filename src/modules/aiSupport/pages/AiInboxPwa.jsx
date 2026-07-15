@@ -5289,7 +5289,9 @@ export default function AiInboxPwa() {
 
   const renderSocialCommentsWorkspace = () => {
     const selectedPost = selectedSocialPost || null;
-    const postImage = commentThreadPostImageUrl(selectedSocialThread?.post || selectedPost || {});
+    const selectedPostImage = commentThreadPostImageUrl(selectedPost || {});
+    const threadPostImage = commentThreadPostImageUrl(selectedSocialThread?.post || {});
+    const postImage = selectedPostImage || threadPostImage;
     const postCaption = clean(
       selectedPost?.post_caption ||
       selectedPost?.post_message ||
