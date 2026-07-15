@@ -130,6 +130,7 @@ const definitions = [
   ["storefront.public_url", "storefront", "url", "", "Public store URL", "رابط المتجر", "Base public URL for sharing product and order links.", "الرابط العام لمشاركة المنتجات والطلبات.", { isPublic: true, usedBy: ["Storefront", "AI"] }],
   ["storefront.store_name", "storefront", "text", "", "Store name", "اسم المتجر", "Public store display name.", "اسم المتجر الظاهر للعملاء.", { isPublic: true }],
   ["storefront.store_logo_url", "storefront", "url", "", "Store logo", "شعار المتجر", "Public store logo URL.", "رابط شعار المتجر.", { isPublic: true }],
+  ["storefront.header_logo_url", "storefront", "url", "", "Header wordmark", "الشعار الأفقي للهيدر", "Transparent horizontal logo used only in the storefront header.", "شعار أفقي بخلفية شفافة يُستخدم في هيدر المتجر فقط.", { isPublic: true }],
   ["storefront.store_tagline", "storefront", "text", "", "Store tagline", "شعار المتجر النصي", "Short tagline shown beneath the store name on the storefront header.", "عبارة قصيرة تظهر أسفل اسم المتجر في رأس المتجر.", { isPublic: true, validation: { maxLength: 120 } }],
   ["storefront.favicon_url", "storefront", "url", "", "Favicon", "أيقونة المتجر", "Public browser favicon URL.", "رابط أيقونة المتجر في المتصفح.", { isPublic: true }],
   ["storefront.contact_phone", "storefront", "text", "", "Contact phone", "رقم الهاتف", "Primary public contact phone shown to customers.", "رقم الهاتف الأساسي الظاهر للعملاء.", { isPublic: true, validation: { maxLength: 64 } }],
