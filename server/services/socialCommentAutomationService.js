@@ -16,6 +16,7 @@ import { collectDirectLinkIdentity, getMappings } from "./postProductMappingServ
 import { migrateCanonicalSocialPostRecords, resolveSocialPostCanonicalIdentity } from "./socialPostIdentityService.js";
 import { resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import { getPublicAppUrl } from "../utils/publicUrl.js";
+import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
 import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
@@ -669,6 +670,47 @@ const dedupeTextList = (value = []) =>
     .filter((item, index, array) => array.indexOf(item) === index);
 
 const firstNonEmptyText = (...values) => values.map((value) => text(value)).find(Boolean) || "";
+const resolveAutomationDisplayPriceContext = async ({ tenantId = null, productContext = {}, row = {} } = {}) => {
+  const safeContext = metadataObject(productContext || {});
+  const primaryProduct = metadataObject(safeContext.primary_product || {});
+  const mappedProducts = asArray(safeContext.mapped_products || []);
+  const hasPriceLookupSignal = Boolean(
+    safeContext.product_id ||
+    primaryProduct.product_id ||
+    primaryProduct.id ||
+    row.product_id ||
+    safeContext.price ||
+    safeContext.selling_price ||
+    safeContext.sale_price ||
+    primaryProduct.price ||
+    primaryProduct.selling_price ||
+    primaryProduct.sale_price
+  );
+  if (!hasPriceLookupSignal) return safeContext;
+  const resolution = await resolveSocialProductDisplayPrice({
+    tenantId,
+    product: primaryProduct,
+    productContext: safeContext,
+    linkedProduct: mappedProducts[0] || {},
+    variants: asArray(safeContext.available_variants || safeContext.variants || []),
+    availableVariants: asArray(safeContext.available_variants || safeContext.variants || []),
+    context: {
+      product_id: safeContext.product_id || primaryProduct.product_id || primaryProduct.id || row.product_id || null,
+      product_name: safeContext.product_name || primaryProduct.product_name || primaryProduct.name || row.product_name || "",
+    },
+    callsite: "socialCommentAutomationService.resolveAutomationDisplayPriceContext",
+  }).catch(() => null);
+  const selectedPrice = text(resolution?.selected_display_price || "");
+  if (!selectedPrice) return safeContext;
+  return {
+    ...safeContext,
+    price: selectedPrice,
+    final_price: selectedPrice,
+    selected_display_price: selectedPrice,
+    selected_price_source: text(resolution?.selected_field || ""),
+    sale_mode_enabled: Boolean(resolution?.sale_mode_enabled),
+  };
+};
 const resolveProductPriceFields = (row = {}) => {
   const price = firstNonEmptyText(row.product_price, row.product_selling_price, row.product_sale_price);
   const finalPrice = firstNonEmptyText(row.product_sale_price, row.product_selling_price, row.product_price);
@@ -2951,7 +2993,12 @@ const executeSocialCommentAutomationRuntime = async ({
       reason: text(productContext?.sibling_match_reason || productContext?.reason || ""),
     });
   }
-  const effectiveProductContext = Boolean(productContext?.found) ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
+  const baseProductContext = Boolean(productContext?.found) ? productContext : buildFallbackSocialCommentProductContext({ row: safeRow });
+  const effectiveProductContext = await resolveAutomationDisplayPriceContext({
+    tenantId: safeTenantId,
+    productContext: baseProductContext,
+    row: safeRow,
+  });
   aiPhaseTimings.product_context_lookup_completed_at = new Date().toISOString();
   if (!hasProductContext) {
     console.log("SOCIAL_COMMENT_PRODUCT_RESOLUTION_PATH", buildSocialCommentProductResolutionPathPayload({
@@ -3128,9 +3175,9 @@ const executeSocialCommentAutomationRuntime = async ({
     });
   }
   const effectiveRenderedPublicReply = text(
-    hasProductContext && isGenericSocialCommentPublicReply(initialRenderedPublicReply) && productAwarePublicReply
-      ? productAwarePublicReply
-      : initialRenderedPublicReply
+    publicReplyTemplate
+      ? renderedPublicReply
+      : (hasProductContext && productAwarePublicReply ? productAwarePublicReply : initialRenderedPublicReply)
   );
   console.log("SOCIAL_COMMENT_PUBLIC_REPLY_TRANSFORM_TRACE", {
     tenant_id: safeTenantId,
@@ -6459,12 +6506,17 @@ export const executeSocialCommentAutomation = async ({
     productContext: trace.productContext || null,
     customerName: trace.customerName || "",
   }));
-  const resolvedProductContext = metadataObject(
+  const rawResolvedProductContext = metadataObject(
     safeRow.product_context ||
     safeRow.raw_payload?.product_context ||
     safeRow.metadata?.product_context ||
     {}
   );
+  const resolvedProductContext = await resolveAutomationDisplayPriceContext({
+    tenantId: safeTenantId,
+    productContext: rawResolvedProductContext,
+    row: safeRow,
+  });
   const hasProductContext = hasLinkedProductForAutomation({ row: safeRow, productContext: resolvedProductContext });
   const websiteLinks = {
     product_link: text(
@@ -6511,10 +6563,11 @@ export const executeSocialCommentAutomation = async ({
       commentText: safeRow.original_comment_text || safeRow.comment_text || "",
     }).intent,
   });
+  const configuredPublicReplyTemplate = text(decision.automationSettings?.public_reply_template || "");
   const effectiveRenderedPublicReply = text(
-    hasProductContext && isGenericSocialCommentPublicReply(renderedPublicReply) && productAwarePublicReply
-      ? productAwarePublicReply
-      : renderedPublicReply
+    configuredPublicReplyTemplate
+      ? renderedPublicReply
+      : (hasProductContext && productAwarePublicReply ? productAwarePublicReply : renderedPublicReply)
   );
   const publicReplyText = text(
     effectiveRenderedPublicReply ||

@@ -109,7 +109,7 @@ import {
 
 const GRAPH_VERSION = process.env.META_GRAPH_VERSION || "v20.0";
 const GRAPH_BASE_URL = `https://graph.facebook.com/${GRAPH_VERSION}`;
-const META_COMMENTS_POLL_INTERVAL_MS = Math.max(1, Number.parseInt(process.env.META_POLLING_INTERVAL_MINUTES || "15", 10) || 15) * 60 * 1000;
+const META_COMMENTS_POLL_INTERVAL_MS = Math.max(1, Number.parseInt(process.env.META_POLLING_INTERVAL_MINUTES || "1", 10) || 1) * 60 * 1000;
 const META_OAUTH_SCOPES = [
   "pages_show_list",
   "pages_read_engagement",
@@ -143,7 +143,7 @@ const META_WEBHOOK_REQUIRED_FIELDS = META_WEBHOOK_MINIMAL_FIELDS;
 const META_FULLY_CONNECTED_STATUS = "fully_connected";
 const META_POLLING_DEFAULT_ENABLED = true;
 const META_POLLING_DEFAULT_MODE = "recovery_only";
-const META_POLLING_DEFAULT_INTERVAL_MINUTES = 15;
+const META_POLLING_DEFAULT_INTERVAL_MINUTES = 1;
 const META_POLLING_DEFAULT_BACKOFF_MINUTES = 30;
 const META_WEBHOOK_DEFAULT_RECENT_WINDOW_MINUTES = 10;
 const protectedV2ProductIntent = (detectedIntent = "") => /^(product_search|more_images|product_presentation|size_followup|SIZE_FOLLOWUP|color_followup|COLOR_AVAILABILITY_FROM_SIZE|color_selected|COLOR_SELECTED|post_product_size_selected|POST_PRODUCT_SIZE_SELECTED|post_product_color_list|POST_PRODUCT_COLOR_LIST|post_product_color_selected|POST_PRODUCT_COLOR_SELECTED|post_product_order_confirmation|POST_PRODUCT_ORDER_CONFIRMATION)$/i.test(text(detectedIntent));

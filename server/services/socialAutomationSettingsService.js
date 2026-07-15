@@ -246,6 +246,22 @@ export async function updateSocialAutomationSettings(tenantId, patch = {}) {
       ]
     );
     const settings = rowToSettings(result.rows[0] || next);
+    if (Object.prototype.hasOwnProperty.call(patch, "public_reply_template")) {
+      await db.query(
+        `
+        UPDATE social_auto_reply_settings
+        SET generic_template = $2::text,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = $1::bigint
+        `,
+        [Math.trunc(safeTenantId), settings.public_reply_template]
+      ).catch((syncError) => {
+        console.warn("[social-automation-settings] global public template sync failed", {
+          tenant_id: safeTenantId,
+          message: syncError?.message || "Unknown error",
+        });
+      });
+    }
     fallbackSettings = settings;
     return settings;
   } catch (error) {

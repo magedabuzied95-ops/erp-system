@@ -232,8 +232,18 @@ const traceCandidateList = (candidates = []) =>
     variant_id: candidate.variant_id,
   }));
 
-const selectPositiveSocialPriceCandidate = (candidates = []) =>
-  candidates.find((candidate) => candidate.normalized_value !== null) || null;
+export const selectPreferredSocialPriceCandidate = ({ candidates = [], saleModeEnabled = false } = {}) => {
+  const preferredFields = saleModeEnabled
+    ? ["sale_price", "selling_price", "price"]
+    : ["selling_price", "price"];
+  for (const field of preferredFields) {
+    const match = candidates.find(
+      (candidate) => candidate?.field === field && candidate.normalized_value !== null
+    );
+    if (match) return match;
+  }
+  return null;
+};
 
 const formatSelectedSocialPriceField = (candidate = null) => {
   if (!candidate?.source || !candidate?.field) return "";
@@ -313,12 +323,14 @@ export const resolveSocialProductDisplayPrice = async ({
     ...collectVariantPriceCandidates({ source: "variants", variants }),
     ...collectVariantPriceCandidates({ source: "available_variants", variants: availableVariants }),
   ];
-  const activePriceCandidates = (candidates = []) =>
-    candidates.filter((candidate) => saleModeEnabled || candidate.field !== "sale_price");
-  let selectedCandidate = selectPositiveSocialPriceCandidate(activePriceCandidates([
+  const selectCandidate = (candidates = []) => selectPreferredSocialPriceCandidate({
+    candidates,
+    saleModeEnabled,
+  });
+  let selectedCandidate = selectCandidate([
     ...primarySourceCandidates,
     ...variantSourceCandidates,
-  ]));
+  ]);
 
   let dbFallback = { product: null, variants: [] };
   let dbProductCandidates = [];
@@ -328,10 +340,10 @@ export const resolveSocialProductDisplayPrice = async ({
     dbFallback = await loadSocialProductPriceDbFallback({ tenantId, productId });
     dbProductCandidates = collectObjectPriceCandidates({ source: "products", entity: dbFallback.product });
     dbVariantCandidates = collectVariantPriceCandidates({ source: "product_variants_db", variants: dbFallback.variants });
-    selectedCandidate = selectPositiveSocialPriceCandidate(activePriceCandidates([
+    selectedCandidate = selectCandidate([
       ...dbProductCandidates,
       ...dbVariantCandidates,
-    ]));
+    ]);
     if (selectedCandidate) {
       console.log("SOCIAL_COMMENT_PRICE_DB_FALLBACK_USED", {
         product_id: productId,

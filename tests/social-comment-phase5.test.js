@@ -44,6 +44,7 @@ test("high-confidence lead_price triggers automation when flags ON", async () =>
   let likeCalls = 0;
   let publicReplyCalls = 0;
   let privateMessageCalls = 0;
+  let publicReplyMessage = "";
   const transcriptRows = [];
   const persistedRows = [];
 
@@ -58,8 +59,9 @@ test("high-confidence lead_price triggers automation when flags ON", async () =>
         likeCalls += 1;
         return { id: "like-1" };
       },
-      replyToCommentFn: async () => {
+      replyToCommentFn: async (_platform, _commentId, message) => {
         publicReplyCalls += 1;
+        publicReplyMessage = message;
         return { id: "reply-1" };
       },
       sendPrivateReplyFn: async () => {
@@ -89,6 +91,7 @@ test("high-confidence lead_price triggers automation when flags ON", async () =>
   assert.equal(likeCalls, 1);
   assert.equal(publicReplyCalls, 1);
   assert.equal(privateMessageCalls, 1);
+  assert.equal(publicReplyMessage, enabledSettings.public_reply_template.trim());
   assert.equal(result.status, "completed");
   assert.equal(result.like_status, "sent");
   assert.equal(result.public_reply_status, "sent");
