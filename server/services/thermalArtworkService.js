@@ -7,6 +7,7 @@ import { Buffer } from "node:buffer";
 import sharp from "sharp";
 
 import db from "../database/db.js";
+import { thermalOpenAiApiKey } from "./openaiCredentials.js";
 
 const THERMAL_IMAGE_DIR = path.resolve(process.cwd(), "uploads", "products", "thermal");
 const THERMAL_IMAGE_PUBLIC_PREFIX = "/uploads/products/thermal";
@@ -201,7 +202,7 @@ const cloudinaryConfig = () => ({
 const getClient = () => {
   if (!openaiClient) {
     openaiClient = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: thermalOpenAiApiKey(),
       maxRetries: 0,
       timeout: positiveNumber(process.env.OPENAI_THERMAL_ARTWORK_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     });
@@ -697,7 +698,7 @@ export const regenerateThermalImageForProductImage = async (options = {}) => {
     const startedAt = Date.now();
     const client = getClient();
     console.log({
-      hasKey: Boolean(process.env.OPENAI_API_KEY),
+      hasKey: Boolean(thermalOpenAiApiKey()),
       sameClient: client === openaiClient,
     });
     const model = DEFAULT_MODEL;

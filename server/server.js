@@ -79,7 +79,12 @@ console.log("[meta-setup] status", metaSetupStatus);
 if (Object.values(metaSetupStatus).includes("missing")) {
   console.warn("[meta-setup] Meta OAuth is not fully configured. Set missing env vars before testing Connect Meta.");
 }
-console.log("[env] OPENAI_API_KEY loaded:", Boolean(process.env.OPENAI_API_KEY));
+console.log("[env] OpenAI credentials loaded:", {
+  agent: Boolean(process.env.OPENAI_AGENT_API_KEY || process.env.OPENAI_API_KEY),
+  thermal: Boolean(process.env.OPENAI_THERMAL_API_KEY || process.env.OPENAI_API_KEY),
+  agent_dedicated: Boolean(process.env.OPENAI_AGENT_API_KEY),
+  thermal_dedicated: Boolean(process.env.OPENAI_THERMAL_API_KEY),
+});
 logEmployeePushVapidCheck();
 console.log("[env] AI support OpenAI config:", {
   ai_support_enabled: process.env.AI_SUPPORT_ENABLED ?? "",

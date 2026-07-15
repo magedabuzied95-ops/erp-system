@@ -1,5 +1,6 @@
 import { resolveCustomerDisplayPrice } from '../utils/customerDisplayPrice.js';
 import OpenAI from 'openai';
+import { agentOpenAiApiKey } from './openaiCredentials.js';
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 const DEFAULT_VISION_FALLBACK_MODEL = "gpt-4o";
@@ -62,7 +63,7 @@ const safeJsonParse = (value) => {
   }
 };
 
-const openAiConfigured = () => Boolean(toText(process.env.OPENAI_API_KEY));
+const openAiConfigured = () => Boolean(agentOpenAiApiKey());
 
 const textGenerationEnabled = () => envFlagEnabled(process.env.AI_SUPPORT_ENABLED) && openAiConfigured();
 
@@ -159,7 +160,7 @@ const serializeContext = (trustedContext = {}) => {
 const getClient = () => {
   if (!openaiClient) {
     openaiClient = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: agentOpenAiApiKey(),
       maxRetries: 0,
       timeout: positiveNumber(process.env.AI_SUPPORT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     });
@@ -536,7 +537,7 @@ export const understandProductImageForSearch = async ({ imageBuffer, mimeType, i
   }
 
   if (!visionEnabled()) {
-    const disabledReason = openAiConfigured() ? "vision_disabled_by_AI_SUPPORT_VISION_ENABLED" : "missing_OPENAI_API_KEY";
+    const disabledReason = openAiConfigured() ? "vision_disabled_by_AI_SUPPORT_VISION_ENABLED" : "missing_OPENAI_AGENT_API_KEY";
     const exactError = {
       message: disabledReason,
       code: disabledReason,
