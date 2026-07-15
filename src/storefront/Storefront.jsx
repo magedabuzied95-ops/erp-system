@@ -4283,7 +4283,6 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
   const [recentSearches, setRecentSearches] = useState(() => readJson(SEARCH_RECENT_KEY, []));
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1);
   const [isCompact, setIsCompact] = useState(false);
-  const [announcementIndex, setAnnouncementIndex] = useState(0);
   const visualPreviewUrlRef = useRef("");
   const selectedVisualImageRef = useRef(null);
   const navigate = useNavigate();
@@ -4306,10 +4305,6 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
     return Tag;
   };
   const mobileCategoryChips = [
-    { key: "men", label: "رجالي", to: "/products?gender=men", active: location.pathname === "/products" && new URLSearchParams(location.search).get("gender") === "men" },
-    { key: "women", label: "حريمي", to: "/products?gender=women", active: location.pathname === "/products" && new URLSearchParams(location.search).get("gender") === "women" },
-    { key: "kids", label: "أطفال", to: "/products?gender=kids", active: location.pathname === "/products" && new URLSearchParams(location.search).get("gender") === "kids" },
-    { key: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/products?type=bags", active: location.pathname === "/products" && new URLSearchParams(location.search).get("type") === "bags" },
     { key: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/products?type=crocs", active: location.pathname === "/products" && new URLSearchParams(location.search).get("type") === "crocs" },
   ];
   const searchPlaceholders = getSearchPlaceholders();
@@ -4409,14 +4404,6 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
     }, 2600);
     return () => window.clearInterval(timer);
   }, [searchPlaceholders.length]);
-
-  useEffect(() => {
-    if (!announcementItems.length) return undefined;
-    const timer = window.setInterval(() => {
-      setAnnouncementIndex((current) => (current + 1) % announcementItems.length);
-    }, 4200);
-    return () => window.clearInterval(timer);
-  }, [announcementItems.length]);
 
   useEffect(() => () => {
     if (visualPreviewUrlRef.current) URL.revokeObjectURL(visualPreviewUrlRef.current);
@@ -4675,11 +4662,19 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
       className={headerShellClassName}
     >
       <div className={`${isCheckoutMobile ? "hidden md:block" : ""} sf-announcement-row sf-header-announcement overflow-hidden text-white/90 backdrop-blur transition-all duration-300`}>
-        <div className="mx-auto flex h-8 w-full max-w-7xl items-center justify-center px-4 md:h-10">
-          <span key={announcementIndex} className="inline-flex w-full items-center justify-center gap-2 text-center text-[10px] font-bold tracking-[0.04em] text-stone-100/88 animate-[sfFadeUp_420ms_ease-out_both] md:text-[12px] md:tracking-wide">
-            <Sparkles className="sf-header-announcement-icon h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            {announcementItems[announcementIndex] || announcementItems[0]}
-          </span>
+        <div className="relative mx-auto h-8 w-full max-w-7xl overflow-hidden md:h-10">
+          <div className="sf-announcement-track sf-announcement-track-ltr absolute inset-y-0 left-0 items-center">
+            {[0, 1].map((copyIndex) => (
+              <span key={copyIndex} className="inline-flex shrink-0 items-center gap-10 pe-10">
+                {announcementItems.map((announcement, itemIndex) => (
+                  <span key={`${copyIndex}-${itemIndex}`} dir="auto" className="inline-flex shrink-0 items-center gap-2 text-[10px] font-bold tracking-[0.04em] text-stone-100/88 md:text-[12px] md:tracking-wide">
+                    <Sparkles className="sf-header-announcement-icon h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                    {announcement}
+                  </span>
+                ))}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
       <div className="sf-mobile-header-shell md:hidden" dir="rtl">
