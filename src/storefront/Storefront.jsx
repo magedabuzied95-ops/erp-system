@@ -9038,11 +9038,11 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
     { id: "slippers", label: getProductTypeLabel("slippers", currentLanguage), to: "/products?type=slippers", icon: SlidersHorizontal },
   ];
   const links = [
-    { id: "home", to: "/", label: "الرئيسية", icon: Home },
-    { id: "categories", label: "الأقسام", icon: Grid2x2, action: "categories" },
-    { id: "sale", to: saleHref, label: "العروض", icon: Tag },
+    { id: "home", to: "/", label: "الرئيسية", icon: ShoppingBag },
+    { id: "categories", label: "الأقسام", icon: Footprints, action: "categories" },
+    { id: "sale", to: saleHref, label: "العروض", icon: BadgePercent },
     { id: "wishlist", to: "/wishlist", label: "المفضلة", icon: Heart },
-    { id: "account", to: "/account", label: "حسابي", icon: User },
+    { id: "account", to: "/account", label: "حسابي", icon: UserRound },
   ];
   const isActive = (item) => {
     if (item.id === "home") return isStorefrontHomePath(path);
@@ -9113,34 +9113,24 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
         dir="rtl"
         className="sf-mobile-bottom-nav fixed left-1/2 z-[110] md:hidden"
         style={{ bottom: "calc(10px + env(safe-area-inset-bottom))", width: "calc(100% - 24px)", transform: "translateX(-50%)" }}
+        data-theme={isDarkMode ? "dark" : "light"}
         aria-label={sfText("storefront.nav.mobileNavigation")}
       >
         <div className="mx-auto">
-          <div className={[
-            "flex h-[calc(var(--mobile-bottom-nav-height,58px))] items-center justify-evenly overflow-hidden rounded-[999px] px-2",
-            isDarkMode
-              ? "border border-white/10 bg-[linear-gradient(180deg,rgba(5,5,5,0.94),rgba(10,10,10,0.96))] backdrop-blur-[20px] shadow-[0_-18px_40px_rgba(0,0,0,0.45)]"
-              : "border border-stone-200/80 bg-[rgba(255,255,255,0.94)] backdrop-blur-[22px] shadow-[0_-16px_34px_rgba(15,23,42,0.14)] [height:calc(var(--mobile-bottom-nav-height,61px))]",
-          ].join(" ")}>
+          <div className="sf-mobile-bottom-nav__surface flex items-center justify-evenly overflow-hidden rounded-[1.45rem] px-1.5">
             {links.map((item) => {
               const active = isActive(item);
               const Icon = item.icon;
-              const isSale = item.id === "sale";
               const baseClass = [
-                "group flex h-full min-w-0 flex-col items-center justify-center gap-[3px] rounded-full px-1.5 text-[9px] leading-none transition duration-200 ease-out active:scale-[0.98]",
-                active
-                  ? "scale-[1.05] border border-[var(--sf-purple)]/25 bg-[rgba(212,175,55,0.12)] text-[var(--sf-purple)]"
-                  : isDarkMode
-                    ? "opacity-75 text-white/90 hover:opacity-90"
-                    : "text-stone-600 hover:text-stone-950",
+                "sf-mobile-bottom-nav__item group relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[1.05rem] px-1 text-[9px] leading-none transition duration-200 ease-out active:scale-[0.96]",
+                active ? "is-active" : "",
               ].join(" ");
-              const iconClass = "h-[22px] w-[22px]";
               const content = (
                 <>
-                  <span className={iconClass}>
-                    <Icon className="h-[22px] w-[22px]" strokeWidth={2.1} />
+                  <span className="sf-mobile-bottom-nav__icon grid h-8 w-8 place-items-center rounded-xl transition duration-200">
+                    <Icon className="h-[20px] w-[20px]" strokeWidth={1.85} />
                   </span>
-                  <span className={`max-w-full min-w-[2.8rem] truncate text-center font-semibold ${isSale ? "text-[10px]" : "text-[9px]"} ${active ? "opacity-100" : isDarkMode ? "opacity-75" : "opacity-90"}`}>{item.label}</span>
+                  <span className="sf-mobile-bottom-nav__label max-w-full min-w-[2.7rem] truncate text-center text-[9px] font-bold">{item.label}</span>
                 </>
               );
               if (item.action === "categories") {
