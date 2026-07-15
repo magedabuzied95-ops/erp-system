@@ -2557,9 +2557,12 @@ function PremiumHomePage(props) {
         if (definition.id === "offers") return isOfferStory(product);
         return definition.test(product, productSearchText(product));
       });
-      const match = matchingProducts.find((product) => homeProductWithImage(product)) || matchingProducts[0];
+      const offerVisualProduct = definition.id === "offers"
+        ? saleProducts.find((product) => isAvailableProduct(product) && homeProductWithImage(product))
+        : null;
+      const match = matchingProducts.find((product) => homeProductWithImage(product)) || offerVisualProduct || matchingProducts[0];
       const matchSlide = match ? homeProductWithImage(match) : null;
-      const totalMatches = matchingProducts.length;
+      const totalMatches = definition.id === "offers" ? Math.max(matchingProducts.length, saleProducts.length) : matchingProducts.length;
       return {
         ...definition,
         title: isRtl ? definition.titleAr : definition.titleEn,
@@ -2577,7 +2580,7 @@ function PremiumHomePage(props) {
         count: totalMatches,
       };
     });
-  }, [homepageProductPool, isRtl]);
+  }, [homepageProductPool, isRtl, saleProducts]);
   const visibleBrands = useMemo(() => (Array.isArray(brands) ? brands : []).filter((brand) => brand?.id && brand?.name && brand?.logo_url), [brands]);
   const homeSections = useMemo(() => {
     const used = new Set();
