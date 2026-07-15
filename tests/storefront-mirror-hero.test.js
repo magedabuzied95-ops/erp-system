@@ -40,4 +40,5 @@ test("home hero requests and prioritizes Mirror Original products", async () => 
   assert.match(stylesheet, /prefers-reduced-motion: reduce[\s\S]*?\.sf-home-hero-v2 \.sf-hero-image-transition/);
   assert.match(source, /fetchPriority="high"/);
   assert.doesNotMatch(source, /bottom-\[8\.75rem\]/);
+  assert.match(source, /data-testid="mirror-hero-copy" className="order-2 hidden[^"]*lg:flex/);
 });

@@ -2765,7 +2765,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
         <div className="pointer-events-none absolute inset-0" style={{ background: themeTokens.heroGlow }} />
         <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full border border-[#b4860b]/10" />
         <div className="relative grid items-stretch gap-0 lg:grid-cols-[1.02fr_0.98fr]">
-          <div className="order-2 flex min-w-0 flex-col justify-center px-5 pb-7 pt-5 text-start sm:px-7 md:px-10 md:pb-10 lg:order-1 lg:px-14 lg:py-14 xl:px-16">
+          <div data-testid="mirror-hero-copy" className="order-2 hidden min-w-0 flex-col justify-center px-5 pb-7 pt-5 text-start sm:px-7 md:px-10 md:pb-10 lg:order-1 lg:flex lg:px-14 lg:py-14 xl:px-16">
             <div className="inline-flex w-fit items-center gap-2 rounded-full border border-[#b4860b]/20 bg-[#fff7df]/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.14em] text-[#8a6508] shadow-sm md:px-4 md:py-2 md:text-xs">
               <Sparkles className="h-3.5 w-3.5" />
               {heroCopy.badge || (isRtl ? "مختارات M1 Store" : "Curated by M1 Store")}
