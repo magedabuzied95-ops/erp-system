@@ -10,7 +10,7 @@ test("storefront header supports a dedicated transparent wordmark", () => {
   assert.match(settingsRegistrySource, /"storefront\.header_logo_url"[\s\S]*?isPublic: true/);
   assert.match(storefrontSource, /headerLogoUrl=\{storefrontBrandSettings\.headerLogoUrl\}/);
   assert.match(storefrontSource, /h-\[72px\] w-\[82px\][\s\S]*?object-contain/);
-  assert.match(storefrontSource, /effectiveTheme === "dark" \? "white" : "dark"/);
+  assert.match(storefrontSource, /const mOneHeaderLogoVariant = "white"/);
   assert.match(storefrontSource, /sf-header-logo-moving-m/);
   assert.doesNotMatch(storefrontSource, /headerLogoUrl \|\| brandLogoUrl[\s\S]{0,500}clipPath: "circle/);
 });

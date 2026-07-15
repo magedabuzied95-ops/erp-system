@@ -4314,7 +4314,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
   const resolvedHeaderLogoUrl = resolveProductImageUrl(preferredHeaderLogoUrl);
   const mOneHeaderLogoPattern = /\/branding\/m-one-wordmark-(?:orange|white|dark)\.png/;
   const isMOneHeaderLogo = mOneHeaderLogoPattern.test(resolvedHeaderLogoUrl);
-  const mOneHeaderLogoVariant = effectiveTheme === "dark" ? "white" : "dark";
+  const mOneHeaderLogoVariant = "white";
   const displayedHeaderLogoUrl = isMOneHeaderLogo
     ? `${resolvedHeaderLogoUrl.split("?")[0].replace(mOneHeaderLogoPattern, `/branding/m-one-wordmark-${mOneHeaderLogoVariant}.png`)}?v=20220228`
     : resolvedHeaderLogoUrl;
