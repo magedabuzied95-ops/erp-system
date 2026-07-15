@@ -4252,8 +4252,9 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
 function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
   const preferredHeaderLogoUrl = headerLogoUrl || brandLogoUrl;
   const resolvedHeaderLogoUrl = resolveProductImageUrl(preferredHeaderLogoUrl);
-  const displayedHeaderLogoUrl = resolvedHeaderLogoUrl.includes("/branding/m-one-wordmark-orange.png")
-    ? `${resolvedHeaderLogoUrl.split("?")[0]}?v=20220228`
+  const mOneHeaderLogoPattern = /\/branding\/m-one-wordmark-(?:orange|white|dark)\.png/;
+  const displayedHeaderLogoUrl = mOneHeaderLogoPattern.test(resolvedHeaderLogoUrl)
+    ? `${resolvedHeaderLogoUrl.split("?")[0].replace(mOneHeaderLogoPattern, `/branding/m-one-wordmark-${effectiveTheme === "dark" ? "white" : "dark"}.png`)}?v=20220228`
     : resolvedHeaderLogoUrl;
   const { i18n: storefrontI18n, t } = useTranslation();
   const brandInitials = resolveBrandInitials(brandName);
