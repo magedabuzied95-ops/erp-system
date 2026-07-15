@@ -8,12 +8,17 @@ export const slugifyEdition = (value = "") =>
 export const isMirrorProduct = (product) => {
   if (!product) return false;
 
+  if (product.is_mirror === true || String(product.is_mirror || "").toLowerCase() === "true") return true;
+
+  const grade = String(product.grade || "").toLowerCase();
   const gradeSlug = String(product.grade_slug || product.gradeSlug || "").toLowerCase();
   const gradeName = String(product.grade_name || product.gradeName || "").toLowerCase();
   const categorySlug = String(product.category_slug || product.categorySlug || "").toLowerCase();
   const categoryName = String(product.category_name || product.categoryName || "").toLowerCase();
 
   return (
+    grade.includes("mirror") ||
+    grade.includes("ميرور") ||
     gradeSlug.includes("mirror") ||
     gradeName.includes("mirror") ||
     categorySlug.includes("mirror") ||
