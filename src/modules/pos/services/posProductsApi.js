@@ -1,6 +1,7 @@
 import { getProductsWithVariants } from "../../products/services/productsApi";
 import { resolveProductImageUrl as resolvePosImageUrl } from "../../../shared/lib/imageUrls";
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
+import { inferPosAudienceFromProduct } from "../lib/posAudience";
 
 const unwrapArray = (payload) => {
   const value =
@@ -161,7 +162,16 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     sourceProduct.manufacturer_id ??
     sourceProduct.variant_manufacturer_id ??
     null;
-  const audience = normalizeText(row.audience ?? row.variant_audience ?? row.gender);
+  const audience =
+    normalizeText(row.audience ?? row.variant_audience ?? row.gender) ||
+    inferPosAudienceFromProduct(
+      sourceProduct.name,
+      sourceProduct.product_name,
+      sourceProduct.sku,
+      row.name,
+      row.product_name,
+      row.sku
+    );
   return {
     id: variantId ?? `product:${productId}`,
     product_id: productId,
