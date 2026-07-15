@@ -7,7 +7,6 @@ import {
   Clock3,
   ImageIcon,
   MessageCircle,
-  MessageSquareReply,
   Plus,
   RefreshCw,
   Save,
@@ -38,32 +37,7 @@ import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
 const suggestedKeywords = ["بكام", "السعر", "متاح", "مقاس", "لون", "شحن", "price", "available"];
 const defaultKeywords = ["بكام", "السعر", "سعر", "كام", "price", "available", "متاح", "مقاس"];
 
-const tonePresets = [
-  {
-    id: "friendly",
-    labelKey: "marketing.automation.tones.friendly",
-    public_reply_template: "تم الرد على حضرتك في الرسائل ❤️",
-    private_reply_template: "أهلاً بحضرتك ❤️\nالموديل {{product_name}} سعره: {{price}} ج.م\n\nالمتاح حاليًا:\n{{variants}}\n\nتحب أأكد لحضرتك المقاس واللون؟",
-  },
-  {
-    id: "luxury",
-    labelKey: "marketing.automation.tones.luxury",
-    public_reply_template: "بعتنالك التفاصيل في الرسائل ✨",
-    private_reply_template: "أهلاً بحضرتك ✨\n{{product_name}} من {{brand}}\nالسعر: {{price}} ج.م\n\nالمتاح الآن:\n{{variants}}\n\nيسعدنا نجهز طلبك بأفضل اختيار مناسب.",
-  },
-  {
-    id: "casual",
-    labelKey: "marketing.automation.tones.casual",
-    public_reply_template: "بعتنالك السعر والتفاصيل DM 😊",
-    private_reply_template: "هاي 👋\n{{product_name}} سعره {{price}} ج.م\n\nالمتاح:\n{{variants}}\n\nتحب انهي لون ومقاس؟",
-  },
-  {
-    id: "fast",
-    labelKey: "marketing.automation.tones.fastSales",
-    public_reply_template: "ردينا عليك في الرسائل، الحق المتاح 🔥",
-    private_reply_template: "{{product_name}}\nالسعر: {{price}} ج.م\nالمتاح:\n{{variants}}\n\nابعت المقاس واللون ونأكدلك الطلب فورًا.",
-  },
-];
+const DEFAULT_PRIVATE_REPLY_TEMPLATE = "أهلاً بحضرتك ❤️\nالموديل {{product_name}} سعره: {{price}} ج.م\n\nالمتاح حاليًا:\n{{variants}}\n\nتحب أأكد لحضرتك المقاس واللون؟";
 
 const blankRule = {
   platform: "facebook",
@@ -71,10 +45,10 @@ const blankRule = {
   name: "Price & availability auto reply",
   keywords: defaultKeywords,
   match_mode: "any",
-  public_reply_template: tonePresets[0].public_reply_template,
-  private_reply_template: tonePresets[0].private_reply_template,
+  public_reply_template: "",
+  private_reply_template: DEFAULT_PRIVATE_REPLY_TEMPLATE,
   like_comment: true,
-  reply_publicly: true,
+  reply_publicly: false,
   send_private_reply: true,
 };
 
@@ -221,7 +195,6 @@ export default function MarketingAutomation() {
   const [sampleComment, setSampleComment] = useState("بكام ومتاح مقاس 42؟");
   const [form, setForm] = useState(blankRule);
 
-  const deferredPublicTemplate = useDeferredValue(form.public_reply_template);
   const deferredPrivateTemplate = useDeferredValue(form.private_reply_template);
 
   const selectedProduct = useMemo(
@@ -229,7 +202,6 @@ export default function MarketingAutomation() {
     [products, selectedProductId]
   );
   const previewContext = useMemo(() => productContext(selectedProduct), [selectedProduct]);
-  const publicPreview = useMemo(() => renderTemplate(deferredPublicTemplate, previewContext), [deferredPublicTemplate, previewContext]);
   const privatePreview = useMemo(() => renderTemplate(deferredPrivateTemplate, previewContext), [deferredPrivateTemplate, previewContext]);
   const webhookPayloadPreview = useMemo(() => {
     if (!webhookStatus?.recent_payload_preview) return t("marketing.automation.noPayload");
@@ -315,6 +287,8 @@ export default function MarketingAutomation() {
       const payload = {
         ...form,
         keywords: form.keywords || [],
+        reply_publicly: false,
+        public_reply_template: "",
       };
       const saved = selectedRuleId ? await updateAutoReplyRule(selectedRuleId, payload) : await createAutoReplyRule(payload);
       toast.success(selectedRuleId ? t("marketing.automation.updated") : t("marketing.automation.created"));
@@ -326,14 +300,6 @@ export default function MarketingAutomation() {
     } finally {
       setSaving(false);
     }
-  };
-
-  const applyTone = (preset) => {
-    setForm((current) => ({
-      ...current,
-      public_reply_template: preset.public_reply_template,
-      private_reply_template: preset.private_reply_template,
-    }));
   };
 
   const simulateComment = async () => {
@@ -506,18 +472,6 @@ export default function MarketingAutomation() {
 
             <section className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="text-sm font-bold">{t("marketing.automation.publicReplyTone")}</div>
-                <div className="flex flex-wrap gap-2">
-                  {tonePresets.map((preset) => (
-                    <button key={preset.id} type="button" onClick={() => applyTone(preset)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-cyan-300/40 hover:text-white">{t(preset.labelKey)}</button>
-                  ))}
-                </div>
-              </div>
-              <textarea rows={3} value={form.public_reply_template} onChange={(event) => setForm((current) => ({ ...current, public_reply_template: event.target.value }))} className="w-full resize-y rounded-xl border border-white/10 bg-slate-950/80 px-3 py-2 text-sm leading-6 outline-none" />
-            </section>
-
-            <section className="rounded-xl border border-white/10 bg-slate-950/50 p-3">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <div className="text-sm font-bold">{t("marketing.automation.privateDmTemplate")}</div>
                   <div className="mt-1 flex flex-wrap gap-1.5 text-[11px] text-slate-400">
@@ -525,7 +479,7 @@ export default function MarketingAutomation() {
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-3 text-xs text-slate-300">
-                  {["like_comment", "reply_publicly", "send_private_reply"].map((key) => (
+                  {["like_comment", "send_private_reply"].map((key) => (
                     <label key={key} className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1.5">
                       <input type="checkbox" checked={Boolean(form[key])} onChange={(event) => setForm((current) => ({ ...current, [key]: event.target.checked }))} />
                       {t(`marketing.automation.actions.${key}`)}
@@ -629,11 +583,6 @@ export default function MarketingAutomation() {
                   <div className="flex flex-wrap gap-1.5">{previewContext.colors.slice(0, 6).map((color) => <span key={color} className="rounded-full bg-white/8 px-2 py-1">{color}</span>)}</div>
                   <div className="flex flex-wrap gap-1.5">{previewContext.sizes.slice(0, 8).map((size) => <span key={size} className="rounded-full border border-white/10 px-2 py-1">{size}</span>)}</div>
                 </div>
-              </div>
-
-              <div className="mt-3 rounded-xl border border-white/10 bg-slate-950/70 p-3">
-                <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><MessageSquareReply className="h-4 w-4 text-cyan-300" /> {t("marketing.automation.preview.publicComment")}</div>
-                <p className="whitespace-pre-wrap text-sm leading-6 text-slate-100">{publicPreview}</p>
               </div>
 
               <div className="mt-3 rounded-xl border border-emerald-400/20 bg-[#0b1411] p-3">

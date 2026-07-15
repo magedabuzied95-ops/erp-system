@@ -1,7 +1,7 @@
 import db from "../database/db.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
 import { ensureAiSupportLogSchema } from "./aiSupportLogService.js";
-import { likeComment, replyToComment, renderTemplate } from "./marketingCommentAutomationService.js";
+import { likeComment } from "./marketingCommentAutomationService.js";
 import { getPostProductLinksV2 } from "./socialPostProductLinksV2Service.js";
 import {
   ensureSocialPostIdentityAliasSchema,
@@ -4705,7 +4705,9 @@ const processSocialCommentAutoReply = async ({ tenantId = null, platform = "", p
 
   const mode = decision.mode;
   const likeEnabled = decision.like_enabled;
-  const replyEnabled = decision.reply_enabled;
+  // Public replies are sent only by socialCommentAutomationService, whose
+  // content comes from Settings > Social automation and AI settings.
+  const replyEnabled = false;
   const canSend = force || mode === "full_auto";
   const canDraft = mode === "draft" || mode === "manual_approval";
   let likeStatus = "skipped";
@@ -4760,35 +4762,6 @@ const processSocialCommentAutoReply = async ({ tenantId = null, platform = "", p
   } catch (error) {
     likeStatus = "failed";
     errorMessage = error?.message || "Like failed";
-  }
-
-  try {
-    if (replyEnabled && decision.rendered_reply) {
-      console.log("ACTIVE_PUBLIC_REPLY_SEND_PATH", {
-        file: "server/services/socialCommentsCenterService.js",
-        function: "processSocialCommentAutoReply",
-        platform: normalizedPlatform,
-        commentId: safeCommentId,
-        message_preview: text(decision.rendered_reply || "").slice(0, 400),
-      });
-      await replyToComment(normalizedPlatform, safeCommentId, decision.rendered_reply, safeTenantId, {
-        commenterId,
-        commenterName: text(resolvedComment?.commenter_name || resolvedComment?.customer_name || comment?.commenter_name || ""),
-        postId: safePostId,
-      });
-      replyStatus = "sent";
-      console.log("SOCIAL_COMMENT_AUTOMATION_PUBLIC_REPLY_SENT", {
-        tenant_id: safeTenantId,
-        platform: normalizedPlatform,
-        post_id: safePostId,
-        comment_id: safeCommentId,
-      });
-    } else if (replyEnabled) {
-      replyStatus = "skipped";
-    }
-  } catch (error) {
-    replyStatus = "failed";
-    errorMessage = errorMessage || error?.message || "Reply failed";
   }
 
   const run = await upsertSocialCommentAutoReplyRun({

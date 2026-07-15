@@ -16,17 +16,6 @@ const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 const GRAPH_API_PRIVATE_REPLY_VERSIONS = [GRAPH_API_VERSION, "v19.0", "v20.0", "v21.0"];
 
 const DEFAULT_KEYWORDS = ["بكام", "السعر", "سعر", "كام", "متاح", "موجود", "مقاس", "الوان", "لون", "price", "how much", "available", "size", "color"];
-const DEFAULT_PUBLIC_REPLY = [
-  "\u0623\u0647\u0644\u0627\u064b \u0648\u0633\u0647\u0644\u0627\u064b \u064a\u0627 {{customer_name}} \u2764\ufe0f",
-  "\u062a\u0645 \u0627\u0644\u0631\u062f \u0641\u064a \u0627\u0644\u062e\u0627\u0635 \u064a\u0627 \u0635\u062f\u064a\u0642\u064a ",
-  "\u0648\u0639\u0646\u062f\u0646\u0627 \u0634\u062d\u0646 \u0644\u062c\u0645\u064a\u0639 \u0645\u062d\u0627\u0641\u0638\u0627\u062a \u0645\u0635\u0631 ",
-  "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
-  " \u0627\u0644\u0639\u0646\u0648\u0627\u0646:",
-  "\u062f\u0645\u064a\u0627\u0637 \u0627\u0644\u062c\u062f\u064a\u062f\u0629 - \u0634\u0627\u0631\u0639 \u0627\u0644\u0628\u0634\u0628\u064a\u0634\u064a - \u0628\u062c\u0648\u0627\u0631 \u0627\u0644\u0641\u0631\u0646\u0633\u064a\u0629 \u062c\u0631\u0648\u0628 \u2764\ufe0f",
-  "",
-  " \u0627\u0644\u0644\u0648\u0643\u064a\u0634\u0646:",
-  "https://share.google/1e0cM7JVmxyLTpWVe",
-].join("\n");
 const DEFAULT_PRIVATE_REPLY = `أهلاً بحضرتك ❤️
 الموديل {{product_name}} سعره: {{price}} ج.م
 
@@ -757,6 +746,37 @@ const canRetryPublicReplyWithoutMention = (error) => {
   return Number(metaError.code || 0) === 100 || message.includes("message_tags") || message.includes("message tag");
 };
 
+const findExistingPageReply = async ({ platform = "", commentId = "", businessId = null } = {}) => {
+  const settings = await getSettingsRow(businessId);
+  const tokenStatus = validateMetaToken(settings || {});
+  const accessToken = tokenStatus?.accessToken || getPublishingAccessToken(settings || {});
+  const ownerIds = new Set([
+    trimString(settings?.page_id || settings?.facebook_page_id || ""),
+    trimString(settings?.instagram_account_id || settings?.instagram_business_account_id || ""),
+  ].filter(Boolean));
+  if (!accessToken || !ownerIds.size) {
+    throw Object.assign(new Error("Meta page identity is unavailable for public reply deduplication"), {
+      code: "PUBLIC_REPLY_DEDUPE_IDENTITY_UNAVAILABLE",
+    });
+  }
+  const payload = await callMetaGet({
+    accessToken,
+    endpoint: platform === "instagram"
+      ? `/${encodeURIComponent(commentId)}/replies`
+      : `/${encodeURIComponent(commentId)}/comments`,
+    label: "public reply dedupe probe",
+    params: {
+      fields: "id,message,from{id,name},created_time",
+      limit: "50",
+      order: "reverse_chronological",
+    },
+  });
+  const existing = (Array.isArray(payload?.data) ? payload.data : []).find((reply) =>
+    ownerIds.has(trimString(reply?.from?.id || ""))
+  );
+  return existing || null;
+};
+
 export const replyToComment = async (platform, commentId, message, businessId, options = {}) => {
   const endpoint = platform === "instagram"
     ? `/${encodeURIComponent(commentId)}/replies`
@@ -785,12 +805,33 @@ export const replyToComment = async (platform, commentId, message, businessId, o
     message_preview: trimString(message).slice(0, 400),
   });
   try {
-    const officialMessage = await renderOfficialSocialPublicReply({
+    const existingPageReply = options?.allowDuplicatePublicReply === true
+      ? null
+      : await findExistingPageReply({ platform, commentId, businessId });
+    if (existingPageReply) {
+      console.log("SOCIAL_COMMENT_PUBLIC_REPLY_SKIPPED_EXISTING", {
+        platform: trimString(platform || ""),
+        comment_id: trimString(commentId || ""),
+        existing_reply_id: trimString(existingPageReply.id || ""),
+        existing_message_preview: trimString(existingPageReply.message || "").slice(0, 280),
+      });
+      return {
+        skipped: true,
+        reason: "page_reply_already_exists",
+        existing_reply_id: trimString(existingPageReply.id || ""),
+      };
+    }
+    const officialMessage = trimString(await renderOfficialSocialPublicReply({
       tenantId: businessId,
       commenterName: options?.commenterName,
       commentId,
       postId: options?.postId,
-    }).catch(() => trimString(message));
+    }));
+    if (!officialMessage) {
+      throw Object.assign(new Error("Official social public reply is empty"), {
+        code: "OFFICIAL_PUBLIC_REPLY_EMPTY",
+      });
+    }
     const mentionParams = platform === "facebook"
       ? buildFacebookCommentMentionParams({
         message: officialMessage,
@@ -2255,7 +2296,11 @@ export const processCommentEvent = async (event = {}) => {
     } else {
       const actionsRequested = {
         liked: { requested: Boolean(rule.like_comment) },
-        public_reply: { requested: Boolean(rule.reply_publicly) },
+        // Public comment replies are owned exclusively by the official social
+        // automation settings flow. This legacy marketing rule may still like
+        // the comment or send a private reply, but it must never publish a
+        // second public response.
+        public_reply: { requested: false, reason: "owned_by_official_social_comment_automation" },
         private_reply: { requested: Boolean(rule.send_private_reply) },
       };
       Object.assign(automationActions, actionsRequested);
@@ -2305,33 +2350,6 @@ export const processCommentEvent = async (event = {}) => {
           errorLog: "[meta-action] like error",
           logContext,
           run: () => likeComment(event.platform, event.commentId, event.businessId),
-        });
-        if (error) actionErrors.push(error);
-      }
-
-      if (automationActions.public_reply?.status !== "error") {
-        const publicMessage = renderTemplate(rule.public_reply_template || DEFAULT_PUBLIC_REPLY, context);
-        const error = await executeAction({
-          actions: automationActions,
-          key: "public_reply",
-          requestedLog: "[automation] public reply requested",
-          successLog: "[meta-action] public reply success",
-          errorLog: "[meta-action] public reply error",
-          logContext,
-          run: () => {
-            console.log("ACTIVE_PUBLIC_REPLY_SEND_PATH", {
-              file: "server/services/marketingCommentAutomationService.js",
-              function: "processAutomationEvent.public_reply",
-              platform: trimString(event.platform || ""),
-              commentId: trimString(event.commentId || ""),
-              message_preview: trimString(publicMessage).slice(0, 400),
-            });
-            return replyToComment(event.platform, event.commentId, publicMessage, event.businessId, {
-              commenterId: event.userPlatformId,
-              commenterName: event.username,
-              postId: event.postId,
-            });
-          },
         });
         if (error) actionErrors.push(error);
       }
@@ -2514,10 +2532,10 @@ export const createAutoReplyRule = async (businessId, payload = {}) => {
       nullableString(payload.name) || "Auto reply rule",
       JSON.stringify(normalizeKeywords(payload.keywords?.length ? payload.keywords : DEFAULT_KEYWORDS)),
       payload.match_mode || "any",
-      nullableString(payload.public_reply_template) || DEFAULT_PUBLIC_REPLY,
+      "",
       nullableString(payload.private_reply_template) || DEFAULT_PRIVATE_REPLY,
       payload.like_comment !== false,
-      payload.reply_publicly !== false,
+      false,
       payload.send_private_reply !== false,
     ]
   );
@@ -2551,10 +2569,10 @@ export const updateAutoReplyRule = async (businessId, id, payload = {}) => {
       nullableString(payload.name) || "Auto reply rule",
       JSON.stringify(normalizeKeywords(payload.keywords)),
       payload.match_mode || "any",
-      nullableString(payload.public_reply_template) || DEFAULT_PUBLIC_REPLY,
+      "",
       nullableString(payload.private_reply_template) || DEFAULT_PRIVATE_REPLY,
       payload.like_comment !== false,
-      payload.reply_publicly !== false,
+      false,
       payload.send_private_reply !== false,
       id,
       businessId,
@@ -2632,7 +2650,7 @@ export const simulateCommentAutomation = async (businessId, payload = {}) => {
   const status = rule ? "simulated" : "ignored";
   const automationActions = {
     liked: rule?.like_comment ? "success" : "skipped",
-    public_reply: rule?.reply_publicly ? "success" : "skipped",
+    public_reply: "skipped",
     private_reply: rule?.send_private_reply ? "success" : "skipped",
     error_message: null,
     details: { simulated: true },

@@ -9,7 +9,7 @@ import { upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { createOrUpdateLeadOpportunity } from "./aiInboxLeadActionsService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendUnifiedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
-import { getSocialAutoReplySettings, getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
+import { getSocialAutoReplySettings, getSocialCommentAutomationConfig, loadSocialCommentPost } from "./socialCommentsCenterService.js";
 import { enqueueSocialCommentJob } from "./socialCommentJobQueue.js";
 import { resolveMappedProductsV2, resolvePrimaryProductV2 } from "./socialPostProductLinksV2Service.js";
 import { collectDirectLinkIdentity, getMappings } from "./postProductMappingService.js";
@@ -7893,7 +7893,6 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       event: storedRow,
     }).catch(() => null);
     storedRow = applyWebhookPostMediaToEvent(storedRow, webhookMedia);
-    let automationRuntimeApplied = false;
     if (automationConfig?.enabled) {
       const oldCommentGuard = await maybeSkipOldSocialCommentAutomation({
         tenantId: storedRow.tenant_id,
@@ -8028,7 +8027,6 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
       if (automationRuntimeResult?.row) {
         storedRow = automationRuntimeResult.row;
       }
-      automationRuntimeApplied = Boolean(automationRuntimeResult?.applied);
     }
     if (!automationConfig?.enabled && !privateReplyTrigger) {
       try {
@@ -8122,47 +8120,6 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
             [storedRow.tenant_id, storedRow.platform, storedRow.error_code, storedRow.comment_id]
           ).catch(() => {});
           emitSocialCommentUpdated(storedRow);
-        }
-      }
-      if (!automationRuntimeApplied) {
-        try {
-          const legacyAiStartedAt = new Date();
-          console.log("SOCIAL_COMMENT_AI_GENERATION_START", {
-            tenant_id: storedRow.tenant_id,
-            platform: storedRow.platform,
-            post_id: text(storedRow.post_id || ""),
-            comment_id: text(storedRow.comment_id || ""),
-            conversation_id: text(storedRow.inbox_conversation_id || ""),
-            ai_started_at: legacyAiStartedAt.toISOString(),
-            source: "legacy_processSocialCommentAutoReply",
-          });
-          await processSocialCommentAutoReply({
-            tenantId: storedRow.tenant_id,
-            platform: storedRow.platform,
-            postId: storedRow.post_id,
-            commentId: storedRow.comment_id,
-            comment: storedRow,
-            post: storedRow,
-            force: false,
-          });
-          const legacyAiCompletedAt = new Date();
-          console.log("SOCIAL_COMMENT_AI_GENERATION_DONE", {
-            tenant_id: storedRow.tenant_id,
-            platform: storedRow.platform,
-            post_id: text(storedRow.post_id || ""),
-            comment_id: text(storedRow.comment_id || ""),
-            conversation_id: text(storedRow.inbox_conversation_id || ""),
-            ai_completed_at: legacyAiCompletedAt.toISOString(),
-            ai_generation_ms: Math.max(0, legacyAiCompletedAt.getTime() - legacyAiStartedAt.getTime()),
-            source: "legacy_processSocialCommentAutoReply",
-          });
-        } catch (error) {
-          socialCommentsError("[social-comments] auto reply processing failed", {
-            tenant_id: storedRow.tenant_id,
-            platform: storedRow.platform,
-            comment_id: storedRow.comment_id,
-            message: error?.message || "",
-          });
         }
       }
     }
