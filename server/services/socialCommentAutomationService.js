@@ -180,6 +180,10 @@ const SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS = Math.max(
   Number.parseInt(process.env.SOCIAL_COMMENT_AUTOMATION_RECENCY_MINUTES || "30", 10) || 30,
   (Number.parseInt(process.env.META_POLLING_INTERVAL_MINUTES || "15", 10) || 15) * 2
 ) * 60 * 1000;
+const SOCIAL_COMMENT_POLLING_RECENCY_WINDOW_MS = Math.max(
+  SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS,
+  (Number.parseInt(process.env.META_POLLING_INTERVAL_MINUTES || "15", 10) || 15) * 4 * 60 * 1000
+);
 const DEFAULT_SOCIAL_COMMENT_QUEUE_CONCURRENCY = 2;
 const DEFAULT_SOCIAL_COMMENT_AI_TIMEOUT_MS = 15000;
 const DEFAULT_SOCIAL_COMMENT_REPLY_DEDUPE_WINDOW_MS = 60000;
@@ -296,8 +300,12 @@ const maybeSkipOldSocialCommentAutomation = async ({
 } = {}) => {
   const facebookCreatedAt = parseDateOrNull(commentCreatedTime);
   const detectedDate = detectedAt instanceof Date ? detectedAt : parseDateOrNull(detectedAt) || new Date();
+  const normalizedSource = text(source || row?.raw_payload?.source || "").toLowerCase();
+  const freshnessWindowMs = normalizedSource.includes("poll")
+    ? SOCIAL_COMMENT_POLLING_RECENCY_WINDOW_MS
+    : SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS;
   const ageMs = facebookCreatedAt ? Math.max(0, detectedDate.getTime() - facebookCreatedAt.getTime()) : null;
-  const isOld = Boolean(facebookCreatedAt && ageMs > SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS);
+  const isOld = Boolean(facebookCreatedAt && ageMs > freshnessWindowMs);
   console.log("SOCIAL_COMMENT_FRESHNESS_DECISION", {
     comment_id: text(commentId || row?.comment_id || ""),
     facebook_created_time: facebookCreatedAt ? facebookCreatedAt.toISOString() : "",
@@ -305,7 +313,8 @@ const maybeSkipOldSocialCommentAutomation = async ({
     age_ms: ageMs,
     is_old: isOld,
     should_run_automation: Boolean(facebookCreatedAt && !isOld),
-    source: text(source || row?.raw_payload?.source || ""),
+    threshold_ms: freshnessWindowMs,
+    source: normalizedSource,
   });
   if (!facebookCreatedAt) {
     return { skipped: false, facebookCreatedAt: null, ageMs: null, isOld: false, shouldRunAutomation: true };
@@ -322,8 +331,8 @@ const maybeSkipOldSocialCommentAutomation = async ({
     facebook_created_time: facebookCreatedAt.toISOString(),
     detected_at: detectedDate.toISOString(),
     age_ms: ageMs,
-    threshold_ms: SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS,
-    source: text(source || row?.raw_payload?.source || ""),
+    threshold_ms: freshnessWindowMs,
+    source: normalizedSource,
   });
 
   const safeRow = row && typeof row === "object" ? row : {};
@@ -4847,6 +4856,16 @@ const resolveSocialCommentPostFullPicture = (event = {}) =>
       ""
   );
 
+const resolveSocialCommentCreatedTime = (event = {}) =>
+  text(
+    event.raw_payload?.comment?.created_time ||
+      event.raw_payload?.value?.created_time ||
+      event.raw_payload?.comment_created_time ||
+      event.comment_created_time ||
+      event.processed_at ||
+      ""
+  );
+
 const resolveSocialCommentPostCreatedTime = (event = {}) =>
   text(
     event.post_created_time ||
@@ -5123,13 +5142,7 @@ const upsertSocialCommentLeadConversation = async ({ tenantId = null, event = {}
     const postMessage = resolveSocialCommentPostMessage(event);
     const postFullPicture = resolveSocialCommentPostFullPicture(event);
     const postCreatedTime = text(resolveSocialCommentPostCreatedTime(event) || "");
-    const commentCreatedTime = text(
-      event.comment_created_time ||
-      event.raw_payload?.comment?.created_time ||
-      event.raw_payload?.value?.created_time ||
-      event.processed_at ||
-      ""
-    );
+    const commentCreatedTime = resolveSocialCommentCreatedTime(event);
     const commentUrl = text(event.comment_url || event.raw_payload?.comment_url || "");
     const productContext = metadataObject(event.product_context || event.raw_payload?.product_context || {});
     const metadata = {
@@ -7890,7 +7903,7 @@ export const storeSocialCommentAutomationRuns = async ({ tenantId = null, events
         commentId: text(storedRow.comment_id || ""),
         channel: text(storedRow.channel || ""),
         sessionId: text(storedRow.inbox_conversation_id || ""),
-        commentCreatedTime: storedRow.comment_created_time || storedRow.raw_payload?.comment?.created_time || storedRow.raw_payload?.value?.created_time || "",
+        commentCreatedTime: resolveSocialCommentCreatedTime(storedRow),
         detectedAt: new Date(),
         source: text(storedRow.raw_payload?.source || ""),
         row: storedRow,

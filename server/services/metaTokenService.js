@@ -254,6 +254,16 @@ export const getMetaTokenStatus = (settings = {}) => {
 
   const msUntilExpiry = expiresAt.getTime() - Date.now();
   if (msUntilExpiry <= 0) {
+    // Page access tokens can remain valid after the long-lived user token
+    // expiry stored in token_expires_at. Let Meta validate the page token on
+    // the actual request instead of blocking otherwise valid page actions.
+    if (trimString(settings.page_access_token)) {
+      return {
+        status: "active",
+        valid: true,
+        warning: "The stored user-token expiry has passed; the Page access token will be validated by Meta.",
+      };
+    }
     return { status: "expired", valid: false, error: "Meta access token has expired. Reconnect Meta before publishing." };
   }
 

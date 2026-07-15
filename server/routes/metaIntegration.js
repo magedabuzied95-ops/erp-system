@@ -12,6 +12,7 @@ import {
   getMetaIntegrationRawDebugConfigs,
   getMetaIntegrationStatus,
   getMetaOAuthPages,
+  getPublicWebhookVerificationConfig,
   getMetaSetupCheck,
   getMetaWebhookHealth,
   processMetaWebhook,
@@ -42,12 +43,16 @@ const getExpectedWebhookVerifyTokens = () =>
     .map(envText)
     .filter(Boolean);
 
-export const handleMetaWebhookVerification = (req, res) => {
+export const handleMetaWebhookVerification = async (req, res) => {
   const mode = envText(req.query?.["hub.mode"]);
   const verifyToken = envText(req.query?.["hub.verify_token"]);
   const challenge = envText(req.query?.["hub.challenge"]);
   const expectedTokens = getExpectedWebhookVerifyTokens();
-  const tokenMatched = mode === "subscribe" && expectedTokens.includes(verifyToken);
+  const envTokenMatched = expectedTokens.includes(verifyToken);
+  const storedConfig = !envTokenMatched && verifyToken
+    ? await getPublicWebhookVerificationConfig({ verifyToken }).catch(() => null)
+    : null;
+  const tokenMatched = mode === "subscribe" && Boolean(envTokenMatched || storedConfig);
   const challengePresent = challenge.length > 0;
 
   console.log("[meta-webhook] verification request", {

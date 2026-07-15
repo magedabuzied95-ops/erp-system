@@ -44,7 +44,6 @@ import {
 import {
   ensureSocialCommentAutomationSchema,
   extractSocialCommentWebhookEvents,
-  materializeSocialCommentInboxConversation,
   storeSocialCommentAutomationRuns,
 } from "./socialCommentAutomationService.js";
 import {
@@ -4671,9 +4670,16 @@ const fetchMetaPostCommentsForPolling = async ({ postId, token }) => {
     params: {
       fields: "id,message,from{id,name,picture},created_time,parent{id,post_id},post{id},object_id,permalink_url,like_count,comment_count",
       limit: "50",
+      order: "reverse_chronological",
     },
   });
-  return Array.isArray(payload?.data) ? payload.data.slice(0, 50) : [];
+  return (Array.isArray(payload?.data) ? payload.data : [])
+    .slice(0, 50)
+    .sort((left, right) => {
+      const leftTime = Date.parse(text(left?.created_time || ""));
+      const rightTime = Date.parse(text(right?.created_time || ""));
+      return (Number.isFinite(rightTime) ? rightTime : 0) - (Number.isFinite(leftTime) ? leftTime : 0);
+    });
 };
 
 const fetchMetaCommentDetailsForPolling = async ({ commentId = "", token } = {}) => {
@@ -6941,7 +6947,10 @@ export const subscribeMetaPageToWebhooks = async ({ tenantId, pageId = "", pageA
   result.subscribed_apps_status = result.subscribed_apps_verified ? "subscribed" : "not_subscribed";
   result.webhook_subscription_status = result.subscribed_apps_verified ? "subscribed" : "partial";
   if (verification.error) result.verification_error = verification.error;
-  result.webhook_verified = Boolean(result.subscribed_apps_verified && text(process.env.META_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN));
+  result.webhook_verified = Boolean(
+    result.subscribed_apps_verified &&
+    text(row?.verify_token || process.env.META_VERIFY_TOKEN || process.env.META_WEBHOOK_VERIFY_TOKEN)
+  );
   result.webhook_enabled = result.webhook_verified;
   result.webhook_verification_status = result.webhook_verified ? "verified" : result.webhook_verification_status;
   if (verification.error && !result.subscribed_apps_verified) result.error = verification.error;
@@ -7864,7 +7873,7 @@ export const resubscribeMetaPageFeedDebug = async ({ tenantId } = {}) => {
   }
 };
 
-export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "scheduler" } = {}) => {
+export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "scheduler", force = false } = {}) => {
   await ensureSocialCommentAutomationSchema();
   if (!getMetaPollingEnabled()) {
     console.log("META_POLL_SKIPPED_DISABLED", {
@@ -7914,33 +7923,9 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
     }
     if (!safeTenantId || !pageId || !token) continue;
 
-    // Instagram comment webhooks require a Meta app capability that is not
-    // available to every connected app. Poll the linked professional account
-    // independently so new Instagram comments still reach both inboxes.
-    if (text(config.instagram_business_account_id || "")) {
-      try {
-        const instagramSync = await syncMetaInstagramCommentsForTenant({
-          tenantId: safeTenantId,
-          limit: 100,
-          skipAutomation: false,
-        });
-        totals.instagram_posts_checked += asArray(instagramSync.posts).length;
-        totals.instagram_comments_seen += Number(instagramSync.comments_seen || 0);
-        totals.instagram_comments_saved += Number(instagramSync.comments_saved || 0);
-        totals.posts_checked += asArray(instagramSync.posts).length;
-        totals.comments_seen += Number(instagramSync.comments_seen || 0);
-        totals.comments_saved += Number(instagramSync.comments_saved || 0);
-        if (!instagramSync.success && instagramSync.graph_error) totals.errors += 1;
-      } catch (error) {
-        totals.errors += 1;
-        console.error("META_INSTAGRAM_COMMENTS_POLL_ERROR", {
-          tenant_id: safeTenantId,
-          message: error?.message || "Unable to poll Instagram comments",
-        });
-      }
-    }
-
-    const skipDecision = shouldSkipMetaPolling(config);
+    const skipDecision = force
+      ? { skip: false, reason: "", mode: getMetaPollingMode(), forced: true }
+      : shouldSkipMetaPolling(config);
     if (skipDecision.skip) {
       totals.skipped += 1;
       if (skipDecision.reason === "webhook_recent") {
@@ -8041,6 +8026,21 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
         for (const comment of comments) {
           totals.comments_seen += 1;
           const commentId = text(comment.id || "");
+          const alreadyStoredBeforeEnrichment = await commentAlreadyInSocialRuns({
+            tenantId: safeTenantId,
+            platform: "facebook",
+            commentId,
+          }).catch(() => false);
+          if (alreadyStoredBeforeEnrichment) {
+            totals.duplicates += 1;
+            debugSocialCommentsLog("META_COMMENTS_POLL_COMMENT_DUPLICATE", {
+              tenant_id: safeTenantId,
+              page_id: pageId,
+              post_id: text(post.id || ""),
+              comment_id: commentId,
+            });
+            continue;
+          }
           const enrichedComment = await fetchMetaCommentDetailsForPolling({ commentId, token }).catch((error) => {
             if (isMetaRateLimitError(error)) throw error;
             return null;
@@ -8139,36 +8139,8 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
                 post_id: text(post.id || ""),
                 comment_id: commentId,
               });
-              const materialization = await materializeSocialCommentInboxConversation({
-                tenantId: safeTenantId,
-                event,
-                updateRunLink: true,
-              }).catch((error) => {
-                totals.errors += 1;
-                console.error("META_COMMENTS_POLL_ERROR", {
-                  tenant_id: safeTenantId,
-                  page_id: pageId,
-                  post_id: text(post.id || ""),
-                  comment_id: commentId,
-                  message: error?.message || "Unable to materialize duplicate polled comment",
-                  status: error?.status || null,
-                  code: error?.meta?.code || error?.code || "",
-                  subcode: error?.meta?.error_subcode || "",
-                });
-                return null;
-              });
-              if (materialization?.materialized) {
-                totals.comments_saved += 1;
-                console.log("META_COMMENTS_POLL_COMMENT_SAVED", {
-                  tenant_id: safeTenantId,
-                page_id: pageId,
-                post_id: text(resolvedPost.id || post.id || ""),
-                comment_id: commentId,
-                materialized_from_duplicate: true,
-              });
+              continue;
             }
-            continue;
-          }
 
             await storeSocialCommentAutomationRuns({ tenantId: safeTenantId, events: [event] });
             totals.comments_saved += 1;
@@ -8240,6 +8212,31 @@ export const runMetaCommentsPollingScan = async ({ tenantId = null, source = "sc
         code: error?.meta?.code || error?.code || "",
         subcode: error?.meta?.error_subcode || "",
       });
+    }
+
+    // Facebook webhook recovery is latency-sensitive. Run the more expensive
+    // Instagram history sync only after Facebook comments have been handled.
+    if (text(config.instagram_business_account_id || "")) {
+      try {
+        const instagramSync = await syncMetaInstagramCommentsForTenant({
+          tenantId: safeTenantId,
+          limit: 100,
+          skipAutomation: false,
+        });
+        totals.instagram_posts_checked += asArray(instagramSync.posts).length;
+        totals.instagram_comments_seen += Number(instagramSync.comments_seen || 0);
+        totals.instagram_comments_saved += Number(instagramSync.comments_saved || 0);
+        totals.posts_checked += asArray(instagramSync.posts).length;
+        totals.comments_seen += Number(instagramSync.comments_seen || 0);
+        totals.comments_saved += Number(instagramSync.comments_saved || 0);
+        if (!instagramSync.success && instagramSync.graph_error) totals.errors += 1;
+      } catch (error) {
+        totals.errors += 1;
+        console.error("META_INSTAGRAM_COMMENTS_POLL_ERROR", {
+          tenant_id: safeTenantId,
+          message: error?.message || "Unable to poll Instagram comments",
+        });
+      }
     }
   }
 
@@ -9248,7 +9245,7 @@ export const testMetaIntegrationConfig = async ({ tenantId } = {}) => {
 export const findMetaConfigForWebhookVerification = async ({ verifyToken } = {}) => {
   await ensureMetaIntegrationSchema();
   const result = await db.query(
-    `SELECT * FROM meta_integration_configs WHERE verify_token = $1 AND webhook_enabled = TRUE ORDER BY updated_at DESC LIMIT 1`,
+    `SELECT * FROM meta_integration_configs WHERE verify_token = $1 ORDER BY webhook_enabled DESC, updated_at DESC LIMIT 1`,
     [text(verifyToken)]
   );
   return result.rows[0] || null;
