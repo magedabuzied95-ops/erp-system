@@ -609,8 +609,8 @@
     }
 
     .sf-brand-marquee__item {
-      width: calc(100vw - 3.75rem);
-      max-width: 28rem;
+      width: calc(100vw - 5.25rem);
+      max-width: 26rem;
       height: clamp(10rem, 42vw, 12rem);
       border-radius: 1.65rem;
       padding: 1rem 1.35rem;

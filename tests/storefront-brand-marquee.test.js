@@ -29,7 +29,7 @@ test("brand carousel advances exactly one logo every four seconds and loops", ()
 });
 
 test("mobile brand carousel shows one enlarged brand card per step", () => {
-  assert.match(stylesheetSource, /@media \(max-width: 639px\)[\s\S]*?\.sf-brand-marquee__item[\s\S]*?width: calc\(100vw - 3\.75rem\);/);
+  assert.match(stylesheetSource, /@media \(max-width: 639px\)[\s\S]*?\.sf-brand-marquee__item[\s\S]*?width: calc\(100vw - 5\.25rem\);/);
   assert.match(stylesheetSource, /@media \(max-width: 639px\)[\s\S]*?height: clamp\(10rem, 42vw, 12rem\);/);
   assert.match(stylesheetSource, /@media \(max-width: 639px\)[\s\S]*?\.sf-brand-marquee__group[\s\S]*?gap: 1rem;/);
 });
