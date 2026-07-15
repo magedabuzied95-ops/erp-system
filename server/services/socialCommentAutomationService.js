@@ -2227,7 +2227,7 @@ const resolveAutomationWebsiteLinks = async ({ tenantId = null, row = {}, produc
         canonical_slug: productContext?.canonical_slug || row.product_slug || row.metadata?.product_slug || "",
       },
     }).catch(() => null);
-    const resolvedUrl = text(directUrl || resolved?.url || resolved?.product_url || "");
+    const resolvedUrl = buildAutomationPublicUrl(directUrl || resolved?.url || resolved?.product_url || "");
     const selection = [
       ["variant", text(productContext?.variant_id || row.variant_id || row.selected_variant_id || row.matched_variant_id || "")],
       ["color", text(productContext?.color || row.color || row.product_color || "")],
