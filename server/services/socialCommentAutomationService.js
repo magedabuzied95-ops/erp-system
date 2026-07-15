@@ -3407,6 +3407,7 @@ const executeSocialCommentAutomationRuntime = async ({
           await replyToComment(normalizedPlatform, safeCommentId, effectiveRenderedPublicReply, safeTenantId, {
             commenterId: safeRow.commenter_id,
             commenterName: safeRow.commenter_name,
+            postId: safePostId,
           });
           aiPhaseTimings.public_reply_send_completed_at = new Date().toISOString();
           workingRow.public_reply_status = "sent";
@@ -6861,6 +6862,7 @@ export const executeSocialCommentAutomation = async ({
       send: () => publicReplyFn(safeRow.platform, safeRow.comment_id, publicReplyText, safeTenantId, {
         commenterId: safeRow.commenter_id,
         commenterName: safeRow.commenter_name,
+        postId: safeRow.post_id,
       }),
       message: publicReplyText,
       successLabel: "public reply success",

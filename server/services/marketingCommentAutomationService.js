@@ -9,6 +9,7 @@ import {
   sanitizeUnifiedSocialCommentPrivateReplyMessage,
 } from "./socialCommentPrivateReplyService.js";
 import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.js";
+import { renderOfficialSocialPublicReply } from "./socialAutomationSettingsService.js";
 
 const GRAPH_API_VERSION = "v19.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
@@ -784,13 +785,19 @@ export const replyToComment = async (platform, commentId, message, businessId, o
     message_preview: trimString(message).slice(0, 400),
   });
   try {
+    const officialMessage = await renderOfficialSocialPublicReply({
+      tenantId: businessId,
+      commenterName: options?.commenterName,
+      commentId,
+      postId: options?.postId,
+    }).catch(() => trimString(message));
     const mentionParams = platform === "facebook"
       ? buildFacebookCommentMentionParams({
-        message,
+        message: officialMessage,
         commenterId: options?.commenterId,
         commenterName: options?.commenterName,
       })
-      : { message: trimString(message), mentionApplied: false };
+      : { message: officialMessage, mentionApplied: false };
     let result;
     try {
       result = await callMetaPost({
@@ -2322,6 +2329,7 @@ export const processCommentEvent = async (event = {}) => {
             return replyToComment(event.platform, event.commentId, publicMessage, event.businessId, {
               commenterId: event.userPlatformId,
               commenterName: event.username,
+              postId: event.postId,
             });
           },
         });

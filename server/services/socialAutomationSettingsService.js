@@ -115,14 +115,32 @@ export const selectSocialPublicReplyTemplate = ({
 };
 
 export const resolveSocialPublicReplyBaseTemplate = ({
-  runtimeTemplate = "",
   settingsTemplate = DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
 } = {}) => {
-  const normalizedSettingsTemplate = normalizePublicReplyTemplate(
+  return normalizePublicReplyTemplate(
     settingsTemplate,
     DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
   );
-  return normalizePublicReplyTemplate(runtimeTemplate, normalizedSettingsTemplate);
+};
+
+export const renderOfficialSocialPublicReply = async ({
+  tenantId = null,
+  commenterName = "",
+  commentId = "",
+  postId = "",
+} = {}) => {
+  const settings = await getSocialAutomationSettings(tenantId);
+  const selectedTemplate = selectSocialPublicReplyTemplate({
+    baseTemplate: settings.public_reply_template,
+    openers: settings.public_reply_openers,
+    rotationEnabled: settings.public_reply_rotation_enabled,
+    commentId,
+    postId,
+  });
+  return selectedTemplate
+    .replaceAll("{{customer_name}}", text(commenterName || "").trim())
+    .replaceAll("{customer_name}", text(commenterName || "").trim())
+    .trim();
 };
 
 const rowToSettings = (row = {}) => ({

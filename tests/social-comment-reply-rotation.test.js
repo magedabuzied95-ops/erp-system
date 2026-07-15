@@ -65,11 +65,11 @@ test("legacy short public reply cannot override the saved fixed reply body", () 
   assert.equal(result, savedBody);
 });
 
-test("an explicit non-legacy per-post reply remains supported", () => {
+test("per-post public replies cannot override the official settings template", () => {
   const customReply = "رد مخصص لهذا البوست {{product_name}}";
   const result = resolveSocialPublicReplyBaseTemplate({
     runtimeTemplate: customReply,
     settingsTemplate: DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
   });
-  assert.equal(result, customReply);
+  assert.equal(result, DEFAULT_SOCIAL_PUBLIC_REPLY_BODY);
 });

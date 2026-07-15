@@ -4791,6 +4791,7 @@ const processSocialCommentAutoReply = async ({ tenantId = null, platform = "", p
       await replyToComment(normalizedPlatform, safeCommentId, decision.rendered_reply, safeTenantId, {
         commenterId,
         commenterName: text(resolvedComment?.commenter_name || resolvedComment?.customer_name || comment?.commenter_name || ""),
+        postId: safePostId,
       });
       replyStatus = "sent";
       console.log("SOCIAL_COMMENT_AUTOMATION_PUBLIC_REPLY_SENT", {
