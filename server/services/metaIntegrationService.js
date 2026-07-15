@@ -101,6 +101,7 @@ import {
   sizeAvailabilityClarificationText,
   sizeAvailabilityReplyText,
 } from "./aiSizeAvailabilityLinkService.js";
+import { handleMessengerGuidedShopping } from "./messengerGuidedShoppingService.js";
 import { resolveProductCardLinks, resolveStorefrontProductLink } from "./storefrontProductUrlService.js";
 import {
   generateUnifiedConversationDecision,
@@ -23510,6 +23511,54 @@ export const processMetaWebhook = async ({ req } = {}) => {
         stored: true,
         sent: true,
         reason: "social_comment_sales_flow_customer_data_complete",
+      });
+      continue;
+    }
+    const guidedShoppingSelection = text(message.channel || "") === AI_AGENT_CHANNELS.FACEBOOK_MESSENGER
+      ? await handleMessengerGuidedShopping({
+          tenantId: config.tenant_id,
+          conversationId: message.external_conversation_id,
+          messageText: message.message_text || message.raw?.event?.message?.text || "",
+          quickReplyPayload: message.quick_reply_payload || message.raw?.quick_reply_payload || message.raw?.event?.message?.quick_reply?.payload || "",
+          postbackPayload: message.postback_payload || message.raw?.postback_payload || message.raw?.event?.postback?.payload || "",
+          sendReply: ({ replyText, quickReplies = [], detectedIntent = "", metadata = {} } = {}) => sendAndLogMetaText({
+            config,
+            message,
+            text: replyText,
+            detectedIntent,
+            metadata: {
+              ...metadata,
+              messengerQuickReplies: quickReplies,
+              force_reply_text_passthrough: true,
+              handler: "messenger_guided_shopping",
+            },
+            inboundKey,
+            inboundMetaMid: message.external_message_id || messageId,
+          }),
+        }).catch((error) => {
+          console.error("[messenger-guided-shopping] handler_failed", {
+            tenant_id: config.tenant_id,
+            conversation_id: message.external_conversation_id,
+            message: error?.message || "",
+          });
+          return { handled: false, reason: "messenger_guided_shopping_error" };
+        })
+      : { handled: false, reason: "messenger_guided_shopping_non_messenger" };
+    if (guidedShoppingSelection?.handled) {
+      markMessageProcessingStatus(messageId, "sent");
+      await storeProcessedInboundKey({
+        tenantId: config.tenant_id,
+        channel: message.channel,
+        conversationId: message.external_conversation_id,
+        inboundKey,
+        status: "sent",
+      });
+      results.push({
+        channel: alias,
+        external_user_id: message.external_customer_id,
+        stored: true,
+        sent: guidedShoppingSelection.sent !== false,
+        reason: guidedShoppingSelection.reason,
       });
       continue;
     }

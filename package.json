@@ -26,6 +26,7 @@
     "test:ai-commerce-cards": "node server/scripts/testAiCommerceCardReplies.js",
     "test:ai-sales-render": "node server/scripts/runAiSalesRegressionSuite.js",
     "test:ai-marketing": "node --test tests/ai-marketing/*.test.js",
+    "test:messenger-shopping": "node --test tests/messenger-guided-shopping/*.test.js",
     "start": "npm --prefix \"./server\" run start"
   },
   "dependencies": {
