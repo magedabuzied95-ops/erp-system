@@ -2555,6 +2555,7 @@ function PremiumHomePage(props) {
     return mainHomeCategoryCards.slice(0, 4).map((definition) => {
       const matchingProducts = sourceProducts.filter((product) => {
         if (definition.id === "offers") return isOfferStory(product);
+        if (isOfferStory(product)) return false;
         return definition.test(product, productSearchText(product));
       });
       const offerVisualProduct = definition.id === "offers"

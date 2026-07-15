@@ -14,5 +14,6 @@ test("storefront category cards use full-bleed motion media", async () => {
   assert.match(source, /match\?\.promo_video_url/);
   assert.match(source, /matchingProducts\.find\(\(product\) => homeProductWithImage\(product\)\)/);
   assert.match(source, /saleProducts\.find\(\(product\) => isAvailableProduct\(product\) && homeProductWithImage\(product\)\)/);
+  assert.match(source, /if \(isOfferStory\(product\)\) return false/);
   assert.match(source, /تسوّق الآن/);
 });
