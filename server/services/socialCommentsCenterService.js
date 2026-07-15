@@ -9,6 +9,7 @@ import {
   resolveSocialPostCanonicalIdentity,
 } from "./socialPostIdentityService.js";
 import { resolveSocialPostProductLinkIdentity } from "../../shared/socialPostProductLinkIdentity.js";
+import { updateSocialAutomationSettings } from "./socialAutomationSettingsService.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const lower = (value = "") => text(value).toLowerCase();
@@ -2203,6 +2204,14 @@ const saveSocialAutoReplySettings = async ({ tenantId = null, payload = {} } = {
     [safeTenantId, merged.generic_enabled, merged.generic_like_enabled, merged.generic_reply_enabled, merged.generic_template, merged.mode]
   );
   const row = result.rows?.[0] || null;
+  if (row) {
+    await updateSocialAutomationSettings(safeTenantId, {
+      auto_like_enabled: Boolean(row.generic_enabled && row.generic_like_enabled),
+      auto_public_reply_enabled: Boolean(row.generic_enabled && row.generic_reply_enabled),
+      auto_private_message_enabled: Boolean(row.generic_enabled && row.generic_reply_enabled),
+      public_reply_template: text(row.generic_template || merged.generic_template),
+    });
+  }
   if (row) {
     void getSocialRealtimeEmitters().then(({ emitSocialReplyStatus, emitSocialCommentUpdated }) => {
       emitSocialReplyStatus(row);

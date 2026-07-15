@@ -9,7 +9,7 @@ import { upsertAiCustomerProfile } from "./aiSalesAgentService.js";
 import { createOrUpdateLeadOpportunity } from "./aiInboxLeadActionsService.js";
 import { appendAutomationSupportTranscript } from "./aiSupportLogService.js";
 import { likeComment, replyToComment, sendUnifiedSocialCommentPrivateReply } from "./marketingCommentAutomationService.js";
-import { getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
+import { getSocialAutoReplySettings, getSocialCommentAutomationConfig, loadSocialCommentPost, processSocialCommentAutoReply } from "./socialCommentsCenterService.js";
 import { enqueueSocialCommentJob } from "./socialCommentJobQueue.js";
 import { resolveMappedProductsV2, resolvePrimaryProductV2 } from "./socialPostProductLinksV2Service.js";
 import { collectDirectLinkIdentity, getMappings } from "./postProductMappingService.js";
@@ -172,7 +172,11 @@ const parseDateOrNull = (value = null) => {
   const parsed = value instanceof Date ? value : new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
-const SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS = 10 * 60 * 1000;
+const SOCIAL_COMMENT_AUTOMATION_RECENCY_WINDOW_MS = Math.max(
+  30,
+  Number.parseInt(process.env.SOCIAL_COMMENT_AUTOMATION_RECENCY_MINUTES || "30", 10) || 30,
+  (Number.parseInt(process.env.META_POLLING_INTERVAL_MINUTES || "15", 10) || 15) * 2
+) * 60 * 1000;
 const DEFAULT_SOCIAL_COMMENT_QUEUE_CONCURRENCY = 2;
 const DEFAULT_SOCIAL_COMMENT_AI_TIMEOUT_MS = 15000;
 const DEFAULT_SOCIAL_COMMENT_REPLY_DEDUPE_WINDOW_MS = 60000;
@@ -1817,7 +1821,7 @@ const loadPostAutomationConfig = async ({ tenantId = null, platform = "", postId
   const safeTenantId = Number(tenantId || row.tenant_id || 0);
   const safePostId = text(postId || row.post_id || row.metadata?.post_id || row.raw_payload?.post_id || "");
   const normalizedPlatform = text(platform || row.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
-  if (!safeTenantId || !safePostId || normalizedPlatform !== "facebook") {
+  if (!safeTenantId || !safePostId) {
     return null;
   }
   const safeRow = metadataObject(row);
@@ -1868,7 +1872,45 @@ const loadPostAutomationConfig = async ({ tenantId = null, platform = "", postId
       raw_payload: lookupRow.raw_payload,
     },
   }).catch(() => null);
-  return config?.persisted ? config : null;
+  if (config?.enabled) return config;
+
+  const globalSettings = await getSocialAutoReplySettings({ tenantId: safeTenantId }).catch(() => null);
+  const globalFullAutoEnabled = Boolean(
+    globalSettings?.generic_enabled &&
+    text(globalSettings?.mode).toLowerCase() === "full_auto"
+  );
+  if (!globalFullAutoEnabled) return config?.persisted ? config : null;
+
+  return {
+    id: null,
+    tenant_id: safeTenantId,
+    platform: normalizedPlatform,
+    post_id: safePostId,
+    template_key: "global_product_comment_sales_flow",
+    enabled: true,
+    persisted: false,
+    source: "global_auto_reply",
+    lookup_matched_key: "global_auto_reply",
+    lookup_matched_post_id: safePostId,
+    settings: {
+      enabled: true,
+      likeComment: globalSettings.generic_like_enabled !== false,
+      publicReply: globalSettings.generic_reply_enabled !== false,
+      privateReply: globalSettings.generic_reply_enabled !== false,
+      aiFollowUp: false,
+      createLead: false,
+    },
+    message_templates: {
+      publicReplyTemplate: text(globalSettings.generic_template || "") || "تم الرد على حضرتك في الخاص ✅",
+      privateReplyTemplate: [
+        "أهلاً {{customer_name}}",
+        "{{product_name}} متاح بسعر {{price}}.",
+        "المقاسات المتاحة: {{available_sizes}}",
+        "اطلبه مباشرة من هنا: {{product_link}}",
+      ].join("\n"),
+      aiOpeningPrompt: "",
+    },
+  };
 };
 
 const buildAutomationTemplateContext = ({ row = {}, productContext = {}, websiteLinks = {} } = {}) => {
@@ -6458,6 +6500,22 @@ export const executeSocialCommentAutomation = async ({
     websiteLinks,
     templateContext,
   });
+  const normalizedPlatform = text(safeRow.platform || "facebook").toLowerCase() === "instagram" ? "instagram" : "facebook";
+  const renderedPublicReply = renderAutomationTemplate(
+    decision.automationSettings?.public_reply_template || COMMENT_AUTOMATION_PUBLIC_REPLY_TEXT,
+    templateContext
+  ).trim();
+  const productAwarePublicReply = buildProductAwarePublicReply({
+    salesContext,
+    intent: detectSocialCommentSalesIntent({
+      commentText: safeRow.original_comment_text || safeRow.comment_text || "",
+    }).intent,
+  });
+  const effectiveRenderedPublicReply = text(
+    hasProductContext && isGenericSocialCommentPublicReply(renderedPublicReply) && productAwarePublicReply
+      ? productAwarePublicReply
+      : renderedPublicReply
+  );
   const publicReplyText = text(
     effectiveRenderedPublicReply ||
     renderedPublicReply ||
