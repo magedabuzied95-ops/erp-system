@@ -62,6 +62,10 @@ import {
   sortProductSizes,
 } from "../lib/variantBulkSizes";
 import { dedupeImages } from "../lib/dedupeImages";
+import {
+  buildMissingRequiredProductFieldsMessage,
+  getMissingRequiredProductFields,
+} from "../lib/requiredProductFields";
 import colorNameFromImage, { colorNameFromImagePoint, debugColorDetection } from "../../../shared/utils/colorNameFromImage";
 import {
   createProduct,
@@ -1934,6 +1938,16 @@ function CreateProduct() {
 
     if (!name.trim()) {
       toast.error(t("products.editor.productNameRequired"));
+      return;
+    }
+
+    const missingRequiredFields = getMissingRequiredProductFields({
+      brand: selectedBrandName || brand,
+      category: childCategory || subCategory || mainCategory,
+      productType,
+    });
+    if (missingRequiredFields.length > 0) {
+      toast.error(buildMissingRequiredProductFieldsMessage(missingRequiredFields), { duration: 6000 });
       return;
     }
 

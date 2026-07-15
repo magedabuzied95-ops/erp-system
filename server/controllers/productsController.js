@@ -3955,6 +3955,26 @@ export const createProduct = async (req, res) => {
         message: "Product name is required",
       });
     }
+    const missingRequiredFields = [];
+    const hasBrand = Boolean(normalizedForeignKeys.brand_id || String(brand || "").trim());
+    const rawCategory = String(child_category || sub_category || main_category || category || "").trim();
+    const hasCategory = Boolean(
+      normalizedForeignKeys.child_category_id ||
+      normalizedForeignKeys.sub_category_id ||
+      normalizedForeignKeys.category_id ||
+      (rawCategory && !["uncategorized", "unclassified", "غير مصنف", "بدون فئة"].includes(rawCategory.toLowerCase()))
+    );
+    if (!hasBrand) missingRequiredFields.push("brand");
+    if (!hasCategory) missingRequiredFields.push("category");
+    if (!String(normalizedProductType || "").trim()) missingRequiredFields.push("product_type");
+    if (missingRequiredFields.length > 0) {
+      return res.status(400).json({
+        success: false,
+        code: "PRODUCT_REQUIRED_CLASSIFICATIONS_MISSING",
+        missing_fields: missingRequiredFields,
+        message: "يجب إدخال العلامة التجارية والفئة ونوع المنتج قبل حفظ المنتج",
+      });
+    }
     if (containsDataImageValue(image_url) || containsDataImageValue(gallery) || containsDataImageValue(gallery_images)) {
       return res.status(400).json({
         success: false,

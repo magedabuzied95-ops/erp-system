@@ -108,7 +108,7 @@ function ProductForm({
   return (
     <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(280px,.95fr)_minmax(440px,1.35fr)_minmax(280px,.9fr)] xl:gap-x-0 xl:gap-y-5 xl:items-stretch xl:drop-shadow-[0_18px_42px_rgba(0,0,0,0.18)]">
       <section className="rounded-[22px] border border-white/10 bg-[#20201e] p-5 xl:col-start-1 xl:row-start-1 xl:rounded-e-none">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/8 pb-4" style={{ display: "none" }}>
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/8 pb-4">
           <div>
             <p className="text-[11px] font-black uppercase tracking-[0.22em] text-zinc-500">{t("products.form.catalogStructure")}</p>
             <p className="mt-1 text-sm text-zinc-400">{t("products.form.catalogHelp")}</p>
@@ -133,7 +133,6 @@ function ProductForm({
         </div>
 
         <div
-          style={{ display: "none" }}
           className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
             showCatalogStructure
               ? "mb-4 grid-rows-[1fr] opacity-100"
@@ -144,7 +143,7 @@ function ProductForm({
           <div className="overflow-hidden">
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <FormSelect
-                label={t("products.form.mainCategory")}
+                label={`${t("products.form.mainCategory")} *`}
                 value={mainCategory}
                 onChange={(value) => {
                   onMainCategoryChange?.(value);
@@ -172,7 +171,6 @@ function ProductForm({
         </div>
 
         <div
-          style={{ display: "none" }}
           className={`transition-[max-height,opacity,transform] duration-300 ease-out ${
             showCatalogStructure ? "max-h-0 -translate-y-1 overflow-hidden opacity-0" : "mb-4 max-h-24 translate-y-0 opacity-100"
           }`}
@@ -192,7 +190,7 @@ function ProductForm({
 
         <div className="grid grid-cols-1 gap-4">
           <div className="relative" ref={brandWrapRef}>
-            <label className="text-sm font-semibold text-zinc-300">{t("products.form.brand")}</label>
+            <label className="text-sm font-semibold text-zinc-300">{t("products.form.brand")} *</label>
             <button
               type="button"
               onClick={() => setBrandOpen((current) => !current)}
@@ -298,7 +296,7 @@ function ProductForm({
 
         <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
           <SmartClassificationSelect
-            label={t("products.form.productType")}
+            label={`${t("products.form.productType")} *`}
             value={productType}
             onChange={onProductTypeChange}
             options={classificationOptions.productType}
