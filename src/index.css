@@ -5818,3 +5818,27 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   box-shadow: none !important;
   overflow: visible !important;
 }
+
+@keyframes sfHeaderLogoMFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  45% {
+    transform: translate3d(0, -5px, 0) rotate(-0.8deg);
+  }
+  55% {
+    transform: translate3d(0, -5px, 0) rotate(0.8deg);
+  }
+}
+
+.storefront-shell .sf-header-logo-moving-m {
+  transform-origin: 50% 48%;
+  will-change: transform;
+  animation: sfHeaderLogoMFloat 3.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .storefront-shell .sf-header-logo-moving-m {
+    animation: none;
+  }
+}

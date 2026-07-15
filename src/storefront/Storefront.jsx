@@ -4253,9 +4253,12 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
   const preferredHeaderLogoUrl = headerLogoUrl || brandLogoUrl;
   const resolvedHeaderLogoUrl = resolveProductImageUrl(preferredHeaderLogoUrl);
   const mOneHeaderLogoPattern = /\/branding\/m-one-wordmark-(?:orange|white|dark)\.png/;
-  const displayedHeaderLogoUrl = mOneHeaderLogoPattern.test(resolvedHeaderLogoUrl)
-    ? `${resolvedHeaderLogoUrl.split("?")[0].replace(mOneHeaderLogoPattern, `/branding/m-one-wordmark-${effectiveTheme === "dark" ? "white" : "dark"}.png`)}?v=20220228`
+  const isMOneHeaderLogo = mOneHeaderLogoPattern.test(resolvedHeaderLogoUrl);
+  const mOneHeaderLogoVariant = effectiveTheme === "dark" ? "white" : "dark";
+  const displayedHeaderLogoUrl = isMOneHeaderLogo
+    ? `${resolvedHeaderLogoUrl.split("?")[0].replace(mOneHeaderLogoPattern, `/branding/m-one-wordmark-${mOneHeaderLogoVariant}.png`)}?v=20220228`
     : resolvedHeaderLogoUrl;
+  const mOneHeaderLayerUrl = (layer) => `${resolvedHeaderLogoUrl.split("?")[0].replace(mOneHeaderLogoPattern, `/branding/m-one-logo-${mOneHeaderLogoVariant}-${layer}.png`)}?v=20220715`;
   const { i18n: storefrontI18n, t } = useTranslation();
   const brandInitials = resolveBrandInitials(brandName);
   const [search, setSearch] = useState("");
@@ -4692,8 +4695,15 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             </button>
             <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
               {preferredHeaderLogoUrl ? (
-                <span className="sf-header-wordmark inline-flex h-14 w-14 items-center justify-center transition">
-                  <img src={displayedHeaderLogoUrl} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="160" height="160" />
+                <span className="sf-header-wordmark relative inline-flex h-14 w-14 items-center justify-center transition">
+                  {isMOneHeaderLogo ? (
+                    <>
+                      <img src={mOneHeaderLayerUrl("fixed")} alt={brandName} className="absolute inset-0 block h-full w-full object-contain" decoding="async" width="160" height="160" />
+                      <img src={mOneHeaderLayerUrl("m")} alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 block h-full w-full object-contain" decoding="async" width="160" height="160" />
+                    </>
+                  ) : (
+                    <img src={displayedHeaderLogoUrl} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="160" height="160" />
+                  )}
                 </span>
               ) : (
                 <span className="sf-mobile-header-logo grid h-12 w-12 place-items-center rounded-full text-[0.7rem] font-black tracking-[0.16em] transition">{brandInitials}</span>
@@ -4779,8 +4789,15 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             <span className="sf-header-divider hidden h-12 w-px md:block" />
             <Link to="/" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#d4af37] dark:text-white" aria-label={brandName || "MONE"}>
               {preferredHeaderLogoUrl ? (
-                <span className="sf-header-wordmark inline-flex h-[72px] w-[82px] items-center justify-center bg-transparent transition group-hover:scale-[1.02]">
-                  <img src={displayedHeaderLogoUrl} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="240" height="240" />
+                <span className="sf-header-wordmark relative inline-flex h-[72px] w-[82px] items-center justify-center bg-transparent transition group-hover:scale-[1.02]">
+                  {isMOneHeaderLogo ? (
+                    <>
+                      <img src={mOneHeaderLayerUrl("fixed")} alt={brandName} className="absolute inset-0 block h-full w-full object-contain" decoding="async" width="240" height="240" />
+                      <img src={mOneHeaderLayerUrl("m")} alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 block h-full w-full object-contain" decoding="async" width="240" height="240" />
+                    </>
+                  ) : (
+                    <img src={displayedHeaderLogoUrl} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="240" height="240" />
+                  )}
                 </span>
               ) : (
                 <span className="sf-header-logo-chip grid h-16 w-16 place-items-center rounded-full text-sm font-black tracking-[0.16em] text-white transition group-hover:scale-[1.02] md:h-[68px] md:w-[68px]">{brandInitials}</span>

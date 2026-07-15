@@ -11,11 +11,17 @@ test("storefront header supports a dedicated transparent wordmark", () => {
   assert.match(storefrontSource, /headerLogoUrl=\{storefrontBrandSettings\.headerLogoUrl\}/);
   assert.match(storefrontSource, /h-\[72px\] w-\[82px\][\s\S]*?object-contain/);
   assert.match(storefrontSource, /effectiveTheme === "dark" \? "white" : "dark"/);
+  assert.match(storefrontSource, /sf-header-logo-moving-m/);
   assert.doesNotMatch(storefrontSource, /headerLogoUrl \|\| brandLogoUrl[\s\S]{0,500}clipPath: "circle/);
 });
 
 test("M One wordmark variants are bundled with the storefront", () => {
   for (const variant of ["orange", "white", "dark"]) {
     assert.equal(existsSync(new URL(`../public/branding/m-one-wordmark-${variant}.png`, import.meta.url)), true);
+  }
+  for (const variant of ["white", "dark"]) {
+    for (const layer of ["fixed", "m"]) {
+      assert.equal(existsSync(new URL(`../public/branding/m-one-logo-${variant}-${layer}.png`, import.meta.url)), true);
+    }
   }
 });
