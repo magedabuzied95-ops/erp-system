@@ -8403,7 +8403,9 @@ export const testSocialCommentAutomationRuntime = async ({ tenantId = null, plat
   }
   const config = await getSocialCommentAutomationConfig({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
   const post = config?.post || await loadSocialCommentPost({ tenantId: safeTenantId, platform: normalizedPlatform, postId: safePostId });
-  const product = metadataObject(config?.product || post?.product || {});
+  const configProduct = metadataObject(config?.product || {});
+  const postProduct = metadataObject(post?.product || {});
+  const product = Object.keys(configProduct).length ? configProduct : postProduct;
   const websiteLinks = await resolveAutomationWebsiteLinks({
     tenantId: safeTenantId,
     row: post || {},
@@ -8418,6 +8420,19 @@ export const testSocialCommentAutomationRuntime = async ({ tenantId = null, plat
       .filter(Boolean),
     stock_status: text(product?.stock_status || post?.stock_status || ""),
   }));
+  const previewPriceResolution = await resolveSocialProductDisplayPrice({
+    tenantId: safeTenantId,
+    product,
+    productContext: product,
+    linkedProduct: metadataObject(config?.primary_product || post?.primary_product || {}),
+    variants: asArray(product?.variants || post?.variants || []),
+    availableVariants: asArray(product?.available_variants || post?.available_variants || []),
+    context: {
+      product_id: product.id || product.product_id || post?.productId || post?.product_id || null,
+      product_name: product.name || product.product_name || post?.productName || "",
+    },
+    callsite: "socialCommentAutomationService.testSocialCommentAutomationRuntime",
+  }).catch(() => null);
   const templateContext = {
     customerName: "عميل تجريبي",
     customer_name: "عميل تجريبي",
@@ -8425,7 +8440,7 @@ export const testSocialCommentAutomationRuntime = async ({ tenantId = null, plat
     commenter_name: "عميل تجريبي",
     productName: text(product.name || post?.productName || post?.caption || "Linked product"),
     product_name: text(product.name || post?.productName || post?.caption || "Linked product"),
-    price: text(product.sale_price || product.price || post?.productSalePrice || post?.productPrice || "0"),
+    price: text(previewPriceResolution?.selected_display_price || product.selling_price || product.price || post?.productSellingPrice || post?.productPrice || "0"),
     size: text((post?.productSizes || "").split(",").map((value) => text(value)).filter(Boolean)[0] || "غير محدد"),
     color: text(post?.productColors || product.color || ""),
     productUrl: text(product.storefront_url || product.product_url || post?.productLink || ""),
