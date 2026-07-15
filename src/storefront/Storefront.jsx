@@ -4691,7 +4691,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             </button>
             <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
               {preferredHeaderLogoUrl ? (
-                <span className="sf-mobile-header-logo sf-header-wordmark inline-flex h-14 w-14 items-center justify-center transition">
+                <span className="sf-header-wordmark inline-flex h-14 w-14 items-center justify-center transition">
                   <img src={displayedHeaderLogoUrl} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="160" height="160" />
                 </span>
               ) : (
@@ -4778,7 +4778,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             <span className="sf-header-divider hidden h-12 w-px md:block" />
             <Link to="/" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#d4af37] dark:text-white" aria-label={brandName || "MONE"}>
               {preferredHeaderLogoUrl ? (
-                <span className="sf-header-logo-chip sf-header-wordmark inline-flex h-[72px] w-[82px] items-center justify-center bg-transparent transition group-hover:scale-[1.02]">
+                <span className="sf-header-wordmark inline-flex h-[72px] w-[82px] items-center justify-center bg-transparent transition group-hover:scale-[1.02]">
                   <img src={displayedHeaderLogoUrl} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="240" height="240" />
                 </span>
               ) : (
