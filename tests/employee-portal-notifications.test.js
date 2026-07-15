@@ -28,6 +28,7 @@ test("shared shortage alerts use employee-specific read receipts", () => {
 
   assert.match(refill, /employee_display_refill_alert_reads/);
   assert.match(refill, /employee_is_read AS is_read/);
+  assert.match(refill, /baseColumns\.replace\("employee_is_read AS is_read", "is_read"\)/);
   assert.match(refill, /ON CONFLICT \(alert_id, employee_id\)/);
 });
 

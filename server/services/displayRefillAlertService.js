@@ -1238,6 +1238,7 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
     resolved_at,
     resolved_by_employee_id
   `;
+  const outerColumns = baseColumns.replace("employee_is_read AS is_read", "is_read");
   const pendingSelect = `
     SELECT
       ${baseColumns},
@@ -1262,7 +1263,7 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
     normalizedStatus === "pending"
       ? `
         ${scopedCte}
-        SELECT ${baseColumns}, completed_at
+        SELECT ${outerColumns}, completed_at
         FROM (
           ${pendingSelect}
         ) AS alerts_union
@@ -1271,7 +1272,7 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
       : normalizedStatus === "completed"
         ? `
           ${scopedCte}
-          SELECT ${baseColumns}, completed_at
+          SELECT ${outerColumns}, completed_at
           FROM (
             ${completedSelect}
           ) AS alerts_union
@@ -1285,7 +1286,7 @@ export const listDisplayRefillAlertsForEmployee = async ({ employeeId, tenantId 
           completed_rows AS (
             ${completedSelect}
           )
-          SELECT ${baseColumns}, completed_at
+          SELECT ${outerColumns}, completed_at
           FROM (
             SELECT * FROM pending_rows
             UNION ALL
