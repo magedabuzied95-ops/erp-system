@@ -2021,8 +2021,10 @@ router.post("/channels/meta/webhook", async (req, res) => {
           ? String(message.raw?.messenger_profile?.name || message.raw?.sender_name || message.raw?.profile_name || message.raw?.contact_name || "").trim()
           : message.customer_name || "",
       });
-      const candidateReply = humanizedReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) || reply.text || aiPayload.answer || "";
-      if (humanizedReply) {
+      const aiGeneratedReply = envText(reply.text || aiPayload.answer || "");
+      const fallbackReply = humanizedReply || commerceReplyForIntent(intent, replyProductContext, detectedSize) || "";
+      const candidateReply = aiGeneratedReply || fallbackReply;
+      if (!aiGeneratedReply && humanizedReply) {
         pushAIEvent({
           type: "HUMANIZED_REPLY_USED",
           status: "success",

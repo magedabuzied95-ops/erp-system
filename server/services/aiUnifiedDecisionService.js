@@ -7,6 +7,8 @@ import { normalizeArabicForIntent, normalizeArabicIntentPayload, normalizeArabic
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { rankProductCandidates } from "../utils/productMatchConfidence.js";
+import { sanitizeGroundedAiReply } from "./aiReplyQualityService.js";
+import { generateSupportAnswer } from "./openaiSupportService.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -16,6 +18,66 @@ import {
 
 const text = (value = "") => String(value ?? "").trim();
 const asArray = (value) => (Array.isArray(value) ? value : []);
+const groundedRewriteEnabled = () => !["0", "false", "no", "off"].includes(String(process.env.AI_GROUNDED_REPLY_REWRITE ?? "1").trim().toLowerCase());
+
+const safeProductFacts = (product = {}) => ({
+  id: product.id || product.product_id || "",
+  name: text(product.name || product.title || product.product_name),
+  brand: text(product.brand || product.brand_name),
+  gender: text(product.gender || product.audience || product.target_gender),
+  category: text(product.category || product.category_name || product.product_type),
+  price: product.display_price ?? product.final_price ?? product.price ?? product.selling_price ?? null,
+  availability: text(product.availability || product.stock_status),
+  total_stock: Number(product.total_stock ?? product.stock ?? 0) || 0,
+  sizes: asArray(product.available_sizes || product.sizes).slice(0, 30),
+  colors: asArray(product.available_colors || product.colors).slice(0, 20),
+  product_url: text(product.product_url || product.url),
+});
+
+const rewriteStructuredDecision = async ({ decision = {}, inbound = {}, tenantId = null } = {}) => {
+  if (!groundedRewriteEnabled()) return decision;
+  const intent = text(decision.detected_intent || decision.intent);
+  if (["human_takeover", "order_tracking", "order_follow_up", "post_product_order_confirmation"].includes(intent)) return decision;
+  const products = asArray(decision.product_cards?.length ? decision.product_cards : decision.suggested_products?.length ? decision.suggested_products : decision.products);
+  const currentText = text(decision.text || decision.answer || decision.channel_reply?.text);
+  const catalogUrl = text(decision.storefront_url || decision.catalog_url || decision.memory_updates?.catalog_url);
+  const result = await generateSupportAnswer({
+    message: inbound.originalText || inbound.text,
+    trustedContext: {
+      sources: [{
+        id: "live_store_context",
+        title: "Live storefront facts",
+        content: JSON.stringify({
+          intent,
+          current_grounded_answer: currentText,
+          catalog_filters: decision.catalog_filters || {},
+          catalog_url: catalogUrl,
+          products: products.map(safeProductFacts),
+        }),
+      }],
+    },
+    metadata: {
+      tenant_id: tenantId,
+      session_id: inbound.externalConversationId,
+      customer_id: inbound.externalCustomerId,
+    },
+    suggestedProducts: products.map(safeProductFacts),
+    suggestedActions: asArray(decision.suggested_actions || decision.actions),
+  }).catch((error) => {
+    console.warn("[ai-grounded-rewrite:skipped]", { message: error?.message || "rewrite failed" });
+    return null;
+  });
+  const generated = text(result?.answer);
+  if (!generated || result?.needs_human_support === true || Number(result?.confidence || 0) < 0.35) return decision;
+  const finalText = catalogUrl && !generated.includes(catalogUrl) ? `${generated}\n${catalogUrl}` : generated;
+  return {
+    ...decision,
+    text: finalText,
+    answer: finalText,
+    channel_reply: { ...(decision.channel_reply || {}), text: finalText },
+    debug: { ...(decision.debug || {}), grounded_rewrite_applied: true, grounded_rewrite_source: "live_store_context" },
+  };
+};
 
 const normalizeImage = (item = {}) => ({
   ...item,
@@ -619,6 +681,11 @@ export const normalizeUnifiedDecisionOutput = (decision = {}, context = {}) => {
       decision.detected_intent ||
       decision.detectedIntent
   );
+  const quality = sanitizeGroundedAiReply({
+    reply: decision.text || channelReply.text || decision.answer,
+    products: productCards.length ? productCards : products,
+    intent,
+  });
   const normalizedPayload = normalizeArabicIntentPayload(
     context.originalText ||
       decision.originalText ||
@@ -675,8 +742,8 @@ export const normalizeUnifiedDecisionOutput = (decision = {}, context = {}) => {
 
   return {
     ...decision,
-    text: text(decision.text || channelReply.text || decision.answer),
-    answer: text(decision.answer || decision.text || channelReply.text),
+    text: quality.reply,
+    answer: quality.reply,
     intent,
     detected_intent: text(decision.detected_intent || intent),
     products: finalProducts,
@@ -708,6 +775,12 @@ export const normalizeUnifiedDecisionOutput = (decision = {}, context = {}) => {
         productQueryHints: decision.productQueryHints ?? context.productQueryHints ?? [],
       },
       rawDecision: decision,
+      reply_quality: { replaced: quality.replaced, reason: quality.reason },
+    },
+    channel_reply: {
+      ...channelReply,
+      text: quality.reply,
+      product_cards: finalProductCards,
     },
     product_cards: finalProductCards,
   };
@@ -935,6 +1008,7 @@ export const generateUnifiedConversationDecision = async (normalizedInbound = {}
     }
   }
 
+  decision = await rewriteStructuredDecision({ decision, inbound, tenantId });
   const output = normalizeUnifiedDecisionOutput(applySharedShortcutMetadata({ decision, inbound }), inbound);
   console.info("AI_UNIFIED_DECISION_OUTPUT", {
     channel: inbound.channel,

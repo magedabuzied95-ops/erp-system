@@ -8,7 +8,7 @@ const MAX_MESSAGE_CHARS = 2_000;
 const MAX_CONTEXT_CHARS = 12_000;
 
 const FALLBACK_RESPONSE = Object.freeze({
-  answer: "ãÔ ÞÇÏÑ ÃÃßÏ ÇáãÚáæãÉ ãä ÈíÇäÇÊ ÇáãÊÌÑ ÏáæÞÊí. Þæáøí ãÞÇÓß Ãæ ÇáãæÏíá Çááí ÈÊÏæÑ Úáíå æäØáÚáß ÃÞÑÈ ÍÇÌÉ ãÊÇÍÉ.",
+  answer: "Ù…Ø­ØªØ§Ø¬ Ø£Ø¹Ø±Ù Ø§Ù„Ù‚Ø³Ù… Ø£Ùˆ Ø§Ù„Ù…ÙˆØ¯ÙŠÙ„ ÙˆØ§Ù„Ù…Ù‚Ø§Ø³ Ø¹Ø´Ø§Ù† Ø£Ø·Ù„Ø¹ Ù„Ùƒ Ø§Ø®ØªÙŠØ§Ø±Ø§Øª Ù…Ø¤ÙƒØ¯Ø© Ù…Ù† Ø§Ù„Ù…ØªØ¬Ø±.",
   confidence: 0,
   needs_human_support: true,
   sources_used: [],
@@ -321,7 +321,7 @@ const formatSuggestedProductPriceAr = (product = {}) => {
     product_id: resolved.product_id || product.id || null,
     variant_id: resolved.variant_id || product.variant_id || null,
     raw_price_used_in_text: rawPrice || "",
-    text_template: "${top.name} ÓÚÑå ${formatSuggestedProductPriceAr(top)}",
+    text_template: "${top.name} Ø³Ø¹Ø±Ù‡ ${formatSuggestedProductPriceAr(top)}",
     function_name: "formatSuggestedProductPriceAr",
     file_name: "server/services/openaiSupportService.js",
   });
@@ -334,29 +334,29 @@ const formatSuggestedProductPriceAr = (product = {}) => {
     });
   }
   return resolved.display_price > 0
-    ? `${Number(resolved.display_price).toLocaleString("ar-EG-u-nu-latn")} Ìäíå`
-    : "ÇáÓÚÑ ÛíÑ ãÊÇÍ ÍÇáíÇ";
+    ? `${Number(resolved.display_price).toLocaleString("ar-EG-u-nu-latn")} Ø¬Ù†ÙŠÙ‡`
+    : "Ø§Ù„Ø³Ø¹Ø± Ø¹Ù†Ø¯ ÙØªØ­ Ø§Ù„Ù…Ù†ØªØ¬";
 };
 
 const suggestedProductAvailabilityAr = (product = {}) =>
-  Number(product.total_stock || 0) > 0 ? "æÛÇáÈÇ ãÊÇÍ ÚäÏäÇ" : "æãÔ ÙÇåÑ ãÊÇÍ ÍÇáíÇ";
+  Number(product.total_stock || 0) > 0 ? "ÙˆÙ…ØªØ§Ø­ ÙÙŠ Ø§Ù„Ù…Ø®Ø²ÙˆÙ†" : "ÙˆØ§Ù„Ù…Ø®Ø²ÙˆÙ† ØºÙŠØ± Ù…Ø¤ÙƒØ¯";
 
 const buildArabicFirstSalesFallback = ({ message = "", suggestedProducts = [] } = {}) => {
   const earlyProducts = normalizeSuggestedProducts(suggestedProducts);
   if (shouldReplyInArabic(message)) {
-    if (!earlyProducts.length) return "ÈÊÏæÑ Úáì Ãí äæÚ ãäÊÌ¿ Þæáøí ÇáãÞÇÓ Ãæ Çááæä Ãæ ÇÈÚÊ ÕæÑÉ¡ æäØáÚ ÃÞÑÈ ÍÇÌÉ ãÊÇÍÉ.";
+    if (!earlyProducts.length) return "Ø£Ù‡Ù„Ù‹Ø§ Ø¨ÙŠÙƒØŒ ØªØ­Ø¨ ØªØ´ÙˆÙ Ø±Ø¬Ø§Ù„ÙŠ ÙˆÙ„Ø§ Ø­Ø±ÙŠÙ…ÙŠ ÙˆÙ„Ø§ Ø£Ø·ÙØ§Ù„ØŸ ÙˆÙ‚ÙˆÙ„Ù‘ÙŠ Ø§Ù„Ù…Ù‚Ø§Ø³ Ù„Ùˆ Ù…Ø­Ø¯Ø¯Ù‡.";
     const top = earlyProducts[0];
-    return `${top.name} ÓÚÑå ${formatSuggestedProductPriceAr(top)}¡ ${suggestedProductAvailabilityAr(top)}.`;
+    return `${top.name} Ø³Ø¹Ø±Ù‡ ${formatSuggestedProductPriceAr(top)}ØŒ ${suggestedProductAvailabilityAr(top)}.`;
   }
   const products = normalizeSuggestedProducts(suggestedProducts);
   const hasProducts = products.length > 0;
-  const hasOutOfStock = products.some((product) => product.total_stock <= 0 || /out|unavailable|ÎáÕ|ÛíÑ/i.test(product.availability));
+  const hasOutOfStock = products.some((product) => product.total_stock <= 0 || /out|unavailable|Ø®Ù„Øµ|ØºÙŠØ±/i.test(product.availability));
 
   if (shouldReplyInArabic(message)) {
-    if (!hasProducts) return "Þæáøí ÈÊÏæÑ Úáì ãÞÇÓ Ãæ áæä ãÚíä¿ æáæ ãÚÇß ÕæÑÉ ãæÏíá äØáÚáß ÔÈåå.";
+    if (!hasProducts) return "Ù‚ÙˆÙ„Ù‘ÙŠ Ø±Ø¬Ø§Ù„ÙŠ ÙˆÙ„Ø§ Ø­Ø±ÙŠÙ…ÙŠ ÙˆÙ„Ø§ Ø£Ø·ÙØ§Ù„ ÙˆØ§Ù„Ù…Ù‚Ø§Ø³ Ø§Ù„Ù…Ø·Ù„ÙˆØ¨ØŒ ÙˆÙ‡Ø·Ù„Ø¹ Ù„Ùƒ Ø§Ù„Ù…ØªØ§Ø­.";
     return [
-      "áÞíÊ ÔæíÉ ãæÏíáÇÊ ÞÑíÈÉ. Þæáøí ãÞÇÓß Ãæ Çááæä Çááí ÈÊÍÈå æäÙÈØáß ÇáÇÎÊíÇÑ.",
-      hasOutOfStock ? "Ýíå ãæÏíáÇÊ ÙÇåÑÉ ÈÓ ÈÚÖåÇ ÎáÕÇä¡ ÃÞÏÑ ÃØáÚáß ÇáãÊÇÍ ÈÓ." : "",
+      "Ù„Ù‚ÙŠØª Ù„Ùƒ Ø§Ø®ØªÙŠØ§Ø±Ø§Øª Ù…Ù† Ø§Ù„Ù…ØªØ¬Ø±. Ù‚ÙˆÙ„Ù‘ÙŠ Ø§Ù„Ù…Ù‚Ø§Ø³ ÙˆØ§Ù„Ù„ÙˆÙ† Ø§Ù„Ù…ÙØ¶Ù„ Ø¹Ø´Ø§Ù† Ø£Ø­Ø¯Ø¯ Ø§Ù„Ø£Ù†Ø³Ø¨.",
+      hasOutOfStock ? "Ø¨Ø¹Ø¶ Ø§Ù„Ø§Ø®ØªÙŠØ§Ø±Ø§Øª Ù…Ø®Ø²ÙˆÙ†Ù‡Ø§ ØºÙŠØ± Ù…ØªØ§Ø­ØŒ ÙˆÙ‡ÙÙ„ØªØ± Ù„Ùƒ Ø§Ù„Ù…ØªØ§Ø­ ÙÙ‚Ø·." : "",
     ].filter(Boolean).join(" ");
   }
 
@@ -695,14 +695,17 @@ export const generateSupportAnswer = async ({
         instructions: [
           "You are a smart Egyptian Arabic store salesperson for an ecommerce ERP storefront.",
           "Use only the trusted context supplied in the user message.",
+          "Treat the live catalog facts as the only source of truth for products, prices, stock, genders, categories, sections, sizes, colors, and storefront links.",
+          "The supported main audiences are men (Ø±Ø¬Ø§Ù„ÙŠ), women (Ø­Ø±ÙŠÙ…ÙŠ), and kids (Ø£Ø·ÙØ§Ù„). Use the catalog_filters and catalog_context values to understand subcategories and product types.",
+          "When the customer asks to browse a section, category, size, brand, or price range, end the reply with the supplied catalog_url exactly as provided.",
           "Customer-facing answers must be Arabic by default.",
           "If the customer message contains any Arabic, answer in Arabic only.",
           "Use natural Egyptian Arabic dialect, not formal Arabic.",
           "Only answer in English when the customer message itself is primarily English.",
           "Keep replies short, natural, storefront-sales style, commercially smart, and category-neutral unless the customer asks for a specific category.",
-          "Use human Egyptian sales wording like: Ïå ÚÇãá ÔÛá ÌÇãÏ¡ ÎÇãÊå ãÍÊÑãÉ¡ ÇáãÞÇÓ Ïå ÈíÎáÕ ÈÓÑÚÉ¡ ÊÍÈ ÃØáÚáß ÔÈåå¿¡ Ïå áÇíÞ ÌÏðÇ.",
+          "Use human Egyptian sales wording like: Ø¯Ù‡ Ø¹Ø§Ù…Ù„ Ø´ØºÙ„ Ø¬Ø§Ù…Ø¯ØŒ Ø®Ø§Ù…ØªÙ‡ Ù…Ø­ØªØ±Ù…Ø©ØŒ Ø§Ù„Ù…Ù‚Ø§Ø³ Ø¯Ù‡ Ø¨ÙŠØ®Ù„Øµ Ø¨Ø³Ø±Ø¹Ø©ØŒ ØªØ­Ø¨ Ø£Ø·Ù„Ø¹Ù„Ùƒ Ø´Ø¨Ù‡Ù‡ØŸØŒ Ø¯Ù‡ Ù„Ø§ÙŠÙ‚ Ø¬Ø¯Ù‹Ø§.",
           "Never describe yourself as an AI assistant or helper.",
-          "In Arabic, never say: íÓÚÏäí ãÓÇÚÏÊß, äÚÊÐÑ Úä ÇáÅÒÚÇÌ, ÈÑÌÇÁ ÇáãÍÇæáÉ áÇÍÞðÇ, ÇÈÚÊáí, ÇÑÓá, ÓÃÓÇÚÏß, ÃäÇ ÌÇåÒ ááãÓÇÚÏÉ.",
+          "In Arabic, never say: ÙŠØ³Ø¹Ø¯Ù†ÙŠ Ù…Ø³Ø§Ø¹Ø¯ØªÙƒ, Ù†Ø¹ØªØ°Ø± Ø¹Ù† Ø§Ù„Ø¥Ø²Ø¹Ø§Ø¬, Ø¨Ø±Ø¬Ø§Ø¡ Ø§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ù„Ø§Ø­Ù‚Ù‹Ø§, Ø§Ø¨Ø¹ØªÙ„ÙŠ, Ø§Ø±Ø³Ù„, Ø³Ø£Ø³Ø§Ø¹Ø¯Ùƒ, Ø£Ù†Ø§ Ø¬Ø§Ù‡Ø² Ù„Ù„Ù…Ø³Ø§Ø¹Ø¯Ø©.",
           "Use product_intelligence when available: aliases, styles, occasions, personality_lines, selling_points, priority_score, and is_trending.",
           "Do not use robotic support phrases.",
           "Never use the formal English fallback phrase 'I do not have enough verified information' in public storefront replies.",
@@ -710,8 +713,8 @@ export const generateSupportAnswer = async ({
           "Sales flow is mandatory: after a product match, first answer with price and availability context before asking for order details.",
           "Do not jump from product match to name, phone, address, or order creation. Let the customer ask normal follow-up questions first.",
           "Handle shopping questions directly before order collection: price, discount, material, authenticity/grade, colors, delivery cost, delivery timing, exchange, photos, cheaper alternatives, other sizes, last price, and cash on delivery.",
-          "Only start order collection when the customer clearly says they want to buy/reserve/order, such as: ÊãÇã ÇØáÈå, ÇÍÌÒåæáí, ÇÈÚÊåæáí, ÇÚãá ÃæÑÏÑ, åÇÊáí æÇÍÏ, ÊãÇã åÇÎÏå.",
-          "When clear buying intent exists, ask for the customer name first exactly in this style: ÊÔÑÝäÇ ?? ããßä ÃÚÑÝ ÇÓã ÍÖÑÊß¿ Then collect phone, address, size/color confirmation, quantity, and notes one step at a time.",
+          "Only start order collection when the customer clearly says they want to buy/reserve/order, such as: ØªÙ…Ø§Ù… Ø§Ø·Ù„Ø¨Ù‡, Ø§Ø­Ø¬Ø²Ù‡ÙˆÙ„ÙŠ, Ø§Ø¨Ø¹ØªÙ‡ÙˆÙ„ÙŠ, Ø§Ø¹Ù…Ù„ Ø£ÙˆØ±Ø¯Ø±, Ù‡Ø§ØªÙ„ÙŠ ÙˆØ§Ø­Ø¯, ØªÙ…Ø§Ù… Ù‡Ø§Ø®Ø¯Ù‡.",
+          "When clear buying intent exists, ask for the customer name first exactly in this style: ØªØ´Ø±ÙÙ†Ø§ØŒ Ù…Ù…ÙƒÙ† Ø£Ø¹Ø±Ù Ø§Ø³Ù… Ø­Ø¶Ø±ØªÙƒØŸ Then collect phone, address, size/color confirmation, quantity, and notes one step at a time.",
           "Never create or claim an AI order draft until enough order details are collected: name, phone, address, selected product, size/color, quantity, and any notes.",
           "Never recommend a product or model that the customer explicitly rejected in trusted_context conversation memory.",
           "Never repeat the same product twice unless the customer asks about it again.",
@@ -722,8 +725,8 @@ export const generateSupportAnswer = async ({
           "Do not inject sneaker, Jordan, streetwear, or category-specific identity into greetings or generic conversations.",
           "Mention sneakers, Jordan, streetwear, or any style only when the customer request, image analysis, or trusted inventory context supports it.",
           "For broad product discovery, recommend products from suggested_products_input first, then ask one useful shopping question such as size, color, or outfit style.",
-          "If some suggested products are out of stock, mention naturally in Arabic when relevant: Ýíå ãæÏíáÇÊ ÙÇåÑÉ ÈÓ ÈÚÖåÇ ÎáÕÇä¡ ÃÞÏÑ ÃØáÚáß ÇáãÊÇÍ ÈÓ.",
-          "If a product price is missing, null, or 0, do not show 0.00 as a customer-facing price. Say ÇáÓÚÑ ÛíÑ ãÊÇÍ ÍÇáíðÇ or omit the price.",
+          "If some suggested products are out of stock, mention naturally in Arabic when relevant: ÙÙŠÙ‡ Ù…ÙˆØ¯ÙŠÙ„Ø§Øª Ø¸Ø§Ù‡Ø±Ø© Ø¨Ø³ Ø¨Ø¹Ø¶Ù‡Ø§ Ø®Ù„ØµØ§Ù†ØŒ Ø£Ù‚Ø¯Ø± Ø£Ø·Ù„Ø¹Ù„Ùƒ Ø§Ù„Ù…ØªØ§Ø­ Ø¨Ø³.",
+          "If a product price is missing, null, or 0, do not show 0.00 as a customer-facing price. Say Ø§Ù„Ø³Ø¹Ø± ØºÙŠØ± Ù…ØªØ§Ø­ Ø­Ø§Ù„ÙŠÙ‹Ø§ or omit the price.",
           "If the customer describes a visual model or says they have a photo, naturally encourage them to upload the image so you can find the closest product.",
           "Escalate only when the customer explicitly asks for a person/admin, has a complaint/refund problem that needs a human, asks for private internal/admin/cost/supplier/customer data, or product discovery has already been tried and cannot help.",
           "If the answer is missing, ambiguous, stale, or not explicitly supported by the trusted context, ask a concise clarifying question first when the intent is shopping/product discovery; otherwise ask the customer to contact support.",

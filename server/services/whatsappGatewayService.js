@@ -3559,7 +3559,7 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
       provider_message_id, whatsapp_instance, remote_jid, resolved_reply_jid, resolved_phone, source_path, insert_source
     )
     VALUES ($1, $2, $3::text, 'whatsapp', $4::text, $5::text, $5::text, $5::text, '', 0, FALSE, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '[]'::jsonb, '', 'ai_status:pending', 'customer', $6::text, $7::text, $8::text, $9::text, $10::text, $11::text, $12::text, $13::text, $14::text)
-    ON CONFLICT (tenant_id, channel, whatsapp_instance, remote_jid, provider_message_id) WHERE provider_message_id <> '' DO NOTHING
+    ON CONFLICT DO NOTHING
     RETURNING *
     `,
     [session.rows[0]?.id || null, tenantId, sessionId, customerName, body, externalMessageId, dedupeKey, externalMessageId, instance, remoteJid, resolvedReplyJid, resolvedPhone, "whatsapp_webhook", "whatsapp_webhook"]
@@ -3586,14 +3586,22 @@ const saveWhatsappIncomingToAiInbox = async (message = {}) => {
         insert_source
       FROM ai_support_messages
       WHERE tenant_id = $1
-        AND channel = $2
-        AND whatsapp_instance = $3
-        AND remote_jid = $4
-        AND provider_message_id = $5
+        AND (
+          (
+            channel = $2
+            AND whatsapp_instance = $3
+            AND remote_jid = $4
+            AND provider_message_id = $5
+          )
+          OR (
+            session_id = $6
+            AND external_message_id = $5
+          )
+        )
       ORDER BY id ASC
       LIMIT 1
       `,
-      [tenantId, channel, instance, remoteJid, externalMessageId]
+      [tenantId, channel, instance, remoteJid, externalMessageId, sessionId]
     ).then((result) => result.rows[0] || null).catch(() => null);
     console.info("[existing-provider-message-row]", {
       id: existingRow?.id || null,

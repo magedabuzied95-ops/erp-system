@@ -6,6 +6,7 @@ import { normalizeArabicForIntent, normalizeArabicIntentPayload } from "../utils
 import { resolveProductAlias } from "../utils/productAliasResolver.js";
 import { buildAliasAwareSearchHints } from "../utils/aliasAwareProductSearch.js";
 import { rankProductCandidates, scoreProductCandidate } from "../utils/productMatchConfidence.js";
+import { resolveCatalogNavigation } from "./aiCatalogNavigationService.js";
 import {
   buildConversationMemoryV2,
   mergeConversationMemoryV2,
@@ -476,103 +477,6 @@ const buildColorSelectionFromMemoryCards = ({ message = "", memory = {} } = {}) 
       selected_size: selectedSize,
       selected_variant_id: topVariantId,
       selected_product_id: topProductId,
-    },
-  };
-};
-
-const buildPostProductOrderConfirmationFromMemory = ({ message = "", memory = {} } = {}) => {
-  const normalized = normalizeArabic(message);
-  if (!/^(\u0627\u064a\u0648\u0647|\u0627\u064a\u0648\u0629|\u0627\u0647|\u0646\u0639\u0645|\u062a\u0645\u0627\u0645|\u0645\u0627\u0634\u064a|ok|yes)$/i.test(normalized)) {
-    return null;
-  }
-  const rememberedCards = memoryCardsFromContext(memory);
-  if (!rememberedCards.length) return null;
-
-  const activeProductId = text(activeProductFromMemory(memory));
-  const activeSize = normalizeSizeToken(memory?.activeSize || memory?.selectedSize || memory?.preferences?.activeSize || memory?.preferences?.selectedSize || "");
-  const activeColor = text(memory?.activeColor || memory?.selectedColor || memory?.preferences?.activeColor || memory?.preferences?.selectedColor || "");
-  if (!activeProductId || !activeSize || !activeColor) return null;
-
-  const productCard = rememberedCards.find((card) => text(card.product_id || card.id || "") === activeProductId) || rememberedCards[0] || {};
-  const modelName = prettyModelName(
-    productCard?.base_name ||
-      productCard?.model_name ||
-      productCard?.product_name ||
-      productCard?.name ||
-      productCard?.title ||
-      "Jordan 4"
-  );
-  const replyText = [
-    "طھظ…ط§ظ…",
-    "",
-    modelName,
-    activeColor,
-    `ظ…ظ‚ط§ط³ ${activeSize}`,
-    "",
-    "ط§ط¨ط¹طھظ„ظٹ ط§ظ„ط§ط³ظ… وط±ظ‚ظ… ط§ظ„ظ…ظˆط¨ط§ظٹظ„ ظˆط§ظ„ط¹ظ†ظˆط§ظ† ط¹ط´ط§ظ† ط£ط¬ظ‡ط²ظ„ظƒ ط§ظ„ط·ظ„ط¨.",
-  ].join("\n");
-  const memoryUpdates = {
-    active_product_id: activeProductId,
-    selected_product_id: activeProductId,
-    last_product_id: activeProductId,
-    activeSize,
-    selectedSize: activeSize,
-    active_size: activeSize,
-    selected_size: activeSize,
-    activeColor,
-    selectedColor: activeColor,
-    active_color: activeColor,
-    selected_color: activeColor,
-    buyingStage: "collecting_customer_info",
-    checkoutStage: "collecting_customer_info",
-    nextRecommendedStage: "collect_customer_details",
-    resolvedQuestionType: "POST_PRODUCT_ORDER_CONFIRMATION",
-    replyDecisionReason: "v2_post_product_order_confirmation",
-    last_intent: "post_product_order_confirmation",
-    ai_brain_version: "v2",
-    last_product_cards: rememberedCards,
-    lastProductCards: rememberedCards,
-  };
-  return {
-    text: replyText,
-    answer: replyText,
-    intent: "post_product_order_confirmation",
-    detected_intent: "post_product_order_confirmation",
-    products: [],
-    suggested_products: [],
-    product_cards: [],
-    images: [],
-    image_cards: [],
-    quickReplies: [],
-    quick_replies: [],
-    actions: [
-      { label: "collect_customer_details", value: "collect_customer_details", action: "collect_customer_details" },
-      { label: "contact_support", value: "contact_support", action: "contact_support" },
-    ],
-    suggested_actions: [
-      { label: "collect_customer_details", value: "collect_customer_details", action: "collect_customer_details" },
-      { label: "contact_support", value: "contact_support", action: "contact_support" },
-    ],
-    memoryUpdates,
-    memory_updates: memoryUpdates,
-    ai_memory_patch: { preferences: memoryUpdates },
-    handoff: { needs_human_support: false, reason: "", conversation_status: "" },
-    active_product_id: activeProductId,
-    active_size: activeSize,
-    active_color: activeColor,
-    next_best_action: "collect_customer_details",
-    reply_goal: "collect_customer_details",
-    sales_stage: "ORDER_COLLECTION",
-    nextRecommendedStage: "collect_customer_details",
-    replyDecisionReason: "v2_post_product_order_confirmation",
-    debug: {
-      source: "aiBrainV2",
-      engine: "ai_brain_v2",
-      legacy_called: false,
-      reason: "v2_post_product_order_confirmation",
-      active_product_id: activeProductId,
-      active_size: activeSize,
-      active_color: activeColor,
     },
   };
 };
@@ -1399,6 +1303,65 @@ export const generateAiBrainV2Decision = async (normalizedInbound = {}, options 
     productQuery: normalizedInbound.product_query || normalizedInbound.productQuery || normalizedInbound.metadata?.product_query || normalizedInbound.metadata?.productQuery || options.productQuery || "",
     productCards: normalizedInbound.product_cards || normalizedInbound.productCards || options.productCards || [],
   });
+  const explicitCatalogFacet = /(رجالي|رجاله|حريمي|نسائي|نساء|اطفال|أطفال|kids?|women?|men|قسم|سكشن|فئ[هة]|نوع)/i.test(originalMessage);
+  const mayNavigateCatalog = !memoryActiveProductId || explicitCatalogFacet;
+  const catalogNavigation = mayNavigateCatalog && !["human_takeover", "order_tracking", "order_follow_up"].includes(intent)
+    ? await resolveCatalogNavigation({ tenantId, message: originalMessage }).catch((error) => {
+        console.warn("[ai-catalog-navigation:skipped]", {
+          tenant_id: tenantId,
+          message: error?.message || "catalog navigation failed",
+        });
+        return null;
+      })
+    : null;
+  if (catalogNavigation) {
+    const images = catalogNavigation.cards
+      .map((card) => ({
+        id: text(card.image_id || card.image_url || card.product_id || card.id),
+        url: text(card.image_url || card.image || card.url),
+        image_url: text(card.image_url || card.image || card.url),
+        product_id: text(card.product_id || card.id),
+      }))
+      .filter((image) => image.url);
+    const memoryUpdates = {
+      last_intent: "catalog_navigation",
+      catalog_filters: catalogNavigation.facets,
+      catalog_url: catalogNavigation.url,
+      last_product_cards: catalogNavigation.cards,
+      ai_brain_version: "v2",
+    };
+    return {
+      text: catalogNavigation.answer,
+      answer: catalogNavigation.answer,
+      intent: "catalog_navigation",
+      detected_intent: "catalog_navigation",
+      products: catalogNavigation.cards,
+      suggested_products: catalogNavigation.cards,
+      product_cards: catalogNavigation.cards,
+      images,
+      image_cards: images,
+      quickReplies: [],
+      quick_replies: [],
+      actions: [{ label: "open_storefront", value: catalogNavigation.url, action: "open_storefront" }],
+      suggested_actions: [{ label: "open_storefront", value: catalogNavigation.url, action: "open_storefront" }],
+      memoryUpdates,
+      memory_updates: memoryUpdates,
+      ai_memory_patch: { preferences: memoryUpdates },
+      handoff: { needs_human_support: false, reason: "", conversation_status: "" },
+      channel_reply: normalizeOutgoingChannelReply({
+        channel,
+        response: { text: catalogNavigation.answer, product_cards: catalogNavigation.cards, image_cards: images },
+      }),
+      catalog_context: catalogNavigation.catalog,
+      catalog_filters: catalogNavigation.facets,
+      storefront_url: catalogNavigation.url,
+      debug: {
+        source: "aiCatalogNavigationService",
+        engine: "catalog_grounded_navigation",
+        reason: "live_catalog_facets_match",
+      },
+    };
+  }
   traceAltFollowup("classifyIntent:output", {
     message: originalMessage,
     intent,
