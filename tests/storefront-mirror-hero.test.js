@@ -24,5 +24,9 @@ test("home hero requests and prioritizes Mirror Original products", async () => 
   assert.match(source, /min-h-\[516px\] flex-col/);
   assert.match(source, /line-clamp-2 h-12 overflow-hidden/);
   assert.match(source, /\{activeHeroIndex \+ 1\}\/\{availableHeroSlides\.length\}/);
+  assert.match(source, /preloadStorefrontImage\(nextImage, "hero"\)/);
+  assert.match(source, /displayTimeReached && nextImageReady/);
+  assert.doesNotMatch(source, /<img key=\{heroImage\}/);
+  assert.match(source, /fetchPriority="high"/);
   assert.doesNotMatch(source, /bottom-\[8\.75rem\]/);
 });

@@ -283,6 +283,38 @@ const imageFor = (value) => {
   return resolved;
 };
 const responsiveImageProps = (value, preset = "grid") => getStorefrontResponsiveImageProps(imageFor(value), preset);
+const storefrontImagePreloadCache = new Map();
+const preloadStorefrontImage = (value, preset = "hero") => {
+  const src = imageFor(value);
+  if (!src || src === "/favicon.svg" || typeof window === "undefined" || typeof window.Image !== "function") {
+    return Promise.resolve(Boolean(src));
+  }
+  if (storefrontImagePreloadCache.has(src)) return storefrontImagePreloadCache.get(src);
+
+  const promise = new Promise((resolve) => {
+    const image = new window.Image();
+    const responsive = responsiveImageProps(value, preset);
+    image.decoding = "async";
+    if (responsive.srcSet) image.srcset = responsive.srcSet;
+    if (responsive.sizes) image.sizes = responsive.sizes;
+    image.onload = () => {
+      const decode = typeof image.decode === "function" ? image.decode() : Promise.resolve();
+      Promise.resolve(decode).catch(() => undefined).finally(() => resolve(true));
+    };
+    image.onerror = () => resolve(false);
+    image.src = src;
+  });
+
+  storefrontImagePreloadCache.set(src, promise);
+  promise.then((loaded) => {
+    if (!loaded && storefrontImagePreloadCache.get(src) === promise) storefrontImagePreloadCache.delete(src);
+  });
+  if (storefrontImagePreloadCache.size > 36) {
+    const oldestKey = storefrontImagePreloadCache.keys().next().value;
+    if (oldestKey && oldestKey !== src) storefrontImagePreloadCache.delete(oldestKey);
+  }
+  return promise;
+};
 const money = (value) => {
   const parts = formatCurrencyParts(Number(value || 0));
   const amount = String(parts.amount || "").replace(/([.,])0{2}$/, "");
@@ -2647,11 +2679,40 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
   }, [availableHeroSlides.length]);
   useEffect(() => {
     if (availableHeroSlides.length < 2) return undefined;
-    const timer = window.setInterval(() => {
-      setActiveHeroIndex((current) => (current + 1) % availableHeroSlides.length);
+    let cancelled = false;
+    let displayTimer = null;
+    let fallbackTimer = null;
+    let displayTimeReached = false;
+    let nextImageReady = false;
+    const nextIndex = (activeHeroIndex + 1) % availableHeroSlides.length;
+    const nextImage = availableHeroSlides[nextIndex]?.image || "";
+    const showNextWhenReady = () => {
+      if (!cancelled && displayTimeReached && nextImageReady) setActiveHeroIndex(nextIndex);
+    };
+
+    preloadStorefrontImage(nextImage, "hero").then((loaded) => {
+      if (cancelled) return;
+      nextImageReady = loaded;
+      if (!loaded) {
+        fallbackTimer = window.setTimeout(() => {
+          nextImageReady = true;
+          showNextWhenReady();
+        }, 3000);
+      }
+      showNextWhenReady();
+    });
+
+    displayTimer = window.setTimeout(() => {
+      displayTimeReached = true;
+      showNextWhenReady();
     }, 5200);
-    return () => window.clearInterval(timer);
-  }, [availableHeroSlides.length]);
+
+    return () => {
+      cancelled = true;
+      if (displayTimer) window.clearTimeout(displayTimer);
+      if (fallbackTimer) window.clearTimeout(fallbackTimer);
+    };
+  }, [activeHeroIndex, availableHeroSlides]);
   const activeHeroSlide = availableHeroSlides[activeHeroIndex] || heroSlide;
   const heroImage = activeHeroSlide?.image || heroCollection?.image || heroCollection?.hero_image || "";
   const heroTitle = heroCopy.title || (isRtl ? "اختيارات مميزة.\nستايل يلفت من أول خطوة." : "Standout picks.\nStyle that starts with every step.");
@@ -2735,7 +2796,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
                 {loading && !heroImage ? (
                   <div className="h-[180px] w-[82%] animate-pulse rounded-[1.5rem] md:h-[300px]" style={{ background: themeTokens.cardSoft }} />
                 ) : heroImage ? (
-                  <img key={heroImage} src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="h-full w-full max-h-[290px] object-contain drop-shadow-[0_22px_28px_rgba(28,25,23,0.14)] transition duration-500 ease-out group-hover:scale-[1.035] sm:max-h-[330px] md:max-h-[405px] lg:max-h-[420px]" loading="eager" decoding="async" width="900" height="720" />
+                  <img src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="h-full w-full max-h-[290px] object-contain drop-shadow-[0_22px_28px_rgba(28,25,23,0.14)] transition duration-500 ease-out group-hover:scale-[1.035] sm:max-h-[330px] md:max-h-[405px] lg:max-h-[420px]" loading="eager" decoding="async" fetchPriority="high" width="900" height="720" />
                 ) : (
                   <div className="flex h-[220px] w-[82%] items-center justify-center rounded-[1.5rem] border border-dashed text-center text-sm font-black" style={{ color: themeTokens.textSecondary, borderColor: themeTokens.border }}>
                     {isRtl ? "صورة العرض تظهر هنا" : "Hero image appears here"}
