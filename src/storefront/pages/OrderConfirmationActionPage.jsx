@@ -454,7 +454,7 @@ function OrderConfirmationActionPageInner() {
     : "grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-emerald-200/80 text-slate-950";
 
   return (
-    <main className="storefront-dark min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-5 text-white sm:px-6 lg:px-8">
+    <main className="sf-order-confirmation-page min-h-screen bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] px-4 py-5 text-white sm:px-6 lg:px-8">
       <div className="mx-auto flex min-h-[100svh] max-w-3xl items-center justify-center py-3">
         <section className="w-full overflow-hidden rounded-[2rem] border border-white/10 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] text-white shadow-[0_30px_90px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.04)]">
           <div className="px-4 pb-5 pt-5 sm:px-6 sm:pb-6 sm:pt-6">

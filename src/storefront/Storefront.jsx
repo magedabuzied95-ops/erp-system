@@ -2500,7 +2500,7 @@ function PremiumHomePage(props) {
   const [params] = useSearchParams();
   const lang = i18n.language || "ar";
   const isRtl = normalizeLanguage(lang) === "ar";
-  const themeMode = props.themeMode || "dark";
+  const themeMode = props.themeMode || "light";
   const themeTokens = useMemo(() => getStorefrontThemeTokens(themeMode), [themeMode]);
   const brandName = props.brandName || "M1 Store";
   const brandFilter = params.get("brand") || "";
@@ -7903,7 +7903,7 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "" }) {
   const whatsAppHref = whatsappPhone ? `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(`ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ·ط·آ¢ط¢آ­ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¥أ¢â‚¬â„¢ ط·آ·ط¢آ·ط·آ¢ط¢آ£ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ¯ ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ط·آ·ط¢آ·ط·آ¹ط¢آ¾ط·آ·ط¢آ·ط·آ¢ط¢آ§ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ·ط·آ¢ط¢آ¹ط·آ·ط¢آ·ط·آ¢ط¢آ© ط·آ·ط¢آ·ط·آ¢ط¢آ·ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬أ¢â‚¬ع†ط·آ·ط¢آ·ط·آ¢ط¢آ¨ط·آ·ط¢آ¸ط·آ¸ط¢آ¹ ط·آ·ط¢آ·ط·آ¢ط¢آ±ط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¹â€کط·آ·ط¢آ¸ط£آ¢أ¢â€ڑآ¬ط¢آ¦ ${publicNumber}`)}` : "";
 
   return (
-    <section className="storefront-dark relative mx-auto max-w-6xl px-4 py-6 md:py-10">
+    <section className="sf-order-success-page relative mx-auto max-w-6xl px-4 py-6 md:py-10">
       {confetti ? <Confetti /> : null}
       <div className="mx-auto max-w-3xl text-center">
         <div className="mx-auto grid h-24 w-24 animate-[success-pop_650ms_ease-out] place-items-center rounded-full bg-emerald-100 text-emerald-700 shadow-[0_20px_45px_rgba(16,185,129,0.18)]">
@@ -8594,13 +8594,13 @@ function CityAreaNativeSelect({ governorate, options, value, onChange, required,
       disabled={!governorate}
       value={value || ""}
       onChange={(event) => onChange(event.target.value)}
-      className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-[1.15rem] border px-4 text-[15px] font-bold shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[var(--sf-purple)] focus:bg-white/[0.065] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)] disabled:opacity-60 ${darkMode ? "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10" : "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}
+      className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-[1.15rem] border px-4 text-[15px] font-bold shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[var(--sf-purple)] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)] disabled:opacity-60 ${darkMode ? "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10 focus:bg-white/[0.065]" : "border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus:bg-white"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}
     >
-      <option value="" className="bg-[#101010] text-white">
+      <option value="" className={darkMode ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>
         {governorate ? sfText("storefront.checkout.cityAreaPlaceholder") : sfText("storefront.checkout.chooseGovernorateFirst")}
       </option>
       {options.map((option) => (
-        <option key={option.value} value={option.value} className="bg-[#101010] text-white">
+        <option key={option.value} value={option.value} className={darkMode ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>
           {option.label}
         </option>
       ))}
@@ -8613,9 +8613,9 @@ function SelectField({ label, value, onChange, options, labels = {}, required, e
   return (
     <label className="block">
       <span className={`mb-1.5 block text-sm font-black ${darkMode ? "text-white/82" : "text-slate-800"}`}>{label}{required ? " *" : ""}</span>
-      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-[1.15rem] border px-4 text-[15px] font-bold shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[var(--sf-purple)] focus:bg-white/[0.065] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)] ${darkMode ? "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10" : "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}>
-        <option value="" className="bg-[#101010] text-white">{sfText("storefront.common.choose")}</option>
-        {options.map((option) => <option key={option} value={option} className="bg-[#101010] text-white">{labels[option] || option}</option>)}
+      <select required={required} value={value} onChange={(event) => onChange(event.target.value)} className={`sf-field-input sf-checkout-field-input min-h-14 w-full rounded-[1.15rem] border px-4 text-[15px] font-bold shadow-[0_14px_32px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.04)] outline-none backdrop-blur transition duration-200 focus:-translate-y-0.5 focus:border-[var(--sf-purple)] focus:shadow-[0_0_0_4px_rgba(212,175,55,0.12),0_18px_38px_rgba(15,23,42,0.18)] ${darkMode ? "bg-white/[0.045] text-white placeholder:text-white/34 border-white/10 focus:bg-white/[0.065]" : "border-slate-300 bg-white text-slate-900 placeholder:text-slate-500 focus:bg-white"} ${error ? (darkMode ? "border-rose-300/70 focus:border-rose-300" : "border-rose-300/80 focus:border-rose-400") : ""}`}>
+        <option value="" className={darkMode ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>{sfText("storefront.common.choose")}</option>
+        {options.map((option) => <option key={option} value={option} className={darkMode ? "bg-[#101010] text-white" : "bg-white text-slate-900"}>{labels[option] || option}</option>)}
       </select>
       {error ? <span className={`mt-1.5 block text-xs font-black ${darkMode ? "text-rose-200" : "text-rose-600"}`}>{error}</span> : null}
     </label>
@@ -9502,6 +9502,7 @@ function Storefront() {
   const customerAuthTokenRef = useRef("");
   const cartSyncSaveTimerRef = useRef(null);
   const cartRef = useRef(cart);
+  const previousDocumentThemeRef = useRef(null);
   const [cartSyncReady, setCartSyncReady] = useState(false);
   const toggleThemeMode = useCallback(() => {
     setThemeMode((current) => (current === "dark" ? "light" : "dark"));
@@ -9547,13 +9548,43 @@ function Storefront() {
   }, [profile]);
 
   useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    const root = document.documentElement;
+    const body = document.body;
+    previousDocumentThemeRef.current = {
+      rootDark: root.classList.contains("dark"),
+      rootTheme: root.getAttribute("data-theme"),
+      bodyTheme: body.getAttribute("data-theme"),
+      bodyStorefrontDark: body.classList.contains("storefront-dark"),
+      colorScheme: root.style.colorScheme,
+    };
+    body.classList.add("storefront-shell");
+
+    return () => {
+      const previous = previousDocumentThemeRef.current;
+      body.classList.remove("storefront-shell");
+      if (!previous) return;
+      root.classList.toggle("dark", previous.rootDark);
+      body.classList.toggle("storefront-dark", previous.bodyStorefrontDark);
+      if (previous.rootTheme === null) root.removeAttribute("data-theme");
+      else root.setAttribute("data-theme", previous.rootTheme);
+      if (previous.bodyTheme === null) body.removeAttribute("data-theme");
+      else body.setAttribute("data-theme", previous.bodyTheme);
+      root.style.colorScheme = previous.colorScheme;
+    };
+  }, []);
+
+  useEffect(() => {
     writeStorefrontStorage(THEME_KEY, themeMode);
     if (typeof document === "undefined") return;
-    document.body.classList.toggle("storefront-dark", themeMode === "dark");
-    document.body.classList.add("storefront-shell");
-    return () => {
-      document.body.classList.remove("storefront-shell");
-    };
+    const dark = themeMode === "dark";
+    const root = document.documentElement;
+    const body = document.body;
+    root.classList.toggle("dark", dark);
+    body.classList.toggle("storefront-dark", dark);
+    root.setAttribute("data-theme", themeMode);
+    body.setAttribute("data-theme", themeMode);
+    root.style.colorScheme = themeMode;
   }, [themeMode]);
 
   useEffect(() => {
