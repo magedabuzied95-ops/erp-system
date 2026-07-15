@@ -2757,6 +2757,62 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
     { icon: RefreshCcw, ar: "استبدال سهل", en: "Easy exchange" },
   ];
 
+  if (loading && !heroImage && !heroProduct?.id) {
+    return (
+      <section data-testid="mirror-hero-loading" className="sf-home-hero-v2 mx-auto max-w-[1400px] px-3 pt-3 sm:px-4 md:pt-8" aria-busy="true" aria-label={isRtl ? "جاري تجهيز واجهة المتجر" : "Preparing storefront"}>
+        <div
+          className="relative min-h-[564px] overflow-hidden rounded-[1.7rem] border sm:min-h-[604px] md:min-h-[720px] md:rounded-[2.4rem] lg:min-h-[700px]"
+          style={{ background: themeTokens.heroGradient, borderColor: themeTokens.border, boxShadow: themeTokens.shadow }}
+        >
+          <div className="pointer-events-none absolute inset-0" style={{ background: themeTokens.heroGlow }} />
+          <div className="pointer-events-none absolute -left-24 -top-24 h-72 w-72 rounded-full border border-[#b4860b]/10" />
+          <div className="relative grid min-h-[inherit] items-stretch lg:grid-cols-[1.02fr_0.98fr]">
+            <div className="hidden min-w-0 flex-col justify-center px-14 py-14 lg:flex">
+              <div className="sf-skeleton-shimmer h-9 w-44 rounded-full" style={{ background: themeTokens.cardSoft }} />
+              <div className="sf-skeleton-shimmer mt-7 h-16 w-[82%] rounded-2xl" style={{ background: themeTokens.cardSoft }} />
+              <div className="sf-skeleton-shimmer mt-4 h-6 w-[65%] rounded-full" style={{ background: themeTokens.cardSoft }} />
+              <div className="sf-skeleton-shimmer mt-3 h-6 w-[48%] rounded-full" style={{ background: themeTokens.cardSoft }} />
+              <div className="sf-skeleton-shimmer mt-9 h-14 w-48 rounded-full" style={{ background: themeTokens.cardSoft }} />
+            </div>
+
+            <div className="relative min-h-[564px] p-3 sm:min-h-[604px] sm:p-5 md:min-h-[720px] md:p-7 lg:min-h-[700px] lg:p-9">
+              <div className="relative flex h-full min-h-[540px] flex-col items-center justify-center overflow-hidden rounded-[1.45rem] border px-6 py-10 text-center sm:min-h-[564px] md:min-h-[666px] md:rounded-[2rem] lg:min-h-[628px]" style={{ background: themeTokens.surface, borderColor: themeTokens.borderStrong, boxShadow: themeTokens.shadowSoft }}>
+                <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_38%,rgba(212,175,55,0.18),transparent_48%)]" />
+                <span className="absolute end-4 top-4 inline-flex items-center gap-1.5 rounded-full border border-[#b4860b]/20 bg-white/90 px-3 py-1.5 text-[10px] font-black text-stone-800 shadow-md md:end-6 md:top-6 md:px-4 md:py-2 md:text-xs">
+                  <Sparkles className="h-3.5 w-3.5 text-[#b4860b]" />
+                  {isRtl ? "ميرور أوريجنال" : "Mirror Original"}
+                </span>
+                <div className="relative grid h-24 w-24 place-items-center rounded-full border border-[#b4860b]/20 bg-[#fff7df]/80 shadow-[0_18px_55px_rgba(180,134,11,0.16)] md:h-28 md:w-28">
+                  <span className="sf-home-hero-loader__ring absolute inset-[-10px] rounded-full border border-[#b4860b]/20" />
+                  <ShoppingBag className="h-9 w-9 text-[#9a7108] md:h-11 md:w-11" strokeWidth={1.8} />
+                </div>
+                <h2 className="relative mt-7 text-xl font-black md:text-2xl" style={{ color: themeTokens.textPrimary }}>
+                  {isRtl ? "بنجهز لك أحدث الاختيارات" : "Preparing the latest picks"}
+                </h2>
+                <p className="relative mt-2 max-w-xs text-sm font-bold leading-6 md:text-base" style={{ color: themeTokens.textSecondary }}>
+                  {isRtl ? "لحظات وتظهر الصور والأسعار والمقاسات كاملة" : "Images, prices, and sizes will be ready in a moment"}
+                </p>
+                <div className="relative mt-7 flex items-center gap-2" aria-hidden="true">
+                  <span className="sf-home-hero-loader__dot h-2 w-2 rounded-full bg-[#b4860b]" />
+                  <span className="sf-home-hero-loader__dot h-2 w-2 rounded-full bg-[#b4860b]" />
+                  <span className="sf-home-hero-loader__dot h-2 w-2 rounded-full bg-[#b4860b]" />
+                </div>
+                <div className="absolute inset-x-5 bottom-5 rounded-[1.2rem] border p-4 md:inset-x-7 md:bottom-7" style={{ background: themeTokens.card, borderColor: themeTokens.border }}>
+                  <div className="sf-skeleton-shimmer h-4 w-28 rounded-full" style={{ background: themeTokens.cardSoft }} />
+                  <div className="sf-skeleton-shimmer mt-3 h-7 w-[72%] rounded-full" style={{ background: themeTokens.cardSoft }} />
+                  <div className="mt-4 flex items-center justify-between gap-4 border-t pt-4" style={{ borderColor: themeTokens.border }}>
+                    <div className="sf-skeleton-shimmer h-7 w-24 rounded-full" style={{ background: themeTokens.cardSoft }} />
+                    <div className="sf-skeleton-shimmer h-9 w-28 rounded-full" style={{ background: themeTokens.cardSoft }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="sf-home-hero-v2 mx-auto max-w-[1400px] px-3 pt-3 sm:px-4 md:pt-8">
       <div

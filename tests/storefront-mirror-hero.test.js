@@ -41,4 +41,10 @@ test("home hero requests and prioritizes Mirror Original products", async () => 
   assert.match(source, /fetchPriority="high"/);
   assert.doesNotMatch(source, /bottom-\[8\.75rem\]/);
   assert.match(source, /data-testid="mirror-hero-copy" className="order-2 hidden[^"]*lg:flex/);
+  assert.match(source, /if \(loading && !heroImage && !heroProduct\?\.id\)/);
+  assert.match(source, /data-testid="mirror-hero-loading"/);
+  assert.match(source, /aria-busy="true"/);
+  assert.match(source, /بنجهز لك أحدث الاختيارات/);
+  assert.match(stylesheet, /@keyframes sfHomeHeroLoaderRing/);
+  assert.match(stylesheet, /@keyframes sfHomeHeroLoaderDot/);
 });
