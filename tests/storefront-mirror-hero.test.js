@@ -34,6 +34,9 @@ test("home hero requests and prioritizes Mirror Original products", async () => 
   assert.match(source, /className="sf-hero-image-transition/);
   assert.match(stylesheet, /@keyframes sfHeroImageEnter/);
   assert.match(stylesheet, /animation: sfHeroImageEnter 620ms/);
+  assert.match(stylesheet, /--sf-hero-image-scale: 1\.13/);
+  assert.match(stylesheet, /transform: scale\(var\(--sf-hero-image-scale\)\)/);
+  assert.match(stylesheet, /@media \(min-width: 640px\)[\s\S]*?--sf-hero-image-scale: 1/);
   assert.match(stylesheet, /prefers-reduced-motion: reduce[\s\S]*?\.sf-home-hero-v2 \.sf-hero-image-transition/);
   assert.match(source, /fetchPriority="high"/);
   assert.doesNotMatch(source, /bottom-\[8\.75rem\]/);

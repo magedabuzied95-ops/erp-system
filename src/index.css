@@ -5862,7 +5862,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   0% {
     opacity: 0;
     filter: blur(3px);
-    transform: translate3d(0, 14px, 0) scale(0.975);
+    transform: translate3d(0, 14px, 0) scale(calc(var(--sf-hero-image-scale, 1) - 0.025));
   }
   65% {
     opacity: 1;
@@ -5871,14 +5871,30 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   100% {
     opacity: 1;
     filter: blur(0);
-    transform: translate3d(0, 0, 0) scale(1);
+    transform: translate3d(0, 0, 0) scale(var(--sf-hero-image-scale, 1));
   }
 }
 
 .sf-home-hero-v2 .sf-hero-image-transition {
+  --sf-hero-image-scale: 1.13;
   animation: sfHeroImageEnter 620ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
   transform-origin: 50% 58%;
+  transform: scale(var(--sf-hero-image-scale));
   will-change: opacity, filter, transform;
+}
+
+.sf-home-hero-v2 .group:hover .sf-hero-image-transition {
+  --sf-hero-image-scale: 1.16;
+}
+
+@media (min-width: 640px) {
+  .sf-home-hero-v2 .sf-hero-image-transition {
+    --sf-hero-image-scale: 1;
+  }
+
+  .sf-home-hero-v2 .group:hover .sf-hero-image-transition {
+    --sf-hero-image-scale: 1.035;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
