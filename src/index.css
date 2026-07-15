@@ -5823,7 +5823,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   0% {
     transform: perspective(220px) rotateY(0deg);
   }
-  100% {
+  27%, 100% {
     transform: perspective(220px) rotateY(360deg);
   }
 }
@@ -5833,7 +5833,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   transform-style: preserve-3d;
   backface-visibility: visible;
   will-change: transform;
-  animation: sfHeaderLogoMVerticalSpin 4s linear infinite;
+  animation: sfHeaderLogoMVerticalSpin 5.5s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
