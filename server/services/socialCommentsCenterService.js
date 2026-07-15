@@ -4788,7 +4788,10 @@ const processSocialCommentAutoReply = async ({ tenantId = null, platform = "", p
         commentId: safeCommentId,
         message_preview: text(decision.rendered_reply || "").slice(0, 400),
       });
-      await replyToComment(normalizedPlatform, safeCommentId, decision.rendered_reply, safeTenantId);
+      await replyToComment(normalizedPlatform, safeCommentId, decision.rendered_reply, safeTenantId, {
+        commenterId,
+        commenterName: text(resolvedComment?.commenter_name || resolvedComment?.customer_name || comment?.commenter_name || ""),
+      });
       replyStatus = "sent";
       console.log("SOCIAL_COMMENT_AUTOMATION_PUBLIC_REPLY_SENT", {
         tenant_id: safeTenantId,

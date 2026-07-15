@@ -729,7 +729,34 @@ export const likeComment = async (platform, commentId, businessId) => {
   });
 };
 
-export const replyToComment = async (platform, commentId, message, businessId) => {
+export const buildFacebookCommentMentionParams = ({ message = "", commenterId = "", commenterName = "" } = {}) => {
+  const safeMessage = trimString(message);
+  const safeCommenterId = trimString(commenterId);
+  const safeCommenterName = trimString(commenterName);
+  const offset = safeCommenterName ? safeMessage.indexOf(safeCommenterName) : -1;
+  if (!safeMessage || !safeCommenterId || !safeCommenterName || offset < 0) {
+    return { message: safeMessage, mentionApplied: false };
+  }
+  return {
+    message: safeMessage,
+    message_tags: JSON.stringify([{
+      id: safeCommenterId,
+      name: safeCommenterName,
+      type: "user",
+      offset,
+      length: safeCommenterName.length,
+    }]),
+    mentionApplied: true,
+  };
+};
+
+const canRetryPublicReplyWithoutMention = (error) => {
+  const metaError = error?.metaResponse?.error || {};
+  const message = trimString(metaError.message || error?.message || "").toLowerCase();
+  return Number(metaError.code || 0) === 100 || message.includes("message_tags") || message.includes("message tag");
+};
+
+export const replyToComment = async (platform, commentId, message, businessId, options = {}) => {
   const endpoint = platform === "instagram"
     ? `/${encodeURIComponent(commentId)}/replies`
     : `/${encodeURIComponent(commentId)}/comments`;
@@ -757,12 +784,38 @@ export const replyToComment = async (platform, commentId, message, businessId) =
     message_preview: trimString(message).slice(0, 400),
   });
   try {
-    const result = await callMetaPost({
-      businessId,
-      endpoint,
-      label: "public reply",
-      params: { message: trimString(message) },
-    });
+    const mentionParams = platform === "facebook"
+      ? buildFacebookCommentMentionParams({
+        message,
+        commenterId: options?.commenterId,
+        commenterName: options?.commenterName,
+      })
+      : { message: trimString(message), mentionApplied: false };
+    let result;
+    try {
+      result = await callMetaPost({
+        businessId,
+        endpoint,
+        label: mentionParams.mentionApplied ? "public reply with mention" : "public reply",
+        params: {
+          message: mentionParams.message,
+          ...(mentionParams.message_tags ? { message_tags: mentionParams.message_tags } : {}),
+        },
+      });
+    } catch (error) {
+      if (!mentionParams.mentionApplied || !canRetryPublicReplyWithoutMention(error)) throw error;
+      console.warn("SOCIAL_COMMENT_PUBLIC_REPLY_MENTION_FALLBACK", {
+        platform,
+        comment_id: String(commentId || ""),
+        reason: error?.message || "Meta rejected the mention tag",
+      });
+      result = await callMetaPost({
+        businessId,
+        endpoint,
+        label: "public reply mention fallback",
+        params: { message: mentionParams.message },
+      });
+    }
     console.log("SOCIAL_COMMENT_PUBLIC_REPLY_SEND_DONE", {
       platform,
       comment_id: String(commentId || ""),
@@ -2266,7 +2319,10 @@ export const processCommentEvent = async (event = {}) => {
               commentId: trimString(event.commentId || ""),
               message_preview: trimString(publicMessage).slice(0, 400),
             });
-            return replyToComment(event.platform, event.commentId, publicMessage, event.businessId);
+            return replyToComment(event.platform, event.commentId, publicMessage, event.businessId, {
+              commenterId: event.userPlatformId,
+              commenterName: event.username,
+            });
           },
         });
         if (error) actionErrors.push(error);
