@@ -5820,18 +5820,18 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 @keyframes sfHeaderLogoMOrbit {
-  0%, 100% {
-    transform: rotate(-3.5deg);
+  0% {
+    transform: rotate(0deg);
   }
-  50% {
-    transform: rotate(3.5deg);
+  100% {
+    transform: rotate(360deg);
   }
 }
 
 .storefront-shell .sf-header-logo-moving-m {
   transform-origin: 50% 19%;
   will-change: transform;
-  animation: sfHeaderLogoMOrbit 4.2s ease-in-out infinite;
+  animation: sfHeaderLogoMOrbit 6s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
