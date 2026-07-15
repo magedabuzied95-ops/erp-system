@@ -30,6 +30,8 @@ test("Instagram comment webhooks use the media id and accept the native comments
 test("social comments API merges Facebook and Instagram posts", () => {
   assert.match(centerSource, /listSocialCommentPostsForPlatform\(\{ tenantId, platform: "facebook"/);
   assert.match(centerSource, /listSocialCommentPostsForPlatform\(\{ tenantId, platform: "instagram"/);
+  assert.match(centerSource, /const perPlatformLimit = Math\.min\(safeLimit, 24\)/);
+  assert.match(centerSource, /platform: "instagram", limit: perPlatformLimit/);
   assert.match(centerSource, /const key = `\$\{postPlatform\}:\$\{postId\}`/);
   assert.match(centerSource, /syncMetaInstagramCommentsForTenant\(\{[\s\S]*?mediaIds: \[safePostId\]/);
 });

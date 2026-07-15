@@ -3769,9 +3769,10 @@ const listSocialCommentPosts = async ({ tenantId = null, platform = "", limit = 
     });
   }
   const safeLimit = Math.min(200, Math.max(1, Number(limit) || 50));
+  const perPlatformLimit = Math.min(safeLimit, 24);
   const [facebookPosts, instagramPosts] = await Promise.all([
-    listSocialCommentPostsForPlatform({ tenantId, platform: "facebook", limit: safeLimit, includeProductLinks }),
-    listSocialCommentPostsForPlatform({ tenantId, platform: "instagram", limit: safeLimit, includeProductLinks }),
+    listSocialCommentPostsForPlatform({ tenantId, platform: "facebook", limit: perPlatformLimit, includeProductLinks }),
+    listSocialCommentPostsForPlatform({ tenantId, platform: "instagram", limit: perPlatformLimit, includeProductLinks }),
   ]);
   const uniquePosts = new Map();
   for (const post of [...facebookPosts, ...instagramPosts]) {
