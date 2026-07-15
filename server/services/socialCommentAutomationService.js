@@ -20,6 +20,7 @@ import { resolveSocialProductDisplayPrice } from "../utils/customerDisplayPrice.
 import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCache.js";
 import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
+  DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
   getSocialAutomationSettings,
   resolveSocialPublicReplyBaseTemplate,
   selectSocialPublicReplyTemplate,
@@ -905,17 +906,7 @@ const buildSocialCommentSalesReplies = ({
 };
 
 const SOCIAL_COMMENT_GENERIC_PUBLIC_REPLIES = new Set([]);
-const SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE = [
-  "\u0623\u0647\u0644\u0627\u064b \u0648\u0633\u0647\u0644\u0627\u064b \u064a\u0627 {{customer_name}} \u2764\ufe0f",
-  "\u062a\u0645 \u0627\u0644\u0631\u062f \u0641\u064a \u0627\u0644\u062e\u0627\u0635 \u064a\u0627 \u0635\u062f\u064a\u0642\u064a ",
-  "\u0648\u0639\u0646\u062f\u0646\u0627 \u0634\u062d\u0646 \u0644\u062c\u0645\u064a\u0639 \u0645\u062d\u0627\u0641\u0638\u0627\u062a \u0645\u0635\u0631 ",
-  "\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501",
-  " \u0627\u0644\u0639\u0646\u0648\u0627\u0646:",
-  "\u062f\u0645\u064a\u0627\u0637 \u0627\u0644\u062c\u062f\u064a\u062f\u0629 - \u0634\u0627\u0631\u0639 \u0627\u0644\u0628\u0634\u0628\u064a\u0634\u064a - \u0628\u062c\u0648\u0627\u0631 \u0627\u0644\u0641\u0631\u0646\u0633\u064a\u0629 \u062c\u0631\u0648\u0628 \u2764\ufe0f",
-  "",
-  " \u0627\u0644\u0644\u0648\u0643\u064a\u0634\u0646:",
-  "https://share.google/1e0cM7JVmxyLTpWVe",
-].join("\n");
+const SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE = DEFAULT_SOCIAL_PUBLIC_REPLY_BODY;
 const SOCIAL_COMMENT_GENERIC_PRIVATE_REPLIES = new Set([
   "تم الرد على حضرتك خاص",
   "تم الرد على حضرتك في الخاص",
@@ -1954,7 +1945,7 @@ const loadPostAutomationConfig = async ({ tenantId = null, platform = "", postId
       createLead: false,
     },
     message_templates: {
-      publicReplyTemplate: text(globalSettings.generic_template || "") || "تم الرد على حضرتك في الخاص ✅",
+      publicReplyTemplate: text(globalSettings.generic_template || "") || DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
       privateReplyTemplate: [
         "أهلاً {{customer_name}}",
         "{{product_name}} متاح بسعر {{price}}.",
