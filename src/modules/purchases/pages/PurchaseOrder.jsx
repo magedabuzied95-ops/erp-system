@@ -50,6 +50,8 @@ const safeNumericPayload = (value, fallback = 0) => {
 const text = (value) => String(value || "").trim();
 const normalizeKey = (value) => text(value).toLowerCase();
 const firstText = (...values) => values.map(text).find(Boolean) || "";
+const purchaseVariantColorGroupKey = (item = {}) =>
+  firstText(item.color_group_key, item.colorGroupKey) || `color:${normalizeKey(item.color || "افتراضي")}`;
 const SMART_PURCHASE_DRAFT_STORAGE_KEY = "erp.purchases.smartPurchaseDraft";
 const createPurchaseSaveId = () => {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -401,6 +403,7 @@ const normalizeVariantOption = (product, variant = null) => {
   const variantId = variant?.variant_id ?? variant?.id ?? product?.variant_id ?? null;
   const color = variant?.color ?? product?.color ?? "";
   const size = variant?.size ?? product?.size ?? "";
+  const colorGroupKey = firstText(variant?.color_group_key, variant?.colorGroupKey, product?.color_group_key, product?.colorGroupKey);
   const sku = variant?.sku ?? product?.sku ?? `${product?.name || product?.product_name || "product"}-${variantId || productId}`;
   const barcode = variant?.barcode ?? product?.barcode ?? "";
   const stock = money(variant?.current_stock ?? variant?.stock ?? variant?.stock_quantity ?? product?.current_stock ?? product?.stock ?? product?.total_stock ?? 0);
@@ -440,9 +443,10 @@ const normalizeVariantOption = (product, variant = null) => {
   const wholesalePrice = money(variant?.wholesale_price ?? product?.wholesale_price ?? 0);
 
   return {
-    line_id: `${productId || "product"}-${variantId || "base"}-${sku}-${barcode}-${color}-${size}`,
+    line_id: `${productId || "product"}-${variantId || "base"}-${colorGroupKey || color}-${sku}-${barcode}-${size}`,
     product_id: productId,
     variant_id: variantId,
+    color_group_key: colorGroupKey,
     product_name: product?.name || product?.product_name || "Unnamed product",
     sku,
     barcode,
@@ -1629,6 +1633,7 @@ function PurchaseOrder() {
       items: normalizedItems.map((item) => ({
         product_id: item.product_id,
         variant_id: item.variant_id || null,
+        color_group_key: item.color_group_key || "",
         sku: item.sku || "",
         barcode: item.barcode || "",
         color: item.color || "",
@@ -2167,7 +2172,7 @@ function ColorImageDropdown({ label = "Color", value, onChange, options = [], pr
   const [activeIndex, setActiveIndex] = useState(0);
   const rootRef = useRef(null);
   const filteredOptions = options.filter((option) => normalizeKey(option.color).includes(normalizeKey(query)));
-  const selectedOption = options.find((option) => String(option.color) === String(value)) || options[0] || null;
+  const selectedOption = options.find((option) => String(option.value ?? option.color) === String(value)) || options[0] || null;
 
   useEffect(() => {
     if (!open) return undefined;
@@ -2187,13 +2192,13 @@ function ColorImageDropdown({ label = "Color", value, onChange, options = [], pr
 
   useEffect(() => {
     if (!open) return;
-    const selectedIndex = Math.max(0, filteredOptions.findIndex((option) => String(option.color) === String(value)));
+    const selectedIndex = Math.max(0, filteredOptions.findIndex((option) => String(option.value ?? option.color) === String(value)));
     setActiveIndex(selectedIndex);
   }, [filteredOptions.length, open, value]);
 
   const chooseOption = (option) => {
     if (!option) return;
-    onChange(option.color);
+    onChange(option.value ?? option.color);
     setOpen(false);
     setQuery("");
   };
@@ -2254,11 +2259,11 @@ function ColorImageDropdown({ label = "Color", value, onChange, options = [], pr
           <div role="listbox" tabIndex={-1} onKeyDown={handleListKey} className="max-h-72 overflow-y-auto p-2">
             {filteredOptions.length ? (
               filteredOptions.map((option, index) => {
-                const selected = String(option.color) === String(value);
+                const selected = String(option.value ?? option.color) === String(value);
                 const active = index === activeIndex;
                 return (
                   <button
-                    key={option.color}
+                    key={option.value ?? option.color}
                     type="button"
                     role="option"
                     aria-selected={selected}
@@ -3215,39 +3220,44 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
   const { t } = useTranslation();
   const [productId, setProductId] = useState(String(initialProduct?.product_id || productGroups[0]?.product_id || ""));
   const selected = productGroups.find((group) => String(group.product_id) === String(productId)) || productGroups[0] || null;
-  const colors = Array.from(new Set(toArray(selected?.variants).map((item) => item.color || "افتراضي")));
-  const [color, setColor] = useState(colors[0] || "افتراضي");
-  const [expandedColors, setExpandedColors] = useState(() => new Set(colors));
+  const colorGroups = Array.from(toArray(selected?.variants).reduce((map, item) => {
+    const key = purchaseVariantColorGroupKey(item);
+    if (!map.has(key)) map.set(key, { key, color: item.color || "افتراضي", variants: [] });
+    map.get(key).variants.push(item);
+    return map;
+  }, new Map()).values());
+  const [color, setColor] = useState(colorGroups[0]?.key || "");
+  const [expandedColors, setExpandedColors] = useState(() => new Set(colorGroups.map((group) => group.key)));
   const [qtyMap, setQtyMap] = useState({});
   const [cartonQty, setCartonQty] = useState(1);
 
   useEffect(() => {
-    const nextColors = Array.from(new Set(toArray(selected?.variants).map((item) => item.color || "افتراضي")));
-    setColor(nextColors[0] || "افتراضي");
+    const nextColors = Array.from(new Set(toArray(selected?.variants).map(purchaseVariantColorGroupKey)));
+    setColor(nextColors[0] || "");
     setExpandedColors(new Set(nextColors));
     setQtyMap({});
   }, [productId]);
 
-  const colorOptions = colors.map((colorName) => {
-    const variants = toArray(selected?.variants).filter((item) => (item.color || "افتراضي") === colorName);
+  const colorOptions = colorGroups.map((colorGroup) => {
+    const variants = colorGroup.variants;
     const variant =
       variants.find((item) => firstText(item.variant_image_url, item.color_image, item.color_image_url)) ||
       variants.find((item) => item.image_url) ||
       variants[0] ||
       {};
     return {
-      color: colorName,
+      value: colorGroup.key,
+      color: colorGroup.color,
       variant,
       count: variants.length,
     };
   });
-  const visibleColors = mode === "color" || mode === "full" || mode === "carton" ? colors : [color];
-  const rows = visibleColors.map((colorName) => ({
-    color: colorName,
-    variants: toArray(selected?.variants).filter((item) => (item.color || "افتراضي") === colorName),
-  }));
-  const selectedColorVariants = toArray(selected?.variants).filter((item) => (item.color || "افتراضي") === color);
-  const selectedColorVariant = colorOptions.find((option) => String(option.color) === String(color))?.variant || selectedColorVariants[0] || toArray(selected?.variants)[0] || {};
+  const rows = mode === "color" || mode === "full" || mode === "carton"
+    ? colorGroups
+    : colorGroups.filter((group) => group.key === color);
+  const selectedColorGroup = colorGroups.find((group) => group.key === color) || colorGroups[0] || { color: "", variants: [] };
+  const selectedColorVariants = selectedColorGroup.variants;
+  const selectedColorVariant = colorOptions.find((option) => String(option.value) === String(color))?.variant || selectedColorVariants[0] || toArray(selected?.variants)[0] || {};
 
   const setAll = (qty) => {
     const next = {};
@@ -3278,7 +3288,7 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
           {mode === "size" ? <ColorImageDropdown label={t("purchases.create.color")} value={color} onChange={setColor} options={colorOptions} productName={selected?.product_name} /> : null}
         </div>
         <ColorIdentity
-          color={mode === "size" ? color : `${colors.length || 0} colors`}
+          color={mode === "size" ? selectedColorGroup.color : `${colorGroups.length || 0} colors`}
           variant={mode === "size" ? selectedColorVariant : toArray(selected?.variants).find((variant) => variant.image_url) || toArray(selected?.variants)[0]}
           productName={selected?.product_name}
           sizes={mode === "size" ? selectedColorVariants.length : toArray(selected?.variants).length}
@@ -3297,14 +3307,14 @@ function RunModal({ mode, initialProduct, productGroups, onClose, onAdd }) {
       </div>
       <div className="mt-4 max-h-[55vh] space-y-3 overflow-y-auto">
         {rows.map((section) => {
-          const expanded = expandedColors.has(section.color);
+          const expanded = expandedColors.has(section.key);
           const sectionVariant = section.variants.find((variant) => variant.image_url) || section.variants[0] || {};
           return (
-            <div key={section.color} className="rounded-2xl border border-white/10 bg-white/5">
+            <div key={section.key} className="rounded-2xl border border-white/10 bg-white/5">
               <button type="button" onClick={() => setExpandedColors((prev) => {
                 const next = new Set(prev);
-                if (next.has(section.color)) next.delete(section.color);
-                else next.add(section.color);
+                if (next.has(section.key)) next.delete(section.key);
+                else next.add(section.key);
                 return next;
               })} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left">
                 {mode === "size" ? (

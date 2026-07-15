@@ -693,6 +693,7 @@ const normalizePurchaseItem = (item = {}) => {
     purchase_item_id: item.id ?? item.purchase_item_id ?? item.purchaseItemId ?? null,
     product_id: item.product_id ?? item.productId ?? null,
     variant_id: item.variant_id ?? item.variantId ?? null,
+    color_group_key: String(item.color_group_key ?? item.colorGroupKey ?? "").trim(),
     sku: item.sku || "",
     article_code: String(
       item.article_code ??
@@ -759,6 +760,7 @@ const purchaseItemMergeKey = (item = {}) => {
     "product",
     item.product_id || "",
     String(item.sku || "").trim().toLowerCase(),
+    String(item.color_group_key || "").trim().toLowerCase(),
     String(item.color || "").trim().toLowerCase(),
     String(item.size || "").trim().toLowerCase(),
   ].join(":");
@@ -791,6 +793,7 @@ const mergePurchaseItems = (items = []) => {
     current.sku = current.sku || item.sku || "";
     current.article_code = current.article_code || item.article_code || "";
     current.color = current.color || item.color || "";
+    current.color_group_key = current.color_group_key || item.color_group_key || "";
     current.size = current.size || item.size || "";
     current.selling_price = Number.isFinite(nextSellingPrice) && nextSellingPrice >= 0 ? nextSellingPrice : Number(current.selling_price || 0);
     current.regular_price = current.selling_price;

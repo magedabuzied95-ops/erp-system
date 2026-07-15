@@ -107,6 +107,7 @@ const imageRecordKeys = (record = {}) => {
   const keys = [];
   const id = toText(record.id);
   const imageUrl = toText(record.image_url || record.imageUrl || record.url || record.path || record.file_path);
+  const groupKey = toText(record.color_group_key || record.colorGroupKey).toLowerCase();
   const color = toText(record.color_name || record.color_value || record.color).toLowerCase();
   const productId = toText(record.product_id);
   const variantId = toText(record.variant_id);
@@ -116,8 +117,8 @@ const imageRecordKeys = (record = {}) => {
 
   if (id) keys.push(`id:${id}`);
   if (imageUrl) {
-    keys.push(`url:${imageUrl.toLowerCase()}`);
-    keys.push(`product-color-url:${productId}:${color}:${imageUrl.toLowerCase()}:${generatedByAi ? "ai" : "orig"}`);
+    keys.push(`${groupKey ? `group:${groupKey}` : "ungrouped"}:url:${imageUrl.toLowerCase()}`);
+    keys.push(`product-group-color-url:${productId}:${groupKey}:${color}:${imageUrl.toLowerCase()}:${generatedByAi ? "ai" : "orig"}`);
     if (variantId) keys.push(`variant-url:${variantId}:${imageUrl.toLowerCase()}:${generatedByAi ? "ai" : "orig"}`);
   }
   if (name && size) keys.push(`file:${name.toLowerCase()}:${size}`);
@@ -174,6 +175,7 @@ const normalizeImageInput = (image = {}, fallback = {}) => {
       id: null,
       product_id: toNullableForeignKey(fallback.product_id),
       variant_id: toNullableForeignKey(fallback.variant_id),
+      color_group_key: toText(fallback.color_group_key || fallback.colorGroupKey || ""),
       color_name: toText(fallback.color_name || fallback.color || ""),
       color_value: toText(fallback.color_value || fallback.color || ""),
       image_url: imageUrl,
@@ -189,6 +191,7 @@ const normalizeImageInput = (image = {}, fallback = {}) => {
     id: image.id ?? null,
     product_id: toNullableForeignKey(image.product_id ?? fallback.product_id),
     variant_id: toNullableForeignKey(image.variant_id ?? fallback.variant_id),
+    color_group_key: toText(image.color_group_key || image.colorGroupKey || fallback.color_group_key || fallback.colorGroupKey || ""),
     color_name: toText(image.color_name || image.colorName || image.color || fallback.color_name || fallback.color || ""),
     color_value: toText(image.color_value || image.colorValue || image.color || fallback.color_value || fallback.color || ""),
     image_url: imageUrl,
@@ -210,6 +213,7 @@ export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
         tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE CASCADE,
         product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
         variant_id BIGINT NULL REFERENCES product_variants(id) ON DELETE CASCADE,
+        color_group_key VARCHAR(160) NOT NULL DEFAULT '',
         color_name VARCHAR(255) NOT NULL DEFAULT '',
         color_value VARCHAR(255) NOT NULL DEFAULT '',
         image_url TEXT NOT NULL DEFAULT '',
@@ -221,7 +225,30 @@ export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
     `);
     await client.query(`ALTER TABLE product_variant_images ADD COLUMN IF NOT EXISTS tenant_id BIGINT NULL REFERENCES tenants(id) ON DELETE CASCADE`);
     await client.query(`ALTER TABLE product_variant_images ADD COLUMN IF NOT EXISTS generated_by_ai BOOLEAN NOT NULL DEFAULT FALSE`);
+    await client.query(`ALTER TABLE product_variant_images ADD COLUMN IF NOT EXISTS color_group_key VARCHAR(160) NOT NULL DEFAULT ''`);
     tableColumnsCache.delete("product_variant_images");
+    await client.query(`
+      UPDATE product_variant_images pvi
+      SET color_group_key = pv.color_group_key
+      FROM product_variants pv
+      WHERE pvi.variant_id = pv.id
+        AND TRIM(COALESCE(pvi.color_group_key, '')) = ''
+        AND TRIM(COALESCE(pv.color_group_key, '')) <> ''
+    `);
+    await client.query(`
+      UPDATE product_variant_images pvi
+      SET color_group_key = COALESCE((
+        SELECT pv.color_group_key
+        FROM product_variants pv
+        WHERE pv.product_id = pvi.product_id
+          AND LOWER(TRIM(COALESCE(pv.color, ''))) = LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, '')))
+          AND LOWER(TRIM(COALESCE(pv.image_url, ''))) = LOWER(TRIM(COALESCE(pvi.image_url, '')))
+          AND TRIM(COALESCE(pv.color_group_key, '')) <> ''
+        ORDER BY pv.id ASC
+        LIMIT 1
+      ), 'legacy-' || SUBSTRING(MD5(pvi.product_id::text || '|' || LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))) || '|' || LOWER(TRIM(COALESCE(pvi.image_url, '')))), 1, 32))
+      WHERE TRIM(COALESCE(pvi.color_group_key, '')) = ''
+    `);
     await client.query(`
       UPDATE product_variant_images pvi
       SET tenant_id = p.tenant_id
@@ -238,6 +265,7 @@ export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
       USING product_variant_images duplicate
       WHERE target.id > duplicate.id
         AND target.product_id = duplicate.product_id
+        AND LOWER(TRIM(target.color_group_key)) = LOWER(TRIM(duplicate.color_group_key))
         AND LOWER(TRIM(target.color_name)) = LOWER(TRIM(duplicate.color_name))
         AND LOWER(TRIM(target.image_url)) = LOWER(TRIM(duplicate.image_url))
         AND TRIM(target.image_url) <> ''
@@ -247,15 +275,17 @@ export const ensureProductVariantImagesSchema = async (clientOrPool = db) => {
       USING product_variant_images duplicate
       WHERE target.id > duplicate.id
         AND target.product_id = duplicate.product_id
+        AND LOWER(TRIM(target.color_group_key)) = LOWER(TRIM(duplicate.color_group_key))
         AND COALESCE(target.variant_id, 0) = COALESCE(duplicate.variant_id, 0)
         AND LOWER(TRIM(target.color_name)) = LOWER(TRIM(duplicate.color_name))
         AND LOWER(TRIM(target.image_url)) = LOWER(TRIM(duplicate.image_url))
         AND TRIM(target.image_url) <> ''
     `);
     await client.query(`DROP INDEX IF EXISTS product_variant_images_unique_variant_url`);
+    await client.query(`DROP INDEX IF EXISTS product_variant_images_unique_tenant_variant_url`);
     await client.query(`
       CREATE UNIQUE INDEX IF NOT EXISTS product_variant_images_unique_tenant_variant_url
-      ON product_variant_images (tenant_id, product_id, COALESCE(variant_id, 0), LOWER(TRIM(color_name)), LOWER(TRIM(image_url)))
+      ON product_variant_images (tenant_id, product_id, COALESCE(variant_id, 0), LOWER(TRIM(color_group_key)), LOWER(TRIM(color_name)), LOWER(TRIM(image_url)))
       WHERE TRIM(image_url) <> ''
     `);
   } finally {
@@ -279,6 +309,7 @@ const collectColorImageRecords = (entry = {}, fallback = {}) => {
   const base = {
     product_id: entry.product_id ?? fallback.product_id ?? null,
     variant_id: entry.variant_id ?? fallback.variant_id ?? null,
+    color_group_key: toText(entry.color_group_key || entry.colorGroupKey || fallback.color_group_key || fallback.colorGroupKey || ""),
     color_name: toText(entry.color_name || entry.colorName || entry.color || fallback.color_name || fallback.color || ""),
     color_value: toText(entry.color_value || entry.colorValue || entry.color || fallback.color_value || fallback.color || ""),
   };
@@ -312,6 +343,7 @@ export const collectProductVariantImagesFromPayload = ({ productId = null, varia
     records.push(
       ...collectColorImageRecords(group, {
         product_id: productId,
+        color_group_key: group.color_group_key || group.colorGroupKey || group.id || "",
         color_name: group.color_name || group.colorName || group.color || "",
         color_value: group.color_value || group.colorValue || group.color || "",
       })
@@ -327,6 +359,7 @@ export const collectProductVariantImagesFromPayload = ({ productId = null, varia
             normalizeImageInput(image, {
               product_id: productId,
               variant_id: variant.variant_id ?? variant.id ?? null,
+              color_group_key: variant.color_group_key || variant.colorGroupKey || "",
               color_name: variant.color || "",
               color_value: variant.color || "",
               sort_order: image?.sort_order ?? image?.sortOrder ?? index,
@@ -341,6 +374,7 @@ export const collectProductVariantImagesFromPayload = ({ productId = null, varia
     const imageUrl = extractNormalizedImageUrl(variant, {
       product_id: productId,
       variant_id: variant.variant_id ?? variant.id ?? null,
+      color_group_key: variant.color_group_key || variant.colorGroupKey || "",
       color_name: variant.color || "",
       color_value: variant.color || "",
     });
@@ -350,6 +384,7 @@ export const collectProductVariantImagesFromPayload = ({ productId = null, varia
       normalizeImageInput(imageUrl, {
         product_id: productId,
         variant_id: variant.variant_id ?? variant.id ?? null,
+        color_group_key: variant.color_group_key || variant.colorGroupKey || "",
         color_name: variant.color || "",
         color_value: variant.color || "",
         sort_order: 0,
@@ -362,10 +397,11 @@ export const collectProductVariantImagesFromPayload = ({ productId = null, varia
   const collapsedByColorUrl = new Map();
 
   for (const record of dedupedRecords) {
+    const groupKey = toText(record.color_group_key).toLowerCase();
     const colorKey = toText(record.color_name || record.color_value).toLowerCase();
     const imageKey = toText(record.image_url).toLowerCase();
-    const groupingKey = colorKey
-      ? `${toText(record.product_id)}:${colorKey}:${imageKey}`
+    const groupingKey = groupKey || colorKey
+      ? `${toText(record.product_id)}:${groupKey || `color:${colorKey}`}:${imageKey}`
       : `${toText(record.product_id)}:variant:${toText(record.variant_id)}:${imageKey}`;
     const existing = collapsedByColorUrl.get(groupingKey);
     if (!existing) {
@@ -441,6 +477,7 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
           tenant_id: effectiveTenantId,
           product_id: productId,
           variant_id: toNullableForeignKey(record.variant_id),
+          color_group_key: record.color_group_key || "",
           color_name: record.color_name || "",
           color_value: record.color_value || "",
           image_url: normalizedImageUrl,
@@ -455,11 +492,12 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
     if (insertableRecords.length > 0) {
       const values = [];
       const placeholders = insertableRecords.map((record, recordIndex) => {
-        const offset = recordIndex * 9;
+        const offset = recordIndex * 10;
         values.push(
           record.tenant_id,
           record.product_id,
           record.variant_id,
+          record.color_group_key,
           record.color_name,
           record.color_value,
           record.image_url,
@@ -467,7 +505,7 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
           record.is_primary,
           record.generated_by_ai
         );
-        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9})`;
+        return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10})`;
       });
       const result = await client.query(
         `
@@ -475,6 +513,7 @@ export const replaceProductVariantImages = async (clientOrPool, { tenantId = nul
           tenant_id,
           product_id,
           variant_id,
+          color_group_key,
           color_name,
           color_value,
           image_url,
@@ -519,13 +558,14 @@ export const loadProductVariantImages = async (clientOrPool, productIds = []) =>
     for (const row of result.rows || []) {
       const productId = String(row.product_id);
       if (!grouped.has(productId)) {
-        grouped.set(productId, { byColor: new Map(), byVariant: new Map(), rows: [] });
+        grouped.set(productId, { byGroup: new Map(), byColor: new Map(), byVariant: new Map(), rows: [] });
       }
       const bundle = grouped.get(productId);
       const normalized = {
         id: row.id,
         product_id: row.product_id,
         variant_id: row.variant_id ?? null,
+        color_group_key: row.color_group_key || "",
         color_name: row.color_name || "",
         color_value: row.color_value || "",
         image_url: row.image_url || "",
@@ -535,6 +575,11 @@ export const loadProductVariantImages = async (clientOrPool, productIds = []) =>
         created_at: row.created_at || null,
       };
       bundle.rows.push(normalized);
+      const groupKey = toText(normalized.color_group_key).toLowerCase();
+      if (groupKey) {
+        if (!bundle.byGroup.has(groupKey)) bundle.byGroup.set(groupKey, []);
+        bundle.byGroup.get(groupKey).push(normalized);
+      }
       const colorKey = toText(normalized.color_name || normalized.color_value).toLowerCase();
       if (colorKey) {
         if (!bundle.byColor.has(colorKey)) bundle.byColor.set(colorKey, []);
@@ -563,13 +608,16 @@ export const attachVariantImages = (variants = [], imageBundle = null) => {
 
   return rows.map((variant) => {
     const variantKey = String(variant.id ?? variant.variant_id ?? "");
+    const groupKey = toText(variant.color_group_key || variant.colorGroupKey).toLowerCase();
     const colorKey = toText(variant.color || variant.color_name).toLowerCase();
-    const colorImages = colorKey ? imageBundle.byColor.get(colorKey) || [] : [];
+    const colorImages = groupKey
+      ? imageBundle.byGroup?.get(groupKey) || []
+      : colorKey ? imageBundle.byColor.get(colorKey) || [] : [];
     const variantImages = variantKey ? imageBundle.byVariant.get(variantKey) || [] : [];
     const allImages = dedupeImages([...variantImages, ...colorImages])
       .reduce((acc, item) => {
-        const key = `${item.product_id}:${toText(item.color_name).toLowerCase()}:${toText(item.image_url).toLowerCase()}`;
-        if (!acc.some((existing) => `${existing.product_id}:${toText(existing.color_name).toLowerCase()}:${toText(existing.image_url).toLowerCase()}` === key)) {
+        const key = `${item.product_id}:${toText(item.color_group_key).toLowerCase()}:${toText(item.color_name).toLowerCase()}:${toText(item.image_url).toLowerCase()}`;
+        if (!acc.some((existing) => `${existing.product_id}:${toText(existing.color_group_key).toLowerCase()}:${toText(existing.color_name).toLowerCase()}:${toText(existing.image_url).toLowerCase()}` === key)) {
           acc.push(item);
         }
         return acc;
@@ -595,8 +643,11 @@ export const attachVariantImages = (variants = [], imageBundle = null) => {
 export const attachGroupedColorImages = (colors = [], imageBundle = null) => {
   const rows = Array.isArray(colors) ? colors : [];
   return rows.map((color) => {
+    const groupKey = toText(color.color_group_key || color.colorGroupKey).toLowerCase();
     const colorKey = toText(color.color || color.color_name).toLowerCase();
-    const images = colorKey && imageBundle ? imageBundle.byColor.get(colorKey) || [] : [];
+    const images = imageBundle
+      ? groupKey ? imageBundle.byGroup?.get(groupKey) || [] : colorKey ? imageBundle.byColor.get(colorKey) || [] : []
+      : [];
     const uniqueImages = dedupeImages(images);
     const primary = uniqueImages.find((item) => item.is_primary) || uniqueImages[0] || null;
     return {

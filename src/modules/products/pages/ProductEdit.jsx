@@ -171,7 +171,8 @@ const normalizeManufacturerIds = (value, fallback = "") => {
 };
 
 const createEmptyColorGroup = (defaults = {}) => ({
-  id: makeId(),
+  id: formatFieldValue(defaults.color_group_key ?? defaults.colorGroupKey ?? defaults.id) || makeId(),
+  color_group_key: formatFieldValue(defaults.color_group_key ?? defaults.colorGroupKey ?? defaults.id),
   color: formatFieldValue(defaults.color),
   audience: formatFieldValue(defaults.audience ?? defaults.variant_audience ?? defaults.gender),
   manufacturer_id: normalizeManufacturerIds(defaults.manufacturer_ids ?? defaults.manufacturerIds, defaults.manufacturer_id)[0] || "",
@@ -666,6 +667,7 @@ const isVariantLikeRow = (row = {}) =>
 
 const normalizeVariantForm = (row = {}) => ({
   variantId: getVariantRowId(row),
+  color_group_key: row.color_group_key || row.colorGroupKey || row.variant_color_group_key || row.variantColorGroupKey || "",
   color: row.color || "Default",
   size: row.size || "One size",
   stock: String(
@@ -786,11 +788,20 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
   const groupedByColor = new Map();
 
   rows.forEach((row) => {
-    const key = normalizeColorKey(row.color);
+    const explicitGroupKey = String(row.color_group_key || row.colorGroupKey || row.variant_color_group_key || row.variantColorGroupKey || "").trim();
+    const legacyIdentity = [
+      normalizeColorKey(row.color),
+      String(row.edition_slug || row.edition_name || "").trim().toLowerCase(),
+      String(row.color_article_code || row.colorArticleCode || "").trim().toLowerCase(),
+      String(row.image_url || row.variant_image_url || row.color_image_url || "").trim().toLowerCase(),
+    ].join("|");
+    const key = explicitGroupKey ? `group:${explicitGroupKey}` : `legacy:${legacyIdentity}`;
     if (!groupedByColor.has(key)) {
       const groupImages = normalizeColorImages(row.images || row.color_images || []);
       const groupImage = groupImages.find((image) => image.is_primary)?.image_url || row.image_url || row.variant_image_url || row.color_image_url || "";
         const group = createEmptyColorGroup({
+          id: explicitGroupKey || undefined,
+          color_group_key: explicitGroupKey,
           color: row.color || "Default",
           color_article_code: row.color_article_code || row.colorArticleCode || "",
           thermal_image_url: row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "",
@@ -824,6 +835,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     }
 
     const group = groupedByColor.get(key);
+    if (!group.color_group_key) group.color_group_key = explicitGroupKey || group.id;
     group.color_article_code = String(row.color_article_code || row.colorArticleCode || group.color_article_code || "").trim();
     if (!String(group.thermal_image_url || "").trim() && String(row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "").trim()) {
       group.thermal_image_url = String(row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "").trim();
@@ -2900,6 +2912,8 @@ function ProductEdit() {
             : []);
         const thermalImageUrl = String(group.thermal_image_url || "").trim();
         return {
+          color_group_key: String(group.color_group_key || group.id || "").trim(),
+          colorGroupKey: String(group.color_group_key || group.id || "").trim(),
           color_name: groupColor,
           color_value: groupColor,
           color_article_code: String(group.color_article_code || "").trim(),
@@ -2941,6 +2955,7 @@ function ProductEdit() {
       const groupEditionName = mirrorEditionEnabled ? String(group.edition_name || "").trim() : "";
       const groupEditionSlug = groupEditionName ? slugifyEdition(group.edition_slug || groupEditionName) : "";
       const groupArticleCode = String(group.color_article_code || "").trim();
+      const groupKey = String(group.color_group_key || group.id || "").trim();
       const groupThermalImageUrl = String(group.thermal_image_url || "").trim();
       const groupManufacturerPayload = getManufacturerPayload(group.manufacturer_ids || group.manufacturer_id);
       if (isColorOnlyMode) {
@@ -2949,6 +2964,8 @@ function ProductEdit() {
         const payload = {
           id: sourceRow.variantId || undefined,
           variant_id: sourceRow.variantId || undefined,
+          color_group_key: groupKey,
+          colorGroupKey: groupKey,
           color: group.color,
           audience: group.audience || "",
           size: String(product.fixed_size_label || "One Size").trim() || "One Size",
@@ -3002,6 +3019,8 @@ function ProductEdit() {
         const payload = {
           id: row.variantId || undefined,
           variant_id: row.variantId || undefined,
+          color_group_key: groupKey,
+          colorGroupKey: groupKey,
           color: group.color,
           audience: group.audience || "",
           size,

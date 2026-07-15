@@ -870,6 +870,7 @@ export const ensureProductVariantSchema = async () => {
       ADD COLUMN IF NOT EXISTS branch_id BIGINT,
       ADD COLUMN IF NOT EXISTS edition_name TEXT,
       ADD COLUMN IF NOT EXISTS edition_slug TEXT,
+      ADD COLUMN IF NOT EXISTS color_group_key VARCHAR(160),
       ADD COLUMN IF NOT EXISTS article_code TEXT,
       ADD COLUMN IF NOT EXISTS audience VARCHAR(30)
       `);
@@ -881,6 +882,21 @@ export const ensureProductVariantSchema = async () => {
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_barcode_lower ON product_variants (LOWER(barcode))`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_article_code_lower ON product_variants (LOWER(TRIM(article_code))) WHERE article_code IS NOT NULL AND TRIM(article_code) <> ''`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_audience ON product_variants (product_id, audience, is_active) WHERE deleted_at IS NULL`);
+      await db.query(`
+    UPDATE product_variants
+    SET color_group_key = 'legacy-' || SUBSTRING(
+      MD5(
+        COALESCE(product_id::text, '') || '|' ||
+        LOWER(TRIM(COALESCE(color, ''))) || '|' ||
+        LOWER(TRIM(COALESCE(edition_slug, edition_name, ''))) || '|' ||
+        LOWER(TRIM(COALESCE(image_url, '')))
+      ),
+      1,
+      32
+    )
+    WHERE TRIM(COALESCE(color_group_key, '')) = ''
+      AND TRIM(COALESCE(color, '')) <> ''
+      `);
       await db.query(`
     UPDATE product_variants
     SET thermal_image_status = 'ready'
@@ -1160,6 +1176,8 @@ const normalizeVariantRow = (row = {}) => {
   const thermalImageError = normalizeThermalError(row.thermal_image_error);
   return ({
   ...row,
+  color_group_key: String(row.variant_color_group_key ?? row.color_group_key ?? row.colorGroupKey ?? "").trim(),
+  colorGroupKey: String(row.variant_color_group_key ?? row.color_group_key ?? row.colorGroupKey ?? "").trim(),
   selling_price: regularPrice,
   regular_price: regularPrice,
   price: regularPrice,
@@ -1340,9 +1358,18 @@ const deriveColorGroupsFromVariants = (variants = []) => {
   const seen = new Map();
   for (const variant of Array.isArray(variants) ? variants : []) {
     const color = String(variant?.color || variant?.color_name || "").trim();
-    const key = color.toLowerCase() || "default";
+    const explicitGroupKey = String(variant?.color_group_key || variant?.colorGroupKey || variant?.variant_color_group_key || "").trim();
+    const legacyGroupKey = [
+      color.toLowerCase() || "default",
+      String(variant?.edition_slug || variant?.edition_name || "").trim().toLowerCase(),
+      String(variant?.color_article_code || variant?.colorArticleCode || "").trim().toLowerCase(),
+      String(variant?.image_url || variant?.variant_image_url || variant?.color_image_url || "").trim().toLowerCase(),
+    ].join("|");
+    const key = explicitGroupKey ? `group:${explicitGroupKey}` : `legacy:${legacyGroupKey}`;
     if (!seen.has(key)) {
       seen.set(key, {
+        color_group_key: explicitGroupKey || legacyGroupKey,
+        colorGroupKey: explicitGroupKey || legacyGroupKey,
         color,
         color_name: color,
         color_value: color,
@@ -1920,6 +1947,12 @@ const normalizeIncomingManufacturerIds = (value, fallback = null) => {
   return [...new Set(normalized)];
 };
 
+const getVariantColorArticleCode = (codeMap, productId, variant = {}) => {
+  const groupKey = String(variant.color_group_key || variant.colorGroupKey || "").trim().toLowerCase();
+  const colorKey = String(variant.color || variant.color_name || "").trim().toLowerCase();
+  return (groupKey ? codeMap.get(`${productId}:group:${groupKey}`) : "") || codeMap.get(`${productId}:${colorKey}`) || "";
+};
+
 const normalizeIncomingVariant = (variant = {}, group = {}) => {
   const regularPrice = Number(
     variant.regular_price ??
@@ -1936,6 +1969,10 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
 
   return {
     id: normalizeOptionalForeignKey(variant.id ?? variant.variant_id ?? variant.variantId),
+    color_group_key: normalizeCopiedText(
+      variant.color_group_key ?? variant.colorGroupKey ?? variant.variant_color_group_key ??
+      group.color_group_key ?? group.colorGroupKey ?? group.id ?? ""
+    ),
     color: normalizeCopiedText(variant.color ?? variant.color_name ?? variant.colorName ?? group.color ?? group.color_name ?? ""),
     size: normalizeCopiedText(variant.size ?? variant.size_name ?? variant.sizeName ?? ""),
     sku: normalizeCopiedText(variant.sku ?? variant.variant_sku ?? ""),
@@ -2439,6 +2476,7 @@ const prepareVariantsForCreate = async (client, {
     ).trim();
 
     return {
+      color_group_key: variant.color_group_key || "",
       manufacturer_id: variant.manufacturer_id,
       manufacturer_ids: normalizeIncomingManufacturerIds(variant.manufacturer_ids, variant.manufacturer_id),
       supplier_id: variant.supplier_id,
@@ -2470,7 +2508,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
 
   const values = [];
   const placeholders = variants.map((variant, index) => {
-    const offset = index * 25;
+    const offset = index * 26;
     values.push(
       tenantId,
       productId,
@@ -2479,6 +2517,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       variant.supplier_id ?? null,
       variant.warehouse_id ?? null,
       variant.branch_id ?? null,
+      variant.color_group_key || "",
       variant.color || "",
       variant.size || "",
       variant.sku || "",
@@ -2498,7 +2537,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       variant.default_purchase_qty ?? 0,
       true
     );
-    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}::bigint[], $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, $${offset + 10}, $${offset + 11}, NULLIF($${offset + 12}, ''), $${offset + 13}, $${offset + 14}, $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, $${offset + 24}, $${offset + 25}, NULL)`;
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}::bigint[], $${offset + 5}, $${offset + 6}, $${offset + 7}, NULLIF($${offset + 8}, ''), $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, NULLIF($${offset + 13}, ''), $${offset + 14}, $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, $${offset + 24}, $${offset + 25}, $${offset + 26}, NULL)`;
   });
 
   const result = await client.query(
@@ -2511,6 +2550,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       supplier_id,
       warehouse_id,
       branch_id,
+      color_group_key,
       color,
       size,
       sku,
@@ -2573,6 +2613,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       supplier_id,
       warehouse_id,
       branch_id,
+      color_group_key,
       color,
       size,
       sku,
@@ -2593,7 +2634,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       is_active,
       deleted_at
     )
-    VALUES ($1, $2, $3, $4::bigint[], $5, $6, $7, $8, $9, $10, $11, NULLIF($12, ''), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, TRUE, NULL)
+    VALUES ($1, $2, $3, $4::bigint[], $5, $6, $7, NULLIF($8, ''), $9, $10, $11, $12, NULLIF($13, ''), $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, TRUE, NULL)
     RETURNING *
     `,
     [
@@ -2604,6 +2645,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       nextVariant.supplier_id,
       nextVariant.warehouse_id,
       nextVariant.branch_id,
+      nextVariant.color_group_key || "",
       nextVariant.color,
       nextVariant.size,
       nextVariant.sku,
@@ -2730,12 +2772,13 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       sale_price = $19,
       edition_name = $20,
       edition_slug = $21,
-      default_purchase_qty = COALESCE($22, default_purchase_qty),
+      color_group_key = COALESCE(NULLIF($22, ''), color_group_key),
+      default_purchase_qty = COALESCE($23, default_purchase_qty),
       is_active = TRUE,
       deleted_at = NULL
-    WHERE id = $23
-      AND product_id = $24
-      AND ($25::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $25::bigint)
+    WHERE id = $24
+      AND product_id = $25
+      AND ($26::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $26::bigint)
     RETURNING *
     `,
     [
@@ -2760,6 +2803,7 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       nextVariant.sale_price,
       nextVariant.edition_name || null,
       nextVariant.edition_slug || slugifyEdition(nextVariant.edition_name) || null,
+      nextVariant.color_group_key || "",
       nextVariant.default_purchase_qty === undefined || nextVariant.default_purchase_qty === null || nextVariant.default_purchase_qty === ""
         ? null
         : Math.max(0, Number(nextVariant.default_purchase_qty || 0)),
@@ -2858,7 +2902,7 @@ const archiveProductVariantsByIds = async (client, { productId, tenantId, varian
 const loadActiveProductVariantSnapshot = async (client, { productId, tenantId }) => {
   const result = await client.query(
     `
-    SELECT id, color, size, audience, stock, default_purchase_qty, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error, is_active, deleted_at
+    SELECT id, color_group_key, color, size, audience, stock, default_purchase_qty, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error, is_active, deleted_at
     FROM product_variants
     WHERE product_id = $1
       AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
@@ -3408,7 +3452,7 @@ export const getProductsWithVariants = async (req, res) => {
     const normalizedProducts = await withProductAudiences(db, Array.from(grouped.values()).map((product) => {
       const imageBundle = imageBundleMap.get(String(product.id ?? product.product_id ?? "")) || null;
       const variants = attachVariantImages(Array.isArray(product.variants) ? product.variants : [], imageBundle).map((variant) => {
-        const colorArticleCode = colorArticleCodeMap.get(`${product.id ?? product.product_id}:${String(variant.color || "").trim().toLowerCase()}`) || "";
+        const colorArticleCode = getVariantColorArticleCode(colorArticleCodeMap, product.id ?? product.product_id, variant);
         const variantArticleCode = String(variant.variant_article_code ?? variant.article_code ?? "").trim();
         return {
           ...variant,
@@ -4197,7 +4241,7 @@ export const createProduct = async (req, res) => {
     const imageBundle = imageBundleMap.get(String(productId)) || null;
     const createdColorArticleMap = await loadProductColorArticleCodes(client, [productId]);
     const hydratedVariants = attachVariantImages(insertedVariants.map(normalizeVariantRow), imageBundle).map((variant) => {
-      const colorArticleCode = createdColorArticleMap.get(`${productId}:${String(variant.color || "").trim().toLowerCase()}`) || "";
+      const colorArticleCode = getVariantColorArticleCode(createdColorArticleMap, productId, variant);
       const variantArticleCode = String(variant.variant_article_code ?? variant.article_code ?? "").trim();
       return { ...variant, variant_article_code: variantArticleCode, color_article_code: colorArticleCode, colorArticleCode, article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "" };
     });
@@ -5169,7 +5213,7 @@ export const updateProduct = async (req, res) => {
     const imageBundle = imageBundleMap.get(String(productId)) || null;
     const updatedColorArticleMap = await loadProductColorArticleCodes(client, [productId]);
     const hydratedVariants = attachVariantImages(activeVariantsAfterSave.map(normalizeVariantRow), imageBundle).map((variant) => {
-      const colorArticleCode = updatedColorArticleMap.get(`${productId}:${String(variant.color || "").trim().toLowerCase()}`) || "";
+      const colorArticleCode = getVariantColorArticleCode(updatedColorArticleMap, productId, variant);
       const variantArticleCode = String(variant.variant_article_code ?? variant.article_code ?? "").trim();
       return { ...variant, variant_article_code: variantArticleCode, color_article_code: colorArticleCode, colorArticleCode, article_code: resolveEffectiveArticleCode({ article_code: variantArticleCode }, { color_article_code: colorArticleCode }) || "" };
     });

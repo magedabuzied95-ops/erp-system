@@ -71,6 +71,20 @@ export const normalizeVariantPayload = (input = {}) => {
   return {
     id: source.id ?? source.variant_id ?? source.variantId ?? null,
     variant_id: source.variant_id ?? source.variantId ?? source.id ?? null,
+    color_group_key: normalizeText(
+      source.color_group_key ??
+        source.colorGroupKey ??
+        source.variant_color_group_key ??
+        source.variantColorGroupKey ??
+        ""
+    ),
+    colorGroupKey: normalizeText(
+      source.colorGroupKey ??
+        source.color_group_key ??
+        source.variantColorGroupKey ??
+        source.variant_color_group_key ??
+        ""
+    ),
     variation_mode: source.variation_mode ?? source.variationMode ?? "",
     fixed_size_label: source.fixed_size_label ?? source.fixedSizeLabel ?? "",
     color: normalizeText(
