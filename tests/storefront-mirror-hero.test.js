@@ -13,6 +13,7 @@ test("mirror products are recognized from the compact storefront grade field", (
 
 test("home hero requests and prioritizes Mirror Original products", async () => {
   const source = await readFile(new URL("../src/storefront/Storefront.jsx", import.meta.url), "utf8");
+  const stylesheet = await readFile(new URL("../src/index.css", import.meta.url), "utf8");
 
   assert.match(source, /useProducts\(\{ quality: "mirror_original", sort: "newest", limit: 24 \}\)/);
   assert.match(source, /const mirrorHeroSlides = useMemo/);
@@ -29,6 +30,11 @@ test("home hero requests and prioritizes Mirror Original products", async () => 
   assert.match(source, /preloadStorefrontImage\(nextImage, "hero"\)/);
   assert.match(source, /displayTimeReached && nextImageReady/);
   assert.doesNotMatch(source, /<img key=\{heroImage\}/);
+  assert.match(source, /key=\{`\$\{activeHeroIndex\}:\$\{heroImage\}`\}/);
+  assert.match(source, /className="sf-hero-image-transition/);
+  assert.match(stylesheet, /@keyframes sfHeroImageEnter/);
+  assert.match(stylesheet, /animation: sfHeroImageEnter 620ms/);
+  assert.match(stylesheet, /prefers-reduced-motion: reduce[\s\S]*?\.sf-home-hero-v2 \.sf-hero-image-transition/);
   assert.match(source, /fetchPriority="high"/);
   assert.doesNotMatch(source, /bottom-\[8\.75rem\]/);
 });
