@@ -597,6 +597,34 @@
     box-shadow: 0 14px 34px rgb(0 0 0 / 0.24);
   }
 
+  @media (max-width: 639px) {
+    .sf-brand-marquee {
+      padding-block: 1rem 1.35rem;
+      mask-image: linear-gradient(to right, transparent, black 2.5%, black 97.5%, transparent);
+    }
+
+    .sf-brand-marquee__group {
+      gap: 1rem;
+      padding-inline: 1rem 0;
+    }
+
+    .sf-brand-marquee__item {
+      width: calc(100vw - 3.75rem);
+      max-width: 28rem;
+      height: clamp(10rem, 42vw, 12rem);
+      border-radius: 1.65rem;
+      padding: 1rem 1.35rem;
+    }
+
+    .sf-brand-marquee__logo {
+      transform: scale(1.24);
+    }
+
+    .sf-brand-marquee__item:hover .sf-brand-marquee__logo {
+      transform: scale(1.28);
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .sf-brand-marquee {
       overflow-x: auto;
