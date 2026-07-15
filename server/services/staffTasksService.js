@@ -430,6 +430,21 @@ export const ensureStaffTasksSchema = async (clientOrPool = db) => {
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_sessions_lookup ON employee_portal_sessions (tenant_id, employee_id, expires_at DESC)`);
   await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS employee_push_subscriptions (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NULL,
+      employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      endpoint TEXT NOT NULL UNIQUE,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      user_agent TEXT NULL,
+      portal_url TEXT NOT NULL DEFAULT '',
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_portal_push_subscriptions (
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
@@ -448,6 +463,19 @@ export const ensureStaffTasksSchema = async (clientOrPool = db) => {
   `);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_push_subscriptions ADD COLUMN IF NOT EXISTS portal_url TEXT NOT NULL DEFAULT ''`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_push_employee ON employee_portal_push_subscriptions (tenant_id, employee_id, is_active)`);
+  await clientOrPool.query(`
+    UPDATE staff_task_assignments
+    SET status = 'cancelled',
+        metadata = COALESCE(metadata, '{}'::jsonb) || jsonb_build_object(
+          'auto_cancelled_reason', 'stale_unassigned_overdue',
+          'auto_cancelled_at', CURRENT_TIMESTAMP
+        ),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE current_assignee_id IS NULL
+      AND assigned_employee_id IS NULL
+      AND status = 'overdue'
+      AND due_at < CURRENT_TIMESTAMP - INTERVAL '7 days'
+  `);
   await clientOrPool.query(`
     UPDATE staff_task_assignments
     SET source_ref_date = assigned_date
@@ -782,32 +810,32 @@ export const subscribeEmployeePortalPush = async ({ token = "", subscription = {
 
   const result = await db.query(
     `
-    INSERT INTO employee_portal_push_subscriptions (
+    INSERT INTO employee_push_subscriptions (
       tenant_id,
       employee_id,
-      session_id,
       endpoint,
       p256dh,
       auth,
       portal_url,
       user_agent,
-      is_active
+      is_active,
+      last_seen_at
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,TRUE)
-    ON CONFLICT (tenant_id, employee_id, endpoint) DO UPDATE
-    SET session_id = EXCLUDED.session_id,
+    VALUES ($1,$2,$3,$4,$5,$6,$7,TRUE,NOW())
+    ON CONFLICT (endpoint) DO UPDATE
+    SET tenant_id = EXCLUDED.tenant_id,
+        employee_id = EXCLUDED.employee_id,
         p256dh = EXCLUDED.p256dh,
         auth = EXCLUDED.auth,
         portal_url = EXCLUDED.portal_url,
         user_agent = EXCLUDED.user_agent,
         is_active = TRUE,
-        updated_at = NOW()
-    RETURNING id, tenant_id, employee_id, endpoint, is_active, created_at, updated_at
+        last_seen_at = NOW()
+    RETURNING id, tenant_id, employee_id, endpoint, is_active, created_at, last_seen_at
     `,
     [
       session.tenant_id,
       session.employee_id,
-      session.id,
       endpoint,
       p256dh,
       auth,
@@ -833,13 +861,13 @@ export const unsubscribeEmployeePortalPush = async ({ token = "", endpoint = "" 
 
   const result = await db.query(
     `
-    UPDATE employee_portal_push_subscriptions
+    UPDATE employee_push_subscriptions
     SET is_active = FALSE,
-        updated_at = NOW()
+        last_seen_at = NOW()
     WHERE tenant_id = $1
       AND employee_id = $2
       AND endpoint = $3
-    RETURNING id, tenant_id, employee_id, endpoint, is_active, updated_at
+    RETURNING id, tenant_id, employee_id, endpoint, is_active, last_seen_at
     `,
     [session.tenant_id, session.employee_id, safeEndpoint]
   );
@@ -2831,7 +2859,7 @@ const assignDailyAttendanceTasksForCheckIn = async ({ tenantId, branchId, attend
       }
     }
 
-    const normalTasks = taskResult.rows.filter((row) => !Boolean(row.is_opening_day_task || row.task_type === "opening_day"));
+    const normalTasks = taskResult.rows.filter((row) => !(row.is_opening_day_task || row.task_type === "opening_day"));
     for (const task of normalTasks) {
       const candidatePool = normalEmployees.length ? normalEmployees : presentEmployees;
       if (!candidatePool.length) break;

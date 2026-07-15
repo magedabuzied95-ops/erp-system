@@ -2409,6 +2409,16 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
             data: { event: "bonus_added", payroll_id: payrollRun.id, amount: bonuses, tab: "salary" },
           }).catch((pushError) => console.warn("[payroll] employee bonus push skipped", pushError?.message || pushError));
         }
+        if (penaltyDeductions > 0) {
+          sendEmployeePortalPush({
+            tenantId,
+            employeeId: employee.id,
+            title: "تم تسجيل خصم جديد",
+            body: `تم تسجيل خصومات بقيمة ${penaltyDeductions} جنيه ضمن راتب شهر ${deductionMonth}.`,
+            tag: "penalty-added",
+            data: { event: "penalty_added", payroll_id: payrollRun.id, amount: penaltyDeductions, tab: "salary" },
+          }).catch((pushError) => console.warn("[payroll] employee penalty push skipped", pushError?.message || pushError));
+        }
       }
     } catch (error) {
       console.warn("[payroll] payroll snapshot skipped", error.message);

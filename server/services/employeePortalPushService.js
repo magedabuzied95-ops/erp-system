@@ -1,5 +1,6 @@
 import webPush from "web-push";
 import db from "../database/db.js";
+import { emitToRooms } from "../utils/socket.js";
 
 const text = (value = "") => String(value ?? "").trim();
 const updateCooldown = new Map();
@@ -7,6 +8,127 @@ const overdueCooldown = new Map();
 const PUSH_UPDATE_COOLDOWN_MS = 60_000;
 const PUSH_OVERDUE_COOLDOWN_MS = 30 * 60_000;
 const EMPLOYEE_FRONTEND_ORIGIN = "https://erp-system-ten-green.vercel.app";
+let notificationSchemaPromise = null;
+
+const ensurePushNotificationSchema = () => {
+  if (!notificationSchemaPromise) {
+    notificationSchemaPromise = (async () => {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS employee_push_subscriptions (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NULL,
+          employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          endpoint TEXT NOT NULL UNIQUE,
+          p256dh TEXT NOT NULL,
+          auth TEXT NOT NULL,
+          user_agent TEXT NULL,
+          portal_url TEXT NOT NULL DEFAULT '',
+          is_active BOOLEAN NOT NULL DEFAULT TRUE,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS employee_portal_notifications (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NULL,
+          employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          type VARCHAR(120) NOT NULL,
+          order_id BIGINT NULL,
+          invoice_number VARCHAR(160) NULL,
+          amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+          title TEXT NOT NULL,
+          body TEXT NOT NULL DEFAULT '',
+          action_url TEXT NULL,
+          metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+          read_at TIMESTAMP NULL,
+          dedupe_key TEXT NULL,
+          cancelled_at TIMESTAMP NULL,
+          updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.query(`ALTER TABLE employee_portal_notifications ADD COLUMN IF NOT EXISTS dedupe_key TEXT NULL`);
+      await db.query(`ALTER TABLE employee_portal_notifications ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL`);
+      await db.query(`ALTER TABLE employee_portal_notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
+      await db.query(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_portal_notifications_dedupe_key
+        ON employee_portal_notifications (tenant_id, employee_id, dedupe_key)
+        WHERE dedupe_key IS NOT NULL
+      `);
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS employee_push_delivery_logs (
+          id BIGSERIAL PRIMARY KEY,
+          tenant_id BIGINT NULL,
+          employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+          subscription_id BIGINT NULL REFERENCES employee_push_subscriptions(id) ON DELETE SET NULL,
+          tag TEXT NOT NULL DEFAULT '',
+          status VARCHAR(40) NOT NULL,
+          status_code INTEGER NOT NULL DEFAULT 0,
+          error_message TEXT NOT NULL DEFAULT '',
+          endpoint_host TEXT NOT NULL DEFAULT '',
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_employee_push_delivery_employee ON employee_push_delivery_logs (employee_id, created_at DESC)`);
+    })().catch((error) => {
+      notificationSchemaPromise = null;
+      throw error;
+    });
+  }
+  return notificationSchemaPromise;
+};
+
+const persistentPushDedupeKey = ({ tag = "", data = {} } = {}) => {
+  const event = text(data.event || tag || "employee_notification");
+  const entity = data.request_id || data.task_id || data.payroll_id || data.opportunity_id || data.thread_id || tag;
+  return `${event}:${text(entity || tag || "general")}`.slice(0, 500);
+};
+
+const persistPushNotification = async ({ tenantId, employeeId, title, body, url, tag, data } = {}) => {
+  await ensurePushNotificationSchema();
+  const employeeResult = await db.query(
+    `SELECT employee_portal_token FROM employees WHERE id = $1 AND ($2::bigint IS NULL OR tenant_id = $2::bigint) LIMIT 1`,
+    [employeeId, tenantId || null]
+  );
+  const token = text(employeeResult.rows[0]?.employee_portal_token);
+  const tab = text(data?.tab || "notifications");
+  const actionUrl = text(url) && text(url) !== "/"
+    ? text(url)
+    : token
+      ? `/employee-app/${encodeURIComponent(token)}?tab=${encodeURIComponent(tab)}`
+      : `/employee-app/?tab=${encodeURIComponent(tab)}`;
+  const type = text(data?.event || tag || "employee_notification").slice(0, 120);
+  const dedupeKey = persistentPushDedupeKey({ tag, data });
+  const result = await db.query(
+    `
+    INSERT INTO employee_portal_notifications (
+      tenant_id, employee_id, type, title, body, action_url, metadata, dedupe_key
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8)
+    ON CONFLICT (tenant_id, employee_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE
+    SET type = EXCLUDED.type,
+        title = EXCLUDED.title,
+        body = EXCLUDED.body,
+        action_url = EXCLUDED.action_url,
+        metadata = EXCLUDED.metadata,
+        read_at = NULL,
+        cancelled_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
+    RETURNING id, tenant_id, employee_id, type, order_id, invoice_number, amount, title, body, action_url, metadata, read_at, created_at
+    `,
+    [tenantId, employeeId, type, text(title), text(body), actionUrl, JSON.stringify({ ...(data || {}), tag: text(tag) }), dedupeKey]
+  );
+  const notification = result.rows[0] || null;
+  if (notification) {
+    emitToRooms([`employee:${employeeId}`], "employee_portal:notification", {
+      notification,
+      badge: { tag: text(tag || type), tab },
+      at: new Date().toISOString(),
+    });
+  }
+  return notification;
+};
 
 const endpointHost = (endpoint = "") => {
   try {
@@ -127,8 +249,36 @@ const deactivateSubscription = async (id, statusCode = 0, reason = "") => {
   });
 };
 
-export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body, url = "/", tag = "", data = {} } = {}) => {
+const recordPushDelivery = async ({
+  tenantId,
+  employeeId,
+  subscriptionId = null,
+  tag = "",
+  status,
+  statusCode = 0,
+  errorMessage = "",
+  endpoint = "",
+} = {}) => {
+  await ensurePushNotificationSchema();
+  await db.query(
+    `
+    INSERT INTO employee_push_delivery_logs (
+      tenant_id, employee_id, subscription_id, tag, status, status_code, error_message, endpoint_host
+    )
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+    `,
+    [tenantId || null, employeeId, subscriptionId, text(tag), text(status), Number(statusCode || 0), text(errorMessage).slice(0, 2000), endpointHost(endpoint)]
+  );
+};
+
+export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body, url = "/", tag = "", data = {}, persist = true } = {}) => {
   if (!tenantId || !employeeId) return { sent: 0, failed: 0, deactivated: 0, skipped: true };
+  await ensurePushNotificationSchema();
+  if (persist) {
+    await persistPushNotification({ tenantId, employeeId, title, body, url, tag, data }).catch((error) => {
+      console.warn("[employee-portal-notification] persistence failed", { tenantId, employeeId, tag, message: error?.message || error });
+    });
+  }
   if (!configureWebPush()) {
     console.warn("[employee-portal-push] VAPID keys are missing; push send skipped", {
       tenantId,
@@ -137,6 +287,7 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
       hasPrivateKey: Boolean(text(process.env.WEB_PUSH_PRIVATE_KEY)),
       hasSubject: Boolean(webPushSubject()),
     });
+    await recordPushDelivery({ tenantId, employeeId, tag, status: "skipped", errorMessage: "VAPID configuration is missing or invalid" }).catch(() => null);
     return { sent: 0, failed: 0, deactivated: 0, skipped: true };
   }
 
@@ -153,6 +304,9 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
   );
 
   const notificationTag = pushTagForEvent(data?.event, tag);
+  if (result.rows.length === 0) {
+    await recordPushDelivery({ tenantId, employeeId, tag: notificationTag, status: "skipped", errorMessage: "No active push subscription" }).catch(() => null);
+  }
   const isEmployeeChatPush = notificationTag === "employee-chat";
   const safeTitle = isEmployeeChatPush
     ? text(title) || " رسالة جديدة من الإدارة"
@@ -217,6 +371,14 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
       }
       await webPush.sendNotification(subscription, payload, sendOptions);
       sent += 1;
+      await recordPushDelivery({
+        tenantId,
+        employeeId,
+        subscriptionId: row.id,
+        tag: notificationTag,
+        status: "sent",
+        endpoint: row.endpoint,
+      }).catch(() => null);
       console.info("[employee-push:send-success]", {
         employee_id: employeeId,
         subscriptionId: row.id,
@@ -225,6 +387,16 @@ export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body
     } catch (error) {
       failed += 1;
       const statusCode = Number(error.statusCode || error.status || 0);
+      await recordPushDelivery({
+        tenantId,
+        employeeId,
+        subscriptionId: row.id,
+        tag: notificationTag,
+        status: [400, 404, 410].includes(statusCode) ? "deactivated" : "failed",
+        statusCode,
+        errorMessage: error.message,
+        endpoint: row.endpoint,
+      }).catch(() => null);
       console.warn("[employee-push:send-failed]", {
         employee_id: employeeId,
         subscriptionId: row.id,

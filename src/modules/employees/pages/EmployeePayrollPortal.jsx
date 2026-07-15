@@ -1956,6 +1956,9 @@ export default function EmployeePayrollPortal() {
 
   useEffect(() => {
     if (!token || activeTab !== "notifications") return undefined;
+    api.patch(`/employee-portal/${encodeURIComponent(token)}/notifications/read-all`).catch((error) => {
+      console.warn("[employee-portal-notifications] read-all failed", error?.message || error);
+    });
     writeBadgeSet(token, "notifications", notificationBadgeIds);
     console.info("[employee-badge:clear-portion]", { portion: "notifications" });
     postEmployeeBadgeMessage({ type: "EMPLOYEE_BADGE_CLEAR_PORTION", portion: "notifications" });
@@ -3201,7 +3204,12 @@ export default function EmployeePayrollPortal() {
                   <h3 className="text-base font-black">{ui("notificationsTab")}</h3>
                   <button
                     type="button"
-                    onClick={() => setPortal((current) => current ? { ...current, notifications: safeArray(current.notifications).map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })), unread_notifications_count: 0 } : current)}
+                    onClick={() => {
+                      api.patch(`/employee-portal/${encodeURIComponent(token)}/notifications/read-all`).catch((error) => {
+                        showPortalToast(error?.message || "تعذر تحديث الإشعارات", "error");
+                      });
+                      setPortal((current) => current ? { ...current, notifications: safeArray(current.notifications).map((item) => ({ ...item, read_at: item.read_at || new Date().toISOString() })), unread_notifications_count: 0 } : current);
+                    }}
                     className="rounded-xl bg-slate-100 px-3 py-2 text-[11px] font-black text-slate-700"
                   >
                     تعليم الكل كمقروء
@@ -3215,6 +3223,11 @@ export default function EmployeePayrollPortal() {
                       key={item.id || `${item.type}-${item.order_id}`}
                       type="button"
                       onClick={() => {
+                        if (item.id) {
+                          api.patch(`/employee-portal/${encodeURIComponent(token)}/notifications/${encodeURIComponent(item.id)}/read`).catch((error) => {
+                            console.warn("[employee-portal-notifications] read failed", error?.message || error);
+                          });
+                        }
                         setPortal((current) => current ? { ...current, notifications: safeArray(current.notifications).map((row) => String(row.id) === String(item.id) ? { ...row, read_at: row.read_at || new Date().toISOString() } : row) } : current);
                         if (item.type === "commission_earned") setActiveTab("salary");
                         if (isDisplayRefill) setActiveTab("display-refill");

@@ -8,6 +8,8 @@ import {
   getEmployeePortalPushPublicKey,
   inspectEmployeePortalTokenMatch,
   loadEmployeePortalByToken,
+  markAllEmployeePortalNotificationsRead,
+  markEmployeePortalNotificationRead,
   recordEmployeePortalAudit,
   recordEmployeePortalAttendance,
   subscribeEmployeePortalPush,
@@ -1177,6 +1179,38 @@ router.get("/:token/display-refill-alerts", async (req, res) => {
   } catch (error) {
     console.error("[employee-payroll-portal] display refill alerts load error", error);
     return res.status(error.status || 500).json({ success: false, code: error.code, message: error.message || "Failed to load display refill alerts" });
+  }
+});
+
+router.patch("/:token/notifications/read-all", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const result = await markAllEmployeePortalNotificationsRead({
+      tenantId: employee.tenant_id || employee.tenantId || null,
+      employeeId: employee.id,
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[employee-payroll-portal] notifications read-all error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to mark notifications as read" });
+  }
+});
+
+router.patch("/:token/notifications/:notificationId/read", async (req, res) => {
+  try {
+    const employee = await loadVerifiedEmployee(req, res);
+    if (!employee) return;
+    const notification = await markEmployeePortalNotificationRead({
+      tenantId: employee.tenant_id || employee.tenantId || null,
+      employeeId: employee.id,
+      notificationId: req.params.notificationId,
+    });
+    if (!notification) return res.status(404).json({ success: false, message: "Notification not found" });
+    return res.json({ success: true, notification });
+  } catch (error) {
+    console.error("[employee-payroll-portal] notification read error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to mark notification as read" });
   }
 });
 

@@ -8,6 +8,7 @@ import {
   deleteTaskTemplate,
   getDashboard,
   getEmployeePortalTasks,
+  getEmployeePortalPushKey,
   getMyTasks,
   getTaskTemplates,
   getPortalSettings,
@@ -18,6 +19,8 @@ import {
   redistributeAbsentTasks,
   updateTask,
   updateEmployeePortalTask,
+  subscribeEmployeePortalPushEndpoint,
+  unsubscribeEmployeePortalPushEndpoint,
   updatePortalSettings,
   updateTaskTemplate,
   updateTaskStatus,
@@ -30,6 +33,9 @@ const router = express.Router();
 router.get("/employee-portal", getEmployeePortalTasks);
 router.patch("/employee-portal/tasks/:id/status", updateEmployeePortalTask);
 router.post("/employee-portal/tasks/:id/complete", updateEmployeePortalTask);
+router.get("/employee-portal/:token/push/public-key", getEmployeePortalPushKey);
+router.post("/employee-portal/:token/push/subscribe", subscribeEmployeePortalPushEndpoint);
+router.post("/employee-portal/:token/push/unsubscribe", unsubscribeEmployeePortalPushEndpoint);
 router.get("/portal-settings", protect, permit("staff_tasks", "manage"), getPortalSettings);
 router.put("/portal-settings", protect, permit("staff_tasks", "manage"), updatePortalSettings);
 router.get("/bootstrap", protect, permit("staff_tasks", "view"), getTaskBootstrap);

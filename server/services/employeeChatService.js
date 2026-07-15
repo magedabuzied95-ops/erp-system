@@ -491,6 +491,7 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
         message_id: message.id,
         tab: "chat",
       },
+      persist: false,
     }).catch((error) => console.warn("[employee-chat] push skipped", error?.message || error));
   }
   return { thread: updatedThread || thread, message };

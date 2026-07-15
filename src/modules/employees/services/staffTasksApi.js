@@ -21,6 +21,9 @@ export const staffTasksApi = {
   employeePortal: (token, options = {}) => api.get("/staff-tasks/employee-portal", { ...options, params: { token } }),
   updateEmployeePortalStatus: (token, id, payload) => api.patch(`/staff-tasks/employee-portal/tasks/${id}/status`, { ...payload, token }),
   completeEmployeePortalTask: (token, id, payload = {}) => api.post(`/staff-tasks/employee-portal/tasks/${id}/complete`, { ...payload, token, status: "completed" }),
+  employeePortalPushKey: (token) => api.get(`/staff-tasks/employee-portal/${encodeURIComponent(token)}/push/public-key`),
+  subscribeEmployeePortalPush: (token, subscription) => api.post(`/staff-tasks/employee-portal/${encodeURIComponent(token)}/push/subscribe`, { subscription }),
+  unsubscribeEmployeePortalPush: (token, endpoint) => api.post(`/staff-tasks/employee-portal/${encodeURIComponent(token)}/push/unsubscribe`, { endpoint }),
   getPortalSettings: (options = {}) => api.get("/staff-tasks/portal-settings", options),
   updatePortalSettings: (payload) => api.put("/staff-tasks/portal-settings", payload),
 };

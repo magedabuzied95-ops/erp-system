@@ -304,6 +304,21 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_push_subscriptions ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_push_subscriptions_employee ON employee_push_subscriptions (employee_id, is_active, last_seen_at DESC)`);
   await clientOrPool.query(`
+    CREATE TABLE IF NOT EXISTS employee_push_delivery_logs (
+      id BIGSERIAL PRIMARY KEY,
+      tenant_id BIGINT NULL,
+      employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+      subscription_id BIGINT NULL REFERENCES employee_push_subscriptions(id) ON DELETE SET NULL,
+      tag TEXT NOT NULL DEFAULT '',
+      status VARCHAR(40) NOT NULL,
+      status_code INTEGER NOT NULL DEFAULT 0,
+      error_message TEXT NOT NULL DEFAULT '',
+      endpoint_host TEXT NOT NULL DEFAULT '',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+  await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_push_delivery_employee ON employee_push_delivery_logs (employee_id, created_at DESC)`);
+  await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_portal_notifications (
       id BIGSERIAL PRIMARY KEY,
       tenant_id BIGINT NULL,
@@ -317,6 +332,9 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
       action_url TEXT NULL,
       metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
       read_at TIMESTAMP NULL,
+      dedupe_key TEXT NULL,
+      cancelled_at TIMESTAMP NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
   `);
@@ -327,12 +345,35 @@ export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS action_url TEXT NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS metadata JSONB NOT NULL DEFAULT '{}'::jsonb`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS dedupe_key TEXT NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMP NULL`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS employee_portal_notifications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP`);
   await clientOrPool.query(`
     CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_portal_notifications_order_type
     ON employee_portal_notifications (tenant_id, employee_id, order_id, type)
     WHERE order_id IS NOT NULL
   `);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_employee_portal_notifications_employee_created ON employee_portal_notifications (tenant_id, employee_id, created_at DESC)`);
+  await clientOrPool.query(`
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_portal_notifications_dedupe_key
+    ON employee_portal_notifications (tenant_id, employee_id, dedupe_key)
+    WHERE dedupe_key IS NOT NULL
+  `);
+  await clientOrPool.query(`
+    UPDATE employee_portal_notifications n
+    SET cancelled_at = COALESCE(n.cancelled_at, CURRENT_TIMESTAMP),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE n.type = 'commission_earned'
+      AND n.order_id IS NOT NULL
+      AND n.cancelled_at IS NULL
+      AND NOT EXISTS (
+        SELECT 1
+        FROM employee_commissions c
+        WHERE c.employee_id = n.employee_id
+          AND c.order_id = n.order_id
+          AND COALESCE(c.commission_amount, 0) > 0
+      )
+  `).catch(() => null);
   await clientOrPool.query(`
     CREATE TABLE IF NOT EXISTS employee_advances (
       id BIGSERIAL PRIMARY KEY,
@@ -1408,12 +1449,64 @@ const getEmployeePortalNotifications = async ({ tenantId, employeeId, limit = 20
     FROM employee_portal_notifications
     WHERE tenant_id = $1
       AND employee_id = $2
+      AND cancelled_at IS NULL
     ORDER BY created_at DESC, id DESC
     LIMIT $3
     `,
     [tenantId, employeeId, Math.max(1, Math.min(50, Number(limit || 20)))]
   );
   return result.rows.map(normalizeEmployeePortalNotification);
+};
+
+const getEmployeePortalUnreadNotificationCount = async ({ tenantId, employeeId } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const result = await db.query(
+    `
+    SELECT COUNT(*)::int AS count
+    FROM employee_portal_notifications
+    WHERE tenant_id = $1
+      AND employee_id = $2
+      AND read_at IS NULL
+      AND cancelled_at IS NULL
+    `,
+    [tenantId, employeeId]
+  );
+  return Number(result.rows[0]?.count || 0);
+};
+
+export const markEmployeePortalNotificationRead = async ({ tenantId, employeeId, notificationId } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const result = await db.query(
+    `
+    UPDATE employee_portal_notifications
+    SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE id = $1
+      AND tenant_id = $2
+      AND employee_id = $3
+      AND cancelled_at IS NULL
+    RETURNING id, read_at
+    `,
+    [notificationId, tenantId, employeeId]
+  );
+  return result.rows[0] || null;
+};
+
+export const markAllEmployeePortalNotificationsRead = async ({ tenantId, employeeId } = {}) => {
+  await ensureEmployeePayrollPortalSchema(db);
+  const result = await db.query(
+    `
+    UPDATE employee_portal_notifications
+    SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP),
+        updated_at = CURRENT_TIMESTAMP
+    WHERE tenant_id = $1
+      AND employee_id = $2
+      AND read_at IS NULL
+      AND cancelled_at IS NULL
+    `,
+    [tenantId, employeeId]
+  );
+  return { updated: Number(result.rowCount || 0) };
 };
 
 const resolveEmployeePortalNotificationUrl = async (clientOrPool, { tenantId, employeeId, actionUrl = "", tab = "salary" } = {}) => {
@@ -1447,6 +1540,7 @@ export const createEmployeePortalNotification = async ({
   body,
   actionUrl = "",
   metadata = {},
+  dedupeKey = "",
   push = true,
 } = {}) => {
   if (!tenantId || !employeeId || !type || !title) return null;
@@ -1457,29 +1551,23 @@ export const createEmployeePortalNotification = async ({
     actionUrl,
     tab: metadata?.tab || "salary",
   });
-  if (orderId) {
-    const duplicate = await clientOrPool.query(
-      `
-      SELECT id, type, employee_id, order_id, invoice_number, amount, title, body, action_url, metadata, created_at, read_at
-      FROM employee_portal_notifications
-      WHERE employee_id = $1
-        AND order_id = $2
-        AND type = $3
-        AND ($4::bigint IS NULL OR tenant_id = $4::bigint OR tenant_id IS NULL)
-      ORDER BY created_at DESC, id DESC
-      LIMIT 1
-      `,
-      [employeeId, orderId, type, tenantId || null]
-    );
-    if (duplicate.rows[0]) return normalizeEmployeePortalNotification(duplicate.rows[0]);
-  }
   const result = await clientOrPool.query(
     `
     INSERT INTO employee_portal_notifications (
-      tenant_id, employee_id, type, order_id, invoice_number, amount, title, body, action_url, metadata
+      tenant_id, employee_id, type, order_id, invoice_number, amount, title, body, action_url, metadata, dedupe_key
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb)
-    ON CONFLICT (tenant_id, employee_id, order_id, type) WHERE order_id IS NOT NULL DO NOTHING
+    VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11)
+    ON CONFLICT (tenant_id, employee_id, order_id, type) WHERE order_id IS NOT NULL DO UPDATE
+    SET invoice_number = EXCLUDED.invoice_number,
+        amount = EXCLUDED.amount,
+        title = EXCLUDED.title,
+        body = EXCLUDED.body,
+        action_url = EXCLUDED.action_url,
+        metadata = EXCLUDED.metadata,
+        dedupe_key = COALESCE(EXCLUDED.dedupe_key, employee_portal_notifications.dedupe_key),
+        read_at = NULL,
+        cancelled_at = NULL,
+        updated_at = CURRENT_TIMESTAMP
     RETURNING id, type, employee_id, order_id, invoice_number, amount, title, body, action_url, metadata, created_at, read_at
     `,
     [
@@ -1493,6 +1581,7 @@ export const createEmployeePortalNotification = async ({
       clean(body),
       resolvedActionUrl,
       JSON.stringify(metadata || {}),
+      clean(dedupeKey) || null,
     ]
   );
   const notification = result.rows[0] ? normalizeEmployeePortalNotification(result.rows[0]) : null;
@@ -1519,6 +1608,7 @@ export const createEmployeePortalNotification = async ({
         invoice_number: invoiceNumber || "",
         amount: toNumber(amount),
       },
+      persist: false,
     }).catch((error) => debugEmployeePortal("[employee-portal-notification] push skipped", { employeeId, type, error: error?.message || error }));
   }
 
@@ -1527,18 +1617,32 @@ export const createEmployeePortalNotification = async ({
 
 const getEmployeeWalletTasks = async ({ employee }) => {
   try {
-    const tasks = await listStaffTasks(
-      {
-        tenantId: employee.tenant_id,
-        employee_id: employee.id,
-        branch_id: employee.branch_id || null,
-        include_branch_unassigned: true,
+    const commonFilters = {
+      tenantId: employee.tenant_id,
+      employee_id: employee.id,
+      branch_id: employee.branch_id || null,
+      include_branch_unassigned: true,
+      limit: 50,
+    };
+    const [activeTasks, completedToday] = await Promise.all([
+      listStaffTasks({
+        ...commonFilters,
+        status: "pending,in_progress,manager_review,overdue,reassigned",
+      }, {}),
+      listStaffTasks({
+        ...commonFilters,
+        status: "completed",
         assigned_date: "today",
         limit: 20,
-      },
-      {}
-    );
-    return tasks;
+      }, {}),
+    ]);
+    const seen = new Set();
+    return [...activeTasks, ...completedToday].filter((task) => {
+      const key = String(task?.id || "");
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 50);
   } catch (error) {
     debugEmployeePortal("[employee-portal] wallet tasks load failed", { employeeId: employee?.id, error: error?.message || error });
     return [];
@@ -1580,9 +1684,10 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   recordTiming(timings, "attendance_summary_ms", startedAt);
 
   startedAt = nowMs();
-  const [employeeRequests, employeeNotifications] = await Promise.all([
+  const [employeeRequests, employeeNotifications, unreadNotificationCount] = await Promise.all([
     getPortalRequestsForEmployee({ tenantId: employee.tenant_id, employeeId: employee.id }),
-    getEmployeePortalNotifications({ tenantId: employee.tenant_id, employeeId: employee.id }),
+    getEmployeePortalNotifications({ tenantId: employee.tenant_id, employeeId: employee.id, limit: 50 }),
+    getEmployeePortalUnreadNotificationCount({ tenantId: employee.tenant_id, employeeId: employee.id }),
   ]);
   recordTiming(timings, "requests_ms", startedAt);
 
@@ -1761,7 +1866,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     },
     employee_requests: employeeRequests,
     notifications: employeeNotifications,
-    unread_notifications_count: employeeNotifications.filter((item) => !item.read_at).length,
+    unread_notifications_count: unreadNotificationCount,
     tasks,
     task_summary: {
       today: tasks.length,
@@ -1996,11 +2101,22 @@ export const getEmployeePortalPushSubscriptionDebug = async ({ employeeId } = {}
     last_seen_at: row.last_seen_at || null,
     is_active: row.is_active === true,
   }));
+  const deliveryResult = await db.query(
+    `
+    SELECT tag, status, status_code, error_message, endpoint_host, created_at
+    FROM employee_push_delivery_logs
+    WHERE employee_id = $1
+    ORDER BY created_at DESC, id DESC
+    LIMIT 20
+    `,
+    [employeeId]
+  );
   return {
     employee_id: Number(employeeId),
     count: subscriptions.length,
     endpoint_count: subscriptions.filter((item) => item.endpoint_host).length,
     subscriptions,
+    deliveries: deliveryResult.rows,
   };
 };
 
