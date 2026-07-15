@@ -21,6 +21,7 @@ import { withSocialCommentRuntimeCache } from "../utils/socialCommentRuntimeCach
 import {
   DEFAULT_SOCIAL_AUTOMATION_SETTINGS,
   getSocialAutomationSettings,
+  resolveSocialPublicReplyBaseTemplate,
   selectSocialPublicReplyTemplate,
 } from "./socialAutomationSettingsService.js";
 import { ensureAiSalesAgentSchema } from "./aiSalesAgentService.js";
@@ -3059,11 +3060,15 @@ const executeSocialCommentAutomationRuntime = async ({
     stock_status: text(effectiveProductContext?.stock_status || safeRow.stock_status || ""),
   }));
   const templateContext = buildAutomationTemplateContext({ row: safeRow, productContext: effectiveProductContext || {}, websiteLinks });
-  const publicReplyTemplate = text(config.message_templates?.publicReplyTemplate || "");
+  const runtimePublicReplyTemplate = text(config.message_templates?.publicReplyTemplate || "");
   const publicReplyRotationSettings = await getSocialAutomationSettings(safeTenantId)
     .catch(() => ({ ...DEFAULT_SOCIAL_AUTOMATION_SETTINGS, persisted: false }));
+  const publicReplyTemplate = resolveSocialPublicReplyBaseTemplate({
+    runtimeTemplate: runtimePublicReplyTemplate,
+    settingsTemplate: publicReplyRotationSettings.public_reply_template,
+  });
   const selectedPublicReplyTemplate = selectSocialPublicReplyTemplate({
-    baseTemplate: publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE,
+    baseTemplate: publicReplyTemplate,
     openers: publicReplyRotationSettings.public_reply_openers,
     rotationEnabled: publicReplyRotationSettings.public_reply_rotation_enabled,
     commentId: safeCommentId,
@@ -8506,7 +8511,10 @@ export const testSocialCommentAutomationRuntime = async ({ tenantId = null, plat
   const previewRotationSettings = await getSocialAutomationSettings(safeTenantId)
     .catch(() => ({ ...DEFAULT_SOCIAL_AUTOMATION_SETTINGS, persisted: false }));
   const publicTemplate = selectSocialPublicReplyTemplate({
-    baseTemplate: text(config?.message_templates?.publicReplyTemplate || SOCIAL_COMMENT_DEFAULT_PUBLIC_REPLY_TEMPLATE),
+    baseTemplate: resolveSocialPublicReplyBaseTemplate({
+      runtimeTemplate: text(config?.message_templates?.publicReplyTemplate || ""),
+      settingsTemplate: previewRotationSettings.public_reply_template,
+    }),
     openers: previewRotationSettings.public_reply_openers,
     rotationEnabled: previewRotationSettings.public_reply_rotation_enabled,
     commentId: "preview-comment",

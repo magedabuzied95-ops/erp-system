@@ -29,6 +29,9 @@ export const DEFAULT_SOCIAL_AUTOMATION_SETTINGS = {
 const LEGACY_PUBLIC_REPLY_TEMPLATES = new Set([
   "تم إرسال التفاصيل في رسالة خاصة",
   "تم إرسال التفاصيل في رسالة خاصة ",
+  "تم الرد على حضرتك في الخاص",
+  "تم الرد على حضرتك في الخاص ✅",
+  "تم الرد على حضرتك خاص",
 ]);
 
 let schemaReadyPromise = null;
@@ -109,6 +112,17 @@ export const selectSocialPublicReplyTemplate = ({
     return normalizedBase.replaceAll("{{social_reply_opener}}", opener).trim();
   }
   return `${opener}\n${normalizedBase}`.trim();
+};
+
+export const resolveSocialPublicReplyBaseTemplate = ({
+  runtimeTemplate = "",
+  settingsTemplate = DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
+} = {}) => {
+  const normalizedSettingsTemplate = normalizePublicReplyTemplate(
+    settingsTemplate,
+    DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
+  );
+  return normalizePublicReplyTemplate(runtimeTemplate, normalizedSettingsTemplate);
 };
 
 const rowToSettings = (row = {}) => ({

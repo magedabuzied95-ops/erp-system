@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
   DEFAULT_SOCIAL_PUBLIC_REPLY_OPENERS,
+  resolveSocialPublicReplyBaseTemplate,
   selectSocialPublicReplyTemplate,
 } from "../server/services/socialAutomationSettingsService.js";
 
@@ -52,4 +54,22 @@ test("social public reply opener marker is replaced in place", () => {
     commentId: "comment-1",
   });
   assert.equal(result, "قبل\nأهلاً {{customer_name}}\nبعد");
+});
+
+test("legacy short public reply cannot override the saved fixed reply body", () => {
+  const savedBody = "تم الرد عليك في الخاص يا صديقي ❤️\nوعندنا شحن لكل المحافظات 📦🚚\nالعنوان: دمياط الجديدة";
+  const result = resolveSocialPublicReplyBaseTemplate({
+    runtimeTemplate: "تم الرد على حضرتك في الخاص ✅",
+    settingsTemplate: savedBody,
+  });
+  assert.equal(result, savedBody);
+});
+
+test("an explicit non-legacy per-post reply remains supported", () => {
+  const customReply = "رد مخصص لهذا البوست {{product_name}}";
+  const result = resolveSocialPublicReplyBaseTemplate({
+    runtimeTemplate: customReply,
+    settingsTemplate: DEFAULT_SOCIAL_PUBLIC_REPLY_BODY,
+  });
+  assert.equal(result, customReply);
 });
