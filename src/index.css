@@ -5997,6 +5997,19 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__icon {
   color: currentColor !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.storefront-shell .sf-mobile-bottom-nav .sf-mobile-bottom-nav__svg {
+  display: block;
+  color: currentColor !important;
+  opacity: 1 !important;
+  fill: none !important;
+  stroke: currentColor !important;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  filter: none !important;
 }
 
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__item.is-active .sf-mobile-bottom-nav__icon,
@@ -6018,4 +6031,5 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__label {
   color: currentColor !important;
   opacity: 1 !important;
+  -webkit-text-fill-color: currentColor !important;
 }

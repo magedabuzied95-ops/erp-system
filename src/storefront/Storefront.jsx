@@ -9024,9 +9024,9 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
     { id: "slippers", label: getProductTypeLabel("slippers", currentLanguage), to: "/products?type=slippers", icon: SlidersHorizontal },
   ];
   const links = [
-    { id: "home", to: "/", label: "الرئيسية", icon: ShoppingBag },
-    { id: "categories", label: "الأقسام", icon: Footprints, action: "categories" },
-    { id: "sale", to: saleHref, label: "العروض", icon: BadgePercent },
+    { id: "home", to: "/", label: "الرئيسية", icon: Home },
+    { id: "categories", label: "الأقسام", icon: Grid2x2, action: "categories" },
+    { id: "sale", to: saleHref, label: "العروض", icon: Tag },
     { id: "wishlist", to: "/wishlist", label: "المفضلة", icon: Heart },
     { id: "account", to: "/account", label: "حسابي", icon: UserRound },
   ];
@@ -9114,7 +9114,7 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
               const content = (
                 <>
                   <span className="sf-mobile-bottom-nav__icon grid h-8 w-8 place-items-center rounded-xl transition duration-200">
-                    <Icon className="h-[20px] w-[20px]" strokeWidth={1.85} />
+                    <Icon className="sf-mobile-bottom-nav__svg h-[21px] w-[21px]" strokeWidth={2.35} aria-hidden="true" />
                   </span>
                   <span className="sf-mobile-bottom-nav__label max-w-full min-w-[2.7rem] truncate text-center text-[9px] font-bold">{item.label}</span>
                 </>
