@@ -1456,6 +1456,14 @@ const productAudienceValues = (product = {}) => {
   visit(product.target_audience);
   return Array.from(seen);
 };
+const isExclusiveCategoryAudience = (product = {}, audience = "") => {
+  const audiences = productAudienceValues(product);
+  if (!audiences.includes(audience)) return false;
+  if (audience === "men" || audience === "women") {
+    return !(audiences.includes("men") && audiences.includes("women"));
+  }
+  return true;
+};
 const categoryCardProductText = (product = {}) =>
   [
     product.name,
@@ -2415,7 +2423,7 @@ const mainHomeCategoryCards = [
     subtitleAr: "أحدث Nike و Adidas و Jordan",
     subtitleEn: "Latest Nike, Adidas & Jordan",
     href: "/products?gender=men",
-    test: (product) => productAudienceValues(product).includes("men"),
+    test: (product) => isExclusiveCategoryAudience(product, "men"),
     icon: Briefcase,
     overlay: "from-slate-950/95 via-slate-950/35 to-transparent",
   },
@@ -2426,7 +2434,7 @@ const mainHomeCategoryCards = [
     subtitleAr: "راحة وأناقة لكل يوم",
     subtitleEn: "Comfort and style for every day",
     href: "/products?gender=women",
-    test: (product) => productAudienceValues(product).includes("women"),
+    test: (product) => isExclusiveCategoryAudience(product, "women"),
     icon: Users,
     overlay: "from-rose-950/90 via-rose-950/30 to-transparent",
   },
