@@ -2417,6 +2417,7 @@ const mainHomeCategoryCards = [
     href: "/products?gender=men",
     test: (product) => productAudienceValues(product).includes("men"),
     icon: Briefcase,
+    overlay: "from-slate-950/95 via-slate-950/35 to-transparent",
   },
   {
     id: "women",
@@ -2427,6 +2428,7 @@ const mainHomeCategoryCards = [
     href: "/products?gender=women",
     test: (product) => productAudienceValues(product).includes("women"),
     icon: Users,
+    overlay: "from-rose-950/90 via-rose-950/30 to-transparent",
   },
   {
     id: "kids",
@@ -2437,6 +2439,7 @@ const mainHomeCategoryCards = [
     href: "/products?gender=kids",
     test: (product) => productAudienceValues(product).includes("kids"),
     icon: Baby,
+    overlay: "from-amber-950/90 via-amber-950/25 to-transparent",
   },
   {
     id: "offers",
@@ -2444,6 +2447,7 @@ const mainHomeCategoryCards = [
     titleEn: "Offers",
     subtitleAr: "عروض الموسم",
     subtitleEn: "Season offers",
+    overlay: "from-red-950/95 via-red-950/35 to-transparent",
     href: "/offers",
     test: (product) => isOfferStory(product),
     icon: BadgePercent,
@@ -2563,6 +2567,15 @@ function PremiumHomePage(props) {
         title: isRtl ? definition.titleAr : definition.titleEn,
         subtitle: isRtl ? definition.subtitleAr : definition.subtitleEn,
         image: matchSlide?.image || "",
+        video: compactImageValue(
+          match?.category_video_url ||
+          match?.storefront_video_url ||
+          match?.promo_video_url ||
+          match?.primary_video_url ||
+          match?.video_url ||
+          match?.media?.video_url ||
+          ""
+        ),
         count: totalMatches,
       };
     });
@@ -2788,7 +2801,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
                 {loading && !heroImage ? (
                   <div className="h-[180px] w-[82%] animate-pulse rounded-[1.5rem] md:h-[300px]" style={{ background: themeTokens.cardSoft }} />
                 ) : heroImage ? (
-                  <img src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="h-full w-full max-h-[290px] object-contain drop-shadow-[0_22px_28px_rgba(28,25,23,0.14)] transition duration-500 ease-out group-hover:scale-[1.035] sm:max-h-[330px] md:max-h-[405px] lg:max-h-[420px]" loading="eager" decoding="async" fetchPriority="high" width="900" height="720" />
+                  <img key={`${activeHeroIndex}:${heroImage}`} src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="sf-hero-image-transition h-full w-full max-h-[290px] object-contain drop-shadow-[0_22px_28px_rgba(28,25,23,0.14)] transition duration-500 ease-out group-hover:scale-[1.035] sm:max-h-[330px] md:max-h-[405px] lg:max-h-[420px]" loading="eager" decoding="async" fetchPriority="high" width="900" height="720" />
                 ) : (
                   <div className="flex h-[220px] w-[82%] items-center justify-center rounded-[1.5rem] border border-dashed text-center text-sm font-black" style={{ color: themeTokens.textSecondary, borderColor: themeTokens.border }}>
                     {isRtl ? "صورة العرض تظهر هنا" : "Hero image appears here"}
@@ -2838,96 +2851,128 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
   );
 }
 
+function HomeCategoryMotionMedia({ video = "", image = "", alt = "" }) {
+  const videoRef = useRef(null);
+  const [videoFailed, setVideoFailed] = useState(false);
+
+  useEffect(() => {
+    setVideoFailed(false);
+  }, [video]);
+
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element || !video || videoFailed || typeof IntersectionObserver === "undefined") return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) element.play().catch(() => {});
+      else element.pause();
+    }, { threshold: 0.25 });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [video, videoFailed]);
+
+  if (video && !videoFailed) {
+    return (
+      <video
+        ref={videoRef}
+        src={video}
+        poster={image ? imageFor(image) : undefined}
+        className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.04]"
+        muted
+        loop
+        playsInline
+        preload="metadata"
+        onError={() => setVideoFailed(true)}
+        aria-label={alt}
+      />
+    );
+  }
+
+  return image ? (
+    <img
+      src={imageFor(image)}
+      {...responsiveImageProps(image, "hero")}
+      alt={alt}
+      onError={fallbackProductImage}
+      className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.07]"
+      loading="lazy"
+      decoding="async"
+      width="720"
+      height="900"
+    />
+  ) : (
+    <div className="h-full w-full bg-[radial-gradient(circle_at_50%_28%,rgba(212,175,55,0.30),transparent_40%),linear-gradient(145deg,#292524,#0c0a09)]" />
+  );
+}
+
 function HomeCategoryCards({ cards = [], lang = "ar", themeTokens = {}, loading = false }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const visibleCards = Array.isArray(cards) ? cards.filter(Boolean) : [];
   if (!visibleCards.length && !loading) return null;
 
   return (
-    <section className="mx-auto max-w-[1400px] px-4 py-5 md:py-7">
-      <div className="mb-4 flex items-end justify-between gap-3">
+    <section className="mx-auto max-w-[1400px] px-4 py-7 md:py-10">
+      <div className="mb-5 flex items-end justify-between gap-3 md:mb-7">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em]" style={{ color: themeTokens.accent }}>
-            {isRtl ? "الأقسام الرئيسية" : "Main categories"}
+          <p className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: themeTokens.accent }}>
+            {isRtl ? "تسوّق حسب القسم" : "Shop by category"}
           </p>
-          <h2 className="mt-1 text-2xl font-black tracking-tight md:text-4xl" style={{ color: themeTokens.textPrimary }}>
-            {isRtl ? "اختيارات واضحة وسهلة التصفح" : "Clear categories, easier discovery"}
+          <h2 className="mt-1.5 text-2xl font-black tracking-tight md:text-4xl" style={{ color: themeTokens.textPrimary }}>
+            {isRtl ? "اختار ستايلك وابدأ" : "Pick your style and start"}
           </h2>
         </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {(loading && !visibleCards.length ? Array.from({ length: 4 }) : visibleCards).map((card, index) => {
           const Icon = card?.icon || Sparkles;
-          const image = card?.image || "";
           return (
             <Link
               key={card?.id || index}
               to={card?.href || "/products"}
-              className="group relative overflow-hidden rounded-[1.6rem] border transition duration-300 hover:-translate-y-1 active:scale-[0.99]"
-              style={{
-                background: themeTokens.card,
-                borderColor: themeTokens.border,
-                boxShadow: themeTokens.shadowSoft,
-              }}
+              className="group relative isolate min-h-[390px] overflow-hidden rounded-[1.75rem] border border-white/15 bg-stone-950 text-white shadow-[0_22px_60px_rgba(15,23,42,0.18)] transition duration-300 hover:-translate-y-1.5 hover:shadow-[0_28px_75px_rgba(15,23,42,0.28)] active:scale-[0.99] sm:min-h-[430px] md:rounded-[2rem]"
             >
               {card ? (
                 <>
-                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_88%_12%,rgba(212,175,55,0.12),transparent_36%)]" />
-                  <div className="relative flex h-full min-h-[190px] flex-col justify-between p-4 md:min-h-[230px] md:p-5">
+                  <div className="absolute inset-0">
+                    <HomeCategoryMotionMedia video={card.video} image={card.image} alt={card.title} />
+                  </div>
+                  <div className={`absolute inset-0 bg-gradient-to-t ${card.overlay || "from-stone-950/95 via-stone-950/35 to-transparent"}`} />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.35),transparent_34%,transparent_58%,rgba(0,0,0,0.18))]" />
+                  <div className="relative z-10 flex min-h-[390px] flex-col justify-between p-5 sm:min-h-[430px] md:p-6">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl" style={{ background: themeTokens.accentSoft, color: themeTokens.accent }}>
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.18em]" style={{ background: themeTokens.surface, borderColor: themeTokens.border, color: themeTokens.textSecondary }}>
-                        {isRtl ? "تصفح" : "Explore"}
+                      <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-white shadow-lg backdrop-blur-md">
+                        <Icon className="h-4 w-4 text-[#f4c84d]" />
+                        {isRtl ? "اكتشف القسم" : "Discover"}
                       </span>
-                    </div>
-                    <div className="mt-4 grid grid-cols-[1fr_auto] items-end gap-3">
-                      <div className="min-w-0">
-                        <h3 className="text-2xl font-black leading-[1.04] tracking-tight" style={{ color: themeTokens.textPrimary }}>
-                          {card.title}
-                        </h3>
-                        <p className="mt-2 text-sm font-semibold leading-6" style={{ color: themeTokens.textSecondary }}>
-                          {card.subtitle}
-                        </p>
-                      </div>
                       {Number(card.count || 0) > 0 ? (
-                        <span className="rounded-full border px-3 py-1 text-[11px] font-black" style={{ background: themeTokens.surface, borderColor: themeTokens.border, color: themeTokens.textPrimary }}>
-                          {card.count}
+                        <span className="rounded-full border border-white/20 bg-black/30 px-3 py-2 text-[10px] font-black text-white backdrop-blur-md">
+                          {card.count} {isRtl ? "موديل" : "styles"}
                         </span>
                       ) : null}
                     </div>
-                    <div className="mt-4 flex min-h-[96px] items-end justify-between gap-4">
-                      <div className="min-w-0">
-                        <p className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: themeTokens.accent }}>
-                          {isRtl ? "ابدأ هنا" : "Start here"}
-                        </p>
-                        <p className="mt-1 text-sm font-bold" style={{ color: themeTokens.textSecondary }}>
-                          {isRtl ? "ابدأ التصفح" : "Start browsing"}
-                        </p>
-                      </div>
-                      <div className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-[1.3rem] border md:h-28 md:w-28" style={{ background: themeTokens.surface, borderColor: themeTokens.border }}>
-                        {image ? (
-                          <img
-                            src={imageFor(image)}
-                            {...responsiveImageProps(image, "grid")}
-                            alt={card.title}
-                            onError={fallbackProductImage}
-                            className="h-full w-full object-contain p-3 transition duration-500 group-hover:scale-[1.04]"
-                            loading="lazy"
-                            decoding="async"
-                            width="240"
-                            height="240"
-                          />
-                        ) : (
-                          <Icon className="h-10 w-10" style={{ color: themeTokens.accent }} />
-                        )}
+                    <div>
+                      {card.video ? (
+                        <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-white shadow-lg">
+                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                          {isRtl ? "فيديو" : "Video"}
+                        </span>
+                      ) : null}
+                      <h3 className="text-[2rem] font-black leading-none tracking-tight text-white drop-shadow-[0_3px_16px_rgba(0,0,0,0.55)] md:text-[2.35rem]">
+                        {card.title}
+                      </h3>
+                      <p className="mt-2.5 max-w-[17rem] text-sm font-bold leading-6 text-white/82 drop-shadow-md">
+                        {card.subtitle}
+                      </p>
+                      <div className="mt-5 flex items-center justify-between gap-3 border-t border-white/20 pt-4">
+                        <span className="text-sm font-black text-white">{isRtl ? "تسوّق الآن" : "Shop now"}</span>
+                        <span className="grid h-10 w-10 place-items-center rounded-full bg-white text-stone-950 shadow-xl transition duration-300 group-hover:-translate-x-1 group-hover:scale-105 rtl:group-hover:translate-x-1">
+                          <ChevronLeft className={`h-5 w-5 ${isRtl ? "" : "rotate-180"}`} />
+                        </span>
                       </div>
                     </div>
                   </div>
                 </>
               ) : (
-                <div className="h-[190px] animate-pulse rounded-[1.6rem]" style={{ background: themeTokens.cardSoft }} />
+                <div className="h-full min-h-[390px] animate-pulse bg-stone-800 sm:min-h-[430px]" />
               )}
             </Link>
           );
