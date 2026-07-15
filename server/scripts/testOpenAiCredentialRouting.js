@@ -27,6 +27,8 @@ try {
     thermal_key_loaded: true,
     agent_uses_dedicated_key: true,
     thermal_uses_dedicated_key: true,
+    agent_uses_system_setting: false,
+    thermal_uses_system_setting: false,
     legacy_fallback_loaded: true,
   });
 

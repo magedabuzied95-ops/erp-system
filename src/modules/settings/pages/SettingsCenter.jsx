@@ -245,6 +245,7 @@ const sectionMap = {
     ["Cart", ["pos.allow_returns", "pos.barcode_scanner_behavior", "pos.hold_cart_timeout_minutes"]],
   ],
   ai_channels: [
+    ["OpenAI Credentials", ["ai_channels.openai_agent_api_key", "ai_channels.openai_thermal_api_key"]],
     ["AI Assistant", ["ai_channels.ai_support_enabled", "ai_channels.ai_reply_mode", "ai_channels.product_recommendation_strictness"]],
     ["AI Inbox", ["ai_channels.human_takeover_behavior", "ai_channels.auto_return_to_ai_minutes", "ai_channels.handoff_message", "ai_channels.ai_fallback_message"]],
     ["Marketing Automation", ["ai_channels.allowed_channels", "ai_channels.storefront_product_link_base"]],
@@ -926,7 +927,11 @@ function SettingsCenterContent({ debugMode = false }) {
         type={item.type === "number" ? "number" : item.type === "url" ? "url" : item.type === "secret" ? "password" : "text"}
         value={current}
         onChange={(event) => updateValue(item.key, event.target.value)}
-        placeholder={item.isSecret ? "Leave blank to keep current value" : ""}
+        placeholder={item.isSecret
+          ? item.maskedValue
+            ? `${language === "ar" ? "محفوظ" : "Saved"}: ${item.maskedValue} — ${language === "ar" ? "اتركه فارغًا للاحتفاظ به" : "leave blank to keep it"}`
+            : language === "ar" ? "أدخل المفتاح السري" : "Enter secret key"
+          : ""}
       />
     );
   };

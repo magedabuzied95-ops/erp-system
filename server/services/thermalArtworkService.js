@@ -59,6 +59,7 @@ export const THERMAL_ARTWORK_PROMPT = [
 
 const thermalArtworkCache = new Map();
 let openaiClient = null;
+let openaiClientApiKey = "";
 
 sharp.cache(false);
 sharp.concurrency(1);
@@ -200,9 +201,14 @@ const cloudinaryConfig = () => ({
 });
 
 const getClient = () => {
+  const apiKey = thermalOpenAiApiKey();
+  if (apiKey !== openaiClientApiKey) {
+    openaiClient = null;
+    openaiClientApiKey = apiKey;
+  }
   if (!openaiClient) {
     openaiClient = new OpenAI({
-      apiKey: thermalOpenAiApiKey(),
+      apiKey,
       maxRetries: 0,
       timeout: positiveNumber(process.env.OPENAI_THERMAL_ARTWORK_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     });

@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import db from "../database/db.js";
 import {
   getSettingDefinition,
@@ -9,6 +10,7 @@ import {
 } from "../../shared/settingsRegistry.js";
 
 const SECRET_MASK = "********";
+const ENCRYPTED_SECRET_PREFIX = "enc:v1:";
 const settingsCache = new Map();
 let schemaEnsured = false;
 let schemaEnsurePromise = null;
@@ -59,6 +61,48 @@ const parseDbValue = (value) => {
   return value;
 };
 
+const settingsEncryptionKey = () => {
+  const source = String(process.env.SECRET_ENCRYPTION_KEY || process.env.JWT_SECRET || "").trim();
+  if (!source) throw new Error("SECRET_ENCRYPTION_KEY or JWT_SECRET is required to store secret settings");
+  return crypto.createHash("sha256").update(source).digest();
+};
+
+const encryptSecretValue = (value) => {
+  const plaintext = String(value || "");
+  if (!plaintext || plaintext.startsWith(ENCRYPTED_SECRET_PREFIX)) return plaintext;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", settingsEncryptionKey(), iv);
+  const encrypted = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return `${ENCRYPTED_SECRET_PREFIX}${iv.toString("base64")}:${tag.toString("base64")}:${encrypted.toString("base64")}`;
+};
+
+const decryptSecretValue = (value) => {
+  const stored = String(value || "");
+  if (!stored.startsWith(ENCRYPTED_SECRET_PREFIX)) return stored;
+  try {
+    const [ivValue, tagValue, encryptedValue] = stored.slice(ENCRYPTED_SECRET_PREFIX.length).split(":");
+    if (!ivValue || !tagValue || !encryptedValue) throw new Error("invalid encrypted setting format");
+    const decipher = crypto.createDecipheriv("aes-256-gcm", settingsEncryptionKey(), Buffer.from(ivValue, "base64"));
+    decipher.setAuthTag(Buffer.from(tagValue, "base64"));
+    return Buffer.concat([
+      decipher.update(Buffer.from(encryptedValue, "base64")),
+      decipher.final(),
+    ]).toString("utf8");
+  } catch (error) {
+    console.error("[settings] failed to decrypt secret setting", { message: error?.message || String(error) });
+    return "";
+  }
+};
+
+const readStoredValue = (definition, value) => {
+  const parsed = parseDbValue(value);
+  return definition?.isSecret ? decryptSecretValue(parsed) : parsed;
+};
+
+export const encryptSettingsSecretForStorage = encryptSecretValue;
+export const decryptSettingsSecretFromStorage = decryptSecretValue;
+
 const coerceValue = (definition, value) => {
   if (!definition) return value;
   if (value === undefined) return cloneDefault(definition.defaultValue);
@@ -103,12 +147,13 @@ const coerceValue = (definition, value) => {
 };
 
 const buildSettingRecord = (definition, dbRow) => {
-  const value = dbRow ? parseDbValue(dbRow.value) : cloneDefault(definition.defaultValue);
+  const value = dbRow ? readStoredValue(definition, dbRow.value) : cloneDefault(definition.defaultValue);
+  const secretSuffix = definition.isSecret && value ? String(value).slice(-4) : "";
   return {
     ...definition,
     value: definition.isSecret ? undefined : value,
     hasValue: definition.isSecret ? Boolean(value) : undefined,
-    maskedValue: definition.isSecret && value ? SECRET_MASK : undefined,
+    maskedValue: definition.isSecret && value ? `${SECRET_MASK.slice(0, 4)}${secretSuffix}` : undefined,
     updatedAt: dbRow?.updated_at || null,
     updatedBy: dbRow?.updated_by || null,
   };
@@ -138,7 +183,7 @@ export const getSetting = async (key, defaultValue) => {
   await ensureSystemSettingsSchema();
   const result = await db.query("SELECT value FROM system_settings WHERE key = $1 LIMIT 1", [settingKey]);
   const fallback = defaultValue !== undefined ? defaultValue : cloneDefault(definition?.defaultValue);
-  const value = result.rows[0] ? parseDbValue(result.rows[0].value) : fallback;
+  const value = result.rows[0] ? readStoredValue(definition, result.rows[0].value) : fallback;
   settingsCache.set(settingKey, value);
   return value;
 };
@@ -153,6 +198,7 @@ export const setSetting = async (key, value, category, updatedBy = null) => {
     return getSetting(settingKey, cloneDefault(definition.defaultValue));
   }
   const nextValue = coerceValue(definition, value);
+  const storedValue = definition.isSecret ? encryptSecretValue(nextValue) : nextValue;
   await ensureSystemSettingsSchema();
   await db.query(
     `
@@ -166,7 +212,7 @@ export const setSetting = async (key, value, category, updatedBy = null) => {
       updated_by = EXCLUDED.updated_by,
       updated_at = CURRENT_TIMESTAMP
     `,
-    [settingKey, JSON.stringify(nextValue), settingCategory, definition.isSecret, definition.isPublic, updatedBy]
+    [settingKey, JSON.stringify(storedValue), settingCategory, definition.isSecret, definition.isPublic, updatedBy]
   );
   settingsCache.set(settingKey, nextValue);
   return nextValue;
@@ -190,7 +236,7 @@ export const maskSecretSettings = (settings) =>
     return {
       ...rest,
       value: undefined,
-      maskedValue: setting.hasValue ? SECRET_MASK : "",
+      maskedValue: setting.hasValue ? setting.maskedValue || SECRET_MASK : "",
     };
   });
 

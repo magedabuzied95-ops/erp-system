@@ -15,6 +15,7 @@ import {
 import { getWebsiteSettings } from "../services/liveActivityService.js";
 import { getTenantId } from "../utils/requestScope.js";
 import { normalizeSettingsCategory, settingsByCategory } from "../../shared/settingsRegistry.js";
+import { refreshOpenAiCredentialOverrides } from "../services/openaiCredentials.js";
 
 const router = express.Router();
 
@@ -121,6 +122,7 @@ router.put("/:category", protect, permit("settings", "edit"), async (req, res) =
       await setSetting(key, value, category, req.user?.id || null);
     }
     clearSettingsCache();
+    if (category === "ai_channels") await refreshOpenAiCredentialOverrides();
     const settings = await getSettingsByCategory(category);
     res.json({ success: true, category, settings });
   } catch (error) {

@@ -21,6 +21,7 @@ const SENSITIVE_KEY_PATTERN =
   /(admin|internal|password|secret|token|api[_-]?key|credential|cost|margin|profit|supplier|wholesale|private|salary|permission|role)/i;
 
 let openaiClient = null;
+let openaiClientApiKey = "";
 let textGenerationBlockedUntil = 0;
 let textGenerationBlockReason = "";
 
@@ -63,7 +64,18 @@ const safeJsonParse = (value) => {
   }
 };
 
-const openAiConfigured = () => Boolean(agentOpenAiApiKey());
+const syncAgentCredentialState = () => {
+  const apiKey = agentOpenAiApiKey();
+  if (apiKey !== openaiClientApiKey) {
+    openaiClient = null;
+    openaiClientApiKey = apiKey;
+    textGenerationBlockedUntil = 0;
+    textGenerationBlockReason = "";
+  }
+  return apiKey;
+};
+
+const openAiConfigured = () => Boolean(syncAgentCredentialState());
 
 const textGenerationEnabled = () => envFlagEnabled(process.env.AI_SUPPORT_ENABLED) && openAiConfigured();
 
@@ -158,9 +170,10 @@ const serializeContext = (trustedContext = {}) => {
 };
 
 const getClient = () => {
+  const apiKey = syncAgentCredentialState();
   if (!openaiClient) {
     openaiClient = new OpenAI({
-      apiKey: agentOpenAiApiKey(),
+      apiKey,
       maxRetries: 0,
       timeout: positiveNumber(process.env.AI_SUPPORT_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     });
@@ -516,6 +529,7 @@ const normalizeImageSearchUnderstanding = (payload = {}) => {
 };
 
 export const understandProductImageForSearch = async ({ imageBuffer, mimeType, imageUrl = "", requestId = "" } = {}) => {
+  syncAgentCredentialState();
   let imageInput;
   try {
     imageInput = buildVisionImageInput({ imageBuffer, mimeType, imageUrl });
@@ -669,6 +683,7 @@ export const generateSupportAnswer = async ({
   suggestedProducts = [],
   suggestedActions = [],
 } = {}) => {
+  syncAgentCredentialState();
   const customerMessage = toText(message).slice(0, MAX_MESSAGE_CHARS);
   const { sources, contextText } = serializeContext(trustedContext);
   const fallbackWithExtras = {

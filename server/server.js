@@ -575,6 +575,7 @@ const { ensureAiSupportLogSchema } = await import("./services/aiSupportLogServic
 const { ensureMetaIntegrationSchema, repairCorruptedArabicText, getMetaWebhookDebugStatus, getMetaWebhookSubscriptionDebugStatus, getMetaPermissionsDebugStatus, getMetaPostCommentsDebugStatus, getMetaPagePostsDebugStatus, getMetaPageSubscriptionsDebugStatus, resubscribeMetaPageFeedDebug, getMetaAppModeDebugStatus, getMetaCommentPrivateReplyCapabilityDebug, runMetaCommentsPollingScan, startMetaCommentsPollingScheduler, listMetaWebhookRawEvents, clearMetaWebhookRawEvents } = await import("./services/metaIntegrationService.js");
 const { socialCommentConversationId, materializeSocialCommentInboxConversation } = await import("./services/socialCommentAutomationService.js");
 const { ensureSystemSettingsSchema } = await import("./services/settingsService.js");
+const { refreshOpenAiCredentialOverrides } = await import("./services/openaiCredentials.js");
 const { ensureSocialAutomationSettingsSchema } = await import("./services/socialAutomationSettingsService.js");
 
 const getMetaWebhookDiagnosticsState = () => {
@@ -2143,6 +2144,8 @@ const bootstrapStartup = async () => {
     await ensureNotificationsSchema(db);
     await ensureWebsiteSettingsSchema(db);
     await ensureSystemSettingsSchema(db);
+    const openAiCredentials = await refreshOpenAiCredentialOverrides();
+    console.log("[server] OpenAI credential routing ready", openAiCredentials);
     await ensureBuiltinRoles(db);
     console.log("[server] database connected");
     await ensureDefaultTenantAndBackfillUsers();
