@@ -172,6 +172,12 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
   const platform = platformMeta(item.platform);
   const itemKey = socialCommentItemKey(item);
   const media = postMedia(item);
+  const linkedProductsCount = Math.max(
+    Number(item.linked_products_count || 0),
+    Number(item.mapping_summary?.count || 0),
+    Array.isArray(item.linked_products) ? item.linked_products.length : 0
+  );
+  const isProductLinked = linkedProductsCount > 0 || Boolean(item.has_direct_product_link);
   const handleSelect = useCallback(() => onSelectItem?.(item, itemKey), [item, itemKey, onSelectItem]);
   const hoverTimerRef = useRef(null);
   const handleKeyDown = useCallback(
@@ -239,10 +245,14 @@ const SocialCommentsPanelPostRow = memo(function SocialCommentsPanelPostRow({ it
                   event.stopPropagation();
                   onLinkProduct(item, itemKey);
                 }}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 text-[10px] font-black text-amber-800 transition hover:bg-amber-100"
+                className={`inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-[10px] font-black transition ${
+                  isProductLinked
+                    ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:bg-emerald-100"
+                    : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                }`}
               >
                 <Link2 className="h-3.5 w-3.5" />
-                {Number(item.linked_products_count || item.mapping_summary?.count || 0) > 0 ? "تعديل الربط" : "ربط منتج"}
+                {isProductLinked ? `مربوط${linkedProductsCount ? ` (${linkedProductsCount})` : ""} · تعديل` : "ربط منتج"}
               </button>
             ) : null}
           </div>

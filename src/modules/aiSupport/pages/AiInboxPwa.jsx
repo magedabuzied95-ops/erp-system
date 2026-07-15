@@ -3075,7 +3075,7 @@ export default function AiInboxPwa() {
       if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
       setSocialCommentsDebug((current) => ({ ...current, error: "" }));
 
-      const postsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=200&include_product_links=0`;
+      const postsRequestUrl = `/api/social-comments/posts?tenant_id=${encodeURIComponent(tenantId)}&limit=200&include_product_links=1`;
       const fastRequestUrl = `/api/social-comments/fast-list?tenant_id=${encodeURIComponent(tenantId)}&limit=20${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
       const perfLabel = "AiInboxPwa.socialCommentsPosts";
       if (DEBUG_SOCIAL_PERF) console.time(perfLabel);
@@ -3092,9 +3092,9 @@ export default function AiInboxPwa() {
         if (!cursor) {
           try {
             const payload = await api.get("/social-comments/posts", {
-              params: { tenant_id: tenantId, limit: 200, include_product_links: 0 },
+              params: { tenant_id: tenantId, limit: 200, include_product_links: 1 },
               headers,
-              timeoutMs: 20000,
+              timeoutMs: 30000,
               perfComponent: "AiInboxPwa.socialCommentsPosts",
             });
             return { payload, request_url: postsRequestUrl, fast: false };
@@ -5705,11 +5705,20 @@ export default function AiInboxPwa() {
                       ...item,
                       linked_products: linkedProducts,
                       linked_products_count: Number(payload?.count ?? linkedProducts.length ?? 0) || 0,
+                      has_direct_product_link: linkedProducts.length > 0,
                       primary_product: primaryProduct,
                       primary_linked_product: primaryProduct,
                       product_name: clean(primaryProduct?.name || primaryProduct?.title || primaryProduct?.product_name || ""),
                       product_id: primaryProduct?.id || primaryProduct?.product_id || null,
                       product_link_source: linkedProducts.length ? "v2_direct" : "none",
+                      post_link_key: clean(payload?.post_link_key || item?.post_link_key || ""),
+                      product_link_identity: payload?.product_link_identity || item?.product_link_identity || null,
+                      mapping_summary: {
+                        ...(item?.mapping_summary || {}),
+                        linked_products: linkedProducts,
+                        primary_product: primaryProduct,
+                        count: Number(payload?.count ?? linkedProducts.length ?? 0) || 0,
+                      },
                     }
                   : item
               ),
