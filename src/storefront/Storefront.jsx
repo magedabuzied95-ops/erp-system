@@ -201,6 +201,15 @@ const resolveStorefrontBrandLogoUrl = (settings = {}) =>
       ""
   ).trim();
 
+const resolveStorefrontHeaderLogoUrl = (settings = {}) =>
+  String(
+    settings?.header_logo_url ||
+      settings?.headerLogoUrl ||
+      settings?.["storefront.header_logo_url"] ||
+      settings?.storefront?.header_logo_url ||
+      resolveStorefrontBrandLogoUrl(settings)
+  ).trim();
+
 const resolveBrandInitials = (value = "") => {
   const text = String(value || "").trim();
   if (!text) return "MONE";
@@ -4240,7 +4249,7 @@ function HeaderAction({ to, icon, count, label, className = "" }) {
   );
 }
 
-function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandLogoUrl = "", mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
+function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme, brandName = "MONE", brandLogoUrl = "", headerLogoUrl = "", mobileMenuOpen = false, setMobileMenuOpen = () => {} }) {
   const { i18n: storefrontI18n, t } = useTranslation();
   const brandInitials = resolveBrandInitials(brandName);
   const [search, setSearch] = useState("");
@@ -4676,12 +4685,13 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
               {menuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
-              <span
-                className="sf-mobile-header-logo grid h-12 w-12 place-items-center overflow-hidden rounded-full text-[0.7rem] font-black tracking-[0.16em] transition"
-                style={{ clipPath: "circle(50% at 50% 50%)", transform: "translateZ(0)", backfaceVisibility: "hidden" }}
-              >
-                {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-[130%] w-[130%] object-cover object-center" style={{ imageRendering: "auto", transform: "translateZ(0)", backfaceVisibility: "hidden" }} loading="lazy" decoding="async" width="64" height="64" /> : brandInitials}
-              </span>
+              {headerLogoUrl || brandLogoUrl ? (
+                <span className="sf-mobile-header-logo sf-header-wordmark inline-flex h-10 w-[116px] items-center justify-center transition">
+                  <img src={resolveProductImageUrl(headerLogoUrl || brandLogoUrl)} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="240" height="96" />
+                </span>
+              ) : (
+                <span className="sf-mobile-header-logo grid h-12 w-12 place-items-center rounded-full text-[0.7rem] font-black tracking-[0.16em] transition">{brandInitials}</span>
+              )}
             </Link>
             <div className="flex items-center gap-2">
               <button
@@ -4762,12 +4772,13 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             </button>
             <span className="sf-header-divider hidden h-12 w-px md:block" />
             <Link to="/" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#d4af37] dark:text-white" aria-label={brandName || "MONE"}>
-              <span
-                className="sf-header-logo-chip grid h-16 w-16 place-items-center overflow-hidden rounded-full border border-transparent bg-transparent text-sm font-black tracking-[0.16em] text-white transition group-hover:scale-[1.02] md:h-[68px] md:w-[68px]"
-                style={{ clipPath: "circle(50% at 50% 50%)", transform: "translateZ(0)", backfaceVisibility: "hidden", border: "1px solid rgba(255,255,255,0.40)" }}
-              >
-                {brandLogoUrl ? <img src={resolveProductImageUrl(brandLogoUrl)} alt={brandName} className="h-[130%] w-[130%] object-cover object-center" style={{ imageRendering: "auto", transform: "translateZ(0)", backfaceVisibility: "hidden" }} loading="lazy" decoding="async" width="104" height="104" /> : brandInitials}
-              </span>
+              {headerLogoUrl || brandLogoUrl ? (
+                <span className="sf-header-logo-chip sf-header-wordmark inline-flex h-12 w-[156px] items-center justify-center bg-transparent transition group-hover:scale-[1.02] md:w-[172px]">
+                  <img src={resolveProductImageUrl(headerLogoUrl || brandLogoUrl)} alt={brandName} className="block max-h-full max-w-full object-contain" loading="lazy" decoding="async" width="360" height="144" />
+                </span>
+              ) : (
+                <span className="sf-header-logo-chip grid h-16 w-16 place-items-center rounded-full text-sm font-black tracking-[0.16em] text-white transition group-hover:scale-[1.02] md:h-[68px] md:w-[68px]">{brandInitials}</span>
+              )}
             </Link>
           </div>
           <nav className="sf-collapsible-nav hidden min-w-0 flex-1 items-center justify-center gap-1 overflow-hidden text-sm font-bold text-stone-700 dark:text-stone-300 lg:flex">
@@ -9627,6 +9638,7 @@ function Storefront() {
 
   const brandName = resolveStorefrontBrandName(publicStoreSettings);
   const brandLogoUrl = resolveStorefrontBrandLogoUrl(publicStoreSettings);
+  const headerLogoUrl = resolveStorefrontHeaderLogoUrl(publicStoreSettings);
   const brandInitials = resolveBrandInitials(brandName);
   const publicSaleModeEnabled = useMemo(
     () => parseSaleModeEnabled(publicStoreSettings?.sale_mode_enabled, true),
@@ -9663,7 +9675,8 @@ function Storefront() {
     brandName,
     brandTagline: String(publicStoreSettings?.["storefront.store_tagline"] || "").trim(),
     brandLogoUrl,
-  }), [brandLogoUrl, brandName, publicStoreSettings]);
+    headerLogoUrl,
+  }), [brandLogoUrl, brandName, headerLogoUrl, publicStoreSettings]);
   const quickActionLinks = useMemo(() => {
     const settings = publicStoreSettings || {};
     const storefrontSettings = settings.storefront && typeof settings.storefront === "object" ? settings.storefront : {};
@@ -9917,6 +9930,7 @@ function Storefront() {
           brandName={storefrontBrandSettings.brandName}
           brandTagline={storefrontBrandSettings.brandTagline}
           brandLogoUrl={storefrontBrandSettings.brandLogoUrl}
+          headerLogoUrl={storefrontBrandSettings.headerLogoUrl}
           quickActionLinks={quickActionLinks}
           mobileMenuOpen={mobileMenuOpen}
           setMobileMenuOpen={setMobileMenuOpen}

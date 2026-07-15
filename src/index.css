@@ -5809,3 +5809,12 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
     border-color: rgba(255, 255, 255, 0.10) !important;
   }
 }
+.storefront-shell .sf-header-wordmark,
+.storefront-shell:not(.storefront-dark) .sf-header-v2 .sf-header-wordmark {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  overflow: visible !important;
+}
