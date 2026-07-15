@@ -4,6 +4,7 @@ import { io as createSocket } from "socket.io-client";
 import {
   AlertTriangle,
   ArrowDownCircle,
+  ArrowRight,
   ArrowUpCircle,
   Banknote,
   Bell,
@@ -3870,8 +3871,10 @@ export default function EmployeePayrollPortal() {
         <div className="fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950/70 p-0">
           <section className="employee-portal-chat mx-auto flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" style={chatPanelStyle} dir={direction}>
             <div className="employee-portal-safe-top sticky top-0 z-30 flex-none bg-[#0b141a]">
-              <EmployeePortalNavControls onBack={handlePortalBack} onHome={handlePortalHome} tone="dark" className="mb-0 px-3 pt-3" />
-              <header className="flex min-h-14 items-center justify-between gap-2 border-b border-white/10 bg-[#1f2c33] px-3 py-2">
+              <header className="flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#1f2c33] px-2 py-2">
+                <button type="button" onClick={closeEmployeeChat} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10" aria-label="رجوع">
+                  <ArrowRight className="h-5 w-5" />
+                </button>
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
                   <UserRound className="h-4 w-4" />
                 </div>
@@ -3879,9 +3882,6 @@ export default function EmployeePayrollPortal() {
                   <h2 className="truncate text-[15px] font-black leading-5">{ui("chatTitle")}</h2>
                   <p className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">متصل الآن</p>
                 </div>
-                <button type="button" onClick={closeEmployeeChat} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-white">
-                  <X className="h-4 w-4" />
-                </button>
               </header>
               <div className="mx-auto mt-1.5 w-fit rounded-full bg-[#182229]/90 px-2.5 py-0.5 text-center text-[10px] font-bold leading-4 text-slate-300">
                 {ui("chatSecureNotice")}

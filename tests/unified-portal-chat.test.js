@@ -17,7 +17,7 @@ test("admin and manager chat use the shared portal chat engine", async () => {
   assert.match(managerPortal, /employee-chat:new-message/);
 });
 
-test("shared chat supports camera, emoji, audio, images and video", async () => {
+test("shared chat keeps the WhatsApp-style composer focused on attachments and voice", async () => {
   const [composer, attachment, utils, upload, service] = await Promise.all([
     source("src/shared/chat/PortalChatComposer.jsx"),
     source("src/shared/chat/PortalChatAttachment.jsx"),
@@ -25,8 +25,9 @@ test("shared chat supports camera, emoji, audio, images and video", async () => 
     source("server/config/employeeChatUpload.js"),
     source("server/services/employeeChatService.js"),
   ]);
-  assert.match(composer, /capture="environment"/);
-  assert.match(composer, /QUICK_EMOJIS/);
+  assert.doesNotMatch(composer, /capture="environment"/);
+  assert.doesNotMatch(composer, /QUICK_EMOJIS/);
+  assert.match(composer, /Paperclip/);
   assert.match(composer, /WhatsAppRecordingBar/);
   assert.match(attachment, /<video/);
   assert.match(utils, /video\/quicktime/);

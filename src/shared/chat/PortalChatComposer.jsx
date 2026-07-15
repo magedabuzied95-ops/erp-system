@@ -1,10 +1,7 @@
-import { useRef, useState } from "react";
-import { Camera, Loader2, Mic, Paperclip, Send, Smile, X } from "lucide-react";
+import { Loader2, Mic, Paperclip, Send, X } from "lucide-react";
 
 import WhatsAppRecordingBar from "../../modules/employees/components/WhatsAppRecordingBar";
 import { CHAT_ATTACHMENT_ACCEPT, portalChatMessagePreview } from "./portalChatUtils";
-
-const QUICK_EMOJIS = ["😀", "😂", "😍", "🥰", "👍", "🙏", "❤️", "🔥", "✅", "🎉", "👏", "💯", "📍", "📦", "👟", "💬"];
 
 export default function PortalChatComposer({
   onSubmit,
@@ -31,16 +28,6 @@ export default function PortalChatComposer({
   useTextarea = false,
   onScrollToReply,
 }) {
-  const cameraInputRef = useRef(null);
-  const [showEmojis, setShowEmojis] = useState(false);
-
-  const appendEmoji = (emoji) => {
-    setBody?.(`${body || ""}${emoji}`);
-    setShowEmojis(false);
-    window.setTimeout(() => inputRef?.current?.focus?.(), 0);
-    emitTyping?.();
-  };
-
   const removeAttachment = () => {
     setAttachment?.(null);
     setAttachmentDuration?.(0);
@@ -85,15 +72,6 @@ export default function PortalChatComposer({
               {labels.disabledNotice}
             </div>
           ) : null}
-          {showEmojis ? (
-            <div className="absolute bottom-[54px] left-2 right-2 z-40 grid grid-cols-8 gap-1 rounded-2xl border border-white/10 bg-[#111b21] p-2 shadow-2xl" dir="ltr">
-              {QUICK_EMOJIS.map((emoji) => (
-                <button key={emoji} type="button" onClick={() => appendEmoji(emoji)} className="flex h-9 items-center justify-center rounded-xl text-xl hover:bg-white/10" aria-label={`إضافة ${emoji}`}>
-                  {emoji}
-                </button>
-              ))}
-            </div>
-          ) : null}
           <div className={useTextarea ? "flex items-end gap-2" : "flex h-[44px] items-center gap-1.5"}>
             <input
               ref={fileInputRef}
@@ -102,22 +80,8 @@ export default function PortalChatComposer({
               accept={CHAT_ATTACHMENT_ACCEPT}
               onChange={chooseAttachment}
             />
-            <input
-              ref={cameraInputRef}
-              type="file"
-              className="hidden"
-              accept="image/*,video/*"
-              capture="environment"
-              onChange={chooseAttachment}
-            />
             <button type="button" onClick={() => fileInputRef?.current?.click()} className={`${useTextarea ? "h-11 w-11" : "h-10 w-10"} flex shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100 disabled:opacity-50`} aria-label={labels.attachFile || "إرفاق ملف"} disabled={disabled}>
               <Paperclip className="h-4 w-4" />
-            </button>
-            <button type="button" onClick={() => cameraInputRef.current?.click()} className={`${useTextarea ? "h-11 w-11" : "h-10 w-10"} flex shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100 disabled:opacity-50`} aria-label={labels.openCamera || "فتح الكاميرا"} disabled={disabled}>
-              <Camera className="h-4 w-4" />
-            </button>
-            <button type="button" onClick={() => setShowEmojis((value) => !value)} className={`${useTextarea ? "h-11 w-11" : "h-10 w-10"} flex shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100 disabled:opacity-50`} aria-label={labels.emojis || "الرموز التعبيرية"} disabled={disabled}>
-              <Smile className="h-4 w-4" />
             </button>
             {recordingState.supported ? (
               <button type="button" onClick={onStartRecording} className={`${useTextarea ? "h-11 w-11" : "h-10 w-10"} flex shrink-0 items-center justify-center rounded-full bg-white/10 text-slate-100 disabled:opacity-50`} aria-label={labels.recordVoice || "تسجيل صوتي"} disabled={disabled}>
