@@ -12,7 +12,7 @@ test("storefront mobile navigation uses modern commerce icons", () => {
   assert.match(navSource, /id: "sale"[\s\S]*?icon: Tag/);
   assert.match(navSource, /id: "wishlist"[\s\S]*?icon: Heart/);
   assert.match(navSource, /id: "account"[\s\S]*?icon: UserRound/);
-  assert.match(navSource, /sf-mobile-bottom-nav__svg[\s\S]*?strokeWidth=\{2\.35\}/);
+  assert.match(navSource, /sf-mobile-bottom-nav__svg[\s\S]*?strokeWidth=\{2\.45\}/);
 });
 
 test("mobile navigation isolates its surface and light-dark colors", () => {
@@ -24,4 +24,6 @@ test("mobile navigation isolates its surface and light-dark colors", () => {
   assert.match(stylesheetSource, /sf-mobile-bottom-nav\[data-theme="dark"\] \.sf-mobile-bottom-nav__surface/);
   assert.match(stylesheetSource, /sf-mobile-bottom-nav__item\.is-active[\s\S]*?sf-mobile-bottom-nav__icon/);
   assert.match(stylesheetSource, /sf-mobile-bottom-nav__svg[\s\S]*?stroke: currentColor !important;/);
+  assert.match(stylesheetSource, /sf-mobile-bottom-nav__surface \{[\s\S]*?height: 58px;/);
+  assert.match(stylesheetSource, /sf-mobile-bottom-nav\[data-theme="light"\][\s\S]*?sf-mobile-bottom-nav__svg[\s\S]*?stroke: #3f3b36 !important;/);
 });

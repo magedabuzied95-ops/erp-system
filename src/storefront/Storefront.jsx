@@ -3133,11 +3133,6 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
   const isRtl = normalizeLanguage(lang) === "ar";
   const items = [
     {
-      icon: PackageCheck,
-      title: isRtl ? "منتجات مختارة" : "Curated products",
-      text: isRtl ? "صور وأسعار واضحة" : "Clear imagery and pricing",
-    },
-    {
       icon: Truck,
       title: isRtl ? "شحن لكل المحافظات" : "Nationwide delivery",
       text: isRtl ? "متابعة حتى الاستلام" : "Tracked to your door",
@@ -3148,44 +3143,27 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
       text: isRtl ? "بخطوات بسيطة" : "Simple, clear steps",
     },
     {
-      icon: ShieldCheck,
+      icon: PackageCheck,
       title: isRtl ? "الدفع عند الاستلام" : "Cash on delivery",
       text: isRtl ? "ادفع عند وصول طلبك" : "Pay when your order arrives",
     },
   ];
 
   return (
-    <section data-testid="storefront-service-strip" className="mx-auto max-w-[1400px] px-4 pb-3 pt-7 md:pt-10">
-      <div className="overflow-hidden rounded-[1.75rem] bg-stone-950 text-white shadow-[0_24px_70px_rgba(28,25,23,0.18)] md:rounded-[2rem]">
-        <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-5 md:px-7 md:py-6">
-          <div>
-            <p className="text-[9px] font-black uppercase tracking-[0.28em] text-[#d7aa2b]">M1 SERVICES</p>
-            <h2 className="mt-1.5 text-xl font-black tracking-tight md:text-2xl">
-              {isRtl ? "كل اللي تحتاجه لتسوّق أسهل" : "Everything you need to shop better"}
-            </h2>
-          </div>
-          <span className="hidden text-xs font-bold text-white/45 sm:block">
-            {isRtl ? "من الاختيار لحد باب البيت" : "From selection to your door"}
-          </span>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-4">
+    <section data-testid="storefront-service-strip" className="mt-8 border-y border-stone-200 bg-[#f5f5f3] md:mt-12">
+      <div className="mx-auto grid max-w-[1400px] divide-y divide-stone-200 px-5 md:grid-cols-3 md:divide-x md:divide-y-0 md:px-8 rtl:md:divide-x-reverse">
           {items.map((item) => {
             const Icon = item.icon;
             return (
-              <div key={item.title} className="group min-w-0 border-white/10 px-4 py-5 odd:border-e md:border-e md:px-6 md:py-7 md:last:border-e-0">
-                <div className="flex items-start gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-[#d7aa2b]/30 bg-[#d7aa2b]/10 text-[#efc84f] transition group-hover:bg-[#d7aa2b] group-hover:text-stone-950">
-                    <Icon className="h-4 w-4" />
-                  </span>
+              <div key={item.title} className="flex min-h-[76px] items-center gap-3 py-4 md:justify-center md:px-7 md:py-5">
+                <Icon className="h-5 w-5 shrink-0 text-stone-900" strokeWidth={1.7} />
                   <div className="min-w-0">
-                    <h3 className="text-[13px] font-black leading-5 text-white md:text-sm">{item.title}</h3>
-                    <p className="mt-1 text-[11px] font-semibold leading-5 text-white/50 md:text-xs">{item.text}</p>
+                  <h3 className="text-[13px] font-black leading-5 text-stone-950 md:text-sm">{item.title}</h3>
+                  <p className="text-[11px] font-semibold leading-5 text-stone-500 md:text-xs">{item.text}</p>
                   </div>
-                </div>
               </div>
             );
           })}
-        </div>
       </div>
     </section>
   );
@@ -3203,40 +3181,34 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
   const currentYear = new Date().getFullYear();
 
   return (
-    <footer data-testid="storefront-modern-footer" className="mx-auto max-w-[1400px] px-4 pb-8 pt-3 md:pb-12">
-      <div className="overflow-hidden rounded-[1.75rem] border border-stone-200 bg-white md:rounded-[2rem]">
-        <div className="grid gap-6 px-5 py-7 md:grid-cols-[1fr_auto] md:items-center md:px-8 md:py-9">
+    <footer data-testid="storefront-modern-footer" className="bg-stone-950 text-white">
+      <div className="mx-auto max-w-[1400px] px-5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-8 md:px-8 md:pb-10 md:pt-10">
+        <div className="flex flex-col gap-6 border-b border-white/15 pb-8 md:flex-row md:items-end md:justify-between">
           <div>
-            <div className="flex items-center gap-2.5">
-              <span className="h-2.5 w-2.5 rounded-full bg-[#c99918]" />
-              <span className="text-base font-black uppercase tracking-[0.18em] text-stone-950">M1 STORE</span>
-            </div>
-            <p className="mt-3 max-w-lg text-sm font-semibold leading-6 text-stone-500">
-              {isRtl ? "موديلات مختارة، مقاسات واضحة، وتجربة شراء من غير تعقيد." : "Curated styles, clear sizing, and shopping without the friction."}
+            <span className="text-xl font-black uppercase tracking-[0.16em]">M1 STORE</span>
+            <p className="mt-2 text-sm font-semibold text-white/55">
+              {isRtl ? "أحذية مختارة لكل خطوة." : "Footwear selected for every step."}
             </p>
           </div>
           <a
             href={whatsappHref}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-[#128c5e] px-5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#0f7a52] md:w-auto"
+            className="inline-flex w-fit items-center gap-2 border-b border-white/50 pb-1 text-sm font-black text-white transition hover:border-white"
           >
-            <FaWhatsapp className="h-5 w-5" />
-            {isRtl ? "تواصل معنا" : "Chat with us"}
-            <ChevronLeft className={`h-4 w-4 ${isRtl ? "" : "rotate-180"}`} />
+            <FaWhatsapp className="h-4 w-4" />
+            {isRtl ? "تواصل عبر واتساب" : "WhatsApp support"}
           </a>
         </div>
-        <div className="border-t border-stone-200 px-5 py-5 md:px-8">
-          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <nav aria-label={isRtl ? "روابط المتجر" : "Store links"} className="flex flex-wrap gap-x-5 gap-y-3">
+        <div className="flex flex-col gap-8 pt-7 md:flex-row md:items-end md:justify-between">
+            <nav aria-label={isRtl ? "روابط المتجر" : "Store links"} className="grid grid-cols-2 gap-x-10 gap-y-4 md:flex md:flex-wrap md:gap-x-7">
               {links.map((link) => (
-                <Link key={link.label} to={link.to} className="text-sm font-black text-stone-700 transition hover:text-[#a87900]">
+                <Link key={link.label} to={link.to} className="text-sm font-bold text-white/70 transition hover:text-white">
                   {link.label}
                 </Link>
               ))}
             </nav>
-            <span className="text-[11px] font-bold text-stone-400">© {currentYear} M1 STORE</span>
-          </div>
+            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">© {currentYear} M1 STORE</span>
         </div>
       </div>
     </footer>
@@ -9098,25 +9070,25 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
       <nav
         dir="rtl"
         className="sf-mobile-bottom-nav fixed left-1/2 z-[110] md:hidden"
-        style={{ bottom: "calc(10px + env(safe-area-inset-bottom))", width: "calc(100% - 24px)", transform: "translateX(-50%)" }}
+        style={{ bottom: "calc(8px + env(safe-area-inset-bottom))", width: "calc(100% - 40px)", maxWidth: "410px", transform: "translateX(-50%)" }}
         data-theme={isDarkMode ? "dark" : "light"}
         aria-label={sfText("storefront.nav.mobileNavigation")}
       >
         <div className="mx-auto">
-          <div className="sf-mobile-bottom-nav__surface flex items-center justify-evenly overflow-hidden rounded-[1.45rem] px-1.5">
+          <div className="sf-mobile-bottom-nav__surface flex items-center justify-evenly overflow-hidden rounded-[1.3rem] px-1">
             {links.map((item) => {
               const active = isActive(item);
               const Icon = item.icon;
               const baseClass = [
-                "sf-mobile-bottom-nav__item group relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-[1.05rem] px-1 text-[9px] leading-none transition duration-200 ease-out active:scale-[0.96]",
+                "sf-mobile-bottom-nav__item group relative flex h-full min-w-0 flex-1 flex-col items-center justify-center gap-0.5 rounded-[0.95rem] px-0.5 text-[8.5px] leading-none transition duration-200 ease-out active:scale-[0.96]",
                 active ? "is-active" : "",
               ].join(" ");
               const content = (
                 <>
-                  <span className="sf-mobile-bottom-nav__icon grid h-8 w-8 place-items-center rounded-xl transition duration-200">
-                    <Icon className="sf-mobile-bottom-nav__svg h-[21px] w-[21px]" strokeWidth={2.35} aria-hidden="true" />
+                  <span className="sf-mobile-bottom-nav__icon grid h-7 w-7 place-items-center rounded-[0.65rem] transition duration-200">
+                    <Icon className="sf-mobile-bottom-nav__svg h-[19px] w-[19px]" strokeWidth={2.45} aria-hidden="true" />
                   </span>
-                  <span className="sf-mobile-bottom-nav__label max-w-full min-w-[2.7rem] truncate text-center text-[9px] font-bold">{item.label}</span>
+                  <span className="sf-mobile-bottom-nav__label max-w-full min-w-[2.45rem] truncate text-center text-[8.5px] font-black">{item.label}</span>
                 </>
               );
               if (item.action === "categories") {

@@ -5950,7 +5950,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .sf-mobile-bottom-nav__surface {
-  height: 66px;
+  height: 58px;
   border: 1px solid;
   isolation: isolate;
   backdrop-filter: blur(22px) saturate(1.25);
@@ -5977,7 +5977,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__item {
-  color: #78736b !important;
+  color: #3f3b36 !important;
 }
 
 .sf-mobile-bottom-nav[data-theme="dark"] .sf-mobile-bottom-nav__item {
@@ -6032,4 +6032,22 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   color: currentColor !important;
   opacity: 1 !important;
   -webkit-text-fill-color: currentColor !important;
+}
+
+/* Win over legacy light-theme link rules that target the first span in every nav link. */
+.storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__item .sf-mobile-bottom-nav__icon,
+.storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__item .sf-mobile-bottom-nav__svg {
+  color: #3f3b36 !important;
+  stroke: #3f3b36 !important;
+  opacity: 1 !important;
+  -webkit-text-fill-color: #3f3b36 !important;
+}
+
+.storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__item.is-active .sf-mobile-bottom-nav__icon,
+.storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__item[aria-current="page"] .sf-mobile-bottom-nav__icon,
+.storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__item.is-active .sf-mobile-bottom-nav__svg,
+.storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__item[aria-current="page"] .sf-mobile-bottom-nav__svg {
+  color: #a87800 !important;
+  stroke: #a87800 !important;
+  -webkit-text-fill-color: #a87800 !important;
 }
