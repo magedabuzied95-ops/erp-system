@@ -657,24 +657,6 @@ const matchesMessagePlatform = (item = {}, activeMessagePlatformFilter = "all") 
   return getMessagePlatform(item) === activeMessagePlatformFilter;
 };
 
-const getCommentPlatform = (item = {}) => {
-  if (!isSocialCommentThread(item)) return "";
-  const platform = clean(item?.platform || item?.metadata?.platform || item?.channel_metadata?.platform || "").toLowerCase();
-  const source = clean(item?.channel || item?.source || item?.provider || item?.platform || item?.metadata?.platform || item?.source_platform || "").toLowerCase();
-  if (platform === "facebook" || source.includes("facebook")) return "facebook";
-  if (platform === "instagram" || source.includes("instagram")) return "instagram";
-  if (platform === "tiktok" || source.includes("tiktok")) return "tiktok";
-  return platform || "facebook";
-};
-
-const matchesCommentPlatform = (item = {}, activeCommentPlatformFilter = "all") => {
-  if (activeCommentPlatformFilter === "all") return true;
-  if (!isSocialCommentThread(item)) return false;
-  return getCommentPlatform(item) === activeCommentPlatformFilter;
-};
-
-const isMessageThread = (item = {}) => !isSocialCommentThread(item) && Boolean(getMessagePlatform(item));
-
 const getInboxItemKind = (item = {}) => (isSocialCommentThread(item) ? "comment" : "message");
 
 const MESSAGE_PLATFORM_FILTERS = [
@@ -683,13 +665,6 @@ const MESSAGE_PLATFORM_FILTERS = [
   { key: "instagram", label: "Instagram" },
   { key: "whatsapp", label: "WhatsApp" },
   { key: "web", label: "Web" },
-  { key: "tiktok", label: "TikTok" },
-];
-
-const COMMENT_PLATFORM_FILTERS = [
-  { key: "all", label: "All Comments" },
-  { key: "facebook", label: "Facebook" },
-  { key: "instagram", label: "Instagram" },
   { key: "tiktok", label: "TikTok" },
 ];
 
@@ -2902,7 +2877,6 @@ export default function AiInboxPwa() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [messagePlatformFilter, setMessagePlatformFilter] = useState("all");
-  const [commentPlatformFilter, setCommentPlatformFilter] = useState("all");
   const [leadFilter, setLeadFilter] = useState("new");
   const [composerText, setComposerText] = useState("");
   const [composerMode, setComposerMode] = useState("reply");
@@ -3611,6 +3585,7 @@ export default function AiInboxPwa() {
   const filteredConversations = useMemo(() => {
     const normalized = debouncedSearch.toLowerCase();
     return conversations.filter((conversation) => {
+      if (isSocialCommentThread(conversation)) return false;
       const matchesSearch = !normalized || [
         conversationName(conversation),
         conversation.external_customer_id,
@@ -3620,9 +3595,7 @@ export default function AiInboxPwa() {
         .map((item) => clean(item).toLowerCase())
         .some((item) => item.includes(normalized));
       if (!matchesSearch) return false;
-      const kind = getInboxItemKind(conversation);
-      if (filter === "messages") return kind === "message" && matchesMessagePlatform(conversation, messagePlatformFilter);
-      if (filter === "comments") return kind === "comment" && matchesCommentPlatform(conversation, commentPlatformFilter);
+      if (!matchesMessagePlatform(conversation, messagePlatformFilter)) return false;
       if (filter === "needs_reply") {
         const status = clean(
           conversation.needs_human ||
@@ -3639,7 +3612,7 @@ export default function AiInboxPwa() {
       }
       return true;
     });
-  }, [commentPlatformFilter, conversations, debouncedSearch, filter, messagePlatformFilter]);
+  }, [conversations, debouncedSearch, filter, messagePlatformFilter]);
 
   const selectedConversation = useMemo(() => {
     if (!conversationParam) return null;
@@ -3648,6 +3621,7 @@ export default function AiInboxPwa() {
     return (
       conversations.find(
         (conversation) => {
+          if (isSocialCommentThread(conversation)) return false;
           const identifiers = conversationIdentifiers(conversation);
           return (
             identifiers.sessionId === normalizedConversationParam ||
@@ -3673,8 +3647,6 @@ export default function AiInboxPwa() {
   const inboxFilterItems = useMemo(
     () => [
       { key: "all", label: "All" },
-      { key: "messages", label: "Messages" },
-      { key: "comments", label: "Comments" },
       { key: "needs_reply", label: "Needs Reply" },
     ],
     []
@@ -5962,7 +5934,7 @@ export default function AiInboxPwa() {
                 <input
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search conversations"
+                  placeholder="Search messages"
                   className="h-10 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-[16px] leading-normal outline-none transition focus:border-slate-400"
                 />
               </label>
@@ -5972,11 +5944,7 @@ export default function AiInboxPwa() {
                     <button
                       key={item.key}
                       type="button"
-                      onClick={() => {
-                        setFilter(item.key);
-                        if (item.key !== "messages") setMessagePlatformFilter("all");
-                        if (item.key !== "comments") setCommentPlatformFilter("all");
-                      }}
+                      onClick={() => setFilter(item.key)}
                       className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-medium ${filter === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}
                     >
                       {item.label}
@@ -5984,7 +5952,7 @@ export default function AiInboxPwa() {
                   ))}
                 </div>
               ) : null}
-              {filter === "messages" ? (
+              {tab === "conversations" ? (
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {MESSAGE_PLATFORM_FILTERS.map((item) => (
                     <button
@@ -5992,20 +5960,6 @@ export default function AiInboxPwa() {
                       type="button"
                       onClick={() => setMessagePlatformFilter(item.key)}
                       className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-black ${messagePlatformFilter === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-              {filter === "comments" ? (
-                <div className="flex gap-2 overflow-x-auto pb-1">
-                  {COMMENT_PLATFORM_FILTERS.map((item) => (
-                    <button
-                      key={item.key}
-                      type="button"
-                      onClick={() => setCommentPlatformFilter(item.key)}
-                      className={`whitespace-nowrap rounded-full px-3 py-1.5 text-[11px] font-black ${commentPlatformFilter === item.key ? "bg-slate-900 text-white" : "bg-white text-slate-700 ring-1 ring-slate-200"}`}
                     >
                       {item.label}
                     </button>
@@ -6065,7 +6019,7 @@ export default function AiInboxPwa() {
               </div>
             ) : (
               <div className="rounded-3xl border border-dashed border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
-                No conversations match the current filters.
+                No messages match the current filters.
               </div>
             )
           ) : isSocialMode ? (

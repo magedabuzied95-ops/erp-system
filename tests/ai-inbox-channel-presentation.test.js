@@ -52,6 +52,16 @@ test("AI Inbox PWA conversation list remains directly clickable and page-scrolla
   assert.match(pwaSource, /identifiers\.conversationKey \|\| identifiers\.sessionId \|\| identifiers\.conversationId/);
 });
 
+test("AI Inbox PWA keeps social comments exclusively in Social Comments", () => {
+  const commentExclusions = pwaSource.match(/if \(isSocialCommentThread\(conversation\)\) return false;/g) || [];
+  assert.ok(commentExclusions.length >= 2, "comments must be excluded from both the list and direct selection");
+  assert.doesNotMatch(pwaSource, /\{ key: "comments", label: "Comments" \}/);
+  assert.doesNotMatch(pwaSource, /\{ key: "messages", label: "Messages" \}/);
+  assert.match(pwaSource, /\{ key: "all", label: "All" \},\s*\{ key: "needs_reply", label: "Needs Reply" \}/);
+  assert.match(pwaSource, /\{tab === "conversations" \? \([\s\S]*?MESSAGE_PLATFORM_FILTERS\.map/);
+  assert.match(pwaSource, /placeholder="Search messages"/);
+});
+
 test("AI Inbox PWA does not block conversations on secondary requests", () => {
   assert.match(pwaSource, /perfComponent: "AiInboxPwa\.conversations"/);
   assert.match(pwaSource, /timeoutMs: 20000,[\s\S]*?perfComponent: "AiInboxPwa\.conversations"/);
