@@ -20,6 +20,8 @@ const SENSITIVE_KEY_PATTERN =
   /(admin|internal|password|secret|token|api[_-]?key|credential|cost|margin|profit|supplier|wholesale|private|salary|permission|role)/i;
 
 let openaiClient = null;
+let textGenerationBlockedUntil = 0;
+let textGenerationBlockReason = "";
 
 const envFlagEnabled = (value) => ["1", "true", "yes", "on"].includes(String(value || "").trim().toLowerCase());
 const envFlagDisabled = (value) => ["0", "false", "no", "off"].includes(String(value || "").trim().toLowerCase());
@@ -49,6 +51,9 @@ const positiveNumber = (value, fallback) => {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 };
 
+const textGenerationBackoffMs = () => positiveNumber(process.env.AI_SUPPORT_QUOTA_BACKOFF_MS, 10 * 60 * 1000);
+const textGenerationTemporarilyBlocked = () => Date.now() < textGenerationBlockedUntil;
+
 const safeJsonParse = (value) => {
   try {
     return JSON.parse(value);
@@ -72,6 +77,8 @@ export const getOpenAiSupportRuntimeConfig = () => ({
   vision_model: process.env.OPENAI_VISION_MODEL || process.env.AI_SUPPORT_VISION_MODEL || process.env.AI_SUPPORT_MODEL || DEFAULT_MODEL,
   vision_fallback_model: process.env.OPENAI_VISION_FALLBACK_MODEL || DEFAULT_VISION_FALLBACK_MODEL,
   text_model: process.env.AI_SUPPORT_MODEL || DEFAULT_MODEL,
+  text_generation_temporarily_blocked: textGenerationTemporarilyBlocked(),
+  text_generation_block_reason: textGenerationTemporarilyBlocked() ? textGenerationBlockReason : "",
 });
 
 const serializeOpenAiError = (error = {}) => ({
@@ -675,7 +682,7 @@ export const generateSupportAnswer = async ({
     return fallbackWithExtras;
   }
 
-  if (!textGenerationEnabled()) {
+  if (!textGenerationEnabled() || textGenerationTemporarilyBlocked()) {
     return fallbackWithExtras;
   }
 
@@ -782,6 +789,10 @@ export const generateSupportAnswer = async ({
       suggested_actions: suggestedActions,
     });
   } catch (error) {
+    if (Number(error?.status || error?.response?.status || 0) === 429) {
+      textGenerationBlockedUntil = Date.now() + textGenerationBackoffMs();
+      textGenerationBlockReason = "openai_quota_or_rate_limit";
+    }
     console.warn("[ai-support] OpenAI request failed", {
       name: error?.name,
       status: error?.status,
