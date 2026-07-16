@@ -3892,9 +3892,9 @@
     color: var(--sf-light-text) !important;
   }
 
-  .storefront-shell .sf-cart-page .sf-cart-row,
-  .storefront-shell .sf-cart-page .sf-checkout-summary,
-  .storefront-shell .sf-cart-page .sf-empty-state {
+  .storefront-shell.storefront-dark .sf-cart-page .sf-cart-row,
+  .storefront-shell.storefront-dark .sf-cart-page .sf-checkout-summary,
+  .storefront-shell.storefront-dark .sf-cart-page .sf-empty-state {
     border-color: rgba(255, 255, 255, 0.10) !important;
     background: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
     color: #ffffff !important;
@@ -3903,10 +3903,10 @@
       inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
   }
 
-  .storefront-shell .sf-cart-page .sf-empty-state h2,
-  .storefront-shell .sf-cart-page .sf-empty-state p,
-  .storefront-shell .sf-cart-page .sf-checkout-summary h2,
-  .storefront-shell .sf-cart-page .sf-checkout-summary p {
+  .storefront-shell.storefront-dark .sf-cart-page .sf-empty-state h2,
+  .storefront-shell.storefront-dark .sf-cart-page .sf-empty-state p,
+  .storefront-shell.storefront-dark .sf-cart-page .sf-checkout-summary h2,
+  .storefront-shell.storefront-dark .sf-cart-page .sf-checkout-summary p {
     color: #ffffff !important;
   }
 
