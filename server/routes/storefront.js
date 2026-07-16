@@ -49,6 +49,8 @@ import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAu
 import { hasStorefrontCustomerToken, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
 
 const router = express.Router();
+const publicStorefrontHomeCache = new Map();
+const PUBLIC_STOREFRONT_HOME_CACHE_TTL_MS = Math.max(5_000, Number(process.env.STOREFRONT_HOME_CACHE_TTL_MS || 60_000));
 const IMAGE_TOO_LARGE_MESSAGE = "\u062d\u062c\u0645 \u0627\u0644\u0635\u0648\u0631\u0629 \u0643\u0628\u064a\u0631. \u0627\u0631\u0641\u0639 \u0635\u0648\u0631\u0629 \u0623\u0635\u063a\u0631";
 const UNSUPPORTED_IMAGE_MESSAGE = "\u0646\u0648\u0639 \u0627\u0644\u0635\u0648\u0631\u0629 \u063a\u064a\u0631 \u0645\u062f\u0639\u0648\u0645. \u0627\u0633\u062a\u062e\u062f\u0645 JPG \u0623\u0648 PNG \u0623\u0648 WEBP";
 const toText = (value) => {
@@ -206,6 +208,32 @@ const resolveStorefrontHome = async ({ tenantId, settings }) => {
   };
 };
 
+const cachedPublicStorefrontHome = async (tenantId) => {
+  const key = String(tenantId || 1);
+  const now = Date.now();
+  const cached = publicStorefrontHomeCache.get(key);
+  if (cached?.data && now - cached.at < PUBLIC_STOREFRONT_HOME_CACHE_TTL_MS) return cached.data;
+  if (cached?.promise) return cached.promise;
+
+  const promise = (async () => {
+    const settings = await getWebsiteSettings({ tenantId });
+    const home = await resolveStorefrontHome({ tenantId, settings });
+    const data = { settings, home };
+    publicStorefrontHomeCache.set(key, { at: Date.now(), data });
+    return data;
+  })().catch((error) => {
+    publicStorefrontHomeCache.delete(key);
+    throw error;
+  });
+  publicStorefrontHomeCache.set(key, { at: now, promise });
+  return promise;
+};
+
+const setPublicStorefrontHomeCacheHeaders = (res) => {
+  res.vary("X-Tenant-Id");
+  res.setHeader("Cache-Control", "public, max-age=30, s-maxage=60, stale-while-revalidate=300");
+};
+
 const getPublicStorefrontSettings = async (req, res) => {
   try {
     const tenantId = publicTenantId(req);
@@ -231,10 +259,8 @@ const getPublicStorefrontSettings = async (req, res) => {
 const getPublicStorefrontHome = async (req, res) => {
   try {
     const tenantId = publicTenantId(req);
-    const settings = await getWebsiteSettings({ tenantId });
-    const home = await resolveStorefrontHome({ tenantId, settings });
-    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-    res.setHeader("Pragma", "no-cache");
+    const { settings, home } = await cachedPublicStorefrontHome(tenantId);
+    setPublicStorefrontHomeCacheHeaders(res);
     console.debug("[storefront:public-home-response]", {
       tenant_id: tenantId,
       sale_mode_enabled: settings.sale_mode_enabled,

@@ -647,29 +647,45 @@ const normalizeStorefrontBrand = (brand = {}) => {
   };
 };
 
+const storefrontHomeStateFromResponse = (response, { loading = false } = {}) => {
+  const home = getStorefrontHomeFromResponse(response);
+  const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
+  const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
+    .map(normalizeHomeCollection)
+    .filter((collection) => collection.products.length);
+  return { loading, error: "", hero: hero?.id ? hero : null, collections };
+};
+
 const useStorefrontHome = () => {
-  const [state, setState] = useState({ loading: true, error: "", hero: null, collections: [] });
+  const [initialHome] = useState(() => {
+    const memoryHome = getCachedStorefrontGetData("/storefront/home", { ttlMs: STOREFRONT_HOME_CACHE_TTL_MS });
+    return memoryHome || readPersistedStorefrontHome();
+  });
+  const [state, setState] = useState(() => (
+    initialHome
+      ? storefrontHomeStateFromResponse(initialHome)
+      : { loading: true, error: "", hero: null, collections: [] }
+  ));
 
   useEffect(() => {
     let cancelled = false;
-    cachedStorefrontGet("/storefront/home", { ttlMs: STOREFRONT_HOME_CACHE_TTL_MS })
+    cachedStorefrontGet("/storefront/home", {
+      ttlMs: STOREFRONT_HOME_CACHE_TTL_MS,
+      forceRefresh: Boolean(initialHome),
+      persist: true,
+    })
       .then((json) => {
-        const home = getStorefrontHomeFromResponse(json);
-        const hero = home.hero ? normalizeHomeProduct(home.hero) : null;
-        const collections = (Array.isArray(home.featured_collections) ? home.featured_collections : [])
-          .map(normalizeHomeCollection)
-          .filter((collection) => collection.products.length);
-        if (!cancelled) setState({ loading: false, error: "", hero: hero?.id ? hero : null, collections });
+        if (!cancelled) setState(storefrontHomeStateFromResponse(json));
       })
       .catch((error) => {
         if (!cancelled && error?.cause?.name !== "AbortError") {
-          setState({ loading: false, error: error?.message || "Failed to load storefront home", hero: null, collections: [] });
+          if (!initialHome) setState({ loading: false, error: error?.message || "Failed to load storefront home", hero: null, collections: [] });
         }
       });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [initialHome]);
 
   return state;
 };
@@ -1617,6 +1633,8 @@ const storefrontPrefetchedDetails = new Set();
 const STOREFRONT_GET_CACHE_TTL_MS = 60 * 1000;
 const STOREFRONT_PRODUCTS_CACHE_TTL_MS = 30 * 1000;
 const STOREFRONT_HOME_CACHE_TTL_MS = 60 * 1000;
+const STOREFRONT_HOME_PERSISTED_CACHE_KEY = "storefront.home.bootstrap.v1";
+const STOREFRONT_HOME_PERSISTED_MAX_AGE_MS = 12 * 60 * 60 * 1000;
 const STOREFRONT_BRANDS_CACHE_TTL_MS = 10 * 60 * 1000;
 const STOREFRONT_GENDER_CACHE_TTL_MS = 10 * 60 * 1000;
 const STOREFRONT_PRODUCT_DETAILS_CACHE_TTL_MS = 60 * 1000;
@@ -1625,14 +1643,36 @@ const storefrontDebugLog = (label, payload = {}) => {
   if (!import.meta.env.DEV) return;
   console.log(label, payload);
 };
-const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) => {
+const readPersistedStorefrontHome = () => {
+  if (typeof window === "undefined") return null;
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(STOREFRONT_HOME_PERSISTED_CACHE_KEY) || "null");
+    const cachedAt = Number(parsed?.at || 0);
+    if (!cachedAt || Date.now() - cachedAt > STOREFRONT_HOME_PERSISTED_MAX_AGE_MS || !parsed?.data) {
+      window.localStorage.removeItem(STOREFRONT_HOME_PERSISTED_CACHE_KEY);
+      return null;
+    }
+    return parsed.data;
+  } catch {
+    return null;
+  }
+};
+const persistStorefrontHome = (data) => {
+  if (typeof window === "undefined" || !data) return;
+  try {
+    window.localStorage.setItem(STOREFRONT_HOME_PERSISTED_CACHE_KEY, JSON.stringify({ at: Date.now(), data }));
+  } catch {
+    // The memory cache still works if storage is unavailable or full.
+  }
+};
+const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS, forceRefresh = false, persist = false } = {}) => {
   if (ttlMs <= 0) {
     storefrontDebugLog("[storefront-cache-miss]", { url, ttlMs, strategy: "no-store" });
     return api.get(url, { cache: "no-store", headers: { "Cache-Control": "no-cache", Pragma: "no-cache" } });
   }
   const now = Date.now();
   const cached = storefrontGetCache.get(url);
-  if (cached && now - cached.at < ttlMs) {
+  if (!forceRefresh && cached && now - cached.at < ttlMs) {
     storefrontDebugLog("[storefront-cache-hit]", { url, ttlMs, ageMs: now - cached.at });
     return Promise.resolve(cached.data);
   }
@@ -1644,6 +1684,7 @@ const cachedStorefrontGet = (url, { ttlMs = STOREFRONT_GET_CACHE_TTL_MS } = {}) 
   const request = api.get(url)
     .then((data) => {
       storefrontGetCache.set(url, { at: Date.now(), data });
+      if (persist) persistStorefrontHome(data);
       return data;
     })
     .finally(() => {
