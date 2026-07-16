@@ -52,6 +52,18 @@ test("manager chat notification falls back to the employee tenant for legacy thr
   assert.match(chat, /tenantId:\s*notificationTenantId/);
 });
 
+test("installed employee portal exposes and repairs its push subscription", () => {
+  const portal = source("src/modules/employees/pages/EmployeePayrollPortal.jsx");
+  const serviceWorker = source("public/employee-portal-sw.js");
+
+  assert.match(portal, /notificationSubscriptionActive/);
+  assert.match(portal, /تفعيل إشعارات بوابة الموظف/);
+  assert.match(portal, /repairEmployeePushSubscription/);
+  assert.match(portal, /getRegistration\(scope\)\s*\|\|\s*await registerEmployeePortalServiceWorker/);
+  assert.match(portal, /notificationsReady/);
+  assert.match(serviceWorker, /employee-portal-shell-v6/);
+});
+
 test("shared shortage alerts use employee-specific read receipts", () => {
   const refill = source("server/services/displayRefillAlertService.js");
 

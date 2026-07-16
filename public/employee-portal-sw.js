@@ -1,4 +1,4 @@
-const CACHE_NAME = "employee-portal-shell-v5";
+const CACHE_NAME = "employee-portal-shell-v6";
 const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
