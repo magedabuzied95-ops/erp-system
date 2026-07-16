@@ -86,6 +86,9 @@ const withPaymentProofAliases = (order = {}) => {
 const VISUAL_SEARCH_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_SEARCH_MAX_BYTES || 8 * 1024 * 1024);
 const VISUAL_SEARCH_ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const VISUAL_HASH_SIZE = 8;
+const VISUAL_REMOTE_CANDIDATE_LIMIT = Number(process.env.STOREFRONT_VISUAL_REMOTE_CANDIDATE_LIMIT || 60);
+const VISUAL_REMOTE_IMAGE_TIMEOUT_MS = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_TIMEOUT_MS || 1200);
+const VISUAL_REMOTE_IMAGE_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_MAX_BYTES || 3 * 1024 * 1024);
 let storefrontSchemaReadyPromise = null;
 let storefrontSchemaReady = false;
 const storefrontTableColumnsCache = new Map();
@@ -1725,12 +1728,43 @@ const imageDataUrlToBuffer = (imageUrl = "") => {
   }
 };
 
-const loadCandidateImageBuffer = async (imageUrl = "") => {
+const isRemoteImageUrl = (imageUrl = "") => /^https?:\/\//i.test(toText(imageUrl));
+
+const loadRemoteImageBuffer = async (imageUrl = "") => {
+  const text = toText(imageUrl);
+  if (!isRemoteImageUrl(text)) return null;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), VISUAL_REMOTE_IMAGE_TIMEOUT_MS);
+  try {
+    const response = await fetch(text, {
+      signal: controller.signal,
+      headers: { accept: "image/avif,image/webp,image/png,image/jpeg,image/*;q=0.8" },
+    });
+    if (!response.ok) return null;
+    const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+    if (contentType && !contentType.startsWith("image/")) return null;
+    const length = Number(response.headers.get("content-length") || 0);
+    if (length > VISUAL_REMOTE_IMAGE_MAX_BYTES) return null;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (!buffer.length || buffer.length > VISUAL_REMOTE_IMAGE_MAX_BYTES) return null;
+    return buffer;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+};
+
+const loadCandidateImageBuffer = async (imageUrl = "", options = {}) => {
   const dataBuffer = imageDataUrlToBuffer(imageUrl);
   if (dataBuffer?.length) return { buffer: dataBuffer, source: "data_url" };
   const filePath = await findLocalUploadFile(imageUrl);
-  if (!filePath) return { buffer: null, source: "" };
-  return { buffer: await readFile(filePath), source: "upload_file" };
+  if (filePath) return { buffer: await readFile(filePath), source: "upload_file" };
+  if (options.allowRemote) {
+    const remoteBuffer = await loadRemoteImageBuffer(imageUrl);
+    if (remoteBuffer?.length) return { buffer: remoteBuffer, source: "remote_url" };
+  }
+  return { buffer: null, source: "" };
 };
 
 const imageSha256 = (buffer) => crypto.createHash("sha256").update(buffer).digest("hex");
@@ -1753,6 +1787,80 @@ const hashDistance = (a = "", b = "") => {
     if (a[index] !== b[index]) distance += 1;
   }
   return distance;
+};
+
+const rgbToHsl = (r = 0, g = 0, b = 0) => {
+  r /= 255;
+  g /= 255;
+  b /= 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+  if (max !== min) {
+    const d = max - min;
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    switch (max) {
+      case r:
+        h = (g - b) / d + (g < b ? 6 : 0);
+        break;
+      case g:
+        h = (b - r) / d + 2;
+        break;
+      default:
+        h = (r - g) / d + 4;
+        break;
+    }
+    h /= 6;
+  }
+  return { h, s, l };
+};
+
+const imageColorSignature = async (input) => {
+  const { data, info } = await sharp(input)
+    .rotate()
+    .resize(56, 56, { fit: "inside", withoutEnlargement: true })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const buckets = new Array(12).fill(0);
+  let totalWeight = 0;
+  let avgR = 0;
+  let avgG = 0;
+  let avgB = 0;
+  for (let index = 0; index < data.length; index += info.channels) {
+    const r = data[index] || 0;
+    const g = data[index + 1] || 0;
+    const b = data[index + 2] || 0;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    const chroma = max - min;
+    const isWhiteBackground = r > 238 && g > 238 && b > 238 && chroma < 18;
+    const isNearBlackShadow = r < 18 && g < 18 && b < 18;
+    const weight = isWhiteBackground || isNearBlackShadow ? 0.15 : 1;
+    const { h, s } = rgbToHsl(r, g, b);
+    const bucket = Math.min(11, Math.max(0, Math.floor(h * 12)));
+    buckets[bucket] += weight * (0.4 + s);
+    avgR += r * weight;
+    avgG += g * weight;
+    avgB += b * weight;
+    totalWeight += weight;
+  }
+  if (!totalWeight) return null;
+  const histogramTotal = buckets.reduce((sum, value) => sum + value, 0) || 1;
+  return {
+    avg: [avgR / totalWeight, avgG / totalWeight, avgB / totalWeight],
+    histogram: buckets.map((value) => value / histogramTotal),
+  };
+};
+
+const colorSignatureSimilarity = (a, b) => {
+  if (!a || !b) return 0;
+  const histogramDistance = a.histogram.reduce((sum, value, index) => sum + Math.abs(value - (b.histogram[index] || 0)), 0) / 2;
+  const rgbDistance = Math.sqrt(a.avg.reduce((sum, value, index) => sum + ((value - (b.avg[index] || 0)) ** 2), 0)) / 441.7;
+  return Math.max(0, Math.min(1, 1 - (histogramDistance * 0.65 + rgbDistance * 0.35)));
 };
 
 const collectProductImageUrls = (product = {}) => [
@@ -1802,6 +1910,7 @@ const queryVisualImageCandidates = async (tenantId, limit = 600) => {
 const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 }) => {
   const uploadedSha = imageSha256(imageBuffer);
   const uploadedHash = await imagePerceptualHash(imageBuffer);
+  const uploadedColor = await imageColorSignature(imageBuffer).catch(() => null);
   const candidates = await queryVisualImageCandidates(tenantId);
   const scored = [];
   const debug = {
@@ -1810,25 +1919,45 @@ const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 
     readable_candidate_image_count: 0,
     data_url_candidate_count: 0,
     upload_file_candidate_count: 0,
+    remote_url_candidate_count: 0,
+    remote_candidate_limit: VISUAL_REMOTE_CANDIDATE_LIMIT,
     matched_candidate_count: 0,
+    color_scored_candidate_count: 0,
   };
 
+  let remoteCandidateAttempts = 0;
   for (const candidate of candidates) {
     try {
-      const loaded = await loadCandidateImageBuffer(candidate.imageUrl);
+      const remote = isRemoteImageUrl(candidate.imageUrl);
+      if (remote) {
+        if (remoteCandidateAttempts >= VISUAL_REMOTE_CANDIDATE_LIMIT) continue;
+        remoteCandidateAttempts += 1;
+      }
+      const loaded = await loadCandidateImageBuffer(candidate.imageUrl, { allowRemote: remote });
       if (!loaded.buffer?.length) continue;
       debug.readable_candidate_image_count += 1;
       if (loaded.source === "data_url") debug.data_url_candidate_count += 1;
       if (loaded.source === "upload_file") debug.upload_file_candidate_count += 1;
+      if (loaded.source === "remote_url") debug.remote_url_candidate_count += 1;
       const candidateBuffer = loaded.buffer;
       const exact = imageSha256(candidateBuffer) === uploadedSha;
       const distance = exact ? 0 : hashDistance(uploadedHash, await imagePerceptualHash(candidateBuffer));
-      if (exact || distance <= 10) {
+      const colorSimilarity = uploadedColor
+        ? colorSignatureSimilarity(uploadedColor, await imageColorSignature(candidateBuffer).catch(() => null))
+        : 0;
+      if (colorSimilarity > 0) debug.color_scored_candidate_count += 1;
+      const hashScore = exact ? 100 : Math.max(0, 92 - distance * 2.2);
+      const blendedScore = exact
+        ? 100
+        : Math.max(0, Math.min(94, Math.round(hashScore * 0.7 + colorSimilarity * 100 * 0.3)));
+      if (exact || distance <= 16 || blendedScore >= 42 || colorSimilarity >= 0.88) {
         debug.matched_candidate_count += 1;
         scored.push({
           productId: candidate.product.id,
-          score: exact ? 100 : Math.max(0, 86 - distance),
-          reason: exact ? "exact_sha256" : "perceptual_hash",
+          score: blendedScore,
+          reason: exact ? "exact_sha256" : distance <= 16 ? "perceptual_hash" : "visual_color_similarity",
+          distance,
+          colorSimilarity,
         });
       }
     } catch {
@@ -2639,28 +2768,75 @@ export const visualSearchProducts = async (req, res) => {
       understanding?.detected?.materials,
       understanding?.detected?.features,
     ].flat().filter(Boolean).join(" ");
-    const proSearch = await searchAiVisualProductsPro({
-      tenantId,
-      detected: understanding?.detected || {},
-      visualQuery,
-      uploadedImageBuffer: file.buffer,
-      limit: 8,
-    });
+    let proSearch = { candidates: [], attributes: null, topMatches: [], reasonWhyFirstRanked: "" };
+    try {
+      proSearch = await searchAiVisualProductsPro({
+        tenantId,
+        detected: understanding?.detected || {},
+        visualQuery,
+        uploadedImageBuffer: file.buffer,
+        limit: 8,
+      });
+    } catch (error) {
+      console.warn("[storefront-image-search] pro visual search failed; using local fallback", {
+        tenantId,
+        message: error?.message || "pro visual search failed",
+      });
+    }
     let candidates = Array.isArray(proSearch.candidates) ? proSearch.candidates : [];
     let matchedIds = candidates.map((item) => item.product_id).filter(Boolean);
     let keywords = [];
     let aiSource = "visual_search_pro";
 
     if (!matchedIds.length) {
-      const imageBase64 = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
-      const aiResult = await generateAiProductData({
-        image_base64: imageBase64,
-        current: { source: "storefront_visual_search", filename: file.originalname || "" },
+      const localMatches = await findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 8 }).catch((error) => {
+        console.warn("[storefront-image-search] local visual fallback failed", {
+          tenantId,
+          message: error?.message || "local image similarity failed",
+        });
+        return [];
       });
-      aiSource = aiResult?.source || "fallback";
+      if (localMatches.length) {
+        aiSource = "local_visual_similarity";
+        matchedIds = localMatches.map((item) => item.productId).filter(Boolean);
+        candidates = localMatches.map((item) => ({
+          product_id: item.productId,
+          finalScore: Number(item.score || 0) / 100,
+          score: Number(item.score || 0) / 100,
+          score_breakdown: {
+            finalScore: Number(item.score || 0) / 100,
+            reasonWhyRankedFirst: item.reason || "local visual similarity",
+            distance: item.distance,
+            colorSimilarity: item.colorSimilarity,
+          },
+        }));
+      }
+    }
+
+    if (!matchedIds.length) {
+      let aiResult = null;
+      try {
+        const imageBase64 = `data:${file.mimetype};base64,${file.buffer.toString("base64")}`;
+        aiResult = await generateAiProductData({
+          image_base64: imageBase64,
+          current: { source: "storefront_visual_search", filename: file.originalname || "" },
+        });
+      } catch (error) {
+        console.warn("[storefront-image-search] keyword AI fallback failed", {
+          tenantId,
+          message: error?.message || "keyword AI fallback failed",
+        });
+      }
+      aiSource = aiResult?.source || "keyword_fallback";
       keywords = visualKeywordsFromAi(aiResult);
       console.log("[storefront-image-search] detected keywords/labels", { tenantId, source: aiSource, keywords });
-      matchedIds = await queryVisualKeywordProductIds(tenantId, keywords, 8);
+      matchedIds = await queryVisualKeywordProductIds(tenantId, keywords, 8).catch((error) => {
+        console.warn("[storefront-image-search] keyword product lookup failed", {
+          tenantId,
+          message: error?.message || "keyword lookup failed",
+        });
+        return [];
+      });
       candidates = matchedIds.map((productId, index) => ({
         product_id: productId,
         finalScore: Math.max(0.1, 0.45 - index * 0.04),
@@ -2769,7 +2945,13 @@ export const imageSearchProducts = async (req, res) => {
     }
 
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
-    const imageMatches = await findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 12 });
+    const imageMatches = await findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 12 }).catch((error) => {
+      console.warn("[storefront-image-search] image similarity failed; continuing with fallback", {
+        tenantId,
+        message: error?.message || "image similarity failed",
+      });
+      return [];
+    });
     const matchedIds = [...new Set(imageMatches.map((item) => Number(item.productId)).filter((value) => Number.isFinite(value) && value > 0))];
 
     let products = matchedIds.length ? await queryProductsByIds(tenantId, matchedIds, pricingSettings) : [];
@@ -2821,7 +3003,13 @@ export const imageSearchProducts = async (req, res) => {
         false,
         8,
         0
-      );
+      ).catch((error) => {
+        console.warn("[storefront-image-search] metadata fallback failed", {
+          tenantId,
+          message: error?.message || "metadata fallback failed",
+        });
+        return { rows: [] };
+      });
       const fallbackProducts = await scrubInactiveClassifications(
         await hydrateProductsWithImages(
           fallback.rows.map((row) => normalizeProduct(row, pricingSettings)),
@@ -2851,9 +3039,10 @@ export const imageSearchProducts = async (req, res) => {
       success: true,
       exactMatches,
       similarMatches,
+      products: [...exactMatches, ...similarMatches],
       confidence,
       message,
-      source: exactMatches.length || similarMatches.length ? "placeholder_image_search" : "placeholder_image_search_empty",
+      source: imageMatches.length ? "local_visual_similarity" : exactMatches.length || similarMatches.length ? "metadata_fallback" : "image_search_empty",
       fallback_used: !imageMatches.length,
     });
   } catch (error) {
