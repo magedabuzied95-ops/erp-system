@@ -1,5 +1,5 @@
-logo.svg المطلوب لـ BIMI لازم يكون SVG حقيقي / SVG Tiny 1.2.
+`logo.svg` هو شعار BIMI الكامل.
 
-الملف m1-logo.png هو مرجع بصري فقط.
+`/favicon.svg` هو علامة M1 المختصرة والمستخدمة لأيقونة الموقع والسيستم.
 
-لا تستخدم favicon.svg لأنه ليس شعار M1.
+شغّل `node scripts/generate-brand-icons.mjs` بعد تعديل العلامة لتحديث أيقونات PWA وApple.

@@ -259,6 +259,7 @@ const STOREFRONT_ROOT_HOSTS = new Set([
 const ERP_HOST = "erp.m1store-egy.com";
 const STOREFRONT_CANONICAL_ORIGIN = "https://m1store-egy.com";
 const ERP_CANONICAL_ORIGIN = "https://erp.m1store-egy.com";
+const M1_FAVICON_URL = "/favicon.svg?v=m1-mark-20260716";
 
 const readHostname = () => {
   if (typeof window === "undefined") return "";
@@ -313,7 +314,9 @@ function App() {
         const settings = response?.settings || {};
         const code = settings["general.default_currency"];
         const symbol = settings["general.currency_symbol"];
-        const faviconUrl = settings["general.favicon_url"];
+        const faviconUrl = isStorefrontRootHost() || isErpHost()
+          ? M1_FAVICON_URL
+          : settings["general.favicon_url"] || M1_FAVICON_URL;
         if (code || symbol) setCurrency({ code, symbol });
         if (typeof document !== "undefined") {
           let link = document.querySelector('link[rel="icon"]');
@@ -322,7 +325,8 @@ function App() {
             link.rel = "icon";
             document.head.appendChild(link);
           }
-          link.href = faviconUrl || "/favicon.svg";
+          link.type = "image/svg+xml";
+          link.href = faviconUrl;
         }
       })
       .catch(() => {});

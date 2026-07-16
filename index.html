@@ -2,14 +2,14 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=m1-mark-20260716" />
     <link rel="preconnect" href="https://api.m1store-egy.com" crossorigin />
     <link rel="dns-prefetch" href="//api.m1store-egy.com" />
     <meta name="theme-color" content="#f3f3f1" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-title" content="الموظف" />
+    <meta name="apple-mobile-web-app-title" content="M1" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=m1-mark-20260716" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script>
       (function () {
@@ -97,15 +97,9 @@
           manifest.setAttribute("href", manifestHref);
           document.head.appendChild(manifest);
           if (!employeeMatch && !managerMatch && !posMatch && !inboxMatch) return;
-          var appleTouchIcon = document.querySelector('link[rel="apple-touch-icon"]');
-          if (posMatch) {
-            if (appleTouchIcon) {
-              appleTouchIcon.setAttribute("href", "/icons/pos-180.png");
-            }
-          }
           var appleTitle = document.querySelector('meta[name="apple-mobile-web-app-title"]') || document.createElement("meta");
           appleTitle.setAttribute("name", "apple-mobile-web-app-title");
-          appleTitle.setAttribute("content", "الموظف");
+          appleTitle.setAttribute("content", "M1");
           if (managerMatch) appleTitle.setAttribute("content", "Manager");
           if (posMatch) appleTitle.setAttribute("content", "POS");
           if (inboxMatch) appleTitle.setAttribute("content", "AI Inbox");
