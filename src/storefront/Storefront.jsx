@@ -5899,7 +5899,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full active:opacity-95">
           {displayImage ? (
             <div
-              className="relative h-full w-full overflow-hidden rounded-[0.95rem] md:rounded-[1.05rem]"
+              className="group/card-image relative h-full w-full overflow-hidden rounded-[0.95rem] md:rounded-[1.05rem]"
               onMouseEnter={triggerSecondaryFlash}
               onMouseLeave={clearSecondaryFlash}
             >
@@ -5915,7 +5915,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 {...responsiveImageProps(displayImage, imagePreset)}
                 alt={product.name}
                 onError={fallbackProductImage}
-                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:scale-[1.11] md:group-active/product:scale-[1.09] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/product:opacity-0" : "md:group-hover/product:opacity-100"}`}
+                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.18] md:group-active/product:scale-[1.12] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/card-image:opacity-0" : "md:group-hover/card-image:opacity-100"}`}
                 style={{ backfaceVisibility: "hidden" }}
                 loading={eagerImage ? "eager" : "lazy"}
                 decoding="async"
@@ -5929,7 +5929,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   alt={product.name}
                   aria-hidden="true"
                   onError={fallbackProductImage}
-                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:scale-[1.1] md:group-hover/product:opacity-100 md:group-active/product:opacity-95"
+                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/card-image:scale-[1.18] md:group-hover/card-image:opacity-100 md:group-active/product:opacity-95"
                   style={{ backfaceVisibility: "hidden" }}
                   loading="lazy"
                   decoding="async"
