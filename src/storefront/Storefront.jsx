@@ -3106,12 +3106,6 @@ function HomeCategoryCards({ cards = [], lang = "ar", themeTokens = {}, loading 
                       ) : null}
                     </div>
                     <div>
-                      {card.video ? (
-                        <span className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-red-600 px-2.5 py-1 text-[9px] font-black uppercase tracking-[0.16em] text-white shadow-lg">
-                          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
-                          {isRtl ? "فيديو" : "Video"}
-                        </span>
-                      ) : null}
                       <h3 className="text-[2rem] font-black leading-none tracking-tight text-white drop-shadow-[0_3px_16px_rgba(0,0,0,0.55)] md:text-[2.35rem]">
                         {card.title}
                       </h3>

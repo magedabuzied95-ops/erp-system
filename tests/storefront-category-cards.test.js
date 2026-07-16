@@ -10,6 +10,7 @@ test("storefront category cards use full-bleed motion media", async () => {
   assert.match(source, /muted[\s\S]*?loop[\s\S]*?playsInline/);
   assert.match(source, /min-h-\[390px\][\s\S]*?overflow-hidden/);
   assert.match(source, /HomeCategoryMotionMedia video=\{card\.video\} image=\{card\.image\}/);
+  assert.doesNotMatch(source, /isRtl \? "فيديو" : "Video"/);
   assert.match(source, /h-full w-full object-cover transition/);
   assert.match(source, /match\?\.promo_video_url/);
   assert.match(source, /const MEN_CATEGORY_TRIAL_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/7815147\/7815147-sd_540_960_30fps\.mp4";/);
