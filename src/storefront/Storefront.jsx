@@ -5427,7 +5427,7 @@ function SearchQuickSections({
   return (
     <div className="grid gap-3">
       {hasImageSearch ? (
-        <div className="rounded-[1.4rem] border border-[#d4af37]/18 bg-[linear-gradient(180deg,rgba(255,248,225,0.94),rgba(255,255,255,0.98))] p-3 text-stone-950 shadow-[0_18px_40px_rgba(212,175,55,0.08)] dark:border-[#d4af37]/18 dark:bg-white/[0.04] dark:text-white">
+        <div className="sf-image-search-card rounded-[1.4rem] border border-[#d4af37]/18 bg-[linear-gradient(180deg,rgba(255,248,225,0.94),rgba(255,255,255,0.98))] p-3 text-stone-950 shadow-[0_18px_40px_rgba(212,175,55,0.08)] dark:border-[#d4af37]/18 dark:bg-white/[0.04] dark:text-white">
           <div className="flex items-start gap-3">
             <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/60 bg-white shadow-sm dark:border-white/10 dark:bg-white/5">
               {imageSearch?.previewUrl ? <img src={imageSearch.previewUrl} alt="" className="h-full w-full object-cover" loading="lazy" /> : null}
@@ -5564,7 +5564,7 @@ function SearchResultRow({ product, active, onPickProduct }) {
     <button
       type="button"
       onClick={() => onPickProduct(product)}
-      className={`flex items-center gap-3 rounded-[1.2rem] border p-2.5 text-right text-stone-950 shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition hover:-translate-y-px active:scale-[0.99] dark:text-white dark:shadow-[0_14px_26px_rgba(0,0,0,0.22)] ${active ? "border-[var(--sf-purple)] bg-[rgba(212,175,55,0.10)] dark:bg-white/[0.08]" : "border-stone-200/80 bg-white/92 hover:border-[var(--sf-purple)] hover:bg-[var(--sf-cream)] dark:border-white/10 dark:bg-white/[0.045] dark:hover:bg-white/[0.06]"}`}
+      className={`sf-search-result-row flex items-center gap-3 rounded-[1.2rem] border p-2.5 text-right text-stone-950 shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition hover:-translate-y-px active:scale-[0.99] dark:text-white dark:shadow-[0_14px_26px_rgba(0,0,0,0.22)] ${active ? "border-[var(--sf-purple)] bg-[rgba(212,175,55,0.10)] dark:bg-white/[0.08]" : "border-stone-200/80 bg-white/92 hover:border-[var(--sf-purple)] hover:bg-[var(--sf-cream)] dark:border-white/10 dark:bg-white/[0.045] dark:hover:bg-white/[0.06]"}`}
     >
       <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" />
       <div className="min-w-0 flex-1">
