@@ -6274,18 +6274,18 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .storefront-shell {
-  --sf-premium-gold: #b68a2c;
-  --sf-premium-gold-soft: #d8b75f;
-  --sf-premium-gold-deep: #7b5318;
-  --sf-premium-gold-ink: #241707;
-  --sf-premium-gold-gradient: linear-gradient(135deg, #b68a2c 0%, #d8b75f 54%, #9a6d20 100%);
-  --sf-premium-gold-shadow: rgba(118, 78, 18, 0.22);
+  --sf-premium-gold: #9b6b22;
+  --sf-premium-gold-soft: #c8a34a;
+  --sf-premium-gold-deep: #6f4612;
+  --sf-premium-gold-ink: #201608;
+  --sf-premium-gold-gradient: linear-gradient(135deg, #8f5f1a 0%, #c8a34a 52%, #805214 100%);
+  --sf-premium-gold-shadow: rgba(91, 57, 14, 0.2);
 }
 
 .storefront-shell .sf-storefront-gold-badge,
 .storefront-shell .sf-quick-add-button,
 .storefront-shell .sf-wishlist-add-button {
-  border-color: rgba(216, 183, 95, 0.34) !important;
+  border-color: rgba(200, 163, 74, 0.32) !important;
   background: var(--sf-premium-gold-gradient) !important;
   color: var(--sf-premium-gold-ink) !important;
   box-shadow: 0 10px 22px var(--sf-premium-gold-shadow) !important;
@@ -6302,8 +6302,21 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .storefront-shell .sf-product-card .sf-quick-add-button:hover {
-  border-color: rgba(216, 183, 95, 0.54) !important;
-  box-shadow: 0 14px 30px rgba(118, 78, 18, 0.28) !important;
+  border-color: rgba(200, 163, 74, 0.5) !important;
+  box-shadow: 0 14px 30px rgba(91, 57, 14, 0.25) !important;
+}
+
+.storefront-shell .sf-product-card-price {
+  color: var(--sf-premium-gold-deep) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.storefront-shell .sf-product-card button[class*="bg-[linear-gradient(135deg,#d4af37"] {
+  border-color: rgba(200, 163, 74, 0.34) !important;
+  background: var(--sf-premium-gold-gradient) !important;
+  color: #fffaf0 !important;
+  box-shadow: 0 8px 18px rgba(91, 57, 14, 0.14) !important;
+  -webkit-text-fill-color: currentColor !important;
 }
 
 .sf-mobile-bottom-nav__surface {
