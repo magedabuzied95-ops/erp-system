@@ -6345,6 +6345,13 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   -webkit-text-fill-color: rgba(255, 255, 255, 0.46) !important;
 }
 
+.storefront-shell .sf-product-card-media .sf-card-primary-image,
+.storefront-shell .sf-product-card-media .sf-card-secondary-image {
+  transition:
+    opacity 520ms ease,
+    transform 720ms cubic-bezier(0.22, 1, 0.36, 1) !important;
+}
+
 .storefront-shell .sf-product-card-media:hover .sf-card-primary-image,
 .storefront-shell .sf-product-card-media:hover .sf-card-secondary-image,
 .storefront-shell .sf-product-card-media:active .sf-card-primary-image,
