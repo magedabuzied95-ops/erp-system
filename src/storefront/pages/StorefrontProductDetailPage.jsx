@@ -35,6 +35,7 @@ import {
 } from "../Storefront";
 import { api } from "../../shared/api/api";
 import { applyProductSocialMeta } from "../../shared/lib/socialMeta";
+import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
 import { Check, Heart, Ruler, Share2, ShoppingCart } from "lucide-react";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
@@ -245,19 +246,14 @@ function ProductDetailReviewSection() {
   );
 }
 
-export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile, saleModeEnabled }) {
+export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, saleModeEnabled }) {
   const { i18n } = useTranslation();
   const isRtl = String(i18n.resolvedLanguage || i18n.language || "ar").toLowerCase().startsWith("ar");
   const { identifier } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const productPageKey = `${location.pathname}${location.search}`;
-  const variantParam = String(searchParams.get("variant") || searchParams.get("variantId") || "").trim();
-  const colorParam = String(searchParams.get("color") || searchParams.get("colorId") || "").trim();
-  const sizeParam = String(searchParams.get("size") || "").trim();
-  const slugParam = String(searchParams.get("slug") || "").trim();
-  const profilePhone = profile?.primary_phone || profile?.phone || "";
+  const productRouteKey = `${location.pathname}:${identifier || ""}`;
   const [state, setState] = useState({ loading: true, product: null, error: "" });
   const [reloadToken, setReloadToken] = useState(0);
   const [selected, setSelected] = useState({ variantId: "", size: "", colorKey: "", colorName: "", image: "" });
@@ -268,7 +264,15 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const recentlyViewedSentRef = useRef("");
   const productTopRef = useRef(null);
   const mainImageRef = useRef(null);
+  const initialRouteSearchRef = useRef(location.search);
+  const previousProductRouteRef = useRef(productRouteKey);
   const normalizeQueryValue = (value = "") => String(value || "").trim();
+
+  useEffect(() => {
+    if (previousProductRouteRef.current === productRouteKey) return;
+    previousProductRouteRef.current = productRouteKey;
+    initialRouteSearchRef.current = location.search;
+  }, [location.search, productRouteKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -316,7 +320,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             continue;
           }
           const productVariants = Array.isArray(product?.variants) ? product.variants : [];
-          const routeSearchParams = new URLSearchParams(productPageKey.split("?")[1] || "");
+          const routeSearchParams = new URLSearchParams(initialRouteSearchRef.current || "");
           const requestedVariantId = normalizeQueryValue(routeSearchParams.get("variant") || routeSearchParams.get("variantId"));
           const requestedSize = normalizeQueryValue(routeSearchParams.get("size"));
           const requestedColor = normalizeQueryValue(routeSearchParams.get("color")).toLowerCase();
@@ -388,7 +392,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       cancelled = true;
       controller.abort();
     };
-  }, [identifier, location.pathname, location.search, profilePhone, rememberProduct, reloadToken]);
+  }, [identifier, location.pathname, productRouteKey, rememberProduct, reloadToken]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -418,7 +422,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
       window.cancelAnimationFrame(raf);
       window.clearTimeout(timeout);
     };
-  }, [productPageKey, identifier, variantParam, colorParam, sizeParam, slugParam]);
+  }, [identifier, location.pathname]);
 
           const product = state.product;
           const variants = useMemo(() => product?.variants || [], [product]);
@@ -471,11 +475,17 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const safeActiveVariant = activeVariant || {};
   const galleryEntries = useMemo(() => buildProductGalleryImages(product, selectedVariant), [product, selectedVariant]);
   useEffect(() => {
-    galleryEntries.forEach((item) => {
+    galleryEntries.forEach((item, index) => {
       const src = item?.image || item?.url || item?.src || item;
       if (!src) return;
+      const resolvedSrc = imageFor(src);
+      const responsiveProps = getStorefrontResponsiveImageProps(resolvedSrc, "hero");
       const image = new Image();
-      image.src = src;
+      image.decoding = "async";
+      image.fetchPriority = index === 0 ? "high" : "low";
+      if (responsiveProps.srcSet) image.srcset = responsiveProps.srcSet;
+      if (responsiveProps.sizes) image.sizes = responsiveProps.sizes;
+      image.src = resolvedSrc;
     });
   }, [galleryEntries]);
   useEffect(() => {
