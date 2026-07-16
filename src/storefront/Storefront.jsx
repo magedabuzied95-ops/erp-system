@@ -6293,7 +6293,7 @@ function RelatedProducts({ currentId, ...props }) {
     [currentId, products]
   );
   return (
-    <div className="mt-5 border-t border-white/[0.06] pt-5">
+    <div className="sf-related-products mt-5 border-t border-white/[0.06] pt-5">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.products.similarProducts")}</h2>
@@ -6317,7 +6317,7 @@ function RecentProductsSection({ currentId, recent = [] }) {
   );
   if (!items.length) return null;
   return (
-    <div className="mt-5 rounded-[1.25rem] border border-stone-200 bg-white/70 p-4 shadow-[0_14px_38px_rgba(39,20,75,0.05)] dark:border-white/[0.08] dark:bg-white/[0.04] dark:shadow-[0_20px_50px_rgba(0,0,0,0.20)]">
+    <div className="sf-recent-products mt-5 rounded-[1.25rem] border border-stone-200 bg-white/70 p-4 shadow-[0_14px_38px_rgba(39,20,75,0.05)] dark:border-white/[0.08] dark:bg-white/[0.04] dark:shadow-[0_20px_50px_rgba(0,0,0,0.20)]">
       <div className="mb-3 flex items-center justify-between">
         <div>
           <h2 className="text-xl font-black text-stone-950 dark:text-white">{sfText("storefront.account.recentlyViewed")}</h2>

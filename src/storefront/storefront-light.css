@@ -220,3 +220,153 @@ body.storefront-shell:not(.storefront-dark) .sf-product-listing-page section[cla
 body.storefront-shell:not(.storefront-dark) .sf-product-listing-page section[class*="dark:bg-[#0d0d0d]"] h3 {
   color: var(--sf-light-text) !important;
 }
+
+/* Cart and checkout summaries */
+body.storefront-shell:not(.storefront-dark) .sf-cart-page {
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-cart-page > h1,
+body.storefront-shell:not(.storefront-dark) .sf-cart-row [class*="text-white"],
+body.storefront-shell:not(.storefront-dark) .sf-cart-item-card [class*="text-white"],
+body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card [class*="text-white"],
+body.storefront-shell:not(.storefront-dark) .sf-checkout-summary [class*="text-white"] {
+  color: var(--sf-light-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-cart-row,
+body.storefront-shell:not(.storefront-dark) .sf-cart-item-card,
+body.storefront-shell:not(.storefront-dark) .sf-cart-hero,
+body.storefront-shell:not(.storefront-dark) .sf-cart-empty,
+body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card,
+body.storefront-shell:not(.storefront-dark) .sf-checkout-summary {
+  border-color: var(--sf-light-border) !important;
+  background-color: var(--sf-light-surface) !important;
+  background-image: none !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 18px 48px rgba(31, 29, 25, 0.12) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-cart-row [class*="text-white/"],
+body.storefront-shell:not(.storefront-dark) .sf-cart-item-card [class*="text-white/"],
+body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card [class*="text-white/"],
+body.storefront-shell:not(.storefront-dark) .sf-checkout-summary [class*="text-white/"] {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-cart-row button,
+body.storefront-shell:not(.storefront-dark) .sf-cart-item-card button,
+body.storefront-shell:not(.storefront-dark) .sf-cart-qty-control,
+body.storefront-shell:not(.storefront-dark) .sf-checkout-summary [class*="bg-white/"] {
+  border-color: var(--sf-light-border-strong) !important;
+  background-color: var(--sf-light-soft) !important;
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card .sf-summary-row,
+body.storefront-shell:not(.storefront-dark) .sf-checkout-summary .sf-summary-row {
+  color: var(--sf-light-text-secondary) !important;
+  border-color: var(--sf-light-border) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card .sf-summary-row-value,
+body.storefront-shell:not(.storefront-dark) .sf-checkout-summary .sf-summary-row-value {
+  color: var(--sf-light-text) !important;
+  background: var(--sf-light-soft) !important;
+  border-color: var(--sf-light-border) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-cart-summary-card a[href="/checkout"] {
+  background: linear-gradient(135deg, #d4af37, #e5c158) !important;
+  color: #151515 !important;
+  -webkit-text-fill-color: #151515 !important;
+}
+
+/* Product-detail rails */
+body.storefront-shell:not(.storefront-dark) .sf-related-products,
+body.storefront-shell:not(.storefront-dark) .sf-recent-products {
+  border-color: var(--sf-light-border) !important;
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-recent-products {
+  background: var(--sf-light-surface) !important;
+  box-shadow: 0 16px 42px rgba(31, 29, 25, 0.1) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-related-products h2,
+body.storefront-shell:not(.storefront-dark) .sf-recent-products h2 {
+  color: var(--sf-light-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-related-products p,
+body.storefront-shell:not(.storefront-dark) .sf-recent-products p {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+/* Size guide */
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-page {
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-page h1,
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-page h2,
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-page h3 {
+  color: var(--sf-light-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-subtitle,
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-measure-intro,
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-heading p,
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-step p,
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-illustration > p {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-unit,
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-tab:not(.is-active),
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-step {
+  border-color: var(--sf-light-border) !important;
+  background: var(--sf-light-soft) !important;
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-tab.is-active {
+  border-color: rgba(164, 122, 18, 0.45) !important;
+  background: #fff7df !important;
+  color: #7b5900 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-card,
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-measure-card,
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-illustration {
+  border-color: var(--sf-light-border) !important;
+  background-color: var(--sf-light-surface) !important;
+  background-image: none !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 18px 50px rgba(31, 29, 25, 0.11) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-card :is(th, td, tr),
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-heading {
+  border-color: var(--sf-light-border) !important;
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-card thead tr {
+  background: var(--sf-light-soft) !important;
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-table-card tbody tr:hover {
+  background: #faf9f6 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-size-guide-illustration > div > div {
+  border-color: var(--sf-light-border) !important;
+  background: #ffffff !important;
+}
