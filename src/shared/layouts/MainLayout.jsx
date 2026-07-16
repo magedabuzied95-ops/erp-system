@@ -481,10 +481,33 @@ function WorkspaceBrandMark({ name, logoUrl, className = "" }) {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() || "")
     .join("") || "MONE";
+  const normalizedName = String(name || "").trim();
+  const normalizedLogoUrl = String(logoUrl || "").trim();
+  const isMOneBrand =
+    /(?:^|\s)m\s*(?:1|one)(?:\s|$)/i.test(normalizedName) ||
+    /\bmone\b/i.test(normalizedName.replace(/\s+/g, "")) ||
+    /\/branding\/m-one-(?:logo|wordmark)-/i.test(normalizedLogoUrl);
 
   return (
-    <div className={["flex shrink-0 items-center justify-center overflow-hidden border border-[var(--border)] bg-[var(--card)] text-sm font-black text-[var(--text)]", className].join(" ")}>
-      {logoUrl && !failed ? (
+    <div className={["flex shrink-0 items-center justify-center overflow-hidden border border-[var(--border)] bg-[var(--card)] text-sm font-black text-[var(--text)]", isMOneBrand ? "m1-workspace-logo" : "", className].join(" ")}>
+      {isMOneBrand ? (
+        <span className="relative block h-full w-full" aria-label={name || "M1 Store"} role="img">
+          <img
+            src="/branding/m-one-logo-white-fixed.png?v=20260716"
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-contain p-1.5"
+            draggable="false"
+          />
+          <img
+            src="/branding/m-one-logo-white-m.png?v=20260716"
+            alt=""
+            aria-hidden="true"
+            className="m1-workspace-logo__moving-m absolute inset-0 h-full w-full object-contain p-1.5"
+            draggable="false"
+          />
+        </span>
+      ) : logoUrl && !failed ? (
         <img
           src={logoUrl}
           alt={name}

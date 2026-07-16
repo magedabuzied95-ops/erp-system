@@ -5939,8 +5939,38 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   animation: sfHeaderLogoMVerticalSpin 11s ease-in-out infinite;
 }
 
+@keyframes m1WorkspaceLogoMVerticalSpin {
+  0% {
+    transform: perspective(220px) rotateY(0deg);
+  }
+  13.5%, 50% {
+    transform: perspective(220px) rotateY(180deg);
+  }
+  63.5%, 100% {
+    transform: perspective(220px) rotateY(360deg);
+  }
+}
+
+.m1-workspace-logo {
+  background:
+    radial-gradient(circle at 50% 15%, rgba(255, 255, 255, 0.10), transparent 42%),
+    linear-gradient(180deg, #050505 0%, #101010 52%, #030303 100%) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 12px 24px rgba(0, 0, 0, 0.22);
+}
+
+.m1-workspace-logo__moving-m {
+  transform-origin: 50% 50%;
+  transform-style: preserve-3d;
+  backface-visibility: visible;
+  will-change: transform;
+  animation: m1WorkspaceLogoMVerticalSpin 11s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .storefront-shell .sf-header-logo-moving-m {
+  .storefront-shell .sf-header-logo-moving-m,
+  .m1-workspace-logo__moving-m {
     animation: none;
   }
 }
