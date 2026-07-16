@@ -86,10 +86,10 @@ const withPaymentProofAliases = (order = {}) => {
 const VISUAL_SEARCH_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_SEARCH_MAX_BYTES || 8 * 1024 * 1024);
 const VISUAL_SEARCH_ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const VISUAL_HASH_SIZE = 8;
-const VISUAL_REMOTE_CANDIDATE_LIMIT = Number(process.env.STOREFRONT_VISUAL_REMOTE_CANDIDATE_LIMIT || 220);
+const VISUAL_REMOTE_CANDIDATE_LIMIT = Number(process.env.STOREFRONT_VISUAL_REMOTE_CANDIDATE_LIMIT || 520);
 const VISUAL_REMOTE_IMAGE_TIMEOUT_MS = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_TIMEOUT_MS || 1000);
 const VISUAL_REMOTE_IMAGE_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_MAX_BYTES || 3 * 1024 * 1024);
-const VISUAL_IMAGE_MATCH_CONCURRENCY = Number(process.env.STOREFRONT_VISUAL_IMAGE_MATCH_CONCURRENCY || 8);
+const VISUAL_IMAGE_MATCH_CONCURRENCY = Number(process.env.STOREFRONT_VISUAL_IMAGE_MATCH_CONCURRENCY || 12);
 const VISUAL_SIGNATURE_CACHE_LIMIT = Number(process.env.STOREFRONT_VISUAL_SIGNATURE_CACHE_LIMIT || 1200);
 let storefrontSchemaReadyPromise = null;
 let storefrontSchemaReady = false;
@@ -2035,6 +2035,44 @@ const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 
     .slice(0, limit);
 };
 
+const visualQueryFromUnderstanding = (understanding = null) => [
+  understanding?.detected?.brand_guess,
+  understanding?.detected?.model_guess,
+  understanding?.detected?.model_family,
+  understanding?.detected?.product_type,
+  understanding?.detected?.category,
+  understanding?.detected?.colors,
+  understanding?.detected?.main_colors,
+  understanding?.detected?.silhouette,
+  understanding?.detected?.sole_shape,
+  understanding?.detected?.materials,
+  understanding?.detected?.features,
+].flat().filter(Boolean).join(" ");
+
+const mergeImageSearchMatches = (...groups) => {
+  const bestByProduct = new Map();
+  for (const group of groups) {
+    for (const item of Array.isArray(group) ? group : []) {
+      const productId = Number(item.productId || item.product_id);
+      if (!Number.isFinite(productId) || productId <= 0) continue;
+      const rawScore = Number(item.score ?? item.finalScore ?? item.final_score ?? 0);
+      const score = rawScore <= 1 ? rawScore * 100 : rawScore;
+      const normalized = {
+        productId,
+        score: Math.max(0, Math.min(100, Math.round(score))),
+        reason: item.reason || item.match_reason || item.score_breakdown?.reasonWhyRankedFirst || (item.exact_image_match ? "visual_pro_exact" : "visual_similarity"),
+        distance: item.distance,
+        colorSimilarity: item.colorSimilarity,
+        variantId: item.variantId || item.variant_id || null,
+        scoreBreakdown: item.score_breakdown || item.scoreBreakdown || null,
+      };
+      const current = bestByProduct.get(String(productId));
+      if (!current || normalized.score > current.score) bestByProduct.set(String(productId), normalized);
+    }
+  }
+  return Array.from(bestByProduct.values()).sort((left, right) => right.score - left.score);
+};
+
 const visualKeywordsFromAi = (aiResult = {}) => {
   const suggestions = aiResult?.suggestions || {};
   return uniqueTerms([
@@ -3003,14 +3041,55 @@ export const imageSearchProducts = async (req, res) => {
     }
 
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
-    const imageMatches = await findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 12 }).catch((error) => {
+    let understanding = null;
+    try {
+      understanding = await understandProductImageForSearch({
+        imageBuffer: file.buffer,
+        mimeType: file.mimetype,
+        requestId: req.id || `storefront-image:${Date.now()}`,
+      });
+    } catch (error) {
+      console.warn("[storefront-image-search] vision understanding failed; continuing with local matching", {
+        tenantId,
+        message: error?.message || "vision failed",
+      });
+    }
+
+    const visualQuery = visualQueryFromUnderstanding(understanding);
+    let proSearch = { candidates: [], attributes: null, topMatches: [], reasonWhyFirstRanked: "" };
+    try {
+      proSearch = await searchAiVisualProductsPro({
+        tenantId,
+        detected: understanding?.detected || {},
+        visualQuery,
+        uploadedImageBuffer: file.buffer,
+        limit: 18,
+      });
+    } catch (error) {
+      console.warn("[storefront-image-search] pro visual search failed; continuing with local matching", {
+        tenantId,
+        message: error?.message || "pro visual search failed",
+      });
+    }
+
+    const proMatches = (Array.isArray(proSearch.candidates) ? proSearch.candidates : []).map((item) => ({
+      productId: item.product_id || item.productId,
+      variantId: item.variant_id || item.variantId,
+      score: item.finalScore ?? item.score ?? 0,
+      reason: item.exact_image_match ? "visual_pro_exact" : item.score_breakdown?.reasonWhyRankedFirst || "visual_pro",
+      exact_image_match: item.exact_image_match,
+      score_breakdown: item.score_breakdown || null,
+    }));
+
+    const imageMatches = await findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 18 }).catch((error) => {
       console.warn("[storefront-image-search] image similarity failed; continuing with fallback", {
         tenantId,
         message: error?.message || "image similarity failed",
       });
       return [];
     });
-    const matchedIds = [...new Set(imageMatches.map((item) => Number(item.productId)).filter((value) => Number.isFinite(value) && value > 0))];
+    const mergedMatches = mergeImageSearchMatches(proMatches, imageMatches).slice(0, 18);
+    const matchedIds = [...new Set(mergedMatches.map((item) => Number(item.productId)).filter((value) => Number.isFinite(value) && value > 0))];
 
     let products = matchedIds.length ? await queryProductsByIds(tenantId, matchedIds, pricingSettings) : [];
     products = matchedIds.length
@@ -3021,7 +3100,7 @@ export const imageSearchProducts = async (req, res) => {
     const exactMatches = [];
     const similarMatches = [];
 
-    for (const match of imageMatches) {
+    for (const match of mergedMatches) {
       const product = productsById.get(String(match.productId));
       if (!product) continue;
       const score = Math.max(0, Math.min(100, Math.round(Number(match.score || 0))));
@@ -3029,8 +3108,10 @@ export const imageSearchProducts = async (req, res) => {
         ...slimProductForList(product),
         confidence: score,
         score,
-        match_type: match.reason === "exact_sha256" ? "exact" : "similar",
+        match_type: match.reason === "exact_sha256" || match.reason === "visual_pro_exact" || score >= 95 ? "exact" : "similar",
         match_reason: match.reason || "",
+        matched_variant_id: match.variantId || null,
+        image_ranking_debug: match.scoreBreakdown || null,
       };
       if (score >= 95) {
         exactMatches.push(payload);
@@ -3047,12 +3128,12 @@ export const imageSearchProducts = async (req, res) => {
     if (!exactMatches.length && !similarMatches.length) {
       const fallback = await queryProducts(
         tenantId,
-        "",
+        visualQuery,
         inferredCategory,
         {
-          brand: inferredBrand,
+          brand: inferredBrand || proSearch.attributes?.brand || understanding?.detected?.brand_guess || "",
           gender: inferredGender,
-          productType: inferredProductType,
+          productType: inferredProductType || proSearch.attributes?.productType || understanding?.detected?.product_type || "",
           grade: [],
           quality: [],
           size: "",
@@ -3100,8 +3181,12 @@ export const imageSearchProducts = async (req, res) => {
       products: [...exactMatches, ...similarMatches],
       confidence,
       message,
-      source: imageMatches.length ? "local_visual_similarity" : exactMatches.length || similarMatches.length ? "metadata_fallback" : "image_search_empty",
-      fallback_used: !imageMatches.length,
+      source: proMatches.length ? "visual_pro_plus_local_similarity" : imageMatches.length ? "local_visual_similarity" : exactMatches.length || similarMatches.length ? "metadata_fallback" : "image_search_empty",
+      fallback_used: !mergedMatches.length,
+      visual_confidence: understanding?.confidence || 0,
+      visual_attributes: proSearch.attributes || understanding?.detected || null,
+      top_candidates: proSearch.topMatches || [],
+      top_rank_reason: proSearch.reasonWhyFirstRanked || "",
     });
   } catch (error) {
     console.error("[storefront-image-search] failed", {

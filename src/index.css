@@ -4910,6 +4910,29 @@ body.sf-mobile-search-scroll-lock {
   background: #0a0a0a;
 }
 
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel {
+  background:
+    radial-gradient(circle at 16% 0%, rgba(212, 175, 55, 0.06), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
+  color: #1c1917;
+}
+
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white,
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/95,
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/90,
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/86,
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/80,
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/75,
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/70,
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-white\/60 {
+  color: #1c1917 !important;
+}
+
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-stone-50,
+.storefront-shell:not(.storefront-dark) .sf-mobile-search-panel .text-stone-100 {
+  color: #292524 !important;
+}
+
 .sf-mobile-search-head {
   background: #0a0a0a;
 }

@@ -5564,11 +5564,11 @@ function SearchResultRow({ product, active, onPickProduct }) {
     <button
       type="button"
       onClick={() => onPickProduct(product)}
-      className={`flex items-center gap-3 rounded-[1.2rem] border p-2.5 text-right shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition hover:-translate-y-px active:scale-[0.99] dark:shadow-[0_14px_26px_rgba(0,0,0,0.22)] ${active ? "border-[var(--sf-purple)] bg-[rgba(212,175,55,0.10)] dark:bg-white/[0.08]" : "border-stone-200/80 bg-white/92 hover:border-[var(--sf-purple)] hover:bg-[var(--sf-cream)] dark:border-white/10 dark:bg-white/[0.045] dark:hover:bg-white/[0.06]"}`}
+      className={`flex items-center gap-3 rounded-[1.2rem] border p-2.5 text-right text-stone-950 shadow-[0_10px_22px_rgba(15,23,42,0.05)] transition hover:-translate-y-px active:scale-[0.99] dark:text-white dark:shadow-[0_14px_26px_rgba(0,0,0,0.22)] ${active ? "border-[var(--sf-purple)] bg-[rgba(212,175,55,0.10)] dark:bg-white/[0.08]" : "border-stone-200/80 bg-white/92 hover:border-[var(--sf-purple)] hover:bg-[var(--sf-cream)] dark:border-white/10 dark:bg-white/[0.045] dark:hover:bg-white/[0.06]"}`}
     >
       <img src={imageFor(product.image_url)} alt="" className="h-14 w-14 rounded-2xl bg-stone-100 object-cover shadow-sm dark:bg-white/5" loading="lazy" />
       <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-black">{product.name}</div>
+        <div className="truncate text-sm font-black text-stone-950 dark:text-white">{product.name}</div>
         <div className="truncate text-xs font-bold text-stone-500 dark:text-stone-400">
           {[product.category, product.brand, product.style, product.grade].filter(Boolean).join(" / ") || product.sizes?.slice(0, 4).join(" / ") || "Browse items"}
         </div>
