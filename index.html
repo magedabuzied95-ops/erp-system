@@ -69,7 +69,7 @@
           var posMatch = path === "/pos" || path.indexOf("/pos/") === 0;
           var manifestHref = "/manifest.webmanifest?v=global";
           if (inboxMatch) {
-            manifestHref = "/inbox-manifest.webmanifest?v=1";
+            manifestHref = "/inbox-manifest.webmanifest?v=3";
             if (window.localStorage) {
               var inboxUrl = path + window.location.search;
               window.localStorage.setItem("ai_inbox_last_url", inboxUrl);
@@ -92,7 +92,7 @@
               window.localStorage.setItem("portal_last_url", managerUrl);
             }
           } else if (posMatch) {
-            manifestHref = "/pos-manifest.webmanifest?v=9";
+            manifestHref = "/pos-manifest.webmanifest?v=10";
           }
           manifest.setAttribute("href", manifestHref);
           document.head.appendChild(manifest);
@@ -112,12 +112,12 @@
 
             var posTouchIcon = document.querySelector('link[rel="apple-touch-icon"]') || document.createElement("link");
             posTouchIcon.setAttribute("rel", "apple-touch-icon");
-            posTouchIcon.setAttribute("href", "/icons/pos-180.png?v=9");
+            posTouchIcon.setAttribute("href", "/icons/pos-180.png?v=10");
             if (!posTouchIcon.parentNode) document.head.appendChild(posTouchIcon);
 
             if ("serviceWorker" in navigator) {
               window.addEventListener("load", function () {
-                navigator.serviceWorker.register("/pos-sw.js?v=9", { scope: "/pos" }).then(function (registration) {
+                navigator.serviceWorker.register("/pos-sw.js?v=10", { scope: "/pos" }).then(function (registration) {
                   if (registration && registration.update) registration.update().catch(function () {});
                 }).catch(function () {});
               }, { once: true });

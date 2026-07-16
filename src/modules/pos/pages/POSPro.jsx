@@ -153,9 +153,9 @@ const isStandaloneDisplayMode = () =>
 
 const POS_LAST_SALESPERSON_KEY = "pos.lastSalespersonId";
 const POS_USE_SALE_PRICES_KEY = "pos.useSalePrices";
-const POS_MANIFEST_HREF = "/pos-manifest.webmanifest?v=9";
+const POS_MANIFEST_HREF = "/pos-manifest.webmanifest?v=10";
 const POS_SERVICE_WORKER_HREF = "/pos-sw.js";
-const POS_SERVICE_WORKER_VERSION = 9;
+const POS_SERVICE_WORKER_VERSION = 10;
 const POS_APP_TITLE = buildPageTitle("POS");
 const POS_APP_SHORT_TITLE = "POS";
 const POS_THEME_COLOR = "#07111f";

@@ -241,19 +241,19 @@ const employeePortalManifest = (token) => ({
   theme_color: "#0f172a",
   icons: [
     {
-      src: "/icons/employee-portal-192.png",
+      src: "/icons/employee-portal-192.png?v=10",
       sizes: "192x192",
       type: "image/png",
       purpose: "any maskable",
     },
     {
-      src: "/icons/employee-portal-512.png",
+      src: "/icons/employee-portal-512.png?v=10",
       sizes: "512x512",
       type: "image/png",
       purpose: "any maskable",
     },
     {
-      src: "/apple-touch-icon.png",
+      src: "/apple-touch-icon.png?v=10",
       sizes: "180x180",
       type: "image/png",
       purpose: "any",
