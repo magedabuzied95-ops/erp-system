@@ -5820,8 +5820,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [productIdentifier, requestDetailPrefetch]);
   const cardDensityClasses = {
     hero: {
-      image: "aspect-[0.68/1] p-[1.75px] md:p-[2.5px]",
-      body: "px-[13px] pb-[13px] pt-[6px]",
+      image: "aspect-[0.9/1] p-0",
+      body: "px-[12px] pb-[10px] pt-[5px]",
       title: "min-h-10 text-[12.75px] leading-[1.22rem]",
       price: "text-[16.5px]",
       sizes: "gap-1.5",
@@ -5830,8 +5830,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       swatch: "h-3.5 w-3.5",
     },
     standard: {
-      image: "aspect-[0.7/1] p-[1.75px] md:p-[2.5px]",
-      body: "px-[12px] pb-[13px] pt-[6px] md:px-[13px]",
+      image: "aspect-[0.92/1] p-0",
+      body: "px-[11px] pb-[10px] pt-[5px] md:px-[12px]",
       title: "min-h-10 text-[13px] leading-[1.2rem]",
       price: "text-[16.25px]",
       sizes: "gap-1.5",
@@ -5840,8 +5840,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       swatch: "h-3.5 w-3.5",
     },
     compact: {
-      image: "aspect-[0.74/1] p-[1.75px] md:p-[2.5px]",
-      body: "px-[12px] pb-[12px] pt-[6px] md:px-[13px]",
+      image: "aspect-[0.96/1] p-0",
+      body: "px-[11px] pb-[9px] pt-[5px] md:px-[12px]",
       title: "min-h-9 text-[12.75px] leading-[1.18rem]",
       price: "text-[15.75px]",
       sizes: "gap-1.25",
@@ -5861,9 +5861,9 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   }, [discountPercent, parsedSaleModeEnabled]);
 
   return (
-    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.45rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ring-1 ring-white/[0.045] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#d4af37]/30 hover:shadow-[0_18px_42px_rgba(15,23,42,0.12)] active:translate-y-[1px] active:scale-[0.995] touch-manipulation md:rounded-[1.7rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#d4af37]/22 dark:hover:shadow-[0_20px_34px_rgba(0,0,0,0.26)] ${featured ? "md:shadow-[0_16px_38px_rgba(212,175,55,0.08)]" : ""}`}>
-      <div className="pointer-events-none absolute inset-x-8 top-6 h-16 rounded-full bg-[rgba(212,175,55,0)] transition duration-200 group-hover/product:bg-[rgba(212,175,55,0.075)]" />
-      <div className={`relative overflow-hidden rounded-[1.05rem] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] ring-1 ring-white/[0.04] md:rounded-[1.2rem] md:p-3 dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/10 ${densityClasses.image}`}>
+    <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 340px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.45rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ring-1 ring-white/[0.045] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#d90429]/35 hover:shadow-[0_18px_42px_rgba(160,10,28,0.14)] active:translate-y-[1px] active:scale-[0.995] touch-manipulation md:rounded-[1.7rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#ff334d]/35 dark:hover:shadow-[0_20px_34px_rgba(125,8,23,0.3)] ${featured ? "md:shadow-[0_16px_38px_rgba(217,4,41,0.12)]" : ""}`}>
+      <div className="pointer-events-none absolute inset-x-8 top-6 h-16 rounded-full bg-[rgba(217,4,41,0)] transition duration-200 group-hover/product:bg-[rgba(217,4,41,0.08)]" />
+      <div className={`relative overflow-hidden rounded-[1.05rem] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] ring-1 ring-white/[0.04] md:rounded-[1.2rem] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/10 ${densityClasses.image}`}>
         <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full active:opacity-95">
           {displayImage ? (
             <div
@@ -5883,8 +5883,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                 {...responsiveImageProps(displayImage, imagePreset)}
                 alt={product.name}
                 onError={fallbackProductImage}
-                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:scale-[1.03] md:group-active/product:scale-[1.015] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/product:opacity-0" : "md:group-hover/product:opacity-100"}`}
-                style={{ backfaceVisibility: "hidden", transform: "translateZ(0)" }}
+                className={`sf-card-primary-image pointer-events-none absolute inset-0 z-[1] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-100 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:scale-[1.11] md:group-active/product:scale-[1.09] ${hasReadySecondaryImage && secondaryImageReady ? "md:group-hover/product:opacity-0" : "md:group-hover/product:opacity-100"}`}
+                style={{ backfaceVisibility: "hidden" }}
                 loading={eagerImage ? "eager" : "lazy"}
                 decoding="async"
                 width="360"
@@ -5897,8 +5897,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   alt={product.name}
                   aria-hidden="true"
                   onError={fallbackProductImage}
-                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:scale-[1.01] md:group-hover/product:opacity-100 md:group-active/product:opacity-95"
-                  style={{ backfaceVisibility: "hidden", transform: "translateZ(0)" }}
+                  className="sf-card-secondary-image pointer-events-none absolute inset-0 z-[2] h-full w-full scale-[1.08] transform-gpu rounded-[0.95rem] object-contain object-center opacity-0 transition-[opacity,transform] duration-[140ms] ease-[cubic-bezier(0.16,1,0.3,1)] will-change-[opacity,transform] md:rounded-[1.05rem] md:group-hover/product:scale-[1.1] md:group-hover/product:opacity-100 md:group-active/product:opacity-95"
+                  style={{ backfaceVisibility: "hidden" }}
                   loading="lazy"
                   decoding="async"
                   width="360"
@@ -5941,7 +5941,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             onClick={(event) => event.stopPropagation()}
             aria-label={`عرض منتجات ${brandLabel}`}
             dir="ltr"
-            className="line-clamp-1 flex min-h-[1rem] w-full max-w-full items-start text-left text-[11px] font-bold leading-4 text-stone-700 transition hover:text-[#d4af37] hover:underline focus-visible:text-[#d4af37] focus-visible:underline focus-visible:outline-none dark:text-stone-300 dark:hover:text-[#f3d77a] md:min-h-[1.05rem]"
+            className="line-clamp-1 flex min-h-[1rem] w-full max-w-full items-start text-left text-[11px] font-bold leading-4 text-stone-700 transition hover:text-[#c1121f] hover:underline focus-visible:text-[#c1121f] focus-visible:underline focus-visible:outline-none dark:text-stone-300 dark:hover:text-[#ff6574] md:min-h-[1.05rem]"
           >
             {brandLabel}
           </Link>
@@ -5950,13 +5950,13 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
           to={detailsUrl}
           onClick={resetStorefrontViewportScroll}
           dir="ltr"
-          className={`mt-0 flex min-h-[2.55rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition duration-200 hover:text-[#d4af37] md:min-h-[2.85rem] md:text-[13.5px] md:leading-5 dark:text-stone-100 ${densityClasses.title}`}
+          className={`mt-0 flex min-h-[2.4rem] w-full items-start text-left line-clamp-2 overflow-hidden font-black tracking-[-0.01em] text-stone-900 transition duration-200 hover:text-[#c1121f] md:min-h-[2.55rem] md:text-[13.5px] md:leading-5 dark:text-stone-100 dark:hover:text-[#ff6574] ${densityClasses.title}`}
         >
           {product.name}
         </Link>
         <div className="mt-[4px] flex min-h-[2.35rem] items-center justify-between gap-2 md:min-h-[2.35rem]">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className={`font-black leading-none text-[#d4af37] md:text-[1.18rem] dark:text-[#f3d77a] ${densityClasses.price}`}>{money(sellingPrice)}</span>
+            <span className={`sf-product-card-price font-black leading-none text-[#c1121f] md:text-[1.18rem] dark:text-[#ff6574] ${densityClasses.price}`}>{money(sellingPrice)}</span>
             {comparePrice ? <span className="text-[9px] font-semibold leading-none text-stone-400 line-through opacity-80 dark:text-stone-500 md:text-[9.5px]">{money(comparePrice)}</span> : null}
           </div>
           <button
@@ -5984,7 +5984,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   onClick={(event) => chooseColor(event, group)}
                   title={group.colorName || group.color}
                   aria-label={group.colorName || group.color}
-                  className={`grid shrink-0 place-items-center rounded-full border transition duration-200 active:scale-95 md:h-7 md:w-7 ${densityClasses.color} ${active ? "border-[#d4af37] bg-[rgba(212,175,55,0.12)] shadow-[0_0_0_2px_rgba(212,175,55,0.12)] dark:border-[#e5c158] dark:bg-[rgba(212,175,55,0.12)]" : "border-stone-200 bg-white/70 hover:border-[#d4af37]/35 dark:border-white/10 dark:bg-white/[0.055]"}`}
+                className={`grid shrink-0 place-items-center rounded-full border transition duration-200 active:scale-95 md:h-7 md:w-7 ${densityClasses.color} ${active ? "border-[#d90429] bg-[rgba(217,4,41,0.1)] shadow-[0_0_0_2px_rgba(217,4,41,0.12)] dark:border-[#ff334d] dark:bg-[rgba(217,4,41,0.14)]" : "border-stone-200 bg-white/70 hover:border-[#d90429]/40 dark:border-white/10 dark:bg-white/[0.055]"}`}
                 >
                   <span className={`rounded-full border border-black/10 shadow-inner md:h-4 md:w-4 ${densityClasses.swatch}`} style={swatchColorStyle(group.colorName || group.color)} />
                 </button>
@@ -6001,7 +6001,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               event.stopPropagation();
               navigate(buildSizeGuidePath(resolveSizeGuideTypeForProduct(product)));
             }}
-            className="sf-size-guide-chip inline-flex h-6 shrink-0 whitespace-nowrap items-center justify-center rounded-full border border-stone-200 bg-white px-2.5 text-[9px] font-black text-stone-600 shadow-sm transition duration-200 hover:border-[#b68a2c]/40 hover:text-[#7b5318] active:translate-y-[1px] active:scale-[0.98] md:px-3 dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-200 dark:hover:border-[#d8b75f]/45 dark:hover:text-[#d8b75f]"
+            className="sf-size-guide-chip inline-flex h-6 shrink-0 whitespace-nowrap items-center justify-center rounded-full border border-stone-200 bg-white px-2.5 text-[9px] font-black text-stone-600 shadow-sm transition duration-200 hover:border-[#d90429]/40 hover:text-[#c1121f] active:translate-y-[1px] active:scale-[0.98] md:px-3 dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-200 dark:hover:border-[#ff334d]/55 dark:hover:text-[#ff6574]"
           >
             {t("storefront.products.sizeGuide", "\u062f\u0644\u064a\u0644 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a")}
           </button>
@@ -6013,7 +6013,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
                   key={`${activeColorGroup?.key || "default"}-${size}`}
                   type="button"
                   onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
-                  className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 active:translate-y-[1px] active:scale-[0.98] md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#d4af37] bg-[linear-gradient(135deg,#d4af37,#d4af37)] text-white shadow-[0_8px_18px_rgba(212,175,55,0.12)] ring-1 ring-[#f3d77a]/12 dark:border-[#f3d77a] dark:bg-[linear-gradient(135deg,#e5c158,#d4af37)] dark:text-white dark:ring-[#f3d77a]/14" : "border-stone-300/90 bg-white text-stone-700 shadow-none hover:border-[#d4af37]/35 hover:bg-[#faf7ff] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#f3d77a]/45 dark:hover:bg-white/[0.08] dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
+                  className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 active:translate-y-[1px] active:scale-[0.98] md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#d90429] bg-[linear-gradient(135deg,#c1121f,#ef233c)] text-white shadow-[0_8px_18px_rgba(193,18,31,0.2)] ring-1 ring-[#ff6574]/18 dark:border-[#ff6574] dark:bg-[linear-gradient(135deg,#d90429,#ef233c)] dark:text-white dark:ring-[#ff6574]/18" : "border-stone-300/90 bg-white text-stone-700 shadow-none hover:border-[#d90429]/40 hover:bg-[#fff5f6] hover:text-[#c1121f] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#ff6574]/55 dark:hover:bg-white/[0.08] dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
                 >
                   {size}
                 </button>

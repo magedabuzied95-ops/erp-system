@@ -46,6 +46,15 @@ test("catalog heading and result count keep readable light-mode contrast", () =>
   assert.match(lightStyles, /\.sf-catalog-count[\s\S]*?color:\s*var\(--sf-light-text-secondary\)\s*!important/);
 });
 
+test("product card red experiment stays compact and scoped to product cards", () => {
+  assert.match(storefrontSource, /standard:\s*\{[\s\S]*?image:\s*"aspect-\[0\.92\/1\] p-0"/);
+  assert.match(storefrontSource, /compact:\s*\{[\s\S]*?image:\s*"aspect-\[0\.96\/1\] p-0"/);
+  assert.match(storefrontSource, /sf-card-primary-image[^`]*scale-\[1\.08\]/);
+  assert.match(storefrontSource, /sf-product-card-price[^`]*text-\[#c1121f\]/);
+  assert.match(styles, /\.storefront-shell \.sf-product-card \.sf-quick-add-button \{[\s\S]*?background:\s*linear-gradient\(135deg, #c1121f 0%, #d90429 48%, #ef233c 100%\)\s*!important/);
+  assert.doesNotMatch(styles, /\.storefront-shell \.sf-quick-add-button,\s*\n\.storefront-shell \.sf-wishlist-add-button/);
+});
+
 test("mobile dark palette is scoped to dark storefronts", () => {
   const mediaStart = styles.indexOf("@media (max-width: 1023px)", styles.indexOf("@media (max-width: 1023px)") + 1);
   const blockStart = styles.indexOf(".storefront-shell.storefront-dark {", mediaStart);
