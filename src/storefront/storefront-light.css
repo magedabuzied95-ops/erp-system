@@ -222,6 +222,11 @@ body.storefront-shell:not(.storefront-dark) .sf-product-listing-page section[cla
 }
 
 /* Cart and checkout summaries */
+.sf-cart-row,
+.sf-cart-summary-card {
+  background: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%);
+}
+
 body.storefront-shell:not(.storefront-dark) .sf-cart-page {
   color: var(--sf-light-text) !important;
 }

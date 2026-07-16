@@ -261,7 +261,7 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
     <div dir="rtl" className="sf-cart-page mt-5 grid gap-5 lg:grid-cols-[1fr_320px]">
       <div className="space-y-3">
         {cart.map((item) => (
-        <div key={item.lineId} dir="rtl" className="sf-order-item-row sf-cart-row flex gap-3 rounded-3xl border border-white/8 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-3 text-right text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]">
+        <div key={item.lineId} dir="rtl" className="sf-order-item-row sf-cart-row flex gap-3 rounded-3xl border border-white/8 p-3 text-right text-white shadow-[0_16px_42px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.04)]">
             <img src={imageFor(item.image_url)} onError={fallbackProductImage} alt="" className="h-24 w-24 rounded-2xl object-cover" loading="lazy" decoding="async" width="96" height="96" />
             <div className="min-w-0 flex-1">
               <div className="font-black text-white">{item.name}</div>
@@ -280,7 +280,7 @@ function CartContent({ cart, updateCart, removeFromCart, helpers, components }) 
           </div>
         ))}
       </div>
-      <aside dir="rtl" className="sf-storefront-card sf-checkout-summary h-max rounded-3xl border border-white/8 bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-5 text-right text-white shadow-[0_18px_52px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)]">
+      <aside dir="rtl" className="sf-storefront-card sf-cart-summary-card sf-checkout-summary h-max rounded-3xl border border-white/8 p-5 text-right text-white shadow-[0_18px_52px_rgba(0,0,0,0.32),inset_0_1px_0_rgba(255,255,255,0.04)]">
         <h2 className="text-xl font-black text-white">ملخص الطلب</h2>
         <SummaryRow rtl dark label="المنتجات" value={money(subtotal)} />
         <SummaryRow rtl dark label="الشحن التقديري" value={money(0)} />
