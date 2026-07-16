@@ -46,13 +46,13 @@ test("catalog heading and result count keep readable light-mode contrast", () =>
   assert.match(lightStyles, /\.sf-catalog-count[\s\S]*?color:\s*var\(--sf-light-text-secondary\)\s*!important/);
 });
 
-test("product card red experiment stays compact and scoped to product cards", () => {
+test("product card stays compact with enlarged imagery and the gold storefront accent", () => {
   assert.match(storefrontSource, /standard:\s*\{[\s\S]*?image:\s*"aspect-\[0\.92\/1\] p-0"/);
   assert.match(storefrontSource, /compact:\s*\{[\s\S]*?image:\s*"aspect-\[0\.96\/1\] p-0"/);
   assert.match(storefrontSource, /sf-card-primary-image[^`]*scale-\[1\.08\]/);
-  assert.match(storefrontSource, /sf-product-card-price[^`]*text-\[#c1121f\]/);
-  assert.match(styles, /\.storefront-shell \.sf-product-card \.sf-quick-add-button \{[\s\S]*?background:\s*linear-gradient\(135deg, #c1121f 0%, #d90429 48%, #ef233c 100%\)\s*!important/);
-  assert.doesNotMatch(styles, /\.storefront-shell \.sf-quick-add-button,\s*\n\.storefront-shell \.sf-wishlist-add-button/);
+  assert.match(storefrontSource, /sf-product-card-price[^`]*text-\[#d4af37\]/);
+  assert.match(styles, /\.storefront-shell \.sf-storefront-gold-badge,\s*\n\.storefront-shell \.sf-quick-add-button,\s*\n\.storefront-shell \.sf-wishlist-add-button/);
+  assert.doesNotMatch(storefrontSource, /#d90429|#c1121f|#ef233c|#ff334d|#ff6574/);
 });
 
 test("mobile dark palette is scoped to dark storefronts", () => {

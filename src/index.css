@@ -6225,6 +6225,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .storefront-shell .sf-storefront-gold-badge,
+.storefront-shell .sf-quick-add-button,
 .storefront-shell .sf-wishlist-add-button {
   border-color: rgba(216, 183, 95, 0.34) !important;
   background: var(--sf-premium-gold-gradient) !important;
@@ -6239,24 +6240,12 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .storefront-shell .sf-product-card .sf-quick-add-button {
-  border-color: rgba(255, 101, 116, 0.52) !important;
-  background: linear-gradient(135deg, #c1121f 0%, #d90429 48%, #ef233c 100%) !important;
-  color: #ffffff !important;
-  box-shadow: 0 10px 24px rgba(193, 18, 31, 0.24) !important;
-  -webkit-text-fill-color: currentColor !important;
-}
-
-.storefront-shell .sf-product-card .sf-storefront-gold-badge {
-  border-color: rgba(255, 101, 116, 0.48) !important;
-  background: linear-gradient(135deg, #c1121f 0%, #d90429 52%, #ef233c 100%) !important;
-  color: #ffffff !important;
-  box-shadow: 0 9px 22px rgba(193, 18, 31, 0.24) !important;
-  text-shadow: none;
+  color: #1f1606 !important;
 }
 
 .storefront-shell .sf-product-card .sf-quick-add-button:hover {
-  border-color: rgba(255, 126, 138, 0.72) !important;
-  box-shadow: 0 14px 30px rgba(160, 10, 28, 0.32) !important;
+  border-color: rgba(216, 183, 95, 0.54) !important;
+  box-shadow: 0 14px 30px rgba(118, 78, 18, 0.28) !important;
 }
 
 .sf-mobile-bottom-nav__surface {
