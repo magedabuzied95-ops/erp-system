@@ -5854,7 +5854,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       image: "aspect-[0.9/1] p-0",
       body: "px-[12px] pb-[10px] pt-[5px]",
       title: "min-h-10 text-[12.75px] leading-[1.22rem]",
-      price: "text-[16.5px]",
+      price: "text-[18.25px]",
       sizes: "gap-1.5",
       chip: "h-6 px-2 text-[8.5px]",
       color: "h-6 w-6",
@@ -5864,7 +5864,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       image: "aspect-[0.92/1] p-0",
       body: "px-[11px] pb-[10px] pt-[5px] md:px-[12px]",
       title: "min-h-10 text-[13px] leading-[1.2rem]",
-      price: "text-[16.25px]",
+      price: "text-[18px]",
       sizes: "gap-1.5",
       chip: "h-6 px-2 text-[8.5px]",
       color: "h-[22px] w-[22px]",
@@ -5874,7 +5874,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       image: "aspect-[0.96/1] p-0",
       body: "px-[11px] pb-[9px] pt-[5px] md:px-[12px]",
       title: "min-h-9 text-[12.75px] leading-[1.18rem]",
-      price: "text-[15.75px]",
+      price: "text-[17.25px]",
       sizes: "gap-1.25",
       chip: "h-6 px-2 text-[8.5px]",
       color: "h-6 w-6",
@@ -5987,7 +5987,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         </Link>
         <div className="mt-[4px] flex min-h-[2.35rem] items-center justify-between gap-2 md:min-h-[2.35rem]">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.18rem] dark:text-[#f3d77a] ${densityClasses.price}`}>{money(sellingPrice)}</span>
+            <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.24rem] dark:text-[#f3d77a] ${densityClasses.price}`}>{money(sellingPrice)}</span>
             {comparePrice ? <span className="text-[9px] font-semibold leading-none text-stone-400 line-through opacity-80 dark:text-stone-500 md:text-[9.5px]">{money(comparePrice)}</span> : null}
           </div>
           <button
@@ -5997,11 +5997,11 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               openVariantSheet();
             }}
             disabled={!canQuickAdd}
-            className="sf-quick-add-button inline-flex shrink-0 items-center gap-1.5 rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] px-3.5 py-1.5 text-[10px] font-black leading-none text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_14px_30px_rgba(212,175,55,0.24)] active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
+            className="sf-quick-add-button inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#d4af37]/28 bg-[linear-gradient(135deg,#d4af37,#e5c158)] p-0 text-stone-950 shadow-[0_10px_24px_rgba(212,175,55,0.18)] transition duration-200 hover:-translate-y-0.5 hover:border-[#e5c158]/45 hover:shadow-[0_14px_30px_rgba(212,175,55,0.24)] active:translate-y-[1px] active:scale-[0.98] touch-manipulation disabled:cursor-not-allowed disabled:border-white/10 disabled:from-stone-500/70 disabled:via-stone-500/70 disabled:to-stone-600/70 disabled:text-white/60 disabled:shadow-none disabled:hover:scale-100 md:pointer-events-none md:translate-y-1 md:opacity-0 md:transition-[opacity,transform] md:group-hover/product:pointer-events-auto md:group-hover/product:translate-y-0 md:group-hover/product:opacity-100 md:group-active/product:opacity-100"
             aria-label={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
+            title={canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}
           >
-            <ShoppingCart className="h-3.5 w-3.5" />
-            <span className="whitespace-nowrap">{canQuickAdd ? t("storefront.cart.addToCart") : t("storefront.products.unavailable")}</span>
+            <ShoppingCart className="h-[18px] w-[18px]" />
           </button>
         </div>
         {colorGroups.length > 1 ? (
