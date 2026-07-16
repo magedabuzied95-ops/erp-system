@@ -6056,6 +6056,44 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   color: #171715 !important;
 }
 
+.storefront-shell .sf-whatsapp-float {
+  right: max(14px, env(safe-area-inset-right)) !important;
+  bottom: calc(var(--mobile-bottom-nav-height, 58px) + env(safe-area-inset-bottom) + 1rem) !important;
+  width: 46px !important;
+  height: 46px !important;
+  border: 2px solid rgba(255, 255, 255, 0.96) !important;
+  background: #25d366 !important;
+  color: #ffffff !important;
+  box-shadow:
+    0 8px 24px rgba(37, 211, 102, 0.34),
+    0 2px 7px rgba(0, 0, 0, 0.24) !important;
+}
+
+.storefront-shell .sf-whatsapp-float:hover {
+  background: #20bd5a !important;
+}
+
+.storefront-shell .sf-whatsapp-float svg {
+  width: 28px !important;
+  height: 28px !important;
+  color: #ffffff !important;
+  fill: currentColor !important;
+}
+
+@media (min-width: 768px) {
+  .storefront-shell .sf-whatsapp-float {
+    right: max(24px, env(safe-area-inset-right)) !important;
+    bottom: max(24px, env(safe-area-inset-bottom)) !important;
+    width: 48px !important;
+    height: 48px !important;
+  }
+
+  .storefront-shell .sf-whatsapp-float svg {
+    width: 29px !important;
+    height: 29px !important;
+  }
+}
+
 @media (min-width: 640px) {
   .sf-home-hero-v2 .sf-hero-image-transition {
     --sf-hero-image-scale: 1;

@@ -10217,9 +10217,9 @@ function Storefront() {
           target="_blank"
           rel="noreferrer"
           aria-label="WhatsApp"
-          className="fixed bottom-[calc(105px+env(safe-area-inset-bottom))] right-[14px] z-[70] grid h-[40px] w-[40px] place-items-center rounded-full bg-[#25D366] text-white shadow-[0_6px_20px_rgba(37,211,102,0.35)] transition duration-200 hover:scale-110 hover:bg-[#25D366] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/40 md:bottom-6 md:right-6 md:h-[42px] md:w-[42px]"
+          className="sf-whatsapp-float fixed z-[70] grid place-items-center rounded-full transition duration-200 hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/45"
         >
-          <FaWhatsapp className="h-[24px] w-[24px] text-white" />
+          <FaWhatsapp aria-hidden="true" />
         </a>
       ) : null}
       {showMobileBottomNav && !isOfferStoryPage ? (
