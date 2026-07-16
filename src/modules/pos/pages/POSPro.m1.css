@@ -1,5 +1,11 @@
 /* POS-specific theme bridge. Keeps the commercial dark palette intact while
    giving light mode its own readable surfaces instead of recoloring utilities globally. */
+@media (min-width: 1280px) {
+  .pos-pro-shell .pos-main-layout {
+    grid-template-columns: minmax(0, 12fr) minmax(0, 13fr);
+  }
+}
+
 html[data-theme="light"] .pos-pro-shell {
   --pos-light-bg: #f3f1ec;
   --pos-light-surface: #ffffff;

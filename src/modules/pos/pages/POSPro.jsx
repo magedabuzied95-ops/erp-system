@@ -7124,7 +7124,7 @@ function POSPro() {
           </div>
         ) : null}
 
-        <div className="grid min-w-0 flex-none gap-2 lg:min-h-0 lg:flex-1 lg:gap-3 xl:grid-cols-[minmax(0,48%)_minmax(0,52%)] 2xl:grid-cols-[minmax(0,48%)_minmax(0,52%)]">
+        <div className="pos-main-layout grid min-w-0 flex-none gap-2 lg:min-h-0 lg:flex-1 lg:gap-3">
           <section className="pos-catalog-panel min-w-0 self-start overflow-visible rounded-none border-0 bg-transparent p-0 shadow-none lg:flex lg:min-h-0 lg:self-stretch lg:overflow-hidden lg:rounded-2xl lg:border lg:border-white/10 lg:bg-white/5 lg:p-2 lg:shadow-xl lg:shadow-black/10 lg:backdrop-blur">
             <div className="min-w-0 space-y-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
             <div className="pos-catalog-toolbar relative z-30 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl lg:sticky lg:top-[calc(env(safe-area-inset-top)+4.9rem)] xl:static xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
