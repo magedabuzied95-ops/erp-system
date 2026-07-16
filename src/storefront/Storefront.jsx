@@ -9126,7 +9126,7 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
 
   useEffect(() => {
     if (categoriesOpen) setCategoriesOpen(false);
-  }, [categoriesOpen, location.pathname, location.search]);
+  }, [location.pathname, location.search]);
 
   if (!isVisible) return null;
 
