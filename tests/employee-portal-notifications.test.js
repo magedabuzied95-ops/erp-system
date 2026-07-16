@@ -36,9 +36,20 @@ test("manager chat persists an in-app notification and delivers system push unle
   assert.match(chat, /markPersistedRead:\s*employeeChatIsActive/);
   assert.match(portal, /employeeChatActive:\s*true/);
   assert.match(portal, /isChatNotification/);
+  assert.match(portal, /employee-chat:new-message/);
+  assert.match(portal, /receivedChatNotificationIdsRef/);
+  assert.match(portal, /rememberChatNotification/);
   assert.match(portal, /unreadChats:\s*chatOpen\s*\?\s*0/);
   assert.match(serviceWorker, /silent:\s*false/);
   assert.match(serviceWorker, /vibrate:\s*\[200,\s*100,\s*200\]/);
+});
+
+test("manager chat notification falls back to the employee tenant for legacy threads", () => {
+  const chat = source("server/services/employeeChatService.js");
+
+  assert.match(chat, /e\.tenant_id AS employee_tenant_id/);
+  assert.match(chat, /thread\.tenant_id\s*\|\|\s*thread\.employee_tenant_id\s*\|\|\s*tenantId/);
+  assert.match(chat, /tenantId:\s*notificationTenantId/);
 });
 
 test("shared shortage alerts use employee-specific read receipts", () => {

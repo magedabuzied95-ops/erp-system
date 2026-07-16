@@ -1396,6 +1396,7 @@ export default function EmployeePayrollPortal() {
   const [notificationSeenVersion, setNotificationSeenVersion] = useState(0);
   const chatSocketRef = useRef(null);
   const requestSocketRef = useRef(null);
+  const receivedChatNotificationIdsRef = useRef(new Set());
   const toastTimerRef = useRef(null);
   const chatFileInputRef = useRef(null);
   const chatInputRef = useRef(null);
@@ -2067,22 +2068,52 @@ export default function EmployeePayrollPortal() {
       setPortalNotice(notice);
       loadPortalByToken({ silent: true, clearNotice: false });
     };
+    const rememberChatNotification = (messageId) => {
+      const key = String(messageId || "").trim();
+      if (!key) return false;
+      const seen = receivedChatNotificationIdsRef.current;
+      if (seen.has(key)) return true;
+      seen.add(key);
+      if (seen.size > 200) seen.delete(seen.values().next().value);
+      return false;
+    };
+    const onIncomingChatMessage = (event = {}) => {
+      const message = event.message || event;
+      if (String(message.sender_type || "").toLowerCase() !== "admin" || !message.id) return;
+      if (rememberChatNotification(message.id) || chatOpen) return;
+      const preview = String(message.body || "").trim();
+      const notice = preview
+        ? `رسالة جديدة من الإدارة: ${preview.length > 80 ? `${preview.slice(0, 77)}...` : preview}`
+        : "لديك رسالة جديدة من الإدارة";
+      showPortalToast(notice);
+      setPortalNotice(notice);
+      setBadgeCounts((current) => ({
+        ...current,
+        unreadChats: Number(current.unreadChats || 0) + 1,
+      }));
+      loadPortalByToken({ silent: true, clearNotice: false });
+    };
     const onPortalNotification = (event = {}) => {
       const notification = event.notification || event;
       if (String(notification.employee_id || "") !== String(profile.id || "")) return;
       const notificationType = String(notification.type || notification.metadata?.event || notification.metadata?.tag || "").trim().toLowerCase();
       const isChatNotification = notificationType === "employee_chat_message" || notificationType === "employee-chat";
+      const chatNotificationAlreadyHandled = isChatNotification
+        ? rememberChatNotification(notification.metadata?.message_id)
+        : false;
       const notice = notification.title || notification.body || "تنبيه جديد";
-      if (!isChatNotification || !chatOpen) {
+      if (!isChatNotification || (!chatOpen && !chatNotificationAlreadyHandled)) {
         showPortalToast(notification.body || notice);
         setPortalNotice(notification.body || notice);
       }
-      setBadgeCounts((current) => ({
-        ...current,
-        ...(isChatNotification
-          ? { unreadChats: chatOpen ? 0 : Number(current.unreadChats || 0) + 1 }
-          : { unreadNotifications: activeTab === "notifications" ? 0 : Number(current.unreadNotifications || 0) + 1 }),
-      }));
+      if (!isChatNotification || !chatNotificationAlreadyHandled) {
+        setBadgeCounts((current) => ({
+          ...current,
+          ...(isChatNotification
+            ? { unreadChats: chatOpen ? 0 : Number(current.unreadChats || 0) + 1 }
+            : { unreadNotifications: activeTab === "notifications" ? 0 : Number(current.unreadNotifications || 0) + 1 }),
+        }));
+      }
       loadPortalByToken({ silent: true, clearNotice: false });
     };
     const onDisplayRefillAlert = (event = {}) => {
@@ -2108,12 +2139,14 @@ export default function EmployeePayrollPortal() {
     requestSocket.on("employee_portal:request_updated", onRequestUpdated);
     requestSocket.on("employee_portal:notification", onPortalNotification);
     requestSocket.on("employee_portal:display_refill_alert", onDisplayRefillAlert);
+    requestSocket.on("employee-chat:new-message", onIncomingChatMessage);
     requestSocket.connect();
 
     return () => {
       requestSocket.off("employee_portal:request_updated", onRequestUpdated);
       requestSocket.off("employee_portal:notification", onPortalNotification);
       requestSocket.off("employee_portal:display_refill_alert", onDisplayRefillAlert);
+      requestSocket.off("employee-chat:new-message", onIncomingChatMessage);
       requestSocket.disconnect();
       if (requestSocketRef.current === requestSocket) requestSocketRef.current = null;
     };

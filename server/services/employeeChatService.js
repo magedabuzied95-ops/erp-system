@@ -399,6 +399,7 @@ export const getAdminEmployeeChatThread = async ({ tenantId = null, threadId, ma
       t.*,
       e.full_name AS employee_name,
       e.employee_code,
+      e.tenant_id AS employee_tenant_id,
       e.employee_portal_token,
       b.name AS branch_name
     FROM employee_chat_threads t
@@ -488,9 +489,10 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
   });
   const activeEmployeeChatClients = await getRoomClientCount(employeeActiveChatRoom(thread.employee_id));
   const employeeChatIsActive = activeEmployeeChatClients > 0;
-  const senderName = await loadAdminSenderName({ userId, tenantId: thread.tenant_id });
+  const notificationTenantId = thread.tenant_id || thread.employee_tenant_id || tenantId || null;
+  const senderName = await loadAdminSenderName({ userId, tenantId: notificationTenantId });
   await sendEmployeePortalPush({
-    tenantId: thread.tenant_id,
+    tenantId: notificationTenantId,
     employeeId: thread.employee_id,
     title: EMPLOYEE_CHAT_PUSH_TITLE,
     body: employeeManagementPushBody(message, senderName),
