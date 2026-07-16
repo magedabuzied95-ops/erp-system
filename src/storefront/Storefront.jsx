@@ -3094,11 +3094,7 @@ function HomeCategoryCards({ cards = [], lang = "ar", themeTokens = {}, loading 
                   <div className={`absolute inset-0 bg-gradient-to-t ${card.overlay || "from-stone-950/95 via-stone-950/35 to-transparent"}`} />
                   <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(0,0,0,0.35),transparent_34%,transparent_58%,rgba(0,0,0,0.18))]" />
                   <div className="relative z-10 flex min-h-[390px] flex-col justify-between p-5 sm:min-h-[430px] md:p-6">
-                    <div className="flex items-start justify-between gap-3">
-                      <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/30 px-3 py-2 text-[10px] font-black uppercase tracking-[0.15em] text-white shadow-lg backdrop-blur-md">
-                        <Icon className="h-4 w-4 text-[#f4c84d]" />
-                        {isRtl ? "اكتشف القسم" : "Discover"}
-                      </span>
+                    <div className="flex items-start justify-end gap-3">
                       {Number(card.count || 0) > 0 ? (
                         <span className="rounded-full border border-white/20 bg-black/30 px-3 py-2 text-[10px] font-black text-white backdrop-blur-md">
                           {card.count} {isRtl ? "موديل" : "styles"}
