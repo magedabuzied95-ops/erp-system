@@ -6145,14 +6145,14 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .storefront-shell.storefront-dark .sf-home-hero-badge {
-  border-color: #4b4a46 !important;
-  background: rgba(42, 42, 39, 0.94) !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(16, 16, 16, 0.94) !important;
   color: #efeee9 !important;
 }
 
 .storefront-shell.storefront-dark .sf-home-hero-progress {
-  border-color: #393936 !important;
-  background: rgba(42, 42, 39, 0.96) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: rgba(16, 16, 16, 0.96) !important;
   color: #c5c2ba !important;
 }
 
@@ -6161,12 +6161,12 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .storefront-shell.storefront-dark .sf-home-hero-progress .bg-stone-300 {
-  background-color: #5c5a54 !important;
+  background-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 .storefront-shell.storefront-dark .sf-home-hero-details {
-  border-color: #393936 !important;
-  background: rgba(35, 35, 33, 0.97) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  background: linear-gradient(180deg, #050505 0%, #101010 45%, #151515 100%) !important;
   color: #efeee9 !important;
   box-shadow: 0 18px 45px rgba(0, 0, 0, 0.34) !important;
 }
@@ -6182,12 +6182,12 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 }
 
 .storefront-shell.storefront-dark .sf-home-hero-details > div:nth-child(2) {
-  border-color: #393936 !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
 }
 
 .storefront-shell.storefront-dark .sf-home-hero-details span.grid {
-  border-color: #4b4a46 !important;
-  background: #2a2a27 !important;
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: #101010 !important;
   color: #efeee9 !important;
 }
 
