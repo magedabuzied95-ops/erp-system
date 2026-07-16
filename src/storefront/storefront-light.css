@@ -1,0 +1,222 @@
+/*
+ * Light storefront surfaces.
+ *
+ * The storefront used to rely on hard-coded dark utility classes in a number
+ * of route-level components. Keep these overrides scoped to the storefront's
+ * explicit light state so the ERP theme and the dark storefront remain
+ * completely independent.
+ */
+body.storefront-shell:not(.storefront-dark) {
+  --sf-light-bg: #f3f3f1;
+  --sf-light-surface: #ffffff;
+  --sf-light-soft: #f7f7f5;
+  --sf-light-border: #dedbd3;
+  --sf-light-border-strong: #c9c5bc;
+  --sf-light-text: #25231f;
+  --sf-light-text-secondary: #5d5952;
+  --sf-light-muted: #716e67;
+  --sf-light-accent: #a47a12;
+  background: var(--sf-light-bg);
+  color: var(--sf-light-text);
+}
+
+/* Product cards and their loading placeholders */
+body.storefront-shell:not(.storefront-dark) .sf-product-card,
+body.storefront-shell:not(.storefront-dark) .sf-small-product-card {
+  border-color: var(--sf-light-border) !important;
+  background-color: var(--sf-light-surface) !important;
+  background-image: none !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 12px 30px rgba(31, 29, 25, 0.11) !important;
+  --tw-ring-color: rgba(37, 35, 31, 0.04) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-card:hover,
+body.storefront-shell:not(.storefront-dark) .sf-small-product-card:hover {
+  border-color: rgba(164, 122, 18, 0.35) !important;
+  box-shadow: 0 18px 38px rgba(31, 29, 25, 0.15) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-card > div:nth-child(2) {
+  background-color: var(--sf-light-soft) !important;
+  background-image: linear-gradient(180deg, #fafaf8, #f2f1ed) !important;
+  --tw-ring-color: rgba(37, 35, 31, 0.06) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-card a[dir="ltr"],
+body.storefront-shell:not(.storefront-dark) .sf-small-product-card a,
+body.storefront-shell:not(.storefront-dark) .sf-small-product-card [class*="text-white"] {
+  color: var(--sf-light-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-card a[dir="ltr"]:first-of-type,
+body.storefront-shell:not(.storefront-dark) .sf-small-product-card [class*="text-white/50"],
+body.storefront-shell:not(.storefront-dark) .sf-small-product-card [class*="text-white/40"] {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-card span[class*="text-[#d4af37]"] {
+  color: #8a660d !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-card button[class*="text-stone-600"] {
+  border-color: var(--sf-light-border-strong) !important;
+  background: var(--sf-light-surface) !important;
+  color: var(--sf-light-text-secondary) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-small-product-card [class*="text-[#f3d77a]"] {
+  color: var(--sf-light-accent) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-small-product-card .sf-wishlist-add-button {
+  background: linear-gradient(135deg, #d4af37, #e5c158) !important;
+  color: #241c08 !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-small-product-card .sf-wishlist-remove-button {
+  border-color: #e7c7c7 !important;
+  background: #fff7f7 !important;
+  color: #b42332 !important;
+}
+
+/* Wishlist */
+body.storefront-shell:not(.storefront-dark) .sf-wishlist-panel {
+  border-color: var(--sf-light-border) !important;
+  background: var(--sf-light-surface) !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 24px 64px rgba(31, 29, 25, 0.13) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-wishlist-panel h1,
+body.storefront-shell:not(.storefront-dark) .sf-wishlist-panel .sf-wishlist-alert [class*="text-white"] {
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-wishlist-count,
+body.storefront-shell:not(.storefront-dark) .sf-wishlist-alert {
+  border-color: var(--sf-light-border) !important;
+  background: var(--sf-light-soft) !important;
+  color: var(--sf-light-text-secondary) !important;
+  box-shadow: 0 10px 24px rgba(31, 29, 25, 0.07) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-wishlist-alert p {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+/* Shared empty state */
+body.storefront-shell:not(.storefront-dark) .sf-empty-state {
+  border-color: var(--sf-light-border) !important;
+  background: linear-gradient(180deg, #ffffff, #f7f7f5) !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 20px 50px rgba(31, 29, 25, 0.12) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-empty-state h2 {
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-empty-state p {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+/* Product details */
+body.storefront-shell:not(.storefront-dark) .sf-product-gallery-shell,
+body.storefront-shell:not(.storefront-dark) .sf-product-summary-card,
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card,
+body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card {
+  border-color: var(--sf-light-border) !important;
+  background-color: var(--sf-light-surface) !important;
+  background-image: none !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 16px 42px rgba(31, 29, 25, 0.11) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-gallery-shell {
+  background: linear-gradient(180deg, #ffffff, #f4f3ef) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-summary-card [class*="text-white"],
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card [class*="text-white"],
+body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card [class*="text-white"] {
+  color: var(--sf-light-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-summary-card [class*="text-white/60"],
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card [class*="text-white/35"],
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card [class*="text-white/55"],
+body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card [class*="text-white/35"] {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-summary-card button,
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card button,
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card a,
+body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card button {
+  border-color: var(--sf-light-border-strong) !important;
+  background-color: var(--sf-light-soft) !important;
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card button[class*="border-[#d4af37]"],
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card button[class*="border-white"] {
+  border-color: #b88708 !important;
+  background: #fff7df !important;
+  color: #7b5900 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card button {
+  background: #f3f0ff !important;
+  color: #34205f !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-cta {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, #7c3aed, #635bff) !important;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  box-shadow: 0 14px 32px rgba(99, 91, 255, 0.24) !important;
+}
+
+/* Product-detail and grid skeletons must never inherit the dark placeholders. */
+body.storefront-shell:not(.storefront-dark) .sf-product-detail-skeleton .space-y-4 > div {
+  border-color: var(--sf-light-border) !important;
+  background: var(--sf-light-surface) !important;
+  box-shadow: 0 14px 34px rgba(31, 29, 25, 0.08) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-detail-skeleton .sf-skeleton-shimmer,
+body.storefront-shell:not(.storefront-dark) article .sf-skeleton-shimmer {
+  background: #e7e5df !important;
+}
+
+/* Listing sort, mobile filters and quick-filter chips. */
+body.storefront-shell:not(.storefront-dark) .sf-product-listing-page select,
+body.storefront-shell:not(.storefront-dark) .sf-product-listing-page select option {
+  background-color: var(--sf-light-surface) !important;
+  color: var(--sf-light-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-listing-page :is(button, a, label)[class*="dark:bg-white/5"] {
+  border-color: var(--sf-light-border) !important;
+  background-color: var(--sf-light-surface) !important;
+  color: var(--sf-light-text-secondary) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-listing-page section[class*="dark:bg-[#0d0d0d]"] {
+  border-color: var(--sf-light-border) !important;
+  background: var(--sf-light-surface) !important;
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-listing-page section[class*="dark:bg-[#0d0d0d]"] h3 {
+  color: var(--sf-light-text) !important;
+}

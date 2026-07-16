@@ -938,7 +938,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   }, [catalogProducts.length, gender, category, brand, productType, grade, color, size, selectedSizes, inStock, saleView, lastSizes, q, hasActiveCatalogFilters, orderedFilteredProducts, offerStoryQuery]);
 
   return (
-    <section className="mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+2.25rem)] pt-2.5 md:px-4 md:py-5">
+    <section className="sf-product-listing-page mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+2.25rem)] pt-2.5 md:px-4 md:py-5">
       <div className="flex flex-col gap-2 md:gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           <p className="text-xs font-bold text-stone-500 md:text-sm">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>

@@ -68,6 +68,7 @@ import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
 import { animateFlyToCart } from "./lib/flyToCart";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
+import "./storefront-light.css";
 import {
   isStorefrontCheckoutFlowPath,
   isStorefrontCheckoutPath,

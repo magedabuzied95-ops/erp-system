@@ -139,7 +139,7 @@ const buildProductGalleryImages = (product = {}, selectedVariant = null) => {
 
 function StorefrontProductDetailSkeleton() {
   return (
-    <section className="mx-auto grid max-w-7xl gap-4 px-3 pb-20 pt-3 md:px-4 md:pb-28 md:pt-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)]">
+    <section className="sf-product-detail-skeleton mx-auto grid max-w-7xl gap-4 px-3 pb-20 pt-3 md:px-4 md:pb-28 md:pt-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)]">
       <div className="min-w-0">
         <div className="sf-skeleton-shimmer h-[clamp(250px,42vh,340px)] w-full rounded-[24px] bg-white/80 shadow-[0_14px_40px_rgba(39,20,75,0.10)] md:h-[clamp(420px,58vh,540px)] md:rounded-[1.75rem] dark:bg-white/5" />
         <div className="mt-3 flex gap-2">
@@ -647,7 +647,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     <section dir="rtl" className="sf-product-details-page mx-auto max-w-7xl px-3 pb-28 pt-2 md:px-4 md:pb-36 md:pt-5 lg:pb-8">
       <div ref={productTopRef} aria-hidden="true" className="h-0 w-0 overflow-hidden" />
       <div className="grid gap-4 md:gap-6 lg:grid-cols-[minmax(0,58fr)_minmax(380px,42fr)] lg:items-start">
-        <div className="overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.12),transparent_34%),linear-gradient(180deg,#090909_0%,#111111_100%)] p-2 shadow-[0_28px_80px_rgba(0,0,0,0.32)] md:rounded-[2rem] md:p-3">
+        <div className="sf-product-gallery-shell overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.12),transparent_34%),linear-gradient(180deg,#090909_0%,#111111_100%)] p-2 shadow-[0_28px_80px_rgba(0,0,0,0.32)] md:rounded-[2rem] md:p-3">
         <Suspense fallback={<ProductGalleryFallback />}>
           <LazyStorefrontProductGallery
             mainImage={activeImage}
