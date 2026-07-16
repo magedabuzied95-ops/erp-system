@@ -657,11 +657,11 @@ function RecentOperationsDrawer({ open, openedAt = 0, requestedInvoiceNumber = "
   if (!open || typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[2147483000] isolate h-[100dvh] w-screen overflow-hidden bg-black/70 backdrop-blur-sm" dir="rtl">
+    <div className="pos-recent-operations-overlay fixed inset-0 z-[2147483000] isolate h-[100dvh] w-screen overflow-hidden bg-black/70 backdrop-blur-sm" dir="rtl">
       <button type="button" className="absolute inset-0 z-0 h-full w-full cursor-default" onClick={onClose} aria-label="إغلاق" />
       <aside
         aria-label="العمليات الأخيرة"
-        className="absolute inset-y-0 right-0 z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden border-l border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/60 sm:w-[min(42rem,92vw)] sm:rounded-l-[2rem]"
+        className="pos-recent-operations-drawer absolute inset-y-0 right-0 z-10 flex h-[100dvh] max-h-[100dvh] w-full min-w-0 flex-col overflow-hidden border-l border-white/10 bg-zinc-950/95 text-white shadow-2xl shadow-black/60 sm:w-[min(42rem,92vw)] sm:rounded-l-[2rem]"
       >
         <div className="shrink-0 border-b border-white/10 p-3 sm:p-4">
           <div className="flex items-start justify-between gap-3">

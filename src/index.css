@@ -4884,6 +4884,75 @@ body.pos-recent-operations-open {
   overscroll-behavior: none;
 }
 
+/* Recent POS operations are rendered through a portal. In light mode the
+ * drawer needs its own complete palette so dashboard utility overrides do not
+ * leave dark panels behind light fields and dark text. */
+html:not(.dark) .pos-recent-operations-drawer {
+  border-color: #d8d5ce !important;
+  background: linear-gradient(180deg, #ffffff 0%, #f6f5f2 100%) !important;
+  color: #25231f !important;
+  box-shadow: -22px 0 64px rgba(31, 29, 25, 0.18) !important;
+}
+
+html:not(.dark) .pos-recent-operations-drawer [class*="border-white/10"] {
+  border-color: #dedbd3 !important;
+}
+
+html:not(.dark) .pos-recent-operations-drawer :is([class*="bg-white/["], [class*="bg-black/"]) {
+  background-color: #ffffff !important;
+  background-image: none !important;
+}
+
+html:not(.dark) .pos-recent-operations-drawer article[class*="bg-white/["],
+html:not(.dark) .pos-recent-operations-drawer [class*="animate-pulse"][class*="bg-white/["] {
+  background: #f9f8f5 !important;
+}
+
+html:not(.dark) .pos-recent-operations-drawer :is([class*="text-white"], [class*="text-zinc-100"], [class*="text-zinc-200"], [class*="text-zinc-300"]) {
+  color: #25231f !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+html:not(.dark) .pos-recent-operations-drawer :is([class*="text-zinc-400"], [class*="text-zinc-500"]) {
+  color: #716e67 !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+html:not(.dark) .pos-recent-operations-drawer input {
+  border-color: #cfcac0 !important;
+  background: #ffffff !important;
+  color: #25231f !important;
+  -webkit-text-fill-color: currentColor;
+  box-shadow: 0 5px 16px rgba(31, 29, 25, 0.06) !important;
+}
+
+html:not(.dark) .pos-recent-operations-drawer input::placeholder {
+  color: #8a867e !important;
+  -webkit-text-fill-color: #8a867e !important;
+}
+
+html:not(.dark) .pos-recent-operations-drawer [class*="text-emerald-100"],
+html:not(.dark) .pos-recent-operations-drawer [class*="text-emerald-200"] {
+  color: #08745a !important;
+}
+
+html:not(.dark) .pos-recent-operations-drawer [class*="text-rose-100"] {
+  color: #a52a48 !important;
+}
+
+html:not(.dark) .pos-recent-operations-drawer [class*="text-amber-100"] {
+  color: #8a5a08 !important;
+}
+
+html:not(.dark) .pos-recent-operations-drawer [class*="text-sky-100"] {
+  color: #075f88 !important;
+}
+
+html:not(.dark) .pos-recent-operations-drawer button:disabled {
+  color: #969189 !important;
+  -webkit-text-fill-color: currentColor;
+}
+
 html.sf-mobile-search-scroll-lock,
 body.sf-mobile-search-scroll-lock {
   overflow: hidden !important;
