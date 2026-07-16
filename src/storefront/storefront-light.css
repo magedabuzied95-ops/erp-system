@@ -131,10 +131,9 @@ body.storefront-shell:not(.storefront-dark) .sf-product-summary-card,
 body.storefront-shell:not(.storefront-dark) .sf-product-option-card,
 body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card {
   border-color: var(--sf-light-border) !important;
-  background-color: var(--sf-light-surface) !important;
-  background-image: none !important;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfaf7 100%) !important;
   color: var(--sf-light-text) !important;
-  box-shadow: 0 16px 42px rgba(31, 29, 25, 0.11) !important;
+  box-shadow: 0 14px 36px rgba(31, 29, 25, 0.09) !important;
 }
 
 body.storefront-shell:not(.storefront-dark) .sf-product-gallery-shell {
@@ -155,6 +154,12 @@ body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card [class*="t
   color: var(--sf-light-text-secondary) !important;
 }
 
+body.storefront-shell:not(.storefront-dark) .sf-product-summary-card [class*="text-[#f3d77a]"],
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card [class*="text-[#f3d77a]"] {
+  color: var(--sf-light-accent) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
 body.storefront-shell:not(.storefront-dark) .sf-product-summary-card button,
 body.storefront-shell:not(.storefront-dark) .sf-product-option-card button,
 body.storefront-shell:not(.storefront-dark) .sf-product-option-card a,
@@ -164,24 +169,52 @@ body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card button {
   color: var(--sf-light-text) !important;
 }
 
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card button[class*="border-[#d4af37]"],
-body.storefront-shell:not(.storefront-dark) .sf-product-option-card button[class*="border-white"] {
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-option-choice.is-active {
   border-color: #b88708 !important;
-  background: #fff7df !important;
+  background: linear-gradient(180deg, #fff8e6, #fff1c7) !important;
   color: #7b5900 !important;
+  box-shadow: 0 8px 20px rgba(184, 135, 8, 0.16) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-option-choice.is-available:not(.is-active) {
+  border-color: #d7d2c8 !important;
+  background: #ffffff !important;
+  color: #4d4942 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-option-choice.is-unavailable {
+  border-color: #e5e2dc !important;
+  background: #f3f2ef !important;
+  color: #9a968f !important;
+  box-shadow: none !important;
+  opacity: 0.72 !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-option-card .sf-product-size-choice.is-unavailable > span:first-child {
+  background: #aaa69e !important;
+  opacity: 0.75;
 }
 
 body.storefront-shell:not(.storefront-dark) .sf-product-quantity-card button {
-  background: #f3f0ff !important;
-  color: #34205f !important;
+  border: 1px solid #ead9a6 !important;
+  background: #fff8e8 !important;
+  color: #72520a !important;
 }
 
 body.storefront-shell:not(.storefront-dark) .sf-product-cta {
   border-color: transparent !important;
-  background: linear-gradient(135deg, #7c3aed, #635bff) !important;
-  color: #ffffff !important;
-  -webkit-text-fill-color: #ffffff !important;
-  box-shadow: 0 14px 32px rgba(99, 91, 255, 0.24) !important;
+  background: linear-gradient(135deg, #d4af37, #e5c158) !important;
+  color: #211b0c !important;
+  -webkit-text-fill-color: #211b0c !important;
+  box-shadow: 0 14px 32px rgba(180, 138, 28, 0.22) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-cta:disabled {
+  border: 1px solid #dedbd3 !important;
+  background: #ebe9e4 !important;
+  color: #77736c !important;
+  -webkit-text-fill-color: #77736c !important;
+  box-shadow: none !important;
 }
 
 /* Product-detail and grid skeletons must never inherit the dark placeholders. */
@@ -317,6 +350,14 @@ body.storefront-shell:not(.storefront-dark) .sf-recent-products h2 {
 body.storefront-shell:not(.storefront-dark) .sf-related-products p,
 body.storefront-shell:not(.storefront-dark) .sf-recent-products p {
   color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-related-products > div:first-child > a {
+  border-color: var(--sf-light-border-strong) !important;
+  background: #ffffff !important;
+  color: var(--sf-light-text-secondary) !important;
+  -webkit-text-fill-color: currentColor;
+  box-shadow: 0 6px 16px rgba(31, 29, 25, 0.07) !important;
 }
 
 /* Size guide */
@@ -528,4 +569,44 @@ body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-apply {
 
 body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content {
   scrollbar-color: rgba(164, 122, 18, 0.38) transparent;
+}
+
+/* The catalog drawer is portalled under <body>. Explicitly neutralize any
+ * stale/global dark utilities so the drawer follows the storefront theme. */
+body.storefront-shell .sf-catalog-filter-drawer,
+body.storefront-shell .sf-catalog-filter-drawer :where(button, input, select, textarea, option) {
+  font-family: var(--sf-font-family, "Cairo", "Segoe UI", sans-serif) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section {
+  border-color: var(--sf-light-border) !important;
+  background: var(--sf-light-surface) !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 10px 28px rgba(31, 29, 25, 0.07) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section :is(h3, [class*="text-stone-950"]) {
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section [class*="dark:bg-white/5"] {
+  border-color: var(--sf-light-border) !important;
+  background: var(--sf-light-soft) !important;
+  color: var(--sf-light-text-secondary) !important;
+  box-shadow: none !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section [class*="dark:text-stone-200"],
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section [class*="dark:text-stone-300"] {
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section [class*="dark:text-stone-500"] {
+  color: var(--sf-light-muted) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section select,
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content section option {
+  background: var(--sf-light-surface) !important;
+  color: var(--sf-light-text) !important;
 }
