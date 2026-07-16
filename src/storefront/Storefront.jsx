@@ -2910,7 +2910,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
           <div className="order-1 relative min-h-[540px] p-3 sm:min-h-[580px] sm:p-5 md:min-h-[680px] md:p-7 lg:order-2 lg:min-h-[700px] lg:p-9">
             <Link to={heroProductHref} className="group relative flex h-full min-h-[516px] flex-col overflow-hidden rounded-[1.45rem] border p-0 sm:min-h-[540px] md:min-h-[626px] md:rounded-[2rem] lg:min-h-[628px]" style={{ background: themeTokens.surface, borderColor: themeTokens.borderStrong, boxShadow: themeTokens.shadowSoft }}>
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_32%,rgba(212,175,55,0.14),transparent_46%)]" />
-              <span className="absolute end-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-stone-800 shadow-lg backdrop-blur md:end-6 md:top-6 md:px-4 md:py-2 md:text-xs">
+              <span className="sf-home-hero-badge absolute end-4 top-4 z-10 inline-flex items-center gap-1.5 rounded-full border border-white/70 bg-white/90 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.12em] text-stone-800 shadow-lg backdrop-blur md:end-6 md:top-6 md:px-4 md:py-2 md:text-xs">
                 <Sparkles className="h-3.5 w-3.5 text-[#b4860b]" />
                 {isRtl ? "ميرور أوريجنال" : "Mirror Original"}
               </span>
@@ -2918,7 +2918,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
                 {loading && !heroImage ? (
                   <div className="h-[180px] w-[82%] animate-pulse rounded-[1.5rem] md:h-[300px]" style={{ background: themeTokens.cardSoft }} />
                 ) : heroImage ? (
-                  <img key={`${activeHeroIndex}:${heroImage}`} src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="sf-hero-image-transition h-full w-full max-h-[290px] object-contain drop-shadow-[0_22px_28px_rgba(28,25,23,0.14)] transition duration-500 ease-out group-hover:scale-[1.035] sm:max-h-[330px] md:max-h-[405px] lg:max-h-[420px]" loading="eager" decoding="async" fetchPriority="high" width="900" height="720" />
+                  <img key={`${activeHeroIndex}:${heroImage}`} src={imageFor(heroImage)} {...responsiveImageProps(heroImage, "hero")} alt={heroProduct?.name || brandName} onError={fallbackProductImage} className="sf-hero-image-transition h-full w-full max-h-[290px] rounded-[1.15rem] object-contain drop-shadow-[0_22px_28px_rgba(28,25,23,0.14)] transition duration-500 ease-out group-hover:scale-[1.035] sm:max-h-[330px] md:max-h-[405px] md:rounded-[1.5rem] lg:max-h-[420px]" loading="eager" decoding="async" fetchPriority="high" width="900" height="720" />
                 ) : (
                   <div className="flex h-[220px] w-[82%] items-center justify-center rounded-[1.5rem] border border-dashed text-center text-sm font-black" style={{ color: themeTokens.textSecondary, borderColor: themeTokens.border }}>
                     {isRtl ? "صورة العرض تظهر هنا" : "Hero image appears here"}
@@ -2926,14 +2926,14 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
                 )}
               </div>
               {availableHeroSlides.length > 1 ? (
-                <div data-testid="hero-slide-progress" className="relative z-10 mx-3 mb-2 flex min-h-9 w-[calc(100%-1.5rem)] shrink-0 items-center justify-center gap-1.5 rounded-full border border-stone-200/90 bg-stone-50/95 px-3 py-2 shadow-sm sm:mx-4 sm:w-[calc(100%-2rem)] md:mb-3 md:min-h-10">
+                <div data-testid="hero-slide-progress" className="sf-home-hero-progress relative z-10 mx-3 mb-2 flex min-h-9 w-[calc(100%-1.5rem)] shrink-0 items-center justify-center gap-1.5 rounded-full border border-stone-200/90 bg-stone-50/95 px-3 py-2 shadow-sm sm:mx-4 sm:w-[calc(100%-2rem)] md:mb-3 md:min-h-10">
                   <span className="me-1 text-[10px] font-black tabular-nums text-stone-600 md:text-xs">{activeHeroIndex + 1}/{availableHeroSlides.length}</span>
                   {availableHeroSlides.map((slide, index) => (
                     <span key={productIdentityKey(slide.product, index)} className={`h-1.5 rounded-full transition-all duration-300 ${index === activeHeroIndex ? "w-5 bg-[#b4860b]" : "w-1.5 bg-stone-300"}`} />
                   ))}
                 </div>
               ) : null}
-              <div className="relative z-10 mx-3 mb-3 w-[calc(100%-1.5rem)] shrink-0 rounded-[1.2rem] border border-white/80 bg-white/95 p-3.5 shadow-[0_18px_45px_rgba(28,25,23,0.16)] backdrop-blur-xl sm:mx-4 sm:mb-4 sm:w-[calc(100%-2rem)] md:rounded-[1.5rem] md:p-4.5">
+              <div className="sf-home-hero-details relative z-10 mx-3 mb-3 w-[calc(100%-1.5rem)] shrink-0 rounded-[1.2rem] border border-white/80 bg-white/95 p-3.5 shadow-[0_18px_45px_rgba(28,25,23,0.16)] backdrop-blur-xl sm:mx-4 sm:mb-4 sm:w-[calc(100%-2rem)] md:rounded-[1.5rem] md:p-4.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0 flex-1">
                     <p className="text-[9px] font-black uppercase tracking-[0.16em] text-[#9a7108] md:text-[10px]">{isRtl ? "اختيار ميرور مميز" : "Featured mirror pick"}</p>
@@ -2946,7 +2946,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
                     {heroPrice ? <span className="text-lg font-black text-stone-950 md:text-2xl">{heroPrice}</span> : null}
                     {heroComparePrice ? <span className="text-[11px] font-bold text-stone-400 line-through md:text-sm">{heroComparePrice}</span> : null}
                   </div>
-                  <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-stone-950 px-3 py-2 text-[11px] font-black text-white md:px-4 md:text-sm">
+                  <span className="sf-home-hero-cta inline-flex shrink-0 items-center gap-1.5 rounded-full bg-stone-950 px-3 py-2 text-[11px] font-black text-white md:px-4 md:text-sm">
                     <ShoppingBag className="h-3.5 w-3.5" />
                     {isRtl ? "اطلب الآن" : "Shop now"}
                   </span>

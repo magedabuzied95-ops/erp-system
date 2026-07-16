@@ -6004,6 +6004,58 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   --sf-hero-image-scale: 1.16;
 }
 
+.storefront-shell.storefront-dark .sf-home-hero-badge {
+  border-color: #4b4a46 !important;
+  background: rgba(42, 42, 39, 0.94) !important;
+  color: #efeee9 !important;
+}
+
+.storefront-shell.storefront-dark .sf-home-hero-progress {
+  border-color: #393936 !important;
+  background: rgba(42, 42, 39, 0.96) !important;
+  color: #c5c2ba !important;
+}
+
+.storefront-shell.storefront-dark .sf-home-hero-progress .text-stone-600 {
+  color: #c5c2ba !important;
+}
+
+.storefront-shell.storefront-dark .sf-home-hero-progress .bg-stone-300 {
+  background-color: #5c5a54 !important;
+}
+
+.storefront-shell.storefront-dark .sf-home-hero-details {
+  border-color: #393936 !important;
+  background: rgba(35, 35, 33, 0.97) !important;
+  color: #efeee9 !important;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.34) !important;
+}
+
+.storefront-shell.storefront-dark .sf-home-hero-details h2,
+.storefront-shell.storefront-dark .sf-home-hero-details .text-stone-950 {
+  color: #efeee9 !important;
+}
+
+.storefront-shell.storefront-dark .sf-home-hero-details .text-stone-400,
+.storefront-shell.storefront-dark .sf-home-hero-details .text-stone-500 {
+  color: #a19e96 !important;
+}
+
+.storefront-shell.storefront-dark .sf-home-hero-details > div:nth-child(2) {
+  border-color: #393936 !important;
+}
+
+.storefront-shell.storefront-dark .sf-home-hero-details span.grid {
+  border-color: #4b4a46 !important;
+  background: #2a2a27 !important;
+  color: #efeee9 !important;
+}
+
+.storefront-shell.storefront-dark .sf-home-hero-cta {
+  background: #efeee9 !important;
+  color: #171715 !important;
+}
+
 @media (min-width: 640px) {
   .sf-home-hero-v2 .sf-hero-image-transition {
     --sf-hero-image-scale: 1;
