@@ -195,7 +195,6 @@ const Permissions = lazy(() => import("./modules/permissions/pages/Permissions")
 
 import ProtectedRoute from "./shared/auth/ProtectedRoute";
 import DebugErrorBoundary from "./shared/components/DebugErrorBoundary";
-import Storefront from "./storefront/Storefront";
 
 /* ======================================================
    FORBIDDEN
@@ -232,6 +231,7 @@ const AiChannels = lazy(() => import("./modules/aiSupport/pages/AiChannels"));
 const AiAgentSettings = lazy(() => import("./modules/aiSupport/pages/AiAgentSettings"));
 const AiSettings = lazy(() => import("./modules/aiSupport/pages/AiSettings"));
 const AiAgentAnalytics = lazy(() => import("./modules/aiSupport/pages/AiAgentAnalytics"));
+const Storefront = lazy(() => import("./storefront/Storefront"));
 
 function RouteSkeleton() {
   return (
