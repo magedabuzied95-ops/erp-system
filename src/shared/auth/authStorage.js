@@ -19,9 +19,11 @@ const TOKEN_KEYS = [
 ];
 
 const normalizePermissionKey = (permission) => {
-  const value = String(permission || "").trim().toLowerCase().replace(/:/g, ".");
+  const raw = String(permission || "").trim().toLowerCase();
+  const value = raw.includes(".") ? raw : raw.replace(":", ".");
   if (value === "marketing.approve") return "marketing.publish";
   if (value === "marketing.edit") return "marketing.update";
+  if (value === "customers.update") return "customers.edit";
   return value;
 };
 
@@ -63,6 +65,10 @@ const permissionAliases = (permission) => {
   if (value === "marketing.update") {
     aliases.add("marketing.edit");
     aliases.add("marketing:edit");
+  }
+  if (value === "customers.edit") {
+    aliases.add("customers.update");
+    aliases.add("customers:update");
   }
   return Array.from(aliases);
 };
@@ -126,6 +132,9 @@ export const setAuth = ({ token, user }) => {
   } else {
     localStorage.removeItem("user");
   }
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("erp:auth-user-updated", { detail: { user: user || null } }));
+  }
 };
 
 export const clearAuth = () => {
@@ -133,6 +142,9 @@ export const clearAuth = () => {
     localStorage.removeItem(key);
   });
   localStorage.removeItem("user");
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("erp:auth-user-updated", { detail: { user: null } }));
+  }
 };
 
 export const getCurrentTenant = () =>

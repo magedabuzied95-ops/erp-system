@@ -527,10 +527,7 @@ function MainLayout() {
   const { t, i18n } = useTranslation();
   const { theme, setTheme } = useTheme();
   usePageTitle(resolveMainLayoutTitle(location.pathname));
-  const user = useMemo(
-    () => getCurrentUser() || { name: "Admin", role: "Admin", permissions: ["*"] },
-    []
-  );
+  const [user, setUser] = useState(() => getCurrentUser() || { name: "Admin", role: "Admin", permissions: ["*"] });
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => Boolean(readSidebarJson(SIDEBAR_COLLAPSED_STORAGE_KEY, false)));
   const [openGroups, setOpenGroups] = useState(() => readSidebarJson(SIDEBAR_GROUPS_STORAGE_KEY, {}));
@@ -551,6 +548,12 @@ function MainLayout() {
       navigate("/login");
     }
   }, [navigate]);
+
+  useEffect(() => {
+    const refreshUser = () => setUser(getCurrentUser() || { name: "Admin", role: "Admin", permissions: ["*"] });
+    window.addEventListener("erp:auth-user-updated", refreshUser);
+    return () => window.removeEventListener("erp:auth-user-updated", refreshUser);
+  }, []);
 
   useEffect(() => {
     const handleAuthExpired = () => {

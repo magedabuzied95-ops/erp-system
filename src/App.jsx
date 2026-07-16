@@ -2,6 +2,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useState,
 } from "react";
 
 import {
@@ -25,6 +26,7 @@ import { setCurrency } from "./shared/lib/currency";
 ====================================================== */
 
 import Login from "./pages/Login";
+import { getToken, setAuth } from "./shared/auth/authStorage";
 
 /* ======================================================
    DASHBOARD
@@ -300,10 +302,31 @@ function StorefrontLegacyRedirect() {
 
 function App() {
   useTranslation();
+  const [, setAuthRevision] = useState(0);
   const isEmployeeAppRoute = typeof window !== "undefined" && window.location.pathname.startsWith("/employee-app/");
   const employeeAppToken = isEmployeeAppRoute ? window.location.pathname.split("/")[2] || "" : "";
   const enableStorefrontRootRoutes = isStorefrontRootHost() && !isErpHost();
   const enableErpAppRoutes = !enableStorefrontRootRoutes;
+
+  useEffect(() => {
+    const refreshAuthorization = () => setAuthRevision((value) => value + 1);
+    window.addEventListener("erp:auth-user-updated", refreshAuthorization);
+    return () => window.removeEventListener("erp:auth-user-updated", refreshAuthorization);
+  }, []);
+
+  useEffect(() => {
+    if (!enableErpAppRoutes || isEmployeeAppRoute || !getToken()) return undefined;
+    let cancelled = false;
+    api.get("/auth/me", { suppressErrorStatuses: [401, 403] })
+      .then((response) => {
+        if (cancelled || !response?.user) return;
+        setAuth({ token: getToken(), user: response.user });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [enableErpAppRoutes, isEmployeeAppRoute]);
 
   useEffect(() => {
     if (isEmployeeAppRoute) return undefined;

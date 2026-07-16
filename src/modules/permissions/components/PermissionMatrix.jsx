@@ -16,7 +16,23 @@ const actionLabels = {
   export: "Export",
   print: "Print",
   settings: "Settings",
+  orders: "Website orders",
   redeem: "Redeem",
+  pay: "Pay",
+  reports: "Reports",
+  deduct: "Deduct",
+  adjust: "Adjust",
+  transfer: "Transfer",
+  sell: "Sell",
+  view_cost: "View cost",
+  barcode_shop: "Barcode shop",
+  scan_product_qr: "Scan QR",
+  override_seller: "Override seller",
+  edit_old: "Edit old invoices",
+  view_shift_total: "View shift total",
+  "movements:view": "View movements",
+  "movements:undo": "Undo movement",
+  "alerts:view": "View alerts",
 };
 
 export default function PermissionMatrix({ role, onSave, saving = false }) {
@@ -28,6 +44,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
   }, [role]);
 
   const matrix = useMemo(() => getPermissionMatrix(), []);
+  const fullAccessRole = Array.isArray(role?.permissions) && role.permissions.includes("*");
 
   const toggle = (permission) => {
     setSelected((current) =>
@@ -46,7 +63,7 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
   }
 
   const moduleCount = new Set(selected.map((item) => String(item).split(".")[0])).size;
-  const headerActions = matrix[0]?.actions || [];
+  const headerActions = [...new Set(matrix.flatMap((row) => row.actions))];
 
   return (
     <div className="space-y-4 rounded-3xl border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
@@ -64,11 +81,11 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
           <button
             type="button"
             onClick={() => onSave?.(selected)}
-            disabled={saving}
+            disabled={saving || fullAccessRole}
             className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-black text-black disabled:opacity-50"
           >
             <Save className="h-4 w-4" />
-            {saving ? "Saving..." : "Save permissions"}
+            {fullAccessRole ? "Full access locked" : saving ? "Saving..." : "Save permissions"}
           </button>
         </Can>
       </div>
@@ -113,8 +130,10 @@ export default function PermissionMatrix({ role, onSave, saving = false }) {
                     key={permission}
                     type="button"
                     onClick={() => toggle(permission)}
+                    disabled={fullAccessRole}
                     className={[
                       "flex items-center justify-center rounded-2xl border px-4 py-3 text-sm font-semibold transition",
+                      fullAccessRole ? "cursor-not-allowed opacity-80" : "",
                       active
                         ? "border-cyan-500/40 bg-cyan-500 text-black"
                         : "border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white",

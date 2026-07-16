@@ -5,6 +5,7 @@ import { AlertTriangle, Save, ShieldCheck } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { api } from "../../../shared/api/api";
+import { getCurrentUser, getToken, setAuth } from "../../../shared/auth/authStorage";
 import Can from "../components/Can";
 import PermissionMatrix from "../components/PermissionMatrix";
 import PermissionsShell from "../components/PermissionsShell";
@@ -55,8 +56,8 @@ function PermissionsPage() {
         console.log(err);
         if (isBackendUnreachable(err)) {
           setRoles(getRoleCatalog());
-          setError("Roles endpoint unavailable. Permission edits will be saved locally.");
-          toast.error("Using local permissions fallback");
+          setError("Roles endpoint unavailable. Local roles are shown for reference, but saving requires the backend.");
+          toast.error("Backend unavailable. Permissions are read-only.");
         } else {
           setError(err?.message || "Unable to load roles from backend.");
           toast.error(err?.message || "Unable to load roles from backend");
@@ -80,26 +81,25 @@ function PermissionsPage() {
 
   const persist = async (permissions) => {
     if (!selectedRole) return;
-    const nextRoles = roles.map((role) => (roleMatches(role, roleRouteId(selectedRole)) ? { ...role, permissions } : role));
     setSaving(true);
     try {
-      const response = await api.put(`/roles/${roleRouteId(selectedRole)}/permissions`, { permissions });
-      const updatedRole = normalizeRole(response?.role || { ...selectedRole, permissions: response?.permissions || permissions });
+      await api.put(`/roles/${roleRouteId(selectedRole)}/permissions`, { permissions });
+      const verified = await api.get(`/roles/${roleRouteId(selectedRole)}/permissions`);
+      const updatedRole = normalizeRole(verified?.role || { ...selectedRole, permissions: verified?.permissions || permissions });
       setRoles((current) =>
         current.map((role) => (roleMatches(role, roleRouteId(selectedRole)) ? updatedRole : role))
       );
+      saveRoleCatalog(roles.map((role) => (roleMatches(role, roleRouteId(selectedRole)) ? updatedRole : role)));
+      const currentUser = getCurrentUser();
+      if (currentUser && roleMatches(updatedRole, currentUser.role_id || currentUser.role_name || currentUser.role)) {
+        setAuth({ token: getToken(), user: { ...currentUser, permissions: updatedRole.permissions } });
+      }
       setError("");
-      toast.success("Permissions saved");
+      toast.success("Permissions saved and verified");
     } catch (err) {
       console.log(err);
-      if (isBackendUnreachable(err)) {
-        const persisted = saveRoleCatalog(nextRoles);
-        setRoles(persisted);
-        setError("Roles endpoint unavailable. Permission edits will be saved locally.");
-        toast.error("Backend unavailable. Saved locally.");
-      } else {
-        toast.error(err?.message || "Failed to save permissions");
-      }
+      setError("Permissions were not saved. The backend must confirm every permission change.");
+      toast.error(err?.message || "Failed to save and verify permissions");
     } finally {
       setSaving(false);
     }

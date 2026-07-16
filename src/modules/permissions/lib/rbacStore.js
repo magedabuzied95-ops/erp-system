@@ -55,9 +55,11 @@ export const MODULES = [
   { key: "dashboard", label: "Dashboard" },
   { key: "products", label: "Products" },
   { key: "pos", label: "POS" },
+  { key: "pos.expenses", label: "POS Expenses" },
   { key: "orders", label: "Orders" },
   { key: "purchases", label: "Purchases" },
   { key: "suppliers", label: "Suppliers" },
+  { key: "customers", label: "Customers" },
   { key: "inventory", label: "Inventory" },
   { key: "warehouses", label: "Warehouses" },
   { key: "branches", label: "Branches" },
@@ -81,30 +83,40 @@ export const MODULES = [
   { key: "roles", label: "Roles" },
 ];
 
-export const ACTIONS = ["view", "create", "edit", "update", "delete", "approve", "publish", "settings", "export", "print", "redeem", "manage"];
+export const MODULE_ACTIONS = Object.freeze({
+  dashboard: ["view"],
+  products: ["view", "create", "edit", "delete", "view_cost", "barcode_shop"],
+  pos: ["view", "create", "sell", "edit", "edit_old", "override_seller", "scan_product_qr"],
+  "pos.expenses": ["create", "view_shift_total"],
+  orders: ["view", "create", "edit", "delete", "approve", "print"],
+  purchases: ["view", "create", "edit", "delete"],
+  suppliers: ["view", "create", "edit", "delete"],
+  customers: ["view", "create", "edit", "delete"],
+  inventory: ["view", "create", "edit", "movements:view", "movements:undo", "alerts:view"],
+  warehouses: ["view", "create", "update", "delete", "transfer"],
+  branches: ["view", "create", "update", "delete"],
+  accounting: ["view", "create", "edit"],
+  money_accounts: ["view", "manage"],
+  money_transactions: ["view", "adjust"],
+  money_transfers: ["create"],
+  "treasury.dashboard": ["view"],
+  expenses: ["view", "create", "edit", "delete", "approve", "pay", "reports"],
+  "expenses.advances": ["view", "create", "deduct"],
+  loyalty: ["view", "edit", "redeem"],
+  attendance: ["view", "create", "edit", "delete", "export"],
+  marketing: ["view", "create", "update", "delete", "publish", "settings"],
+  notifications: ["view", "manage"],
+  staff_tasks: ["view", "create", "update", "manage"],
+  website: ["view", "orders", "settings"],
+  employees: ["view", "edit", "delete", "export", "print"],
+  reports: ["view", "export", "print"],
+  settings: ["view", "edit", "approve"],
+  users: ["view", "create", "edit", "delete"],
+  roles: ["view", "create", "edit", "delete", "export"],
+});
 
-export const MARKETING_ACTIONS = ["view", "create", "update", "delete", "publish", "settings"];
-export const WEBSITE_ACTIONS = ["view", "orders", "settings"];
-export const NOTIFICATIONS_ACTIONS = ["view", "manage"];
-export const EXPENSES_ACTIONS = ["view", "create", "edit", "delete", "approve", "pay", "reports"];
-export const EXPENSE_ADVANCE_ACTIONS = ["view", "create", "deduct"];
-export const MONEY_ACCOUNTS_ACTIONS = ["view", "manage"];
-export const MONEY_TRANSACTIONS_ACTIONS = ["view", "adjust"];
-export const MONEY_TRANSFERS_ACTIONS = ["create"];
-export const TREASURY_DASHBOARD_ACTIONS = ["view"];
-
-export const getModuleActions = (moduleKey) => {
-  if (moduleKey === "marketing") return MARKETING_ACTIONS;
-  if (moduleKey === "website") return WEBSITE_ACTIONS;
-  if (moduleKey === "notifications") return NOTIFICATIONS_ACTIONS;
-  if (moduleKey === "expenses") return EXPENSES_ACTIONS;
-  if (moduleKey === "expenses.advances") return EXPENSE_ADVANCE_ACTIONS;
-  if (moduleKey === "money_accounts") return MONEY_ACCOUNTS_ACTIONS;
-  if (moduleKey === "money_transactions") return MONEY_TRANSACTIONS_ACTIONS;
-  if (moduleKey === "money_transfers") return MONEY_TRANSFERS_ACTIONS;
-  if (moduleKey === "treasury.dashboard") return TREASURY_DASHBOARD_ACTIONS;
-  return ACTIONS;
-};
+export const ACTIONS = [...new Set(Object.values(MODULE_ACTIONS).flat())];
+export const getModuleActions = (moduleKey) => MODULE_ACTIONS[moduleKey] || ["view"];
 
 export const ALL_PERMISSIONS = MODULES.flatMap((module) =>
   getModuleActions(module.key).map((action) => `${module.key}.${action}`)
@@ -115,9 +127,11 @@ const STORAGE_KEYS = {
 };
 
 const normalizePermissionKey = (permission) => {
-  const value = String(permission || "").trim().toLowerCase().replace(/:/g, ".");
+  const raw = String(permission || "").trim().toLowerCase();
+  const value = raw.includes(".") ? raw : raw.replace(":", ".");
   if (value === "marketing.approve") return "marketing.publish";
   if (value === "marketing.edit") return "marketing.update";
+  if (value === "customers.update") return "customers.edit";
   return value;
 };
 
@@ -500,7 +514,7 @@ export const normalizeRole = (role) => ({
   name: role.name || role.role_name || "Role",
   slug: role.slug || String(role.name || role.id || "").toLowerCase().replace(/\s+/g, "-"),
   description: role.description || "",
-  permissions: Array.isArray(role.permissions) ? role.permissions.map(String) : [],
+  permissions: Array.isArray(role.permissions) ? role.permissions.map(normalizePermissionKey) : [],
   builtIn: Boolean(role.builtIn || role.is_system || role.isSystem),
 });
 
@@ -567,6 +581,10 @@ const permissionAliases = (permission) => {
   if (value === "marketing.update") {
     aliases.add("marketing.edit");
     aliases.add("marketing:edit");
+  }
+  if (value === "customers.edit") {
+    aliases.add("customers.update");
+    aliases.add("customers:update");
   }
   return Array.from(aliases);
 };

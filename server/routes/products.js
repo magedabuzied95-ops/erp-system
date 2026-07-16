@@ -1,6 +1,7 @@
 import express from "express";
 import db from "../database/db.js";
 import { protect } from "../middleware/authMiddleware.js";
+import permit from "../middleware/permissionMiddleware.js";
 import {
   createProduct,
   createVariant,
@@ -182,13 +183,13 @@ router.use((req, res, next) => {
   next();
 });
 
-router.get("/admin-list", protect, getProductsAdminList);
-router.get("/", protect, getProducts);
-router.get("/with-variants", protect, getProductsWithVariants);
-router.get("/:id/full", protect, getProductFull);
-router.get("/qr/:token", protect, getProductByQrToken);
-router.post("/generate-ai-data", protect, generateAiProductDataController);
-router.post("/generate-description", protect, async (req, res) => {
+router.get("/admin-list", protect, permit("products", "view"), getProductsAdminList);
+router.get("/", protect, permit("products", "view"), getProducts);
+router.get("/with-variants", protect, permit("products", "view"), getProductsWithVariants);
+router.get("/:id/full", protect, permit("products", "view"), getProductFull);
+router.get("/qr/:token", protect, permit("products", "view"), getProductByQrToken);
+router.post("/generate-ai-data", protect, permit("products", "edit"), generateAiProductDataController);
+router.post("/generate-description", protect, permit("products", "edit"), async (req, res) => {
   const startedAt = Date.now();
   const requestId = `product-description-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
@@ -228,7 +229,7 @@ router.post("/generate-description", protect, async (req, res) => {
     });
   }
 });
-router.post("/generate-social-caption", protect, async (req, res) => {
+router.post("/generate-social-caption", protect, permit("products", "edit"), async (req, res) => {
   const startedAt = Date.now();
   const requestId = `social-caption-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   try {
@@ -270,7 +271,7 @@ router.post("/generate-social-caption", protect, async (req, res) => {
     });
   }
 });
-router.post("/generate-ai-thermal-artwork", protect, async (req, res) => {
+router.post("/generate-ai-thermal-artwork", protect, permit("products", "edit"), async (req, res) => {
   const startedAt = Date.now();
   try {
     console.log("THERMAL_ROUTE_START", {
@@ -347,7 +348,7 @@ router.post("/generate-ai-thermal-artwork", protect, async (req, res) => {
     });
   }
 });
-router.post("/:id/generate-ai-thermal-artwork", protect, async (req, res) => {
+router.post("/:id/generate-ai-thermal-artwork", protect, permit("products", "edit"), async (req, res) => {
   const startedAt = Date.now();
   try {
     console.log("THERMAL_ROUTE_START", {
@@ -435,21 +436,21 @@ router.post("/:id/generate-ai-thermal-artwork", protect, async (req, res) => {
     });
   }
 });
-router.post("/suggest-edition", protect, suggestMirrorEditionName);
-router.post("/edition-suggestions", protect, suggestMirrorEditionName);
-router.get("/barcode-print-queue", protect, getBarcodePrintQueue);
-router.post("/barcode-print-queue/bulk-add", protect, bulkAddBarcodePrintQueueController);
-router.post("/barcode-print-queue/:id/mark-printed", protect, markBarcodePrintQueuePrintedController);
-router.post("/barcode-print-queue/:id/requeue", protect, requeueBarcodePrintQueueController);
-router.delete("/barcode-print-queue/:id", protect, deleteBarcodePrintQueueController);
-router.post("/:id/regenerate-ai-shoe-cover", protect, regenerateAiShoeCover);
-router.post("/", protect, createProduct);
-router.post("/:id/variants", protect, createVariant);
-router.put("/variants/:id", protect, updateVariant);
-router.delete("/variants/:id", protect, deleteVariant);
-router.put("/:id/prices", protect, updateProductPrices);
-router.patch("/:id/status", protect, updateProductStatus);
-router.put("/:id", protect, updateProduct);
-router.delete("/:id", protect, deleteProduct);
+router.post("/suggest-edition", protect, permit("products", "edit"), suggestMirrorEditionName);
+router.post("/edition-suggestions", protect, permit("products", "edit"), suggestMirrorEditionName);
+router.get("/barcode-print-queue", protect, permit("products", "barcode_shop"), getBarcodePrintQueue);
+router.post("/barcode-print-queue/bulk-add", protect, permit("products", "barcode_shop"), bulkAddBarcodePrintQueueController);
+router.post("/barcode-print-queue/:id/mark-printed", protect, permit("products", "barcode_shop"), markBarcodePrintQueuePrintedController);
+router.post("/barcode-print-queue/:id/requeue", protect, permit("products", "barcode_shop"), requeueBarcodePrintQueueController);
+router.delete("/barcode-print-queue/:id", protect, permit("products", "barcode_shop"), deleteBarcodePrintQueueController);
+router.post("/:id/regenerate-ai-shoe-cover", protect, permit("products", "edit"), regenerateAiShoeCover);
+router.post("/", protect, permit("products", "create"), createProduct);
+router.post("/:id/variants", protect, permit("products", "edit"), createVariant);
+router.put("/variants/:id", protect, permit("products", "edit"), updateVariant);
+router.delete("/variants/:id", protect, permit("products", "delete"), deleteVariant);
+router.put("/:id/prices", protect, permit("products", "edit"), updateProductPrices);
+router.patch("/:id/status", protect, permit("products", "edit"), updateProductStatus);
+router.put("/:id", protect, permit("products", "edit"), updateProduct);
+router.delete("/:id", protect, permit("products", "delete"), deleteProduct);
 
 export default router;

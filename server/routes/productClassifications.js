@@ -1,6 +1,7 @@
 import express from "express";
 
 import { protect } from "../middleware/authMiddleware.js";
+import permit from "../middleware/permissionMiddleware.js";
 import {
   createProductClassificationGroup,
   createProductClassificationOption,
@@ -17,13 +18,13 @@ const router = express.Router();
 router.get(["/", ""], listProductClassifications);
 router.get("/:groupKey/options", listProductClassificationOptions);
 
-router.post("/groups", protect, createProductClassificationGroup);
-router.patch("/groups/:id", protect, updateProductClassificationGroup);
-router.delete("/groups/:id", protect, deleteProductClassificationGroup);
+router.post("/groups", protect, permit("products", "create"), createProductClassificationGroup);
+router.patch("/groups/:id", protect, permit("products", "edit"), updateProductClassificationGroup);
+router.delete("/groups/:id", protect, permit("products", "delete"), deleteProductClassificationGroup);
 
-router.post("/options", protect, createProductClassificationOption);
-router.patch("/options/:id", protect, updateProductClassificationOption);
-router.delete("/options/:id", protect, deleteProductClassificationOption);
+router.post("/options", protect, permit("products", "create"), createProductClassificationOption);
+router.patch("/options/:id", protect, permit("products", "edit"), updateProductClassificationOption);
+router.delete("/options/:id", protect, permit("products", "delete"), deleteProductClassificationOption);
 
 export { router };
 export default router;

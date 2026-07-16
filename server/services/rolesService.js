@@ -1,7 +1,5 @@
 import db from "../database/db.js";
 
-const PERMISSION_SEPARATOR = /[.:]/;
-
 const normalizeRoleLookup = (value = "") =>
   String(value || "")
     .trim()
@@ -25,16 +23,24 @@ const withRolePermissions = (role = {}) => {
   return { ...role, permissions };
 };
 
+const splitPermissionKey = (value = "") => {
+  const raw = String(value || "").trim().toLowerCase();
+  if (!raw) return { moduleName: "", action: "" };
+  const separatorIndex = raw.includes(".") ? raw.lastIndexOf(".") : raw.indexOf(":");
+  if (separatorIndex <= 0 || separatorIndex >= raw.length - 1) return { moduleName: "", action: "" };
+  return {
+    moduleName: raw.slice(0, separatorIndex).trim(),
+    action: raw.slice(separatorIndex + 1).trim(),
+  };
+};
+
 const normalizePermissionKey = (value = "") => {
-  const [moduleName, action] = String(value || "")
-    .trim()
-    .toLowerCase()
-    .split(PERMISSION_SEPARATOR)
-    .map((part) => part.trim());
+  const { moduleName, action } = splitPermissionKey(value);
 
   if (!moduleName || !action) return null;
   if (moduleName === "marketing" && action === "approve") return "marketing.publish";
   if (moduleName === "marketing" && action === "edit") return "marketing.update";
+  if (moduleName === "customers" && action === "update") return "customers.edit";
   return `${moduleName}.${action}`;
 };
 
@@ -442,7 +448,7 @@ const ensureBuiltInRolePermissions = async (client, role, permissionKeys = []) =
   await client.query(`DELETE FROM role_permissions WHERE role_id = $1`, [roleId]);
 
   for (const permissionKey of permissionKeys) {
-    const [moduleName, action] = String(permissionKey || "").split(".");
+    const { moduleName, action } = splitPermissionKey(permissionKey);
     if (!moduleName || !action) continue;
     const permissionResult = await client.query(
       `
@@ -621,7 +627,7 @@ export const replaceRolePermissions = async ({ client, roleId, tenantId = null, 
 
   const permissionIds = [];
   for (const key of permissionKeys) {
-    const [moduleName, action] = key.split(".");
+    const { moduleName, action } = splitPermissionKey(key);
     const permission = await client.query(
       `
       INSERT INTO permissions (module, action, description)

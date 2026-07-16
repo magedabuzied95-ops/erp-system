@@ -26,10 +26,10 @@ test("server mounts /api/users and users routes expose PATCH aliases", () => {
   const routesSource = readFileSync(new URL("../server/routes/users.routes.js", import.meta.url), "utf8");
 
   assert.match(serverSource, /app\.use\("\/api\/users",\s*usersRoutes\)/);
-  assert.ok(routesSource.includes('router.put("/:id", protect, requireAdminOnly, updateUser);'));
-  assert.ok(routesSource.includes('router.put("/:id/password", protect, requireAdminOnly, updateUserPassword);'));
-  assert.ok(routesSource.includes('router.patch("/:id/role", protect, requireAdminOnly, updateUserRole);'));
-  assert.ok(routesSource.includes('router.patch("/:id/status", protect, requireAdminOnly, updateUserStatus);'));
+  assert.ok(routesSource.includes('router.put("/:id", protect, permit("users", "edit"), updateUser);'));
+  assert.ok(routesSource.includes('router.put("/:id/password", protect, permit("users", "edit"), updateUserPassword);'));
+  assert.ok(routesSource.includes('router.patch("/:id/role", protect, permit("users", "edit"), updateUserRole);'));
+  assert.ok(routesSource.includes('router.patch("/:id/status", protect, permit("users", "edit"), updateUserStatus);'));
 });
 
 test("createUser accepts the exact Users.jsx payload and hashes passwords", async () => {
@@ -779,6 +779,10 @@ test("GET /api/roles seeds built-ins and exposes numeric Admin/Cashier roles", a
     assert.equal(Array.isArray(cashier.permissions) && cashier.permissions.includes("products.view_cost"), false);
     assert.equal(Array.isArray(cashier.permissions) && cashier.permissions.includes("orders.edit"), true);
     assert.equal(Array.isArray(cashier.permissions) && cashier.permissions.includes("orders.delete"), true);
+    assert.equal(Array.isArray(cashier.permissions) && cashier.permissions.includes("pos.expenses.create"), true);
+    const manager = roles.find((role) => String(role.name).toLowerCase() === "manager");
+    assert.equal(Array.isArray(manager?.permissions) && manager.permissions.includes("expenses.advances.view"), true);
+    assert.equal(Array.isArray(manager?.permissions) && manager.permissions.includes("treasury.dashboard.view"), true);
     assert.equal(Number.isInteger(Number(cashier.id)) && Number(cashier.id) > 0, true);
   } finally {
     db.query = originalQuery;

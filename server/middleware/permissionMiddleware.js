@@ -190,6 +190,12 @@ const permissionAliases = (moduleName = "", action = "") => {
     aliases.add("marketing:edit");
     aliases.add("marketing.edit");
   }
+  if (moduleValue === "customers" && ["edit", "update"].includes(actionValue)) {
+    aliases.add("customers:edit");
+    aliases.add("customers.edit");
+    aliases.add("customers:update");
+    aliases.add("customers.update");
+  }
 
   for (const value of [moduleValue, actionValue]) {
     if (!value) continue;
