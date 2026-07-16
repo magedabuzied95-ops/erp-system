@@ -64,3 +64,20 @@ test("shared portal chat recognizes secure links and keeps native open-copy beha
   assert.match(messageList, /select-text/);
   assert.match(messageList, /onTouchStart=.*stopPropagation/);
 });
+
+test("manager employee chat opens as a full-screen mobile conversation", async () => {
+  const [sharedChat, managerPortal, composer] = await Promise.all([
+    source("src/shared/chat/SharedPortalChat.jsx"),
+    source("src/modules/managerPortal/pages/ManagerPortal.jsx"),
+    source("src/shared/chat/PortalChatComposer.jsx"),
+  ]);
+  assert.match(managerPortal, /<SharedPortalChat[\s\S]*?mobileFullScreen/);
+  assert.match(sharedChat, /mobileConversationOpen/);
+  assert.match(sharedChat, /fixed inset-0 z-\[80\] h-\[100dvh\]/);
+  assert.match(sharedChat, /data-mobile-conversation-open/);
+  assert.match(sharedChat, /الرجوع إلى محادثات الموظفين/);
+  assert.match(sharedChat, /setMobileConversationOpen\(false\)/);
+  assert.match(sharedChat, /document\.body\.style\.overflow = "hidden"/);
+  assert.match(sharedChat, /safe-area-inset-top/);
+  assert.match(composer, /safe-area-inset-bottom/);
+});

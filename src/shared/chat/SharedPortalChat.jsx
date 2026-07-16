@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, MessageCircle, RefreshCw, UserRound, X } from "lucide-react";
+import { ArrowRight, Loader2, MessageCircle, RefreshCw, UserRound, X } from "lucide-react";
 
 import { dedupeChatMessages, dedupeChatThreads, mergeChatMessages, mergeChatThreads } from "../lib/chatState";
 import PortalChatComposer from "./PortalChatComposer";
@@ -80,6 +80,7 @@ export default function SharedPortalChat({
   pollMs = 12000,
   allowReply = true,
   useTextareaComposer = false,
+  mobileFullScreen = false,
 }) {
   const [threads, setThreads] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(String(initialSelectedEmployeeId || employeeRecordId(selectedEmployee) || ""));
@@ -100,6 +101,7 @@ export default function SharedPortalChat({
   const [error, setError] = useState("");
   const [recordingState, setRecordingState] = useState({ active: false, paused: false, seconds: 0, supported: false });
   const [recordingStream, setRecordingStream] = useState(null);
+  const [mobileConversationOpen, setMobileConversationOpen] = useState(false);
   const fileInputRef = useRef(null);
   const inputRef = useRef(null);
   const messagesRef = useRef(null);
@@ -211,6 +213,15 @@ export default function SharedPortalChat({
     const supported = typeof window !== "undefined" && Boolean(window.MediaRecorder && navigator.mediaDevices?.getUserMedia);
     setRecordingState((current) => (current.supported === supported ? current : { ...current, supported }));
   }, []);
+
+  useEffect(() => {
+    if (!mobileFullScreen || !mobileConversationOpen || typeof document === "undefined") return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileConversationOpen, mobileFullScreen]);
 
   const loadThreads = useCallback(async () => {
     if (!apiAdapter?.listThreads) return;
@@ -375,6 +386,7 @@ export default function SharedPortalChat({
     setAttachment(null);
     setAttachmentDuration(0);
     setTypingLabel("");
+    if (mobileFullScreen) setMobileConversationOpen(true);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -589,8 +601,12 @@ export default function SharedPortalChat({
     : managerPanel;
 
   return (
-    <section className={`theme-card flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden p-0 md:h-auto md:min-h-0 ${className}`} dir="rtl">
-      <div className="shrink-0 border-b border-[var(--border)] p-4">
+    <section
+      className={`theme-card flex min-w-0 flex-col overflow-hidden p-0 ${mobileFullScreen ? (mobileConversationOpen ? "fixed inset-0 z-[80] h-[100dvh] min-h-[100dvh] w-full max-w-none rounded-none border-0" : "h-auto min-h-0") : "h-[100dvh] min-h-[100dvh]"} md:static md:z-auto md:h-auto md:min-h-0 md:w-auto md:rounded-[var(--radius-card)] md:border ${className}`}
+      dir="rtl"
+      data-mobile-conversation-open={mobileConversationOpen ? "true" : "false"}
+    >
+      <div className={`shrink-0 border-b border-[var(--border)] p-4 ${mobileFullScreen && mobileConversationOpen ? "hidden md:block" : ""}`}>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[11px] font-black text-[var(--muted)]">{headerKicker}</p>
@@ -606,7 +622,7 @@ export default function SharedPortalChat({
       </div>
 
       <div className={`grid min-h-0 flex-1 md:min-h-[34rem] ${currentPanel ? "xl:grid-cols-[22rem_1fr_20rem] md:grid-cols-[20rem_1fr]" : "md:grid-cols-[22rem_1fr]"}`}>
-        <aside className="flex min-h-0 flex-col border-b border-[var(--border)] bg-[var(--card)] md:border-b-0 md:border-l">
+        <aside className={`${mobileFullScreen && mobileConversationOpen ? "hidden md:flex" : "flex"} min-h-0 min-w-0 flex-col border-b border-[var(--border)] bg-[var(--card)] md:border-b-0 md:border-l`}>
           {loadingThreads && !sidebarRows.length ? (
             <div className="flex items-center justify-center gap-2 p-6 text-sm font-bold text-[var(--muted)]">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -656,11 +672,21 @@ export default function SharedPortalChat({
           )}
         </aside>
 
-        <div className="flex min-h-0 flex-col bg-[#0b141a] md:min-h-[34rem]">
+        <div className={`${mobileFullScreen && !mobileConversationOpen ? "hidden md:flex" : "flex"} min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-[#0b141a] md:min-h-[34rem]`}>
           {selectedEmployeeRecord ? (
             <>
-              <div className="shrink-0 border-b border-white/10 bg-[#1f2c33] px-4 py-2 text-white">
+              <div className="shrink-0 border-b border-white/10 bg-[#1f2c33] px-3 pb-2 pt-[calc(0.5rem+env(safe-area-inset-top))] text-white md:px-4 md:py-2">
                 <div className="flex min-w-0 items-center gap-3">
+                  {mobileFullScreen ? (
+                    <button
+                      type="button"
+                      onClick={() => setMobileConversationOpen(false)}
+                      className="grid h-10 w-10 shrink-0 place-items-center rounded-full text-white transition hover:bg-white/10 md:hidden"
+                      aria-label="الرجوع إلى محادثات الموظفين"
+                    >
+                      <ArrowRight className="h-6 w-6" />
+                    </button>
+                  ) : null}
                   <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
                     <UserRound className="h-4 w-4" />
                   </div>

@@ -2864,6 +2864,7 @@ export default function ManagerPortal() {
                 )
               )}
               useTextareaComposer
+              mobileFullScreen
             />
           ) : null}
 

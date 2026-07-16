@@ -35,7 +35,7 @@ export default function PortalChatComposer({
   };
 
   return (
-    <form onSubmit={onSubmit} className="relative z-30 flex-none border-t border-white/10 bg-[#1f2c33] px-2 pb-1 pt-1">
+    <form onSubmit={onSubmit} className="relative z-30 flex-none border-t border-white/10 bg-[#1f2c33] px-2 pb-[calc(0.25rem+env(safe-area-inset-bottom))] pt-1">
       {recordingState.active ? (
         <WhatsAppRecordingBar
           stream={recordingStream}
