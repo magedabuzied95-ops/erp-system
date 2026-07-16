@@ -1782,6 +1782,26 @@ const imagePerceptualHash = async (input) => {
   return Array.from(pixels, (value) => (value >= avg ? "1" : "0")).join("");
 };
 
+const imageDifferenceHash = async (input) => {
+  const width = VISUAL_HASH_SIZE + 1;
+  const height = VISUAL_HASH_SIZE;
+  const pixels = await sharp(input)
+    .rotate()
+    .resize(width, height, { fit: "fill" })
+    .greyscale()
+    .raw()
+    .toBuffer();
+  const bits = [];
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < VISUAL_HASH_SIZE; x += 1) {
+      const left = pixels[y * width + x] || 0;
+      const right = pixels[y * width + x + 1] || 0;
+      bits.push(left > right ? "1" : "0");
+    }
+  }
+  return bits.join("");
+};
+
 const imageContentCropBuffer = async (input) => {
   const base = sharp(input).rotate().removeAlpha();
   const metadata = await base.metadata();
@@ -1837,6 +1857,13 @@ const imagePerceptualHashes = async (input) => {
   if (!cropped?.length) return { primary: baseHash, all: [baseHash] };
   const cropHash = await imagePerceptualHash(cropped).catch(() => "");
   return { primary: baseHash, all: [...new Set([baseHash, cropHash].filter(Boolean))] };
+};
+
+const imageShapeHashes = async (input) => {
+  const full = await imageDifferenceHash(input).catch(() => "");
+  const cropped = await imageContentCropBuffer(input).catch(() => null);
+  const crop = cropped?.length ? await imageDifferenceHash(cropped).catch(() => "") : "";
+  return [...new Set([full, crop].filter(Boolean))];
 };
 
 const hashDistance = (a = "", b = "") => {
@@ -1948,11 +1975,13 @@ const getCandidateVisualSignature = async (imageUrl = "", options = {}) => {
     imagePerceptualHashes(loaded.buffer),
     imageColorSignature(loaded.buffer).catch(() => null),
   ]);
+  const shapeHashes = await imageShapeHashes(loaded.buffer).catch(() => []);
   const signature = {
     source: loaded.source,
     sha: imageSha256(loaded.buffer),
     hash: hashes.primary,
     hashes: hashes.all,
+    shapeHashes,
     color,
   };
   visualSignatureCache.set(key, signature);
@@ -2008,6 +2037,7 @@ const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 
   const uploadedSha = imageSha256(imageBuffer);
   const uploadedHashes = await imagePerceptualHashes(imageBuffer);
   const uploadedHashList = uploadedHashes.all.length ? uploadedHashes.all : [uploadedHashes.primary].filter(Boolean);
+  const uploadedShapeHashes = await imageShapeHashes(imageBuffer).catch(() => []);
   const uploadedColor = await imageColorSignature(imageBuffer).catch(() => null);
   const candidates = await queryVisualImageCandidates(tenantId);
   const scored = [];
@@ -2043,12 +2073,19 @@ const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 
       const distance = exact ? 0 : Math.min(
         ...uploadedHashList.flatMap((uploadedHash) => candidateHashes.map((candidateHash) => hashDistance(uploadedHash, candidateHash)))
       );
+      const candidateShapeHashes = Array.isArray(signature.shapeHashes) ? signature.shapeHashes.filter(Boolean) : [];
+      const shapeDistance = exact || !uploadedShapeHashes.length || !candidateShapeHashes.length
+        ? distance
+        : Math.min(
+          ...uploadedShapeHashes.flatMap((uploadedHash) => candidateShapeHashes.map((candidateHash) => hashDistance(uploadedHash, candidateHash)))
+        );
       const colorSimilarity = uploadedColor ? colorSignatureSimilarity(uploadedColor, signature.color) : 0;
       const hashScore = exact ? 100 : Math.max(0, 92 - distance * 2.2);
+      const shapeScore = exact ? 100 : Math.max(0, 94 - shapeDistance * 2.45);
       const blendedScore = exact
         ? 100
-        : Math.max(0, Math.min(94, Math.round(hashScore * 0.7 + colorSimilarity * 100 * 0.3)));
-      if (!(exact || distance <= 16 || blendedScore >= 42 || colorSimilarity >= 0.88)) {
+        : Math.max(0, Math.min(96, Math.round(hashScore * 0.38 + shapeScore * 0.42 + colorSimilarity * 100 * 0.2)));
+      if (!(exact || distance <= 16 || shapeDistance <= 15 || blendedScore >= 42 || colorSimilarity >= 0.88)) {
         return { signature, matched: false, colorSimilarity };
       }
       return {
@@ -2057,8 +2094,9 @@ const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 
         match: {
           productId: candidate.product.id,
           score: blendedScore,
-          reason: exact ? "exact_sha256" : distance <= 16 ? "perceptual_hash" : "visual_color_similarity",
+          reason: exact ? "exact_sha256" : shapeDistance <= 15 ? "shape_hash" : distance <= 16 ? "perceptual_hash" : "visual_color_similarity",
           distance,
+          shapeDistance,
           colorSimilarity,
         },
       };
