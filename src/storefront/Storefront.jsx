@@ -3286,16 +3286,16 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
   ];
 
   return (
-    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger mt-8 border-y border-stone-200 bg-[#f5f5f3] md:mt-12">
-      <div className="mx-auto grid max-w-[1400px] divide-y divide-stone-200 px-5 md:grid-cols-3 md:divide-x md:divide-y-0 md:px-8 rtl:md:divide-x-reverse">
+    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger mt-8 border-y border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] md:mt-12">
+      <div className="mx-auto grid max-w-[1400px] divide-y divide-white/[0.08] px-5 md:grid-cols-3 md:divide-x md:divide-y-0 md:px-8 rtl:md:divide-x-reverse">
           {items.map((item, index) => {
             const Icon = item.icon;
             return (
               <div key={item.title} className="sf-home-motion-item flex min-h-[76px] items-center gap-3 py-4 md:justify-center md:px-7 md:py-5" style={{ "--sf-motion-index": index }}>
-                <Icon className="h-5 w-5 shrink-0 text-stone-900" strokeWidth={1.7} />
+                <Icon className="h-5 w-5 shrink-0 text-[#d0a632]" strokeWidth={1.7} />
                   <div className="min-w-0">
-                  <h3 className="text-[13px] font-black leading-5 text-stone-950 md:text-sm">{item.title}</h3>
-                  <p className="text-[11px] font-semibold leading-5 text-stone-500 md:text-xs">{item.text}</p>
+                  <h3 className="text-[13px] font-black leading-5 text-white md:text-sm">{item.title}</h3>
+                  <p className="text-[11px] font-semibold leading-5 text-white/55 md:text-xs">{item.text}</p>
                   </div>
               </div>
             );
