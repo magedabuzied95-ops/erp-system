@@ -66,6 +66,7 @@ import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocatio
 import { VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
 import { forceCleanReload, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
+import { StorefrontProductListingPage } from "./pages/StorefrontProductListingPage.jsx";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
 import { animateFlyToCart } from "./lib/flyToCart";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
@@ -1589,7 +1590,7 @@ const repairedDefaultEgyptShippingLocations = defaultEgyptShippingLocations;
 const OrderInvoiceCard = lazy(() => import("../shared/components/invoices/OrderInvoiceCard"));
 const Select = lazy(() => import("react-select"));
 const LazyFiltersDrawer = lazy(() => Promise.resolve({ default: MobileFilterDrawer }));
-const LazyStorefrontProductListingPage = lazy(() => import("./pages/StorefrontProductListingPage.jsx").then((module) => ({ default: module.StorefrontProductListingPage })));
+const LazyStorefrontProductListingPage = StorefrontProductListingPage;
 const LazyStorefrontProductDetailPage = lazy(() => import("./pages/StorefrontProductDetailPage.jsx").then((module) => ({ default: module.StorefrontProductDetailPage })));
 const LazyProductCardVariantSheet = lazy(() => Promise.resolve({ default: ProductCardVariantSheet }));
 const LazyProductDetailsVariantSheet = lazy(() => Promise.resolve({ default: ProductDetailsVariantSheet }));

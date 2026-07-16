@@ -195,6 +195,7 @@ const Permissions = lazy(() => import("./modules/permissions/pages/Permissions")
 
 import ProtectedRoute from "./shared/auth/ProtectedRoute";
 import DebugErrorBoundary from "./shared/components/DebugErrorBoundary";
+import Storefront from "./storefront/Storefront";
 
 /* ======================================================
    FORBIDDEN
@@ -209,7 +210,6 @@ const RegisterCompany = lazy(() => import("./modules/saas/pages/RegisterCompany"
 const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
 const PublicProduct = lazy(() => import("./pages/PublicProduct"));
 const SmartProductQrRedirect = lazy(() => import("./pages/SmartProductQrRedirect"));
-const Storefront = lazy(() => import("./storefront/Storefront"));
 const PrivacyPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.PrivacyPage })));
 const TermsPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.TermsPage })));
 const DataDeletionPage = lazy(() => import("./storefront/pages/LegalPages").then((module) => ({ default: module.DataDeletionPage })));
