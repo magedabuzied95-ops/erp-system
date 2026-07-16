@@ -6886,7 +6886,7 @@ function POSPro() {
             onClick={handleToggleSaleMode}
             disabled={saleModeSaving}
             title={salePricesEnabled ? "Sale Prices ON" : "Sale Prices OFF"}
-            className={`inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-black uppercase tracking-[0.08em] shadow-[0_0_18px_rgba(0,0,0,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60 ${
+            className={`pos-toolbar-action pos-action-sale inline-flex h-9 shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 text-xs font-black uppercase tracking-[0.08em] shadow-[0_0_18px_rgba(0,0,0,0.18)] transition disabled:cursor-not-allowed disabled:opacity-60 ${
               salePricesEnabled
                 ? "border-emerald-300/30 bg-emerald-400/10 text-emerald-100 hover:border-emerald-300/50 hover:bg-emerald-400/15"
                 : "border-amber-300/30 bg-amber-400/10 text-amber-100 hover:border-amber-300/50 hover:bg-amber-400/15"
@@ -6900,7 +6900,7 @@ function POSPro() {
             type="button"
             onClick={handleCloseShift}
             disabled={attendanceLoading || posShiftSource === "cache" || posShiftNetworkUnavailable}
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 text-xs font-black text-emerald-100 shadow-[0_0_20px_rgba(16,185,129,0.14)] transition hover:border-emerald-300/50 hover:bg-emerald-500/15 disabled:opacity-50"
+            className="pos-toolbar-action pos-action-shift inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-emerald-400/30 bg-emerald-500/10 px-3 text-xs font-black text-emerald-100 shadow-[0_0_20px_rgba(16,185,129,0.14)] transition hover:border-emerald-300/50 hover:bg-emerald-500/15 disabled:opacity-50"
           >
             <CheckCircle2 className="h-4 w-4" />
             Shift / Close Shift
@@ -6908,7 +6908,7 @@ function POSPro() {
           <button
             type="button"
             onClick={() => navigate("/dashboard")}
-            className="inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-rose-400/30 bg-rose-500/10 px-3 text-xs font-black text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.16)] transition hover:border-rose-300/50 hover:bg-rose-500/15"
+            className="pos-toolbar-action pos-action-exit inline-flex h-9 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-full border border-rose-400/30 bg-rose-500/10 px-3 text-xs font-black text-rose-100 shadow-[0_0_20px_rgba(244,63,94,0.16)] transition hover:border-rose-300/50 hover:bg-rose-500/15"
           >
             <LogOut className="h-4 w-4" />
             Exit POS

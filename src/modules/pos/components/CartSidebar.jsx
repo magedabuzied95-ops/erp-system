@@ -809,7 +809,8 @@ function CartSidebar({
               </>
             ) : null}
             <div
-              className={`rounded-full px-2 py-1 text-[10px] font-black ${
+              data-status={String(paymentSummary.paymentStatus || "pending").toLowerCase()}
+              className={`pos-payment-status rounded-full px-2 py-1 text-[10px] font-black ${
                 paymentSummary.paymentStatus === "Paid"
                   ? "bg-emerald-500/10 text-emerald-300"
                   : paymentSummary.paymentStatus === "Partial"
@@ -995,7 +996,7 @@ function CartSidebar({
             فواتير بانتظار المزامنة: {offlineSyncPendingCount}
           </div>
         ) : null}
-        <div className="sticky bottom-0 -mx-2.5 -mb-2.5 mt-2 grid grid-cols-1 gap-1.5 border-t border-white/10 bg-zinc-950/95 p-2.5 backdrop-blur sm:grid-cols-3">
+        <div className="pos-checkout-actions sticky bottom-0 -mx-2.5 -mb-2.5 mt-2 grid grid-cols-1 gap-1.5 border-t border-white/10 bg-zinc-950/95 p-2.5 backdrop-blur sm:grid-cols-3">
           <button
             type="button"
             onClick={onCheckout}
@@ -1007,7 +1008,7 @@ function CartSidebar({
                   ? posLabel("cart.completePaymentFirst", "Remaining must be zero before creating the order.")
                   : undefined
             }
-            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+            className="pos-checkout-primary inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {checkoutLoading ? posLabel("cart.savingInvoice", "جارِ حفظ الفاتورة...") : `${checkoutLabel} • ${formatCurrency(totalAmount)}`}
           </button>
@@ -1016,7 +1017,7 @@ function CartSidebar({
             onClick={onCreditSale}
             disabled={!hasSelectedCustomer || checkoutLoading || cart.length === 0 || editRefundSelectionMissing}
             title={!hasSelectedCustomer ? "اختر عميلاً أولاً لإنشاء بيع آجل" : "إنشاء بيع آجل للعميل المحدد"}
-            className="inline-flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="pos-checkout-credit inline-flex min-h-10 flex-col items-center justify-center gap-0.5 rounded-xl border border-amber-300/20 bg-amber-400/10 px-3 py-2 text-xs font-black text-amber-100 transition hover:bg-amber-400/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <span className="inline-flex items-center justify-center gap-1.5">
               <Clock3 className="h-4 w-4" />
@@ -1029,7 +1030,7 @@ function CartSidebar({
             onClick={onPaymobTerminal}
             disabled={!canUsePaymobTerminal || paymobTerminalLoading || personalPaymentActive || creditSaleActive}
             title={personalPaymentActive ? "PERSONAL transactions cannot use Paymob terminal" : creditSaleActive ? "Deferred sales cannot use Paymob terminal" : canUsePaymobTerminal ? "Send payment request to Paymob terminal" : "Paymob terminal payment is not ready"}
-            className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
+            className="pos-checkout-paymob inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-cyan-300/20 bg-cyan-400/10 px-3 py-2 text-xs font-black text-cyan-100 transition hover:bg-cyan-400/15 disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Smartphone className="h-4 w-4" />
             {paymobTerminalLoading ? "Processing..." : "Paymob Terminal"}
@@ -2765,7 +2766,9 @@ function ModeButton({ active, onClick, icon, label, tone = "green", title = "" }
       type="button"
       onClick={onClick}
       title={title || undefined}
-      className={`relative inline-flex h-7 w-full min-w-0 items-center justify-center gap-1 rounded-lg border bg-black/25 px-2 text-xs font-black transition duration-200 ${active ? toneClasses.active : toneClasses.button}`}
+      data-tone={tone}
+      data-active={active ? "true" : "false"}
+      className={`pos-payment-method relative inline-flex h-7 w-full min-w-0 items-center justify-center gap-1 rounded-lg border bg-black/25 px-2 text-xs font-black transition duration-200 ${active ? toneClasses.active : toneClasses.button}`}
     >
       {active ? (
         <span className={`absolute right-0.5 top-0.5 inline-flex h-3 w-3 items-center justify-center rounded-full ${toneClasses.check}`}>

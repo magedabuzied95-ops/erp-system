@@ -131,6 +131,28 @@ html[data-theme="light"] .pos-pro-shell .pos-product-original-price {
   text-decoration-color: #9b958b !important;
 }
 
+html[data-theme="light"] .pos-pro-shell .pos-toolbar-action {
+  box-shadow: 0 5px 14px rgb(53 47 39 / 9%) !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-action-sale {
+  border-color: #dec56b !important;
+  background: #fff8dc !important;
+  color: #725500 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-action-shift {
+  border-color: #8ed1b6 !important;
+  background: #e8f8f1 !important;
+  color: #075f47 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-action-exit {
+  border-color: #efabb4 !important;
+  background: #fff0f2 !important;
+  color: #a32237 !important;
+}
+
 html[data-theme="light"] .pos-pro-shell .pos-cart-totals {
   border-color: #a9dbc8 !important;
   background: linear-gradient(180deg, #f3fbf7 0%, #eaf7f1 100%) !important;
@@ -150,6 +172,61 @@ html[data-theme="light"] .pos-pro-shell .pos-payment-panel :is(.text-white, .tex
   color: var(--pos-light-text) !important;
 }
 
+html[data-theme="light"] .pos-pro-shell .pos-payment-status[data-status="paid"] {
+  background: #dff5ea !important;
+  color: #076247 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-payment-status[data-status="partial"] {
+  background: #fff2cf !important;
+  color: #825e00 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-payment-status[data-status="pending"] {
+  background: #ece9e3 !important;
+  color: #59544c !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-payment-method {
+  background: #f7f5f0 !important;
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 80%) !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-tone="green"] {
+  border-color: #75c9a7 !important;
+  color: #086249 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-tone="blue"] {
+  border-color: #86b9dc !important;
+  color: #155f8e !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-tone="purple"] {
+  border-color: #b9a1d8 !important;
+  color: #664095 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-tone="red"] {
+  border-color: #e397a2 !important;
+  color: #a12639 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-tone="gold"] {
+  border-color: #d7b75a !important;
+  color: #765700 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-payment-method[data-active="true"] {
+  background: color-mix(in srgb, currentColor 12%, #fff) !important;
+  box-shadow: inset 0 0 0 1px currentColor, 0 4px 12px rgb(50 44 35 / 9%) !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-payment-method span,
+html[data-theme="light"] .pos-pro-shell .pos-payment-method svg {
+  color: inherit !important;
+}
+
 html[data-theme="light"] .pos-pro-shell .pos-payment-panel :is(.text-zinc-400, .text-zinc-500),
 html[data-theme="light"] .pos-pro-shell .pos-customer-picker :is(.text-zinc-400, .text-zinc-500) {
   color: var(--pos-light-muted) !important;
@@ -162,6 +239,41 @@ html[data-theme="light"] .pos-pro-shell .pos-customer-picker > div:last-child {
 html[data-theme="light"] .pos-pro-shell .pos-customer-picker :is(.text-emerald-100, .text-emerald-200),
 html[data-theme="light"] .pos-pro-shell .pos-payment-panel :is(.text-emerald-100, .text-emerald-200, .text-emerald-50) {
   color: #087657 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-customer-picker [class*="text-emerald-"],
+html[data-theme="light"] .pos-pro-shell .pos-payment-panel [class*="text-emerald-"] {
+  color: #087657 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-checkout-actions {
+  border-color: var(--pos-light-border) !important;
+  background: #f3f1ec !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-checkout-actions button:disabled {
+  opacity: .72 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-checkout-primary {
+  background: #0b7a5b !important;
+  color: #ffffff !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-checkout-credit {
+  border-color: #d5b65d !important;
+  background: #fff5d8 !important;
+  color: #725400 !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-checkout-credit span {
+  color: inherit !important;
+}
+
+html[data-theme="light"] .pos-pro-shell .pos-checkout-paymob {
+  border-color: #78b9c6 !important;
+  background: #e8f6f8 !important;
+  color: #155f6c !important;
 }
 
 @media (max-width: 1023px) {

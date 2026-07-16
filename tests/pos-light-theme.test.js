@@ -18,6 +18,10 @@ test("POS light mode uses scoped readable catalog and checkout surfaces", () => 
   assert.match(cart, /pos-customer-picker/);
   assert.match(cart, /pos-cart-totals/);
   assert.match(cart, /pos-payment-panel/);
+  assert.match(cart, /pos-payment-method/);
+  assert.match(cart, /pos-checkout-actions/);
+  assert.match(page, /pos-action-shift/);
   assert.match(styles, /html\[data-theme="light"\] \.pos-pro-shell \.pos-product-card/);
+  assert.match(styles, /pos-payment-method\[data-tone="purple"\]/);
   assert.match(styles, /--pos-light-text: #25231f/);
 });
