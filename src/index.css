@@ -6330,6 +6330,21 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   -webkit-text-fill-color: currentColor !important;
 }
 
+.storefront-shell.storefront-dark .sf-product-card-price {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  text-shadow: 0 1px 10px rgba(255, 255, 255, 0.08);
+}
+
+.storefront-shell .sf-product-card-compare-price {
+  letter-spacing: -0.01em;
+}
+
+.storefront-shell.storefront-dark .sf-product-card-compare-price {
+  color: rgba(255, 255, 255, 0.46) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.46) !important;
+}
+
 .storefront-shell .sf-product-card button[class*="bg-[linear-gradient(135deg,#d4af37"] {
   border-color: rgba(200, 163, 74, 0.34) !important;
   background: var(--sf-premium-gold-gradient) !important;

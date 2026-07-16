@@ -5855,7 +5855,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       image: "aspect-[0.9/1] p-0",
       body: "px-[12px] pb-[10px] pt-[5px]",
       title: "min-h-10 text-[12.75px] leading-[1.22rem]",
-      price: "text-[18.25px]",
+      price: "text-[20px]",
       sizes: "gap-1.5",
       chip: "h-6 px-2 text-[8.5px]",
       color: "h-6 w-6",
@@ -5865,7 +5865,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       image: "aspect-[0.92/1] p-0",
       body: "px-[11px] pb-[10px] pt-[5px] md:px-[12px]",
       title: "min-h-10 text-[13px] leading-[1.2rem]",
-      price: "text-[18px]",
+      price: "text-[19.5px]",
       sizes: "gap-1.5",
       chip: "h-6 px-2 text-[8.5px]",
       color: "h-[22px] w-[22px]",
@@ -5875,7 +5875,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
       image: "aspect-[0.96/1] p-0",
       body: "px-[11px] pb-[9px] pt-[5px] md:px-[12px]",
       title: "min-h-9 text-[12.75px] leading-[1.18rem]",
-      price: "text-[17.25px]",
+      price: "text-[18.5px]",
       sizes: "gap-1.25",
       chip: "h-6 px-2 text-[8.5px]",
       color: "h-6 w-6",
@@ -5988,8 +5988,8 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         </Link>
         <div className="mt-[4px] flex min-h-[2.35rem] items-center justify-between gap-2 md:min-h-[2.35rem]">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.24rem] dark:text-[#f3d77a] ${densityClasses.price}`}>{money(sellingPrice)}</span>
-            {comparePrice ? <span className="text-[9px] font-semibold leading-none text-stone-400 line-through opacity-80 dark:text-stone-500 md:text-[9.5px]">{money(comparePrice)}</span> : null}
+            <span className={`sf-product-card-price font-black leading-none text-[#d4af37] md:text-[1.32rem] dark:text-white ${densityClasses.price}`}>{money(sellingPrice)}</span>
+            {comparePrice ? <span className="sf-product-card-compare-price text-[10.5px] font-bold leading-none text-stone-400 line-through opacity-85 dark:text-white/45 md:text-[11px]">{money(comparePrice)}</span> : null}
           </div>
           <button
             type="button"
