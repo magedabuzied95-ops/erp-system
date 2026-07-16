@@ -53,6 +53,7 @@ const attachmentLabelSql = (alias = "m") => `
 
 const adminChatRoom = (tenantId = null) => `employee-chat:tenant:${tenantId || "global"}`;
 const employeeChatRoom = (employeeId) => `employee-chat:employee:${employeeId}`;
+const employeeActiveChatRoom = (employeeId) => `employee-chat-active:employee:${employeeId}`;
 const EMPLOYEE_CHAT_PUSH_TITLE = "\u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629";
 const EMPLOYEE_CHAT_PUSH_FALLBACK_BODY = "\u0644\u062f\u064a\u0643 \u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629 \u0645\u0646 \u0627\u0644\u0625\u062f\u0627\u0631\u0629";
 
@@ -485,25 +486,30 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
   emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:thread-updated", {
     thread: updatedThread,
   });
-  const activeEmployeeChatClients = await getRoomClientCount(employeeChatRoom(thread.employee_id));
-  if (activeEmployeeChatClients === 0) {
-    const senderName = await loadAdminSenderName({ userId, tenantId: thread.tenant_id });
-    await sendEmployeePortalPush({
-      tenantId: thread.tenant_id,
-      employeeId: thread.employee_id,
-      title: EMPLOYEE_CHAT_PUSH_TITLE,
-      body: employeeManagementPushBody(message, senderName),
-      url: thread.employee_portal_token ? `/employee-app/${encodeURIComponent(thread.employee_portal_token)}?tab=chat` : "/employee-app/?tab=chat",
-      tag: "employee-chat",
-      data: {
-        event: "employee_chat_message",
-        thread_id: thread.id,
-        message_id: message.id,
-        tab: "chat",
-      },
-      persist: false,
-    }).catch((error) => console.warn("[employee-chat] push skipped", error?.message || error));
-  }
+  const [activeEmployeePortalClients, activeEmployeeChatClients] = await Promise.all([
+    getRoomClientCount(employeeChatRoom(thread.employee_id)),
+    getRoomClientCount(employeeActiveChatRoom(thread.employee_id)),
+  ]);
+  const employeePortalIsConnected = activeEmployeePortalClients > 0;
+  const employeeChatIsActive = activeEmployeeChatClients > 0;
+  const senderName = await loadAdminSenderName({ userId, tenantId: thread.tenant_id });
+  await sendEmployeePortalPush({
+    tenantId: thread.tenant_id,
+    employeeId: thread.employee_id,
+    title: EMPLOYEE_CHAT_PUSH_TITLE,
+    body: employeeManagementPushBody(message, senderName),
+    url: thread.employee_portal_token ? `/employee-app/${encodeURIComponent(thread.employee_portal_token)}?tab=chat` : "/employee-app/?tab=chat",
+    tag: "employee-chat",
+    data: {
+      event: "employee_chat_message",
+      thread_id: thread.id,
+      message_id: message.id,
+      tab: "chat",
+    },
+    persist: true,
+    deliverPush: !employeePortalIsConnected,
+    markPersistedRead: employeeChatIsActive,
+  }).catch((error) => console.warn("[employee-chat] notification skipped", error?.message || error));
   return { thread: updatedThread || thread, message };
 };
 

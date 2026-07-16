@@ -81,7 +81,7 @@ const ensurePushNotificationSchema = () => {
 
 const persistentPushDedupeKey = ({ tag = "", data = {} } = {}) => {
   const event = text(data.event || tag || "employee_notification");
-  const entity = data.request_id || data.task_id || data.payroll_id || data.opportunity_id || data.thread_id || tag;
+  const entity = data.message_id || data.request_id || data.task_id || data.payroll_id || data.opportunity_id || data.thread_id || tag;
   return `${event}:${text(entity || tag || "general")}`.slice(0, 500);
 };
 
@@ -271,13 +271,24 @@ const recordPushDelivery = async ({
   );
 };
 
-export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body, url = "/", tag = "", data = {}, persist = true } = {}) => {
+export const sendEmployeePortalPush = async ({ tenantId, employeeId, title, body, url = "/", tag = "", data = {}, persist = true, deliverPush = true, markPersistedRead = false } = {}) => {
   if (!tenantId || !employeeId) return { sent: 0, failed: 0, deactivated: 0, skipped: true };
   await ensurePushNotificationSchema();
+  let persistedNotification = null;
   if (persist) {
-    await persistPushNotification({ tenantId, employeeId, title, body, url, tag, data }).catch((error) => {
+    persistedNotification = await persistPushNotification({ tenantId, employeeId, title, body, url, tag, data }).catch((error) => {
       console.warn("[employee-portal-notification] persistence failed", { tenantId, employeeId, tag, message: error?.message || error });
+      return null;
     });
+  }
+  if (markPersistedRead && persistedNotification?.id) {
+    await db.query(
+      `UPDATE employee_portal_notifications SET read_at = COALESCE(read_at, NOW()), updated_at = NOW() WHERE id = $1`,
+      [persistedNotification.id]
+    ).catch((error) => console.warn("[employee-portal-notification] mark-read failed", { notificationId: persistedNotification.id, message: error?.message || error }));
+  }
+  if (!deliverPush) {
+    return { sent: 0, failed: 0, deactivated: 0, skipped: false, persisted: Boolean(persistedNotification), push_skipped: "employee_chat_active" };
   }
   if (!configureWebPush()) {
     console.warn("[employee-portal-push] VAPID keys are missing; push send skipped", {

@@ -23,6 +23,21 @@ test("push events are persisted and delivery attempts are auditable", () => {
   assert.match(push, /status:\s*"sent"/);
 });
 
+test("manager chat persists an in-app notification and only delivers web push while chat is offline", () => {
+  const push = source("server/services/employeePortalPushService.js");
+  const chat = source("server/services/employeeChatService.js");
+  const portal = source("src/modules/employees/pages/EmployeePayrollPortal.jsx");
+
+  assert.match(push, /data\.message_id\s*\|\|\s*data\.request_id/);
+  assert.match(push, /deliverPush\s*=\s*true/);
+  assert.match(chat, /persist:\s*true/);
+  assert.match(chat, /deliverPush:\s*!employeePortalIsConnected/);
+  assert.match(chat, /markPersistedRead:\s*employeeChatIsActive/);
+  assert.match(portal, /employeeChatActive:\s*true/);
+  assert.match(portal, /isChatNotification/);
+  assert.match(portal, /unreadChats:\s*chatOpen\s*\?\s*0/);
+});
+
 test("shared shortage alerts use employee-specific read receipts", () => {
   const refill = source("server/services/displayRefillAlertService.js");
 

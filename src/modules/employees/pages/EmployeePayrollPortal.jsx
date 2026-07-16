@@ -2070,12 +2070,18 @@ export default function EmployeePayrollPortal() {
     const onPortalNotification = (event = {}) => {
       const notification = event.notification || event;
       if (String(notification.employee_id || "") !== String(profile.id || "")) return;
+      const notificationType = String(notification.type || notification.metadata?.event || notification.metadata?.tag || "").trim().toLowerCase();
+      const isChatNotification = notificationType === "employee_chat_message" || notificationType === "employee-chat";
       const notice = notification.title || notification.body || "تنبيه جديد";
-      showPortalToast(notification.body || notice);
-      setPortalNotice(notification.body || notice);
+      if (!isChatNotification || !chatOpen) {
+        showPortalToast(notification.body || notice);
+        setPortalNotice(notification.body || notice);
+      }
       setBadgeCounts((current) => ({
         ...current,
-        unreadNotifications: activeTab === "notifications" ? 0 : Number(current.unreadNotifications || 0) + 1,
+        ...(isChatNotification
+          ? { unreadChats: chatOpen ? 0 : Number(current.unreadChats || 0) + 1 }
+          : { unreadNotifications: activeTab === "notifications" ? 0 : Number(current.unreadNotifications || 0) + 1 }),
       }));
       loadPortalByToken({ silent: true, clearNotice: false });
     };
@@ -2111,7 +2117,7 @@ export default function EmployeePayrollPortal() {
       requestSocket.disconnect();
       if (requestSocketRef.current === requestSocket) requestSocketRef.current = null;
     };
-  }, [activeTab, portal, token, profile.id, loadPortalByToken, showPortalToast]);
+  }, [activeTab, chatOpen, portal, token, profile.id, loadPortalByToken, showPortalToast]);
 
   const printDisplayRefillBarcode = useCallback((alert) => {
     if (!alert) return false;
@@ -2286,7 +2292,7 @@ export default function EmployeePayrollPortal() {
       reconnectionDelay: 500,
       reconnectionDelayMax: 8000,
       transports: ["websocket", "polling"],
-      auth: { employeePortalToken: token },
+      auth: { employeePortalToken: token, employeeChatActive: true },
     });
     chatSocketRef.current = chatSocket;
 

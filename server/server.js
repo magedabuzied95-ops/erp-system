@@ -311,6 +311,9 @@ io.on("connection", async (socket) => {
         branch_id: employee.branch_id || null,
       };
       socket.join(`employee-chat:employee:${employee.id}`);
+      if (socket.handshake?.auth?.employeeChatActive === true) {
+        socket.join(`employee-chat-active:employee:${employee.id}`);
+      }
       socket.join(`employee:${employee.id}`);
       if (employee.tenant_id) socket.join(`tenant:${employee.tenant_id}`);
       if (employee.branch_id) socket.join(`branch:${employee.branch_id}`);
