@@ -18,6 +18,11 @@ test("storefront mobile navigation uses modern commerce icons", () => {
 
 test("English storefront navigation and product actions do not fall back to Arabic", () => {
   const navSource = storefrontSource.slice(storefrontSource.indexOf("function MobileBottomNav"), storefrontSource.indexOf("function SummaryRow"));
+  assert.match(
+    navSource,
+    /const currentLanguage = normalizeLanguage\([\s\S]*?const isRtl = currentLanguage === "ar";/,
+    "MobileBottomNav must define isRtl in its own component scope",
+  );
   assert.match(navSource, /isRtl \? "الرئيسية" : "Home"/);
   assert.match(navSource, /isRtl \? "الأقسام" : "Categories"/);
   assert.match(navSource, /isRtl \? "العروض" : "Offers"/);

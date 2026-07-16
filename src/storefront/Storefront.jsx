@@ -9078,6 +9078,7 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
   const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
   const path = location.pathname || "";
   const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
+  const isRtl = currentLanguage === "ar";
   const isDarkMode = themeMode === "dark";
   const isCheckoutFlow = isStorefrontCheckoutFlowPath(path);
   const isVisible = isStorefrontPath(path) && !isCheckoutFlow;
