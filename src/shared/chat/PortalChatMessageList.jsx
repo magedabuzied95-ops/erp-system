@@ -1,6 +1,6 @@
 import { ArrowDownCircle, CheckCheck, Loader2, MessageCircle } from "lucide-react";
 
-import { portalChatMessagePreview, isPortalChatAudioMessage } from "./portalChatUtils";
+import { portalChatMessagePreview, isPortalChatAudioMessage, portalChatTextParts } from "./portalChatUtils";
 import PortalChatAttachment from "./PortalChatAttachment";
 
 const DEFAULT_BACKGROUND = {
@@ -8,6 +8,32 @@ const DEFAULT_BACKGROUND = {
   backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.055) 1px, transparent 0), linear-gradient(135deg, rgba(20,184,166,0.035), transparent 35%, rgba(15,23,42,0.18))",
   backgroundSize: "18px 18px, 100% 100%",
 };
+
+function PortalChatMessageText({ body = "" }) {
+  return (
+    <div className="whitespace-pre-wrap break-words" dir="auto">
+      {portalChatTextParts(body).map((part, index) =>
+        part.type === "link" ? (
+          <a
+            key={`${part.href}-${index}`}
+            href={part.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="select-text font-semibold text-[#53bdeb] underline decoration-[#53bdeb]/45 underline-offset-2 [overflow-wrap:anywhere] hover:decoration-[#53bdeb] focus-visible:rounded-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#53bdeb]"
+            onClick={(event) => event.stopPropagation()}
+            onTouchStart={(event) => event.stopPropagation()}
+            onTouchMove={(event) => event.stopPropagation()}
+            onTouchEnd={(event) => event.stopPropagation()}
+          >
+            {part.text}
+          </a>
+        ) : (
+          <span key={`text-${index}`}>{part.text}</span>
+        )
+      )}
+    </div>
+  );
+}
 
 export default function PortalChatMessageList({
   messages = [],
@@ -89,7 +115,7 @@ export default function PortalChatMessageList({
                     onImageClick={onImageClick}
                     labels={labels}
                   />
-                  {message.body ? <div className="whitespace-pre-wrap break-words" dir="auto">{message.body}</div> : null}
+                  {message.body ? <PortalChatMessageText body={message.body} /> : null}
                   {!voiceMessage && onReply ? (
                     <button type="button" onClick={() => onReply(message)} className="mt-1 text-[10px] font-bold text-slate-300/60">
                       {labels.reply || "رد"}

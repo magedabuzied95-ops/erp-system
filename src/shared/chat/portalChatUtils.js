@@ -1,4 +1,4 @@
-import { API_ORIGIN } from "../constants/app";
+import { API_ORIGIN } from "../constants/app.js";
 
 export const CHAT_ATTACHMENT_ACCEPT = [
   ".jpg",
@@ -57,6 +57,36 @@ const ALLOWED_ATTACHMENT_TYPES = new Set([
 ]);
 
 const cleanText = (value = "") => String(value ?? "").trim();
+const PORTAL_CHAT_URL_PATTERN = /(?:https?:\/\/|www\.)[^\s<>]+/gi;
+const PORTAL_CHAT_URL_TRAILING_PUNCTUATION = /[.,!?;:\]\)}\u060c\u061b\u061f]+$/u;
+
+export const portalChatTextParts = (value = "") => {
+  const text = String(value ?? "");
+  if (!text) return [];
+
+  const parts = [];
+  let cursor = 0;
+  for (const match of text.matchAll(PORTAL_CHAT_URL_PATTERN)) {
+    const index = Number(match.index || 0);
+    if (index > cursor) parts.push({ type: "text", text: text.slice(cursor, index) });
+
+    const rawMatch = String(match[0] || "");
+    const trailing = rawMatch.match(PORTAL_CHAT_URL_TRAILING_PUNCTUATION)?.[0] || "";
+    const linkText = trailing ? rawMatch.slice(0, -trailing.length) : rawMatch;
+    if (linkText) {
+      parts.push({
+        type: "link",
+        text: linkText,
+        href: /^www\./i.test(linkText) ? `https://${linkText}` : linkText,
+      });
+    }
+    if (trailing) parts.push({ type: "text", text: trailing });
+    cursor = index + rawMatch.length;
+  }
+  if (cursor < text.length) parts.push({ type: "text", text: text.slice(cursor) });
+  return parts.length ? parts : [{ type: "text", text }];
+};
+
 const trimSlashes = (value = "") => cleanText(value).replace(/^\/+|\/+$/g, "");
 const assetBase = () => cleanText(API_ORIGIN).replace(/\/+$/g, "");
 

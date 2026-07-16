@@ -50,3 +50,17 @@ test("employee chat uses the M1 WhatsApp-style header and doodle background", as
   assert.match(styles, /background-image: url\("data:image\/svg\+xml/);
   assert.match(styles, /employee-chat-keyboard-open/);
 });
+
+test("shared portal chat recognizes secure links and keeps native open-copy behavior", async () => {
+  const [messageList, utils] = await Promise.all([
+    source("src/shared/chat/PortalChatMessageList.jsx"),
+    source("src/shared/chat/portalChatUtils.js"),
+  ]);
+  assert.match(utils, /export const portalChatTextParts/);
+  assert.match(utils, /https\?:\\\/\\\//);
+  assert.match(messageList, /portalChatTextParts\(body\)/);
+  assert.match(messageList, /target="_blank"/);
+  assert.match(messageList, /rel="noopener noreferrer"/);
+  assert.match(messageList, /select-text/);
+  assert.match(messageList, /onTouchStart=.*stopPropagation/);
+});
