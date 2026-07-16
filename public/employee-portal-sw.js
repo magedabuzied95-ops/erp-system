@@ -177,7 +177,12 @@ self.addEventListener("push", (event) => {
   if ((payload.data?.tag || payload.tag) === "employee-chat") {
     options = {
       body: payload.body || "لديك رسالة جديدة في تطبيق الموظف",
+      icon: payload.icon || "/icons/employee-portal-192.png",
+      badge: payload.badge || "/icons/employee-portal-192.png",
       tag: "employee-chat",
+      renotify: true,
+      silent: false,
+      vibrate: [200, 100, 200],
       data: { url: payload.url || payload.data?.url || "/employee-app/?tab=chat", tag: "employee-chat" },
     };
     options.body = payload.body || "\u0644\u062f\u064a\u0643 \u0631\u0633\u0627\u0644\u0629 \u062c\u062f\u064a\u062f\u0629 \u0645\u0646 \u0627\u0644\u0625\u062f\u0627\u0631\u0629";

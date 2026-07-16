@@ -486,11 +486,7 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
   emitChatEvent([adminChatRoom(thread.tenant_id)], "employee-chat:thread-updated", {
     thread: updatedThread,
   });
-  const [activeEmployeePortalClients, activeEmployeeChatClients] = await Promise.all([
-    getRoomClientCount(employeeChatRoom(thread.employee_id)),
-    getRoomClientCount(employeeActiveChatRoom(thread.employee_id)),
-  ]);
-  const employeePortalIsConnected = activeEmployeePortalClients > 0;
+  const activeEmployeeChatClients = await getRoomClientCount(employeeActiveChatRoom(thread.employee_id));
   const employeeChatIsActive = activeEmployeeChatClients > 0;
   const senderName = await loadAdminSenderName({ userId, tenantId: thread.tenant_id });
   await sendEmployeePortalPush({
@@ -507,7 +503,7 @@ export const sendAdminEmployeeChatMessage = async ({ tenantId = null, threadId, 
       tab: "chat",
     },
     persist: true,
-    deliverPush: !employeePortalIsConnected,
+    deliverPush: !employeeChatIsActive,
     markPersistedRead: employeeChatIsActive,
   }).catch((error) => console.warn("[employee-chat] notification skipped", error?.message || error));
   return { thread: updatedThread || thread, message };
