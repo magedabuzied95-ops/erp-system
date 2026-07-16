@@ -6345,6 +6345,17 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   -webkit-text-fill-color: rgba(255, 255, 255, 0.46) !important;
 }
 
+.storefront-shell .sf-product-card-media:hover .sf-card-primary-image,
+.storefront-shell .sf-product-card-media:hover .sf-card-secondary-image,
+.storefront-shell .sf-product-card-media:active .sf-card-primary-image,
+.storefront-shell .sf-product-card-media:active .sf-card-secondary-image {
+  transform: scale(1.2) !important;
+}
+
+.storefront-shell .sf-product-card-media:hover .sf-card-secondary-image {
+  opacity: 1 !important;
+}
+
 .storefront-shell .sf-product-card button[class*="bg-[linear-gradient(135deg,#d4af37"] {
   border-color: rgba(200, 163, 74, 0.34) !important;
   background: var(--sf-premium-gold-gradient) !important;

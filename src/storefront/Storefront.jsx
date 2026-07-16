@@ -5899,7 +5899,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
         <Link to={detailsUrl} onClick={resetStorefrontViewportScroll} className="relative z-10 block h-full active:opacity-95">
           {displayImage ? (
             <div
-              className="group/card-image relative h-full w-full overflow-hidden rounded-[0.95rem] md:rounded-[1.05rem]"
+              className="sf-product-card-media group/card-image relative h-full w-full overflow-hidden rounded-[0.95rem] md:rounded-[1.05rem]"
               onMouseEnter={triggerSecondaryFlash}
               onMouseLeave={clearSecondaryFlash}
             >
