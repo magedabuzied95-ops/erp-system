@@ -1,28 +1,30 @@
 {
+  "id": "/pos",
   "name": "M One POS",
   "short_name": "POS",
   "description": "POS install experience for cashiers and checkout workflows.",
-  "start_url": "/pos",
-  "scope": "/pos",
+  "start_url": "/pos?source=pwa",
+  "scope": "/",
   "display": "standalone",
+  "display_override": ["standalone", "browser"],
   "orientation": "portrait",
   "background_color": "#07111f",
   "theme_color": "#07111f",
   "icons": [
     {
-      "src": "/icons/m1-192.png",
+      "src": "/icons/pos-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icons/m1-512.png",
+      "src": "/icons/pos-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/apple-touch-icon.png",
+      "src": "/icons/pos-180.png",
       "sizes": "180x180",
       "type": "image/png",
       "purpose": "any"
