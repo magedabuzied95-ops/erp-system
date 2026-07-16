@@ -5798,19 +5798,12 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   const densityClasses = cardDensityClasses[density] || cardDensityClasses.standard;
   const brandLabel = productCardBrandLabel(product);
   const brandFilterUrl = useMemo(() => productCardBrandFilterUrl(product), [product]);
-    const cardBadge = useMemo(() => {
+  const cardBadge = useMemo(() => {
     if (parsedSaleModeEnabled && discountPercent) {
       return { key: "sale", label: "Sale" };
     }
-    const soldCount = Number(product.total_sold ?? product.sold_count ?? product.sales_count ?? product.order_count ?? product.orders_count ?? product.units_sold ?? 0);
-    if (soldCount > 0) {
-      return { key: "bestseller", label: "Best Seller" };
-    }
-    if (productCardIsNew(product)) {
-      return { key: "new", label: "✨ New Arrival" };
-    }
     return null;
-  }, [discountPercent, product, parsedSaleModeEnabled]);
+  }, [discountPercent, parsedSaleModeEnabled]);
 
   return (
     <article ref={cardRef} style={eagerImage ? undefined : { contentVisibility: "auto", containIntrinsicSize: "240px 400px" }} onMouseEnter={requestDetailPrefetch} onTouchStart={requestDetailPrefetch} className={`sf-product-card group/product relative flex h-full transform-gpu flex-col overflow-hidden rounded-[1.45rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] shadow-[0_14px_36px_rgba(15,23,42,0.08)] ring-1 ring-white/[0.045] transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out hover:-translate-y-1 hover:border-[#d4af37]/30 hover:shadow-[0_18px_42px_rgba(15,23,42,0.12)] active:translate-y-[1px] active:scale-[0.995] touch-manipulation md:rounded-[1.7rem] dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#050505_0%,#101010_40%,#151515_100%)] dark:ring-white/[0.04] dark:shadow-[0_10px_24px_rgba(0,0,0,0.18)] dark:hover:border-[#d4af37]/22 dark:hover:shadow-[0_20px_34px_rgba(0,0,0,0.26)] ${featured ? "md:shadow-[0_16px_38px_rgba(212,175,55,0.08)]" : ""}`}>
