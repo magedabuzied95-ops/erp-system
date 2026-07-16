@@ -2468,9 +2468,9 @@ const uniqueClassificationOptions = (options = []) => {
 
 
 
-// Lightweight vertical trial clip (Pexels video 7815147, free to use).
+// Men's category motion clip (Pexels video 33294342, free to use).
 // Product/category media from the API still takes priority when configured.
-const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/7815147/7815147-sd_540_960_30fps.mp4";
+const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/33294342/14180897_3840_2160_24fps.mp4";
 
 const mainHomeCategoryCards = [
   {
