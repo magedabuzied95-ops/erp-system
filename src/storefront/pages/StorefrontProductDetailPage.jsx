@@ -246,6 +246,8 @@ function ProductDetailReviewSection() {
 }
 
 export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishlist, rememberProduct, recent, profile, saleModeEnabled }) {
+  const { i18n } = useTranslation();
+  const isRtl = String(i18n.resolvedLanguage || i18n.language || "ar").toLowerCase().startsWith("ar");
   const { identifier } = useParams();
   const location = useLocation();
   const navigate = useNavigate();
@@ -644,7 +646,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   }
 
   return (
-    <section dir="rtl" className="sf-product-details-page mx-auto max-w-7xl px-3 pb-28 pt-2 md:px-4 md:pb-36 md:pt-5 lg:pb-8">
+    <section dir={isRtl ? "rtl" : "ltr"} className="sf-product-details-page mx-auto max-w-7xl px-3 pb-28 pt-2 md:px-4 md:pb-36 md:pt-5 lg:pb-8">
       <div ref={productTopRef} aria-hidden="true" className="h-0 w-0 overflow-hidden" />
       <div className="grid gap-4 md:gap-6 lg:grid-cols-[minmax(0,58fr)_minmax(380px,42fr)] lg:items-start">
         <div className="sf-product-gallery-shell overflow-hidden rounded-[1.6rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top,rgba(212,175,55,0.12),transparent_34%),linear-gradient(180deg,#090909_0%,#111111_100%)] p-2 shadow-[0_28px_80px_rgba(0,0,0,0.32)] md:rounded-[2rem] md:p-3">
@@ -724,7 +726,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                       type="button"
                       onClick={() => selectColor(group)}
                       disabled={!hasStock}
-                      className={`min-h-10 shrink-0 rounded-full border px-4 py-2 text-xs font-black transition ${active ? "border-[#d4af37]/70 bg-[rgba(212,175,55,0.14)] text-[#f3d77a] shadow-[0_12px_28px_rgba(212,175,55,0.24)]" : "border-white/10 bg-white/[0.05] text-white/72 hover:border-white/20 hover:text-white"} disabled:cursor-not-allowed disabled:opacity-35`}
+                      className={`sf-product-option-choice sf-product-color-choice min-h-10 shrink-0 rounded-full border px-4 py-2 text-xs font-black transition ${active ? "is-active border-[#d4af37]/70 bg-[rgba(212,175,55,0.14)] text-[#f3d77a] shadow-[0_12px_28px_rgba(212,175,55,0.24)]" : hasStock ? "is-available border-white/10 bg-white/[0.05] text-white/72 hover:border-white/20 hover:text-white" : "is-unavailable border-white/[0.07] bg-white/[0.035] text-white/25"} disabled:cursor-not-allowed disabled:opacity-55`}
                     >
                       {group.colorName || group.color}
                     </button>
@@ -751,7 +753,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                     type="button"
                     onClick={() => selectSize(size)}
                     disabled={!hasStock}
-                    className={`relative min-w-[3.25rem] overflow-hidden rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "border-white bg-white text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.14)]" : hasStock ? "border-white/10 bg-white/[0.05] text-white/78 hover:border-white/20 hover:bg-white/[0.08] hover:text-white" : "cursor-not-allowed border-white/[0.07] bg-white/[0.035] text-white/25 opacity-60"}`}
+                    className={`sf-product-option-choice sf-product-size-choice relative min-w-[3.25rem] overflow-hidden rounded-2xl border px-3 py-2 text-sm font-black transition ${active ? "is-active border-white bg-white text-stone-950 shadow-[0_14px_34px_rgba(255,255,255,0.14)]" : hasStock ? "is-available border-white/10 bg-white/[0.05] text-white/78 hover:border-white/20 hover:bg-white/[0.08] hover:text-white" : "is-unavailable cursor-not-allowed border-white/[0.07] bg-white/[0.035] text-white/25 opacity-60"}`}
                   >
                     {!hasStock ? <span className="pointer-events-none absolute left-1/2 top-1/2 h-px w-[120%] -translate-x-1/2 -translate-y-1/2 rotate-[-18deg] bg-white/35" /> : null}
                     <span className="relative z-10">{size || sfText("storefront.products.oneSize", "One size")}</span>
@@ -776,12 +778,12 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           ) : null}
 
           <div className="sf-product-quantity-card mt-4 flex items-center justify-between gap-3 rounded-[1.35rem] border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_16px_42px_rgba(0,0,0,0.16)]">
-            <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))} className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-lg font-black text-white">-</button>
+            <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))} className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-lg font-black text-white" aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>-</button>
             <div className="text-center">
               <div className="text-[10px] font-black uppercase tracking-[0.16em] text-white/35">{sfText("storefront.cart.quantity", "Quantity")}</div>
               <div className="mt-1 text-xl font-black text-white">{qty}</div>
             </div>
-            <button type="button" onClick={() => setQty((current) => Math.min(Number(safeActiveVariant?.stock || 1), current + 1))} className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-lg font-black text-white">+</button>
+            <button type="button" onClick={() => setQty((current) => Math.min(Number(safeActiveVariant?.stock || 1), current + 1))} className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-lg font-black text-white" aria-label={sfText("storefront.cart.increaseQuantity", "Increase quantity")}>+</button>
           </div>
 
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
