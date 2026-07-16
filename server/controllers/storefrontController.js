@@ -3302,7 +3302,7 @@ export const imageSearchProducts = async (req, res) => {
         ...slimProductForList(product),
         confidence: score,
         score,
-        match_type: match.reason === "exact_sha256" || match.reason === "visual_pro_exact" || score >= 95 ? "exact" : "similar",
+        match_type: match.reason === "exact_sha256" || match.reason === "visual_pro_exact" || score >= 95 || (score >= 80 && String(match.reason || "").includes("known_model")) ? "exact" : "similar",
         match_reason: match.reason || "",
         matched_variant_id: match.variantId || null,
         image_ranking_debug: match.scoreBreakdown || null,
@@ -3362,7 +3362,7 @@ export const imageSearchProducts = async (req, res) => {
 
     const topConfidence = exactMatches[0]?.confidence || similarMatches[0]?.confidence || 0;
     const confidence = Math.max(0, Math.min(100, Math.round(Number(topConfidence || 0))));
-    const message = exactMatches.length && confidence >= 80
+    const message = confidence >= 80
       ? "لقينا الموديل ده"
       : similarMatches.length
         ? "الموديل مش متوفر، بس دي أقرب موديلات شبهه"
