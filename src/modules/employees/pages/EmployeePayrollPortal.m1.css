@@ -204,52 +204,112 @@ html[data-theme="light"] .employee-portal-shell {
   color-scheme: light;
 }
 
-/* Employee chat follows the neutral M1 palette; green is status only. */
+/* The employee chat intentionally keeps WhatsApp's dark visual language in
+   both application themes so the conversation never inherits ERP surfaces. */
 .employee-portal-chat {
-  background: var(--bg) !important;
-  border-color: var(--border) !important;
-  color: var(--text) !important;
+  --wa-bg: #0b141a;
+  --wa-header: #202c33;
+  --wa-panel: #202c33;
+  --wa-input: #2a3942;
+  --wa-outgoing: #005c4b;
+  --wa-incoming: #202c33;
+  --wa-text: #e9edef;
+  --wa-muted: #8696a0;
+  --wa-green: #00a884;
+  background: var(--wa-bg) !important;
+  border-color: #2f3b43 !important;
+  color: var(--wa-text) !important;
+  color-scheme: dark;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, Arial, sans-serif !important;
 }
 
 .employee-portal-chat > div:first-child,
 .employee-portal-chat > div:first-child header,
 .employee-portal-chat form {
-  background: var(--surface) !important;
-  border-color: var(--border) !important;
-  color: var(--text) !important;
+  background: var(--wa-panel) !important;
+  border-color: rgba(134, 150, 160, 0.2) !important;
+  color: var(--wa-text) !important;
 }
 
 .employee-portal-chat [class*="bg-[#0b141a]"] {
-  background-color: var(--bg) !important;
-  background-image: radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--muted) 13%, transparent) 1px, transparent 0) !important;
+  background-color: var(--wa-bg) !important;
 }
 
 .employee-portal-chat [class*="bg-[#005c4b]"] {
-  background: var(--primary) !important;
-  color: var(--primary-contrast) !important;
+  background: var(--wa-outgoing) !important;
+  border-color: transparent !important;
+  color: var(--wa-text) !important;
 }
 
 .employee-portal-chat [class*="bg-[#005c4b]"]::after {
-  background: var(--primary) !important;
+  background: var(--wa-outgoing) !important;
 }
 
 .employee-portal-chat [class*="bg-[#202c33]"] {
-  background: var(--surface-raised) !important;
-  border: 1px solid var(--border) !important;
-  color: var(--text) !important;
+  background: var(--wa-incoming) !important;
+  border-color: transparent !important;
+  color: var(--wa-text) !important;
 }
 
 .employee-portal-chat [class*="bg-[#202c33]"]::after {
-  background: var(--surface-raised) !important;
+  background: var(--wa-incoming) !important;
 }
 
 .employee-portal-chat form :where(input, textarea) {
-  background: var(--surface-soft) !important;
-  border-color: var(--border) !important;
-  color: var(--text) !important;
+  background: var(--wa-input) !important;
+  border-color: transparent !important;
+  color: var(--wa-text) !important;
+  font-weight: 400 !important;
 }
 
 .employee-portal-chat form button[type="submit"] {
-  background: var(--primary) !important;
-  color: var(--primary-contrast) !important;
+  background: var(--wa-green) !important;
+  color: #062b24 !important;
+}
+
+.employee-chat-status-safe-area {
+  height: env(safe-area-inset-top, 0px);
+  min-height: env(safe-area-inset-top, 0px);
+  background: var(--wa-header);
+}
+
+.employee-chat-whatsapp-header {
+  min-height: 64px !important;
+  background: var(--wa-header) !important;
+  border-bottom-color: rgba(134, 150, 160, 0.18) !important;
+  padding-inline: 8px 12px !important;
+}
+
+.employee-chat-whatsapp-header button {
+  color: var(--wa-text) !important;
+}
+
+.employee-chat-m1-avatar {
+  height: 42px !important;
+  width: 42px !important;
+  background: #050505 !important;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  padding: 4px;
+}
+
+.employee-chat-m1-avatar img {
+  display: block;
+  filter: none !important;
+}
+
+.employee-chat-whatsapp-background {
+  background-color: var(--wa-bg) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cg fill='none' stroke='%238696a0' stroke-width='1.35' stroke-linecap='round' stroke-linejoin='round' opacity='.095'%3E%3Cpath d='M18 27h23a6 6 0 0 1 6 6v13a6 6 0 0 1-6 6H29l-8 7 2-7h-5a6 6 0 0 1-6-6V33a6 6 0 0 1 6-6Z'/%3E%3Cpath d='M91 20a15 15 0 1 0 0 30 15 15 0 0 0 0-30Zm-6 13h.1m12 0h.1M84 40c5 4 10 4 15 0'/%3E%3Cpath d='M158 16h24l7 8v26h-31V16Zm24 0v9h7M164 34h18M164 41h14'/%3E%3Cpath d='M216 27c-8 0-14 6-14 14 0 11 14 24 14 24s14-13 14-24c0-8-6-14-14-14Zm0 9a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z'/%3E%3Cpath d='M29 96h30v23H29zM35 96l4-8h11l4 8M34 108l7 6 13-13'/%3E%3Cpath d='M96 84l4 10 11 1-8 7 2 11-9-6-10 6 3-11-8-7 11-1 4-10Z'/%3E%3Cpath d='M154 83h30a6 6 0 0 1 6 6v21a6 6 0 0 1-6 6h-30a6 6 0 0 1-6-6V89a6 6 0 0 1 6-6Zm15 8a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm13-2h.1'/%3E%3Cpath d='M214 88v29m-10-14h20M31 159c12-13 31-3 25 12-4 11-25 24-25 24s-21-13-25-24c-6-15 13-25 25-12Z'/%3E%3Cpath d='M87 155h29v36H87zM93 149h17v6M94 164h15M94 172h15M94 180h9'/%3E%3Cpath d='M153 157h33v27h-33zM153 164l16 11 17-11M160 151h19'/%3E%3Cpath d='M211 153a17 17 0 1 0 0 34 17 17 0 0 0 0-34Zm-8 17h16m-8-8v16'/%3E%3Cpath d='M22 218h32M30 210h16M38 202v16M89 207c0-7 6-13 13-13s13 6 13 13-13 21-13 21-13-14-13-21Zm13-4a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z'/%3E%3Cpath d='M155 202h31v24h-31zM164 202v-6h13v6M162 212h17M169 205v14'/%3E%3Cpath d='M211 201c7 0 13 6 13 13s-6 13-13 13-13-6-13-13 6-13 13-13Zm-6 13h12m-6-6v12'/%3E%3C/g%3E%3C/svg%3E") !important;
+  background-repeat: repeat !important;
+  background-size: 240px 240px !important;
+  background-position: center top !important;
+}
+
+.employee-portal-chat form {
+  padding-bottom: max(7px, env(safe-area-inset-bottom, 0px)) !important;
+  padding-top: 6px !important;
+}
+
+.employee-portal-chat form > div:last-child {
+  gap: 6px !important;
 }

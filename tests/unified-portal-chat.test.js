@@ -35,3 +35,15 @@ test("shared chat keeps the WhatsApp-style composer focused on attachments and v
   assert.match(service, /attachmentType.*mimetype\.startsWith\("image\/"\)/s);
   assert.match(service, /mimetype\.startsWith\("video\/"\)/);
 });
+
+test("employee chat uses the M1 WhatsApp-style header and doodle background", async () => {
+  const [portal, styles] = await Promise.all([
+    source("src/modules/employees/pages/EmployeePayrollPortal.jsx"),
+    source("src/modules/employees/pages/EmployeePayrollPortal.m1.css"),
+  ]);
+  assert.match(portal, /employee-chat-whatsapp-header/);
+  assert.match(portal, /m-one-logo-white-fixed\.png/);
+  assert.match(portal, /employee-chat-whatsapp-background/);
+  assert.match(styles, /--wa-outgoing: #005c4b/);
+  assert.match(styles, /background-image: url\("data:image\/svg\+xml/);
+});

@@ -1868,8 +1868,6 @@ export default function EmployeePayrollPortal() {
   const chatMessagesStyle = useMemo(
     () => ({
       backgroundColor: "#0b141a",
-      backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.055) 1px, transparent 0), linear-gradient(135deg, rgba(20,184,166,0.035), transparent 35%, rgba(15,23,42,0.18))",
-      backgroundSize: "18px 18px, 100% 100%",
     }),
     []
   );
@@ -3871,16 +3869,17 @@ export default function EmployeePayrollPortal() {
         <div className="fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950/70 p-0">
           <section className="employee-portal-chat mx-auto flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" style={chatPanelStyle} dir={direction}>
             <div className="employee-portal-safe-top sticky top-0 z-30 flex-none bg-[#0b141a]">
-              <header className="flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#1f2c33] px-2 py-2">
+              <div className="employee-chat-status-safe-area" aria-hidden="true" />
+              <header className="employee-chat-whatsapp-header flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#1f2c33] px-2 py-2">
                 <button type="button" onClick={closeEmployeeChat} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10" aria-label="رجوع">
                   <ArrowRight className="h-5 w-5" />
                 </button>
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-200 ring-1 ring-white/10">
-                  <UserRound className="h-4 w-4" />
+                <div className="employee-chat-m1-avatar flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20">
+                  <img src="/branding/m-one-logo-white-fixed.png" alt="M1 Store" className="h-full w-full object-contain" />
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h2 className="truncate text-[15px] font-black leading-5">{ui("chatTitle")}</h2>
-                  <p className="mt-0.5 truncate text-[11px] font-bold text-emerald-200">متصل الآن</p>
+                  <h2 className="truncate text-[16px] font-bold leading-5">M1 Store</h2>
+                  <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">حساب أعمال</p>
                 </div>
               </header>
               <div className="mx-auto mt-1.5 w-fit rounded-full bg-[#182229]/90 px-2.5 py-0.5 text-center text-[10px] font-bold leading-4 text-slate-300">
@@ -3915,6 +3914,7 @@ export default function EmployeePayrollPortal() {
               onMoveSwipe={moveChatSwipe}
               onEndSwipe={endChatSwipe}
               messageIdPrefix="employee-chat-message"
+              className="employee-chat-whatsapp-background"
               style={chatMessagesStyle}
             />
             <PortalChatComposer
