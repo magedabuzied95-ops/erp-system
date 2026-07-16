@@ -297,12 +297,46 @@ html[data-theme="light"] .employee-portal-shell {
   filter: none !important;
 }
 
+.employee-chat-header-identity {
+  gap: 2px !important;
+}
+
+@keyframes employeeChatM1VerticalSpin {
+  0% {
+    transform: perspective(150px) rotateY(0deg);
+  }
+  13.5%, 50% {
+    transform: perspective(150px) rotateY(180deg);
+  }
+  63.5%, 100% {
+    transform: perspective(150px) rotateY(360deg);
+  }
+}
+
+.employee-chat-m1-moving-part {
+  transform-origin: 50% 50%;
+  transform-style: preserve-3d;
+  backface-visibility: visible;
+  will-change: transform;
+  animation: employeeChatM1VerticalSpin 11s ease-in-out infinite;
+}
+
 .employee-chat-whatsapp-background {
   background-color: var(--wa-bg) !important;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cg fill='none' stroke='%238696a0' stroke-width='1.35' stroke-linecap='round' stroke-linejoin='round' opacity='.095'%3E%3Cpath d='M18 27h23a6 6 0 0 1 6 6v13a6 6 0 0 1-6 6H29l-8 7 2-7h-5a6 6 0 0 1-6-6V33a6 6 0 0 1 6-6Z'/%3E%3Cpath d='M91 20a15 15 0 1 0 0 30 15 15 0 0 0 0-30Zm-6 13h.1m12 0h.1M84 40c5 4 10 4 15 0'/%3E%3Cpath d='M158 16h24l7 8v26h-31V16Zm24 0v9h7M164 34h18M164 41h14'/%3E%3Cpath d='M216 27c-8 0-14 6-14 14 0 11 14 24 14 24s14-13 14-24c0-8-6-14-14-14Zm0 9a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z'/%3E%3Cpath d='M29 96h30v23H29zM35 96l4-8h11l4 8M34 108l7 6 13-13'/%3E%3Cpath d='M96 84l4 10 11 1-8 7 2 11-9-6-10 6 3-11-8-7 11-1 4-10Z'/%3E%3Cpath d='M154 83h30a6 6 0 0 1 6 6v21a6 6 0 0 1-6 6h-30a6 6 0 0 1-6-6V89a6 6 0 0 1 6-6Zm15 8a9 9 0 1 0 0 18 9 9 0 0 0 0-18Zm13-2h.1'/%3E%3Cpath d='M214 88v29m-10-14h20M31 159c12-13 31-3 25 12-4 11-25 24-25 24s-21-13-25-24c-6-15 13-25 25-12Z'/%3E%3Cpath d='M87 155h29v36H87zM93 149h17v6M94 164h15M94 172h15M94 180h9'/%3E%3Cpath d='M153 157h33v27h-33zM153 164l16 11 17-11M160 151h19'/%3E%3Cpath d='M211 153a17 17 0 1 0 0 34 17 17 0 0 0 0-34Zm-8 17h16m-8-8v16'/%3E%3Cpath d='M22 218h32M30 210h16M38 202v16M89 207c0-7 6-13 13-13s13 6 13 13-13 21-13 21-13-14-13-21Zm13-4a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z'/%3E%3Cpath d='M155 202h31v24h-31zM164 202v-6h13v6M162 212h17M169 205v14'/%3E%3Cpath d='M211 201c7 0 13 6 13 13s-6 13-13 13-13-6-13-13 6-13 13-13Zm-6 13h12m-6-6v12'/%3E%3C/g%3E%3C/svg%3E") !important;
   background-repeat: repeat !important;
   background-size: 240px 240px !important;
   background-position: center top !important;
+}
+
+.employee-chat-whatsapp-background.employee-chat-keyboard-open {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+.employee-chat-whatsapp-background.employee-chat-keyboard-open::before {
+  content: "";
+  margin-top: auto;
 }
 
 .employee-portal-chat form {
@@ -312,4 +346,10 @@ html[data-theme="light"] .employee-portal-shell {
 
 .employee-portal-chat form > div:last-child {
   gap: 6px !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .employee-chat-m1-moving-part {
+    animation: none;
+  }
 }

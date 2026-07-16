@@ -43,7 +43,10 @@ test("employee chat uses the M1 WhatsApp-style header and doodle background", as
   ]);
   assert.match(portal, /employee-chat-whatsapp-header/);
   assert.match(portal, /m-one-logo-white-fixed\.png/);
+  assert.match(portal, /m-one-logo-white-m\.png/);
+  assert.match(portal, /visualViewport/);
   assert.match(portal, /employee-chat-whatsapp-background/);
   assert.match(styles, /--wa-outgoing: #005c4b/);
   assert.match(styles, /background-image: url\("data:image\/svg\+xml/);
+  assert.match(styles, /employee-chat-keyboard-open/);
 });

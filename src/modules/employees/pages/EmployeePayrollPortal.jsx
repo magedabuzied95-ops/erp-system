@@ -1380,6 +1380,11 @@ export default function EmployeePayrollPortal() {
   const [recordingState, setRecordingState] = useState({ active: false, paused: false, seconds: 0, supported: false });
   const [recordingStream, setRecordingStream] = useState(null);
   const [chatSocketConnected, setChatSocketConnected] = useState(false);
+  const [chatViewportMetrics, setChatViewportMetrics] = useState(() => ({
+    height: isBrowser() ? Math.round(window.visualViewport?.height || window.innerHeight || 0) : 0,
+    offsetTop: 0,
+    keyboardOpen: false,
+  }));
   const [activeToast, setActiveToast] = useState(null);
   const [displayRefillAlerts, setDisplayRefillAlerts] = useState([]);
   const [displayRefillLoading, setDisplayRefillLoading] = useState(false);
@@ -1402,6 +1407,7 @@ export default function EmployeePayrollPortal() {
   const recordingTimerRef = useRef(null);
   const recordingSecondsRef = useRef(0);
   const chatSwipeRef = useRef({ id: null, startX: 0, startY: 0, active: false });
+  const chatViewportBaselineRef = useRef(0);
   const text = labels[language];
   const isRtl = language === "ar";
   const direction = isRtl ? "rtl" : "ltr";
@@ -1856,10 +1862,11 @@ export default function EmployeePayrollPortal() {
   }, [portal, profile, profilePhotoUrl, rawProfilePhotoUrl]);
   const chatPanelStyle = useMemo(
     () => ({
-      height: "100dvh",
-      maxHeight: "100dvh",
+      height: chatViewportMetrics.height ? `${chatViewportMetrics.height}px` : "100dvh",
+      maxHeight: chatViewportMetrics.height ? `${chatViewportMetrics.height}px` : "100dvh",
+      top: `${chatViewportMetrics.offsetTop || 0}px`,
     }),
-    []
+    [chatViewportMetrics.height, chatViewportMetrics.offsetTop]
   );
   const chatMessagesStyle = useMemo(
     () => ({
@@ -2350,6 +2357,28 @@ export default function EmployeePayrollPortal() {
     const bodyWidth = document.body.style.width;
     const bodyHeight = document.body.style.height;
     const htmlHeight = document.documentElement.style.height;
+    const viewport = window.visualViewport;
+    chatViewportBaselineRef.current = Math.max(window.innerHeight || 0, viewport?.height || 0);
+    const syncChatViewport = () => {
+      const height = Math.round(viewport?.height || window.innerHeight || 0);
+      const offsetTop = Math.max(0, Math.round(viewport?.offsetTop || 0));
+      chatViewportBaselineRef.current = Math.max(chatViewportBaselineRef.current || 0, window.innerHeight || 0, height);
+      const keyboardOpen = chatViewportBaselineRef.current - height > 120;
+      setChatViewportMetrics((current) => (
+        current.height === height && current.offsetTop === offsetTop && current.keyboardOpen === keyboardOpen
+          ? current
+          : { height, offsetTop, keyboardOpen }
+      ));
+      if (keyboardOpen || document.activeElement === chatInputRef.current) {
+        window.requestAnimationFrame(() => {
+          if (chatMessagesRef.current) chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
+        });
+      }
+    };
+    syncChatViewport();
+    viewport?.addEventListener("resize", syncChatViewport);
+    viewport?.addEventListener("scroll", syncChatViewport);
+    window.addEventListener("resize", syncChatViewport);
     document.body.style.overflow = "hidden";
     document.documentElement.style.overflow = "hidden";
     document.body.style.width = "100%";
@@ -2361,6 +2390,10 @@ export default function EmployeePayrollPortal() {
       document.body.style.width = bodyWidth;
       document.body.style.height = bodyHeight;
       document.documentElement.style.height = htmlHeight;
+      viewport?.removeEventListener("resize", syncChatViewport);
+      viewport?.removeEventListener("scroll", syncChatViewport);
+      window.removeEventListener("resize", syncChatViewport);
+      chatViewportBaselineRef.current = 0;
       window.scrollTo(0, 0);
       window.dispatchEvent(new Event("resize"));
     };
@@ -3834,16 +3867,19 @@ export default function EmployeePayrollPortal() {
         </button>
       ) : null}
       {chatOpen ? (
-        <div className="fixed inset-0 z-50 flex h-[100dvh] max-h-[100dvh] flex-col overflow-hidden bg-slate-950/70 p-0">
-          <section className="employee-portal-chat mx-auto flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" style={chatPanelStyle} dir={direction}>
+        <div className="fixed inset-x-0 top-0 z-50 flex flex-col overflow-hidden bg-slate-950/70 p-0" style={chatPanelStyle}>
+          <section className="employee-portal-chat mx-auto flex h-full max-h-full w-full flex-col overflow-hidden border border-slate-800 bg-[#0b141a] text-white shadow-2xl sm:max-w-md" dir={direction}>
             <div className="employee-portal-safe-top sticky top-0 z-30 flex-none bg-[#0b141a]">
               <div className="employee-chat-status-safe-area" aria-hidden="true" />
               <header className="employee-chat-whatsapp-header flex min-h-14 items-center gap-2 border-b border-white/10 bg-[#1f2c33] px-2 py-2">
-                <button type="button" onClick={closeEmployeeChat} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10" aria-label="رجوع">
-                  <ArrowRight className="h-5 w-5" />
-                </button>
-                <div className="employee-chat-m1-avatar flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20">
-                  <img src="/branding/m-one-logo-white-fixed.png" alt="M1 Store" className="h-full w-full object-contain" />
+                <div className="employee-chat-header-identity flex shrink-0 items-center gap-0.5">
+                  <button type="button" onClick={closeEmployeeChat} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-white transition hover:bg-white/10" aria-label="رجوع">
+                    <ArrowRight className="h-5 w-5" />
+                  </button>
+                  <div className="employee-chat-m1-avatar relative flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-full ring-1 ring-white/20">
+                    <img src="/branding/m-one-logo-white-fixed.png" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" />
+                    <img src="/branding/m-one-logo-white-m.png" alt="" aria-hidden="true" className="employee-chat-m1-moving-part absolute inset-0 h-full w-full object-contain" />
+                  </div>
                 </div>
                 <div className="min-w-0 flex-1">
                   <h2 className="truncate text-[16px] font-bold leading-5">M1 Store</h2>
@@ -3882,7 +3918,7 @@ export default function EmployeePayrollPortal() {
               onMoveSwipe={moveChatSwipe}
               onEndSwipe={endChatSwipe}
               messageIdPrefix="employee-chat-message"
-              className="employee-chat-whatsapp-background"
+              className={`employee-chat-whatsapp-background ${chatViewportMetrics.keyboardOpen ? "employee-chat-keyboard-open" : ""}`}
               style={chatMessagesStyle}
             />
             <PortalChatComposer
