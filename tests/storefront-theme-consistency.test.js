@@ -19,6 +19,12 @@ test("storefront uses Cairo as its single typography family", () => {
   assert.match(styles, /font-family:\s*var\(--sf-font-family\)/);
 });
 
+test("storefront palette overrides the shared app palette in both modes", () => {
+  assert.match(styles, /\.storefront-dark\s*\{[\s\S]*?--bg:\s*#050505/);
+  assert.match(styles, /\.storefront-shell:not\(\.storefront-dark\)\s*\{[\s\S]*?--bg:\s*#f3f3f1/);
+  assert.match(styles, /body\.storefront-shell:not\(\.storefront-dark\)[\s\S]*?background:\s*#f3f3f1\s*!important/);
+});
+
 test("mobile dark palette is scoped to dark storefronts", () => {
   const mediaStart = styles.indexOf("@media (max-width: 1023px)", styles.indexOf("@media (max-width: 1023px)") + 1);
   const blockStart = styles.indexOf(".storefront-shell.storefront-dark {", mediaStart);

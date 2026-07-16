@@ -2101,6 +2101,13 @@
   }
 
   .storefront-dark {
+    --bg: #050505;
+    --surface: #101010;
+    --surface-soft: #151515;
+    --card: #101010;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+    --border: rgba(148, 163, 184, 0.18);
     --sf-dark-card: rgba(16, 16, 16, 0.94);
     --sf-dark-card-strong: rgba(21, 21, 21, 0.96);
     --sf-dark-nested: rgba(16, 16, 16, 0.92);
@@ -2331,6 +2338,13 @@
 
   .storefront-shell:not(.storefront-dark) {
     color-scheme: light;
+    --bg: #f3f3f1;
+    --surface: #ffffff;
+    --surface-soft: #f7f7f5;
+    --card: #ffffff;
+    --text: #25231f;
+    --muted: #716e67;
+    --border: #dedbd3;
     --sf-light-page: #f3f3f1;
     --sf-light-page-soft: #f7f7f5;
     --sf-light-text: #25231f;
@@ -2341,6 +2355,15 @@
     --sf-light-surface-strong: #ffffff;
     --sf-light-surface-soft: #f7f7f5;
     --sf-light-surface-tint: #fff7df;
+    background: var(--sf-light-page) !important;
+    color: var(--sf-light-text) !important;
+  }
+
+  html:has(body.storefront-shell:not(.storefront-dark)),
+  body.storefront-shell:not(.storefront-dark),
+  body.storefront-shell:not(.storefront-dark) #root {
+    background: #f3f3f1 !important;
+    color: #25231f;
   }
 
   .storefront-shell:not(.storefront-dark) :is(.sf-order-success-page, .sf-order-confirmation-page) {
