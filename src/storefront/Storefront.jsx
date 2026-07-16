@@ -65,6 +65,7 @@ import { displayPublicOrderNumber } from "../shared/utils/publicOrderNumber";
 import { defaultEgyptShippingLocations } from "../../shared/egyptShippingLocations.js";
 import { VirtualList } from "../shared/components/VirtualList";
 import { getStorefrontResponsiveImageProps } from "../shared/lib/storefrontImage";
+import { forceCleanReload, recoverFromChunkLoadError } from "../shared/utils/chunkLoadRecovery";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "./lib/sizeGuide";
 import { animateFlyToCart } from "./lib/flyToCart";
 import { getStorefrontThemeTokens } from "./lib/themeTokens";
@@ -10276,6 +10277,7 @@ class StorefrontErrorBoundary extends Component {
   componentDidCatch(error) {
     console.error("[storefront] render error", error);
     cleanupStorefrontStorage({ aggressive: true });
+    recoverFromChunkLoadError(error);
   }
 
   render() {
@@ -10286,7 +10288,7 @@ class StorefrontErrorBoundary extends Component {
             <Sparkles className="mx-auto h-8 w-8 text-[#d4af37]" />
             <h1 className="mt-4 text-2xl font-black">{sfText("storefront.errors.simpleProblem")}</h1>
             <p className="mt-2 text-sm font-bold leading-6 text-stone-500">{sfText("storefront.errors.cleanedTemporaryData")}</p>
-            <button onClick={() => location.reload()} className="mt-5 rounded-full bg-stone-950 px-5 py-3 text-sm font-black text-white">{sfText("storefront.common.refreshPage")}</button>
+            <button onClick={() => forceCleanReload()} className="mt-5 rounded-full bg-stone-950 px-5 py-3 text-sm font-black text-white">{sfText("storefront.common.refreshPage")}</button>
           </div>
         </div>
       );

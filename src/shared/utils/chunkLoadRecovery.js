@@ -53,6 +53,12 @@ const markChunkReloadAttempted = () => {
   }
 };
 
+const buildCacheBustedUrl = () => {
+  const url = new URL(window.location.href);
+  url.searchParams.set("__m1_reload", String(Date.now()));
+  return url.toString();
+};
+
 const clearStaleBuildState = async () => {
   if (typeof window === "undefined") return;
 
@@ -63,6 +69,15 @@ const clearStaleBuildState = async () => {
     }
   } catch {
     // Cache storage may be blocked or unavailable.
+  }
+
+  try {
+    if ("serviceWorker" in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+    }
+  } catch {
+    // Service workers can be unavailable or blocked.
   }
 
   const staleBuildKeyPattern = /(build|chunk|asset|manifest|serviceworker|service_worker|sw|vite)/i;
@@ -81,13 +96,20 @@ const clearStaleBuildState = async () => {
   });
 };
 
+export const forceCleanReload = async () => {
+  if (typeof window === "undefined") return false;
+
+  markChunkReloadAttempted();
+  await clearStaleBuildState();
+  window.location.replace(buildCacheBustedUrl());
+  return true;
+};
+
 export const recoverFromChunkLoadError = async (error) => {
   if (typeof window === "undefined" || !isChunkLoadError(error)) return false;
   if (hasChunkReloadAttempted()) return false;
 
-  markChunkReloadAttempted();
-  await clearStaleBuildState();
-  window.location.reload();
+  await forceCleanReload();
   return true;
 };
 
