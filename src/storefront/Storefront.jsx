@@ -9579,7 +9579,7 @@ function Storefront() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [routeReady, setRouteReady] = useState(false);
   const [customerAuth, setCustomerAuth] = useState(() => readStorefrontCustomerAuth());
-  const storefrontRouteKey = `${location.pathname}${location.search}`;
+  const storefrontRouteKey = location.pathname;
   const cartCount = cart.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
   const wishlistCount = wishlist.length;
   const customerAuthTokenRef = useRef("");
@@ -9731,7 +9731,7 @@ function Storefront() {
       window.cancelAnimationFrame(raf);
       window.clearTimeout(timeout);
     };
-  }, [location.pathname, location.search]);
+  }, [location.pathname]);
 
   const clearCart = useCallback(() => setCart([]), []);
 
