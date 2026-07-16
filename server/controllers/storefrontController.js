@@ -86,8 +86,8 @@ const withPaymentProofAliases = (order = {}) => {
 const VISUAL_SEARCH_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_SEARCH_MAX_BYTES || 8 * 1024 * 1024);
 const VISUAL_SEARCH_ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const VISUAL_HASH_SIZE = 8;
-const VISUAL_REMOTE_CANDIDATE_LIMIT = Number(process.env.STOREFRONT_VISUAL_REMOTE_CANDIDATE_LIMIT || 260);
-const VISUAL_REMOTE_IMAGE_TIMEOUT_MS = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_TIMEOUT_MS || 650);
+const VISUAL_REMOTE_CANDIDATE_LIMIT = Number(process.env.STOREFRONT_VISUAL_REMOTE_CANDIDATE_LIMIT || 140);
+const VISUAL_REMOTE_IMAGE_TIMEOUT_MS = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_TIMEOUT_MS || 450);
 const VISUAL_REMOTE_IMAGE_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_MAX_BYTES || 3 * 1024 * 1024);
 const VISUAL_IMAGE_MATCH_CONCURRENCY = Number(process.env.STOREFRONT_VISUAL_IMAGE_MATCH_CONCURRENCY || 16);
 const VISUAL_SIGNATURE_CACHE_LIMIT = Number(process.env.STOREFRONT_VISUAL_SIGNATURE_CACHE_LIMIT || 1200);
@@ -1539,7 +1539,25 @@ const storefrontProductsSqlWithoutVisibility = storefrontProductsSql.replace(
 );
 
 export const queryProductsWithSql = async (sql, tenantId, q, category, filters, saleOnly, limit, offset) => {
-  const params = [tenantId, q, category, filters.brand || "", saleOnly, Boolean(filters.offerStory), filters.gender, filters.productType, filters.grade, filters.size || "", Boolean(filters.inStock), filters.quality || [], limit, offset];
+  const arrayParam = (value) => Array.isArray(value)
+    ? value
+    : String(value || "").split(",").map((item) => item.trim()).filter(Boolean);
+  const params = [
+    tenantId,
+    q,
+    category,
+    filters.brand || "",
+    saleOnly,
+    Boolean(filters.offerStory),
+    arrayParam(filters.gender),
+    arrayParam(filters.productType),
+    arrayParam(filters.grade),
+    filters.size || "",
+    Boolean(filters.inStock),
+    arrayParam(filters.quality),
+    limit,
+    offset,
+  ];
   try {
     const result = await db.query(sql, params);
     const selectedAudiences = Array.isArray(filters.gender) ? filters.gender : [];
@@ -3249,7 +3267,7 @@ export const imageSearchProducts = async (req, res) => {
 
     const imageMatches = await withTimeout(
       findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 18 }),
-      process.env.STOREFRONT_IMAGE_LOCAL_SEARCH_TIMEOUT_MS || 18000,
+      process.env.STOREFRONT_IMAGE_LOCAL_SEARCH_TIMEOUT_MS || 26000,
       "storefront_image_local_search"
     ).catch((error) => {
       console.warn("[storefront-image-search] image similarity failed; continuing with fallback", {
@@ -3303,7 +3321,7 @@ export const imageSearchProducts = async (req, res) => {
         {
           brand: inferredBrand || proSearch.attributes?.brand || understanding?.detected?.brand_guess || "",
           gender: inferredGender,
-          productType: inferredProductType || proSearch.attributes?.productType || understanding?.detected?.product_type || "",
+          productType: uniqueTerms([inferredProductType, proSearch.attributes?.productType, understanding?.detected?.product_type]),
           grade: [],
           quality: [],
           size: "",
