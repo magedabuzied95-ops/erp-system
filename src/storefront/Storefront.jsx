@@ -4832,6 +4832,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
       formData.append("image", selectedVisualImageRef.current);
       const tenantId = document.documentElement.dataset.tenantId || "1";
       formData.append("tenant_id", tenantId);
+      formData.append("query", search.trim());
       const endpoint = "/storefront/image-search";
       try {
         const data = await api.post(endpoint, formData, { timeoutMs: 45000, headers: { "x-tenant-id": tenantId } });

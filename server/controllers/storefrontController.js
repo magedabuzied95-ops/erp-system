@@ -1782,6 +1782,63 @@ const imagePerceptualHash = async (input) => {
   return Array.from(pixels, (value) => (value >= avg ? "1" : "0")).join("");
 };
 
+const imageContentCropBuffer = async (input) => {
+  const base = sharp(input).rotate().removeAlpha();
+  const metadata = await base.metadata();
+  const width = Number(metadata.width || 0);
+  const height = Number(metadata.height || 0);
+  if (width < 16 || height < 16) return null;
+  const { data, info } = await base
+    .resize(180, 180, { fit: "inside", withoutEnlargement: true })
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  let minX = info.width;
+  let minY = info.height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < info.height; y += 1) {
+    for (let x = 0; x < info.width; x += 1) {
+      const index = (y * info.width + x) * info.channels;
+      const r = data[index] || 0;
+      const g = data[index + 1] || 0;
+      const b = data[index + 2] || 0;
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      const chroma = max - min;
+      const isFlatLightBackground = r > 232 && g > 232 && b > 232 && chroma < 24;
+      const isFlatTransparentStyleBackground = r > 245 && g > 245 && b > 245;
+      if (isFlatLightBackground || isFlatTransparentStyleBackground) continue;
+      minX = Math.min(minX, x);
+      minY = Math.min(minY, y);
+      maxX = Math.max(maxX, x);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxX < minX || maxY < minY) return null;
+  const scaleX = width / info.width;
+  const scaleY = height / info.height;
+  const padX = Math.max(4, Math.round((maxX - minX + 1) * 0.12));
+  const padY = Math.max(4, Math.round((maxY - minY + 1) * 0.16));
+  const left = Math.max(0, Math.floor((minX - padX) * scaleX));
+  const top = Math.max(0, Math.floor((minY - padY) * scaleY));
+  const cropWidth = Math.min(width - left, Math.ceil((maxX - minX + 1 + padX * 2) * scaleX));
+  const cropHeight = Math.min(height - top, Math.ceil((maxY - minY + 1 + padY * 2) * scaleY));
+  if (cropWidth < 10 || cropHeight < 10 || cropWidth * cropHeight > width * height * 0.92) return null;
+  return sharp(input)
+    .rotate()
+    .extract({ left, top, width: cropWidth, height: cropHeight })
+    .png()
+    .toBuffer();
+};
+
+const imagePerceptualHashes = async (input) => {
+  const baseHash = await imagePerceptualHash(input);
+  const cropped = await imageContentCropBuffer(input).catch(() => null);
+  if (!cropped?.length) return { primary: baseHash, all: [baseHash] };
+  const cropHash = await imagePerceptualHash(cropped).catch(() => "");
+  return { primary: baseHash, all: [...new Set([baseHash, cropHash].filter(Boolean))] };
+};
+
 const hashDistance = (a = "", b = "") => {
   if (!a || !b || a.length !== b.length) return Number.POSITIVE_INFINITY;
   let distance = 0;
@@ -1887,14 +1944,15 @@ const getCandidateVisualSignature = async (imageUrl = "", options = {}) => {
 
   const loaded = await loadCandidateImageBuffer(key, options);
   if (!loaded.buffer?.length) return null;
-  const [hash, color] = await Promise.all([
-    imagePerceptualHash(loaded.buffer),
+  const [hashes, color] = await Promise.all([
+    imagePerceptualHashes(loaded.buffer),
     imageColorSignature(loaded.buffer).catch(() => null),
   ]);
   const signature = {
     source: loaded.source,
     sha: imageSha256(loaded.buffer),
-    hash,
+    hash: hashes.primary,
+    hashes: hashes.all,
     color,
   };
   visualSignatureCache.set(key, signature);
@@ -1948,7 +2006,8 @@ const queryVisualImageCandidates = async (tenantId, limit = 600) => {
 
 const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 }) => {
   const uploadedSha = imageSha256(imageBuffer);
-  const uploadedHash = await imagePerceptualHash(imageBuffer);
+  const uploadedHashes = await imagePerceptualHashes(imageBuffer);
+  const uploadedHashList = uploadedHashes.all.length ? uploadedHashes.all : [uploadedHashes.primary].filter(Boolean);
   const uploadedColor = await imageColorSignature(imageBuffer).catch(() => null);
   const candidates = await queryVisualImageCandidates(tenantId);
   const scored = [];
@@ -1980,7 +2039,10 @@ const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 
       const signature = await getCandidateVisualSignature(candidate.imageUrl, { allowRemote: candidate.remote });
       if (!signature?.hash) return null;
       const exact = signature.sha === uploadedSha;
-      const distance = exact ? 0 : hashDistance(uploadedHash, signature.hash);
+      const candidateHashes = Array.isArray(signature.hashes) && signature.hashes.length ? signature.hashes : [signature.hash];
+      const distance = exact ? 0 : Math.min(
+        ...uploadedHashList.flatMap((uploadedHash) => candidateHashes.map((candidateHash) => hashDistance(uploadedHash, candidateHash)))
+      );
       const colorSimilarity = uploadedColor ? colorSignatureSimilarity(uploadedColor, signature.color) : 0;
       const hashScore = exact ? 100 : Math.max(0, 92 - distance * 2.2);
       const blendedScore = exact
@@ -3055,7 +3117,13 @@ export const imageSearchProducts = async (req, res) => {
       });
     }
 
-    const visualQuery = visualQueryFromUnderstanding(understanding);
+    const requestVisualQuery = [
+      req.body?.query,
+      req.body?.search,
+      req.body?.keyword,
+      file.originalname,
+    ].filter(Boolean).join(" ");
+    const visualQuery = [visualQueryFromUnderstanding(understanding), requestVisualQuery].filter(Boolean).join(" ");
     let proSearch = { candidates: [], attributes: null, topMatches: [], reasonWhyFirstRanked: "" };
     try {
       proSearch = await searchAiVisualProductsPro({

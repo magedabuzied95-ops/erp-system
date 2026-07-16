@@ -188,6 +188,11 @@ export const normalizeVisualProText = (value = "") =>
 const VISUAL_ALIAS_GROUPS = Object.freeze([
   { canonical: "north face", kind: "brand", aliases: ["north face", "the north face", "northface", "\u0646\u0648\u0631\u062b \u0641\u064a\u0633", "\u0646\u0648\u0631\u062b\u0641\u064a\u0633", "\u0646\u0648\u0631\u062a \u0641\u064a\u0633", "\u0646\u0648\u0631\u062a\u0641\u064a\u0633"] },
   { canonical: "jordan 4", kind: "model", brand: "jordan", aliases: ["jordan 4", "air jordan 4", "jordan four", "jordan iv", "retro 4", "aj4", "j4", "\u062c\u0648\u0631\u062f\u0646 \u0641\u0648\u0631", "\u062c\u0648\u0631\u062f\u0646 4", "\u062c\u0648\u0631\u062f\u0646 \u0664"] },
+  { canonical: "superstar", kind: "model", brand: "adidas", aliases: ["superstar", "super star", "adidas superstar", "adidas super star", "\u0633\u0648\u0628\u0631 \u0633\u062a\u0627\u0631", "\u0633\u0648\u0628\u0631\u0633\u062a\u0627\u0631"] },
+  { canonical: "samba", kind: "model", brand: "adidas", aliases: ["samba", "adidas samba", "\u0633\u0627\u0645\u0628\u0627"] },
+  { canonical: "campus", kind: "model", brand: "adidas", aliases: ["campus", "adidas campus", "\u0643\u0627\u0645\u0628\u0633"] },
+  { canonical: "air force 1", kind: "model", brand: "nike", aliases: ["air force 1", "air force one", "af1", "nike air force", "\u0627\u064a\u0631 \u0641\u0648\u0631\u0633", "\u0627\u064a\u0631\u0641\u0648\u0631\u0633"] },
+  { canonical: "dunk", kind: "model", brand: "nike", aliases: ["dunk", "nike dunk", "dunks", "\u062f\u0627\u0646\u0643"] },
   { canonical: "jordan", kind: "brand", aliases: ["jordan", "air jordan", "\u062c\u0648\u0631\u062f\u0646"] },
   { canonical: "nike", kind: "brand", aliases: ["nike", "\u0646\u0627\u064a\u0643"] },
   { canonical: "adidas", kind: "brand", aliases: ["adidas", "\u0627\u062f\u064a\u062f\u0627\u0633", "\u0623\u062f\u064a\u062f\u0627\u0633"] },
@@ -373,8 +378,10 @@ export const normalizeVisualAttributes = ({ detected = {}, visualQuery = "", cor
     previous.model_guess,
     visualQuery,
   ].filter(Boolean).join(" ");
-  const brand = correction?.brand || canonicalFromGroups(brandText) || (canonicalFromGroups(modelText) === "jordan 4" ? "jordan" : "");
-  const model = correction?.model || (canonicalFromGroups(modelText) === "jordan 4" ? "jordan 4" : "");
+  const modelAlias = canonicalFromGroups(modelText);
+  const modelAliasGroup = VISUAL_ALIAS_GROUPS.find((group) => group.kind === "model" && group.canonical === modelAlias);
+  const brand = correction?.brand || canonicalFromGroups(brandText) || modelAliasGroup?.brand || "";
+  const model = correction?.model || (modelAliasGroup ? modelAliasGroup.canonical : "");
   const colors = detectColors(detected.colors, detected.main_colors, detected.secondary_colors, previous.colors, previous.main_colors, previous.secondary_colors, visualQuery, correctionText);
   const categoryTokens = tokens(detected.product_type, detected.category, detected.shoe_type, previous.product_type, previous.category, visualQuery);
   const genderTokens = tokens(detected.gender_style, detected.gender_audience, detected.gender, detected.target_audience, previous.gender_style, previous.gender);
