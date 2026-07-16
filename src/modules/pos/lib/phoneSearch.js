@@ -28,6 +28,17 @@ export const normalizePhone = (value = "") =>
     .replace(/[\s\-()]/g, "")
     .replace(/[^\d+]/g, "");
 
+export const getCompleteEgyptianMobilePhone = (value = "") => {
+  const input = String(value || "").trim();
+  if (!input || !/^[+\d\s\-()٠-٩۰-۹]+$/.test(input)) return "";
+
+  const digits = normalizePhone(input).replace(/\D/g, "");
+  if (/^01\d{9}$/.test(digits)) return `+20${digits.slice(1)}`;
+  if (/^1\d{9}$/.test(digits)) return `+20${digits}`;
+  if (/^201\d{9}$/.test(digits)) return `+${digits}`;
+  return "";
+};
+
 export const getPhoneSearchVariants = (value = "") => {
   const digits = normalizePhone(value).replace(/\D/g, "");
   if (!digits) return [];

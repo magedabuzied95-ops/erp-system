@@ -74,7 +74,7 @@ import {
   writeCachedActivePosShift,
 } from "../lib/posShiftCache";
 import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
-import { normalizePhone } from "../lib/phoneSearch";
+import { getCompleteEgyptianMobilePhone, normalizePhone } from "../lib/phoneSearch";
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 import { normalizePosCatalogProduct, normalizePosSellableProducts, resolvePosImageUrl } from "../services/posProductsApi";
 import {
@@ -1594,6 +1594,10 @@ function POSPro() {
   const [selectedGrade, setSelectedGrade] = useState(() => persisted.selectedGrade || defaultState.selectedGrade);
   const [customerSearch, setCustomerSearch] = useState(defaultState.customerSearch);
   const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [customerSearchResolution, setCustomerSearchResolution] = useState({
+    phone: "",
+    status: "idle",
+  });
   const initialCachedActiveShiftState = useMemo(() => {
     const cachedShiftState = readCachedActivePosShift();
     if (!cachedShiftState?.shift?.id) return null;
@@ -1728,6 +1732,7 @@ function POSPro() {
   const globalBarcodeBufferRef = useRef({ value: "", startedAt: 0, lastAt: 0 });
   const posSearchMatchLogRef = useRef({ query: "", keys: new Set() });
   const customerSearchRequestSeqRef = useRef(0);
+  const customerAutoCreatePromptedPhoneRef = useRef("");
   const shiftSessionRecoveredRef = useRef(false);
   const loadedRouteEditOrderIdRef = useRef("");
   const activePosShiftRef = useRef(null);
@@ -2521,7 +2526,16 @@ function POSPro() {
 
   useEffect(() => {
     const searchValue = String(customerSearch || "").trim();
-    if (!searchValue || selectedCustomerId) return undefined;
+    const completePhone = getCompleteEgyptianMobilePhone(searchValue);
+    if (!searchValue || selectedCustomerId) {
+      setCustomerSearchResolution({ phone: "", status: "idle" });
+      return undefined;
+    }
+
+    setCustomerSearchResolution({
+      phone: completePhone,
+      status: completePhone ? "pending" : "idle",
+    });
 
     const controller = new AbortController();
     const requestSeq = customerSearchRequestSeqRef.current + 1;
@@ -2550,6 +2564,9 @@ function POSPro() {
           if (controller.signal.aborted || customerSearchRequestSeqRef.current !== requestSeq) return existing;
           return Array.from(merged.values());
         });
+        if (completePhone && !controller.signal.aborted && customerSearchRequestSeqRef.current === requestSeq) {
+          setCustomerSearchResolution({ phone: completePhone, status: "resolved" });
+        }
       } catch (err) {
         const aborted =
           err?.name === "AbortError" ||
@@ -2563,11 +2580,16 @@ function POSPro() {
           const cachedRows = searchPosCustomerSnapshot(snapshot, searchValue, { limit: 30 });
           if (controller.signal.aborted || customerSearchRequestSeqRef.current !== requestSeq) return;
           setCustomers(cachedRows);
+          if (completePhone) {
+            setCustomerSearchResolution({ phone: completePhone, status: "resolved" });
+          }
           console.warn("POS_OFFLINE_CUSTOMERS_FALLBACK", {
             cached_at: snapshot?.cached_at || null,
             customer_count: cachedRows.length,
             search: searchValue,
           });
+        } else if (completePhone && customerSearchRequestSeqRef.current === requestSeq) {
+          setCustomerSearchResolution({ phone: completePhone, status: "failed" });
         }
       }
     }, 180);
@@ -2944,6 +2966,15 @@ function POSPro() {
       matchesById.set(String(itemId), item);
     });
     return matchesById.size === 1 ? Array.from(matchesById.values())[0] : null;
+  }, [customerSearch, customers, selectedCustomerId]);
+
+  const customerPhoneExactMatchExists = useMemo(() => {
+    if (selectedCustomerId) return true;
+    const inputVariants = getPosPhoneExactVariants(customerSearch);
+    if (!inputVariants.length) return false;
+    return (Array.isArray(customers) ? customers : []).some((item) =>
+      customerMatchesPhoneVariants(item, inputVariants)
+    );
   }, [customerSearch, customers, selectedCustomerId]);
 
   useEffect(() => {
@@ -6567,6 +6598,34 @@ function POSPro() {
     }));
     setCustomerCreateOpen(true);
   }, [customerSearch, selectedCustomerId]);
+
+  useEffect(() => {
+    const completePhone = getCompleteEgyptianMobilePhone(customerSearch);
+    if (!completePhone) {
+      customerAutoCreatePromptedPhoneRef.current = "";
+      return;
+    }
+    if (
+      selectedCustomerId ||
+      customerCreateOpen ||
+      customerPhoneExactMatchExists ||
+      customerSearchResolution.status !== "resolved" ||
+      customerSearchResolution.phone !== completePhone ||
+      customerAutoCreatePromptedPhoneRef.current === completePhone
+    ) {
+      return;
+    }
+
+    customerAutoCreatePromptedPhoneRef.current = completePhone;
+    openCustomerCreateModal({ phone: completePhone });
+  }, [
+    customerCreateOpen,
+    customerPhoneExactMatchExists,
+    customerSearch,
+    customerSearchResolution,
+    openCustomerCreateModal,
+    selectedCustomerId,
+  ]);
 
   const handlePrintShiftReport = useCallback((report) => {
     if (!report) return;
