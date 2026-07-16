@@ -343,10 +343,13 @@ const couponErrorText = (reason = "") => {
   return sfText(key, String(reason || "").trim() || "تعذر تطبيق العملية");
 };
 const truthyFlag = (value) => value === true || value === 1 || String(value || "").toLowerCase() === "true";
-let storefrontSalePricesEnabled = true;
+// Sale prices are opt-in and are controlled by the public POS sale-mode setting.
+// Defaulting to `true` made cards briefly (or permanently, when settings failed)
+// show saved sale prices while the product page showed the regular price.
+let storefrontSalePricesEnabled = false;
 let storefrontPublicSaleModeEnabledRaw = undefined;
 const normalizeStorefrontSalePricesEnabled = (settings = {}) => {
-  return Boolean(parseSaleModeEnabled(settings?.sale_mode_enabled, true));
+  return Boolean(parseSaleModeEnabled(settings?.sale_mode_enabled, false));
 };
 const setStorefrontSalePricesEnabled = (settings = {}) => {
   storefrontSalePricesEnabled = normalizeStorefrontSalePricesEnabled(settings);
@@ -5640,7 +5643,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
   );
   const inWishlist = useMemo(() => wishlist.some((item) => String(item.id) === String(product.id)), [product.id, wishlist]);
   const rawSaleModeEnabled = saleModeEnabled;
-  const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, true);
+  const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, false);
   const pricing = useMemo(
     () => getDisplayPricing(product, parsedSaleModeEnabled, availableVariant),
     [availableVariant, product, parsedSaleModeEnabled]
@@ -6581,7 +6584,7 @@ function CheckoutPage({ cart, clearCart, profile, setProfile, themeMode }) {
       .then((data) => {
         if (cancelled) return;
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
-        const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, true);
+        const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, false);
         const normalizedSettings = {
           ...settings,
           sale_mode_enabled: parsedSaleModeEnabled,
@@ -9681,7 +9684,7 @@ function Storefront() {
       .then((data) => {
         if (cancelled) return;
         const { settings, rawSaleModeEnabled } = extractPublicStorefrontSettings(data);
-        const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, true);
+        const parsedSaleModeEnabled = parseSaleModeEnabled(rawSaleModeEnabled, false);
         const normalizedSettings = {
           ...settings,
           sale_mode_enabled: parsedSaleModeEnabled,
@@ -9940,7 +9943,7 @@ function Storefront() {
   const headerLogoUrl = resolveStorefrontHeaderLogoUrl(publicStoreSettings);
   const brandInitials = resolveBrandInitials(brandName);
   const publicSaleModeEnabled = useMemo(
-    () => parseSaleModeEnabled(publicStoreSettings?.sale_mode_enabled, true),
+    () => parseSaleModeEnabled(publicStoreSettings?.sale_mode_enabled, false),
     [publicStoreSettings]
   );
 

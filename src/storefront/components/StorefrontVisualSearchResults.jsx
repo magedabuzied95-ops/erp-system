@@ -50,7 +50,7 @@ function VisualSearchProductCard({ product, index, onPickProduct, onQuickAdd, he
   const stock = productTotalStock(safeProduct);
   const variantStock = safeStockNumber(variant?.stock ?? variant?.quantity ?? variant?.inventory_stock ?? variant?.available_stock);
   const isAvailable = stock > 0 && (!variant || variantStock > 0);
-  const parsedSaleModeEnabled = parseSaleModeEnabled(saleModeEnabled, true);
+  const parsedSaleModeEnabled = parseSaleModeEnabled(saleModeEnabled, false);
   const pricing = getDisplayPricing(safeProduct, parsedSaleModeEnabled, variant);
   const activePrice = pricing.price;
   const comparePrice = pricing.comparePrice && pricing.comparePrice > activePrice ? pricing.comparePrice : 0;

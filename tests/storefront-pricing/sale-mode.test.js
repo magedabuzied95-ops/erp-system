@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   displaySellingPrice,
   getDisplayPricing,
+  parseSaleModeEnabled,
   resolveStorefrontPrice,
   storefrontSaleModeOn,
 } from "../../src/shared/lib/storefrontPricing.js";
@@ -34,6 +35,15 @@ test("the POS sale-mode flag activates the saved sale price", () => {
 test("turning sale mode off restores the normal selling price", () => {
   const pricing = getDisplayPricing({ ...product, sale_mode_enabled: false }, false);
 
+  assert.equal(pricing.price, 1750);
+  assert.equal(pricing.isOnSale, false);
+});
+
+test("a missing public sale-mode setting fails closed", () => {
+  const saleModeEnabled = parseSaleModeEnabled(undefined, false);
+  const pricing = getDisplayPricing(product, saleModeEnabled);
+
+  assert.equal(saleModeEnabled, false);
   assert.equal(pricing.price, 1750);
   assert.equal(pricing.isOnSale, false);
 });

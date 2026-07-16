@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const storefrontSource = readFileSync(new URL("../src/storefront/Storefront.jsx", import.meta.url), "utf8");
 const productDetailSource = readFileSync(new URL("../src/storefront/pages/StorefrontProductDetailPage.jsx", import.meta.url), "utf8");
+const visualSearchSource = readFileSync(new URL("../src/storefront/components/StorefrontVisualSearchResults.jsx", import.meta.url), "utf8");
 
 test("switching product gallery images does not remount or scroll-reset the product page", () => {
   assert.match(storefrontSource, /const storefrontRouteKey = location\.pathname;/);
@@ -34,4 +35,13 @@ test("product cards and product details use the same POS sale-mode pricing switc
   assert.match(productDetailSource, /const selectedSellingPrice = selectedPrice\.price/);
   assert.match(productDetailSource, /const selectedComparePrice = selectedPrice\.comparePrice/);
   assert.doesNotMatch(productDetailSource, /selectedPrice\.activePrice/);
+});
+
+test("storefront pricing stays on the regular price until the POS sale setting is loaded", () => {
+  assert.match(storefrontSource, /let storefrontSalePricesEnabled = false;/);
+  assert.match(storefrontSource, /parseSaleModeEnabled\(settings\?\.sale_mode_enabled, false\)/);
+  assert.match(storefrontSource, /parseSaleModeEnabled\(rawSaleModeEnabled, false\)/);
+  assert.match(storefrontSource, /parseSaleModeEnabled\(publicStoreSettings\?\.sale_mode_enabled, false\)/);
+  assert.match(visualSearchSource, /parseSaleModeEnabled\(saleModeEnabled, false\)/);
+  assert.doesNotMatch(storefrontSource, /parseSaleModeEnabled\([^\n]*, true\)/);
 });
