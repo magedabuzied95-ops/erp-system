@@ -79,9 +79,11 @@ if (import.meta.env.DEV) {
 
 if (typeof document !== "undefined") {
   try {
-    document.documentElement.dataset.theme = localStorage.getItem("erp.theme") || "dark";
+    if (!document.documentElement.dataset.theme) {
+      document.documentElement.dataset.theme = localStorage.getItem("erp.theme") === "dark" ? "dark" : "light";
+    }
   } catch {
-    document.documentElement.dataset.theme = "dark";
+    if (!document.documentElement.dataset.theme) document.documentElement.dataset.theme = "light";
   }
 }
 

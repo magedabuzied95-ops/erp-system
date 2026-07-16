@@ -5,6 +5,17 @@ import test from "node:test";
 const storefrontSource = fs.readFileSync("src/storefront/Storefront.jsx", "utf8");
 const confirmationSource = fs.readFileSync("src/storefront/pages/OrderConfirmationActionPage.jsx", "utf8");
 const styles = fs.readFileSync("src/index.css", "utf8");
+const html = fs.readFileSync("index.html", "utf8");
+const main = fs.readFileSync("src/main.jsx", "utf8");
+
+test("storefront light mode is restored before the first browser paint", () => {
+  assert.match(html, /isStorefrontHost[\s\S]*?"storefront\.theme"/);
+  assert.match(html, /storedTheme\s*=\s*JSON\.parse\(storedTheme\)/);
+  assert.match(html, /root\.dataset\.theme\s*=\s*theme/);
+  assert.match(html, /root\.style\.backgroundColor\s*=\s*dark\s*\?/);
+  assert.match(main, /if \(!document\.documentElement\.dataset\.theme\)/);
+  assert.doesNotMatch(main, /localStorage\.getItem\("erp\.theme"\) \|\| "dark"/);
+});
 
 test("storefront owns one synchronized light-dark theme state", () => {
   assert.match(storefrontSource, /root\.classList\.toggle\("dark", dark\)/);
