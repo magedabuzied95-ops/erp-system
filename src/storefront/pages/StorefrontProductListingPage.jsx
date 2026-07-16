@@ -958,15 +958,14 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="text-sm font-bold text-stone-500">{t("storefront.products.productCount", "{{count}} منتج", { count: orderedFilteredProducts.length })}</div>
-          <CatalogSortControl value={selectedSort} options={sortOptions} onChange={setSortValue} />
           <button
             type="button"
             onClick={() => setFiltersOpen(true)}
-            className="inline-flex min-h-10 items-center gap-2 rounded-full border border-stone-200 bg-white px-3.5 py-2 text-xs font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200 lg:hidden"
+            className="inline-flex min-h-12 min-w-[9.5rem] flex-1 items-center justify-center gap-2.5 rounded-full border border-[#c59b22] bg-[linear-gradient(135deg,#e5c158,#d4af37)] px-5 py-3 text-sm font-black text-[#211b0c] shadow-[0_10px_26px_rgba(180,138,28,0.24)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_32px_rgba(180,138,28,0.3)] active:scale-[0.98] dark:border-[#d4af37]/45 dark:bg-[linear-gradient(135deg,#d4af37,#a47a12)] dark:text-[#151515] sm:flex-none lg:hidden"
           >
-            <SlidersHorizontal className="h-4 w-4" />
+            <SlidersHorizontal className="h-5 w-5" />
             {t("storefront.filters.filters", "الفلاتر")}
-            {activeFilterCount ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#d4af37] px-1 text-[10px] text-white">{activeFilterCount}</span> : null}
+            {activeFilterCount ? <span className="grid h-6 min-w-6 place-items-center rounded-full bg-[#211b0c] px-1.5 text-[11px] text-white shadow-sm">{activeFilterCount}</span> : null}
           </button>
         </div>
       </div>
