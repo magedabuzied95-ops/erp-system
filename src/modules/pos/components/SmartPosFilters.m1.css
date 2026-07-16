@@ -1,6 +1,10 @@
 .m1-smart-filter-overlay {
   background: color-mix(in srgb, #11110f 72%, transparent) !important;
-  font-family: var(--font-ar, "Noto Kufi Arabic", "Cairo", sans-serif) !important;
+  font-family: var(--app-font, "Cairo", "Tajawal", "Noto Sans Arabic", "Segoe UI", sans-serif) !important;
+  font-size: 14px;
+  line-height: 1.55;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
 }
 
 .m1-smart-filter-panel {
@@ -8,7 +12,18 @@
   border-color: var(--border, #ddd8cd) !important;
   color: var(--text, #262522) !important;
   box-shadow: 0 24px 70px rgb(0 0 0 / 32%) !important;
+  font-family: inherit !important;
+  line-height: 1.55;
 }
+
+.m1-smart-filter-panel :where(button, select, option) {
+  font-family: inherit !important;
+}
+
+.m1-smart-filter-eyebrow { line-height: 1.5 !important; }
+.m1-smart-filter-title { line-height: 1.4 !important; letter-spacing: 0 !important; }
+.m1-smart-filter-subtitle { line-height: 1.65 !important; }
+.m1-smart-filter-label { line-height: 1.6 !important; letter-spacing: .02em !important; }
 
 .m1-smart-filter-header,
 .m1-smart-filter-footer {
@@ -32,6 +47,28 @@
   border-color: var(--border, #ddd8cd) !important;
   color: var(--text-secondary, #555149) !important;
   box-shadow: none !important;
+  min-height: 34px !important;
+  line-height: 1.4 !important;
+  letter-spacing: 0 !important;
+}
+
+.m1-smart-filter-pill-name {
+  line-height: 1.45 !important;
+  padding-block: 1px;
+}
+
+.m1-smart-filter-icon {
+  line-height: 1 !important;
+}
+
+.m1-smart-filter-count {
+  display: inline-flex;
+  min-width: 20px;
+  min-height: 20px;
+  align-items: center;
+  justify-content: center;
+  line-height: 1 !important;
+  font-variant-numeric: tabular-nums;
 }
 
 .m1-smart-filter-pill:hover:not(:disabled) {
@@ -53,6 +90,8 @@
   border-color: var(--border, #ddd8cd) !important;
   color: var(--text, #262522) !important;
   color-scheme: light dark;
+  min-height: 44px !important;
+  line-height: 1.5 !important;
 }
 
 .m1-smart-filter-select:focus { border-color: var(--primary, #b8890b) !important; }
@@ -71,6 +110,12 @@
 }
 
 .m1-smart-filter-apply:hover { filter: brightness(1.06); }
+
+.m1-smart-filter-footer button {
+  min-height: 44px !important;
+  line-height: 1.45 !important;
+  letter-spacing: 0 !important;
+}
 
 [data-theme="dark"] .m1-smart-filter-panel,
 .dark .m1-smart-filter-panel {

@@ -12,7 +12,7 @@ function CategoryPill({ active, onClick, name, count, icon, color }) {
       onClick={onClick}
       disabled={disabled}
       style={!active && !disabled && color ? { borderColor: `${color}66`, color } : undefined}
-      className={`m1-smart-filter-pill inline-flex min-h-7 max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black leading-none transition duration-200 sm:text-[11px] ${
+      className={`m1-smart-filter-pill inline-flex min-h-8 max-w-full shrink-0 items-center justify-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-bold leading-normal transition duration-200 sm:text-xs ${
         active ? "is-active" : ""
       } ${disabled ? "is-disabled" : ""} ${
         active
@@ -22,10 +22,10 @@ function CategoryPill({ active, onClick, name, count, icon, color }) {
             : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10 hover:text-white"
       }`}
     >
-      {icon ? <span className="shrink-0 text-[9px] leading-none sm:text-[10px]">{icon}</span> : null}
-      <span className="min-w-0 truncate">{name}</span>
+      {icon ? <span className="m1-smart-filter-icon shrink-0 text-[10px] leading-none sm:text-[11px]">{icon}</span> : null}
+      <span className="m1-smart-filter-pill-name min-w-0 truncate">{name}</span>
       {Number.isFinite(Number(count)) ? (
-        <span className={`rounded-full px-1.5 py-[3px] text-[9px] font-bold leading-none sm:text-[10px] ${active ? "bg-black/10 text-emerald-950/80" : "bg-white/10 text-zinc-400"}`}>
+        <span className={`m1-smart-filter-count rounded-full px-1.5 py-1 text-[9px] font-bold leading-none sm:text-[10px] ${active ? "bg-black/10 text-emerald-950/80" : "bg-white/10 text-zinc-400"}`}>
           {count}
         </span>
       ) : null}
@@ -42,7 +42,7 @@ function SmartFilterRow({ label, options, value, onChange }) {
   return (
     <div className="m1-smart-filter-group min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
       <div className="mb-1.5 flex min-h-4 items-center">
-        <div className="text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{label}</div>
+        <div className="m1-smart-filter-label text-[11px] font-bold tracking-[0.04em] text-zinc-500 sm:text-xs">{label}</div>
       </div>
 
       <div className="flex min-w-0 flex-wrap items-start gap-1.5 sm:gap-2">
@@ -127,11 +127,11 @@ function SmartPosFilters({
       >
         <div className="m1-smart-filter-header flex items-start justify-between gap-3 border-b border-white/10 px-3 py-3 sm:px-4 sm:py-3.5">
           <div className="min-w-0">
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-emerald-200">{copy.eyebrow}</div>
-            <h2 id="smart-pos-filters-title" className="mt-0.5 text-lg font-black text-white sm:text-xl">
+            <div className="m1-smart-filter-eyebrow text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-200 sm:text-[11px]">{copy.eyebrow}</div>
+            <h2 id="smart-pos-filters-title" className="m1-smart-filter-title mt-1 text-lg font-extrabold text-white sm:text-xl">
               {copy.title}
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-400 sm:text-sm">{copy.subtitle}</p>
+            <p className="m1-smart-filter-subtitle mt-1 text-xs font-medium text-zinc-400 sm:text-sm">{copy.subtitle}</p>
           </div>
           <button
             type="button"
@@ -155,11 +155,11 @@ function SmartPosFilters({
 
             <div className="grid gap-2">
               <div className="m1-smart-filter-group rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{copy.brand}</div>
+                <div className="m1-smart-filter-label mb-1.5 text-[11px] font-bold tracking-[0.04em] text-zinc-500 sm:text-xs">{copy.brand}</div>
                 <select
                   value={selectedBrandId}
                   onChange={(event) => onBrandChange(event.target.value)}
-                  className="m1-smart-filter-select h-10 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-[13px] font-semibold text-white outline-none transition"
+                  className="m1-smart-filter-select h-11 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-sm font-semibold text-white outline-none transition"
                 >
                   <option value="all">{copy.allBrands}</option>
                   {(brandOptions || []).map((brand) => (
@@ -171,11 +171,11 @@ function SmartPosFilters({
               </div>
 
               <div className="m1-smart-filter-group rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
-                <div className="mb-1.5 text-[10px] font-black uppercase tracking-[0.22em] text-zinc-500">{copy.manufacturer}</div>
+                <div className="m1-smart-filter-label mb-1.5 text-[11px] font-bold tracking-[0.04em] text-zinc-500 sm:text-xs">{copy.manufacturer}</div>
                 <select
                   value={selectedManufacturerId}
                   onChange={(event) => onManufacturerChange(event.target.value)}
-                  className="m1-smart-filter-select h-10 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-[13px] font-semibold text-white outline-none transition"
+                  className="m1-smart-filter-select h-11 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-sm font-semibold text-white outline-none transition"
                 >
                   <option value="all">{copy.allManufacturers}</option>
                   {(manufacturerOptions || []).map((manufacturer) => (
@@ -194,14 +194,14 @@ function SmartPosFilters({
             <button
               type="button"
               onClick={onClose}
-              className="m1-smart-filter-apply inline-flex h-10 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black transition"
+              className="m1-smart-filter-apply inline-flex h-11 items-center justify-center gap-2 rounded-2xl px-4 text-sm font-bold transition"
             >
               {copy.apply}
             </button>
             <button
               type="button"
               onClick={onReset}
-              className={`inline-flex h-10 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-black transition ${
+              className={`inline-flex h-11 items-center justify-center gap-2 rounded-2xl border px-4 text-sm font-bold transition ${
                 activeSmartFilterCount > 0
                   ? "border-amber-200/30 bg-white/[0.04] text-zinc-200 hover:bg-white/[0.08]"
                   : "border-white/10 bg-white/[0.03] text-zinc-500"
@@ -212,7 +212,7 @@ function SmartPosFilters({
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-10 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-transparent px-4 text-sm font-black text-zinc-300 transition hover:bg-white/[0.05] hover:text-white"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-transparent px-4 text-sm font-bold text-zinc-300 transition hover:bg-white/[0.05] hover:text-white"
             >
               {copy.cancel}
             </button>
