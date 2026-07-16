@@ -872,8 +872,8 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     <section className="sf-product-listing-page mx-auto max-w-7xl px-3 pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+2.25rem)] pt-2.5 md:px-4 md:py-5">
       <div className="flex flex-col gap-2 md:gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
-          <p className="text-xs font-bold text-stone-500 md:text-sm">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>
-          <h1 className="mt-1 text-[1.7rem] font-black leading-[1.08] md:text-3xl">
+          <p className="sf-catalog-eyebrow text-xs font-bold text-stone-600 dark:text-stone-400 md:text-sm">{saleView ? t("storefront.products.limitedOffers", "عروض محدودة") : t("storefront.products.shopEasily", "تسوّق بسهولة")}</p>
+          <h1 className="sf-catalog-title mt-1 text-[1.7rem] font-black leading-[1.08] text-stone-950 dark:text-white md:text-3xl">
             {q
               ? t("storefront.search.resultsFor", "نتائج البحث عن \"{{query}}\"", { query: q })
               : selectedBrandOption
@@ -888,7 +888,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
           </h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="text-sm font-bold text-stone-500">{t("storefront.products.productCount", "{{count}} منتج", { count: orderedFilteredProducts.length })}</div>
+          <div className="sf-catalog-count text-sm font-bold text-stone-700 dark:text-stone-300">{t("storefront.products.productCount", "{{count}} منتج", { count: orderedFilteredProducts.length })}</div>
           <button
             type="button"
             onClick={() => setFiltersOpen(true)}

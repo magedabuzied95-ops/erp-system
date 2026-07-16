@@ -20,6 +20,18 @@ body.storefront-shell:not(.storefront-dark) {
   color: var(--sf-light-text);
 }
 
+/* Catalog heading must stay readable while the light palette is active. */
+body.storefront-shell:not(.storefront-dark) .sf-product-listing-page .sf-catalog-title {
+  color: var(--sf-light-text) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-product-listing-page .sf-catalog-eyebrow,
+body.storefront-shell:not(.storefront-dark) .sf-product-listing-page .sf-catalog-count {
+  color: var(--sf-light-text-secondary) !important;
+  -webkit-text-fill-color: currentColor;
+}
+
 /* Product cards and their loading placeholders */
 body.storefront-shell:not(.storefront-dark) .sf-product-card,
 body.storefront-shell:not(.storefront-dark) .sf-small-product-card {

@@ -3,8 +3,10 @@ import fs from "node:fs";
 import test from "node:test";
 
 const storefrontSource = fs.readFileSync("src/storefront/Storefront.jsx", "utf8");
+const listingSource = fs.readFileSync("src/storefront/pages/StorefrontProductListingPage.jsx", "utf8");
 const confirmationSource = fs.readFileSync("src/storefront/pages/OrderConfirmationActionPage.jsx", "utf8");
 const styles = fs.readFileSync("src/index.css", "utf8");
+const lightStyles = fs.readFileSync("src/storefront/storefront-light.css", "utf8");
 const html = fs.readFileSync("index.html", "utf8");
 const main = fs.readFileSync("src/main.jsx", "utf8");
 
@@ -34,6 +36,14 @@ test("storefront palette overrides the shared app palette in both modes", () => 
   assert.match(styles, /\.storefront-dark\s*\{[\s\S]*?--bg:\s*#050505/);
   assert.match(styles, /\.storefront-shell:not\(\.storefront-dark\)\s*\{[\s\S]*?--bg:\s*#f3f3f1/);
   assert.match(styles, /body\.storefront-shell:not\(\.storefront-dark\)[\s\S]*?background:\s*#f3f3f1\s*!important/);
+});
+
+test("catalog heading and result count keep readable light-mode contrast", () => {
+  assert.match(listingSource, /sf-catalog-title[^"]*text-stone-950/);
+  assert.match(listingSource, /sf-catalog-eyebrow[^"]*text-stone-600/);
+  assert.match(listingSource, /sf-catalog-count[^"]*text-stone-700/);
+  assert.match(lightStyles, /\.sf-product-listing-page \.sf-catalog-title[\s\S]*?color:\s*var\(--sf-light-text\)\s*!important/);
+  assert.match(lightStyles, /\.sf-catalog-count[\s\S]*?color:\s*var\(--sf-light-text-secondary\)\s*!important/);
 });
 
 test("mobile dark palette is scoped to dark storefronts", () => {
