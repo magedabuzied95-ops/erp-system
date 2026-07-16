@@ -11,7 +11,6 @@ import {
   RecentProductsSection,
   RelatedProducts,
   cleanDisplayText,
-  displayComparePrice,
   displayImageForProduct,
   displaySellingPrice,
   fallbackProductImage,
@@ -25,7 +24,6 @@ import {
   productFromDetailsResponse,
   productShareUrl,
   productToSocialMeta,
-  resolveStorefrontPrice,
   sfText,
   storefrontApi,
   variantColorKey,
@@ -36,6 +34,7 @@ import {
 import { api } from "../../shared/api/api";
 import { applyProductSocialMeta } from "../../shared/lib/socialMeta";
 import { getStorefrontResponsiveImageProps } from "../../shared/lib/storefrontImage";
+import { getDisplayPricing } from "../../shared/lib/storefrontPricing";
 import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/storefrontCustomerAuth";
 import { Check, Heart, Ruler, Share2, ShoppingCart } from "lucide-react";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
@@ -505,9 +504,9 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const galleryItems = galleryEntries;
   const mirrorProduct = product ? isMirrorProduct(product) : false;
   const displayTitle = cleanDisplayText(product ? mirrorProductTitle(product, safeActiveVariant) || product.name : "");
-  const selectedPrice = resolveStorefrontPrice(product, safeActiveVariant);
-  const selectedSellingPrice = selectedPrice.activePrice || displaySellingPrice(product, safeActiveVariant);
-  const selectedComparePrice = selectedPrice.comparePrice || displayComparePrice(product, safeActiveVariant);
+  const selectedPrice = getDisplayPricing(product, saleModeEnabled, safeActiveVariant);
+  const selectedSellingPrice = selectedPrice.price || displaySellingPrice(product, safeActiveVariant);
+  const selectedComparePrice = selectedPrice.comparePrice || 0;
   const selectedDiscountPercent = Number(selectedPrice.discountPercent || 0) || 0;
   const descriptionText = cleanDisplayText(product?.seo_description || product?.description_ar || product?.description_en || product?.description)
     || "طھطµظ…ظٹظ… ط¹ظ…ظ„ظٹ ط¨ط®ط§ظ…ط© Premium ظ…ظ†ط§ط³ط¨ ظ„ظ„ط®ط±ظˆط¬ ط§ظ„ظٹظˆظ…ظٹ ظˆط³ظ‡ظ„ ط§ظ„طھظ†ط³ظٹظ‚ ظ…ط¹ ط³طھط§ظٹظ„ط§طھ ظ…ط®طھظ„ظپط©.";

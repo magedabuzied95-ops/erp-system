@@ -25,3 +25,13 @@ test("product gallery preloads responsive hero images without reloading on query
     /\}, \[identifier, location\.pathname, location\.search, profilePhone, rememberProduct, reloadToken\]\);/,
   );
 });
+
+test("product cards and product details use the same POS sale-mode pricing switch", () => {
+  assert.match(
+    productDetailSource,
+    /const selectedPrice = getDisplayPricing\(product, saleModeEnabled, safeActiveVariant\);/,
+  );
+  assert.match(productDetailSource, /const selectedSellingPrice = selectedPrice\.price/);
+  assert.match(productDetailSource, /const selectedComparePrice = selectedPrice\.comparePrice/);
+  assert.doesNotMatch(productDetailSource, /selectedPrice\.activePrice/);
+});
