@@ -86,9 +86,11 @@ const withPaymentProofAliases = (order = {}) => {
 const VISUAL_SEARCH_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_SEARCH_MAX_BYTES || 8 * 1024 * 1024);
 const VISUAL_SEARCH_ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const VISUAL_HASH_SIZE = 8;
-const VISUAL_REMOTE_CANDIDATE_LIMIT = Number(process.env.STOREFRONT_VISUAL_REMOTE_CANDIDATE_LIMIT || 60);
-const VISUAL_REMOTE_IMAGE_TIMEOUT_MS = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_TIMEOUT_MS || 1200);
+const VISUAL_REMOTE_CANDIDATE_LIMIT = Number(process.env.STOREFRONT_VISUAL_REMOTE_CANDIDATE_LIMIT || 220);
+const VISUAL_REMOTE_IMAGE_TIMEOUT_MS = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_TIMEOUT_MS || 1000);
 const VISUAL_REMOTE_IMAGE_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_MAX_BYTES || 3 * 1024 * 1024);
+const VISUAL_IMAGE_MATCH_CONCURRENCY = Number(process.env.STOREFRONT_VISUAL_IMAGE_MATCH_CONCURRENCY || 8);
+const VISUAL_SIGNATURE_CACHE_LIMIT = Number(process.env.STOREFRONT_VISUAL_SIGNATURE_CACHE_LIMIT || 1200);
 let storefrontSchemaReadyPromise = null;
 let storefrontSchemaReady = false;
 const storefrontTableColumnsCache = new Map();
@@ -1863,6 +1865,43 @@ const colorSignatureSimilarity = (a, b) => {
   return Math.max(0, Math.min(1, 1 - (histogramDistance * 0.65 + rgbDistance * 0.35)));
 };
 
+const visualSignatureCache = new Map();
+
+const trimVisualSignatureCache = () => {
+  while (visualSignatureCache.size > VISUAL_SIGNATURE_CACHE_LIMIT) {
+    const firstKey = visualSignatureCache.keys().next().value;
+    if (!firstKey) break;
+    visualSignatureCache.delete(firstKey);
+  }
+};
+
+const getCandidateVisualSignature = async (imageUrl = "", options = {}) => {
+  const key = toText(imageUrl);
+  if (!key) return null;
+  const cached = visualSignatureCache.get(key);
+  if (cached) {
+    visualSignatureCache.delete(key);
+    visualSignatureCache.set(key, cached);
+    return { ...cached, cached: true };
+  }
+
+  const loaded = await loadCandidateImageBuffer(key, options);
+  if (!loaded.buffer?.length) return null;
+  const [hash, color] = await Promise.all([
+    imagePerceptualHash(loaded.buffer),
+    imageColorSignature(loaded.buffer).catch(() => null),
+  ]);
+  const signature = {
+    source: loaded.source,
+    sha: imageSha256(loaded.buffer),
+    hash,
+    color,
+  };
+  visualSignatureCache.set(key, signature);
+  trimVisualSignatureCache();
+  return { ...signature, cached: false };
+};
+
 const collectProductImageUrls = (product = {}) => [
   product.image_url,
   product.product_image_url,
@@ -1926,42 +1965,61 @@ const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 
   };
 
   let remoteCandidateAttempts = 0;
+  const queuedCandidates = [];
   for (const candidate of candidates) {
+    const remote = isRemoteImageUrl(candidate.imageUrl);
+    if (remote) {
+      if (remoteCandidateAttempts >= VISUAL_REMOTE_CANDIDATE_LIMIT) continue;
+      remoteCandidateAttempts += 1;
+    }
+    queuedCandidates.push({ ...candidate, remote });
+  }
+
+  const scoreCandidate = async (candidate) => {
     try {
-      const remote = isRemoteImageUrl(candidate.imageUrl);
-      if (remote) {
-        if (remoteCandidateAttempts >= VISUAL_REMOTE_CANDIDATE_LIMIT) continue;
-        remoteCandidateAttempts += 1;
-      }
-      const loaded = await loadCandidateImageBuffer(candidate.imageUrl, { allowRemote: remote });
-      if (!loaded.buffer?.length) continue;
-      debug.readable_candidate_image_count += 1;
-      if (loaded.source === "data_url") debug.data_url_candidate_count += 1;
-      if (loaded.source === "upload_file") debug.upload_file_candidate_count += 1;
-      if (loaded.source === "remote_url") debug.remote_url_candidate_count += 1;
-      const candidateBuffer = loaded.buffer;
-      const exact = imageSha256(candidateBuffer) === uploadedSha;
-      const distance = exact ? 0 : hashDistance(uploadedHash, await imagePerceptualHash(candidateBuffer));
-      const colorSimilarity = uploadedColor
-        ? colorSignatureSimilarity(uploadedColor, await imageColorSignature(candidateBuffer).catch(() => null))
-        : 0;
-      if (colorSimilarity > 0) debug.color_scored_candidate_count += 1;
+      const signature = await getCandidateVisualSignature(candidate.imageUrl, { allowRemote: candidate.remote });
+      if (!signature?.hash) return null;
+      const exact = signature.sha === uploadedSha;
+      const distance = exact ? 0 : hashDistance(uploadedHash, signature.hash);
+      const colorSimilarity = uploadedColor ? colorSignatureSimilarity(uploadedColor, signature.color) : 0;
       const hashScore = exact ? 100 : Math.max(0, 92 - distance * 2.2);
       const blendedScore = exact
         ? 100
         : Math.max(0, Math.min(94, Math.round(hashScore * 0.7 + colorSimilarity * 100 * 0.3)));
-      if (exact || distance <= 16 || blendedScore >= 42 || colorSimilarity >= 0.88) {
-        debug.matched_candidate_count += 1;
-        scored.push({
+      if (!(exact || distance <= 16 || blendedScore >= 42 || colorSimilarity >= 0.88)) {
+        return { signature, matched: false, colorSimilarity };
+      }
+      return {
+        signature,
+        matched: true,
+        match: {
           productId: candidate.product.id,
           score: blendedScore,
           reason: exact ? "exact_sha256" : distance <= 16 ? "perceptual_hash" : "visual_color_similarity",
           distance,
           colorSimilarity,
-        });
-      }
+        },
+      };
     } catch {
-      // Ignore unreadable or unsupported stored images and continue matching.
+      return null;
+    }
+  };
+
+  const concurrency = Math.max(1, Math.min(16, VISUAL_IMAGE_MATCH_CONCURRENCY || 8));
+  for (let index = 0; index < queuedCandidates.length; index += concurrency) {
+    const chunk = queuedCandidates.slice(index, index + concurrency);
+    const results = await Promise.all(chunk.map(scoreCandidate));
+    for (const result of results) {
+      if (!result?.signature) continue;
+      debug.readable_candidate_image_count += 1;
+      if (result.signature.source === "data_url") debug.data_url_candidate_count += 1;
+      if (result.signature.source === "upload_file") debug.upload_file_candidate_count += 1;
+      if (result.signature.source === "remote_url") debug.remote_url_candidate_count += 1;
+      if (result.colorSimilarity > 0) debug.color_scored_candidate_count += 1;
+      if (result.matched) {
+        debug.matched_candidate_count += 1;
+        scored.push(result.match);
+      }
     }
   }
   console.log("[storefront-image-search] image candidates", debug);
