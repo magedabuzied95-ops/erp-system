@@ -1949,6 +1949,32 @@ const colorSignatureSimilarity = (a, b) => {
   return Math.max(0, Math.min(1, 1 - (histogramDistance * 0.65 + rgbDistance * 0.35)));
 };
 
+const visualModelFamilyKey = (product = {}) => {
+  const blob = [
+    product.brand,
+    product.brand_name,
+    product.name,
+    product.product_type,
+    product.description,
+  ].map((value) => String(value || "").toLowerCase()).join(" ");
+  const brand = blob.includes("adidas") ? "adidas"
+    : blob.includes("nike") ? "nike"
+      : blob.includes("puma") ? "puma"
+        : blob.includes("skecher") ? "skechers"
+          : blob.includes("new balance") ? "new balance"
+            : String(product.brand || product.brand_name || "").toLowerCase().trim();
+  const model = /\bsuper\s*star\b|\bsuperstar\b/.test(blob) ? "superstar"
+    : /\bsamba\b/.test(blob) ? "samba"
+      : /\bcampus\b/.test(blob) ? "campus"
+        : /\bair\s*force\b|\baf1\b/.test(blob) ? "air force 1"
+          : /\bdunk\b/.test(blob) ? "dunk"
+            : /\bjordan\s*4\b|\baj4\b|\bj4\b/.test(blob) ? "jordan 4"
+              : /\bjordan\s*1\b|\bair\s*jordan\s*1\b/.test(blob) ? "jordan 1"
+                : /\bsb\b/.test(blob) ? "sb"
+                  : "";
+  return brand && model ? `${brand}:${model}` : "";
+};
+
 const visualSignatureCache = new Map();
 
 const trimVisualSignatureCache = () => {
@@ -2098,6 +2124,7 @@ const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 
           distance,
           shapeDistance,
           colorSimilarity,
+          familyKey: visualModelFamilyKey(candidate.product),
         },
       };
     } catch {
@@ -2130,7 +2157,19 @@ const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 
     const current = bestByProduct.get(key);
     if (!current || item.score > current.score) bestByProduct.set(key, item);
   }
+  const familyCounts = new Map();
+  for (const item of bestByProduct.values()) {
+    if (!item.familyKey || item.score < 50) continue;
+    familyCounts.set(item.familyKey, (familyCounts.get(item.familyKey) || 0) + 1);
+  }
   return Array.from(bestByProduct.values())
+    .map((item) => {
+      const familyCount = item.familyKey ? Number(familyCounts.get(item.familyKey) || 0) : 0;
+      const familyBoost = familyCount >= 2 ? Math.min(10, (familyCount - 1) * 4) : 0;
+      return familyBoost
+        ? { ...item, score: Math.min(98, item.score + familyBoost), reason: `${item.reason}_family_cluster` }
+        : item;
+    })
     .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 };
@@ -2190,6 +2229,19 @@ const visualKeywordsFromAi = (aiResult = {}) => {
     suggestions.fashion_category,
     suggestions.grade,
     suggestions.dominant_colors,
+  ]);
+};
+
+const withTimeout = (promise, timeoutMs, label = "operation") => {
+  const ms = Math.max(1000, Number(timeoutMs || 0));
+  let timer = null;
+  return Promise.race([
+    promise.finally(() => {
+      if (timer) clearTimeout(timer);
+    }),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(`${label}_timeout`)), ms);
+    }),
   ]);
 };
 
@@ -3143,11 +3195,15 @@ export const imageSearchProducts = async (req, res) => {
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
     let understanding = null;
     try {
-      understanding = await understandProductImageForSearch({
-        imageBuffer: file.buffer,
-        mimeType: file.mimetype,
-        requestId: req.id || `storefront-image:${Date.now()}`,
-      });
+      understanding = await withTimeout(
+        understandProductImageForSearch({
+          imageBuffer: file.buffer,
+          mimeType: file.mimetype,
+          requestId: req.id || `storefront-image:${Date.now()}`,
+        }),
+        process.env.STOREFRONT_IMAGE_VISION_TIMEOUT_MS || 12000,
+        "storefront_image_vision"
+      );
     } catch (error) {
       console.warn("[storefront-image-search] vision understanding failed; continuing with local matching", {
         tenantId,
@@ -3164,13 +3220,17 @@ export const imageSearchProducts = async (req, res) => {
     const visualQuery = [visualQueryFromUnderstanding(understanding), requestVisualQuery].filter(Boolean).join(" ");
     let proSearch = { candidates: [], attributes: null, topMatches: [], reasonWhyFirstRanked: "" };
     try {
-      proSearch = await searchAiVisualProductsPro({
-        tenantId,
-        detected: understanding?.detected || {},
-        visualQuery,
-        uploadedImageBuffer: file.buffer,
-        limit: 18,
-      });
+      proSearch = await withTimeout(
+        searchAiVisualProductsPro({
+          tenantId,
+          detected: understanding?.detected || {},
+          visualQuery,
+          uploadedImageBuffer: file.buffer,
+          limit: 18,
+        }),
+        process.env.STOREFRONT_IMAGE_PRO_SEARCH_TIMEOUT_MS || 9000,
+        "storefront_image_pro_search"
+      );
     } catch (error) {
       console.warn("[storefront-image-search] pro visual search failed; continuing with local matching", {
         tenantId,
