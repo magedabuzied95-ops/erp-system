@@ -5,7 +5,6 @@ import {
   AlertTriangle,
   ArrowDownCircle,
   ArrowRight,
-  ArrowUpCircle,
   Banknote,
   Bell,
   CalendarDays,
@@ -341,7 +340,6 @@ Object.assign(labels.en, {
 Object.assign(labels.ar, {
   homeTab: "الرئيسية",
   salaryTab: "الراتب",
-  walletOnlyTab: "المحفظة",
   notificationsTab: "التنبيهات",
   displayRefillTab: "نواقص العرض",
   talkToManagement: "كلم الإدارة",
@@ -432,7 +430,6 @@ Object.assign(labels.ar, {
 Object.assign(labels.en, {
   homeTab: "Home",
   salaryTab: "Salary",
-  walletOnlyTab: "Wallet",
   notificationsTab: "Notifications",
   displayRefillTab: "Display refill",
   talkToManagement: "Talk to management",
@@ -1512,7 +1509,7 @@ export default function EmployeePayrollPortal() {
       setChatOpen(true);
       return;
     }
-    if (["home", "attendance", "tasks", "requests", "salary", "wallet", "notifications", "display-refill"].includes(tab)) setActiveTab(tab);
+    if (["home", "attendance", "tasks", "requests", "salary", "notifications", "display-refill"].includes(tab)) setActiveTab(tab);
   }, []);
 
   const loadDisplayRefillAlerts = useCallback(async ({ silent = false, timeoutMs = EMPLOYEE_PORTAL_OPTIONAL_TIMEOUT_MS } = {}) => {
@@ -1719,7 +1716,6 @@ export default function EmployeePayrollPortal() {
     ["requests", text.requestsTab, MessageCircle],
     ["display-refill", ui("displayRefillTab"), AlertTriangle],
     ["attendance", text.attendanceTab, CalendarDays],
-    ["wallet", ui("walletOnlyTab"), CreditCard],
     ["salary", ui("salaryTab"), WalletCards],
   ];
   const performanceData = portal?.performance || {};
@@ -3818,34 +3814,6 @@ export default function EmployeePayrollPortal() {
                 </div>
             </form> : null}
 
-            {activeTab === "wallet" ? <div className="rounded-3xl bg-slate-950 p-4 text-white shadow-xl shadow-slate-300">
-              <div className="text-xs font-black text-slate-300">{ui("walletOnlyTab")}</div>
-              <div className="mt-2 text-3xl font-black tabular-nums" dir="ltr">{money(wallet.current_balance ?? wallet.current_net_salary ?? portal.net_salary ?? 0)}</div>
-              <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-black">
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <div className="text-slate-300">{text.pendingCommissions}</div>
-                  <div className="mt-1 text-sm" dir="ltr">{money(wallet.pending_commissions || 0)}</div>
-                </div>
-                <div className="rounded-2xl bg-white/10 p-3">
-                  <div className="text-slate-300">{text.totalAdvances}</div>
-                  <div className="mt-1 text-sm" dir="ltr">{money(wallet.total_advances ?? portal.advances)}</div>
-                </div>
-              </div>
-            </div> : null}
-
-            {activeTab === "wallet" ? <div className="rounded-3xl border border-slate-200 bg-slate-50 p-4 shadow-sm">
-              <div className="flex items-center justify-between gap-3">
-                <h3 className="text-base font-black">{text.timeline}</h3>
-                <ArrowUpCircle className="h-5 w-5 text-slate-400" />
-              </div>
-              <div className="mt-3 grid gap-2">
-                {walletTransactions.length ? walletTransactions.map((item) => (
-                  <TimelineItem key={item.id} item={item} text={text} language={language} />
-                )) : (
-                  <div className="rounded-2xl border border-dashed border-slate-200 bg-white px-3 py-5 text-center text-sm font-bold text-slate-500">{ui("noTimeline")}</div>
-                )}
-              </div>
-            </div> : null}
           </section>
         )}
       </div>
