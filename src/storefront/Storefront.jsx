@@ -9131,19 +9131,19 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
   if (!isVisible) return null;
 
   const categoriesSheet = categoriesOpen && mobilePortalTarget ? createPortal(
-    <div className="fixed inset-0 z-[120] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="الأقسام">
-      <button type="button" className="absolute inset-0 bg-black/55 backdrop-blur-sm" aria-label="إغلاق الأقسام" onClick={() => setCategoriesOpen(false)} />
-      <div className="absolute inset-x-0 bottom-0 rounded-t-[1.6rem] border border-white/10 bg-[linear-gradient(180deg,rgba(9,12,20,0.98),rgba(6,8,14,0.98))] px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48)]">
-        <div className="mx-auto flex max-w-[28rem] items-center justify-between gap-3">
+    <div className="sf-mobile-categories-sheet fixed inset-0 z-[120] md:hidden" data-theme={isDarkMode ? "dark" : "light"} dir="rtl" role="dialog" aria-modal="true" aria-label="الأقسام">
+      <button type="button" className="sf-mobile-categories-sheet__backdrop absolute inset-0" aria-label="إغلاق الأقسام" onClick={() => setCategoriesOpen(false)} />
+      <div className="sf-mobile-categories-sheet__panel absolute inset-x-0 bottom-0 px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3">
+        <div className="sf-mobile-categories-sheet__header mx-auto flex max-w-[28rem] items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">الأقسام</p>
-            <h3 className="mt-0.5 text-base font-black">تصفح الأقسام</h3>
+            <p className="sf-mobile-categories-sheet__eyebrow text-[10px] font-black uppercase tracking-[0.22em]">الأقسام</p>
+            <h3 className="sf-mobile-categories-sheet__title mt-0.5 text-base font-black">تصفح الأقسام</h3>
           </div>
-          <button type="button" onClick={() => setCategoriesOpen(false)} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white transition active:scale-[0.98]">
+          <button type="button" onClick={() => setCategoriesOpen(false)} className="sf-mobile-categories-sheet__close grid h-10 w-10 place-items-center rounded-full transition active:scale-[0.98]">
             <X className="h-5 w-5" />
           </button>
         </div>
-        <div className="mx-auto mt-3 grid max-w-[28rem] gap-2">
+        <div className="sf-mobile-categories-sheet__list mx-auto mt-3 grid max-w-[28rem] gap-2">
           {categoryLinks.map((item) => {
             const Icon = item.icon;
             return (
@@ -9151,13 +9151,13 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
                 key={item.id}
                 to={item.to}
                 onClick={() => setCategoriesOpen(false)}
-                className="flex items-center gap-3 rounded-[1rem] border border-white/10 bg-white/[0.045] px-3 py-3.5 text-sm font-bold text-white/88 transition active:scale-[0.99] hover:bg-white/[0.08] hover:text-white"
+                className="sf-mobile-categories-sheet__item flex items-center gap-3 rounded-[1rem] px-3 py-3.5 text-sm font-black transition active:scale-[0.99]"
               >
-                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/8 text-emerald-300">
+                <span className="sf-mobile-categories-sheet__icon grid h-9 w-9 shrink-0 place-items-center rounded-full">
                   <Icon className="h-4.5 w-4.5" />
                 </span>
                 <span className="flex-1">{item.label}</span>
-                <ChevronLeft className="h-4 w-4 text-white/40" />
+                <ChevronLeft className="sf-mobile-categories-sheet__chevron h-4 w-4" />
               </Link>
             );
           })}
