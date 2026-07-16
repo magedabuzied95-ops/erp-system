@@ -398,6 +398,13 @@
     "productType": "Product Type",
     "type": "Type",
     "grade": "Grade",
+    "sort": "Sort",
+    "color": "Color",
+    "brand": "Brand",
+    "filterByPrice": "Filter by price",
+    "minPrice": "Minimum price",
+    "maxPrice": "Maximum price",
+    "priceHint": "Use the price range to narrow the results",
     "sizeFilter": "Size Filter",
     "availableSize": "Available size filter",
     "showAllSizes": "Show all sizes",
@@ -409,7 +416,12 @@
     "closeFilters": "Close filters",
     "premiumFilters": "Premium Filters",
     "chooseWhatFits": "Choose what fits you",
-    "applyFilters": "Apply Filters"
+    "applyFilters": "Apply Filters",
+    "reset": "Reset",
+    "showMore": "Show more",
+    "showLess": "Show less",
+    "clearAll": "Clear all",
+    "resetFilters": "Reset filters"
   },
   "lastPiece": {
     "title": "Last piece"

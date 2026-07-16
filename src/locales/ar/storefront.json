@@ -258,7 +258,14 @@
     "gender": "الجنس",
     "productType": "نوع المنتج",
     "type": "النوع",
-    "grade": "الجريد",
+    "grade": "الفئة / الجودة",
+    "sort": "الترتيب",
+    "color": "اللون",
+    "brand": "العلامة التجارية",
+    "filterByPrice": "التصفية بالسعر",
+    "minPrice": "أقل سعر",
+    "maxPrice": "أعلى سعر",
+    "priceHint": "استخدم نطاق السعر لتضييق النتائج",
     "sizeFilter": "فلتر المقاس",
     "availableSize": "فلتر المقاس المتاح",
     "showAllSizes": "عرض كل المقاسات",
@@ -268,9 +275,14 @@
     "clearFilters": "مسح الفلاتر",
     "filters": "الفلاتر",
     "closeFilters": "إغلاق الفلاتر",
-    "premiumFilters": "فلاتر Premium",
+    "premiumFilters": "فلاتر مميزة",
     "chooseWhatFits": "اختار اللي يناسبك",
-    "applyFilters": "تطبيق الفلاتر"
+    "applyFilters": "تطبيق الفلاتر",
+    "reset": "مسح",
+    "showMore": "عرض المزيد",
+    "showLess": "عرض أقل",
+    "clearAll": "مسح الكل",
+    "resetFilters": "مسح الفلاتر"
   },
   "lastPiece": {
     "title": "آخر قطعة"

@@ -487,3 +487,45 @@ body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] 
   color: rgba(255, 255, 255, 0.82) !important;
   box-shadow: none !important;
 }
+
+/* Product catalog filters render through a portal, so they need explicit
+ * storefront theme surfaces instead of inheriting the route card colors. */
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-sheet {
+  border-color: var(--sf-light-border) !important;
+  background:
+    radial-gradient(circle at 16% 0%, rgba(212, 175, 55, 0.09), transparent 34%),
+    linear-gradient(180deg, #ffffff 0%, #f7f7f5 100%) !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 -24px 70px rgba(31, 29, 25, 0.16) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-handle {
+  background: rgba(93, 89, 82, 0.3) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-header,
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-footer {
+  border-color: var(--sf-light-border) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-footer {
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: 0 -12px 32px rgba(31, 29, 25, 0.08) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-close,
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-reset {
+  border-color: var(--sf-light-border) !important;
+  background: var(--sf-light-soft) !important;
+  color: var(--sf-light-text-secondary) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-apply {
+  background: linear-gradient(135deg, #d4af37 0%, #b48a1c 100%) !important;
+  color: #211b0c !important;
+  box-shadow: 0 12px 30px rgba(180, 138, 28, 0.24) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-catalog-filter-content {
+  scrollbar-color: rgba(164, 122, 18, 0.38) transparent;
+}

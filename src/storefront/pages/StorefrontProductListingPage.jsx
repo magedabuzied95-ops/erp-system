@@ -36,7 +36,7 @@ import {
 } from "../Storefront";
 import { useProductClassifications } from "../../modules/products/hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../../modules/products/lib/productClassifications";
-import { Baby, Briefcase, ChevronLeft, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
+import { Baby, Briefcase, ChevronDown, ChevronLeft, DollarSign, Gem, Footprints, ShoppingBag, Shirt, SlidersHorizontal, Tag, UserRound, Users, X } from "lucide-react";
 
 const FILTER_DEBOUNCE_MS = 320;
 
@@ -1416,9 +1416,20 @@ function CatalogSingleSelectFilter({
   lang = "ar",
   emptyLabel,
   normalizeValue = normalizeFilterKey,
+  initialVisibleCount = 0,
 }) {
   const { t } = useTranslation();
+  const [expanded, setExpanded] = useState(false);
   const hasValue = Boolean(normalizeFilterKey(value));
+  const optionLimit = Math.max(0, Number(initialVisibleCount) || 0);
+  const shouldCollapse = optionLimit > 0 && options.length > optionLimit;
+  const selectedOption = options.find((option) => normalizeValue(option?.value) === normalizeValue(value));
+  const collapsedOptions = options.slice(0, optionLimit);
+  if (selectedOption && !collapsedOptions.some((option) => normalizeValue(option?.value) === normalizeValue(selectedOption?.value))) {
+    collapsedOptions[Math.max(0, optionLimit - 1)] = selectedOption;
+  }
+  const visibleOptions = shouldCollapse && !expanded ? collapsedOptions : options;
+  const hiddenCount = Math.max(0, options.length - visibleOptions.length);
   return (
     <CatalogSectionShell
       eyebrow={eyebrow}
@@ -1430,7 +1441,7 @@ function CatalogSingleSelectFilter({
         </button>
       ) : null}
     >
-      <div className="sf-scroll flex flex-wrap gap-2">
+      <div className="sf-catalog-filter-options flex flex-wrap gap-2">
         <button
           type="button"
           onClick={() => onChange("")}
@@ -1442,7 +1453,7 @@ function CatalogSingleSelectFilter({
         >
           {emptyLabel || t("common.all", "الكل")}
         </button>
-        {options.map((option) => {
+        {visibleOptions.map((option) => {
           const optionValue = String(option.value || "").trim();
           const active = normalizeValue(value) === normalizeValue(optionValue);
           const count = filterOptionCount(option);
@@ -1463,6 +1474,18 @@ function CatalogSingleSelectFilter({
           );
         })}
       </div>
+      {shouldCollapse ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((current) => !current)}
+          className="sf-catalog-filter-expand mt-2.5 inline-flex min-h-9 w-full items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-[11px] font-black text-stone-600 transition hover:border-[#d4af37]/45 hover:text-[#a47a12] dark:border-white/10 dark:bg-white/5 dark:text-stone-300"
+          aria-expanded={expanded}
+        >
+          <span>{expanded ? t("storefront.filters.showLess", "عرض أقل") : t("storefront.filters.showMore", "عرض المزيد")}</span>
+          {!expanded && hiddenCount ? <span className="text-stone-400 dark:text-stone-500">({hiddenCount})</span> : null}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} />
+        </button>
+      ) : null}
     </CatalogSectionShell>
   );
 }
@@ -1513,7 +1536,7 @@ function CatalogFiltersPanel({
       <CatalogSingleSelectFilter eyebrow={t("storefront.filters.grade", "الفئة / الجودة")} title={t("storefront.filters.grade", "الفئة / الجودة")} icon={Gem} options={gradeOptions} value={selectedGrade} onChange={onGradeChange} onClear={() => onGradeChange("")} lang={lang} />
       <CatalogSizeFilter sizes={sizes} selectedSizes={selectedSizes} onToggle={onToggleSize} onClear={onClearSizes} />
       <CatalogPriceFilter minPrice={minPrice} maxPrice={maxPrice} onChange={onPriceChange} priceBounds={priceBounds} />
-      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.color", "اللون")} title={t("storefront.filters.color", "اللون")} icon={Tag} options={colorOptions} value={selectedColor} onChange={onColorChange} onClear={() => onColorChange("")} lang={lang} />
+      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.color", "اللون")} title={t("storefront.filters.color", "اللون")} icon={Tag} options={colorOptions} value={selectedColor} onChange={onColorChange} onClear={() => onColorChange("")} lang={lang} initialVisibleCount={14} />
       <CatalogSingleSelectFilter eyebrow={t("storefront.filters.brand", "البرند")} title={t("storefront.filters.brand", "البرند")} icon={Briefcase} options={brandOptions} value={selectedBrand} onChange={onBrandChange} onClear={() => onBrandChange("")} lang={lang} />
       {onClearAll ? (
         <button type="button" onClick={onClearAll} className="rounded-[1.25rem] border border-stone-200 bg-white px-4 py-3 text-sm font-black text-stone-700 shadow-sm transition hover:-translate-y-0.5 hover:border-[#d4af37]/45 hover:text-[#d4af37] dark:border-white/10 dark:bg-white/5 dark:text-stone-200">
@@ -1562,23 +1585,28 @@ function CatalogFiltersDrawer({
   onClearAll,
 }) {
   const { t } = useTranslation();
+  const activeFilterCount = [selectedGender, selectedType, selectedGrade, selectedBrand, selectedColor, minPrice, maxPrice, saleView, lastSizes, inStock]
+    .filter(Boolean).length + (Array.isArray(selectedSizes) ? selectedSizes.length : 0) + (normalizeCatalogSortValue(selectedSort) !== "newest" ? 1 : 0);
   useBodyScrollLock(open);
   if (!open || typeof document === "undefined") return null;
   return createPortal(
-    <div className="fixed inset-0 z-[170] lg:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label={title}>
+    <div className="sf-catalog-filter-drawer fixed inset-0 z-[170] lg:hidden" dir={String(lang || "").toLowerCase().startsWith("ar") ? "rtl" : "ltr"} role="dialog" aria-modal="true" aria-label={title}>
       <button type="button" className="absolute inset-0 bg-stone-950/65 backdrop-blur-sm" onClick={onClose} aria-label={t("common.close", "إغلاق")} />
-      <div className="absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,#0d0d0d_0%,#050814_100%)] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48)]">
-        <div className="mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-white/20" />
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-3.5 py-3">
+      <div className="sf-catalog-filter-sheet absolute inset-x-0 bottom-0 max-h-[92dvh] overflow-hidden rounded-t-[1.5rem] border border-white/10 bg-[linear-gradient(180deg,#0d0d0d_0%,#050814_100%)] text-white shadow-[0_-28px_80px_rgba(0,0,0,0.48)]">
+        <div className="sf-catalog-filter-handle mx-auto mt-2.5 h-1.5 w-10 rounded-full bg-white/20" />
+        <div className="sf-catalog-filter-header flex items-center justify-between gap-3 border-b border-white/10 px-3.5 py-3">
           <div>
             <p className="text-[9px] font-black uppercase tracking-[0.18em] text-[#f3d77a]">{t("storefront.filters.premiumFilters", "الفلاتر")}</p>
-            <h2 className="text-base font-black">{title}</h2>
+            <div className="mt-0.5 flex items-center gap-2">
+              <h2 className="text-base font-black">{title}</h2>
+              {activeFilterCount ? <span className="grid h-5 min-w-5 place-items-center rounded-full bg-[#d4af37] px-1.5 text-[10px] font-black text-white">{activeFilterCount}</span> : null}
+            </div>
           </div>
-          <button type="button" onClick={onClose} className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 transition active:scale-95" aria-label={t("common.close", "إغلاق")}>
+          <button type="button" onClick={onClose} className="sf-catalog-filter-close grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/5 transition active:scale-95" aria-label={t("common.close", "إغلاق")}>
             <X className="h-4 w-4" />
           </button>
         </div>
-        <div className="sf-scroll max-h-[calc(92dvh-138px)] space-y-3 overflow-y-auto px-3 py-3 pb-28">
+        <div className="sf-catalog-filter-content sf-scroll max-h-[calc(92dvh-138px)] space-y-3 overflow-y-auto px-3 py-3 pb-28">
           <CatalogFiltersPanel
             lang={lang}
             title={title}
@@ -1614,8 +1642,8 @@ function CatalogFiltersDrawer({
             onToggleFlag={onToggleFlag}
           />
         </div>
-        <div className="absolute inset-x-0 bottom-0 flex gap-2 border-t border-white/10 bg-[#050814]/92 px-3 py-2.5 pb-[calc(env(safe-area-inset-bottom)+0.7rem)] backdrop-blur-xl">
-          <button type="button" onClick={onClose} className="flex-1 rounded-xl bg-gradient-to-l from-[#d4af37] to-[#151515] px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_34px_rgba(212,175,55,0.32)] active:scale-[0.98]">
+        <div className="sf-catalog-filter-footer absolute inset-x-0 bottom-0 flex gap-2 border-t border-white/10 bg-[#050814]/92 px-3 py-2.5 pb-[calc(env(safe-area-inset-bottom)+0.7rem)] backdrop-blur-xl">
+          <button type="button" onClick={onClose} className="sf-catalog-filter-apply flex-1 rounded-xl bg-gradient-to-l from-[#d4af37] to-[#151515] px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_34px_rgba(212,175,55,0.32)] active:scale-[0.98]">
             {t("storefront.filters.applyFilters", "تطبيق")}
           </button>
           <button
@@ -1624,9 +1652,9 @@ function CatalogFiltersDrawer({
               onClearAll?.();
               onClose?.();
             }}
-            className="rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-black text-white/80 active:scale-[0.98]"
+            className="sf-catalog-filter-reset rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-black text-white/80 active:scale-[0.98]"
           >
-            {t("common.reset", "مسح")}
+            {t("storefront.filters.reset", "مسح")}
           </button>
         </div>
       </div>
