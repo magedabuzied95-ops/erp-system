@@ -4463,11 +4463,13 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
   const resolvedHeaderLogoUrl = resolveProductImageUrl(preferredHeaderLogoUrl);
   const mOneHeaderLogoPattern = /\/branding\/m-one-wordmark-(?:orange|white|dark)\.png/;
   const isMOneHeaderLogo = mOneHeaderLogoPattern.test(resolvedHeaderLogoUrl);
+  const isMOneBrand = /(?:^|\s)m\s*(?:1|one)(?:\s|$)/i.test(String(brandName || "").trim());
+  const useAnimatedMOneHeaderLogo = isMOneHeaderLogo || isMOneBrand;
   const mOneHeaderLogoVariant = "white";
   const displayedHeaderLogoUrl = isMOneHeaderLogo
     ? `${resolvedHeaderLogoUrl.split("?")[0].replace(mOneHeaderLogoPattern, `/branding/m-one-wordmark-${mOneHeaderLogoVariant}.png`)}?v=20220228`
     : resolvedHeaderLogoUrl;
-  const mOneHeaderLayerUrl = (layer) => `${resolvedHeaderLogoUrl.split("?")[0].replace(mOneHeaderLogoPattern, `/branding/m-one-logo-${mOneHeaderLogoVariant}-${layer}.png`)}?v=20220715`;
+  const mOneHeaderLayerUrl = (layer) => `/branding/m-one-logo-${mOneHeaderLogoVariant}-${layer}.png?v=20260716`;
   const { i18n: storefrontI18n, t } = useTranslation();
   const brandInitials = resolveBrandInitials(brandName);
   const [search, setSearch] = useState("");
@@ -4889,7 +4891,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             <Link to="/" className="sf-header-logo mx-auto inline-flex min-w-0 items-center justify-center" aria-label={brandName || "MONE"}>
               {preferredHeaderLogoUrl ? (
                 <span className="sf-header-wordmark relative inline-flex h-14 w-14 items-center justify-center transition">
-                  {isMOneHeaderLogo ? (
+                    {useAnimatedMOneHeaderLogo ? (
                     <>
                       <img src={mOneHeaderLayerUrl("fixed")} alt={brandName} className="absolute inset-0 block h-full w-full object-contain" decoding="async" width="160" height="160" />
                       <img src={mOneHeaderLayerUrl("m")} alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 block h-full w-full object-contain" decoding="async" width="160" height="160" />
@@ -4962,7 +4964,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             <Link to="/" className="sf-header-logo group inline-flex shrink-0 items-center text-stone-950 transition hover:text-[#d4af37] dark:text-white" aria-label={brandName || "MONE"}>
               {preferredHeaderLogoUrl ? (
                 <span className="sf-header-wordmark relative inline-flex h-[72px] w-[82px] items-center justify-center bg-transparent transition group-hover:scale-[1.02]">
-                  {isMOneHeaderLogo ? (
+                    {useAnimatedMOneHeaderLogo ? (
                     <>
                       <img src={mOneHeaderLayerUrl("fixed")} alt={brandName} className="absolute inset-0 block h-full w-full object-contain" decoding="async" width="240" height="240" />
                       <img src={mOneHeaderLayerUrl("m")} alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 block h-full w-full object-contain" decoding="async" width="240" height="240" />
@@ -5938,26 +5940,7 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
             {extraColorCount ? <span dir="ltr" className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-200/80 bg-white/[0.58] px-2 text-[9px] font-black leading-none text-stone-500 dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-400">+{extraColorCount}</span> : null}
           </div>
         ) : null}
-        <div className={`sf-scroll mt-[4px] flex h-7 flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden pb-0.5 whitespace-nowrap md:h-8 md:gap-1.5 ${densityClasses.sizes}`}>
-          {visibleSizes.map(({ size, variant }) => {
-            const selected = String(availableVariant?.id) === String(variant?.id);
-            return (
-              <button
-                key={`${activeColorGroup?.key || "default"}-${size}`}
-                type="button"
-                onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
-                className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 active:translate-y-[1px] active:scale-[0.98] md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#d4af37] bg-[linear-gradient(135deg,#d4af37,#d4af37)] text-white shadow-[0_8px_18px_rgba(212,175,55,0.12)] ring-1 ring-[#f3d77a]/12 dark:border-[#f3d77a] dark:bg-[linear-gradient(135deg,#e5c158,#d4af37)] dark:text-white dark:ring-[#f3d77a]/14" : "border-stone-300/90 bg-white text-stone-700 shadow-none hover:border-[#d4af37]/35 hover:bg-[#faf7ff] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#f3d77a]/45 dark:hover:bg-white/[0.08] dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
-              >
-                {size}
-              </button>
-            );
-          })}
-          {extraSizeCount ? (
-            <span dir="ltr" className="inline-flex h-6 shrink-0 items-center justify-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-black leading-none text-stone-500 shadow-none md:text-[10px] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-500">+{extraSizeCount}</span>
-          ) : null}
-          {!visibleSizes.length ? (
-            <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-bold leading-none text-stone-500 shadow-none md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize")}</span>
-          ) : null}
+        <div className={`mt-[4px] flex h-8 min-w-0 items-center gap-1.5 overflow-hidden pb-0.5 whitespace-nowrap md:h-8 md:gap-2 ${densityClasses.sizes}`}>
           <button
             type="button"
             onClick={(event) => {
@@ -5965,10 +5948,31 @@ const ProductCard = memo(function ProductCard({ product: rawProduct, groupedProd
               event.stopPropagation();
               navigate(buildSizeGuidePath(resolveSizeGuideTypeForProduct(product)));
             }}
-            className="inline-flex h-6 shrink-0 whitespace-nowrap items-center justify-center rounded-full border border-stone-200 bg-white px-2.5 text-[9px] font-black text-stone-600 transition duration-200 hover:border-[#d4af37]/35 hover:text-[#d4af37] active:translate-y-[1px] active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-200"
+            className="sf-size-guide-chip inline-flex h-6 shrink-0 whitespace-nowrap items-center justify-center rounded-full border border-stone-200 bg-white px-2.5 text-[9px] font-black text-stone-600 shadow-sm transition duration-200 hover:border-[#b68a2c]/40 hover:text-[#7b5318] active:translate-y-[1px] active:scale-[0.98] md:px-3 dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-200 dark:hover:border-[#d8b75f]/45 dark:hover:text-[#d8b75f]"
           >
             {t("storefront.products.sizeGuide", "\u062f\u0644\u064a\u0644 \u0627\u0644\u0645\u0642\u0627\u0633\u0627\u062a")}
           </button>
+          <div className="sf-scroll flex min-w-0 flex-1 flex-nowrap items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap md:gap-1.5">
+            {visibleSizes.map(({ size, variant }) => {
+              const selected = String(availableVariant?.id) === String(variant?.id);
+              return (
+                <button
+                  key={`${activeColorGroup?.key || "default"}-${size}`}
+                  type="button"
+                  onClick={(event) => { event.stopPropagation(); setSelectedVariantId(variant.id); setSelectedColorKeyState(variantColorKey(variant)); }}
+                  className={`inline-flex shrink-0 items-center justify-center rounded-full border font-black leading-none transition duration-200 active:translate-y-[1px] active:scale-[0.98] md:h-6 md:px-2 md:text-[10px] ${densityClasses.chip} ${selected ? "border-[#d4af37] bg-[linear-gradient(135deg,#d4af37,#d4af37)] text-white shadow-[0_8px_18px_rgba(212,175,55,0.12)] ring-1 ring-[#f3d77a]/12 dark:border-[#f3d77a] dark:bg-[linear-gradient(135deg,#e5c158,#d4af37)] dark:text-white dark:ring-[#f3d77a]/14" : "border-stone-300/90 bg-white text-stone-700 shadow-none hover:border-[#d4af37]/35 hover:bg-[#faf7ff] hover:text-[#d4af37] dark:border-white/12 dark:bg-white/[0.055] dark:text-stone-300 dark:hover:border-[#f3d77a]/45 dark:hover:bg-white/[0.08] dark:hover:text-white"} disabled:cursor-not-allowed disabled:bg-stone-100 disabled:text-stone-300 disabled:line-through disabled:opacity-45 dark:disabled:bg-white/5 dark:disabled:text-stone-500`}
+                >
+                  {size}
+                </button>
+              );
+            })}
+            {extraSizeCount ? (
+              <span dir="ltr" className="inline-flex h-6 shrink-0 items-center justify-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-black leading-none text-stone-500 shadow-none md:text-[10px] dark:border-white/10 dark:bg-white/[0.045] dark:text-stone-500">+{extraSizeCount}</span>
+            ) : null}
+            {!visibleSizes.length ? (
+              <span className="inline-flex h-6 shrink-0 items-center rounded-full border border-stone-300/90 bg-white px-2 text-[9px] font-bold leading-none text-stone-500 shadow-none md:text-[10px] dark:border-white/10 dark:bg-white/5 dark:text-stone-500">{t("storefront.products.oneSize")}</span>
+            ) : null}
+          </div>
         </div>
       </div>
       {quickAddOpen ? (
