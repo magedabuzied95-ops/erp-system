@@ -2184,8 +2184,14 @@ const findProductsByImageSimilarity = async ({ tenantId, imageBuffer, limit = 8 
     .map((item) => {
       const familyCount = item.familyKey ? Number(familyCounts.get(item.familyKey) || 0) : 0;
       const familyBoost = familyCount >= 2 ? Math.min(10, (familyCount - 1) * 4) : 0;
-      return familyBoost
-        ? { ...item, score: Math.min(98, item.score + familyBoost), reason: `${item.reason}_family_cluster` }
+      const knownModelBoost = item.familyKey && item.score >= 55 ? 17 : 0;
+      const totalBoost = familyBoost + knownModelBoost;
+      return totalBoost
+        ? {
+          ...item,
+          score: Math.min(98, item.score + totalBoost),
+          reason: `${item.reason}${familyBoost ? "_family_cluster" : ""}${knownModelBoost ? "_known_model" : ""}`,
+        }
         : item;
     })
     .sort((a, b) => b.score - a.score)
