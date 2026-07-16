@@ -4551,6 +4551,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
   const compactDisabled = isStorefrontProductPath(location.pathname);
   const isCheckoutMobile = isStorefrontCheckoutPath(location.pathname);
   const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
+  const isRtl = currentLanguage === "ar";
   const nextLanguage = currentLanguage === "ar" ? "en" : "ar";
   const languageLabel = nextLanguage === "ar" ? "العربية" : "English";
   const searchPlaceholders = getSearchPlaceholders();
@@ -9094,19 +9095,19 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
     scrollToTop();
   }, [navigate, path, scrollToTop]);
   const categoryLinks = [
-    { id: "men", label: "رجالي", to: "/products?gender=men", icon: Users },
-    { id: "women", label: "حريمي", to: "/products?gender=women", icon: Users },
-    { id: "kids", label: "أطفال", to: "/products?gender=kids", icon: Baby },
+    { id: "men", label: isRtl ? "رجالي" : "Men", to: "/products?gender=men", icon: Users },
+    { id: "women", label: isRtl ? "حريمي" : "Women", to: "/products?gender=women", icon: Users },
+    { id: "kids", label: isRtl ? "أطفال" : "Kids", to: "/products?gender=kids", icon: Baby },
     { id: "bags", label: getProductTypeLabel("bags", currentLanguage), to: "/products?type=bags", icon: ShoppingBag },
     { id: "crocs", label: getProductTypeLabel("crocs", currentLanguage), to: "/products?type=crocs", icon: Footprints },
     { id: "slippers", label: getProductTypeLabel("slippers", currentLanguage), to: "/products?type=slippers", icon: SlidersHorizontal },
   ];
   const links = [
-    { id: "home", to: "/", label: "الرئيسية", icon: Home },
-    { id: "categories", label: "الأقسام", icon: Grid2x2, action: "categories" },
-    { id: "sale", to: saleHref, label: "العروض", icon: Tag },
-    { id: "wishlist", to: "/wishlist", label: "المفضلة", icon: Heart },
-    { id: "account", to: "/account", label: "حسابي", icon: UserRound },
+    { id: "home", to: "/", label: isRtl ? "الرئيسية" : "Home", icon: Home },
+    { id: "categories", label: isRtl ? "الأقسام" : "Categories", icon: Grid2x2, action: "categories" },
+    { id: "sale", to: saleHref, label: isRtl ? "العروض" : "Offers", icon: Tag },
+    { id: "wishlist", to: "/wishlist", label: isRtl ? "المفضلة" : "Wishlist", icon: Heart },
+    { id: "account", to: "/account", label: isRtl ? "حسابي" : "Account", icon: UserRound },
   ];
   const isActive = (item) => {
     if (item.id === "home") return isStorefrontHomePath(path);
@@ -9134,13 +9135,13 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
   if (!isVisible) return null;
 
   const categoriesSheet = categoriesOpen && mobilePortalTarget ? createPortal(
-    <div className="sf-mobile-categories-sheet fixed inset-0 z-[120] md:hidden" data-theme={isDarkMode ? "dark" : "light"} dir="rtl" role="dialog" aria-modal="true" aria-label="الأقسام">
-      <button type="button" className="sf-mobile-categories-sheet__backdrop absolute inset-0" aria-label="إغلاق الأقسام" onClick={() => setCategoriesOpen(false)} />
+    <div className="sf-mobile-categories-sheet fixed inset-0 z-[120] md:hidden" data-theme={isDarkMode ? "dark" : "light"} dir={isRtl ? "rtl" : "ltr"} role="dialog" aria-modal="true" aria-label={isRtl ? "الأقسام" : "Categories"}>
+      <button type="button" className="sf-mobile-categories-sheet__backdrop absolute inset-0" aria-label={isRtl ? "إغلاق الأقسام" : "Close categories"} onClick={() => setCategoriesOpen(false)} />
       <div className="sf-mobile-categories-sheet__panel absolute inset-x-0 bottom-0 px-3 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3">
         <div className="sf-mobile-categories-sheet__header mx-auto flex max-w-[28rem] items-center justify-between gap-3">
           <div>
-            <p className="sf-mobile-categories-sheet__eyebrow text-[10px] font-black uppercase tracking-[0.22em]">الأقسام</p>
-            <h3 className="sf-mobile-categories-sheet__title mt-0.5 text-base font-black">تصفح الأقسام</h3>
+            <p className="sf-mobile-categories-sheet__eyebrow text-[10px] font-black uppercase tracking-[0.22em]">{isRtl ? "الأقسام" : "Categories"}</p>
+            <h3 className="sf-mobile-categories-sheet__title mt-0.5 text-base font-black">{isRtl ? "تصفح الأقسام" : "Browse categories"}</h3>
           </div>
           <button type="button" onClick={() => setCategoriesOpen(false)} className="sf-mobile-categories-sheet__close grid h-10 w-10 place-items-center rounded-full transition active:scale-[0.98]">
             <X className="h-5 w-5" />
@@ -9174,7 +9175,7 @@ function MobileBottomNav({ onHome = () => {}, themeMode = "dark" }) {
     <>
       {categoriesSheet}
       <nav
-        dir="rtl"
+        dir={isRtl ? "rtl" : "ltr"}
         className="sf-mobile-bottom-nav fixed left-1/2 z-[110] md:hidden"
         style={{ bottom: "calc(8px + env(safe-area-inset-bottom))", width: "calc(100% - 40px)", maxWidth: "410px", transform: "translateX(-50%)" }}
         data-theme={isDarkMode ? "dark" : "light"}

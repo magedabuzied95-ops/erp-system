@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const storefrontSource = readFileSync(new URL("../src/storefront/Storefront.jsx", import.meta.url), "utf8");
 const stylesheetSource = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
+const productDetailSource = readFileSync(new URL("../src/storefront/pages/StorefrontProductDetailPage.jsx", import.meta.url), "utf8");
 
 test("storefront mobile navigation uses modern commerce icons", () => {
   const navSource = storefrontSource.slice(storefrontSource.indexOf("function MobileBottomNav"), storefrontSource.indexOf("function SummaryRow"));
@@ -13,6 +14,18 @@ test("storefront mobile navigation uses modern commerce icons", () => {
   assert.match(navSource, /id: "wishlist"[\s\S]*?icon: Heart/);
   assert.match(navSource, /id: "account"[\s\S]*?icon: UserRound/);
   assert.match(navSource, /sf-mobile-bottom-nav__svg[\s\S]*?strokeWidth=\{2\.45\}/);
+});
+
+test("English storefront navigation and product actions do not fall back to Arabic", () => {
+  const navSource = storefrontSource.slice(storefrontSource.indexOf("function MobileBottomNav"), storefrontSource.indexOf("function SummaryRow"));
+  assert.match(navSource, /isRtl \? "الرئيسية" : "Home"/);
+  assert.match(navSource, /isRtl \? "الأقسام" : "Categories"/);
+  assert.match(navSource, /isRtl \? "العروض" : "Offers"/);
+  assert.match(navSource, /isRtl \? "المفضلة" : "Wishlist"/);
+  assert.match(navSource, /isRtl \? "حسابي" : "Account"/);
+  assert.match(productDetailSource, /isRtl \? "دليل المقاسات" : "Size guide"/);
+  assert.equal((productDetailSource.match(/storefront\.products\.onlyLeft/g) || []).length, 1);
+  assert.match(stylesheetSource, /sf-product-cta[\s\S]*?linear-gradient\(135deg, #c99a19, #e5c158\)/);
 });
 
 test("mobile navigation isolates its surface and light-dark colors", () => {

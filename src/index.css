@@ -2922,14 +2922,16 @@
   .storefront-shell:not(.storefront-dark) .sf-product-summary-card,
   .storefront-shell:not(.storefront-dark) .sf-product-option-card {
     background:
-      radial-gradient(circle at 18% 0%, rgba(124, 58, 237, 0.04), transparent 32%),
+      radial-gradient(circle at 18% 0%, rgba(184, 135, 8, 0.055), transparent 32%),
       linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(248, 250, 252, 0.97)) !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-product-cta {
-    background: linear-gradient(135deg, rgba(124, 58, 237, 0.96), rgba(99, 102, 241, 0.98)) !important;
-    color: #ffffff !important;
-    border-color: rgba(124, 58, 237, 0.24) !important;
+    background: linear-gradient(135deg, #c99a19, #e5c158) !important;
+    color: #211b0c !important;
+    -webkit-text-fill-color: #211b0c !important;
+    border-color: rgba(184, 135, 8, 0.34) !important;
+    box-shadow: 0 14px 32px rgba(180, 138, 28, 0.24) !important;
   }
 
   .storefront-shell:not(.storefront-dark) .sf-product-cta:disabled {

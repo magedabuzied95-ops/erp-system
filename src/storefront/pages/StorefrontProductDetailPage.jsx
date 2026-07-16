@@ -767,15 +767,10 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
                 className="inline-flex min-h-9 items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-black text-white/80 transition hover:border-[#d4af37]/35 hover:bg-white/[0.08] hover:text-[#f3d77a]"
               >
                 <Ruler className="h-3.5 w-3.5" />
-                {sfText("storefront.products.sizeGuide", "دليل المقاسات")}
+                {sfText("storefront.products.sizeGuide", isRtl ? "دليل المقاسات" : "Size guide")}
               </Link>
             </div>
           </div>
-          {safeActiveVariant && Number(safeActiveVariant.stock || 0) > 0 && Number(safeActiveVariant.stock || 0) <= 3 ? (
-            <div className="mt-3 inline-flex rounded-full border border-amber-300/20 bg-amber-400/10 px-3 py-1.5 text-xs font-black text-amber-100">
-              {sfText("storefront.products.onlyLeft", "Only {{count}} left", { count: safeActiveVariant.stock })}
-            </div>
-          ) : null}
 
           <div className="sf-product-quantity-card mt-4 flex items-center justify-between gap-3 rounded-[1.35rem] border border-white/10 bg-white/[0.045] p-2.5 shadow-[0_16px_42px_rgba(0,0,0,0.16)]">
             <button type="button" onClick={() => setQty((current) => Math.max(1, current - 1))} className="grid h-11 w-11 place-items-center rounded-full bg-white/[0.08] text-lg font-black text-white" aria-label={sfText("storefront.cart.decreaseQuantity", "Decrease quantity")}>-</button>
