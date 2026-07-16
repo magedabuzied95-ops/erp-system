@@ -197,7 +197,11 @@
     "wishlist": "Wishlist",
     "account": "Account",
     "languageArabic": "Arabic",
+    "languageEnglish": "English",
+    "lightMode": "Light mode",
+    "darkMode": "Dark mode",
     "menu": "Menu",
+    "quickLinks": "Quick links",
     "notifications": "Notifications",
     "noNotifications": "No notifications right now",
     "announcements": {
@@ -218,6 +222,7 @@
     "kids": "Kids",
     "sizeGuide": "Size guide",
     "returns": "Returns policy",
+    "contact": "Contact us",
     "mobileNavigation": "Storefront mobile navigation"
   },
   "search": {
@@ -232,6 +237,7 @@
     "recentTitle": "Recent searches",
     "categories": "Categories",
     "brands": "Brands",
+    "styles": "Styles",
     "resultCount": "{{count}} result",
     "resultsFor": "Search results for \"{{query}}\"",
     "placeholders": [

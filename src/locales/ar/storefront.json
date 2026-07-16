@@ -49,7 +49,11 @@
     "wishlist": "المفضلة",
     "account": "الحساب",
     "languageArabic": "العربية",
+    "languageEnglish": "English",
+    "lightMode": "الوضع الفاتح",
+    "darkMode": "الوضع الداكن",
     "menu": "القائمة",
+    "quickLinks": "روابط سريعة",
     "notifications": "الإشعارات",
     "noNotifications": "لا توجد إشعارات حاليًا",
     "announcements": {
@@ -70,6 +74,7 @@
     "kids": "أطفال",
     "sizeGuide": "دليل المقاسات",
     "returns": "سياسة الاستبدال",
+    "contact": "تواصل معنا",
     "mobileNavigation": "تصفح المتجر على الموبايل"
   },
   "search": {
@@ -84,6 +89,7 @@
     "recentTitle": "بحثت مؤخرًا",
     "categories": "الأقسام",
     "brands": "البراندات",
+    "styles": "الأنماط",
     "resultCount": "{{count}} نتيجة",
     "resultsFor": "نتائج البحث عن \"{{query}}\"",
     "placeholders": [

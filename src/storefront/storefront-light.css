@@ -382,3 +382,108 @@ body.storefront-shell:not(.storefront-dark) .sf-size-guide-illustration > div > 
   border-color: var(--sf-light-border) !important;
   background: #ffffff !important;
 }
+
+/* Mobile menu lives in a portal, so its light colors must not depend on the
+ * device color preference used by Tailwind's dark utilities. */
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer.sf-mobile-menu-drawer[data-theme="light"] {
+  border-color: var(--sf-light-border) !important;
+  background: linear-gradient(180deg, #ffffff 0%, #faf9f6 58%, #f2efe8 100%) !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 0 64px rgba(31, 29, 25, 0.18) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-mobile-menu-toolbar-button {
+  border-color: var(--sf-light-border) !important;
+  background: #ffffff !important;
+  color: var(--sf-light-text-secondary) !important;
+  box-shadow: 0 5px 14px rgba(31, 29, 25, 0.07) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-mobile-menu-title {
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-mobile-menu-eyebrow {
+  color: var(--sf-light-accent) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-mobile-menu-link {
+  border-color: var(--sf-light-border) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--sf-light-text) !important;
+  box-shadow: 0 6px 16px rgba(31, 29, 25, 0.06) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-input-shell,
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-mobile-search-panel,
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-quick-card {
+  border-color: var(--sf-light-border) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-input {
+  color: var(--sf-light-text) !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-input::placeholder {
+  color: #8a867e !important;
+}
+
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-tool-button,
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-chip,
+body.storefront-shell:not(.storefront-dark) .sf-mobile-menu-drawer[data-theme="light"] .sf-search-quick-item {
+  border-color: var(--sf-light-border) !important;
+  background: var(--sf-light-soft) !important;
+  color: var(--sf-light-text-secondary) !important;
+  box-shadow: none !important;
+}
+
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer.sf-mobile-menu-drawer[data-theme="dark"] {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: linear-gradient(180deg, #050505 0%, #0a0a0a 55%, #111111 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 70px rgba(0, 0, 0, 0.48) !important;
+}
+
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-mobile-menu-toolbar-button {
+  border-color: rgba(255, 255, 255, 0.12) !important;
+  background: rgba(255, 255, 255, 0.07) !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  box-shadow: none !important;
+}
+
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-mobile-menu-title {
+  color: #ffffff !important;
+}
+
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-mobile-menu-eyebrow {
+  color: #f3d77a !important;
+}
+
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-mobile-menu-link,
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-input-shell,
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-mobile-search-panel,
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-quick-card {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.05) !important;
+  color: #ffffff !important;
+  box-shadow: none !important;
+}
+
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-input {
+  color: #ffffff !important;
+}
+
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.42) !important;
+}
+
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-tool-button,
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-chip,
+body.storefront-shell.storefront-dark .sf-mobile-menu-drawer[data-theme="dark"] .sf-search-quick-item {
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  background: rgba(255, 255, 255, 0.055) !important;
+  color: rgba(255, 255, 255, 0.82) !important;
+  box-shadow: none !important;
+}

@@ -4552,10 +4552,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
   const isCheckoutMobile = isStorefrontCheckoutPath(location.pathname);
   const currentLanguage = normalizeLanguage(storefrontI18n.resolvedLanguage || storefrontI18n.language || "en");
   const nextLanguage = currentLanguage === "ar" ? "en" : "ar";
-  const languageLabel =
-    nextLanguage === "ar"
-      ? t("storefront.header.languageArabic")
-      : t("storefront.header.languageEnglish");
+  const languageLabel = nextLanguage === "ar" ? "العربية" : "English";
   const searchPlaceholders = getSearchPlaceholders();
   const announcementItems = [
     t("storefront.header.announcements.fastShipping"),
@@ -4586,6 +4583,10 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
   const themeToggleLabel = themeIsDark
     ? t("storefront.header.lightMode")
     : t("storefront.header.darkMode");
+  const mobileMenuIsRtl = currentLanguage === "ar";
+  const mobileMenuSideClass = mobileMenuIsRtl
+    ? "right-0 rounded-l-[1.75rem] border-l shadow-[-24px_0_64px_rgba(28,25,23,0.18)] dark:shadow-[-26px_0_70px_rgba(0,0,0,0.48)]"
+    : "left-0 rounded-r-[1.75rem] border-r shadow-[24px_0_64px_rgba(28,25,23,0.18)] dark:shadow-[26px_0_70px_rgba(0,0,0,0.48)]";
   const menuOpen = Boolean(mobileMenuOpen);
   const mobilePortalTarget = typeof document !== "undefined" ? document.body : null;
   const mobileMenuScrollRef = useRef(0);
@@ -5097,47 +5098,53 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
         ) : null}
       </div>
       {menuOpen && mobilePortalTarget ? createPortal(
-        <div className="fixed inset-0 z-[160] md:hidden" dir="rtl" role="dialog" aria-modal="true" aria-label="القائمة الرئيسية">
+        <div
+          className="fixed inset-0 z-[160] md:hidden"
+          dir={mobileMenuIsRtl ? "rtl" : "ltr"}
+          role="dialog"
+          aria-modal="true"
+          aria-label={t("storefront.header.menu")}
+        >
           <button
             type="button"
             className="absolute inset-0 bg-black/65 backdrop-blur-sm"
             aria-label={t("storefront.common.close")}
             onClick={closeMobileMenu}
           />
-          <aside className="fixed inset-y-0 right-0 z-[161] flex h-full w-[min(22rem,88vw)] flex-col overflow-hidden rounded-l-[2rem] border-l border-white/10 bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_55%,#111111_100%)] text-white shadow-[-26px_0_70px_rgba(0,0,0,0.48)]">
-            <div className="border-b border-white/10 px-4 pb-3 pt-4">
+          <aside data-theme={effectiveTheme} className={`sf-mobile-menu-drawer fixed inset-y-0 z-[161] flex h-full w-[min(23rem,92vw)] flex-col overflow-hidden border-stone-200/80 bg-[linear-gradient(180deg,#ffffff_0%,#faf9f6_58%,#f2efe8_100%)] text-stone-950 dark:border-white/10 dark:bg-[linear-gradient(180deg,#050505_0%,#0a0a0a_55%,#111111_100%)] dark:text-white ${mobileMenuSideClass}`}>
+            <div className="border-b border-stone-200/80 px-4 pb-3 pt-4 dark:border-white/10">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-2">
                   <button
                     type="button"
                     onClick={switchLanguage}
-                    className="inline-flex h-8 items-center justify-center rounded-full border border-white/10 bg-white/8 px-3 text-[11px] font-black text-white transition hover:bg-white/12 active:scale-[0.98]"
+                    className="sf-mobile-menu-toolbar-button inline-flex h-9 items-center justify-center rounded-full border border-stone-200 bg-white px-3.5 text-xs font-bold text-stone-700 shadow-sm transition hover:border-[#d4af37]/45 hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/8 dark:text-white dark:shadow-none dark:hover:bg-white/12"
                   >
                     {languageLabel}
                   </button>
                   <button
                     type="button"
                     onClick={onToggleTheme}
-                    className={`inline-flex h-8 items-center justify-center gap-1.5 rounded-full border px-3 text-[11px] font-black transition hover:bg-white/12 active:scale-[0.98] ${themeIsDark ? "border-[#d4af37]/35 bg-[#d4af37]/12 text-[#f3d77a] hover:bg-[#d4af37]/16" : "border-white/10 bg-white/8 text-white"}`}
+                    className="sf-mobile-menu-toolbar-button inline-flex h-9 items-center justify-center gap-1.5 rounded-full border border-stone-200 bg-white px-3.5 text-xs font-bold text-stone-700 shadow-sm transition hover:border-[#d4af37]/45 hover:text-stone-950 active:scale-[0.98] dark:border-[#d4af37]/35 dark:bg-[#d4af37]/12 dark:text-[#f3d77a] dark:shadow-none dark:hover:bg-[#d4af37]/16"
                     aria-label={themeToggleLabel}
                     title={themeToggleLabel}
                   >
                     {themeIsDark ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
-                    <span className="whitespace-nowrap">{themeIsDark ? "Dark" : "Light"}</span>
+                    <span className="whitespace-nowrap">{themeIsDark ? t("storefront.header.lightMode") : t("storefront.header.darkMode")}</span>
                   </button>
                 </div>
                 <button
                   type="button"
                   onClick={closeMobileMenu}
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/8 text-white transition hover:bg-white/12 active:scale-[0.98]"
+                  className="sf-mobile-menu-toolbar-button grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-stone-200 bg-white text-stone-700 shadow-sm transition hover:border-[#d4af37]/45 hover:text-stone-950 active:scale-[0.98] dark:border-white/10 dark:bg-white/8 dark:text-white dark:shadow-none dark:hover:bg-white/12"
                   aria-label={t("storefront.common.close")}
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
               <div className="mt-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45">القائمة</p>
-                <h2 className="mt-1 text-lg font-black text-white">روابط سريعة</h2>
+                <p className="sf-mobile-menu-eyebrow text-[10px] font-bold uppercase tracking-[0.18em] text-[#9a7108] dark:text-[#f3d77a]/70">{t("storefront.header.menu")}</p>
+                <h2 className="sf-mobile-menu-title mt-1 text-xl font-black text-stone-950 dark:text-white">{t("storefront.header.quickLinks")}</h2>
               </div>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
@@ -5183,9 +5190,9 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
                   drawerMode
                 />
                 {[
-                  { label: "دليل المقاسات", to: "/size-guide" },
-                  { label: "سياسة الاستبدال", to: "/returns" },
-                  { label: "تواصل معنا / رقم المتجر", to: "/contact" },
+                  { label: t("storefront.nav.sizeGuide"), to: "/size-guide" },
+                  { label: t("storefront.nav.returns"), to: "/returns" },
+                  { label: t("storefront.nav.contact"), to: "/contact" },
                 ].map(({ label, to, external = false, icon: Icon }) =>
                   external ? (
                     <a
@@ -5194,7 +5201,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
                       target="_blank"
                       rel="noreferrer"
                       onClick={closeMobileMenu}
-                      className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3.5 text-sm font-bold text-white transition hover:bg-white/[0.08] active:scale-[0.98]"
+                      className="sf-mobile-menu-link flex min-h-12 items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/82 px-4 py-3.5 text-sm font-bold text-stone-800 shadow-sm transition hover:border-[#d4af37]/40 hover:bg-white active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.045] dark:text-white dark:shadow-none dark:hover:bg-white/[0.08]"
                     >
                       {Icon ? <Icon className="h-4 w-4 shrink-0 text-[#f3d77a]" /> : null}
                       <span>{label}</span>
@@ -5204,7 +5211,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
                       key={`${label}-${to}`}
                       to={to}
                       onClick={closeMobileMenu}
-                      className="flex min-h-12 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] px-4 py-3.5 text-sm font-bold text-white transition hover:bg-white/[0.08] active:scale-[0.98]"
+                      className="sf-mobile-menu-link flex min-h-12 items-center gap-3 rounded-2xl border border-stone-200/80 bg-white/82 px-4 py-3.5 text-sm font-bold text-stone-800 shadow-sm transition hover:border-[#d4af37]/40 hover:bg-white active:scale-[0.98] dark:border-white/10 dark:bg-white/[0.045] dark:text-white dark:shadow-none dark:hover:bg-white/[0.08]"
                     >
                       {Icon ? <Icon className="h-4 w-4 shrink-0 text-[#f3d77a]" /> : null}
                       <span>{label}</span>
@@ -5248,12 +5255,16 @@ function PremiumSearch({
   mobileOnly = false,
   drawerMode = false,
 }) {
+  const { t } = useTranslation();
   const inputRef = useRef(null);
   const fileInputRef = useRef(null);
   const trendingSearches = getTrendingSearches();
   const searchFallbackSections = getSearchFallbackSections();
-  const chips = value.trim() ? [] : [...recentSearches, ...trendingSearches].filter(Boolean);
-  const keyboardItems = [...suggestions.map((item) => ({ type: "product", item })), ...chips.map((term) => ({ type: "term", term }))];
+  const uniqueRecentSearches = [...new Set(recentSearches.filter(Boolean))]
+    .filter((term) => !trendingSearches.some((trending) => trending.toLocaleLowerCase() === String(term).toLocaleLowerCase()))
+    .slice(0, 6);
+  const keyboardTerms = value.trim() ? [] : [...uniqueRecentSearches, ...trendingSearches];
+  const keyboardItems = [...suggestions.map((item) => ({ type: "product", item })), ...keyboardTerms.map((term) => ({ type: "term", term }))];
 
   useEffect(() => {
     if (mobileOpen) {
@@ -5291,7 +5302,7 @@ function PremiumSearch({
 
   const searchInput = (
     <form onSubmit={onSubmit} className="relative">
-      <div className="group relative overflow-hidden rounded-[1.35rem] border border-white/50 bg-white/72 shadow-[0_18px_50px_rgba(39,20,75,0.10)] backdrop-blur-2xl transition duration-300 focus-within:border-[#e5c158]/70 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(212,175,55,0.10),0_24px_70px_rgba(212,175,55,0.18)] dark:border-white/10 dark:bg-white/[0.075] dark:focus-within:bg-white/[0.10]">
+      <div className="sf-search-input-shell group relative overflow-hidden rounded-[1.35rem] border border-white/50 bg-white/72 shadow-[0_18px_50px_rgba(39,20,75,0.10)] backdrop-blur-2xl transition duration-300 focus-within:border-[#e5c158]/70 focus-within:bg-white focus-within:shadow-[0_0_0_4px_rgba(212,175,55,0.10),0_24px_70px_rgba(212,175,55,0.18)] dark:border-white/10 dark:bg-white/[0.075] dark:focus-within:bg-white/[0.10]">
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_20%,rgba(216,180,254,0.22),transparent_28%)] opacity-0 transition group-focus-within:opacity-100" />
         <Search className="pointer-events-none absolute right-4 top-1/2 z-10 h-5 w-5 -translate-y-1/2 text-[#d4af37] dark:text-[#f3d77a]" />
         <input
@@ -5304,16 +5315,16 @@ function PremiumSearch({
           }}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
-          className="relative z-10 h-13 w-full bg-transparent pr-12 pl-24 text-sm font-bold text-stone-950 outline-none placeholder:text-stone-400 dark:text-white dark:placeholder:text-stone-500 md:h-12"
-          aria-label="Search storefront"
+          className="sf-search-input relative z-10 h-13 w-full bg-transparent pr-12 pl-24 text-sm font-bold text-stone-950 outline-none placeholder:text-stone-400 dark:text-white dark:placeholder:text-stone-500 md:h-12"
+          aria-label={t("storefront.search.aria")}
           role="combobox"
           aria-expanded={Boolean(open || mobileOpen)}
         />
         <div className="absolute left-2 top-1/2 z-20 flex -translate-y-1/2 items-center gap-1.5">
-          <button type="button" onClick={onVoice} className="grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#d4af37] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label="Voice search">
+          <button type="button" onClick={onVoice} className="sf-search-tool-button grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#d4af37] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label={t("storefront.search.voice")}>
             <Mic className="h-4 w-4" />
           </button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} className="grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#d4af37] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label="Image search">
+          <button type="button" onClick={() => fileInputRef.current?.click()} className="sf-search-tool-button grid h-8 w-8 place-items-center rounded-full bg-stone-950/5 text-stone-600 transition hover:bg-[#d4af37] hover:text-white dark:bg-white/8 dark:text-stone-200" aria-label={t("storefront.search.image")}>
             <ImagePlus className="h-4 w-4" />
           </button>
           <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={onImage} />
@@ -5323,13 +5334,13 @@ function PremiumSearch({
   );
 
   const resultsPanel = (
-    <div className="rounded-[1.6rem] border border-white/60 bg-white/92 p-3 text-stone-950 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#0a0a0a]/96 dark:text-white">
+    <div className="sf-mobile-search-panel rounded-[1.6rem] border border-white/60 bg-white/92 p-3 text-stone-950 shadow-[0_28px_90px_rgba(15,23,42,0.22)] backdrop-blur-2xl dark:border-white/10 dark:bg-[#0a0a0a]/96 dark:text-white">
       <SearchQuickSections
         value={value}
         loading={loading}
         suggestions={suggestions}
         imageSearch={imageSearch}
-        chips={chips}
+        recentSearches={uniqueRecentSearches}
         activeIndex={activeIndex}
         onPickTerm={onPickTerm}
         onPickProduct={onPickProduct}
@@ -5344,7 +5355,7 @@ function PremiumSearch({
 
   if (drawerMode) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col gap-4" dir="rtl">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         <div className="min-w-0 flex-none">{searchInput}</div>
         <div className="min-h-0 flex-1 overflow-y-auto pb-[calc(0.25rem+env(safe-area-inset-bottom))]">
           {resultsPanel}
@@ -5388,7 +5399,7 @@ function SearchQuickSections({
   loading,
   suggestions,
   imageSearch = null,
-  chips,
+  recentSearches = [],
   activeIndex,
   onPickTerm,
   onPickProduct,
@@ -5398,6 +5409,7 @@ function SearchQuickSections({
   onRequestVisualSearchSupply = () => {},
   onClearImageSearch = () => {},
 }) {
+  const { t } = useTranslation();
   const query = value.trim();
   const exactMatches = Array.isArray(imageSearch?.exactMatches) ? imageSearch.exactMatches : [];
   const similarMatches = Array.isArray(imageSearch?.similarMatches) ? imageSearch.similarMatches : [];
@@ -5481,8 +5493,8 @@ function SearchQuickSections({
       {query ? (
         <div>
           <div className="mb-2 flex items-center justify-between px-1">
-            <span className="text-xs font-black text-stone-500 dark:text-stone-400">Search results</span>
-            {loading ? <span className="text-[11px] font-bold text-[#d4af37]">Searching...</span> : null}
+            <span className="text-xs font-bold text-stone-500 dark:text-stone-400">{t("storefront.search.smartResults")}</span>
+            {loading ? <span className="text-[11px] font-bold text-[#d4af37]">{t("storefront.search.searching")}</span> : null}
           </div>
           <div className="grid gap-1.5">
               {suggestions.length ? suggestions.map((product, index) => (
@@ -5494,7 +5506,7 @@ function SearchQuickSections({
                 />
               )) : (
                 <button type="button" onClick={() => onPickTerm(query)} className="rounded-2xl border border-dashed border-stone-200 p-4 text-right text-sm font-black text-stone-600 dark:border-white/10 dark:text-stone-300">
-                Search for "{query}"
+                {t("storefront.search.searchFor")} "{query}"
                 </button>
               )}
           </div>
@@ -5503,12 +5515,12 @@ function SearchQuickSections({
 
       {!query && !hasImageSearch ? (
         <>
-          <SearchChips title="Trending searches" items={trendingSearches} onPick={onPickTerm} />
-          {chips.length ? <SearchChips title="Popular searches" items={chips.slice(0, 6)} onPick={onPickTerm} /> : null}
+          <SearchChips title={t("storefront.search.trendingTitle")} items={trendingSearches} onPick={onPickTerm} />
+          {recentSearches.length ? <SearchChips title={t("storefront.search.recentTitle")} items={recentSearches} onPick={onPickTerm} /> : null}
           <div className="grid gap-2 sm:grid-cols-3">
-            <SearchQuickCard title="Categories" items={searchFallbackSections.categories || []} onPick={onPickTerm} />
-            <SearchQuickCard title="Brands" items={searchFallbackSections.brands || []} onPick={onPickTerm} />
-            <SearchQuickCard title="Styles" items={searchFallbackSections.styles || []} onPick={onPickTerm} />
+            <SearchQuickCard title={t("storefront.search.categories")} items={searchFallbackSections.categories || []} onPick={onPickTerm} />
+            <SearchQuickCard title={t("storefront.search.brands")} items={searchFallbackSections.brands || []} onPick={onPickTerm} />
+            <SearchQuickCard title={t("storefront.search.styles")} items={searchFallbackSections.styles || []} onPick={onPickTerm} />
           </div>
         </>
       ) : null}
@@ -5519,10 +5531,10 @@ function SearchQuickSections({
 function SearchChips({ title, items, onPick }) {
   return (
     <div>
-      <div className="mb-2 px-1 text-xs font-black text-stone-500 dark:text-stone-400">{title}</div>
+      <div className="mb-2 px-1 text-xs font-bold text-stone-500 dark:text-stone-400">{title}</div>
       <div className="flex flex-wrap gap-2">
         {[...new Set(items)].slice(0, 8).map((item) => (
-          <button key={item} type="button" onClick={() => onPick(item)} className="rounded-full border border-stone-200/80 bg-white/92 px-3.5 py-2 text-xs font-black text-stone-700 shadow-[0_8px_18px_rgba(15,23,42,0.06)] transition hover:-translate-y-px hover:border-[var(--sf-purple)] hover:text-stone-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-200 dark:shadow-[0_12px_24px_rgba(0,0,0,0.22)]">
+          <button key={item} type="button" onClick={() => onPick(item)} className="sf-search-chip rounded-full border border-stone-200/80 bg-white/92 px-3.5 py-2 text-xs font-bold text-stone-700 shadow-[0_8px_18px_rgba(15,23,42,0.06)] transition hover:-translate-y-px hover:border-[var(--sf-purple)] hover:text-stone-950 dark:border-white/10 dark:bg-white/[0.05] dark:text-stone-200 dark:shadow-[0_12px_24px_rgba(0,0,0,0.22)]">
             {item}
           </button>
         ))}
@@ -5532,12 +5544,13 @@ function SearchChips({ title, items, onPick }) {
 }
 
 function SearchQuickCard({ title, items, onPick }) {
+  if (!items.length) return null;
   return (
-    <div className="rounded-[1.4rem] border border-stone-200/80 bg-white/94 p-3.5 shadow-[0_16px_34px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-[0_18px_42px_rgba(0,0,0,0.24)]">
-      <div className="mb-2 text-xs font-black uppercase tracking-[0.14em] text-stone-500 dark:text-stone-400">{title}</div>
+    <div className="sf-search-quick-card rounded-[1.4rem] border border-stone-200/80 bg-white/94 p-3.5 shadow-[0_16px_34px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-[0_18px_42px_rgba(0,0,0,0.24)]">
+      <div className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-stone-500 dark:text-stone-400">{title}</div>
       <div className="grid gap-1.5">
         {items.map((item) => (
-          <button key={item} type="button" onClick={() => onPick(item)} className="rounded-[1rem] border border-transparent bg-stone-50/72 px-3 py-2 text-right text-xs font-bold text-stone-700 transition hover:border-[var(--sf-purple)] hover:bg-white hover:text-stone-950 dark:bg-white/[0.03] dark:text-stone-200 dark:hover:bg-white/[0.08]">
+          <button key={item} type="button" onClick={() => onPick(item)} className="sf-search-quick-item rounded-[1rem] border border-transparent bg-stone-50/72 px-3 py-2 text-start text-xs font-bold text-stone-700 transition hover:border-[var(--sf-purple)] hover:bg-white hover:text-stone-950 dark:bg-white/[0.03] dark:text-stone-200 dark:hover:bg-white/[0.08]">
             {item}
           </button>
         ))}
