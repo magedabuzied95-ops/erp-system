@@ -285,8 +285,8 @@ html[data-theme="light"] .employee-portal-shell {
 }
 
 .employee-chat-m1-avatar {
-  height: 42px !important;
-  width: 42px !important;
+  height: 36px !important;
+  width: 36px !important;
   background: #050505 !important;
   border: 1px solid rgba(255, 255, 255, 0.22);
   padding: 4px;

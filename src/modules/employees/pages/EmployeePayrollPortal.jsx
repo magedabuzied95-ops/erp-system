@@ -3886,9 +3886,6 @@ export default function EmployeePayrollPortal() {
                   <p className="mt-0.5 truncate text-[11px] font-medium text-slate-300">حساب أعمال</p>
                 </div>
               </header>
-              <div className="mx-auto mt-1.5 w-fit rounded-full bg-[#182229]/90 px-2.5 py-0.5 text-center text-[10px] font-bold leading-4 text-slate-300">
-                {ui("chatSecureNotice")}
-              </div>
               {chatError ? <div className="mx-4 my-2 rounded-2xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-bold text-red-100" dir="auto">{chatError}</div> : null}
             </div>
             <PortalChatMessageList
