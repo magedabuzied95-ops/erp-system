@@ -2548,6 +2548,7 @@ function PremiumHomePage(props) {
   const navigate = useNavigate();
   const location = useLocation();
   const [params] = useSearchParams();
+  const homeMotionRootRef = useRef(null);
   const lang = i18n.language || "ar";
   const isRtl = normalizeLanguage(lang) === "ar";
   const themeMode = props.themeMode || "light";
@@ -2687,8 +2688,36 @@ function PremiumHomePage(props) {
         secondary: "Explore offers",
       };
 
+  useEffect(() => {
+    const root = homeMotionRootRef.current;
+    if (!root || typeof window === "undefined") return undefined;
+    const elements = Array.from(root.querySelectorAll(".sf-home-motion"));
+    if (!elements.length) return undefined;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const saveData = Boolean(window.navigator?.connection?.saveData);
+    if (reduceMotion || saveData || typeof IntersectionObserver === "undefined") {
+      root.classList.remove("sf-home-motion-ready");
+      elements.forEach((element) => element.classList.add("is-visible"));
+      return undefined;
+    }
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add("is-visible");
+        observer.unobserve(entry.target);
+      });
+    }, { threshold: 0.08, rootMargin: "0px 0px -7% 0px" });
+    elements.forEach((element) => {
+      if (!element.classList.contains("is-visible")) observer.observe(element);
+    });
+    root.classList.add("sf-home-motion-ready");
+    return () => observer.disconnect();
+  }, [brandsLoading, homeSections.mostPopular.length, homeSections.newArrivals.length, loading, storefrontHome.loading, visibleBrands.length, womenCategoryLoading]);
+
   return (
     <div
+      ref={homeMotionRootRef}
       className="sf-page pb-[calc(var(--mobile-bottom-nav-height,76px)+env(safe-area-inset-bottom)+1.5rem)] md:pb-0"
       data-theme={themeTokens.resolvedMode}
       style={{
@@ -2914,7 +2943,7 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
                 <Sparkles className="h-3.5 w-3.5 text-[#b4860b]" />
                 {isRtl ? "ميرور أوريجنال" : "Mirror Original"}
               </span>
-              <div className="relative z-[1] flex min-h-[315px] w-full flex-1 items-center justify-center px-3 pb-3 pt-14 sm:min-h-[350px] sm:px-5 md:min-h-[430px] md:px-7 md:pb-5 md:pt-20 lg:min-h-[440px]">
+              <div className="sf-home-hero-product-stage relative z-[1] flex min-h-[315px] w-full flex-1 items-center justify-center px-3 pb-3 pt-14 sm:min-h-[350px] sm:px-5 md:min-h-[430px] md:px-7 md:pb-5 md:pt-20 lg:min-h-[440px]">
                 {loading && !heroImage ? (
                   <div className="h-[180px] w-[82%] animate-pulse rounded-[1.5rem] md:h-[300px]" style={{ background: themeTokens.cardSoft }} />
                 ) : heroImage ? (
@@ -3027,7 +3056,7 @@ function HomeCategoryCards({ cards = [], lang = "ar", themeTokens = {}, loading 
   if (!visibleCards.length && !loading) return null;
 
   return (
-    <section className="mx-auto max-w-[1400px] px-4 py-7 md:py-10">
+    <section className="sf-home-motion sf-home-motion--stagger mx-auto max-w-[1400px] px-4 py-7 md:py-10">
       <div className="mb-5 flex items-end justify-between gap-3 md:mb-7">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.22em]" style={{ color: themeTokens.accent }}>
@@ -3045,7 +3074,8 @@ function HomeCategoryCards({ cards = [], lang = "ar", themeTokens = {}, loading 
             <Link
               key={card?.id || index}
               to={card?.href || "/products"}
-              className="group relative isolate min-h-[390px] overflow-hidden rounded-[1.75rem] border border-white/15 bg-stone-950 text-white shadow-[0_22px_60px_rgba(15,23,42,0.18)] transition duration-300 hover:-translate-y-1.5 hover:shadow-[0_28px_75px_rgba(15,23,42,0.28)] active:scale-[0.99] sm:min-h-[430px] md:rounded-[2rem]"
+              className="sf-home-motion-item group relative isolate min-h-[390px] overflow-hidden rounded-[1.75rem] border border-white/15 bg-stone-950 text-white shadow-[0_22px_60px_rgba(15,23,42,0.18)] transition duration-300 hover:-translate-y-1.5 hover:shadow-[0_28px_75px_rgba(15,23,42,0.28)] active:scale-[0.99] sm:min-h-[430px] md:rounded-[2rem]"
+              style={{ "--sf-motion-index": index }}
             >
               {card ? (
                 <>
@@ -3167,7 +3197,7 @@ function HomeBrandStrip({ lang = "ar", themeTokens = {}, brands = [], loading = 
   if (!loading && !visibleBrands.length) return null;
 
   return (
-    <section className="mx-auto max-w-[1400px] px-4 py-5 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
+    <section className="sf-home-motion mx-auto max-w-[1400px] px-4 py-5 md:py-7" dir={isRtl ? "rtl" : "ltr"}>
       <div
         className="overflow-hidden rounded-[2rem] border"
         style={{
@@ -3256,12 +3286,12 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
   ];
 
   return (
-    <section data-testid="storefront-service-strip" className="mt-8 border-y border-stone-200 bg-[#f5f5f3] md:mt-12">
+    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger mt-8 border-y border-stone-200 bg-[#f5f5f3] md:mt-12">
       <div className="mx-auto grid max-w-[1400px] divide-y divide-stone-200 px-5 md:grid-cols-3 md:divide-x md:divide-y-0 md:px-8 rtl:md:divide-x-reverse">
-          {items.map((item) => {
+          {items.map((item, index) => {
             const Icon = item.icon;
             return (
-              <div key={item.title} className="flex min-h-[76px] items-center gap-3 py-4 md:justify-center md:px-7 md:py-5">
+              <div key={item.title} className="sf-home-motion-item flex min-h-[76px] items-center gap-3 py-4 md:justify-center md:px-7 md:py-5" style={{ "--sf-motion-index": index }}>
                 <Icon className="h-5 w-5 shrink-0 text-stone-900" strokeWidth={1.7} />
                   <div className="min-w-0">
                   <h3 className="text-[13px] font-black leading-5 text-stone-950 md:text-sm">{item.title}</h3>
@@ -3327,7 +3357,7 @@ function SimpleHomeProductGrid({ title, subtitle, viewAllTo = "/products", produ
   if (!visibleProducts.length && !loading) return null;
 
   return (
-    <section className="mx-auto max-w-[1400px] px-4 py-5 md:py-7">
+    <section className="sf-home-motion sf-home-motion--stagger mx-auto max-w-[1400px] px-4 py-5 md:py-7">
       <div
         className="overflow-hidden rounded-[2rem] border"
         style={{
@@ -3373,8 +3403,9 @@ function SimpleHomeProductGrid({ title, subtitle, viewAllTo = "/products", produ
             <Link
               key={product.card_id || product.id || index}
               to={productUrl(product)}
-              className="group min-w-0 overflow-hidden rounded-[1.45rem] border text-right transition duration-300 hover:-translate-y-1 active:scale-[0.99]"
+              className="sf-home-motion-item group min-w-0 overflow-hidden rounded-[1.45rem] border text-right transition duration-300 hover:-translate-y-1 active:scale-[0.99]"
               style={{
+                "--sf-motion-index": index,
                 background: themeTokens.card,
                 borderColor: themeTokens.border,
                 boxShadow: themeTokens.shadowSoft,
@@ -4959,7 +4990,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             <div className="flex items-center">
               <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title")} type="button">
                 <ShoppingCart className="h-5 w-5" />
-                {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
+                {cartCount ? <span key={cartCount} className="sf-action-badge sf-mobile-cart-badge sf-cart-count-pop">{cartCount}</span> : null}
               </button>
             </div>
           </div>
@@ -5052,7 +5083,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
             <HeaderAction to="/account" label={t("storefront.header.account")} icon={<User className="h-5 w-5" />} className="sf-secondary-action hidden md:grid" />
             <button onClick={onCart} className="sf-header-action sf-cart-action transition duration-200 ease-out hover:-translate-y-px hover:border-stone-300 hover:bg-white hover:text-stone-950 active:scale-[0.98] dark:hover:bg-white/10" aria-label={t("storefront.cart.title")} type="button">
               <ShoppingCart className="h-5 w-5" />
-              {cartCount ? <span className="sf-action-badge">{cartCount}</span> : null}
+              {cartCount ? <span key={cartCount} className="sf-action-badge sf-cart-count-pop">{cartCount}</span> : null}
             </button>
           </div>
         </div>

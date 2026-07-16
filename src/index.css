@@ -6086,6 +6086,52 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   }
 }
 
+@keyframes sfHomeProductFloat {
+  0%, 100% { transform: translate3d(0, 0, 0); }
+  50% { transform: translate3d(0, -7px, 0); }
+}
+
+@keyframes sfCartCountPop {
+  0% { transform: scale(0.72); }
+  58% { transform: scale(1.16); }
+  100% { transform: scale(1); }
+}
+
+.sf-home-motion-ready .sf-home-motion:not(.sf-home-motion--stagger) {
+  transition: opacity 480ms ease, transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sf-home-motion-ready .sf-home-motion:not(.sf-home-motion--stagger):not(.is-visible) {
+  opacity: 0;
+  transform: translate3d(0, 18px, 0);
+}
+
+.sf-home-motion-ready .sf-home-motion--stagger .sf-home-motion-item {
+  transition: opacity 420ms ease, transform 480ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition-delay: calc(var(--sf-motion-index, 0) * 55ms);
+}
+
+.sf-home-motion-ready .sf-home-motion--stagger:not(.is-visible) .sf-home-motion-item {
+  opacity: 0;
+  transform: translate3d(0, 16px, 0) scale(0.985);
+}
+
+.sf-cart-count-pop {
+  transform-origin: center;
+  animation: sfCartCountPop 320ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (min-width: 768px) and (prefers-reduced-motion: no-preference) {
+  .sf-home-hero-product-stage {
+    animation: sfHomeProductFloat 7s ease-in-out 800ms infinite;
+    will-change: transform;
+  }
+
+  .sf-home-hero-product-stage:hover {
+    animation-play-state: paused;
+  }
+}
+
 .sf-home-hero-v2 .sf-hero-image-transition {
   --sf-hero-image-scale: 1.13;
   animation: sfHeroImageEnter 620ms cubic-bezier(0.22, 1, 0.36, 1) backwards;
@@ -6201,6 +6247,18 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 @media (prefers-reduced-motion: reduce) {
   .sf-home-hero-v2 .sf-hero-image-transition {
     animation: none;
+  }
+
+  .sf-home-hero-product-stage,
+  .sf-cart-count-pop {
+    animation: none !important;
+  }
+
+  .sf-home-motion,
+  .sf-home-motion-item {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
   }
 }
 
