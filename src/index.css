@@ -6001,6 +6001,39 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
   opacity: 1 !important;
 }
 
+.storefront-shell {
+  --sf-premium-gold: #b68a2c;
+  --sf-premium-gold-soft: #d8b75f;
+  --sf-premium-gold-deep: #7b5318;
+  --sf-premium-gold-ink: #241707;
+  --sf-premium-gold-gradient: linear-gradient(135deg, #b68a2c 0%, #d8b75f 54%, #9a6d20 100%);
+  --sf-premium-gold-shadow: rgba(118, 78, 18, 0.22);
+}
+
+.storefront-shell .sf-storefront-gold-badge,
+.storefront-shell .sf-quick-add-button,
+.storefront-shell .sf-wishlist-add-button {
+  border-color: rgba(216, 183, 95, 0.34) !important;
+  background: var(--sf-premium-gold-gradient) !important;
+  color: var(--sf-premium-gold-ink) !important;
+  box-shadow: 0 10px 22px var(--sf-premium-gold-shadow) !important;
+  -webkit-text-fill-color: currentColor !important;
+}
+
+.storefront-shell .sf-storefront-gold-badge {
+  color: #fffaf0 !important;
+  text-shadow: 0 1px 1px rgba(36, 23, 7, 0.26);
+}
+
+.storefront-shell .sf-product-card .sf-quick-add-button {
+  color: #1f1606 !important;
+}
+
+.storefront-shell .sf-product-card .sf-quick-add-button:hover {
+  border-color: rgba(216, 183, 95, 0.54) !important;
+  box-shadow: 0 14px 30px rgba(118, 78, 18, 0.28) !important;
+}
+
 .sf-mobile-bottom-nav__surface {
   height: 58px;
   border: 1px solid;
@@ -6067,13 +6100,13 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__item.is-active,
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__item[aria-current="page"] {
-  color: #b88708 !important;
+  color: var(--sf-premium-gold-deep) !important;
   transform: translateY(-1px);
 }
 
 .sf-mobile-bottom-nav[data-theme="dark"] .sf-mobile-bottom-nav__item.is-active,
 .sf-mobile-bottom-nav[data-theme="dark"] .sf-mobile-bottom-nav__item[aria-current="page"] {
-  color: #f0ca56 !important;
+  color: var(--sf-premium-gold-soft) !important;
 }
 
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__icon {
@@ -6095,17 +6128,17 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__item.is-active .sf-mobile-bottom-nav__icon,
 .sf-mobile-bottom-nav .sf-mobile-bottom-nav__item[aria-current="page"] .sf-mobile-bottom-nav__icon {
-  border: 1px solid rgba(212, 175, 55, 0.28);
-  background: linear-gradient(145deg, rgba(255, 247, 219, 0.98), rgba(244, 224, 159, 0.86));
-  color: #a87800 !important;
-  box-shadow: 0 7px 18px rgba(180, 130, 0, 0.18);
+  border: 1px solid rgba(182, 138, 44, 0.32);
+  background: linear-gradient(145deg, #fff7e0, #e2c878);
+  color: var(--sf-premium-gold-deep) !important;
+  box-shadow: 0 7px 18px rgba(118, 78, 18, 0.18);
 }
 
 .sf-mobile-bottom-nav[data-theme="dark"] .sf-mobile-bottom-nav__item.is-active .sf-mobile-bottom-nav__icon,
 .sf-mobile-bottom-nav[data-theme="dark"] .sf-mobile-bottom-nav__item[aria-current="page"] .sf-mobile-bottom-nav__icon {
-  border-color: rgba(229, 193, 88, 0.3);
-  background: linear-gradient(145deg, rgba(212, 175, 55, 0.2), rgba(212, 175, 55, 0.08));
-  color: #f0ca56 !important;
+  border-color: rgba(216, 183, 95, 0.34);
+  background: linear-gradient(145deg, rgba(182, 138, 44, 0.24), rgba(123, 83, 24, 0.14));
+  color: var(--sf-premium-gold-soft) !important;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.26);
 }
 
@@ -6128,7 +6161,7 @@ html[dir="rtl"] :where(.pos-receipt .tabular-nums, .invoice-print .tabular-nums,
 .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__item[aria-current="page"] .sf-mobile-bottom-nav__icon,
 .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__item.is-active .sf-mobile-bottom-nav__svg,
 .storefront-shell:not(.storefront-dark) .sf-mobile-bottom-nav[data-theme="light"] .sf-mobile-bottom-nav__item[aria-current="page"] .sf-mobile-bottom-nav__svg {
-  color: #a87800 !important;
-  stroke: #a87800 !important;
-  -webkit-text-fill-color: #a87800 !important;
+  color: var(--sf-premium-gold-deep) !important;
+  stroke: var(--sf-premium-gold-deep) !important;
+  -webkit-text-fill-color: var(--sf-premium-gold-deep) !important;
 }

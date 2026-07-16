@@ -73,7 +73,7 @@ body.storefront-shell:not(.storefront-dark) .sf-small-product-card [class*="text
 }
 
 body.storefront-shell:not(.storefront-dark) .sf-small-product-card .sf-wishlist-add-button {
-  background: linear-gradient(135deg, #d4af37, #e5c158) !important;
+  background: var(--sf-premium-gold-gradient, linear-gradient(135deg, #b68a2c, #d8b75f)) !important;
   color: #241c08 !important;
   -webkit-text-fill-color: currentColor;
 }
