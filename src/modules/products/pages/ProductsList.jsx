@@ -10,6 +10,7 @@ import {
   ChevronDown,
   Copy,
   Eye,
+  EyeOff,
   Filter,
   MoreHorizontal,
   Package2,
@@ -719,7 +720,17 @@ const getCatalogPriceDisplay = (row = {}) => {
   };
 };
 
-function PriceLine({ label, value, varies = false, variesLabel = "متنوع", tone = "muted" }) {
+function PriceLine({
+  label,
+  value,
+  varies = false,
+  variesLabel = "متنوع",
+  tone = "muted",
+  concealed = false,
+  revealLabel = "Show value",
+  hideLabel = "Hide value",
+}) {
+  const [revealed, setRevealed] = useState(false);
   const toneClass =
     tone === "sell"
       ? "text-emerald-200"
@@ -730,10 +741,27 @@ function PriceLine({ label, value, varies = false, variesLabel = "متنوع", t
   return (
     <div className="flex items-baseline justify-center gap-2">
       <span className="shrink-0 font-bold text-zinc-500">{label}:</span>
-      <span className={`min-w-0 truncate text-right font-black tabular-nums ${toneClass}`} title={`${label}: ${value}`}>
-        {varies ? <span className="me-1 text-[10px] font-bold text-zinc-500">{variesLabel}</span> : null}
-        {value}
-      </span>
+      {concealed ? (
+        <button
+          type="button"
+          onClick={() => setRevealed((current) => !current)}
+          aria-label={revealed ? hideLabel : revealLabel}
+          aria-pressed={revealed}
+          title={revealed ? hideLabel : revealLabel}
+          className={`group/cost inline-flex min-w-0 items-center gap-1.5 rounded-lg px-1.5 py-0.5 text-right font-black tabular-nums transition hover:bg-white/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/50 ${toneClass}`}
+        >
+          <span className="min-w-0 truncate">
+            {revealed && varies ? <span className="me-1 text-[10px] font-bold text-zinc-500">{variesLabel}</span> : null}
+            {revealed ? value : "••••••"}
+          </span>
+          {revealed ? <EyeOff size={13} className="shrink-0 text-zinc-500" /> : <Eye size={13} className="shrink-0 text-zinc-500 transition group-hover/cost:text-zinc-300" />}
+        </button>
+      ) : (
+        <span className={`min-w-0 truncate text-right font-black tabular-nums ${toneClass}`} title={`${label}: ${value}`}>
+          {varies ? <span className="me-1 text-[10px] font-bold text-zinc-500">{variesLabel}</span> : null}
+          {value}
+        </span>
+      )}
     </div>
   );
 }
@@ -2537,6 +2565,7 @@ function ProductsList() {
                     totalStock={totalStock}
                     lowStockAlert={lowStockAlert}
                     displayCost={displayCost}
+                    concealCost={canViewCostPrice}
                     sellingPrice={sellingPrice}
                     salePrice={salePrice}
                     displaySku={displaySku}
@@ -2677,7 +2706,14 @@ function ProductsList() {
                         </td>
                         <td className="px-4 py-4 align-middle">
                           <div className="grid gap-1.5 text-xs leading-5">
-                            <PriceLine label={t("products.priceLabels.cost", "Cost")} value={displayCost} tone="muted" />
+                            <PriceLine
+                              label={t("products.priceLabels.cost", "Cost")}
+                              value={displayCost}
+                              tone="muted"
+                              concealed={canViewCostPrice}
+                              revealLabel={t("products.priceLabels.showCost", "إظهار التكلفة")}
+                              hideLabel={t("products.priceLabels.hideCost", "إخفاء التكلفة")}
+                            />
                             <PriceLine label={t("products.priceLabels.sell", "Sell")} value={sellingPrice} tone="sell" />
                             <PriceLine label={t("products.priceLabels.sale", "Sale")} value={salePrice} tone="sale" />
                           </div>
@@ -3225,7 +3261,7 @@ function BarcodeQueueBulkModal({
   );
 }
 
-const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, displayCost, sellingPrice, salePrice, displaySku, actions, t, language }) {
+const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, displayCost, concealCost, sellingPrice, salePrice, displaySku, actions, t, language }) {
   const visibleActions = (actions || []).slice(0, 4);
   const productType = getProductTypeValue(row);
   const category = isMeaningfulCategory(row.category) ? String(row.category).trim() : "";
@@ -3293,7 +3329,14 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
 
       <div className="mt-3 rounded-xl border border-white/8 bg-black/15 p-2">
         <div className="grid grid-cols-3 gap-2 text-xs">
-          <PriceLine label={t("products.priceLabels.cost", "Cost")} value={displayCost} tone="muted" />
+          <PriceLine
+            label={t("products.priceLabels.cost", "Cost")}
+            value={displayCost}
+            tone="muted"
+            concealed={concealCost}
+            revealLabel={t("products.priceLabels.showCost", "إظهار التكلفة")}
+            hideLabel={t("products.priceLabels.hideCost", "إخفاء التكلفة")}
+          />
           <PriceLine label={t("products.priceLabels.sell", "Sell")} value={sellingPrice} tone="sell" />
           <PriceLine label={t("products.priceLabels.sale", "Sale")} value={salePrice} tone="sale" />
         </div>
