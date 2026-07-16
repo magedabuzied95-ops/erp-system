@@ -86,10 +86,10 @@ const withPaymentProofAliases = (order = {}) => {
 const VISUAL_SEARCH_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_SEARCH_MAX_BYTES || 8 * 1024 * 1024);
 const VISUAL_SEARCH_ALLOWED_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
 const VISUAL_HASH_SIZE = 8;
-const VISUAL_REMOTE_CANDIDATE_LIMIT = Number(process.env.STOREFRONT_VISUAL_REMOTE_CANDIDATE_LIMIT || 520);
-const VISUAL_REMOTE_IMAGE_TIMEOUT_MS = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_TIMEOUT_MS || 1000);
+const VISUAL_REMOTE_CANDIDATE_LIMIT = Number(process.env.STOREFRONT_VISUAL_REMOTE_CANDIDATE_LIMIT || 260);
+const VISUAL_REMOTE_IMAGE_TIMEOUT_MS = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_TIMEOUT_MS || 650);
 const VISUAL_REMOTE_IMAGE_MAX_BYTES = Number(process.env.STOREFRONT_VISUAL_REMOTE_IMAGE_MAX_BYTES || 3 * 1024 * 1024);
-const VISUAL_IMAGE_MATCH_CONCURRENCY = Number(process.env.STOREFRONT_VISUAL_IMAGE_MATCH_CONCURRENCY || 12);
+const VISUAL_IMAGE_MATCH_CONCURRENCY = Number(process.env.STOREFRONT_VISUAL_IMAGE_MATCH_CONCURRENCY || 16);
 const VISUAL_SIGNATURE_CACHE_LIMIT = Number(process.env.STOREFRONT_VISUAL_SIGNATURE_CACHE_LIMIT || 1200);
 let storefrontSchemaReadyPromise = null;
 let storefrontSchemaReady = false;
@@ -3247,7 +3247,11 @@ export const imageSearchProducts = async (req, res) => {
       score_breakdown: item.score_breakdown || null,
     }));
 
-    const imageMatches = await findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 18 }).catch((error) => {
+    const imageMatches = await withTimeout(
+      findProductsByImageSimilarity({ tenantId, imageBuffer: file.buffer, limit: 18 }),
+      process.env.STOREFRONT_IMAGE_LOCAL_SEARCH_TIMEOUT_MS || 18000,
+      "storefront_image_local_search"
+    ).catch((error) => {
       console.warn("[storefront-image-search] image similarity failed; continuing with fallback", {
         tenantId,
         message: error?.message || "image similarity failed",
