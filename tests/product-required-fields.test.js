@@ -15,16 +15,23 @@ test("brand, category and product type are all required", () => {
   assert.match(buildMissingRequiredProductFieldsMessage(missing), /نوع المنتج/);
 });
 
-test("placeholder categories do not satisfy the category requirement", () => {
+test("catalog categories do not satisfy the category requirement without POS grade", () => {
   assert.deepEqual(
-    getMissingRequiredProductFields({ brand: "Nike", category: "Uncategorized", productType: "Sneakers" }).map((field) => field.key),
+    getMissingRequiredProductFields({ brand: "Nike", category: "Shoes", productType: "Sneakers" }).map((field) => field.key),
     ["category"]
   );
 });
 
 test("complete classification data passes validation", () => {
   assert.deepEqual(
-    getMissingRequiredProductFields({ brand: "Nike", category: "Shoes", productType: "Sneakers" }),
+    getMissingRequiredProductFields({ brand: "Nike", category: "", grade: "local", productType: "Sneakers" }),
+    []
+  );
+});
+
+test("POS grade satisfies the category requirement when catalog selectors are hidden", () => {
+  assert.deepEqual(
+    getMissingRequiredProductFields({ brand: "Nike", category: "", grade: "local", productType: "Sneakers" }),
     []
   );
 });

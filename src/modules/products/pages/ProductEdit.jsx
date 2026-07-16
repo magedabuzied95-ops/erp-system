@@ -2519,7 +2519,7 @@ function ProductEdit() {
       updateProductField("canonical_slug", value);
       setSeoTouched((current) => ({ ...current, slug: true }));
     }
-    if (field === "suggested_category") setMainCategory(value);
+    if (field === "suggested_category") updateProductField("grade", value);
     if (field === "suggested_product_type") updateProductField("product_type", value);
     if (field === "gender") {
       const nextAudience = normalizeAudienceValue(value);
@@ -2861,6 +2861,7 @@ function ProductEdit() {
     const missingRequiredFields = getMissingRequiredProductFields({
       brand: brand || product.brand,
       category: childCategory || subCategory || mainCategory || product.category,
+      grade: product.grade,
       productType: product.product_type,
     });
     if (missingRequiredFields.length > 0) {
@@ -3693,13 +3694,9 @@ function ProductEdit() {
             </div>
 
             <ProductForm
-              categories={categories}
               brands={brands}
               units={units}
               variationMode={product.variation_mode}
-              mainCategory={mainCategory}
-              subCategory={subCategory}
-              childCategory={childCategory}
               brand={brand}
               unit={unit}
               gender={product.gender}
@@ -3709,9 +3706,6 @@ function ProductEdit() {
               isOfferStory={product.is_offer_story}
               useCustomComparePrice={product.use_custom_compare_price}
               customComparePrice={product.custom_compare_price}
-              onMainCategoryChange={setMainCategory}
-              onSubCategoryChange={setSubCategory}
-              onChildCategoryChange={setChildCategory}
               onBrandChange={setBrand}
               onUnitChange={setUnit}
               onVariationModeChange={(value) => updateProductField("variation_mode", value)}

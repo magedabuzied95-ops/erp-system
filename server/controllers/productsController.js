@@ -3957,13 +3957,7 @@ export const createProduct = async (req, res) => {
     }
     const missingRequiredFields = [];
     const hasBrand = Boolean(normalizedForeignKeys.brand_id || String(brand || "").trim());
-    const rawCategory = String(child_category || sub_category || main_category || category || "").trim();
-    const hasCategory = Boolean(
-      normalizedForeignKeys.child_category_id ||
-      normalizedForeignKeys.sub_category_id ||
-      normalizedForeignKeys.category_id ||
-      (rawCategory && !["uncategorized", "unclassified", "غير مصنف", "بدون فئة"].includes(rawCategory.toLowerCase()))
-    );
+    const hasCategory = Boolean(String(normalizedGrade || "").trim());
     if (!hasBrand) missingRequiredFields.push("brand");
     if (!hasCategory) missingRequiredFields.push("category");
     if (!String(normalizedProductType || "").trim()) missingRequiredFields.push("product_type");

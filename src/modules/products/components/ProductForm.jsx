@@ -1,12 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { ChevronDown, ChevronUp, Search } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useProductClassifications } from "../hooks/useProductClassifications";
 import { classificationGroupsToFieldOptions } from "../lib/productClassifications";
 
-const CATALOG_STRUCTURE_STORAGE_KEY = "product-form-show-catalog-structure";
 const PRODUCT_AUDIENCE_OPTIONS = [
   { value: "men", label: "رجال" },
   { value: "women", label: "نساء" },
@@ -14,12 +13,9 @@ const PRODUCT_AUDIENCE_OPTIONS = [
 ];
 
 function ProductForm({
-  categories = [],
   brands = [],
   units = [],
   variationMode = "full_variations",
-  mainCategory = "",
-  subCategory = "",
   brand = "",
   unit = "",
   gender = "",
@@ -33,9 +29,6 @@ function ProductForm({
   purchaseAlertByColor = false,
   cartonSize = "",
   suggestedPurchaseCartons = 1,
-  onMainCategoryChange,
-  onSubCategoryChange,
-  onChildCategoryChange,
   onBrandChange,
   onUnitChange,
   onVariationModeChange,
@@ -53,26 +46,7 @@ function ProductForm({
   const brandWrapRef = useRef(null);
   const [brandOpen, setBrandOpen] = useState(false);
   const [brandQuery, setBrandQuery] = useState(() => brand || "");
-  const [showCatalogStructure, setShowCatalogStructure] = useState(() => {
-    if (typeof window === "undefined") return false;
-
-    try {
-      return window.localStorage.getItem(CATALOG_STRUCTURE_STORAGE_KEY) === "true";
-    } catch {
-      return false;
-    }
-  });
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
-
-  const selectedMainCategory = useMemo(
-    () => categories.find((item) => String(item.name || "").trim() === String(mainCategory || "").trim()) || null,
-    [categories, mainCategory]
-  );
-
-  const subcategories = useMemo(
-    () => categories.filter((item) => String(item.parentId || "") === String(selectedMainCategory?.id || "")),
-    [categories, selectedMainCategory]
-  );
   const filteredBrands = useMemo(() => {
     const query = String(brandQuery || "").trim().toLowerCase();
     if (!query) return brands;
@@ -95,90 +69,9 @@ function ProductForm({
     return () => document.removeEventListener("mousedown", handlePointerDown);
   }, []);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    try {
-      window.localStorage.setItem(CATALOG_STRUCTURE_STORAGE_KEY, String(showCatalogStructure));
-    } catch {
-      // localStorage can be unavailable in private or restricted browser contexts.
-    }
-  }, [showCatalogStructure]);
-
   return (
     <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(280px,.95fr)_minmax(440px,1.35fr)_minmax(280px,.9fr)] xl:gap-x-0 xl:gap-y-5 xl:items-stretch xl:drop-shadow-[0_18px_42px_rgba(0,0,0,0.18)]">
       <section className="rounded-[22px] border border-white/10 bg-[#20201e] p-5 xl:col-start-1 xl:row-start-1 xl:rounded-e-none">
-        <div className="mb-4 flex flex-wrap items-end justify-between gap-3 border-b border-white/8 pb-4">
-          <div>
-            <p className="text-[11px] font-black uppercase tracking-[0.22em] text-zinc-500">{t("products.form.catalogStructure")}</p>
-            <p className="mt-1 text-sm text-zinc-400">{t("products.form.catalogHelp")}</p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowCatalogStructure((current) => !current)}
-            aria-expanded={showCatalogStructure}
-            className="inline-flex h-10 items-center gap-2 rounded-2xl border border-white/10 bg-zinc-950/70 px-3 text-sm font-semibold text-zinc-200 shadow-lg shadow-black/10 transition hover:border-emerald-300/30 hover:bg-white/8 hover:text-white focus:border-emerald-300/50 focus:outline-none"
-          >
-            {showCatalogStructure ? (
-              <ChevronUp size={16} className="text-emerald-200" />
-            ) : (
-              <ChevronDown size={16} className="text-zinc-400" />
-            )}
-            <span>
-              {showCatalogStructure
-                ? t("products.form.hideCategorySelectors", "إخفاء محددات الفئات")
-                : t("products.form.showCategorySelectors", "إظهار محددات الفئات")}
-            </span>
-          </button>
-        </div>
-
-        <div
-          className={`grid transition-[grid-template-rows,opacity] duration-300 ease-out ${
-            showCatalogStructure
-              ? "mb-4 grid-rows-[1fr] opacity-100"
-              : "pointer-events-none grid-rows-[0fr] opacity-0"
-          }`}
-          aria-hidden={!showCatalogStructure}
-        >
-          <div className="overflow-hidden">
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <FormSelect
-                label={`${t("products.form.mainCategory")} *`}
-                value={mainCategory}
-                onChange={(value) => {
-                  onMainCategoryChange?.(value);
-                  onSubCategoryChange?.("");
-                  onChildCategoryChange?.("");
-                }}
-                placeholder={t("products.form.selectMainCategory")}
-                options={categories.filter((item) => !item.parentId).map((item) => ({ value: item.name, label: item.name, id: item.id }))}
-                tabIndex={showCatalogStructure ? undefined : -1}
-              />
-
-              <FormSelect
-                label={t("products.form.subCategory")}
-                value={subCategory}
-                onChange={(value) => {
-                  onSubCategoryChange?.(value);
-                  onChildCategoryChange?.("");
-                }}
-                placeholder={t("products.form.selectSubCategory")}
-                options={subcategories.map((item) => ({ value: item.name, label: item.name, id: item.id }))}
-                tabIndex={showCatalogStructure ? undefined : -1}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div
-          className={`transition-[max-height,opacity,transform] duration-300 ease-out ${
-            showCatalogStructure ? "max-h-0 -translate-y-1 overflow-hidden opacity-0" : "mb-4 max-h-24 translate-y-0 opacity-100"
-          }`}
-        >
-          <div className="rounded-2xl border border-white/8 bg-zinc-950/55 px-4 py-3 text-sm font-medium text-zinc-400">
-            {t("products.form.categorySelectorsHidden", "محددات الفئات مخفية")}
-          </div>
-        </div>
 
         <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/8 pb-4">
           <div>

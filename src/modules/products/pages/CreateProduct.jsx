@@ -1823,7 +1823,7 @@ function CreateProduct() {
       setCanonicalSlug(value);
       setSeoTouched((current) => ({ ...current, slug: true }));
     }
-    if (field === "suggested_category") setMainCategory(value);
+    if (field === "suggested_category") setGrade(value);
     if (field === "suggested_product_type") setProductType(value);
     if (field === "gender") {
       const normalized = String(value || "").trim().toLowerCase();
@@ -1944,6 +1944,7 @@ function CreateProduct() {
     const missingRequiredFields = getMissingRequiredProductFields({
       brand: selectedBrandName || brand,
       category: childCategory || subCategory || mainCategory,
+      grade,
       productType,
     });
     if (missingRequiredFields.length > 0) {
@@ -2594,13 +2595,9 @@ function CreateProduct() {
               </div>
 
               <ProductForm
-                categories={categories}
                 brands={brands}
                 units={units}
                 variationMode={variationMode}
-                mainCategory={mainCategory}
-                subCategory={subCategory}
-                childCategory={childCategory}
                 brand={brand}
                 unit={unit}
                 gender={gender}
@@ -2610,9 +2607,6 @@ function CreateProduct() {
                 isOfferStory={isOfferStory}
                 useCustomComparePrice={useCustomComparePrice}
                 customComparePrice={customComparePrice}
-                onMainCategoryChange={setMainCategory}
-                onSubCategoryChange={setSubCategory}
-                onChildCategoryChange={setChildCategory}
                 onBrandChange={(nextBrand, selected) => {
                   setBrand(nextBrand);
                   setBrandId(selected?.id ? String(selected.id) : "");
