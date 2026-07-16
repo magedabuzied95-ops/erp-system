@@ -2471,6 +2471,9 @@ const uniqueClassificationOptions = (options = []) => {
 // Men's category motion clip (Pexels video 33294342, free to use).
 // Product/category media from the API still takes priority when configured.
 const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/33294342/14180897_3840_2160_24fps.mp4";
+// Women's category motion clip (Pexels video 7877138, free to use).
+const WOMEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/7877138/7877138-uhd_4096_2160_25fps.mp4";
+const KIDS_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/8456205/8456205-hd_1920_1080_25fps.mp4";
 
 const mainHomeCategoryCards = [
   {
@@ -2495,6 +2498,7 @@ const mainHomeCategoryCards = [
     test: (product) => isExclusiveCategoryAudience(product, "women"),
     icon: Users,
     overlay: "from-rose-950/90 via-rose-950/30 to-transparent",
+    video: WOMEN_CATEGORY_TRIAL_VIDEO_URL,
   },
   {
     id: "kids",
@@ -2506,6 +2510,7 @@ const mainHomeCategoryCards = [
     test: (product) => productAudienceValues(product).includes("kids"),
     icon: Baby,
     overlay: "from-amber-950/90 via-amber-950/25 to-transparent",
+    video: KIDS_CATEGORY_TRIAL_VIDEO_URL,
   },
   {
     id: "offers",
