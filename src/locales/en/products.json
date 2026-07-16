@@ -120,15 +120,6 @@
     "confirmDeleteMultiple": "Delete selected products?"
   },
   "form": {
-    "catalogStructure": "Catalog Structure",
-    "hideCategorySelectors": "Hide category selectors",
-    "showCategorySelectors": "Show category selectors",
-    "categorySelectorsHidden": "Category selectors are hidden",
-    "catalogHelp": "Keep the product in the existing catalog hierarchy.",
-    "mainCategory": "Main Category",
-    "selectMainCategory": "Select main category",
-    "subCategory": "Sub Category",
-    "selectSubCategory": "Select sub category",
     "brand": "Brand",
     "searchBrand": "Search and select brand",
     "noBrands": "No brands found",

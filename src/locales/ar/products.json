@@ -120,15 +120,6 @@
     "confirmDeleteMultiple": "هل تريد حذف المنتجات المحددة؟"
   },
   "form": {
-    "catalogStructure": "هيكل الكتالوج",
-    "hideCategorySelectors": "إخفاء محددات الأقسام",
-    "showCategorySelectors": "إظهار محددات الأقسام",
-    "categorySelectorsHidden": "محددات الأقسام مخفية",
-    "catalogHelp": "احتفظ بالمنتج داخل هيكل الكتالوج الحالي.",
-    "mainCategory": "القسم الرئيسي",
-    "selectMainCategory": "اختر القسم الرئيسي",
-    "subCategory": "القسم الفرعي",
-    "selectSubCategory": "اختر القسم الفرعي",
     "brand": "العلامة التجارية",
     "searchBrand": "ابحث واختر العلامة التجارية",
     "noBrands": "لا توجد علامات تجارية",
