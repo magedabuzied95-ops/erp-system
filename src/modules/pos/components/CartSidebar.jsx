@@ -729,7 +729,7 @@ function CartSidebar({
           )}
         </div>
 
-        <div className="sticky bottom-0 mt-2 rounded-xl border border-emerald-300/25 bg-zinc-950/95 px-3 py-2 shadow-[0_-12px_30px_rgba(0,0,0,0.28)] backdrop-blur">
+        <div className="pos-cart-totals sticky bottom-0 mt-2 rounded-xl border border-emerald-300/25 bg-zinc-950/95 px-3 py-2 shadow-[0_-12px_30px_rgba(0,0,0,0.28)] backdrop-blur">
           <div className="space-y-1 text-[11px] font-bold text-zinc-400">
             <div className="flex items-center justify-between gap-3">
               <span>{posLabel("cart.subtotal", "Subtotal")}</span>
@@ -775,7 +775,7 @@ function CartSidebar({
         ) : null}
       </div>
 
-      <div className="flex min-h-0 flex-col rounded-2xl border border-white/10 bg-zinc-950/90 p-2.5 shadow-xl shadow-black/10 xl:max-h-[calc(100vh-13rem)]">
+      <div className="pos-payment-panel flex min-h-0 flex-col rounded-2xl border border-white/10 bg-zinc-950/90 p-2.5 shadow-xl shadow-black/10 xl:max-h-[calc(100vh-13rem)]">
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <div className="text-xs font-black text-white">{posLabel("cart.payment", "Payment")}</div>
@@ -1898,7 +1898,7 @@ function InvoiceCustomerPicker({
       ref={customerSearchWrapRef}
       aria-hidden={filtersModalOpen ? "true" : undefined}
       className={[
-        "sticky top-0 z-40 shrink-0 rounded-2xl border border-white/10 bg-zinc-950/95 p-2 shadow-xl shadow-black/30 backdrop-blur-xl",
+        "pos-customer-picker sticky top-0 z-40 shrink-0 rounded-2xl border border-white/10 bg-zinc-950/95 p-2 shadow-xl shadow-black/30 backdrop-blur-xl",
         filtersModalOpen ? "invisible pointer-events-none opacity-0" : "",
       ].join(" ")}
     >

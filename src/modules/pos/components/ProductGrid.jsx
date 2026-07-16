@@ -254,13 +254,13 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
       onClick={handleSelect}
       onKeyDown={handleKeyDown}
       style={{ contentVisibility: "auto", containIntrinsicSize: "144px 218px" }}
-      className="group relative flex min-h-[13.5rem] touch-manipulation flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-150 active:scale-[0.99] hover:border-white/20 lg:min-h-0 lg:duration-200 lg:hover:-translate-y-0.5"
+      className="pos-product-card group relative flex min-h-[13.5rem] touch-manipulation flex-col overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 via-zinc-950 to-black text-start shadow-[0_8px_20px_rgba(0,0,0,0.28)] transition duration-150 active:scale-[0.99] hover:border-white/20 lg:min-h-0 lg:duration-200 lg:hover:-translate-y-0.5"
     >
       <div className="relative p-1.5 pb-0">
-        <div className="relative h-32 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-36 sm:h-28 lg:h-24">
+        <div className="pos-product-card-image relative h-32 overflow-hidden rounded-xl border border-white/10 bg-gradient-to-br from-zinc-200 via-zinc-100 to-zinc-300 max-[380px]:h-36 sm:h-28 lg:h-24">
           {isFavorite ? (
             <div
-              className="absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-amber-200/60 bg-zinc-950/90 text-amber-300 shadow-md backdrop-blur"
+              className="pos-product-favorite absolute left-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full border border-amber-200/60 bg-zinc-950/90 text-amber-300 shadow-md backdrop-blur"
               title={t("pos.productGrid.favorite")}
               aria-label={t("pos.productGrid.favorite")}
             >
@@ -279,7 +279,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
           </div>
         )}
 
-          <div className="absolute right-1.5 top-1.5 rounded-full border border-white/40 bg-zinc-950/80 px-1.5 py-0.5 text-[8px] font-black text-emerald-100 shadow-sm backdrop-blur">
+          <div className="pos-product-stock absolute right-1.5 top-1.5 rounded-full border border-white/40 bg-zinc-950/80 px-1.5 py-0.5 text-[8px] font-black text-emerald-100 shadow-sm backdrop-blur">
             <span className="inline-flex items-center gap-0.5">
               {employeeFilteredSizes.length ? (
                 <span dir="ltr" className="text-amber-100">{employeeFilteredSizes.join(" / ")}</span>
@@ -293,7 +293,7 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
           </div>
           {articleCode ? (
             <div className="absolute inset-x-2 bottom-2 flex justify-center">
-              <div className="inline-flex max-w-[calc(100%-12px)] items-center justify-center rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[10px] font-black leading-none text-zinc-200 shadow-sm backdrop-blur-sm">
+              <div className="pos-product-article inline-flex max-w-[calc(100%-12px)] items-center justify-center rounded-full border border-white/10 bg-black/70 px-2 py-1 text-[10px] font-black leading-none text-zinc-200 shadow-sm backdrop-blur-sm">
                 <span className="min-w-0 max-w-full truncate">
                   {articleCode}
                 </span>
@@ -304,34 +304,34 @@ const ProductCard = memo(function ProductCard({ product, onSelectProduct }) {
 
       </div>
 
-      <div className="flex flex-1 flex-col gap-1.5 p-1.5 pt-1.5 sm:p-2 lg:gap-1">
-        <h3 className="min-w-0 text-center text-[0.7rem] font-semibold leading-tight text-zinc-100 sm:text-[0.76rem]">
+      <div className="pos-product-card-body flex flex-1 flex-col gap-1.5 p-1.5 pt-1.5 sm:p-2 lg:gap-1">
+        <h3 className="pos-product-title min-w-0 text-center text-[0.7rem] font-semibold leading-tight text-zinc-100 sm:text-[0.76rem]">
           <span className="line-clamp-2 min-h-[2rem] sm:min-h-[1.9rem]">{product.name}</span>
         </h3>
 
         {(colors.length || sizes.length) ? (
           <div className={`flex min-h-5 flex-wrap justify-center gap-1 overflow-hidden ${isEmployeeScopedVariant ? "" : "lg:hidden"}`}>
             {colors.slice(0, 2).map((color) => (
-              <span key={`color-${color}`} className="max-w-[4.5rem] truncate rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[8px] font-black text-zinc-300">
+              <span key={`color-${color}`} className="pos-product-meta max-w-[4.5rem] truncate rounded-full border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[8px] font-black text-zinc-300">
                 {color}
               </span>
             ))}
             {sizes.slice(0, 2).map((size) => (
-              <span key={`size-${size}`} className="rounded-full border border-emerald-300/15 bg-emerald-400/10 px-1.5 py-0.5 text-[8px] font-black text-emerald-100">
+              <span key={`size-${size}`} className="pos-product-meta pos-product-size rounded-full border border-emerald-300/15 bg-emerald-400/10 px-1.5 py-0.5 text-[8px] font-black text-emerald-100">
                 {size}
               </span>
             ))}
           </div>
         ) : null}
 
-        <div className={`mt-auto rounded-xl border px-2 py-1.5 text-center shadow-sm ${
+        <div className={`pos-product-price mt-auto rounded-xl border px-2 py-1.5 text-center shadow-sm ${
           hasPrice ? "border-emerald-300/20 bg-emerald-950/20" : "border-amber-300/30 bg-amber-500/10"
         }`}>
-          <div className={`truncate text-[8px] font-black uppercase tracking-[0.12em] ${hasPrice ? "text-emerald-200/80" : "text-amber-200"}`}>
+          <div className={`pos-product-price-label truncate text-[8px] font-black uppercase tracking-[0.12em] ${hasPrice ? "text-emerald-200/80" : "text-amber-200"}`}>
             {saleBadge || t("pos.productGrid.price")}
           </div>
-          {originalPrice ? <div className="text-[9px] font-bold leading-tight text-zinc-400 line-through decoration-zinc-300/70">{originalPrice}</div> : null}
-          <div className={`truncate text-[0.82rem] font-black leading-tight sm:text-[0.86rem] ${hasPrice ? "text-white" : "text-amber-100"}`}>
+          {originalPrice ? <div className="pos-product-original-price text-[9px] font-bold leading-tight text-zinc-400 line-through decoration-zinc-300/70">{originalPrice}</div> : null}
+          <div className={`pos-product-price-value truncate text-[0.82rem] font-black leading-tight sm:text-[0.86rem] ${hasPrice ? "text-white" : "text-amber-100"}`}>
             {formatProductPrice(product, t)}
           </div>
         </div>

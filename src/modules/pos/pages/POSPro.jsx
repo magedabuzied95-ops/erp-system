@@ -111,6 +111,7 @@ import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
 import SmartPosFilters from "../components/SmartPosFilters";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import { MobileBottomSheet, StickyMobileActionBar } from "../../../shared/components/mobile/ResponsiveMobile";
+import "./POSPro.m1.css";
 
 const RecentOperationsDrawer = lazy(async () => {
   const startedAt = performance.now();
@@ -6827,7 +6828,7 @@ function POSPro() {
   return (
     <div
       ref={posShellRef}
-      className="h-[100dvh] w-full max-w-[100vw] min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white"
+      className="pos-pro-shell h-[100dvh] w-full max-w-[100vw] min-w-0 overflow-hidden bg-[radial-gradient(circle_at_top,_rgba(16,185,129,0.08),transparent_35%),linear-gradient(180deg,#09090b_0%,#111111_100%)] text-white"
     >
       <div className="flex h-full w-full min-w-0 max-w-none flex-col gap-2 overflow-y-auto overflow-x-hidden p-2 pb-[calc(6.25rem+env(safe-area-inset-bottom))] sm:p-3 sm:pb-[calc(8rem+env(safe-area-inset-bottom))] lg:min-h-0 lg:overflow-hidden lg:p-3 xl:pb-3">
         {viewportIsMobile ? (
@@ -6864,8 +6865,8 @@ function POSPro() {
           </div>
         ) : null}
 
-        <div className={`hidden shrink-0 items-center justify-between gap-2 overflow-x-hidden ${isRtl ? "flex-row-reverse" : ""} lg:flex`}>
-          <div className="hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 lg:block">
+        <div className={`pos-desktop-toolbar hidden shrink-0 items-center justify-between gap-2 overflow-x-hidden ${isRtl ? "flex-row-reverse" : ""} lg:flex`}>
+          <div className="pos-session-pill hidden shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-xs font-semibold text-zinc-200 lg:block">
             نافذة مفتوحة: {currentUser?.name || currentUser?.email || "المستخدم"} | {posShiftBranch?.name || activePosShift?.branch_name || "الفرع"} | {activePosShift?.opened_at ? new Date(activePosShift.opened_at).toLocaleString() : ""}
           </div>
           <div className={`flex shrink-0 items-center gap-2 ${isRtl ? "flex-row-reverse" : ""}`}>
@@ -7124,9 +7125,9 @@ function POSPro() {
         ) : null}
 
         <div className="grid min-w-0 flex-none gap-2 lg:min-h-0 lg:flex-1 lg:gap-3 xl:grid-cols-[minmax(0,48%)_minmax(0,52%)] 2xl:grid-cols-[minmax(0,48%)_minmax(0,52%)]">
-          <section className="min-w-0 self-start overflow-visible rounded-none border-0 bg-transparent p-0 shadow-none lg:flex lg:min-h-0 lg:self-stretch lg:overflow-hidden lg:rounded-2xl lg:border lg:border-white/10 lg:bg-white/5 lg:p-2 lg:shadow-xl lg:shadow-black/10 lg:backdrop-blur">
+          <section className="pos-catalog-panel min-w-0 self-start overflow-visible rounded-none border-0 bg-transparent p-0 shadow-none lg:flex lg:min-h-0 lg:self-stretch lg:overflow-hidden lg:rounded-2xl lg:border lg:border-white/10 lg:bg-white/5 lg:p-2 lg:shadow-xl lg:shadow-black/10 lg:backdrop-blur">
             <div className="min-w-0 space-y-2 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
-            <div className="relative z-30 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl lg:sticky lg:top-[calc(env(safe-area-inset-top)+4.9rem)] xl:static xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
+            <div className="pos-catalog-toolbar relative z-30 rounded-2xl border border-white/10 bg-zinc-950/90 p-2 shadow-2xl shadow-black/20 backdrop-blur-xl lg:sticky lg:top-[calc(env(safe-area-inset-top)+4.9rem)] xl:static xl:mx-0 xl:border-0 xl:bg-transparent xl:p-0 xl:shadow-none">
               <div className="flex min-w-0 flex-wrap items-center gap-2">
                 <div className="flex min-w-0 flex-[1_1_0%] items-center gap-2">
                   <div className="relative min-w-0 flex-1">
@@ -7142,7 +7143,7 @@ function POSPro() {
                         }
                       }}
                       placeholder={t("pos.searchPlaceholder")}
-                      className="h-9 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 pl-10 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                      className="pos-catalog-search h-9 w-full rounded-xl border border-white/10 bg-black/35 px-3 py-2 pl-10 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
                     />
                   </div>
                   <button
