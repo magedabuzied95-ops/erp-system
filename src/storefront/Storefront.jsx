@@ -2468,6 +2468,10 @@ const uniqueClassificationOptions = (options = []) => {
 
 
 
+// Lightweight vertical trial clip (Pexels video 7815147, free to use).
+// Product/category media from the API still takes priority when configured.
+const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/7815147/7815147-sd_540_960_30fps.mp4";
+
 const mainHomeCategoryCards = [
   {
     id: "men",
@@ -2479,6 +2483,7 @@ const mainHomeCategoryCards = [
     test: (product) => isExclusiveCategoryAudience(product, "men"),
     icon: Briefcase,
     overlay: "from-slate-950/95 via-slate-950/35 to-transparent",
+    video: MEN_CATEGORY_TRIAL_VIDEO_URL,
   },
   {
     id: "women",
@@ -2639,6 +2644,7 @@ function PremiumHomePage(props) {
           match?.primary_video_url ||
           match?.video_url ||
           match?.media?.video_url ||
+          definition.video ||
           ""
         ),
         count: totalMatches,

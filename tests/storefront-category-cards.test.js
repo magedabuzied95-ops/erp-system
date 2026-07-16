@@ -12,6 +12,9 @@ test("storefront category cards use full-bleed motion media", async () => {
   assert.match(source, /HomeCategoryMotionMedia video=\{card\.video\} image=\{card\.image\}/);
   assert.match(source, /h-full w-full object-cover transition/);
   assert.match(source, /match\?\.promo_video_url/);
+  assert.match(source, /const MEN_CATEGORY_TRIAL_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/7815147\/7815147-sd_540_960_30fps\.mp4";/);
+  assert.match(source, /id: "men"[\s\S]*?video: MEN_CATEGORY_TRIAL_VIDEO_URL/);
+  assert.match(source, /match\?\.media\?\.video_url \|\|[\s\S]*?definition\.video/);
   assert.match(source, /matchingProducts\.find\(\(product\) => homeProductWithImage\(product\)\)/);
   assert.match(source, /saleProducts\.find\(\(product\) => isAvailableProduct\(product\) && homeProductWithImage\(product\)\)/);
   assert.match(source, /if \(isOfferStory\(product\)\) return false/);
