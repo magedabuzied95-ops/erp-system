@@ -60,8 +60,11 @@ test("installed employee portal exposes and repairs its push subscription", () =
   assert.match(portal, /تفعيل إشعارات بوابة الموظف/);
   assert.match(portal, /repairEmployeePushSubscription/);
   assert.match(portal, /getRegistration\(scope\)\s*\|\|\s*await registerEmployeePortalServiceWorker/);
+  assert.match(portal, /pushSubscriptionUsesKey\(subscription, publicKey\)/);
+  assert.match(portal, /subscription\.unsubscribe\(\)/);
+  assert.match(portal, /applicationServerKey:\s*urlBase64ToUint8Array\(publicKey\)/);
   assert.match(portal, /notificationsReady/);
-  assert.match(serviceWorker, /employee-portal-shell-v6/);
+  assert.match(serviceWorker, /employee-portal-shell-v7/);
 });
 
 test("shared shortage alerts use employee-specific read receipts", () => {

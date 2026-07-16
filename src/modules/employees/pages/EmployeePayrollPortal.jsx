@@ -626,7 +626,7 @@ const safeNow = () => {
 };
 
 const localeForLanguage = (language = "en") => (language === "ar" ? "ar-EG-u-nu-latn" : "en-US");
-const EMPLOYEE_PORTAL_PWA_VERSION = "20260716-notifications-1";
+const EMPLOYEE_PORTAL_PWA_VERSION = "20260716-notifications-2";
 
 const browserTimeZone = () => {
   try {
@@ -2870,16 +2870,36 @@ export default function EmployeePayrollPortal() {
         return;
       }
       try {
+        const keyResponse = await api.get(`/employee-portal/${encodeURIComponent(token)}/push/public-key`);
+        const publicKey = String(keyResponse?.publicKey || "").trim();
+        if (!publicKey) {
+          if (!cancelled) {
+            setNotificationSubscriptionActive(false);
+            setNotificationMessage("مفاتيح إرسال الإشعارات غير مفعلة على الخادم");
+          }
+          return;
+        }
         const scope = employeePortalServiceWorkerScope();
         const registration = await navigator.serviceWorker.getRegistration(scope) || await registerEmployeePortalServiceWorker();
-        const subscription = await registration.pushManager.getSubscription();
+        let subscription = await registration.pushManager.getSubscription();
+        if (subscription && !pushSubscriptionUsesKey(subscription, publicKey)) {
+          await api.post(`/employee-portal/${encodeURIComponent(token)}/push/unsubscribe`, {
+            subscription: subscription.toJSON(),
+            endpoint: subscription.endpoint,
+          }).catch(() => null);
+          await subscription.unsubscribe().catch(() => null);
+          subscription = null;
+        }
         if (!subscription) {
-          if (!cancelled) setNotificationSubscriptionActive(false);
-          return;
+          subscription = await registration.pushManager.subscribe({
+            userVisibleOnly: true,
+            applicationServerKey: urlBase64ToUint8Array(publicKey),
+          });
         }
         const subscriptionJson = subscription.toJSON();
         await api.post(`/employee-portal/${encodeURIComponent(token)}/push/subscribe`, {
           subscription: subscriptionJson,
+          application_server_key_length: urlBase64ToUint8Array(publicKey).length,
           portal_url: `${window.location.origin}/employee-app/${encodeURIComponent(token)}${window.location.search}`,
         });
         if (!cancelled) {
