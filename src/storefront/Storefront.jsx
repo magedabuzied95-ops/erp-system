@@ -5537,8 +5537,6 @@ function SearchQuickSections({
 
       {!query && !hasImageSearch ? (
         <>
-          <SearchChips title={t("storefront.search.trendingTitle")} items={trendingSearches} onPick={onPickTerm} />
-          {recentSearches.length ? <SearchChips title={t("storefront.search.recentTitle")} items={recentSearches} onPick={onPickTerm} /> : null}
           <div className="grid gap-2 sm:grid-cols-3">
             <SearchQuickCard title={t("storefront.search.categories")} items={searchFallbackSections.categories || []} onPick={onPickTerm} />
             <SearchQuickCard title={t("storefront.search.brands")} items={searchFallbackSections.brands || []} onPick={onPickTerm} />
@@ -5568,11 +5566,11 @@ function SearchChips({ title, items, onPick }) {
 function SearchQuickCard({ title, items, onPick }) {
   if (!items.length) return null;
   return (
-    <div className="sf-search-quick-card rounded-[1.4rem] border border-stone-200/80 bg-white/94 p-3.5 shadow-[0_16px_34px_rgba(15,23,42,0.06)] dark:border-white/10 dark:bg-white/[0.045] dark:shadow-[0_18px_42px_rgba(0,0,0,0.24)]">
-      <div className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-stone-500 dark:text-stone-400">{title}</div>
+    <div className="sf-search-quick-card rounded-[1.4rem] border border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] p-3.5 shadow-[0_18px_42px_rgba(0,0,0,0.28)]">
+      <div className="mb-2 text-xs font-bold uppercase tracking-[0.1em] text-white/55">{title}</div>
       <div className="grid gap-1.5">
         {items.map((item) => (
-          <button key={item} type="button" onClick={() => onPick(item)} className="sf-search-quick-item rounded-[1rem] border border-transparent bg-stone-50/72 px-3 py-2 text-start text-xs font-bold text-stone-700 transition hover:border-[var(--sf-purple)] hover:bg-white hover:text-stone-950 dark:bg-white/[0.03] dark:text-stone-200 dark:hover:bg-white/[0.08]">
+          <button key={item} type="button" onClick={() => onPick(item)} className="sf-search-quick-item rounded-[1rem] border border-white/[0.08] bg-[#101010] px-3 py-2 text-start text-xs font-bold text-white/82 transition hover:border-[#d0a632]/45 hover:bg-[#151515] hover:text-white">
             {item}
           </button>
         ))}
