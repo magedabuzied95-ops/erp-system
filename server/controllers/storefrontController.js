@@ -3307,7 +3307,7 @@ export const imageSearchProducts = async (req, res) => {
         matched_variant_id: match.variantId || null,
         image_ranking_debug: match.scoreBreakdown || null,
       };
-      if (score >= 95) {
+      if (payload.match_type === "exact") {
         exactMatches.push(payload);
       } else {
         similarMatches.push(payload);
