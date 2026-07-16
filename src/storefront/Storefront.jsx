@@ -4955,18 +4955,7 @@ function Header({ cartCount, onCart, onAddToCart, effectiveTheme, onToggleTheme,
                 <span className="sf-mobile-header-logo grid h-12 w-12 place-items-center rounded-full text-[0.7rem] font-black tracking-[0.16em] transition">{brandInitials}</span>
               )}
             </Link>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchOpen(true);
-                  setMobileSearchOpen(true);
-                }}
-                className="sf-mobile-header-button grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]"
-                aria-label={t("storefront.header.search")}
-              >
-                <Search className="h-5 w-5" />
-              </button>
+            <div className="flex items-center">
               <button onClick={onCart} className="sf-mobile-header-button sf-cart-action relative grid h-10 w-10 shrink-0 place-items-center rounded-full transition duration-200 ease-out active:scale-[0.98]" aria-label={t("storefront.cart.title")} type="button">
                 <ShoppingCart className="h-5 w-5" />
                 {cartCount ? <span className="sf-action-badge sf-mobile-cart-badge">{cartCount}</span> : null}
