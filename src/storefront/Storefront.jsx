@@ -2487,6 +2487,7 @@ const mainHomeCategoryCards = [
     icon: Briefcase,
     overlay: "from-slate-950/95 via-slate-950/35 to-transparent",
     video: MEN_CATEGORY_TRIAL_VIDEO_URL,
+    poster: "/storefront/category-posters/men.webp",
   },
   {
     id: "women",
@@ -2499,6 +2500,7 @@ const mainHomeCategoryCards = [
     icon: Users,
     overlay: "from-rose-950/90 via-rose-950/30 to-transparent",
     video: WOMEN_CATEGORY_TRIAL_VIDEO_URL,
+    poster: "/storefront/category-posters/women.webp",
     preferDefinitionVideo: true,
   },
   {
@@ -2512,6 +2514,7 @@ const mainHomeCategoryCards = [
     icon: Baby,
     overlay: "from-amber-950/90 via-amber-950/25 to-transparent",
     video: KIDS_CATEGORY_TRIAL_VIDEO_URL,
+    poster: "/storefront/category-posters/kids.webp",
   },
   {
     id: "offers",
@@ -2642,7 +2645,7 @@ function PremiumHomePage(props) {
         ...definition,
         title: isRtl ? definition.titleAr : definition.titleEn,
         subtitle: isRtl ? definition.subtitleAr : definition.subtitleEn,
-        image: matchSlide?.image || "",
+        image: definition.poster || matchSlide?.image || "",
         video: compactImageValue(definition.preferDefinitionVideo
           ? definition.video
           : (

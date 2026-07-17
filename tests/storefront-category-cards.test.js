@@ -16,11 +16,15 @@ test("storefront category cards use full-bleed motion media", async () => {
   assert.match(source, /match\?\.promo_video_url/);
   assert.match(source, /const MEN_CATEGORY_TRIAL_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/33294342\/14180878_640_360_24fps\.mp4";/);
   assert.match(source, /id: "men"[\s\S]*?video: MEN_CATEGORY_TRIAL_VIDEO_URL/);
+  assert.match(source, /id: "men"[\s\S]*?poster: "\/storefront\/category-posters\/men\.webp"/);
   assert.match(source, /const WOMEN_CATEGORY_TRIAL_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/7877138\/7877138-sd_640_338_25fps\.mp4";/);
   assert.match(source, /id: "women"[\s\S]*?video: WOMEN_CATEGORY_TRIAL_VIDEO_URL,[\s\S]*?preferDefinitionVideo: true/);
+  assert.match(source, /id: "women"[\s\S]*?poster: "\/storefront\/category-posters\/women\.webp"/);
   assert.match(source, /definition\.preferDefinitionVideo[\s\S]*?\? definition\.video/);
   assert.match(source, /const KIDS_CATEGORY_TRIAL_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/8456205\/8456205-sd_640_360_25fps\.mp4";/);
   assert.match(source, /id: "kids"[\s\S]*?video: KIDS_CATEGORY_TRIAL_VIDEO_URL/);
+  assert.match(source, /id: "kids"[\s\S]*?poster: "\/storefront\/category-posters\/kids\.webp"/);
+  assert.match(source, /image: definition\.poster \|\| matchSlide\?\.image \|\| ""/);
   assert.match(source, /src=\{shouldLoadVideo \? video : undefined\}/);
   assert.match(source, /preload="none"/);
   assert.match(source, /rootMargin: "80px 0px"/);
