@@ -1888,116 +1888,161 @@ function PayrollFinancialSummary({
     payroll.employee_name &&
     String(selectedEmployeeName).trim() === String(payroll.employee_name).trim()
   );
+  const summaryCards = [
+    { label: t("sales.payroll.baseSalary", "الراتب الأساسي"), value: formatPayrollMoney(baseSalary), icon: Banknote, tone: "neutral" },
+    { label: t("sales.payroll.bonusesAndCommissions", "العمولة / المكافآت"), value: formatPayrollMoney(commissions + bonuses), icon: Gift, tone: "positive" },
+    { label: t("sales.payroll.overtimePay", "قيمة الإضافي"), value: formatPayrollMoney(approvedOvertimePay), icon: TrendingUp, tone: "positive" },
+    { label: t("sales.payroll.advances", "السلف"), value: formatDeductions(advanceDeductions), icon: WalletCards, tone: "warning" },
+    { label: t("sales.payroll.totalDeductions", "إجمالي الخصومات"), value: formatDeductions(totalDeductions), icon: Gavel, tone: "negative" },
+  ];
+  const payrollWarnings = hardPayrollBlockers.length ? hardPayrollBlockers : softPayrollBlockers;
+  const heroSubtitle = hasPayrollDetails
+    ? payrollMonthLabel || t("sales.payroll.currentMonth", "الشهر الحالي")
+    : t("sales.payroll.selectEmployee", "اختر الموظف");
+  const actionLoading = calculating || finalizing || paying;
 
   return (
-    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-2.5">
-      <section className="rounded-3xl border border-[var(--border)] bg-[var(--surface)] p-2.5 shadow-sm">
-        <div className="grid gap-1 xl:grid-cols-[minmax(280px,1.4fr)_minmax(220px,.8fr)]">
-          <PayrollSelect
-            label={t("sales.payroll.employee", "الموظف")}
-            value={employeeId}
-            onChange={onEmployeeChange || (() => {})}
-            options={[{ value: "", label: t("sales.payroll.selectEmployee", "اختر الموظف") }, ...employeeOptions]}
-            isRtl={isRtl}
-          />
-          <PayrollSelect
-            label={t("sales.payroll.month", "الشهر")}
-            value={rangeMode}
-            onChange={onRangeModeChange || (() => {})}
-            options={[
-              { value: "current", label: t("sales.payroll.currentMonth", "الشهر الحالي") },
-              { value: "previous", label: t("sales.payroll.previousMonth", "الشهر السابق") },
-              { value: "custom", label: t("sales.payroll.customMonth", "شهر مخصص") },
-            ]}
-            isRtl={isRtl}
-          />
-        </div>
+    <div dir={isRtl ? "rtl" : "ltr"} className="space-y-4">
+      <section className="overflow-hidden rounded-[2rem] border border-[var(--border)] bg-[linear-gradient(145deg,rgba(255,255,255,.055),rgba(255,255,255,.018))] shadow-[0_24px_80px_rgba(0,0,0,.22)]">
+        <div className="grid gap-0 xl:grid-cols-[minmax(320px,.88fr)_minmax(520px,1.12fr)]">
+          <div className="relative overflow-hidden border-b border-[var(--border)] bg-[radial-gradient(circle_at_20%_0%,rgba(212,175,55,.22),transparent_35%),linear-gradient(145deg,rgba(7,12,10,.98),rgba(17,24,20,.96))] p-5 text-white xl:border-b-0 xl:border-e">
+            <div className="absolute -start-16 -top-16 h-44 w-44 rounded-full bg-emerald-400/10 blur-3xl" />
+            <div className="absolute -bottom-20 end-6 h-48 w-48 rounded-full bg-[var(--primary)]/20 blur-3xl" />
+            <div className="relative flex min-h-[300px] flex-col justify-between gap-6">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-black uppercase tracking-[0.22em] text-[var(--primary)]">
+                    {t("sales.payroll.salarySummary", "ملخص الراتب")}
+                  </div>
+                  <h3 className="mt-3 text-2xl font-black leading-tight md:text-3xl">
+                    {payroll.employee_name || selectedEmployeeName || t("sales.payroll.selectEmployee", "اختر الموظف")}
+                  </h3>
+                  <div className="mt-2 inline-flex max-w-full items-center gap-2 rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-xs font-black text-white/75">
+                    <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+                    <span className="truncate" dir="ltr">{heroSubtitle}</span>
+                  </div>
+                </div>
+                <div className={`inline-flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-black ${statusToneClass}`}>
+                  <ShieldCheck className="h-4 w-4" />
+                  {statusLabel}
+                </div>
+              </div>
 
-        <div className="mt-2 flex flex-col gap-1.5 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--muted)]">
-              {t("sales.payroll.summaryTitle", "ملخص الراتب")}
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.18em] text-white/45">
+                  {t("sales.payroll.netSalary", "صافي الراتب")}
+                </div>
+                <div dir="ltr" className={`mt-3 text-4xl font-black leading-none tabular-nums text-white [unicode-bidi:isolate] md:text-5xl ${isRtl ? "text-right" : "text-left"}`}>
+                  {hasPayrollDetails ? formatPayrollMoney(netPay) : "-"}
+                </div>
+                <div className="mt-4 grid grid-cols-2 gap-2 text-xs font-black">
+                  <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-emerald-100">
+                    <div className="text-emerald-100/60">{t("sales.payroll.income", "الإضافات")}</div>
+                    <div className="mt-1 tabular-nums" dir="ltr">{formatPayrollMoney(commissions + bonuses + approvedOvertimePay)}</div>
+                  </div>
+                  <div className="rounded-2xl border border-rose-300/20 bg-rose-400/10 px-3 py-2 text-rose-100">
+                    <div className="text-rose-100/60">{t("sales.payroll.totalDeductions", "الخصومات")}</div>
+                    <div className="mt-1 tabular-nums" dir="ltr">{formatDeductions(totalDeductions)}</div>
+                  </div>
+                </div>
+              </div>
+
+              {actionHandler ? (
+                <button
+                  type="button"
+                  onClick={actionHandler}
+                  disabled={actionDisabled}
+                  className={`inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl px-5 text-sm font-black shadow-[0_14px_34px_rgba(212,175,55,.18)] transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 ${isReadyForApproval ? "bg-emerald-400 text-slate-950" : "bg-[var(--primary)] text-slate-950"}`}
+                >
+                  {actionLoading && !isPaid ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                  {actionLabel}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-5 text-sm font-black text-emerald-100 disabled:cursor-not-allowed disabled:opacity-100"
+                >
+                  <CheckCircle2 className="h-4 w-4" />
+                  {actionLabel}
+                </button>
+              )}
             </div>
-            {hasPayrollDetails && payrollMonthLabel ? (
-              <h3 className="mt-1 text-xl font-black leading-7 text-[var(--text)]" dir="ltr">
-                {payrollMonthLabel}
-              </h3>
+          </div>
+
+          <div className="space-y-4 p-4 md:p-5">
+            <div className="grid gap-3 md:grid-cols-2">
+              <PayrollSelect
+                label={t("sales.payroll.employee", "الموظف")}
+                value={employeeId}
+                onChange={onEmployeeChange || (() => {})}
+                options={[{ value: "", label: t("sales.payroll.selectEmployee", "اختر الموظف") }, ...employeeOptions]}
+                isRtl={isRtl}
+              />
+              <PayrollSelect
+                label={t("sales.payroll.month", "الشهر")}
+                value={rangeMode}
+                onChange={onRangeModeChange || (() => {})}
+                options={[
+                  { value: "current", label: t("sales.payroll.currentMonth", "الشهر الحالي") },
+                  { value: "previous", label: t("sales.payroll.previousMonth", "الشهر السابق") },
+                  { value: "custom", label: t("sales.payroll.customMonth", "شهر مخصص") },
+                ]}
+                isRtl={isRtl}
+              />
+            </div>
+
+            {selectedEmployeeName && payroll.employee_name && !employeeMatches ? (
+              <div className="rounded-2xl border border-amber-300/25 bg-amber-400/10 px-4 py-3 text-sm font-bold leading-6 text-amber-100">
+                {t("sales.payroll.otherEmployeeWarning", "أنت تعرض راتب موظف آخر.")}
+              </div>
+            ) : null}
+
+            {hasPayrollDetails ? (
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                {summaryCards.map((item) => (
+                  <PayrollBreakdownCard
+                    key={item.label}
+                    label={item.label}
+                    value={item.value}
+                    tone={item.tone}
+                    icon={item.icon}
+                    isRtl={isRtl}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="flex min-h-[210px] flex-col items-center justify-center rounded-3xl border border-dashed border-[var(--border)] bg-[var(--surface)]/70 p-6 text-center">
+                <Calculator className="h-10 w-10 text-[var(--primary)]" />
+                <div className="mt-3 text-lg font-black text-[var(--text)]">{t("sales.payroll.noPayrollForEmployee", "لا يوجد راتب محسوب لهذا الموظف.")}</div>
+                <div className="mt-1 text-sm font-bold text-[var(--muted)]">{t("sales.payroll.pickEmployeeHint", "اختر موظف والشهر ثم احسب الراتب.")}</div>
+              </div>
+            )}
+
+            {hasPayrollDetails && payrollWarnings.length ? (
+              <div className={`rounded-3xl border p-4 ${hardPayrollBlockers.length ? "border-rose-300/25 bg-rose-400/10 text-rose-100" : "border-amber-300/25 bg-amber-400/10 text-amber-100"}`}>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-current/10">
+                    <AlertTriangle className="h-5 w-5" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-black leading-5">
+                      {hardPayrollBlockers.length
+                        ? t("sales.payroll.cannotApproveNow", "لا يمكن اعتماد الراتب الآن")
+                        : t("sales.payroll.reviewWarnings", "تنبيهات للمراجعة قبل الاعتماد")}
+                    </div>
+                    <ul className="mt-2 flex flex-wrap gap-2 text-xs font-bold leading-5">
+                      {payrollWarnings.map((issue) => (
+                        <li key={`${issue.type || issue.key || "generic"}-${issue.reference_id || issue.date || issue.amount || issue.message_ar || issue.label}`} className="rounded-full border border-current/20 bg-black/10 px-3 py-1" dir="auto">
+                          {issue.message_ar || issue.label}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              </div>
             ) : null}
           </div>
-          <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-black ${statusToneClass}`}>
-            <ShieldCheck className="h-4 w-4" />
-            {statusLabel}
-          </div>
-        </div>
-
-        {selectedEmployeeName && payroll.employee_name && !employeeMatches ? (
-          <div className="mt-2 rounded-2xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-sm font-bold leading-5 text-amber-100">
-            {t("sales.payroll.otherEmployeeWarning", "أنت تعرض راتب موظف آخر.")}
-          </div>
-        ) : null}
-
-        <div className={`mt-2 rounded-2xl border px-3 py-2 ${isPaid ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-100" : hardPayrollBlockers.length ? "border-amber-300/25 bg-amber-400/10 text-amber-100" : "border-emerald-300/25 bg-emerald-400/10 text-emerald-100"}`}>
-          {hasPayrollDetails ? (
-            <div className="space-y-1">
-              {[
-                { label: t("sales.payroll.baseSalary", "الراتب الأساسي"), value: formatPayrollMoney(baseSalary), dir: "ltr" },
-                { label: t("sales.payroll.bonusesAndCommissions", "العمولة / المكافآت"), value: formatPayrollMoney(commissions + bonuses), dir: "ltr" },
-                { label: t("sales.payroll.advances", "السلف"), value: formatDeductions(advanceDeductions), dir: "ltr" },
-                { label: t("sales.payroll.totalDeductions", "الخصومات"), value: formatDeductions(totalDeductions), dir: "ltr" },
-                { label: t("sales.payroll.netSalary", "صافي الراتب"), value: formatPayrollMoney(netPay), dir: "ltr", featured: true },
-              ].map((item) => (
-                <div key={item.label} className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-1.5 ${item.featured ? "border-emerald-300/25 bg-emerald-400/10" : "border-[var(--border)] bg-[var(--surface)]/70"}`}>
-                  <div className="order-2 text-sm font-bold text-right text-[var(--muted)]">{item.label}</div>
-                  <div dir={item.dir || "auto"} className={`order-1 text-sm font-black tabular-nums text-left text-[var(--text)] ${item.featured ? "text-base" : ""}`}>{item.value}</div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="py-2 text-sm font-bold text-[var(--muted)]">
-              {t("sales.payroll.noPayrollForEmployee", "لا يوجد راتب محسوب لهذا الموظف.")}
-            </div>
-          )}
-        </div>
-
-        {hasPayrollDetails && payrollBlockerDetails.length ? (
-          <div className="mt-2 rounded-2xl border px-3 py-2 text-amber-100 bg-amber-400/10 border-amber-300/25">
-            <div className="text-sm font-black leading-5">
-              {hardPayrollBlockers.length
-                ? t("sales.payroll.cannotApproveNow", "لا يمكن اعتماد الراتب الآن")
-                : t("sales.payroll.reviewWarnings", "تنبيهات للمراجعة قبل الاعتماد")}
-            </div>
-            <ul className="mt-1 space-y-0.5 text-xs font-bold leading-5">
-              {(hardPayrollBlockers.length ? hardPayrollBlockers : softPayrollBlockers.length ? softPayrollBlockers : [{ key: "generic", message_ar: t("sales.payroll.blockedGeneric", "لا يمكن اعتماد الراتب الآن") }]).map((issue) => (
-                <li key={`${issue.type || issue.key || "generic"}-${issue.reference_id || issue.date || issue.amount || issue.message_ar || issue.label}`} className="flex items-start gap-2">
-                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
-                  <span dir="auto">{issue.message_ar || issue.label}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        <div className="mt-2">
-          {actionHandler ? (
-            <button
-              type="button"
-              onClick={actionHandler}
-              disabled={actionDisabled}
-              className={`inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl px-4 text-sm font-black disabled:cursor-not-allowed disabled:opacity-60 ${isReadyForApproval ? "bg-emerald-500 text-slate-950" : "bg-[var(--primary)] text-white"}`}
-            >
-              {actionDisabled && !isPaid ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-              {actionLabel}
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled
-              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl border border-emerald-300/25 bg-emerald-400/10 px-4 text-sm font-black text-emerald-100 disabled:cursor-not-allowed disabled:opacity-100"
-            >
-              <CheckCircle2 className="h-4 w-4" />
-              {actionLabel}
-            </button>
-          )}
         </div>
       </section>
 
