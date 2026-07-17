@@ -2499,6 +2499,7 @@ const mainHomeCategoryCards = [
     icon: Users,
     overlay: "from-rose-950/90 via-rose-950/30 to-transparent",
     video: WOMEN_CATEGORY_TRIAL_VIDEO_URL,
+    preferDefinitionVideo: true,
   },
   {
     id: "kids",
@@ -2642,16 +2643,18 @@ function PremiumHomePage(props) {
         title: isRtl ? definition.titleAr : definition.titleEn,
         subtitle: isRtl ? definition.subtitleAr : definition.subtitleEn,
         image: matchSlide?.image || "",
-        video: compactImageValue(
-          match?.category_video_url ||
-          match?.storefront_video_url ||
-          match?.promo_video_url ||
-          match?.primary_video_url ||
-          match?.video_url ||
-          match?.media?.video_url ||
-          definition.video ||
-          ""
-        ),
+        video: compactImageValue(definition.preferDefinitionVideo
+          ? definition.video
+          : (
+            match?.category_video_url ||
+            match?.storefront_video_url ||
+            match?.promo_video_url ||
+            match?.primary_video_url ||
+            match?.video_url ||
+            match?.media?.video_url ||
+            definition.video ||
+            ""
+          )),
         count: totalMatches,
       };
     });
