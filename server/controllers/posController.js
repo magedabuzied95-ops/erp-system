@@ -1678,7 +1678,9 @@ export const getPosSellerUsers = async (req, res) => {
         ...employee,
         id: employee.id,
         employee_id: employee.id,
-        name: employee.name || employee.full_name || employee.email || `Employee #${employee.id}`,
+        // The POS-facing name must honor the configured short alias. Keep
+        // full_name separately for administrative screens and fallbacks.
+        name: employee.pos_alias || employee.name || employee.full_name || employee.email || `Employee #${employee.id}`,
         full_name: employee.full_name || employee.name || "",
         employee_code: employee.employee_code || employee.code || "",
         pos_alias: employee.pos_alias || employee.name || employee.full_name || `Employee #${employee.id}`,

@@ -1791,10 +1791,10 @@ function POSPro() {
   const salespersonDisplayName = useMemo(() => {
     if (activeSalesperson) {
       return String(
-        activeSalesperson.full_name ||
+        activeSalesperson.pos_alias ||
+          activeSalesperson.full_name ||
           activeSalesperson.name ||
           activeSalesperson.employee_name ||
-          activeSalesperson.pos_alias ||
           activeSalesperson.user_name ||
           `#${activeSalesperson.id || ""}`
       ).trim();
@@ -5262,7 +5262,7 @@ function POSPro() {
       const selectedSeller = salesEmployees.find((employee) => String(employee.id) === String(selectedSalespersonId));
       const resolvedSellerUserId = selectedSeller?.user_id || null;
       const resolvedSalesEmployeeId = selectedSeller?.employee_id || selectedSeller?.id || null;
-      const resolvedSellerName = selectedSeller?.name || selectedSeller?.full_name || selectedSeller?.pos_alias || "";
+      const resolvedSellerName = selectedSeller?.pos_alias || selectedSeller?.name || selectedSeller?.full_name || "";
       console.log("[pos][seller-debug] selected seller before checkout", {
         selectedSalespersonId,
         selectedSeller,
@@ -6005,10 +6005,10 @@ function POSPro() {
         order.sales_employee?.name ||
         order.seller?.full_name ||
         order.seller?.name ||
+        activeSalesperson?.pos_alias ||
         activeSalesperson?.full_name ||
         activeSalesperson?.name ||
         activeSalesperson?.employee_name ||
-        activeSalesperson?.pos_alias ||
         activeSalesperson?.user_name ||
         activeSalesperson?.display_name ||
         "",
@@ -6510,7 +6510,7 @@ function POSPro() {
     const selectedSeller = salesEmployees.find((employee) => String(employee.id) === String(selectedSalespersonId));
     const resolvedSellerUserId = selectedSeller?.user_id || null;
     const resolvedSalesEmployeeId = selectedSeller?.employee_id || selectedSeller?.id || null;
-    const resolvedSellerName = selectedSeller?.name || selectedSeller?.full_name || selectedSeller?.pos_alias || "";
+    const resolvedSellerName = selectedSeller?.pos_alias || selectedSeller?.name || selectedSeller?.full_name || "";
     const terminalPayload = {
       amount: initialAmount,
       currency: "EGP",

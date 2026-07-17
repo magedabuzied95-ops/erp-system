@@ -101,7 +101,7 @@ const getOrderSeller = (order = {}) => {
       .filter(Boolean)
   );
   return (
-    [order.sales_employee_name, order.seller_name, order.salesperson_name, order.assigned_seller_name, order.employee_name]
+    [order.seller_name, order.sales_employee_name, order.salesperson_name, order.assigned_seller_name, order.employee_name]
       .map((value) => String(value ?? "").trim())
       .find((value) => value && !excluded.has(value.toLowerCase())) || "-"
   );

@@ -2083,7 +2083,7 @@ function InvoiceCustomerPicker({
           {salesEmployees.map((employee) => {
             const active = String(selectedSalespersonId || "") === String(employee.id);
             const disabled = employee.is_active === false;
-            const displayName = String(employee.name || employee.full_name || employee.pos_alias || "").trim() || salespersonAlias(employee);
+            const displayName = salespersonAlias(employee);
             return (
               <button
                 key={employee.id}
