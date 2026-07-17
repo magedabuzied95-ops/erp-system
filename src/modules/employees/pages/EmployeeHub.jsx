@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import {
   BadgeDollarSign,
   BarChart3,
-  BriefcaseBusiness,
   CalendarClock,
   ClipboardList,
   FileText,
@@ -194,10 +193,8 @@ export default function EmployeeHub() {
 
 function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChange = null }) {
   const { i18n } = useTranslation();
-  const [section, setSection] = useState("directory");
   const isRtl = String(i18n.language || "").toLowerCase().startsWith("ar");
   const employeeDirectoryVisibleTabs = useMemo(() => ["employees"], []);
-  const staffVisibleTabs = useMemo(() => ["staff"], []);
   useEffect(() => {
     console.log("[hr-loop]", "employee_directory_props", {
       employee_id: String(selectedEmployeeId || ""),
@@ -205,21 +202,6 @@ function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChang
       editingEmployeeId: "",
     });
   }, [selectedEmployeeId]);
-  const sections = [
-    {
-      id: "directory",
-      label: "دليل الموظفين",
-      description: "إنشاء الموظفين وإدارة بياناتهم والورديات من هنا.",
-      Icon: UsersRound,
-    },
-    {
-      id: "sales",
-      label: "فريق المبيعات والعمولات",
-      description: "إعدادات البائعين والعمولات تبقى هنا كمساحة ثانوية.",
-      Icon: BriefcaseBusiness,
-    },
-  ];
-
   return (
     <div className="space-y-4">
       <section className="theme-card p-4">
@@ -238,36 +220,9 @@ function HREmployeesWorkspace({ selectedEmployeeId = "", onSelectedEmployeeChang
             </p>
           </div>
         </div>
-
-        <div className="mt-4 flex flex-wrap gap-2">
-          {sections.map((item) => {
-            const Icon = item.Icon;
-            const active = section === item.id;
-            return (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSection(item.id)}
-                className={[
-                  "inline-flex min-h-11 items-center gap-2 rounded-xl border px-4 py-2 text-sm font-black transition",
-                  active
-                    ? "border-[var(--border)] bg-[var(--primary-soft)] text-[var(--text)]"
-                    : "border-[var(--border)] bg-[var(--card)] text-[var(--muted)] hover:text-[var(--text)]",
-                ].join(" ")}
-              >
-                <Icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        <p className="mt-3 text-sm leading-6 text-[var(--muted)]">
-          {(sections.find((item) => item.id === section) || sections[0]).description}
-        </p>
       </section>
 
-      {section === "directory" ? <AttendanceWorkspace defaultTab="employees" visibleTabs={employeeDirectoryVisibleTabs} embedded hideMetrics selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={onSelectedEmployeeChange} /> : null}
-      {section === "sales" ? <SalesEmployees defaultTab="staff" visibleTabs={staffVisibleTabs} embedded /> : null}
+      <AttendanceWorkspace defaultTab="employees" visibleTabs={employeeDirectoryVisibleTabs} embedded hideMetrics selectedEmployeeId={selectedEmployeeId} onSelectedEmployeeChange={onSelectedEmployeeChange} />
     </div>
   );
 }
