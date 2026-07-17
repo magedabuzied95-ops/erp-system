@@ -7,26 +7,32 @@ const purchaseOrder = readFileSync(
   "utf8",
 );
 
-test("product purchase quantity preview includes editable purchase, selling, and sale prices", () => {
+test("multi-product purchase quantity preview includes one price set per product", () => {
   assert.match(purchaseOrder, /purchasePrice:\s*money\(/);
   assert.match(purchaseOrder, /sellingPrice:\s*money\(/);
   assert.match(purchaseOrder, /salePrice:\s*money\(/);
-  assert.match(purchaseOrder, /updateRowPrice\(row\.line_id, "purchasePrice"/);
-  assert.match(purchaseOrder, /updateRowPrice\(row\.line_id, "sellingPrice"/);
-  assert.match(purchaseOrder, /updateRowPrice\(row\.line_id, "salePrice"/);
+  assert.match(purchaseOrder, /function MultiProductPurchaseQtyModal/);
+  assert.match(purchaseOrder, /updateProductPrice\(product\.key, field, event\.target\.value\)/);
+  assert.match(purchaseOrder, /priceInput\(product, "purchasePrice"/);
+  assert.match(purchaseOrder, /priceInput\(product, "sellingPrice"/);
+  assert.match(purchaseOrder, /priceInput\(product, "salePrice"/);
 });
 
-test("applying saved quantities copies edited prices into invoice lines", () => {
-  assert.match(purchaseOrder, /applyProductPurchaseQty = \(group, editedRows = null\)/);
+test("applying selected products copies each product price set into all of its invoice lines", () => {
+  assert.match(purchaseOrder, /applyProductPurchaseQty = \(editedProducts = \[\]\)/);
+  assert.match(purchaseOrder, /toArray\(editedProducts\)\.flatMap/);
+  assert.match(purchaseOrder, /toArray\(product\.rows\)\.map/);
   assert.match(purchaseOrder, /unit_cost:\s*money\(row\.purchasePrice\)/);
   assert.match(purchaseOrder, /selling_price:\s*money\(row\.sellingPrice\)/);
   assert.match(purchaseOrder, /sale_price:\s*money\(row\.salePrice\)/);
-  assert.match(purchaseOrder, /onApply=\{\(rows\) => applyProductPurchaseQty\(purchaseQtyModal\.group, rows\)\}/);
+  assert.match(purchaseOrder, /onApply=\{applyProductPurchaseQty\}/);
 });
 
-test("purchase quantity pricing supports color thumbnails and first-price bulk copy", () => {
-  assert.match(purchaseOrder, /row\.variant\?\.variant_image_url \|\| row\.variant\?\.color_image_url \|\| row\.variant\?\.image_url/);
-  assert.match(purchaseOrder, /bulkPriceFields\[field\]/);
-  assert.match(purchaseOrder, /toggleBulkPriceField\(field, event\.target\.checked\)/);
-  assert.match(purchaseOrder, /current\.map\(\(row\) => \(\{ \.\.\.row, \[field\]: firstValue \}\)\)/);
+test("product cards support multi-select and a single review action", () => {
+  assert.match(purchaseOrder, /const \[purchaseQtySelection, setPurchaseQtySelection\] = useState\(\[\]\)/);
+  assert.match(purchaseOrder, /togglePurchaseQtySelection/);
+  assert.match(purchaseOrder, /purchaseQtySelection\.length/);
+  assert.match(purchaseOrder, /onClick=\{openPurchaseQtyPreview\}/);
+  assert.match(purchaseOrder, /purchaseQtySelected=\{purchaseQtySelected\}/);
+  assert.match(purchaseOrder, /aria-pressed=\{purchaseQtySelected\}/);
 });

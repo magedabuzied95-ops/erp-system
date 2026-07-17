@@ -585,6 +585,7 @@ function PurchaseOrder() {
   const [items, setItems] = useState([]);
   const [bulkPriceModal, setBulkPriceModal] = useState(null);
   const [purchaseQtyModal, setPurchaseQtyModal] = useState(null);
+  const [purchaseQtySelection, setPurchaseQtySelection] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [postError, setPostError] = useState("");
@@ -595,6 +596,7 @@ function PurchaseOrder() {
   const postingRef = useRef(false);
   const purchaseSaveIdRef = useRef("");
   const lastAutoBulkPricingSignatureRef = useRef("");
+  const skipNextAutoBulkPricingRef = useRef(false);
   const [supplierModalOpen, setSupplierModalOpen] = useState(false);
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -929,6 +931,11 @@ function PurchaseOrder() {
 
   useEffect(() => {
     if (cartProductGroups.length <= 1) return;
+    if (skipNextAutoBulkPricingRef.current) {
+      skipNextAutoBulkPricingRef.current = false;
+      lastAutoBulkPricingSignatureRef.current = cartProductSignature;
+      return;
+    }
     if (!cartProductSignature || lastAutoBulkPricingSignatureRef.current === cartProductSignature) return;
     if (variantSelector || runModal || purchaseQtyModal || supplierModalOpen || productModalOpen || confirmReceivedEditSave) return;
     lastAutoBulkPricingSignatureRef.current = cartProductSignature;
@@ -938,11 +945,19 @@ function PurchaseOrder() {
   const purchaseQtyLabels = isArabic
     ? {
         button: "استخدم كميات المنتج",
-        toastApplied: "تمت إضافة الموديل وتطبيق الكميات والأسعار",
+        selected: "تم التحديد",
+        selectedCount: "منتجات محددة",
+        review: "مراجعة وتسعير المنتجات",
+        clear: "إلغاء التحديد",
+        toastApplied: "تمت إضافة المنتجات وتطبيق الكميات والأسعار",
       }
     : {
         button: "Use Product Purchase Qty",
-        toastApplied: "Model added with quantities and prices applied",
+        selected: "Selected",
+        selectedCount: "products selected",
+        review: "Review and price products",
+        clear: "Clear selection",
+        toastApplied: "Products added with quantities and prices applied",
       };
 
   const subtotal = items.reduce((sum, item) => sum + money(item.subtotal ?? money(item.quantity) * money(item.cost_price)), 0);
@@ -1210,23 +1225,56 @@ function PurchaseOrder() {
       .filter((row) => row.savedQty !== null);
   };
 
-  const openPurchaseQtyPreview = (group) => {
+  const purchaseQtyGroupKey = (group = {}) => String(group.product_id || group.product_name || "");
+
+  const togglePurchaseQtySelection = (group) => {
     if (!group) return;
     const rows = buildPurchaseQtyRows(group);
     if (!rows.length) {
       toast.error(t("purchases.create.noSavedPurchaseQty"));
       return;
     }
-    setPurchaseQtyModal({ group, rows });
+    const key = purchaseQtyGroupKey(group);
+    setPurchaseQtySelection((current) =>
+      current.some((entry) => purchaseQtyGroupKey(entry.group) === key)
+        ? current.filter((entry) => purchaseQtyGroupKey(entry.group) !== key)
+        : [...current, { group, rows }]
+    );
   };
 
-  const applyProductPurchaseQty = (group, editedRows = null) => {
-    const rows = Array.isArray(editedRows) ? editedRows : buildPurchaseQtyRows(group);
-    if (!rows.length) {
+  const openPurchaseQtyPreview = () => {
+    if (!purchaseQtySelection.length) return;
+    const products = purchaseQtySelection.map(({ group }) => {
+      const rows = buildPurchaseQtyRows(group);
+      const first = rows[0] || {};
+      return {
+        key: purchaseQtyGroupKey(group),
+        group,
+        rows,
+        purchasePrice: first.purchasePrice ?? 0,
+        sellingPrice: first.sellingPrice ?? 0,
+        salePrice: first.salePrice ?? 0,
+      };
+    }).filter((product) => product.rows.length > 0);
+    if (!products.length) {
       toast.error(t("purchases.create.noSavedPurchaseQty"));
-      return false;
+      return;
     }
+    setPurchaseQtyModal({ products });
+  };
+
+  const applyProductPurchaseQty = (editedProducts = []) => {
+    const rows = toArray(editedProducts).flatMap((product) =>
+      toArray(product.rows).map((row) => ({
+        ...row,
+        purchasePrice: product.purchasePrice,
+        sellingPrice: product.sellingPrice,
+        salePrice: product.salePrice,
+      }))
+    );
+    if (!rows.length) return false;
     const byLineId = new Map(rows.map((row) => [String(row.line_id), row]));
+    skipNextAutoBulkPricingRef.current = editedProducts.length > 1;
     setItems((prev) =>
       [
         ...prev.map((item) => {
@@ -1269,6 +1317,7 @@ function PurchaseOrder() {
       ]
     );
     toast.success(purchaseQtyLabels.toastApplied);
+    setPurchaseQtySelection([]);
     setPurchaseQtyModal(null);
     return true;
   };
@@ -2035,18 +2084,41 @@ function PurchaseOrder() {
                 </button>
               </div>
             ) : (
-              <div className={`mt-3 grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2.5 ${productPanelExpanded ? "min-h-0 flex-1 overflow-y-auto pr-1" : ""}`}>
-                {groupedCards.map((group) => (
-                  <ProductCard
-                    key={String(group.product_id)}
-                    group={group}
-                    purchaseQtyLabel={purchaseQtyLabels.button}
-                    onClick={() => addProductCard(group)}
-                    onSizeRun={() => setRunModal({ mode: "size", product: group })}
-                    onColorRun={() => setRunModal({ mode: "color", product: group })}
-                    onUsePurchaseQty={() => openPurchaseQtyPreview(group)}
-                  />
-                ))}
+              <div className={`mt-3 ${productPanelExpanded ? "min-h-0 flex-1 overflow-y-auto pr-1" : ""}`}>
+                {purchaseQtySelection.length ? (
+                  <div className="sticky top-0 z-20 mb-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-400/30 bg-zinc-950/95 p-3 shadow-xl backdrop-blur">
+                    <div className="flex items-center gap-2 text-sm font-black text-white">
+                      <span className="grid h-8 min-w-8 place-items-center rounded-full bg-amber-400 px-2 text-black">{purchaseQtySelection.length}</span>
+                      <span>{purchaseQtyLabels.selectedCount}</span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <button type="button" onClick={() => setPurchaseQtySelection([])} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-300 hover:bg-white/10">
+                        {purchaseQtyLabels.clear}
+                      </button>
+                      <button type="button" onClick={openPurchaseQtyPreview} className="inline-flex items-center gap-2 rounded-xl bg-amber-400 px-4 py-2 text-xs font-black text-black hover:bg-amber-300">
+                        <ClipboardCheck className="h-4 w-4" />
+                        {purchaseQtyLabels.review}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+                <div className="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-2.5">
+                  {groupedCards.map((group) => {
+                    const purchaseQtySelected = purchaseQtySelection.some((entry) => purchaseQtyGroupKey(entry.group) === purchaseQtyGroupKey(group));
+                    return (
+                      <ProductCard
+                        key={String(group.product_id)}
+                        group={group}
+                        purchaseQtyLabel={purchaseQtySelected ? purchaseQtyLabels.selected : purchaseQtyLabels.button}
+                        purchaseQtySelected={purchaseQtySelected}
+                        onClick={() => addProductCard(group)}
+                        onSizeRun={() => setRunModal({ mode: "size", product: group })}
+                        onColorRun={() => setRunModal({ mode: "color", product: group })}
+                        onUsePurchaseQty={() => togglePurchaseQtySelection(group)}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             )}
           </section>
@@ -2064,7 +2136,7 @@ function PurchaseOrder() {
       ) : bulkPriceModal ? (
         <BulkPriceModal mode={bulkPriceModal} items={items} onClose={() => setBulkPriceModal(null)} onApply={(payload) => applyBulkPrice({ type: bulkPriceModal, ...payload })} />
       ) : null}
-      {purchaseQtyModal ? <ProductPurchaseQtyModal data={purchaseQtyModal} onClose={() => setPurchaseQtyModal(null)} onApply={(rows) => applyProductPurchaseQty(purchaseQtyModal.group, rows)} /> : null}
+      {purchaseQtyModal ? <MultiProductPurchaseQtyModal data={purchaseQtyModal} onClose={() => setPurchaseQtyModal(null)} onApply={applyProductPurchaseQty} /> : null}
       {supplierModalOpen ? <QuickSupplierModal form={supplierForm} setForm={setSupplierForm} saving={supplierSaving} error={supplierError} onClose={() => setSupplierModalOpen(false)} onSubmit={saveSupplierFromOrder} /> : null}
       {productModalOpen ? <QuickProductModal form={productForm} setForm={setProductForm} saving={productSaving} error={productError} onClose={() => setProductModalOpen(false)} onSubmit={createInlineProduct} /> : null}
       {confirmReceivedEditSave ? (
@@ -2104,13 +2176,13 @@ function ActionTile({ icon, label, onClick, disabled }) {
   );
 }
 
-function ProductCard({ group, purchaseQtyLabel, onClick, onSizeRun, onColorRun, onUsePurchaseQty }) {
+function ProductCard({ group, purchaseQtyLabel, purchaseQtySelected = false, onClick, onSizeRun, onColorRun, onUsePurchaseQty }) {
   const { t } = useTranslation();
   const variants = toArray(group.variants);
   const first = variants[0] || {};
 
   return (
-    <div className="group overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] transition hover:border-emerald-400/30 hover:bg-white/[0.07]">
+    <div className={`group overflow-hidden rounded-xl border bg-white/[0.04] transition hover:bg-white/[0.07] ${purchaseQtySelected ? "border-amber-400 ring-2 ring-amber-400/20" : "border-white/10 hover:border-emerald-400/30"}`}>
       <button type="button" onClick={onClick} className="block w-full text-left">
         <div className="aspect-[5/3] bg-zinc-900">
           <ProductImage src={group.image_url || first.image_url} name={group.product_name} className="h-full w-full object-cover" />
@@ -2123,7 +2195,7 @@ function ProductCard({ group, purchaseQtyLabel, onClick, onSizeRun, onColorRun, 
       <div className="grid grid-cols-1 border-t border-white/10 sm:grid-cols-3">
         <button type="button" onClick={onSizeRun} className="px-2 py-1.5 text-[11px] font-black text-emerald-300 hover:bg-white/5">{t("purchases.create.sizeRun")}</button>
         <button type="button" onClick={onColorRun} className="border-t border-white/10 px-2 py-1.5 text-[11px] font-black text-cyan-300 hover:bg-white/5 sm:border-l sm:border-t-0">{t("purchases.create.colorRun")}</button>
-        <button type="button" onClick={onUsePurchaseQty} className="inline-flex items-center justify-center gap-1.5 border-t border-white/10 px-2 py-1.5 text-[11px] font-black text-amber-200 hover:bg-amber-400/10 sm:border-l sm:border-t-0">
+        <button type="button" aria-pressed={purchaseQtySelected} onClick={onUsePurchaseQty} className={`inline-flex items-center justify-center gap-1.5 border-t border-white/10 px-2 py-1.5 text-[11px] font-black sm:border-l sm:border-t-0 ${purchaseQtySelected ? "bg-amber-400 text-black" : "text-amber-200 hover:bg-amber-400/10"}`}>
           <ClipboardCheck className="h-3.5 w-3.5" />
           {purchaseQtyLabel}
         </button>
@@ -2787,6 +2859,137 @@ function ProductPurchaseQtyModal({ data, onClose, onApply }) {
             {labels.cancel}
           </button>
           <button type="button" onClick={() => onApply(rows)} disabled={!canApply} className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
+            {labels.apply}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function MultiProductPurchaseQtyModal({ data, onClose, onApply }) {
+  const { i18n } = useTranslation();
+  const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
+  const [products, setProducts] = useState(() =>
+    toArray(data?.products).map((product) => ({ ...product, rows: toArray(product.rows) }))
+  );
+  const labels = isArabic
+    ? {
+        eyebrow: "كميات الشراء",
+        title: "تسعير المنتجات المختارة",
+        description: "أدخل سعرًا واحدًا لكل منتج؛ سيُطبّق تلقائيًا على جميع ألوانه ومقاساته مع استخدام الكميات المحفوظة.",
+        product: "المنتج",
+        coverage: "الألوان والمقاسات",
+        variants: "متغير",
+        totalQuantity: "إجمالي الكمية",
+        purchasePrice: "سعر الشراء",
+        sellingPrice: "سعر البيع",
+        salePrice: "سعر السيل",
+        noChanges: "لا توجد منتجات محددة قابلة للتطبيق",
+        cancel: "إلغاء",
+        apply: "إضافة المنتجات وتطبيق الأسعار",
+        selected: "منتج محدد",
+      }
+    : {
+        eyebrow: "Purchase quantities",
+        title: "Price selected products",
+        description: "Enter one price set per product. It will apply to every color and size while using saved quantities.",
+        product: "Product",
+        coverage: "Colors and sizes",
+        variants: "variants",
+        totalQuantity: "Total quantity",
+        purchasePrice: "Purchase price",
+        sellingPrice: "Selling price",
+        salePrice: "Sale price",
+        noChanges: "No selected products can be applied",
+        cancel: "Cancel",
+        apply: "Add products and apply prices",
+        selected: "selected products",
+      };
+  const canApply = products.some((product) => product.rows.length > 0);
+  const updateProductPrice = (key, field, value) => {
+    const nextValue = value === "" ? "" : Math.max(0, money(value));
+    setProducts((current) =>
+      current.map((product) => String(product.key) === String(key) ? { ...product, [field]: nextValue } : product)
+    );
+  };
+  const productCoverage = (product) => {
+    const colors = uniqueValues(product.rows.map((row) => row.color));
+    const sizes = uniqueValues(product.rows.map((row) => row.size));
+    return `${summarizeValues(colors, "-")} • ${summarizeValues(sizes, "-")}`;
+  };
+  const totalSavedQuantity = (product) => product.rows.reduce((sum, row) => sum + money(row.savedQty), 0);
+  const priceInput = (product, field, label) => (
+    <input
+      type="number"
+      min="0"
+      step="0.01"
+      value={product[field]}
+      onChange={(event) => updateProductPrice(product.key, field, event.target.value)}
+      className="h-11 w-28 rounded-xl border border-white/10 bg-zinc-950 px-3 text-center font-black text-white outline-none transition focus:border-emerald-400/60"
+      aria-label={`${label} - ${product.group?.product_name || "Product"}`}
+    />
+  );
+
+  return (
+    <Modal eyebrow={labels.eyebrow} title={labels.title} onClose={onClose}>
+      <div className="space-y-4" dir={isArabic ? "rtl" : "ltr"}>
+        <div className="rounded-3xl border border-amber-400/25 bg-amber-400/10 p-4">
+          <div className="text-sm font-black text-amber-100">{products.length} {labels.selected}</div>
+          <p className="mt-2 text-sm leading-6 text-zinc-300">{labels.description}</p>
+        </div>
+
+        <div className="max-h-[52vh] overflow-auto rounded-2xl border border-white/10 bg-black/20">
+          <table className="min-w-full text-start text-xs">
+            <thead className="sticky top-0 z-10 bg-zinc-950 text-zinc-500">
+              <tr>
+                <th className="px-3 py-3 font-black uppercase">{labels.product}</th>
+                <th className="px-3 py-3 font-black uppercase">{labels.coverage}</th>
+                <th className="px-3 py-3 text-center font-black uppercase">{labels.purchasePrice}</th>
+                <th className="px-3 py-3 text-center font-black uppercase">{labels.sellingPrice}</th>
+                <th className="px-3 py-3 text-center font-black uppercase">{labels.salePrice}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-white/10">
+              {products.map((product) => {
+                const firstVariant = product.rows[0]?.variant || {};
+                return (
+                  <tr key={String(product.key)} className="text-zinc-300">
+                    <td className="px-3 py-3 font-semibold text-white">
+                      <div className="flex min-w-48 items-center gap-3">
+                        <ProductImage
+                          src={product.group?.image_url || firstVariant.variant_image_url || firstVariant.color_image_url || firstVariant.image_url}
+                          name={product.group?.product_name}
+                          className="h-12 w-12 shrink-0 rounded-xl border border-white/10 bg-white object-contain"
+                        />
+                        <div className="min-w-0">
+                          <div className="max-w-52 truncate text-sm font-black">{product.group?.product_name || "Product"}</div>
+                          <div className="mt-1 text-[11px] text-amber-200">
+                            {product.rows.length} {labels.variants} • {labels.totalQuantity}: {totalSavedQuantity(product)}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3 py-3 text-zinc-400">
+                      <div className="max-w-64 leading-5">{productCoverage(product)}</div>
+                    </td>
+                    <td className="px-3 py-3" dir="ltr">{priceInput(product, "purchasePrice", labels.purchasePrice)}</td>
+                    <td className="px-3 py-3" dir="ltr">{priceInput(product, "sellingPrice", labels.sellingPrice)}</td>
+                    <td className="px-3 py-3" dir="ltr">{priceInput(product, "salePrice", labels.salePrice)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {!canApply ? <div className="rounded-2xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm font-semibold text-amber-100">{labels.noChanges}</div> : null}
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={onClose} className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10">
+            {labels.cancel}
+          </button>
+          <button type="button" onClick={() => onApply(products)} disabled={!canApply} className="rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
             {labels.apply}
           </button>
         </div>
