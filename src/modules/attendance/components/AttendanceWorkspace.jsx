@@ -27,6 +27,8 @@ import {
   updateAttendanceEmployee,
   updateAttendanceDeviceSettings,
   updateAttendanceShift,
+  updateEmployeePayrollSettings,
+  upsertSalesEmployeeProfile,
   rejectAttendanceDevice,
   resetEmployeeAttendanceDeviceBindings,
   resetEmployeeTodayAttendance,
@@ -186,8 +188,22 @@ const createEmptyEmployeeForm = (branchId = "") => ({
   job_title: "",
   position: "",
   salary: "",
+  daily_work_hours: 8,
+  working_days_per_month: 26,
+  working_days_per_week: 6,
+  work_start_time: "",
+  work_end_time: "",
+  absence_deduction_enabled: true,
+  missing_hours_deduction_enabled: true,
+  late_deduction_enabled: true,
+  early_leave_deduction_enabled: true,
+  is_sales_active: false,
+  pos_alias: "",
+  commission_mode: "none",
+  commission_value: 0,
   hire_date: todayValue(),
   status: "active",
+  can_open_branch: true,
   manager_portal_enabled: false,
 });
 
@@ -209,6 +225,13 @@ const sameEmployeeRecord = (left = {}, right = {}) =>
   String(left.branch_id || "") === String(right.branch_id || "") &&
   String(left.employee_code || "") === String(right.employee_code || "") &&
   String(left.status || "") === String(right.status || "") &&
+  Boolean(left.can_open_branch !== false) === Boolean(right.can_open_branch !== false) &&
+  String(left.daily_work_hours || "") === String(right.daily_work_hours || "") &&
+  String(left.working_days_per_month || "") === String(right.working_days_per_month || "") &&
+  String(left.working_days_per_week || "") === String(right.working_days_per_week || "") &&
+  Boolean(left.is_sales_active) === Boolean(right.is_sales_active) &&
+  String(left.commission_mode || "") === String(right.commission_mode || "") &&
+  String(left.commission_value || "") === String(right.commission_value || "") &&
   cleanPhotoUrl(left.photo_url || "") === cleanPhotoUrl(right.photo_url || "") &&
   String(left.job_title || left.position || "") === String(right.job_title || right.position || "") &&
   Boolean(left.manager_portal_enabled) === Boolean(right.manager_portal_enabled) &&
@@ -617,6 +640,10 @@ function AttendanceWorkspace({
         ...employeeForm,
         photo_url: cleanPhotoUrl(employeeForm.photo_url),
         salary: Number(employeeForm.salary || 0),
+        daily_work_hours: Number(employeeForm.daily_work_hours || 8),
+        working_days_per_month: Number(employeeForm.working_days_per_month || 26),
+        working_days_per_week: Number(employeeForm.working_days_per_week || 6),
+        commission_value: Number(employeeForm.commission_value || 0),
       };
 
       console.info("[employee-save:start]", {
@@ -634,8 +661,50 @@ function AttendanceWorkspace({
 
       const row = {
         ...(response?.data || response?.employee || response || {}),
+        daily_work_hours: payload.daily_work_hours,
+        working_days_per_month: payload.working_days_per_month,
+        working_days_per_week: payload.working_days_per_week,
+        work_start_time: payload.work_start_time || "",
+        work_end_time: payload.work_end_time || "",
+        absence_deduction_enabled: payload.absence_deduction_enabled !== false,
+        missing_hours_deduction_enabled: payload.missing_hours_deduction_enabled !== false,
+        late_deduction_enabled: payload.late_deduction_enabled !== false,
+        early_leave_deduction_enabled: payload.early_leave_deduction_enabled !== false,
+        is_sales_active: Boolean(payload.is_sales_active),
+        active_for_pos: Boolean(payload.is_sales_active),
+        pos_alias: payload.pos_alias || "",
+        commission_mode: payload.commission_mode || "none",
+        commission_value: payload.commission_value,
         photo_url: cleanPhotoUrl(response?.data?.photo_url || response?.employee?.photo_url || response?.photo_url || payload.photo_url),
       };
+      if (row.id) {
+        const settingsResults = await Promise.allSettled([
+          updateEmployeePayrollSettings(row.id, {
+            salary: payload.salary,
+            daily_work_hours: payload.daily_work_hours,
+            working_days_per_month: payload.working_days_per_month,
+            working_days_per_week: payload.working_days_per_week,
+            work_start_time: payload.work_start_time || "",
+            work_end_time: payload.work_end_time || "",
+            absence_deduction_enabled: payload.absence_deduction_enabled !== false,
+            missing_hours_deduction_enabled: payload.missing_hours_deduction_enabled !== false,
+            late_deduction_enabled: payload.late_deduction_enabled !== false,
+            early_leave_deduction_enabled: payload.early_leave_deduction_enabled !== false,
+          }),
+          upsertSalesEmployeeProfile(row.id, {
+            employee_id: row.id,
+            branch_id: payload.branch_id || row.branch_id || "",
+            pos_alias: payload.pos_alias || "",
+            is_sales_active: Boolean(payload.is_sales_active),
+            active_for_pos: Boolean(payload.is_sales_active),
+            commission_mode: payload.commission_mode || "none",
+            commission_value: payload.commission_value,
+          }),
+        ]);
+        if (settingsResults.some((result) => result.status === "rejected")) {
+          toast.error(isArabic ? "تم حفظ الموظف، لكن بعض إعدادات الراتب أو العمولة لم تُحفظ." : "Employee saved, but some payroll or commission settings failed.");
+        }
+      }
       setEmployees((prev) => {
         const next = prev.filter((item) => String(item.id) !== String(row.id));
         return [row, ...next];
@@ -656,8 +725,22 @@ function AttendanceWorkspace({
         job_title: row.job_title || row.position || "",
         position: row.position || row.job_title || "",
         salary: row.salary || "",
+        daily_work_hours: row.daily_work_hours || payload.daily_work_hours || 8,
+        working_days_per_month: row.working_days_per_month || payload.working_days_per_month || 26,
+        working_days_per_week: row.working_days_per_week || payload.working_days_per_week || 6,
+        work_start_time: row.work_start_time || payload.work_start_time || "",
+        work_end_time: row.work_end_time || payload.work_end_time || "",
+        absence_deduction_enabled: row.absence_deduction_enabled !== false,
+        missing_hours_deduction_enabled: row.missing_hours_deduction_enabled !== false,
+        late_deduction_enabled: row.late_deduction_enabled !== false,
+        early_leave_deduction_enabled: row.early_leave_deduction_enabled !== false,
+        is_sales_active: Boolean(payload.is_sales_active),
+        pos_alias: payload.pos_alias || "",
+        commission_mode: payload.commission_mode || "none",
+        commission_value: payload.commission_value || 0,
         hire_date: row.hire_date || todayValue(),
         status: row.status || "active",
+        can_open_branch: row.can_open_branch !== false,
         manager_portal_enabled: Boolean(row.manager_portal_enabled),
         manager_portal_token: row.manager_portal_token || "",
       }));
@@ -749,8 +832,22 @@ function AttendanceWorkspace({
       job_title: employee.job_title || employee.position || "",
       position: employee.position || employee.job_title || "",
       salary: employee.salary || "",
+      daily_work_hours: employee.daily_work_hours || 8,
+      working_days_per_month: employee.working_days_per_month || 26,
+      working_days_per_week: employee.working_days_per_week || 6,
+      work_start_time: employee.work_start_time || "",
+      work_end_time: employee.work_end_time || "",
+      absence_deduction_enabled: employee.absence_deduction_enabled !== false,
+      missing_hours_deduction_enabled: employee.missing_hours_deduction_enabled !== false,
+      late_deduction_enabled: employee.late_deduction_enabled !== false,
+      early_leave_deduction_enabled: employee.early_leave_deduction_enabled !== false,
+      is_sales_active: Boolean(employee.is_sales_active || employee.active_for_pos),
+      pos_alias: employee.pos_alias || "",
+      commission_mode: employee.commission_mode || (employee.commission_type === "fixed" ? employee.fixed_commission_mode : employee.commission_type) || "none",
+      commission_value: employee.commission_value || 0,
       hire_date: employee.hire_date || todayValue(),
       status: employee.status || "active",
+      can_open_branch: employee.can_open_branch !== false,
       manager_portal_enabled: Boolean(employee.manager_portal_enabled),
       employee_portal_token: employee.employee_portal_token || "",
       manager_portal_token: employee.manager_portal_token || "",
@@ -1651,6 +1748,95 @@ function AttendanceWorkspace({
                     <InputField label={tr("fields.internalRole")} value={employeeForm.role} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, role: value }))} />
                     <InputField label={tr("fields.salary")} type="number" value={employeeForm.salary} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, salary: value }))} />
                   </div>
+                  <div className="rounded-[28px] border border-white/10 bg-black/20 p-4">
+                    <div className="text-sm font-black text-white">{isArabic ? "إعدادات الراتب والحضور" : "Payroll & attendance settings"}</div>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <InputField
+                        label={isArabic ? "ساعات العمل اليومية" : "Daily work hours"}
+                        type="number"
+                        value={employeeForm.daily_work_hours}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, daily_work_hours: value }))}
+                      />
+                      <InputField
+                        label={isArabic ? "أيام العمل شهريًا" : "Working days / month"}
+                        type="number"
+                        value={employeeForm.working_days_per_month}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, working_days_per_month: value }))}
+                      />
+                      <InputField
+                        label={isArabic ? "أيام العمل أسبوعيًا" : "Working days / week"}
+                        type="number"
+                        value={employeeForm.working_days_per_week}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, working_days_per_week: value }))}
+                      />
+                      <InputField
+                        label={isArabic ? "بداية العمل الافتراضية" : "Default start time"}
+                        type="time"
+                        value={employeeForm.work_start_time || ""}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, work_start_time: value }))}
+                      />
+                      <InputField
+                        label={isArabic ? "نهاية العمل الافتراضية" : "Default end time"}
+                        type="time"
+                        value={employeeForm.work_end_time || ""}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, work_end_time: value }))}
+                      />
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      {[
+                        ["absence_deduction_enabled", isArabic ? "احتساب خصم الغياب" : "Apply absence deduction"],
+                        ["missing_hours_deduction_enabled", isArabic ? "احتساب خصم ساعات النقص" : "Apply missing-hours deduction"],
+                        ["late_deduction_enabled", isArabic ? "احتساب خصم التأخير" : "Apply late deduction"],
+                        ["early_leave_deduction_enabled", isArabic ? "احتساب خصم الانصراف المبكر" : "Apply early-leave deduction"],
+                      ].map(([key, label]) => (
+                        <label key={key} className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-zinc-200">
+                          <span>{label}</span>
+                          <input
+                            type="checkbox"
+                            checked={employeeForm[key] !== false}
+                            onChange={(event) => setEmployeeForm((prev) => ({ ...prev, [key]: event.target.checked }))}
+                            className="h-4 w-4 accent-amber-400"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-[28px] border border-amber-400/20 bg-amber-500/10 p-4">
+                    <div className="text-sm font-black text-amber-100">{isArabic ? "إعدادات البيع والعمولات POS" : "POS sales & commission settings"}</div>
+                    <label className="mt-3 flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-amber-200/15 bg-black/20 px-3 py-2 text-xs font-bold text-amber-50">
+                      <span>{isArabic ? "إظهار الموظف كبائع في POS" : "Show employee as POS salesperson"}</span>
+                      <input
+                        type="checkbox"
+                        checked={Boolean(employeeForm.is_sales_active)}
+                        onChange={(event) => setEmployeeForm((prev) => ({ ...prev, is_sales_active: event.target.checked }))}
+                        className="h-4 w-4 accent-amber-400"
+                      />
+                    </label>
+                    <div className="mt-3 grid grid-cols-2 gap-3">
+                      <InputField
+                        label={isArabic ? "اسم مختصر في POS" : "POS alias"}
+                        value={employeeForm.pos_alias || ""}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, pos_alias: value }))}
+                      />
+                      <SelectField
+                        label={isArabic ? "نوع العمولة" : "Commission type"}
+                        value={employeeForm.commission_mode || "none"}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, commission_mode: value }))}
+                        options={[
+                          { id: "none", label: isArabic ? "بدون عمولة" : "No commission" },
+                          { id: "percent", label: isArabic ? "نسبة %" : "Percentage %" },
+                          { id: "fixed_per_item", label: isArabic ? "مبلغ على كل قطعة" : "Fixed per item" },
+                          { id: "fixed_per_invoice", label: isArabic ? "مبلغ على كل فاتورة" : "Fixed per invoice" },
+                        ]}
+                      />
+                      <InputField
+                        label={employeeForm.commission_mode === "percent" ? (isArabic ? "نسبة العمولة %" : "Commission percent") : (isArabic ? "قيمة العمولة" : "Commission amount")}
+                        type="number"
+                        value={employeeForm.commission_value}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, commission_value: value }))}
+                      />
+                    </div>
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <InputField label={tr("fields.hireDate")} type="date" value={employeeForm.hire_date} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, hire_date: value }))} />
                     <div />
@@ -1664,6 +1850,24 @@ function AttendanceWorkspace({
                       { id: "inactive", label: statusLabel("inactive") },
                     ]}
                   />
+                  <label className="flex cursor-pointer items-start justify-between gap-4 rounded-[28px] border border-emerald-400/20 bg-emerald-500/10 p-4">
+                    <span className="min-w-0">
+                      <span className="block text-sm font-black text-emerald-100">
+                        {isArabic ? "مؤهل لفتح الفرع" : "Eligible to open branch"}
+                      </span>
+                      <span className="mt-1 block text-xs font-semibold leading-5 text-emerald-100/65">
+                        {isArabic
+                          ? "فعّلها للموظف الذي يمكن اختياره كفاتح الفرع القادم عند قفل شيفت POS."
+                          : "Enable this employee in the POS next-opening selector."}
+                      </span>
+                    </span>
+                    <input
+                      type="checkbox"
+                      checked={employeeForm.can_open_branch !== false}
+                      onChange={(event) => setEmployeeForm((prev) => ({ ...prev, can_open_branch: event.target.checked }))}
+                      className="mt-1 h-5 w-5 shrink-0 accent-emerald-500"
+                    />
+                  </label>
                   <div className="rounded-[28px] border border-white/10 bg-white/5 p-4">
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0">

@@ -184,6 +184,18 @@ const quickExpenseCategories = [
   { value: "other", label: "أخرى / Other" },
 ];
 
+const openingCandidateReasonLabels = {
+  inactive: "غير نشط",
+  can_open_branch_disabled: "غير مفعّل لفتح الفرع",
+  branch_not_allowed: "غير مسموح لهذا الفرع",
+  approved_leave_on_date: "إجازة معتمدة في هذا التاريخ",
+};
+
+const formatOpeningCandidateReason = (candidate = {}) => {
+  const reasons = Array.isArray(candidate.ineligible_reasons) ? candidate.ineligible_reasons : [];
+  return reasons.map((reason) => openingCandidateReasonLabels[reason] || reason).filter(Boolean).join("، ");
+};
+
 const readLastSalespersonId = () => {
   try {
     return String(window.localStorage.getItem(POS_LAST_SALESPERSON_KEY) || "");
@@ -6053,7 +6065,8 @@ function POSPro() {
         if (!alive) return;
         const candidates = response?.candidates || response?.data?.candidates || [];
         setNextOpeningCandidates(Array.isArray(candidates) ? candidates : []);
-        const recommended = candidates.find((candidate) => candidate.is_recommended) || candidates[0] || null;
+        const eligibleCandidates = candidates.filter((candidate) => candidate.eligible !== false);
+        const recommended = eligibleCandidates.find((candidate) => candidate.is_recommended) || eligibleCandidates[0] || null;
         setNextOpeningEmployeeId((prev) => prev || (recommended?.employee_id ? String(recommended.employee_id) : ""));
       })
       .catch((error) => {
@@ -8788,14 +8801,35 @@ function ShiftCloseAuditLayout({
                   >
                     <option value="">{nextOpeningLoading ? "جاري تحميل الموظفين..." : "اختر فاتح الفرع"}</option>
                     {nextOpeningCandidates.map((candidate) => (
-                      <option key={candidate.employee_id || candidate.id} value={candidate.employee_id || candidate.id}>
+                      <option
+                        key={candidate.employee_id || candidate.id}
+                        value={candidate.employee_id || candidate.id}
+                        disabled={candidate.eligible === false}
+                      >
                         {candidate.full_name || candidate.employee_name || candidate.employee_code || `Employee #${candidate.employee_id || candidate.id}`}
                         {candidate.is_recommended ? " — مقترح" : ""}
+                        {candidate.eligible === false ? ` — غير مؤهل: ${formatOpeningCandidateReason(candidate) || "راجع بيانات الموظف"}` : ""}
                       </option>
                     ))}
                   </select>
                 </label>
               </div>
+              {!nextOpeningLoading && nextOpeningCandidates.some((candidate) => candidate.eligible === false) ? (
+                <div className="mt-3 space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100/70">
+                    موظفون غير ظاهرين للاختيار
+                  </div>
+                  {nextOpeningCandidates
+                    .filter((candidate) => candidate.eligible === false)
+                    .slice(0, 5)
+                    .map((candidate) => (
+                      <div key={`blocked-${candidate.employee_id || candidate.id}`} className="flex items-start justify-between gap-3 text-xs font-bold text-amber-100">
+                        <span>{candidate.full_name || candidate.employee_name || candidate.employee_code || `Employee #${candidate.employee_id || candidate.id}`}</span>
+                        <span className="text-end text-amber-100/70">{formatOpeningCandidateReason(candidate) || "غير مؤهل"}</span>
+                      </div>
+                    ))}
+                </div>
+              ) : null}
               <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3">
                 <label className="flex items-start gap-2 text-xs font-black text-amber-50">
                   <input
@@ -8825,7 +8859,7 @@ function ShiftCloseAuditLayout({
                   />
                 ) : null}
               </div>
-              {!nextOpeningLoading && !nextOpeningCandidates.length ? (
+              {!nextOpeningLoading && !nextOpeningCandidates.some((candidate) => candidate.eligible !== false) ? (
                 <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-100">
                   لا يوجد موظفين مؤهلين لهذا الفرع في هذا التاريخ.
                 </div>

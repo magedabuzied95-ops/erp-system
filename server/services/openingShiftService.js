@@ -209,6 +209,7 @@ export const listEligibleOpeningEmployees = async (clientOrPool, {
   branchId,
   workDate = getDefaultOpeningWorkDate(),
   includeAllBranches = false,
+  includeIneligible = false,
 } = {}) => {
   await ensureAttendanceSchema(clientOrPool);
   const normalizedBranchId = toPositiveNumber(branchId);
@@ -274,30 +275,72 @@ export const listEligibleOpeningEmployees = async (clientOrPool, {
     LEFT JOIN opening_stats os ON os.employee_id = e.id
     WHERE ($1::bigint IS NULL OR e.tenant_id = $1::bigint)
       AND COALESCE(e.is_deleted, FALSE) = FALSE
-      AND LOWER(COALESCE(e.status, 'active')) = 'active'
-      AND COALESCE(e.can_open_branch, TRUE) = TRUE
-      AND COALESCE(oe.is_eligible, CASE
-        WHEN $2::bigint IS NULL THEN TRUE
-        WHEN e.branch_id IS NULL THEN TRUE
-        WHEN e.branch_id = $2::bigint THEN TRUE
-        WHEN $4::boolean = TRUE THEN TRUE
-        ELSE FALSE
-      END) = TRUE
-      AND lb.employee_id IS NULL
+      AND (
+        $5::boolean = TRUE
+        OR (
+          LOWER(COALESCE(e.status, 'active')) = 'active'
+          AND COALESCE(e.can_open_branch, TRUE) = TRUE
+          AND COALESCE(oe.is_eligible, CASE
+            WHEN $2::bigint IS NULL THEN TRUE
+            WHEN e.branch_id IS NULL THEN TRUE
+            WHEN e.branch_id = $2::bigint THEN TRUE
+            WHEN $4::boolean = TRUE THEN TRUE
+            ELSE FALSE
+          END) = TRUE
+          AND lb.employee_id IS NULL
+        )
+      )
+      AND (
+        $4::boolean = TRUE
+        OR $2::bigint IS NULL
+        OR e.branch_id IS NULL
+        OR e.branch_id = $2::bigint
+        OR COALESCE(oe.is_eligible, FALSE) = TRUE
+      )
     ORDER BY
+      CASE
+        WHEN LOWER(COALESCE(e.status, 'active')) = 'active'
+         AND COALESCE(e.can_open_branch, TRUE) = TRUE
+         AND COALESCE(oe.is_eligible, CASE
+           WHEN $2::bigint IS NULL THEN TRUE
+           WHEN e.branch_id IS NULL THEN TRUE
+           WHEN e.branch_id = $2::bigint THEN TRUE
+           WHEN $4::boolean = TRUE THEN TRUE
+           ELSE FALSE
+         END) = TRUE
+         AND lb.employee_id IS NULL
+        THEN 0 ELSE 1
+      END,
       os.last_opening_date ASC NULLS FIRST,
       COALESCE(os.total_openings, 0) ASC,
       e.full_name ASC,
       e.id ASC
     `,
-    [tenantId || null, normalizedBranchId, workDate, Boolean(includeAllBranches)]
+    [tenantId || null, normalizedBranchId, workDate, Boolean(includeAllBranches), Boolean(includeIneligible)]
   );
 
   const rows = result.rows || [];
-  const recommendedId = rows[0]?.id || null;
-  return rows.map((row) => ({
+  const normalizedRows = rows.map((row) => {
+    const reasons = [];
+    const active = String(row.status || "active").toLowerCase() === "active";
+    const canOpenBranch = row.can_open_branch !== false;
+    const branchEligible = row.is_branch_eligible !== false;
+    const hasLeave = row.has_leave === true;
+    if (!active) reasons.push("inactive");
+    if (!canOpenBranch) reasons.push("can_open_branch_disabled");
+    if (!branchEligible) reasons.push("branch_not_allowed");
+    if (hasLeave) reasons.push("approved_leave_on_date");
+    const eligible = reasons.length === 0;
+    return {
+      ...row,
+      employee_id: row.id,
+      eligible,
+      ineligible_reasons: reasons,
+    };
+  });
+  const recommendedId = normalizedRows.find((row) => row.eligible !== false)?.id || null;
+  return normalizedRows.map((row) => ({
     ...row,
-    employee_id: row.id,
     is_recommended: String(row.id) === String(recommendedId),
   }));
 };

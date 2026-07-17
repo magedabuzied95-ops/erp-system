@@ -11,6 +11,7 @@ import { createEmployeePortalSession, ensureStaffTasksSchema, getEmployeePortalS
 import { ensureShiftResolutionSchema, resolveShiftForCheckIn } from "../services/attendanceShiftResolver.js";
 import { listEligibleOpeningEmployees, assignNextOpeningEmployee, getDefaultOpeningWorkDate } from "../services/openingShiftService.js";
 import { generateOpeningShiftSchedule } from "../services/shiftScheduleService.js";
+import { ensureSalesCommissionSchema } from "../services/salesCommissionService.js";
 
 const expectedSqlParamCount = (text = "") =>
   [...String(text || "").matchAll(/\$(\d+)/g)].reduce((max, match) => Math.max(max, Number(match[1]) || 0), 0);
@@ -1014,8 +1015,26 @@ const normalizeEmployee = (row = {}) => ({
   job_title: row.job_title || "",
   position: row.position || "",
   salary: Number(row.salary || 0),
+  daily_work_hours: Number(row.daily_work_hours || 8),
+  working_days_per_month: Number(row.working_days_per_month || 26),
+  working_days_per_week: Number(row.working_days_per_week || 6),
+  work_start_time: row.work_start_time || "",
+  work_end_time: row.work_end_time || "",
+  absence_deduction_enabled: row.absence_deduction_enabled !== false,
+  missing_hours_deduction_enabled: row.missing_hours_deduction_enabled !== false,
+  late_deduction_enabled: row.late_deduction_enabled !== false,
+  early_leave_deduction_enabled: row.early_leave_deduction_enabled !== false,
   hire_date: row.hire_date || null,
   status: row.status || "active",
+  can_open_branch: row.can_open_branch !== false,
+  pos_alias: row.pos_alias || "",
+  is_sales_active: row.is_sales_active === true,
+  active_for_pos: row.is_sales_active === true,
+  profile_configured: row.sales_profile_configured === true,
+  commission_type: row.commission_type || "none",
+  fixed_commission_mode: row.fixed_commission_mode || "fixed_per_item",
+  commission_mode: row.commission_type === "fixed" ? (row.fixed_commission_mode || "fixed_per_item") : (row.commission_type || "none"),
+  commission_value: Number(row.commission_value || 0),
   is_deleted: Boolean(row.is_deleted),
   manager_portal_enabled: Boolean(row.manager_portal_enabled),
   manager_portal_token: row.manager_portal_token || "",
@@ -1460,6 +1479,7 @@ const validateOpeningEmployee = async (client, tenantId, employeeId) => {
 export const getEmployees = async (req, res) => {
   try {
     await ensureAttendanceSchema();
+    await ensureSalesCommissionSchema();
     const tenantId = getTenantScope(req);
     const attendanceDate = getRequestAttendanceDate(req);
     const search = String(req.query.search || "").trim().toLowerCase();
@@ -1507,8 +1527,15 @@ export const getEmployees = async (req, res) => {
         ad.first_seen_at AS device_first_seen_at,
         ad.last_seen_at AS device_last_seen_at,
         COALESCE(pd.pending_device_count, 0) AS pending_device_count
+        , esp.employee_id IS NOT NULL AS sales_profile_configured
+        , COALESCE(esp.pos_alias, '') AS pos_alias
+        , COALESCE(esp.is_sales_active, FALSE) AS is_sales_active
+        , COALESCE(esp.commission_type, 'none') AS commission_type
+        , COALESCE(esp.fixed_commission_mode, 'fixed_per_item') AS fixed_commission_mode
+        , COALESCE(esp.commission_value, 0) AS commission_value
       FROM employees e
     LEFT JOIN branches w ON w.id = e.branch_id
+      LEFT JOIN employee_sales_profiles esp ON esp.employee_id = e.id
       LEFT JOIN LATERAL (
         SELECT *
         FROM employee_shifts s
@@ -1582,8 +1609,18 @@ export const createEmployee = async (req, res) => {
       jobTitle,
       position,
       salary,
+      daily_work_hours = 8,
+      working_days_per_month = 26,
+      working_days_per_week = 6,
+      work_start_time = null,
+      work_end_time = null,
+      absence_deduction_enabled = true,
+      missing_hours_deduction_enabled = true,
+      late_deduction_enabled = true,
+      early_leave_deduction_enabled = true,
       hire_date,
       status,
+      can_open_branch = true,
       manager_portal_enabled = false,
     } = req.body || {};
 
@@ -1612,11 +1649,21 @@ export const createEmployee = async (req, res) => {
         job_title,
         position,
         salary,
+        daily_work_hours,
+        working_days_per_month,
+        working_days_per_week,
+        work_start_time,
+        work_end_time,
+        absence_deduction_enabled,
+        missing_hours_deduction_enabled,
+        late_deduction_enabled,
+        early_leave_deduction_enabled,
         hire_date,
         status,
+        can_open_branch,
         manager_portal_enabled
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26)
       RETURNING *
       `,
       [
@@ -1632,8 +1679,18 @@ export const createEmployee = async (req, res) => {
         resolvedJobTitle,
         resolvedPosition,
         Number(salary || 0),
+        Number(daily_work_hours || 8),
+        Number(working_days_per_month || 26),
+        Number(working_days_per_week || 6),
+        work_start_time || null,
+        work_end_time || null,
+        absence_deduction_enabled !== false,
+        missing_hours_deduction_enabled !== false,
+        late_deduction_enabled !== false,
+        early_leave_deduction_enabled !== false,
         hire_date || new Date().toISOString().slice(0, 10),
         status || "active",
+        can_open_branch !== false,
         Boolean(manager_portal_enabled),
       ]
     );
@@ -1671,8 +1728,18 @@ export const updateEmployee = async (req, res) => {
       jobTitle,
       position,
       salary,
+      daily_work_hours = 8,
+      working_days_per_month = 26,
+      working_days_per_week = 6,
+      work_start_time = null,
+      work_end_time = null,
+      absence_deduction_enabled = true,
+      missing_hours_deduction_enabled = true,
+      late_deduction_enabled = true,
+      early_leave_deduction_enabled = true,
       hire_date,
       status,
+      can_open_branch = true,
       manager_portal_enabled = false,
     } = req.body || {};
 
@@ -1693,12 +1760,22 @@ export const updateEmployee = async (req, res) => {
         job_title = $9,
         position = $10,
         salary = $11,
-        hire_date = $12,
-        status = $13,
-        manager_portal_enabled = $14,
+        daily_work_hours = $12,
+        working_days_per_month = $13,
+        working_days_per_week = $14,
+        work_start_time = $15,
+        work_end_time = $16,
+        absence_deduction_enabled = $17,
+        missing_hours_deduction_enabled = $18,
+        late_deduction_enabled = $19,
+        early_leave_deduction_enabled = $20,
+        hire_date = $21,
+        status = $22,
+        can_open_branch = $23,
+        manager_portal_enabled = $24,
         updated_at = NOW()
-      WHERE id = $15
-        AND ($16::bigint IS NULL OR tenant_id = $16::bigint)
+      WHERE id = $25
+        AND ($26::bigint IS NULL OR tenant_id = $26::bigint)
         AND COALESCE(is_deleted, FALSE) = FALSE
       RETURNING *
       `,
@@ -1714,8 +1791,18 @@ export const updateEmployee = async (req, res) => {
         resolvedJobTitle,
         resolvedPosition,
         Number(salary || 0),
+        Number(daily_work_hours || 8),
+        Number(working_days_per_month || 26),
+        Number(working_days_per_week || 6),
+        work_start_time || null,
+        work_end_time || null,
+        absence_deduction_enabled !== false,
+        missing_hours_deduction_enabled !== false,
+        late_deduction_enabled !== false,
+        early_leave_deduction_enabled !== false,
         hire_date || new Date().toISOString().slice(0, 10),
         status || "active",
+        can_open_branch !== false,
         Boolean(manager_portal_enabled),
         id,
         tenantId,

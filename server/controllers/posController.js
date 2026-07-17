@@ -900,7 +900,12 @@ export const getPosOpeningCandidates = async (req, res) => {
     });
     const branchId = activeShift?.branch_id || selectedBranchId || numberOrNull(req.user?.branch_id || req.user?.branchId);
     const workDate = req.query?.work_date || req.query?.workDate || getDefaultOpeningWorkDate();
-    const candidates = await listEligibleOpeningEmployees(db, { tenantId, branchId, workDate });
+    const candidates = await listEligibleOpeningEmployees(db, {
+      tenantId,
+      branchId,
+      workDate,
+      includeIneligible: true,
+    });
     return res.status(200).json({
       success: true,
       branch_id: branchId || null,

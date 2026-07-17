@@ -45,6 +45,8 @@ export const getAttendanceEmployees = (params = {}) => request("/attendance/empl
 export const createAttendanceEmployee = (payload = {}) => api.post("/attendance/employees", payload);
 export const updateAttendanceEmployee = (id, payload = {}) => api.put(`/attendance/employees/${id}`, payload);
 export const deleteAttendanceEmployee = (id) => api.delete(`/attendance/employees/${id}`);
+export const updateEmployeePayrollSettings = (employeeId, payload = {}) => api.patch(`/employees/${employeeId}/payroll-settings`, payload);
+export const upsertSalesEmployeeProfile = (employeeId, payload = {}) => api.put(`/sales-employees/profiles/${employeeId}`, payload);
 export const getBranches = async (params = {}) => {
   try {
     const payload = await api.get(`/branches${buildQuery(params)}`);
