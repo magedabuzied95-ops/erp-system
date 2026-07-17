@@ -2474,6 +2474,7 @@ const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/3329
 // Women's category motion clip (Pexels video 7877138, free to use).
 const WOMEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/7877138/7877138-sd_640_338_25fps.mp4";
 const KIDS_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/8456205/8456205-sd_640_360_25fps.mp4";
+const SALE_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/5889624/5889624-sd_426_240_25fps.mp4";
 
 const mainHomeCategoryCards = [
   {
@@ -2526,6 +2527,9 @@ const mainHomeCategoryCards = [
     href: "/offers",
     test: (product) => isOfferStory(product),
     icon: BadgePercent,
+    video: SALE_CATEGORY_TRIAL_VIDEO_URL,
+    poster: "/storefront/category-posters/sale.webp",
+    preferDefinitionVideo: true,
   },
   {
     id: "crocs",
