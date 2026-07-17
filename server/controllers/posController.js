@@ -24,6 +24,7 @@ import {
 } from "../services/salesCommissionService.js";
 import { sendTextMessage } from "../services/whatsappGatewayService.js";
 import { getSetting } from "../services/settingsService.js";
+import { assignNextOpeningEmployee, getDefaultOpeningWorkDate, getHrAttendanceSettings, listEligibleOpeningEmployees } from "../services/openingShiftService.js";
 
 const numberOrNull = (value) => {
   if (value === undefined || value === null || value === "") return null;
@@ -888,6 +889,31 @@ export const getActivePosShift = async (req, res) => {
   }
 };
 
+export const getPosOpeningCandidates = async (req, res) => {
+  try {
+    const tenantId = resolveTenantId(req);
+    const selectedBranchId = numberOrNull(req.query?.branch_id || req.query?.branchId || req.body?.branch_id || req.body?.branchId);
+    const activeShift = await getCurrentCashDrawerShift(db, {
+      tenantId,
+      userId: req.user?.id,
+      branchId: selectedBranchId || undefined,
+    });
+    const branchId = activeShift?.branch_id || selectedBranchId || numberOrNull(req.user?.branch_id || req.user?.branchId);
+    const workDate = req.query?.work_date || req.query?.workDate || getDefaultOpeningWorkDate();
+    const candidates = await listEligibleOpeningEmployees(db, { tenantId, branchId, workDate });
+    return res.status(200).json({
+      success: true,
+      branch_id: branchId || null,
+      work_date: workDate,
+      candidates,
+      recommended: candidates.find((candidate) => candidate.is_recommended) || null,
+    });
+  } catch (error) {
+    console.error("[pos] opening candidates error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to load opening candidates" });
+  }
+};
+
 export const buildPosShiftReport = async (client, { tenantId, shiftId }) => {
   await ensurePosUserShiftSchema(client);
   const shiftResult = await client.query(
@@ -1354,6 +1380,34 @@ export const closePosShift = async (req, res) => {
     const ownsShift = String(shiftRow.opened_by) === String(req.user?.id);
     if (!ownsShift) return res.status(403).json({ success: false, message: "You cannot close another user's POS shift" });
 
+    const nextOpeningEmployeeId = numberOrNull(req.body?.next_opening_employee_id || req.body?.nextOpeningEmployeeId);
+    const nextOpeningWorkDate = req.body?.next_opening_work_date || req.body?.nextOpeningWorkDate || getDefaultOpeningWorkDate();
+    const nextOpeningException = String(req.body?.next_opening_exception || req.body?.nextOpeningException || "").trim();
+    const nextOpeningExceptionReason = String(req.body?.next_opening_exception_reason || req.body?.nextOpeningExceptionReason || "").trim();
+    const attendanceSettings = await getHrAttendanceSettings(client, tenantId);
+    const requireNextOpening = attendanceSettings.require_next_opening_on_pos_close !== false;
+    if (requireNextOpening && !nextOpeningEmployeeId && !nextOpeningException) {
+      return res.status(400).json({
+        success: false,
+        code: "NEXT_OPENING_EMPLOYEE_REQUIRED",
+        message: "Choose tomorrow branch opener before closing the POS shift",
+      });
+    }
+    if (nextOpeningException && !nextOpeningExceptionReason) {
+      return res.status(400).json({
+        success: false,
+        code: "NEXT_OPENING_EXCEPTION_REASON_REQUIRED",
+        message: "Opening exception reason is required",
+      });
+    }
+    if (nextOpeningException && !(await canOverridePosSeller(client, req.user?.id))) {
+      return res.status(403).json({
+        success: false,
+        code: "NEXT_OPENING_EXCEPTION_FORBIDDEN",
+        message: "You do not have permission to override tomorrow opener selection",
+      });
+    }
+
     await client.query("BEGIN");
     const closingNotes = req.body?.closing_notes || req.body?.closingNotes || req.body?.notes || "";
     const varianceReason = req.body?.variance_reason || req.body?.varianceReason || "";
@@ -1364,6 +1418,21 @@ export const closePosShift = async (req, res) => {
       notes: closingNotes,
       closedBy: req.user?.id || null,
     });
+    let openingAssignment = null;
+    if (nextOpeningEmployeeId) {
+      const openingResult = await assignNextOpeningEmployee(client, {
+        tenantId,
+        branchId: shiftRow.branch_id || shift.branch_id || null,
+        employeeId: nextOpeningEmployeeId,
+        workDate: nextOpeningWorkDate,
+        assignedByUserId: req.user?.id || null,
+        cashDrawerShiftId: shift.id,
+        source: "pos_shift_close",
+        overrideReason: req.body?.next_opening_override_reason || req.body?.nextOpeningOverrideReason || "",
+        note: req.body?.next_opening_note || req.body?.nextOpeningNote || "Assigned during POS shift close",
+      });
+      openingAssignment = openingResult.assignment;
+    }
     const events = await getCashDrawerShiftEvents(client, { tenantId, shiftId: shift.id });
     const report = await buildPosShiftReport(client, { tenantId, shiftId: shift.id });
     await client.query("COMMIT");
@@ -1398,7 +1467,19 @@ export const closePosShift = async (req, res) => {
       });
     }
 
-    return res.status(200).json({ success: true, shift, events, report });
+    return res.status(200).json({
+      success: true,
+      shift,
+      events,
+      report,
+      openingAssignment,
+      nextOpening: {
+        required: requireNextOpening,
+        work_date: nextOpeningWorkDate,
+        exception: nextOpeningException || null,
+        exception_reason: nextOpeningExceptionReason || null,
+      },
+    });
   } catch (error) {
     await client.query("ROLLBACK");
     return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to close POS shift" });

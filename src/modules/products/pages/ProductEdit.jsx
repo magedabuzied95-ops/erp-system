@@ -671,6 +671,7 @@ const isVariantLikeRow = (row = {}) =>
 
 const normalizeVariantForm = (row = {}) => ({
   variantId: getVariantRowId(row),
+  color_sort_order: Math.max(0, Number(row.color_sort_order ?? row.colorSortOrder ?? 0) || 0),
   color_group_key: row.color_group_key || row.colorGroupKey || row.variant_color_group_key || row.variantColorGroupKey || "",
   color: row.color || "Default",
   size: row.size || "One size",
@@ -806,6 +807,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
         const group = createEmptyColorGroup({
           id: explicitGroupKey || undefined,
           color_group_key: explicitGroupKey,
+          color_sort_order: Math.max(0, Number(row.color_sort_order ?? row.colorSortOrder ?? groups.length) || 0),
           color: row.color || "Default",
           color_article_code: row.color_article_code || row.colorArticleCode || "",
           thermal_image_url: row.thermal_image_url || row.thermalImageUrl || row.variant_thermal_image_url || row.color_thermal_image_url || row.variant_color_thermal_image_url || "",
@@ -884,7 +886,9 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
     );
   });
 
-  return groups.map((group) => ({
+  return groups
+    .sort((left, right) => Number(left.color_sort_order || 0) - Number(right.color_sort_order || 0))
+    .map((group) => ({
     ...group,
     manufacturer_id: normalizeManufacturerId(group.manufacturer_id) || normalizeManufacturerId(defaultManufacturerId),
     manufacturer_ids: normalizeManufacturerIds(group.manufacturer_ids, group.manufacturer_id || defaultManufacturerId),
@@ -903,7 +907,7 @@ const buildColorGroupsFromVariants = (rows = [], defaultManufacturerId = "") => 
         group.bulk_purchase_qty
     ),
     sizes: group.sizes.length > 0 ? group.sizes : [createEmptySizeRow()],
-  }));
+    }));
 };
 
 function ProductEdit() {
@@ -2662,6 +2666,17 @@ function ProductEdit() {
     }
   };
 
+  const moveColorGroup = (groupId, direction) => {
+    setColorGroups((prev) => {
+      const currentIndex = prev.findIndex((group) => group.id === groupId);
+      const targetIndex = currentIndex + direction;
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[currentIndex], next[targetIndex]] = [next[targetIndex], next[currentIndex]];
+      return next;
+    });
+  };
+
   const zeroAllColorStock = () => {
     const rowCount = colorGroups.reduce((total, group) => total + (Array.isArray(group.sizes) ? group.sizes.length : 0), 0);
     if (!rowCount) {
@@ -2915,7 +2930,7 @@ function ProductEdit() {
 
     const variantPayloads = [];
     const colorImagesPayload = normalizedGroups
-      .map((group) => {
+      .map((group, groupIndex) => {
         const groupColor = String(group.color || "").trim();
         if (!groupColor) return null;
         const images = normalizeColorImages(group.images);
@@ -2927,6 +2942,8 @@ function ProductEdit() {
             : []);
         const thermalImageUrl = String(group.thermal_image_url || "").trim();
         return {
+          sort_order: groupIndex,
+          color_sort_order: groupIndex,
           color_group_key: String(group.color_group_key || group.id || "").trim(),
           colorGroupKey: String(group.color_group_key || group.id || "").trim(),
           color_name: groupColor,
@@ -2965,7 +2982,7 @@ function ProductEdit() {
     }) || String(thermalImageUrl || product.thermal_image_url || product.product_thermal_image_url || "").trim();
 
     const usedVariantSkus = new Set(existingSkuValues);
-    normalizedGroups.forEach((group) => {
+    normalizedGroups.forEach((group, groupIndex) => {
       const groupImageUrl = String(getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "").trim();
       const groupEditionName = mirrorEditionEnabled ? String(group.edition_name || "").trim() : "";
       const groupEditionSlug = groupEditionName ? slugifyEdition(group.edition_slug || groupEditionName) : "";
@@ -2977,6 +2994,7 @@ function ProductEdit() {
         const sourceRow = (Array.isArray(group.sizes) ? group.sizes : [])[0] || {};
         const purchaseQty = getVariantPurchaseQty(sourceRow, group);
         const payload = {
+          color_sort_order: groupIndex,
           id: sourceRow.variantId || undefined,
           variant_id: sourceRow.variantId || undefined,
           color_group_key: groupKey,
@@ -3032,6 +3050,7 @@ function ProductEdit() {
         const purchaseQty = getVariantPurchaseQty(row, group);
 
         const payload = {
+          color_sort_order: groupIndex,
           id: row.variantId || undefined,
           variant_id: row.variantId || undefined,
           color_group_key: groupKey,
@@ -4158,6 +4177,34 @@ function ProductEdit() {
                     </div>
 
                     <div className="flex items-center gap-2">
+                      <div className="flex items-center rounded-xl border border-white/10 bg-zinc-950/70 p-1" aria-label="ترتيب اللون">
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            moveColorGroup(group.id, -1);
+                          }}
+                          disabled={groupIndex === 0}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                          aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأعلى`}
+                          title="تحريك لأعلى"
+                        >
+                          <ArrowUp size={15} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            moveColorGroup(group.id, 1);
+                          }}
+                          disabled={groupIndex === colorGroups.length - 1}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                          aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأسفل`}
+                          title="تحريك لأسفل"
+                        >
+                          <ArrowDown size={15} />
+                        </button>
+                      </div>
                       <button
                         type="button"
                         aria-pressed={Boolean(group.generate_thermal_artwork)}

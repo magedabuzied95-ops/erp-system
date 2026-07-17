@@ -85,6 +85,8 @@ export const normalizeVariantPayload = (input = {}) => {
         source.variant_color_group_key ??
         ""
     ),
+    color_sort_order: Math.max(0, Number(source.color_sort_order ?? source.colorSortOrder ?? 0) || 0),
+    colorSortOrder: Math.max(0, Number(source.colorSortOrder ?? source.color_sort_order ?? 0) || 0),
     variation_mode: source.variation_mode ?? source.variationMode ?? "",
     fixed_size_label: source.fixed_size_label ?? source.fixedSizeLabel ?? "",
     color: normalizeText(

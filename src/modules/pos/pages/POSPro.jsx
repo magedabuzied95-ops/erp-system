@@ -1701,6 +1701,12 @@ function POSPro() {
   const [actualDrawerAmount, setActualDrawerAmount] = useState("");
   const [shiftCloseNotes, setShiftCloseNotes] = useState("");
   const [shiftVarianceReason, setShiftVarianceReason] = useState("");
+  const [nextOpeningCandidates, setNextOpeningCandidates] = useState([]);
+  const [nextOpeningEmployeeId, setNextOpeningEmployeeId] = useState("");
+  const [nextOpeningWorkDate, setNextOpeningWorkDate] = useState("");
+  const [nextOpeningLoading, setNextOpeningLoading] = useState(false);
+  const [nextOpeningException, setNextOpeningException] = useState(false);
+  const [nextOpeningExceptionReason, setNextOpeningExceptionReason] = useState("");
 
   const [barcodeShopProduct, setBarcodeShopProduct] = useState(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -4939,6 +4945,12 @@ function POSPro() {
       setActualDrawerAmount(String(expectedCash));
       setShiftCloseNotes("");
       setShiftVarianceReason("");
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setNextOpeningWorkDate(tomorrow.toISOString().slice(0, 10));
+      setNextOpeningEmployeeId("");
+      setNextOpeningException(false);
+      setNextOpeningExceptionReason("");
       setShiftCloseOpen(true);
     } catch (err) {
       console.error("[pos] failed to close shift:", err);
@@ -4950,6 +4962,10 @@ function POSPro() {
 
   const handleConfirmCloseShift = async () => {
     if (shiftCloseSubmitting) return;
+    if (nextOpeningException && !String(nextOpeningExceptionReason || "").trim()) {
+      toast.error("اكتب سبب تجاوز اختيار فاتح الفرع قبل قفل الشيفت.");
+      return;
+    }
 
     try {
       setShiftCloseSubmitting(true);
@@ -4958,6 +4974,10 @@ function POSPro() {
         closing_cash: actualDrawer,
         closing_notes: shiftCloseNotes,
         variance_reason: shiftVarianceReason,
+        next_opening_employee_id: nextOpeningException ? undefined : nextOpeningEmployeeId || undefined,
+        next_opening_work_date: nextOpeningWorkDate || undefined,
+        next_opening_exception: nextOpeningException ? "manager_override" : undefined,
+        next_opening_exception_reason: nextOpeningException ? nextOpeningExceptionReason : undefined,
       });
 
       const closedShift = response?.shift || {};
@@ -4982,6 +5002,9 @@ function POSPro() {
       setActualDrawerAmount("");
       setShiftCloseNotes("");
       setShiftVarianceReason("");
+      setNextOpeningEmployeeId("");
+      setNextOpeningCandidates([]);
+      setNextOpeningWorkDate("");
       setClosingCash("");
       setActivePosShift(null);
       setPosShiftBranch(null);
@@ -6012,6 +6035,38 @@ function POSPro() {
       throw printError;
     }
   };
+
+  useEffect(() => {
+    if (!shiftCloseOpen) return;
+    const branchId = shiftCloseReport?.shift?.branch_id || activePosShift?.branch_id || posShiftBranch?.id || currentUser?.branch_id || "";
+    if (!branchId || !nextOpeningWorkDate) return;
+    let alive = true;
+    setNextOpeningLoading(true);
+    api
+      .get("/pos/shifts/opening-candidates", {
+        params: {
+          branch_id: branchId,
+          work_date: nextOpeningWorkDate,
+        },
+      })
+      .then((response) => {
+        if (!alive) return;
+        const candidates = response?.candidates || response?.data?.candidates || [];
+        setNextOpeningCandidates(Array.isArray(candidates) ? candidates : []);
+        const recommended = candidates.find((candidate) => candidate.is_recommended) || candidates[0] || null;
+        setNextOpeningEmployeeId((prev) => prev || (recommended?.employee_id ? String(recommended.employee_id) : ""));
+      })
+      .catch((error) => {
+        console.error("[pos] failed to load opening candidates:", error);
+        if (alive) toast.error(error?.message || "تعذر تحميل موظفين فتح الفرع");
+      })
+      .finally(() => {
+        if (alive) setNextOpeningLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [activePosShift?.branch_id, currentUser?.branch_id, nextOpeningWorkDate, posShiftBranch?.id, shiftCloseOpen, shiftCloseReport?.shift?.branch_id]);
 
   const handleDownloadInvoicePdf = async () => {
     const source = lastOrder || lastShareContext || {};
@@ -7120,6 +7175,16 @@ function POSPro() {
             onClosingNotesChange={setShiftCloseNotes}
             varianceReason={shiftVarianceReason}
             onVarianceReasonChange={setShiftVarianceReason}
+            nextOpeningCandidates={nextOpeningCandidates}
+            nextOpeningEmployeeId={nextOpeningEmployeeId}
+            onNextOpeningEmployeeChange={setNextOpeningEmployeeId}
+            nextOpeningWorkDate={nextOpeningWorkDate}
+            onNextOpeningWorkDateChange={setNextOpeningWorkDate}
+            nextOpeningLoading={nextOpeningLoading}
+            nextOpeningException={nextOpeningException}
+            onNextOpeningExceptionChange={setNextOpeningException}
+            nextOpeningExceptionReason={nextOpeningExceptionReason}
+            onNextOpeningExceptionReasonChange={setNextOpeningExceptionReason}
             onCancel={() => {
               if (shiftCloseSubmitting) return;
               setShiftCloseOpen(false);
@@ -8427,6 +8492,16 @@ function ShiftCloseModal({
   onClosingNotesChange,
   varianceReason = "",
   onVarianceReasonChange,
+  nextOpeningCandidates = [],
+  nextOpeningEmployeeId = "",
+  onNextOpeningEmployeeChange,
+  nextOpeningWorkDate = "",
+  onNextOpeningWorkDateChange,
+  nextOpeningLoading = false,
+  nextOpeningException = false,
+  onNextOpeningExceptionChange,
+  nextOpeningExceptionReason = "",
+  onNextOpeningExceptionReasonChange,
   onCancel,
   onConfirm,
   submitting,
@@ -8504,6 +8579,16 @@ function ShiftCloseModal({
           onClosingNotesChange={onClosingNotesChange}
           varianceReason={varianceReason}
           onVarianceReasonChange={onVarianceReasonChange}
+          nextOpeningCandidates={nextOpeningCandidates}
+          nextOpeningEmployeeId={nextOpeningEmployeeId}
+          onNextOpeningEmployeeChange={onNextOpeningEmployeeChange}
+          nextOpeningWorkDate={nextOpeningWorkDate}
+          onNextOpeningWorkDateChange={onNextOpeningWorkDateChange}
+          nextOpeningLoading={nextOpeningLoading}
+          nextOpeningException={nextOpeningException}
+          onNextOpeningExceptionChange={onNextOpeningExceptionChange}
+          nextOpeningExceptionReason={nextOpeningExceptionReason}
+          onNextOpeningExceptionReasonChange={onNextOpeningExceptionReasonChange}
           onPrint={onPrint}
           onCancel={onCancel}
           onConfirm={() => setConfirmClose(true)}
@@ -8539,6 +8624,12 @@ function ShiftCloseModal({
                   <span className="font-semibold text-zinc-400">Variance</span>
                   <span className={difference === 0 ? "font-black text-emerald-200" : "font-black text-amber-200"}>{formatCurrency(difference)}</span>
                 </div>
+                <div className="mt-2 flex items-center justify-between gap-3 text-sm">
+                  <span className="font-semibold text-zinc-400">Tomorrow opener</span>
+                  <span className="min-w-0 truncate font-black text-emerald-100">
+                    {nextOpeningException ? "استثناء مدير" : nextOpeningCandidates.find((candidate) => String(candidate.employee_id || candidate.id) === String(nextOpeningEmployeeId))?.full_name || "-"}
+                  </span>
+                </div>
               </div>
               <div className="mt-5 grid grid-cols-2 gap-2">
                 <button type="button" onClick={() => setConfirmClose(false)} disabled={submitting} className="h-11 rounded-2xl border border-white/10 bg-white/[0.04] text-sm font-black text-zinc-200 disabled:opacity-50">
@@ -8569,6 +8660,16 @@ function ShiftCloseAuditLayout({
   onClosingNotesChange,
   varianceReason,
   onVarianceReasonChange,
+  nextOpeningCandidates = [],
+  nextOpeningEmployeeId = "",
+  onNextOpeningEmployeeChange,
+  nextOpeningWorkDate = "",
+  onNextOpeningWorkDateChange,
+  nextOpeningLoading = false,
+  nextOpeningException = false,
+  onNextOpeningExceptionChange,
+  nextOpeningExceptionReason = "",
+  onNextOpeningExceptionReasonChange,
   onPrint,
   onCancel,
   onConfirm,
@@ -8654,6 +8755,82 @@ function ShiftCloseAuditLayout({
                 className="mt-2 min-h-28 w-full resize-none rounded-xl border border-white/10 bg-black/40 p-3.5 text-base font-semibold text-white outline-none focus:border-amber-300/50"
               />
             </label>
+            <section className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.16em] text-emerald-100">
+                    <UserCheck className="h-4 w-4" />
+                    فاتح الفرع غدًا
+                  </div>
+                  <p className="mt-1 text-xs font-semibold leading-5 text-emerald-50/70">
+                    اختيار الموظف هنا يسجل شيفت Opening تلقائيًا لبكرة على نفس الفرع.
+                  </p>
+                </div>
+                {nextOpeningLoading ? <Loader2 className="h-5 w-5 shrink-0 animate-spin text-emerald-100" /> : null}
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-[0.72fr_1.28fr]">
+                <label className="block">
+                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100/70">تاريخ الفتح</span>
+                  <input
+                    type="date"
+                    value={nextOpeningWorkDate || ""}
+                    onChange={(event) => onNextOpeningWorkDateChange?.(event.target.value)}
+                    className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm font-black text-white outline-none transition focus:border-emerald-300/60"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-[11px] font-black uppercase tracking-[0.14em] text-emerald-100/70">الموظف المؤهل</span>
+                  <select
+                    value={nextOpeningEmployeeId || ""}
+                    onChange={(event) => onNextOpeningEmployeeChange?.(event.target.value)}
+                    disabled={nextOpeningException}
+                    className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm font-black text-white outline-none transition focus:border-emerald-300/60"
+                  >
+                    <option value="">{nextOpeningLoading ? "جاري تحميل الموظفين..." : "اختر فاتح الفرع"}</option>
+                    {nextOpeningCandidates.map((candidate) => (
+                      <option key={candidate.employee_id || candidate.id} value={candidate.employee_id || candidate.id}>
+                        {candidate.full_name || candidate.employee_name || candidate.employee_code || `Employee #${candidate.employee_id || candidate.id}`}
+                        {candidate.is_recommended ? " — مقترح" : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-400/10 p-3">
+                <label className="flex items-start gap-2 text-xs font-black text-amber-50">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(nextOpeningException)}
+                    onChange={(event) => {
+                      const checked = event.target.checked;
+                      onNextOpeningExceptionChange?.(checked);
+                      if (checked) onNextOpeningEmployeeChange?.("");
+                    }}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    تجاوز اختيار فاتح الفرع بصلاحية مدير
+                    <span className="mt-1 block text-[11px] font-semibold leading-5 text-amber-100/70">
+                      استخدمها فقط لو الفرع مغلق غدًا، عطلة، أو لا يوجد موظف مؤهل. السبب إلزامي وسيظهر في سجل العمليات.
+                    </span>
+                  </span>
+                </label>
+                {nextOpeningException ? (
+                  <textarea
+                    value={nextOpeningExceptionReason}
+                    onChange={(event) => onNextOpeningExceptionReasonChange?.(event.target.value)}
+                    rows={3}
+                    placeholder="اكتب سبب التجاوز..."
+                    className="mt-3 min-h-20 w-full resize-none rounded-xl border border-amber-200/20 bg-black/45 p-3 text-sm font-bold text-white outline-none transition placeholder:text-amber-100/35 focus:border-amber-200/60"
+                  />
+                ) : null}
+              </div>
+              {!nextOpeningLoading && !nextOpeningCandidates.length ? (
+                <div className="mt-3 rounded-xl border border-amber-300/25 bg-amber-400/10 px-3 py-2 text-xs font-bold text-amber-100">
+                  لا يوجد موظفين مؤهلين لهذا الفرع في هذا التاريخ.
+                </div>
+              ) : null}
+            </section>
             <label className="block rounded-2xl border border-white/10 bg-black/20 p-4">
               <span className="text-[12px] font-black uppercase tracking-[0.16em] text-zinc-500">{copy.closingNotes}</span>
               <textarea

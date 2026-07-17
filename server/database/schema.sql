@@ -241,6 +241,7 @@ CREATE TABLE IF NOT EXISTS product_variants (
   manufacturer_id BIGINT NULL,
   manufacturer_ids BIGINT[] NOT NULL DEFAULT '{}',
   color VARCHAR(100),
+  color_sort_order INTEGER NOT NULL DEFAULT 0,
   size VARCHAR(100),
   sku VARCHAR(120),
   barcode VARCHAR(120),

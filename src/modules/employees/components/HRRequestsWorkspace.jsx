@@ -18,6 +18,7 @@ const money = (value) => {
 };
 
 const requestTabs = [
+  { id: "late_permission", type: "late_permission", labelEn: "Late Permission Requests", labelAr: "أذونات التأخير" },
   { id: "vacation", type: "vacation", labelEn: "Vacation Requests", labelAr: "طلبات الإجازات" },
   { id: "advance", type: "advance", labelEn: "Advance Requests", labelAr: "طلبات السلف" },
   { id: "hr_note", type: "hr_note", labelEn: "HR Notes / HR Requests", labelAr: "ملاحظات وطلبات الموارد البشرية" },
@@ -31,6 +32,7 @@ export default function HRRequestsWorkspace() {
   const [portalRequestsLoading, setPortalRequestsLoading] = useState(false);
   const [portalRequestReviewing, setPortalRequestReviewing] = useState("");
   const [portalRequestNotes, setPortalRequestNotes] = useState({});
+  const [leaveOverrides, setLeaveOverrides] = useState({});
   const [autoCreateAdvance, setAutoCreateAdvance] = useState(true);
 
   const loadPortalRequests = async () => {
@@ -67,6 +69,8 @@ export default function HRRequestsWorkspace() {
         status,
         admin_note: portalRequestNotes[requestId] || "",
         create_advance: status === "approved" && request.request_type === "advance" && autoCreateAdvance,
+        leave_override: status === "approved" && request.request_type === "vacation" && leaveOverrides[requestId] === true,
+        leave_override_reason: portalRequestNotes[requestId] || "",
       });
       if (response.request) {
         setPortalRequests((current) => current.map((item) => (String(item.id) === String(requestId) ? { ...item, ...response.request } : item)));
@@ -171,6 +175,16 @@ export default function HRRequestsWorkspace() {
                     </div>
 
                     <div className="grid gap-2">
+                      {request.request_type === "vacation" && canReview ? (
+                        <label className="flex items-start gap-2 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-100">
+                          <input
+                            type="checkbox"
+                            checked={leaveOverrides[request.id] === true}
+                            onChange={(event) => setLeaveOverrides((prev) => ({ ...prev, [request.id]: event.target.checked }))}
+                          />
+                          <span>{isArabic ? "اعتماد استثنائي لو الإجازة في يوم محظور — اكتب السبب في الملاحظة." : "Manager override if this leave falls on a blocked weekday — write the reason in the note."}</span>
+                        </label>
+                      ) : null}
                       <textarea
                         value={portalRequestNotes[request.id] || ""}
                         onChange={(event) => setPortalRequestNotes((prev) => ({ ...prev, [request.id]: event.target.value }))}

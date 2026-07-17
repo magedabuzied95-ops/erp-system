@@ -210,6 +210,187 @@ const safeDateSetFromTable = async ({ clientOrPool = db, tableName, dateColumn, 
   }
 };
 
+const loadMonthlyPaidLeaveAllowance = async ({ tenantId = null } = {}) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT COALESCE(monthly_paid_leave_days, 3)::int AS monthly_paid_leave_days
+      FROM hr_attendance_settings
+      WHERE ($1::bigint IS NOT NULL AND tenant_id = $1::bigint)
+      LIMIT 1
+      `,
+      [tenantId]
+    );
+    return Math.max(0, toNumber(result.rows[0]?.monthly_paid_leave_days, 3));
+  } catch (error) {
+    console.warn("[payroll] paid leave allowance fallback", error.message);
+    return 3;
+  }
+};
+
+const calculateLeavePayrollImpactForEmployee = async ({
+  tenantId = null,
+  employeeId,
+  baseSalary = 0,
+  workingDaysPerMonth = 26,
+  periodStart,
+  periodEnd,
+} = {}) => {
+  const paidAllowance = await loadMonthlyPaidLeaveAllowance({ tenantId });
+  const monthStart = `${dateKey(periodStart).slice(0, 7)}-01`;
+  const dailyRate = toNumber(baseSalary) / Math.max(1, Math.round(toNumber(workingDaysPerMonth, 26)));
+  try {
+    const result = await db.query(
+      `
+      WITH leave_days AS (
+        SELECT l.employee_id,
+          generate_series(COALESCE(l.leave_date, l.start_date), COALESCE(l.leave_date, l.end_date, l.start_date), interval '1 day')::date AS leave_day,
+          COALESCE(l.leave_type, 'paid') AS leave_kind,
+          l.status
+        FROM employee_leaves l
+        WHERE ($1::bigint IS NULL OR l.tenant_id = $1::bigint)
+          AND l.employee_id::text = $2::text
+          AND COALESCE(l.leave_date, l.start_date) <= $4::date
+          AND COALESCE(l.leave_date, l.end_date, l.start_date) >= $3::date
+        UNION ALL
+        SELECT v.employee_id,
+          generate_series(COALESCE(v.vacation_date, v.start_date), COALESCE(v.vacation_date, v.end_date, v.start_date), interval '1 day')::date AS leave_day,
+          COALESCE(v.vacation_type, 'annual') AS leave_kind,
+          v.status
+        FROM employee_vacations v
+        WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint)
+          AND v.employee_id::text = $2::text
+          AND COALESCE(v.vacation_date, v.start_date) <= $4::date
+          AND COALESCE(v.vacation_date, v.end_date, v.start_date) >= $3::date
+      )
+      SELECT leave_day, leave_kind
+      FROM leave_days
+      WHERE LOWER(COALESCE(status, 'pending')) = 'approved'
+        AND LOWER(COALESCE(leave_kind, 'paid')) NOT IN ('unpaid', 'no_pay', 'deducted', 'غير مدفوعة', 'بدون راتب')
+      ORDER BY leave_day ASC
+      `,
+      [tenantId, employeeId, monthStart, periodEnd]
+    );
+
+    let runningMonthLeaves = 0;
+    const impact = {
+      leave_days: 0,
+      paid_leave_days: 0,
+      deducted_leave_days: 0,
+      monthly_paid_leave_days: paidAllowance,
+      leave_deduction: 0,
+    };
+    const periodStartKey = dateKey(periodStart);
+    const periodEndKey = dateKey(periodEnd);
+    result.rows.forEach((row) => {
+      const leaveDay = dateKey(row.leave_day);
+      if (!leaveDay) return;
+      runningMonthLeaves += 1;
+      if (leaveDay < periodStartKey || leaveDay > periodEndKey) return;
+      impact.leave_days += 1;
+      if (runningMonthLeaves <= paidAllowance) {
+        impact.paid_leave_days += 1;
+      } else {
+        impact.deducted_leave_days += 1;
+        impact.leave_deduction += dailyRate;
+      }
+    });
+    return {
+      ...impact,
+      leave_deduction: Number(impact.leave_deduction.toFixed(2)),
+    };
+  } catch (error) {
+    console.warn("[payroll] leave impact skipped", error.message);
+    return {
+      leave_days: 0,
+      paid_leave_days: 0,
+      deducted_leave_days: 0,
+      monthly_paid_leave_days: paidAllowance,
+      leave_deduction: 0,
+    };
+  }
+};
+
+const calculateApprovedOvertimePayrollImpactForEmployee = async ({
+  tenantId = null,
+  employeeId,
+  branchId = null,
+  baseSalary = 0,
+  workingDaysPerMonth = 26,
+  dailyWorkHours = 8,
+  periodStart,
+  periodEnd,
+} = {}) => {
+  try {
+    const params = [tenantId, employeeId, periodStart, periodEnd];
+    const where = [
+      "($1::bigint IS NULL OR tenant_id = $1::bigint)",
+      "employee_id::text = $2::text",
+      "attendance_date BETWEEN $3::date AND $4::date",
+      "LOWER(COALESCE(status, 'pending')) = 'approved'",
+    ];
+    const normalizedBranchId = normalizeOptionalLookupId(branchId);
+    if (normalizedBranchId) {
+      params.push(normalizedBranchId);
+      where.push(`branch_id::text = $${params.length}::text`);
+    }
+    const result = await db.query(
+      `
+      SELECT SUM(COALESCE(overtime_minutes, 0))::numeric AS overtime_minutes
+      FROM attendance_overtime_approvals
+      WHERE ${where.join(" AND ")}
+      `,
+      params
+    );
+    const minutes = toNumber(result.rows[0]?.overtime_minutes);
+    const dailyRate = toNumber(baseSalary) / Math.max(1, Math.round(toNumber(workingDaysPerMonth, 26)));
+    const hourlyRate = dailyRate / Math.max(0.1, toNumber(dailyWorkHours, 8));
+    const overtimeHours = minutes / 60;
+    return {
+      approved_overtime_minutes: Number(minutes.toFixed(2)),
+      approved_overtime_hours: Number(overtimeHours.toFixed(2)),
+      approved_overtime_pay: Number((overtimeHours * hourlyRate).toFixed(2)),
+    };
+  } catch (error) {
+    console.warn("[payroll] approved overtime skipped", error.message);
+    return {
+      approved_overtime_minutes: 0,
+      approved_overtime_hours: 0,
+      approved_overtime_pay: 0,
+    };
+  }
+};
+
+const loadApprovedLatePermissionMap = async ({ tenantId = null, employeeId, periodStart, periodEnd } = {}) => {
+  try {
+    const result = await db.query(
+      `
+      SELECT request_date, COALESCE(amount, 0)::numeric AS allowed_minutes
+      FROM employee_portal_requests
+      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+        AND employee_id::text = $2::text
+        AND LOWER(COALESCE(request_type, '')) IN ('late_permission', 'late', 'lateness_permission')
+        AND LOWER(COALESCE(status, 'pending')) = 'approved'
+        AND request_date BETWEEN $3::date AND $4::date
+      ORDER BY request_date ASC, id ASC
+      `,
+      [tenantId, employeeId, periodStart, periodEnd]
+    );
+    const permissionByDate = new Map();
+    result.rows.forEach((row) => {
+      const key = dateKey(row.request_date);
+      if (!key) return;
+      const minutes = toNumber(row.allowed_minutes);
+      const previous = permissionByDate.get(key);
+      permissionByDate.set(key, previous === undefined ? minutes : Math.max(previous, minutes));
+    });
+    return permissionByDate;
+  } catch (error) {
+    console.warn("[payroll] late permissions skipped", error.message);
+    return new Map();
+  }
+};
+
 export const resolveTenantId = (req) => (isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id));
 
 export const ensureEmployeePenaltiesSchema = async (clientOrPool = db) => {
@@ -450,6 +631,16 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
       monthly_days_off_excluded: 0,
       excluded_leave_days: 0,
       excluded_holiday_days: 0,
+      leave_days: 0,
+      paid_leave_days: 0,
+      deducted_leave_days: 0,
+      monthly_paid_leave_days: 3,
+      leave_deduction: 0,
+      approved_overtime_minutes: 0,
+      approved_overtime_hours: 0,
+      approved_overtime_pay: 0,
+      late_permission_days: 0,
+      late_permission_minutes: 0,
       missing_attendance_dates: [],
       open_attendance_logs: [],
     };
@@ -465,10 +656,11 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   const lateEnabled = employee.late_deduction_enabled !== false;
   const earlyEnabled = employee.early_leave_deduction_enabled !== false;
 
-  const [holidayDates, leaveDates, vacationDates] = await Promise.all([
+  const [holidayDates, leaveDates, vacationDates, latePermissionByDate] = await Promise.all([
     safeDateSetFromTable({ tableName: "holidays", dateColumn: "holiday_date", tenantId, periodStart, periodEnd }),
     safeDateSetFromTable({ tableName: "employee_leaves", dateColumn: "leave_date", startColumn: "start_date", endColumn: "end_date", tenantId, employeeId, periodStart, periodEnd, statusValues: ["approved"] }),
     safeDateSetFromTable({ tableName: "employee_vacations", dateColumn: "vacation_date", startColumn: "start_date", endColumn: "end_date", tenantId, employeeId, periodStart, periodEnd, statusValues: ["approved"] }),
+    loadApprovedLatePermissionMap({ tenantId, employeeId, periodStart, periodEnd }),
   ]);
 
   const periodDates = eachDateKey(periodStart, periodEnd);
@@ -545,6 +737,7 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
   let lateHours = 0;
   let earlyLeaveHours = 0;
   let attendedDays = 0;
+  let approvedLatePermissionMinutes = 0;
 
   expectedDates.forEach((item) => {
     const row = attendanceByDate.get(item);
@@ -558,7 +751,12 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     const scheduledEnd = combineDateTime(item, employee.work_end_time);
     const fallbackLate = scheduledStart && row.first_check_in ? hoursBetween(scheduledStart, row.first_check_in) : 0;
     const fallbackEarly = scheduledEnd && row.last_check_out ? hoursBetween(row.last_check_out, scheduledEnd) : 0;
-    const late = lateEnabled ? Math.max(toNumber(row.late_minutes) / 60, fallbackLate, 0) : 0;
+    const rawLateMinutes = lateEnabled ? Math.max(toNumber(row.late_minutes), fallbackLate * 60, 0) : 0;
+    const permittedMinutes = latePermissionByDate.has(item)
+      ? (toNumber(latePermissionByDate.get(item)) > 0 ? Math.min(rawLateMinutes, toNumber(latePermissionByDate.get(item))) : rawLateMinutes)
+      : 0;
+    approvedLatePermissionMinutes += permittedMinutes;
+    const late = Math.max(0, rawLateMinutes - permittedMinutes) / 60;
     const early = earlyEnabled ? Math.max(toNumber(row.early_leave_minutes) / 60, fallbackEarly, 0) : 0;
     const shortfall = Math.max(0, dailyWorkHours - workedHours);
     const explicitShortfall = late + early;
@@ -588,11 +786,33 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     missing_hours: Number(missingHours.toFixed(2)),
   });
 
+  const [leavePayrollImpact, approvedOvertimeImpact] = await Promise.all([
+    calculateLeavePayrollImpactForEmployee({
+      tenantId,
+      employeeId,
+      baseSalary,
+      workingDaysPerMonth,
+      periodStart,
+      periodEnd,
+    }),
+    calculateApprovedOvertimePayrollImpactForEmployee({
+      tenantId,
+      employeeId,
+      branchId: attendanceBranchId,
+      baseSalary,
+      workingDaysPerMonth,
+      dailyWorkHours,
+      periodStart,
+      periodEnd,
+    }),
+  ]);
+
   const absenceDeduction = absenceDays * dailyRate;
   const missingHoursDeduction = missingHours * hourlyRate;
   const lateDeduction = lateHours * hourlyRate;
   const earlyLeaveDeduction = earlyLeaveHours * hourlyRate;
-  const attendanceDeductionTotal = absenceDeduction + missingHoursDeduction + lateDeduction + earlyLeaveDeduction;
+  const leaveDeduction = toNumber(leavePayrollImpact.leave_deduction);
+  const attendanceDeductionTotal = absenceDeduction + missingHoursDeduction + lateDeduction + earlyLeaveDeduction + leaveDeduction;
   const missingAttendanceDates = expectedDates.filter((item) => !attendanceByDate.has(item));
   const openAttendanceLogs = openAttendanceResult.rows.map((row) => ({
     id: row.id,
@@ -622,6 +842,16 @@ export const calculateAttendancePayrollDeductions = async ({ tenantId = null, em
     monthly_days_off_excluded: excludedDaysOff,
     excluded_leave_days: leaveDates.size + vacationDates.size,
     excluded_holiday_days: holidayDates.size,
+    leave_days: toNumber(leavePayrollImpact.leave_days),
+    paid_leave_days: toNumber(leavePayrollImpact.paid_leave_days),
+    deducted_leave_days: toNumber(leavePayrollImpact.deducted_leave_days),
+    monthly_paid_leave_days: toNumber(leavePayrollImpact.monthly_paid_leave_days, 3),
+    leave_deduction: Number(leaveDeduction.toFixed(2)),
+    approved_overtime_minutes: toNumber(approvedOvertimeImpact.approved_overtime_minutes),
+    approved_overtime_hours: toNumber(approvedOvertimeImpact.approved_overtime_hours),
+    approved_overtime_pay: toNumber(approvedOvertimeImpact.approved_overtime_pay),
+    late_permission_days: latePermissionByDate.size,
+    late_permission_minutes: Number(approvedLatePermissionMinutes.toFixed(2)),
     missing_attendance_dates: missingAttendanceDates,
     open_attendance_logs: openAttendanceLogs,
   };
@@ -1977,6 +2207,16 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
     monthly_days_off_excluded: 0,
     excluded_leave_days: 0,
     excluded_holiday_days: 0,
+    leave_days: 0,
+    paid_leave_days: 0,
+    deducted_leave_days: 0,
+    monthly_paid_leave_days: 3,
+    leave_deduction: 0,
+    approved_overtime_minutes: 0,
+    approved_overtime_hours: 0,
+    approved_overtime_pay: 0,
+    late_permission_days: 0,
+    late_permission_minutes: 0,
   };
   const shouldFinalize = String(filters.mark_advances_deducted || filters.markAdvancesDeducted || "").toLowerCase() === "true";
   const payrollReference = `payroll-${employeeId}-${deductionMonth}`;
@@ -2202,6 +2442,7 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
     console.warn("[payroll] attendance deduction skipped", error.message);
   }
   const attendanceDeductionTotal = toNumber(attendanceDeductions.attendance_deduction_total);
+  const approvedOvertimePay = toNumber(attendanceDeductions.approved_overtime_pay);
   const deductions = manualDeductions + advanceDeductions + penaltyDeductions + attendanceDeductionTotal;
   const createdBy = filters.createdBy || filters.created_by || filters.userId || filters.user_id || null;
   console.log("[payroll] deduction scope", {
@@ -2210,19 +2451,22 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
     manual_deductions: manualDeductions,
     advance_deductions: advanceDeductions,
     penalties_total: penaltyDeductions,
+    approved_overtime_pay: approvedOvertimePay,
     attendance_deduction_total: attendanceDeductionTotal,
     matched_deductions_count: (manualDeductions > 0 ? 1 : 0) + advanceRows.length + penaltyRows.length,
     matched_deductions_total: deductions,
     matched_advance_ids: advanceRows.map((row) => row.id),
     matched_penalty_ids: penaltyRows.map((row) => row.id),
   });
-  const netPay = baseSalary + salesEarnings + bonuses - deductions;
+  const netPay = baseSalary + salesEarnings + bonuses + approvedOvertimePay - deductions;
   const payrollSnapshot = {
     payroll_period: deductionMonth,
     employee_id: employee.id,
     base_salary: baseSalary,
     commissions: salesEarnings,
     bonuses,
+    approved_overtime_pay: approvedOvertimePay,
+    approved_overtime_hours: toNumber(attendanceDeductions.approved_overtime_hours),
     manual_deductions: manualDeductions,
     advance_deductions: advanceDeductions,
     penalties_total: penaltyDeductions,
@@ -2454,6 +2698,18 @@ export const getPayrollPreview = async ({ tenantId = null, employeeId, filters =
       missing_hours_deduction: attendanceDeductions.missing_hours_deduction,
       late_deduction: attendanceDeductions.late_deduction,
       early_leave_deduction: attendanceDeductions.early_leave_deduction,
+      leave_days: attendanceDeductions.leave_days,
+      paid_leave_days: attendanceDeductions.paid_leave_days,
+      deducted_leave_days: attendanceDeductions.deducted_leave_days,
+      monthly_paid_leave_days: attendanceDeductions.monthly_paid_leave_days,
+      leave_deduction: attendanceDeductions.leave_deduction,
+      approved_overtime_minutes: attendanceDeductions.approved_overtime_minutes,
+      approved_overtime_hours: attendanceDeductions.approved_overtime_hours,
+      approved_overtime_pay: approvedOvertimePay,
+      overtime_hours: attendanceDeductions.approved_overtime_hours,
+      overtime_pay: approvedOvertimePay,
+      late_permission_days: attendanceDeductions.late_permission_days,
+      late_permission_minutes: attendanceDeductions.late_permission_minutes,
       attendance_deduction_total: attendanceDeductionTotal,
       absence_deductions: attendanceDeductionTotal,
       expected_working_days: attendanceDeductions.expected_working_days,

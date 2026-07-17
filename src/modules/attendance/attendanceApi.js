@@ -64,6 +64,8 @@ export const scanQrAttendance = async (payload = {}) => unwrap(await api.post("/
 export const getAttendanceDevices = (params = {}) => request("/attendance/devices", params);
 export const getAttendanceDeviceSettings = () => request("/attendance/devices/settings");
 export const updateAttendanceDeviceSettings = (payload = {}) => api.put("/attendance/devices/settings", payload);
+export const getAttendanceHrSettings = () => request("/attendance/settings/hr");
+export const updateAttendanceHrSettings = (payload = {}) => api.put("/attendance/settings/hr", payload);
 export const approveAttendanceDevice = (id) => api.post(`/attendance/devices/${id}/approve`);
 export const rejectAttendanceDevice = (id) => api.post(`/attendance/devices/${id}/reject`);
 export const resetEmployeeAttendanceDevice = (employeeId) => api.post(`/attendance/employees/${employeeId}/reset-device`);
@@ -101,9 +103,13 @@ export const getAttendanceKioskSnapshot = (params = {}) => request("/attendance/
 export const getAttendanceToday = (params = {}) => request("/attendance/today", params);
 export const getAttendanceReports = (params = {}) => request("/attendance/reports", params);
 export const getAttendanceDashboard = (params = {}) => request("/attendance/dashboard", params);
+export const getAttendanceSchedules = (params = {}) => request("/attendance/schedules", params);
+export const generateAttendanceOpeningSchedule = (payload = {}) => api.post("/attendance/schedules/opening/generate", payload);
 export const getAttendanceList = (params = {}) => request("/attendance/list", params);
 export const getAttendanceLive = (params = {}) => request("/attendance/live", params);
 export const getAttendancePayrollImpact = (params = {}) => request("/attendance/payroll-impact", params);
+export const getAttendanceOvertimeApprovals = (params = {}) => request("/attendance/overtime-approvals", params);
+export const updateAttendanceOvertimeApproval = (id, payload = {}) => api.put(`/attendance/overtime-approvals/${id}`, payload);
 export const getAttendanceCenterReports = (params = {}) => request("/attendance/center-reports", params);
 export const getAttendanceLeaves = (params = {}) => request("/attendance/leaves", params);
 export const getAttendanceQrSessions = (params = {}) => request("/attendance/qr-sessions", params);

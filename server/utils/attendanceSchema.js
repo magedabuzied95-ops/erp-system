@@ -202,6 +202,10 @@ const statements = [
     ADD COLUMN IF NOT EXISTS early_leave_deduction_enabled BOOLEAN NOT NULL DEFAULT TRUE;
   `,
   `
+  ALTER TABLE IF EXISTS employees
+    ADD COLUMN IF NOT EXISTS can_open_branch BOOLEAN NOT NULL DEFAULT TRUE;
+  `,
+  `
   UPDATE employees
   SET daily_work_hours = COALESCE(NULLIF(daily_work_hours, 0), 8),
       working_days_per_month = COALESCE(NULLIF(working_days_per_month, 0), 26),
@@ -209,7 +213,8 @@ const statements = [
       absence_deduction_enabled = COALESCE(absence_deduction_enabled, TRUE),
       missing_hours_deduction_enabled = COALESCE(missing_hours_deduction_enabled, TRUE),
       late_deduction_enabled = COALESCE(late_deduction_enabled, TRUE),
-      early_leave_deduction_enabled = COALESCE(early_leave_deduction_enabled, TRUE)
+      early_leave_deduction_enabled = COALESCE(early_leave_deduction_enabled, TRUE),
+      can_open_branch = COALESCE(can_open_branch, TRUE)
   WHERE daily_work_hours IS NULL
      OR daily_work_hours = 0
      OR working_days_per_month IS NULL
@@ -219,7 +224,8 @@ const statements = [
      OR absence_deduction_enabled IS NULL
      OR missing_hours_deduction_enabled IS NULL
      OR late_deduction_enabled IS NULL
-     OR early_leave_deduction_enabled IS NULL;
+     OR early_leave_deduction_enabled IS NULL
+     OR can_open_branch IS NULL;
   `,
   `
   ALTER TABLE IF EXISTS users
@@ -325,6 +331,25 @@ const statements = [
     device_key TEXT,
     source VARCHAR(50) NOT NULL DEFAULT 'branch_qr',
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS attendance_overtime_approvals (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
+    attendance_log_id BIGINT NULL REFERENCES attendance_logs(id) ON DELETE CASCADE,
+    attendance_date DATE NOT NULL,
+    overtime_minutes INTEGER NOT NULL DEFAULT 0,
+    status VARCHAR(30) NOT NULL DEFAULT 'pending',
+    requested_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+    approved_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+    approved_at TIMESTAMP NULL,
+    payroll_applied BOOLEAN NOT NULL DEFAULT FALSE,
+    notes TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -610,12 +635,89 @@ const statements = [
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
     shift_id BIGINT NULL,
+    branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
+    work_date DATE NULL,
     attendance_log_id BIGINT NULL REFERENCES attendance_logs(id) ON DELETE SET NULL,
+    cash_drawer_shift_id BIGINT NULL,
     employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
     assigned_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
     assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    source VARCHAR(50) NOT NULL DEFAULT 'attendance_checkout',
+    override_reason TEXT,
     note TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  ALTER TABLE IF EXISTS shift_opening_assignments
+    ADD COLUMN IF NOT EXISTS branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL;
+  `,
+  `
+  ALTER TABLE IF EXISTS shift_opening_assignments
+    ADD COLUMN IF NOT EXISTS work_date DATE NULL;
+  `,
+  `
+  ALTER TABLE IF EXISTS shift_opening_assignments
+    ADD COLUMN IF NOT EXISTS cash_drawer_shift_id BIGINT NULL;
+  `,
+  `
+  ALTER TABLE IF EXISTS shift_opening_assignments
+    ADD COLUMN IF NOT EXISTS source VARCHAR(50) NOT NULL DEFAULT 'attendance_checkout';
+  `,
+  `
+  ALTER TABLE IF EXISTS shift_opening_assignments
+    ADD COLUMN IF NOT EXISTS override_reason TEXT;
+  `,
+  `
+  UPDATE shift_opening_assignments
+  SET work_date = COALESCE(work_date, (assigned_at AT TIME ZONE 'Africa/Cairo')::date + 1),
+      source = COALESCE(NULLIF(source, ''), 'attendance_checkout')
+  WHERE work_date IS NULL
+     OR source IS NULL
+     OR source = '';
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS employee_opening_eligibility (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    branch_id BIGINT NOT NULL REFERENCES branches(id) ON DELETE CASCADE,
+    is_eligible BOOLEAN NOT NULL DEFAULT TRUE,
+    reason TEXT,
+    updated_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (tenant_id, employee_id, branch_id)
+  );
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS employee_shift_schedules (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+    employee_id BIGINT NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+    branch_id BIGINT NULL REFERENCES branches(id) ON DELETE SET NULL,
+    work_date DATE NOT NULL,
+    shift_type VARCHAR(50) NOT NULL DEFAULT 'regular',
+    shift_name VARCHAR(255) NOT NULL DEFAULT 'Regular shift',
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    expected_hours NUMERIC(5,2) NOT NULL DEFAULT 10,
+    source VARCHAR(50) NOT NULL DEFAULT 'manual',
+    source_assignment_id BIGINT NULL REFERENCES shift_opening_assignments(id) ON DELETE SET NULL,
+    status VARCHAR(30) NOT NULL DEFAULT 'scheduled',
+    created_by_user_id BIGINT NULL REFERENCES users(id) ON DELETE SET NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
+  `,
+  `
+  CREATE TABLE IF NOT EXISTS hr_attendance_settings (
+    tenant_id BIGINT PRIMARY KEY REFERENCES tenants(id) ON DELETE CASCADE,
+    require_next_opening_on_pos_close BOOLEAN NOT NULL DEFAULT TRUE,
+    grace_minutes INTEGER NOT NULL DEFAULT 10,
+    monthly_paid_leave_days INTEGER NOT NULL DEFAULT 3,
+    forbidden_leave_weekdays JSONB NOT NULL DEFAULT '[4,5,6]'::jsonb,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
   `,
   `
@@ -666,6 +768,8 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_attendance_logs_tenant_shift_date ON attendance_logs (tenant_id, shift_id, attendance_date DESC);`,
   `CREATE INDEX IF NOT EXISTS idx_attendance_events_duplicate_window ON attendance_events (tenant_id, employee_id, branch_id, action_type, action_timestamp DESC);`,
   `CREATE INDEX IF NOT EXISTS idx_attendance_events_branch_timestamp ON attendance_events (tenant_id, branch_id, action_timestamp DESC);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_attendance_overtime_approvals_log_unique ON attendance_overtime_approvals (attendance_log_id) WHERE attendance_log_id IS NOT NULL;`,
+  `CREATE INDEX IF NOT EXISTS idx_attendance_overtime_approvals_lookup ON attendance_overtime_approvals (tenant_id, employee_id, attendance_date DESC, status);`,
   `CREATE INDEX IF NOT EXISTS idx_employee_attendance_devices_employee ON employee_attendance_devices (tenant_id, employee_id, status, last_seen_at DESC);`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_attendance_devices_one_approved ON employee_attendance_devices (tenant_id, employee_id) WHERE status = 'approved';`,
   `CREATE INDEX IF NOT EXISTS idx_attendance_suspicious_activity_logs_lookup ON attendance_suspicious_activity_logs (tenant_id, employee_id, created_at DESC);`,
@@ -675,6 +779,10 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_shift_opening_assignments_tenant_employee ON shift_opening_assignments (tenant_id, employee_id, assigned_at DESC);`,
   `CREATE INDEX IF NOT EXISTS idx_shift_opening_assignments_tenant_assigned ON shift_opening_assignments (tenant_id, assigned_at DESC);`,
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_shift_opening_assignments_attendance_unique ON shift_opening_assignments (attendance_log_id) WHERE attendance_log_id IS NOT NULL;`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_shift_opening_assignments_branch_work_date_unique ON shift_opening_assignments (tenant_id, branch_id, work_date) WHERE branch_id IS NOT NULL AND work_date IS NOT NULL;`,
+  `CREATE INDEX IF NOT EXISTS idx_employee_opening_eligibility_lookup ON employee_opening_eligibility (tenant_id, branch_id, employee_id, is_eligible);`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS idx_employee_shift_schedules_opening_unique ON employee_shift_schedules (tenant_id, branch_id, work_date, shift_type) WHERE branch_id IS NOT NULL AND shift_type = 'opening';`,
+  `CREATE INDEX IF NOT EXISTS idx_employee_shift_schedules_employee_date ON employee_shift_schedules (tenant_id, employee_id, work_date DESC);`,
 ];
 
 const ensureBranchDefaultWarehouseForeignKey = async (client) => {

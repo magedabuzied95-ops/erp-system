@@ -408,9 +408,11 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
   const payrollTotalDeductions = numberValue(payrollSnapshot.deductions ?? payrollManualDeductions + payrollAdvanceDeductions + payrollPenaltyDeductions + payrollAttendanceDeductions);
   const payrollSubtotal = payrollBaseSalary + payrollCommissions + payrollBonuses;
   const payrollBlockerDetails = useMemo(() => {
-    const detailed = Array.isArray(safePayrollPreview?.approval_blockers) ? safePayrollPreview.approval_blockers : [];
-    if (detailed.length) {
-      return detailed;
+    if (Array.isArray(safePayrollPreview?.approval_blockers)) {
+      // The backend is the source of truth for approval blockers. An empty array
+      // explicitly means the payroll can proceed; missing attendance rows are
+      // calculated as absences and are not unresolved attendance records.
+      return safePayrollPreview.approval_blockers;
     }
     const issues = [];
     const hasEmployee = Boolean(payroll.employee_id);
@@ -428,20 +430,11 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       issues.push({ key: "preview", severity: "warning", message_ar: t("sales.payroll.calculatePrompt", "احسب الراتب لمراجعة الإجماليات") });
       return issues;
     }
-    if (Array.isArray(safePayrollPreview?.approval_blockers) && safePayrollPreview.approval_blockers.length) {
-      return safePayrollPreview.approval_blockers;
-    }
-    if (numberValue(payrollSnapshot.expected_working_days) > 0 && numberValue(payrollSnapshot.attended_days) === 0) {
-      issues.push({ key: "attendance", severity: "hard", message_ar: t("sales.payroll.missingAttendanceData", "بيانات حضور ناقصة") });
-    }
-    if (numberValue(payrollSnapshot.qr_records_count) === 0 && numberValue(payrollSnapshot.expected_working_days) > 0) {
-      issues.push({ key: "attendance_records", severity: "hard", message_ar: t("sales.payroll.unresolvedAttendanceRecords", "سجلات حضور غير محسومة") });
-    }
     if ((safePayrollPreview?.employee_advances || []).some((advance) => String(advance.status || advance.deduction_status || "").toLowerCase() !== "settled")) {
       issues.push({ key: "advance", severity: "warning", message_ar: t("sales.payroll.pendingAdvanceRequest", "طلبات سلفة معلقة") });
     }
     return issues;
-  }, [payroll.employee_id, payrollBaseSalary, payrollEmployee, payrollSnapshot, safePayrollPreview, t]);
+  }, [payroll.employee_id, payrollBaseSalary, payrollEmployee, safePayrollPreview, t]);
   const hardPayrollBlockers = payrollBlockerDetails.filter((issue) => String(issue.severity || "").toLowerCase() === "hard");
   const payrollStatus = useMemo(() => {
     if (!payroll.employee_id) {
@@ -938,7 +931,14 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
     const advanceDeductions = numberFrom(sourcePayroll.advance_deductions);
     const penaltyDeductions = numberFrom(sourcePayroll.penalties_total, sourcePayroll.penalty_deductions);
     const absenceDeductions = numberFrom(sourcePayroll.attendance_deduction_total, sourcePayroll.absence_deductions, sourcePayroll.absence_penalties);
+    const approvedOvertimePay = numberFrom(sourcePayroll.approved_overtime_pay, sourcePayroll.overtime_pay);
+    const approvedOvertimeHours = numberFrom(sourcePayroll.approved_overtime_hours, sourcePayroll.overtime_hours);
     const deductions = manualDeductions + advanceDeductions + penaltyDeductions + absenceDeductions;
+    const netPay = numberFrom(
+      sourcePayroll.net_pay,
+      sourcePayroll.final_salary,
+      baseSalary + salesEarnings + bonuses + approvedOvertimePay - deductions,
+    );
     const eligibleItems = payrollReportRow
       ? Math.max(0, numberFrom(payrollReportRow.total_items_sold) - numberFrom(payrollReportRow.returns_refunds))
       : numberFrom(sourcePayroll.eligible_items_count);
@@ -965,6 +965,18 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       monthly_days_off_excluded: numberFrom(sourcePayroll.monthly_days_off_excluded, sourcePayroll.excluded_days_off),
       excluded_leave_days: numberFrom(sourcePayroll.excluded_leave_days),
       excluded_holiday_days: numberFrom(sourcePayroll.excluded_holiday_days),
+      leave_days: numberFrom(sourcePayroll.leave_days),
+      paid_leave_days: numberFrom(sourcePayroll.paid_leave_days),
+      deducted_leave_days: numberFrom(sourcePayroll.deducted_leave_days),
+      monthly_paid_leave_days: numberFrom(sourcePayroll.monthly_paid_leave_days),
+      leave_deduction: numberFrom(sourcePayroll.leave_deduction),
+      approved_overtime_minutes: numberFrom(sourcePayroll.approved_overtime_minutes),
+      approved_overtime_hours: approvedOvertimeHours,
+      approved_overtime_pay: approvedOvertimePay,
+      overtime_hours: approvedOvertimeHours,
+      overtime_pay: approvedOvertimePay,
+      late_permission_days: numberFrom(sourcePayroll.late_permission_days),
+      late_permission_minutes: numberFrom(sourcePayroll.late_permission_minutes),
       daily_rate: numberFrom(sourcePayroll.daily_rate),
       hourly_rate: numberFrom(sourcePayroll.hourly_rate),
       absence_deduction: numberFrom(sourcePayroll.absence_deduction),
@@ -972,8 +984,8 @@ function SalesEmployees({ defaultTab = "staff", visibleTabs = null, embedded = f
       late_deduction: numberFrom(sourcePayroll.late_deduction),
       early_leave_deduction: numberFrom(sourcePayroll.early_leave_deduction),
       deductions,
-      net_pay: baseSalary + salesEarnings + bonuses - deductions,
-      final_salary: baseSalary + salesEarnings + bonuses - deductions,
+      net_pay: netPay,
+      final_salary: netPay,
     };
     logSalesStaffDebug("[payroll-calculate]", {
       employee_id: payroll.employee_id,
@@ -1804,17 +1816,21 @@ function PayrollFinancialSummary({
   const advanceDeductions = numberValue(payroll.advance_deductions);
   const penaltyDeductions = numberValue(payroll.penalty_deductions ?? payroll.penalties_total ?? payroll.penalties);
   const attendanceDeductions = numberValue(payroll.attendance_deduction_total ?? payroll.absence_deductions ?? payroll.absence_penalties);
+  const approvedOvertimePay = numberValue(payroll.approved_overtime_pay ?? payroll.overtime_pay);
   const lateDeductions = numberValue(payroll.late_deduction);
   const attendanceOnlyDeductions = Math.max(0, attendanceDeductions - lateDeductions);
   const totalDeductions = numberValue(payroll.deductions ?? manualDeductions + advanceDeductions + penaltyDeductions + attendanceDeductions);
-  const netPay = numberValue(payroll.net_pay ?? payroll.final_salary ?? baseSalary + commissions + bonuses - totalDeductions);
+  const netPay = numberValue(payroll.net_pay ?? payroll.final_salary ?? baseSalary + commissions + bonuses + approvedOvertimePay - totalDeductions);
   const attendanceRows = [
     { label: t("sales.payroll.attendedDays", "أيام الحضور"), value: numberValue(payroll.attended_days) },
     { label: t("sales.payroll.absentDays", "أيام الغياب"), value: numberValue(payroll.absent_working_days ?? payroll.absence_days) },
     { label: t("sales.payroll.lateDays", "التأخير"), value: numberValue(payroll.late_hours ?? 0) },
+    { label: t("sales.payroll.latePermissionMinutes", "دقائق تأخير مصرح بها"), value: numberValue(payroll.late_permission_minutes ?? 0) },
     { label: t("sales.payroll.earlyLeaveCount", "الخروج المبكر"), value: numberValue(payroll.early_leave_hours ?? 0) },
-    { label: t("sales.payroll.overtimeHours", "ساعات إضافية"), value: numberValue(payroll.overtime_hours ?? 0) },
-    { label: t("sales.payroll.approvedLeaves", "الإجازات المعتمدة"), value: numberValue((payroll.excluded_leave_days ?? 0) + (payroll.excluded_holiday_days ?? 0)) },
+    { label: t("sales.payroll.overtimeHours", "ساعات إضافية معتمدة"), value: numberValue(payroll.approved_overtime_hours ?? payroll.overtime_hours ?? 0) },
+    { label: t("sales.payroll.overtimePay", "قيمة الإضافي"), value: formatPayrollMoney(approvedOvertimePay) },
+    { label: t("sales.payroll.paidLeaves", "إجازات مدفوعة"), value: numberValue(payroll.paid_leave_days ?? 0) },
+    { label: t("sales.payroll.deductedLeaves", "إجازات مخصومة"), value: numberValue(payroll.deducted_leave_days ?? 0) },
   ];
   const advanceRows = Array.isArray(safePayrollPreview?.employee_advances) ? safePayrollPreview.employee_advances : [];
   const payrollBlockerDetails = Array.isArray(issues) ? issues : [];
@@ -1945,7 +1961,11 @@ function PayrollFinancialSummary({
 
         {hasPayrollDetails && payrollBlockerDetails.length ? (
           <div className="mt-2 rounded-2xl border px-3 py-2 text-amber-100 bg-amber-400/10 border-amber-300/25">
-            <div className="text-sm font-black leading-5">{t("sales.payroll.cannotApproveNow", "لا يمكن اعتماد الراتب الآن")}</div>
+            <div className="text-sm font-black leading-5">
+              {hardPayrollBlockers.length
+                ? t("sales.payroll.cannotApproveNow", "لا يمكن اعتماد الراتب الآن")
+                : t("sales.payroll.reviewWarnings", "تنبيهات للمراجعة قبل الاعتماد")}
+            </div>
             <ul className="mt-1 space-y-0.5 text-xs font-bold leading-5">
               {(hardPayrollBlockers.length ? hardPayrollBlockers : softPayrollBlockers.length ? softPayrollBlockers : [{ key: "generic", message_ar: t("sales.payroll.blockedGeneric", "لا يمكن اعتماد الراتب الآن") }]).map((issue) => (
                 <li key={`${issue.type || issue.key || "generic"}-${issue.reference_id || issue.date || issue.amount || issue.message_ar || issue.label}`} className="flex items-start gap-2">

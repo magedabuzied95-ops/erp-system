@@ -177,11 +177,12 @@ const emitCountRefresh = (context = {}, count = null) => {
 };
 
 export const createNotification = async (data = {}) => {
-  await ensureNotificationsSchema();
+  const clientOrPool = data.clientOrPool || data.client || db;
+  await ensureNotificationsSchema(clientOrPool);
   const notification = normalizeNotification(data);
 
   if (notification.entity_type && notification.entity_id) {
-    const duplicate = await db.query(
+    const duplicate = await clientOrPool.query(
       `
       SELECT *
       FROM notifications
@@ -198,7 +199,7 @@ export const createNotification = async (data = {}) => {
     if (duplicate.rows[0]) return rowToNotification(duplicate.rows[0]);
   }
 
-  const result = await db.query(
+  const result = await clientOrPool.query(
     `
     INSERT INTO notifications (
       tenant_id, user_id, role_key, branch_id, type, category, priority, title, message,

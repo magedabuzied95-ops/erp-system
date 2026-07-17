@@ -385,6 +385,7 @@ Object.assign(labels.ar, {
   basicSalary: "الراتب الأساسي",
   bonusesAndCommissions: "المكافآت والعمولات",
   attendanceDeductions: "خصومات الحضور",
+  blockingIssueMissingSalary: "إعداد الراتب الأساسي غير مكتمل",
   blockingIssueMissingAttendance: "بيانات حضور ناقصة",
   blockingIssueUnresolvedAttendance: "سجلات حضور غير محسومة",
   blockingIssuePendingAdvances: "طلبات سلفة معلقة",
@@ -397,6 +398,7 @@ Object.assign(labels.ar, {
   markAsPaid: "تسجيل كمدفوع",
   payrollHistory: "سجل الراتب",
   attendanceSnapshot: "لقطة الحضور",
+  attendanceRecordsResolved: "لا توجد سجلات حضور مفتوحة",
   technicalValidationChecklist: "قائمة التحقق التقنية",
   showDetails: "إظهار التفاصيل",
   hideDetails: "إخفاء التفاصيل",
@@ -475,6 +477,7 @@ Object.assign(labels.en, {
   basicSalary: "Basic salary",
   bonusesAndCommissions: "Bonuses/commissions",
   attendanceDeductions: "Attendance deductions",
+  blockingIssueMissingSalary: "Base salary setup is incomplete",
   blockingIssueMissingAttendance: "Missing attendance data",
   blockingIssueUnresolvedAttendance: "Unresolved attendance records",
   blockingIssuePendingAdvances: "Pending advance requests",
@@ -487,6 +490,7 @@ Object.assign(labels.en, {
   markAsPaid: "Mark as paid",
   payrollHistory: "Payroll history",
   attendanceSnapshot: "Attendance snapshot",
+  attendanceRecordsResolved: "No open attendance records",
   technicalValidationChecklist: "Technical validation checklist",
   showDetails: "Show details",
   hideDetails: "Hide details",
@@ -1236,6 +1240,7 @@ function AttendancePanel({
   attendanceSaving,
   canCheckOutToday,
   currentShift = {},
+  tomorrowShift = null,
   employeeStatus,
   isCheckedIn,
   onCheckIn,
@@ -1276,6 +1281,21 @@ function AttendancePanel({
         </div>
       </div>
       {todayCheckIn ? <div className="mt-2.5 text-[11px] font-bold text-slate-300 md:mt-3 md:text-xs">{ui("checkedInAt")} <DateSafe>{formatTimeLocal(todayCheckIn, language)}</DateSafe></div> : null}
+      {tomorrowShift ? (
+        <div className="mt-3 rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-3 py-2 text-xs font-bold leading-5 text-emerald-50">
+          <div className="flex items-center justify-between gap-2">
+            <span>{tomorrowShift.isOpening ? "أنت فاتح الفرع غدًا" : "شيفت بكرة"}</span>
+            <span className="rounded-full bg-emerald-300 px-2 py-0.5 text-[10px] font-black text-emerald-950">
+              {tomorrowShift.branch_name || tomorrowShift.branchName || ""}
+            </span>
+          </div>
+          <div className="mt-1" dir="ltr">
+            {formatShiftTimeLocal(tomorrowShift.start_time || tomorrowShift.startTime, language)}
+            {" → "}
+            {formatShiftTimeLocal(tomorrowShift.end_time || tomorrowShift.endTime, language)}
+          </div>
+        </div>
+      ) : null}
       <div className="mt-3 grid grid-cols-2 gap-2 md:mt-4">
         <button type="button" onClick={() => onCheckIn()} disabled={Boolean(attendanceSaving)} className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-3 text-sm font-black text-emerald-950 disabled:opacity-50">
           {attendanceSaving === "check_in" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
@@ -1688,7 +1708,8 @@ export default function EmployeePayrollPortal() {
   const visibleCompletedAlerts = completedExpanded ? completedAlerts : completedAlerts.slice(0, 1);
   const hiddenCompletedDisplayRefillCount = Math.max(completedAlerts.length - 1, 0);
   const hasDisplayRefillAlerts = displayRefillAlertRows.length > 0;
-  const currentShift = portal?.currentShift || profile.currentShift || {};
+  const currentShift = portal?.todayShift || portal?.currentShift || profile.todayShift || profile.currentShift || {};
+  const tomorrowShift = portal?.tomorrowShift || profile.tomorrowShift || null;
   const ui = (key) => text[key] || labels.en[key] || key;
   const showInstallCard = !standalone && (Boolean(installPrompt) || isIosDevice());
   const clearPortalToast = useCallback(() => {
@@ -1743,29 +1764,22 @@ export default function EmployeePayrollPortal() {
   const recentAdvances = safeArray(portal?.recent_advances);
   const lazyWarnings = safeArray(portal?.warnings);
   const leaderboardLazy = lazyWarnings.some((warning) => warning?.section === "leaderboard" && warning?.code === "lazy");
-  const payrollBlockingIssues = useMemo(() => {
-    const issues = [];
-    const attendanceRecordsCount = Number(attendance?.records_count || attendanceRows.length || 0);
-    const hasMissingAttendanceData = attendanceRecordsCount <= 0 || (Number(expectedDays || 0) > 0 && Number(presentDays || 0) === 0 && attendanceRows.length === 0);
-    const hasUnresolvedAttendance = attendanceRows.some((row) => {
+  const payrollBaseSalary = Number(portal?.base_salary ?? portal?.payslip?.base_salary ?? 0);
+  const hasUnresolvedAttendance = useMemo(
+    () => attendanceRows.some((row) => {
       const rowStatus = String(row?.status || row?.attendance_status || row?.daily_status || "").trim().toLowerCase();
       const hasOpenCheckout = Boolean((row?.check_in_at || row?.check_in) && !(row?.check_out_at || row?.check_out));
       return ["pending", "open", "unresolved", "missing_checkout", "missing-checkout", "missing checkout"].includes(rowStatus) || hasOpenCheckout;
-    });
-    const hasPendingAdvances = employeeRequests.some((item) => {
-      const requestType = String(item?.request_type || item?.type || "").trim().toLowerCase();
-      const requestStatus = String(item?.status || "").trim().toLowerCase();
-      return requestType === "advance" && requestStatus === "pending";
-    }) || recentAdvances.some((item) => {
-      const deductionStatus = String(item?.deduction_status || item?.status || "").trim().toLowerCase();
-      return ["pending", "open", "due"].includes(deductionStatus);
-    });
+    }),
+    [attendanceRows]
+  );
+  const payrollBlockingIssues = useMemo(() => {
+    const issues = [];
 
-    if (hasMissingAttendanceData) issues.push(ui("blockingIssueMissingAttendance"));
+    if (payrollBaseSalary <= 0) issues.push(ui("blockingIssueMissingSalary"));
     if (hasUnresolvedAttendance) issues.push(ui("blockingIssueUnresolvedAttendance"));
-    if (hasPendingAdvances) issues.push(ui("blockingIssuePendingAdvances"));
     return issues;
-  }, [attendance?.records_count, attendanceRows, employeeRequests, expectedDays, presentDays, recentAdvances, ui]);
+  }, [hasUnresolvedAttendance, payrollBaseSalary, ui]);
   const payrollLifecycle = useMemo(() => {
     const statusKey = String(payrollStatusValue || "").trim().toLowerCase();
     if (["paid", "settled", "completed"].includes(statusKey)) {
@@ -3700,8 +3714,8 @@ export default function EmployeePayrollPortal() {
                     {[
                       { label: ui("employeeName"), ok: Boolean(portal?.payslip?.employee_name || profile.name) },
                       { label: ui("payrollMonth"), ok: Boolean(portal?.current_payroll_period || portal?.payslip?.payroll_period) },
-                      { label: ui("attendanceSnapshot"), ok: attendanceRows.length > 0 || Number(attendance?.records_count || 0) > 0 },
-                      { label: ui("payrollHistory"), ok: walletTransactions.length > 0 },
+                      { label: ui("basicSalary"), ok: payrollBaseSalary > 0 },
+                      { label: ui("attendanceRecordsResolved"), ok: !hasUnresolvedAttendance },
                       { label: ui("statusBlockingApproval"), ok: payrollBlockingIssues.length === 0 },
                     ].map((item) => (
                       <div key={item.label} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2.5">
@@ -3778,6 +3792,7 @@ export default function EmployeePayrollPortal() {
                   attendanceSaving={attendanceSaving}
                   canCheckOutToday={canCheckOutToday}
                   currentShift={currentShift}
+                  tomorrowShift={tomorrowShift}
                   employeeStatus={employeeStatus}
                   isCheckedIn={isCheckedIn}
                   onCheckIn={() => submitAttendanceAction("check_in")}

@@ -16,15 +16,20 @@ import {
   getAttendanceKioskSnapshot,
   getAttendanceToday,
   getAttendanceReports,
+  getAttendanceSchedules,
+  generateAttendanceOpeningSchedule,
   getAttendanceDashboard,
   getAttendanceList,
   getAttendanceLive,
   getAttendancePayrollImpact,
+  getAttendanceOvertimeApprovals,
+  updateAttendanceOvertimeApproval,
   getAttendanceCenterReports,
   getAttendanceLeaves,
   getAttendanceQrSessions,
   getAttendanceDevices,
   getAttendanceDeviceSettings,
+  getAttendanceHrSettings,
   getBranchAttendanceQr,
   scanQrAttendance,
   getPublicBranchAttendance,
@@ -34,6 +39,7 @@ import {
   rejectAttendanceDevice,
   resetEmployeeAttendanceDevice,
   updateAttendanceDeviceSettings,
+  updateAttendanceHrSettings,
   updateEmployee,
   updateEmployeeShift,
 } from "../controllers/attendanceController.js";
@@ -57,9 +63,13 @@ router.get("/reports/daily", protect, permit("attendance", "view"), getDailyRepo
 router.get("/reports/employee/:id", protect, permit("attendance", "view"), getEmployeeReport);
 router.get("/reports/branch", protect, permit("attendance", "view"), getBranchReport);
 router.get("/dashboard", protect, permit("attendance", "view"), getAttendanceDashboard);
+router.get("/schedules", protect, permit("attendance", "view"), getAttendanceSchedules);
+router.post("/schedules/opening/generate", protect, permit("attendance", "edit"), generateAttendanceOpeningSchedule);
 router.get("/list", protect, permit("attendance", "view"), getAttendanceList);
 router.get("/live", protect, permit("attendance", "view"), getAttendanceLive);
 router.get("/payroll-impact", protect, permit("attendance", "view"), getAttendancePayrollImpact);
+router.get("/overtime-approvals", protect, permit("attendance", "view"), getAttendanceOvertimeApprovals);
+router.put("/overtime-approvals/:id", protect, permit("attendance", "edit"), updateAttendanceOvertimeApproval);
 router.get("/center-reports", protect, permit("attendance", "view"), getAttendanceCenterReports);
 router.get("/leaves", protect, permit("attendance", "view"), getAttendanceLeaves);
 router.get("/qr-sessions", protect, permit("attendance", "view"), getAttendanceQrSessions);
@@ -68,6 +78,8 @@ router.get("/reports", protect, permit("attendance", "view"), getAttendanceRepor
 router.get("/devices", protect, permit("attendance", "view"), getAttendanceDevices);
 router.get("/devices/settings", protect, permit("attendance", "view"), getAttendanceDeviceSettings);
 router.put("/devices/settings", protect, permit("attendance", "edit"), updateAttendanceDeviceSettings);
+router.get("/settings/hr", protect, permit("attendance", "view"), getAttendanceHrSettings);
+router.put("/settings/hr", protect, permit("attendance", "edit"), updateAttendanceHrSettings);
 router.post("/devices/:id/approve", protect, permit("attendance", "edit"), approveAttendanceDevice);
 router.post("/devices/:id/reject", protect, permit("attendance", "edit"), rejectAttendanceDevice);
 router.post("/employees/:id/reset-device", protect, permit("attendance", "edit"), resetEmployeeAttendanceDevice);

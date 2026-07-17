@@ -23,15 +23,21 @@ import { useTranslation } from "react-i18next";
 import { formatCurrency } from "../../../shared/lib/currency";
 
 import {
+  generateAttendanceOpeningSchedule,
   getAttendanceCenterReports,
   getAttendanceDashboard,
   getAttendanceEmployees,
+  getAttendanceHrSettings,
   getAttendanceLeaves,
   getAttendanceList,
   getAttendanceLive,
+  getAttendanceOvertimeApprovals,
   getAttendancePayrollImpact,
   getAttendanceQrSessions,
+  getAttendanceSchedules,
   getBranches,
+  updateAttendanceHrSettings,
+  updateAttendanceOvertimeApproval,
 } from "../attendanceApi";
 
 const todayValue = () => new Date().toISOString().slice(0, 10);
@@ -125,6 +131,11 @@ const labels = {
       absenceDays: "Absence Days",
       lateCount: "Late Count",
       deduction: "Attendance Deduction",
+      paidLeaves: "Paid Leaves",
+      deductedLeaves: "Deducted Leaves",
+      leaveDeduction: "Leave Deduction",
+      approvedOvertime: "Approved Overtime",
+      overtimePay: "Overtime Pay",
       penalties: "Penalties",
       netImpact: "Net Salary Impact",
       leaveType: "Leave type",
@@ -206,6 +217,11 @@ const labels = {
       absenceDays: "أيام الغياب",
       lateCount: "عدد التأخير",
       deduction: "خصم الحضور",
+      paidLeaves: "إجازات مدفوعة",
+      deductedLeaves: "إجازات مخصومة",
+      leaveDeduction: "خصم الإجازات",
+      approvedOvertime: "إضافي معتمد",
+      overtimePay: "قيمة الإضافي",
       penalties: "الجزاءات",
       netImpact: "صافي التأثير",
       leaveType: "نوع الإجازة",
@@ -297,6 +313,84 @@ function NativeSelect(props) {
   return <select {...props} className={`h-10 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 text-sm font-semibold text-[var(--text)] outline-none focus:border-[var(--primary)] ${props.className || ""}`} />;
 }
 
+function HrSettingsPanel({ settings, isArabic, saving, onChange, onSave }) {
+  const values = settings || {
+    require_next_opening_on_pos_close: true,
+    grace_minutes: 10,
+    monthly_paid_leave_days: 3,
+    forbidden_leave_weekdays: [4, 5, 6],
+  };
+  const weekdayLabels = isArabic
+    ? ["الأحد", "الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"]
+    : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const blockedDays = Array.isArray(values.forbidden_leave_weekdays) ? values.forbidden_leave_weekdays.map(Number) : [];
+  const toggleWeekday = (day) => {
+    const next = blockedDays.includes(day) ? blockedDays.filter((item) => item !== day) : [...blockedDays, day];
+    onChange("forbidden_leave_weekdays", next.sort((a, b) => a - b));
+  };
+
+  return (
+    <section className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-[var(--muted)]">
+            {isArabic ? "قواعد الحضور والمرتبات" : "Attendance payroll rules"}
+          </div>
+          <h3 className="mt-1 text-xl font-black text-[var(--text)]">
+            {isArabic ? "إعدادات الاحتساب الأساسية" : "Core calculation settings"}
+          </h3>
+          <p className="mt-1 text-sm text-[var(--muted)]">
+            {isArabic ? "القواعد دي بتأثر على الإجازات المدفوعة، التأخير، وفاتح الفرع عند قفل نقطة البيع." : "These rules affect paid leave, late grace, and next opener selection on POS close."}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onSave}
+          disabled={saving}
+          className="inline-flex h-10 items-center justify-center rounded-lg bg-[var(--primary)] px-4 text-sm font-black text-black disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {saving ? (isArabic ? "جاري الحفظ..." : "Saving...") : (isArabic ? "حفظ الإعدادات" : "Save settings")}
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <Field label={isArabic ? "سماحية التأخير بالدقائق" : "Late grace minutes"}>
+          <NativeInput type="number" min="0" value={values.grace_minutes ?? 10} onChange={(event) => onChange("grace_minutes", Number(event.target.value || 0))} />
+        </Field>
+        <Field label={isArabic ? "الإجازات المدفوعة شهريًا" : "Monthly paid leave days"}>
+          <NativeInput type="number" min="0" value={values.monthly_paid_leave_days ?? 3} onChange={(event) => onChange("monthly_paid_leave_days", Number(event.target.value || 0))} />
+        </Field>
+        <label className="flex items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm font-black text-[var(--text)] xl:col-span-2">
+          <input
+            type="checkbox"
+            checked={values.require_next_opening_on_pos_close !== false}
+            onChange={(event) => onChange("require_next_opening_on_pos_close", event.target.checked)}
+          />
+          {isArabic ? "إلزام اختيار فاتح الفرع عند قفل شيفت POS" : "Require next opener when closing POS shift"}
+        </label>
+      </div>
+
+      <div className="mt-4">
+        <div className="mb-2 text-xs font-black text-[var(--muted)]">
+          {isArabic ? "أيام ممنوع طلب إجازة فيها بدون موافقة خاصة" : "Weekdays blocked for leave without override"}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {weekdayLabels.map((label, index) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => toggleWeekday(index)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-black ${blockedDays.includes(index) ? "border-rose-400/30 bg-rose-500/15 text-rose-200" : "border-[var(--border)] bg-[var(--surface)] text-[var(--muted)]"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 export default function AttendanceCenter() {
   const { t, i18n } = useTranslation();
   const isArabic = String(i18n.language || "").toLowerCase().startsWith("ar");
@@ -315,9 +409,13 @@ export default function AttendanceCenter() {
   const [rows, setRows] = useState([]);
   const [liveRows, setLiveRows] = useState([]);
   const [payrollRows, setPayrollRows] = useState([]);
+  const [overtimeRows, setOvertimeRows] = useState([]);
   const [leaveRows, setLeaveRows] = useState([]);
+  const [scheduleRows, setScheduleRows] = useState([]);
   const [qrRows, setQrRows] = useState([]);
   const [reportPayload, setReportPayload] = useState(null);
+  const [hrSettings, setHrSettings] = useState(null);
+  const [savingHrSettings, setSavingHrSettings] = useState(false);
   const [filters, setFilters] = useState({
     search: "",
     branchId: "",
@@ -347,16 +445,19 @@ export default function AttendanceCenter() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [branchData, employeeData, dashboardData, listData, liveData, payrollData, leavesData, qrData, reportsData] = await Promise.all([
+      const [branchData, employeeData, dashboardData, listData, liveData, payrollData, overtimeData, leavesData, scheduleData, qrData, reportsData, hrSettingsData] = await Promise.all([
         getBranches({ active: true }),
         getAttendanceEmployees({ active: true, branch_id: filters.branchId }),
         getAttendanceDashboard(params),
         getAttendanceList(params),
         getAttendanceLive(params),
         getAttendancePayrollImpact(params),
+        getAttendanceOvertimeApprovals(params),
         getAttendanceLeaves(params),
+        getAttendanceSchedules(params),
         getAttendanceQrSessions(params),
         getAttendanceCenterReports(params),
+        getAttendanceHrSettings(),
       ]);
       setBranches(safeArray(branchData));
       setEmployees(safeArray(employeeData));
@@ -364,9 +465,12 @@ export default function AttendanceCenter() {
       setRows(safeArray(listData?.rows || listData?.attendance || listData));
       setLiveRows(safeArray(liveData?.rows || liveData));
       setPayrollRows(safeArray(payrollData?.rows || payrollData));
+      setOvertimeRows(safeArray(overtimeData?.rows || overtimeData));
       setLeaveRows(safeArray(leavesData?.rows || leavesData));
+      setScheduleRows(safeArray(scheduleData?.rows || scheduleData?.schedules || scheduleData));
       setQrRows(safeArray(qrData?.rows || qrData));
       setReportPayload(reportsData || null);
+      setHrSettings(hrSettingsData || null);
     } finally {
       setLoading(false);
     }
@@ -400,6 +504,10 @@ export default function AttendanceCenter() {
     [text.qrCheckins, summary.qr_checkins_today || 0, QrCode, "cyan"],
     [text.qrCheckouts, summary.qr_checkouts_today || 0, QrCode, "blue"],
   ];
+  const openingSchedules = useMemo(
+    () => scheduleRows.filter((row) => String(row.shift_type || "").toLowerCase() === "opening").slice(0, 5),
+    [scheduleRows]
+  );
 
   const updateFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
 
@@ -416,6 +524,49 @@ export default function AttendanceCenter() {
     link.download = `${name}.csv`;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleOvertimeApproval = async (row, status) => {
+    await updateAttendanceOvertimeApproval(row.id, { status });
+    setRefreshIndex((value) => value + 1);
+  };
+
+  const handleGenerateOpeningSchedule = async () => {
+    if (!filters.branchId) {
+      window.alert(isArabic ? "اختر الفرع أولًا لتوليد جدول فاتح الفرع." : "Select a branch first to generate opening schedule.");
+      return;
+    }
+    await generateAttendanceOpeningSchedule({
+      branch_id: filters.branchId,
+      start_date: filters.startDate,
+      end_date: filters.endDate,
+      overwrite: false,
+    });
+    setRefreshIndex((value) => value + 1);
+  };
+
+  const handleHrSettingsChange = (key, value) => {
+    setHrSettings((prev) => ({
+      ...(prev || {
+        require_next_opening_on_pos_close: true,
+        grace_minutes: 10,
+        monthly_paid_leave_days: 3,
+        forbidden_leave_weekdays: [4, 5, 6],
+      }),
+      [key]: value,
+    }));
+  };
+
+  const handleSaveHrSettings = async () => {
+    if (!hrSettings) return;
+    setSavingHrSettings(true);
+    try {
+      const response = await updateAttendanceHrSettings(hrSettings);
+      setHrSettings(response?.data || response?.settings || response || hrSettings);
+      setRefreshIndex((value) => value + 1);
+    } finally {
+      setSavingHrSettings(false);
+    }
   };
 
   const printPage = () => window.print();
@@ -473,6 +624,8 @@ export default function AttendanceCenter() {
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {kpis.map(([label, value, Icon, tone]) => <KpiCard key={label} label={label} value={value} icon={Icon} tone={tone} />)}
           </div>
+          <HrSettingsPanel settings={hrSettings} isArabic={isArabic} saving={savingHrSettings} onChange={handleHrSettingsChange} onSave={handleSaveHrSettings} />
+          <OpeningSchedulePanel rows={openingSchedules} isArabic={isArabic} onGenerate={handleGenerateOpeningSchedule} canGenerate={Boolean(filters.branchId)} />
           <div className="grid gap-4 xl:grid-cols-2">
             <ChartPanel title="Attendance trend" data={dashboard?.trends?.attendance || []} type="line" lines={["present", "absent"]} />
             <ChartPanel title="Late arrivals trend" data={dashboard?.trends?.late_arrivals || []} type="bar" bars={["late"]} />
@@ -486,11 +639,72 @@ export default function AttendanceCenter() {
       {["daily", "late", "missing", "absences"].includes(activeTab) ? <AttendanceTable rows={filteredRows} text={text} dense={dense} onSelect={setSelectedRow} /> : null}
       {activeTab === "leaves" ? <LeavesTable rows={leaveRows} text={text} /> : null}
       {activeTab === "qr" ? <QrSessionsTable rows={qrRows} text={text} /> : null}
-      {activeTab === "payroll" ? <PayrollImpact rows={payrollRows} text={text} onSelect={setSelectedRow} /> : null}
+      {activeTab === "payroll" ? (
+        <div className="space-y-4">
+          <OvertimeApprovalsPanel rows={overtimeRows} isArabic={isArabic} onUpdate={handleOvertimeApproval} />
+          <PayrollImpact rows={payrollRows} text={text} onSelect={setSelectedRow} />
+        </div>
+      ) : null}
       {activeTab === "reports" ? <ReportsView payload={reportPayload} rows={rows} text={text} onExport={exportRows} /> : null}
 
       {selectedRow ? <DetailsDrawer row={selectedRow} text={text} onClose={() => setSelectedRow(null)} /> : null}
     </div>
+  );
+}
+
+function OpeningSchedulePanel({ rows = [], isArabic, onGenerate, canGenerate }) {
+  const title = isArabic ? "فاتح الفرع القادم" : "Upcoming opening shifts";
+  const subtitle = isArabic ? "أقرب موظفين محددين لفتح الفروع من إغلاق نقطة البيع أو جدول الشيفتات." : "Nearest employees assigned to open branches from POS shift closing or schedules.";
+  const empty = isArabic ? "لا توجد شيفتات فتح فرع محددة حاليًا." : "No opening shifts are scheduled yet.";
+  const dateFormatter = new Intl.DateTimeFormat(undefined, { dateStyle: "medium" });
+
+  return (
+    <section className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-emerald-300">{isArabic ? "تنبيه تشغيل" : "Operations alert"}</p>
+          <h3 className="mt-1 text-lg font-black text-[var(--text)]">{title}</h3>
+          <p className="mt-1 text-sm text-[var(--muted)]">{subtitle}</p>
+        </div>
+        <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-300">
+          {rows.length} {isArabic ? "شيفت" : "shifts"}
+        </span>
+        <button
+          type="button"
+          onClick={onGenerate}
+          className="rounded-full border border-emerald-400/30 bg-emerald-400 px-3 py-1.5 text-xs font-black text-black disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={!canGenerate}
+          title={canGenerate ? "" : (isArabic ? "اختر الفرع أولًا" : "Select branch first")}
+        >
+          {isArabic ? "توليد للفترة" : "Generate range"}
+        </button>
+      </div>
+      {rows.length ? (
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {rows.map((row) => {
+            const workDate = safeDate(row.work_date);
+            return (
+              <article key={row.id || `${row.employee_id}-${row.work_date}-${row.branch_id}`} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-base font-black text-[var(--text)]">{row.employee_name || row.full_name || (isArabic ? "موظف غير محدد" : "Unassigned employee")}</p>
+                    <p className="mt-1 text-sm font-bold text-[var(--muted)]">{row.branch_name || row.branch || (isArabic ? "بدون فرع" : "No branch")}</p>
+                  </div>
+                  <CalendarDays className="h-5 w-5 text-emerald-300" />
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs font-black">
+                  <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-emerald-300">{workDate ? dateFormatter.format(workDate) : row.work_date || "-"}</span>
+                  <span className="rounded-full bg-[var(--surface)] px-2.5 py-1 text-[var(--text)]">{row.start_time || "--:--"} → {row.end_time || "--:--"}</span>
+                </div>
+                {row.assigned_by_name ? <p className="mt-2 text-xs font-bold text-[var(--muted)]">{isArabic ? "تم التحديد بواسطة: " : "Assigned by: "}{row.assigned_by_name}</p> : null}
+              </article>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-bold text-[var(--muted)]">{empty}</div>
+      )}
+    </section>
   );
 }
 
@@ -586,13 +800,68 @@ function LiveAttendance({ rows, text }) {
   );
 }
 
+function OvertimeApprovalsPanel({ rows = [], isArabic, onUpdate }) {
+  const pendingRows = rows.filter((row) => String(row.status || "pending").toLowerCase() === "pending");
+  const visibleRows = pendingRows.length ? pendingRows : rows.slice(0, 5);
+  const statusTone = (status) => {
+    const value = String(status || "pending").toLowerCase();
+    if (value === "approved") return "text-emerald-300 bg-emerald-500/10 border-emerald-500/20";
+    if (value === "rejected") return "text-rose-300 bg-rose-500/10 border-rose-500/20";
+    return "text-amber-300 bg-amber-500/10 border-amber-500/20";
+  };
+
+  return (
+    <section className="rounded-lg border border-cyan-500/20 bg-cyan-500/5 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-cyan-300">{isArabic ? "اعتماد المرتب" : "Payroll approval"}</p>
+          <h3 className="mt-1 text-lg font-black text-[var(--text)]">{isArabic ? "طلبات الأوفر تايم" : "Overtime approvals"}</h3>
+          <p className="mt-1 text-sm text-[var(--muted)]">{isArabic ? "الأوفر تايم لا يدخل في المرتب إلا بعد الاعتماد." : "Overtime is included in payroll only after approval."}</p>
+        </div>
+        <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-xs font-black text-cyan-300">
+          {pendingRows.length} {isArabic ? "قيد المراجعة" : "pending"}
+        </span>
+      </div>
+      {visibleRows.length ? (
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {visibleRows.map((row) => (
+            <article key={row.id} className="rounded-lg border border-[var(--border)] bg-[var(--card)] p-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-black text-[var(--text)]">{row.employee_name || row.employee_code || `#${row.employee_id}`}</p>
+                  <p className="mt-1 text-xs font-bold text-[var(--muted)]">{row.branch_name || "-"} · {String(row.attendance_date || "").slice(0, 10)} · {Math.round(Number(row.overtime_minutes || 0))} min</p>
+                </div>
+                <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${statusTone(row.status)}`}>{row.status || "pending"}</span>
+              </div>
+              {String(row.status || "pending").toLowerCase() === "pending" ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button type="button" onClick={() => onUpdate(row, "approved")} className="inline-flex h-9 items-center gap-2 rounded-lg bg-emerald-500 px-3 text-xs font-black text-black">
+                    <CheckCircle2 className="h-4 w-4" />{isArabic ? "اعتماد" : "Approve"}
+                  </button>
+                  <button type="button" onClick={() => onUpdate(row, "rejected")} className="inline-flex h-9 items-center gap-2 rounded-lg bg-rose-500 px-3 text-xs font-black text-white">
+                    <XCircle className="h-4 w-4" />{isArabic ? "رفض" : "Reject"}
+                  </button>
+                </div>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-4 rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)] p-4 text-sm font-bold text-[var(--muted)]">
+          {isArabic ? "لا توجد طلبات أوفر تايم حاليًا." : "No overtime requests yet."}
+        </div>
+      )}
+    </section>
+  );
+}
+
 function PayrollImpact({ rows, text, onSelect }) {
   return (
     <section className="overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--card)]">
       <div className="overflow-auto">
-        <table className="min-w-[960px] w-full text-sm">
+        <table className="min-w-[1360px] w-full text-sm">
           <thead className="bg-[var(--surface)] text-xs font-black text-[var(--muted)]">
-            <tr>{[text.columns.employee, text.columns.presentDays, text.columns.absenceDays, text.columns.missingHours, text.columns.lateCount, text.columns.deduction, text.columns.penalties, text.columns.netImpact].map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr>
+            <tr>{[text.columns.employee, text.columns.presentDays, text.columns.absenceDays, text.columns.missingHours, text.columns.lateCount, text.columns.paidLeaves, text.columns.deductedLeaves, text.columns.leaveDeduction, text.columns.approvedOvertime, text.columns.overtimePay, text.columns.deduction, text.columns.penalties, text.columns.netImpact].map((header) => <th key={header} className="px-3 py-3 text-start">{header}</th>)}</tr>
           </thead>
           <tbody className="divide-y divide-[var(--border)]">
             {rows.map((row) => (
@@ -602,6 +871,11 @@ function PayrollImpact({ rows, text, onSelect }) {
                 <td className="px-3 py-3" dir="ltr">{row.absence_days}</td>
                 <td className="px-3 py-3" dir="ltr">{row.missing_hours}</td>
                 <td className="px-3 py-3" dir="ltr">{row.late_count}</td>
+                <td className="px-3 py-3 font-black text-emerald-400" dir="ltr">{row.paid_leave_days || 0}/{row.monthly_paid_leave_days || 3}</td>
+                <td className="px-3 py-3 font-black text-amber-300" dir="ltr">{row.deducted_leave_days || 0}</td>
+                <td className="px-3 py-3 font-black text-rose-400" dir="ltr">{formatMoney(row.leave_deduction)}</td>
+                <td className="px-3 py-3 font-black text-cyan-300" dir="ltr">{row.approved_overtime_hours || 0}</td>
+                <td className="px-3 py-3 font-black text-emerald-400" dir="ltr">{formatMoney(row.approved_overtime_pay)}</td>
                 <td className="px-3 py-3 font-black text-rose-400" dir="ltr">{formatMoney(row.attendance_deduction)}</td>
                 <td className="px-3 py-3" dir="ltr">{formatMoney(row.penalties)}</td>
                 <td className="px-3 py-3 font-black text-rose-400" dir="ltr">{formatMoney(row.net_salary_impact)}</td>

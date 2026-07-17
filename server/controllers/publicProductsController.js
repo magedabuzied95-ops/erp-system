@@ -308,6 +308,7 @@ const ensurePublicProductEditionSchema = async () => {
   await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_slug TEXT`);
   await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE`);
   await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP NULL`);
+  await db.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS color_sort_order INTEGER NOT NULL DEFAULT 0`);
   await db.query(`
     UPDATE products
     SET canonical_slug = COALESCE(
@@ -412,7 +413,11 @@ const logPublicProductNotFound = (req, identifier) => {
 
 const deriveColorGroupsFromVariants = (variants = []) => {
   const seen = new Map();
-  for (const variant of Array.isArray(variants) ? variants : []) {
+  const orderedVariants = [...(Array.isArray(variants) ? variants : [])].sort((left, right) =>
+    Number(left?.color_sort_order ?? left?.colorSortOrder ?? 0) - Number(right?.color_sort_order ?? right?.colorSortOrder ?? 0) ||
+    Number(left?.id ?? left?.variant_id ?? 0) - Number(right?.id ?? right?.variant_id ?? 0)
+  );
+  for (const variant of orderedVariants) {
     const color = String(variant?.color || variant?.color_name || "").trim();
     const key = color.toLowerCase() || "default";
     if (!seen.has(key)) {
@@ -420,6 +425,7 @@ const deriveColorGroupsFromVariants = (variants = []) => {
         color,
         color_name: color,
         color_value: color,
+        color_sort_order: Math.max(0, Number(variant?.color_sort_order ?? variant?.colorSortOrder ?? 0) || 0),
         image_url: variant?.image_url || "",
       });
     }
@@ -1298,6 +1304,7 @@ export const getPublicProductById = async (req, res) => {
         id,
         product_id,
         color,
+        color_sort_order,
         size,
         sku,
         barcode,
@@ -1312,7 +1319,7 @@ export const getPublicProductById = async (req, res) => {
       WHERE product_id = $1::bigint
         AND is_active IS DISTINCT FROM FALSE
         AND deleted_at IS NULL
-      ORDER BY id ASC
+      ORDER BY color_sort_order ASC, id ASC
       `,
       [product.id]
     );
@@ -1415,6 +1422,7 @@ export const getPublicProductSharePage = async (req, res) => {
         id,
         product_id,
         color,
+        color_sort_order,
         size,
         sku,
         barcode,
@@ -1429,7 +1437,7 @@ export const getPublicProductSharePage = async (req, res) => {
       WHERE product_id = $1::bigint
         AND is_active IS DISTINCT FROM FALSE
         AND deleted_at IS NULL
-      ORDER BY id ASC
+      ORDER BY color_sort_order ASC, id ASC
       `,
       [row.id]
     );

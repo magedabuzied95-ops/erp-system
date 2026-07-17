@@ -6,6 +6,7 @@ import {
   closePosShift,
   createQuickPosExpense,
   getActivePosShift,
+  getPosOpeningCandidates,
   getPosPaymentAccountStatus,
   getPosReceiptRuntimeSettings,
   getPosSellerUsers,
@@ -26,6 +27,7 @@ router.get(
 );
 
 router.get("/shifts/active", protect, getActivePosShift);
+router.get("/shifts/opening-candidates", protect, getPosOpeningCandidates);
 router.get("/shifts/:id/report", protect, getPosShiftReport);
 router.post("/shifts/open", protect, openPosShift);
 router.post("/shifts/:id/close", protect, closePosShift);

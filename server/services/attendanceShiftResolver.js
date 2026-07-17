@@ -55,6 +55,9 @@ const addDays = ({ year, month, day }, days = 0) => {
   return { year: value.getUTCFullYear(), month: value.getUTCMonth() + 1, day: value.getUTCDate() };
 };
 
+const partsToIsoDate = ({ year, month, day }) =>
+  `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+
 const zonedWallTimeToDate = ({ year, month, day }, minutes, timeZone = "Africa/Cairo") => {
   if (minutes === null || minutes === undefined) return null;
   const hour = Math.floor(minutes / 60);
@@ -154,6 +157,40 @@ export const resolveShiftForCheckIn = async ({
   const params = [employeeId, tenantId];
   const requestedClause = requestedShiftId ? "AND id = $3" : "";
   if (requestedShiftId) params.push(requestedShiftId);
+  const checkInLocalDate = localDateParts(checkInAt, timeZone);
+  const scheduleDates = [
+    partsToIsoDate(checkInLocalDate),
+    partsToIsoDate(addDays(checkInLocalDate, -1)),
+    partsToIsoDate(addDays(checkInLocalDate, 1)),
+  ];
+  const scheduledResult = requestedShiftId
+    ? { rows: [] }
+    : await clientOrPool.query(
+      `
+      SELECT
+        NULL::bigint AS id,
+        id AS schedule_id,
+        shift_name,
+        shift_type,
+        start_time::text AS start_time,
+        end_time::text AS end_time,
+        expected_hours,
+        0::int AS allowed_late_minutes,
+        15::int AS overtime_after_minutes,
+        '[]'::jsonb AS working_days,
+        NULL::time AS check_in_window_start,
+        NULL::time AS check_in_window_end,
+        work_date,
+        'schedule' AS shift_source
+      FROM employee_shift_schedules
+      WHERE employee_id = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+        AND work_date = ANY($3::date[])
+        AND LOWER(COALESCE(status, 'scheduled')) <> 'cancelled'
+      ORDER BY work_date ASC, shift_type = 'opening' DESC, updated_at DESC
+      `,
+      [employeeId, tenantId, scheduleDates]
+    );
   const result = await clientOrPool.query(
     `
     SELECT *
@@ -165,13 +202,14 @@ export const resolveShiftForCheckIn = async ({
     `,
     params
   );
-  const shifts = result.rows.map(normalizeShift).filter((shift) => shift.startMinutes !== null);
+  const shifts = [...(scheduledResult.rows || []), ...result.rows]
+    .map(normalizeShift)
+    .filter((shift) => shift.startMinutes !== null);
   if (!shifts.length) {
     return { shift: null, lateMinutes: 0, status: "no_shift", manualReviewRequired: false };
   }
 
   const checkInMinutes = localMinutes(checkInAt, timeZone);
-  const checkInLocalDate = localDateParts(checkInAt, timeZone);
   const selected =
     shifts.find((shift) => inWindow(checkInMinutes, shift.windowStartMinutes, shift.windowEndMinutes)) ||
     (shifts.length === 1 ? shifts[0] : null);
@@ -208,7 +246,13 @@ export const resolveShiftForCheckIn = async ({
     status = "resolved";
   }
 
-  const shiftLocalDate = addDays(checkInLocalDate, shiftDateOffset);
+  const scheduledWorkDateParts = shift?.work_date
+    ? (() => {
+        const [year, month, day] = String(shift.work_date).slice(0, 10).split("-").map(Number);
+        return Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day) ? { year, month, day } : null;
+      })()
+    : null;
+  const shiftLocalDate = scheduledWorkDateParts || addDays(checkInLocalDate, shiftDateOffset);
   const resolvedStartTime = shift ? zonedWallTimeToDate(shiftLocalDate, shift.startMinutes, timeZone) : null;
   const resolvedEndTime = shift?.endMinutes === null || shift?.endMinutes === undefined
     ? null

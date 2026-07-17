@@ -336,6 +336,8 @@ export const reviewEmployeePortalRequestRecord = async (req, res) => {
       adminNote: req.body?.admin_note || req.body?.adminNote || "",
       reviewedBy: userId,
       createAdvance: req.body?.create_advance === true || req.body?.createAdvance === true,
+      leaveOverride: req.body?.leave_override === true || req.body?.leaveOverride === true,
+      leaveOverrideReason: req.body?.leave_override_reason || req.body?.leaveOverrideReason || req.body?.admin_note || req.body?.adminNote || "",
     });
     perf.mark("review_write", phaseStartedAt);
     perf.end({ status: request.status, requestType: request.request_type });

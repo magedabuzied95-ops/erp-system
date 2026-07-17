@@ -835,6 +835,7 @@ export const ensureProductVariantSchema = async () => {
       await db.query(`
     ALTER TABLE IF EXISTS product_variants
       ADD COLUMN IF NOT EXISTS color VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS color_sort_order INTEGER NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS size VARCHAR(100),
       ADD COLUMN IF NOT EXISTS sku VARCHAR(120) DEFAULT '',
       ADD COLUMN IF NOT EXISTS barcode VARCHAR(120) DEFAULT '',
@@ -875,6 +876,7 @@ export const ensureProductVariantSchema = async () => {
       ADD COLUMN IF NOT EXISTS audience VARCHAR(30)
       `);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_id ON product_variants (product_id, id)`);
+      await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_color_sort ON product_variants (product_id, color_sort_order, id)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_tenant_product_id ON product_variants (tenant_id, product_id, id)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_stock_product ON product_variants (stock, product_id, id)`);
       await db.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_active_product ON product_variants (product_id, is_active, deleted_at, id)`);
@@ -1356,7 +1358,11 @@ const logProductDetailsPriceDebug = (product = {}) => {
 
 const deriveColorGroupsFromVariants = (variants = []) => {
   const seen = new Map();
-  for (const variant of Array.isArray(variants) ? variants : []) {
+  const orderedVariants = [...(Array.isArray(variants) ? variants : [])].sort((left, right) =>
+    Number(left?.color_sort_order ?? left?.colorSortOrder ?? 0) - Number(right?.color_sort_order ?? right?.colorSortOrder ?? 0) ||
+    Number(left?.id ?? left?.variant_id ?? 0) - Number(right?.id ?? right?.variant_id ?? 0)
+  );
+  for (const variant of orderedVariants) {
     const color = String(variant?.color || variant?.color_name || "").trim();
     const explicitGroupKey = String(variant?.color_group_key || variant?.colorGroupKey || variant?.variant_color_group_key || "").trim();
     const legacyGroupKey = [
@@ -1370,6 +1376,8 @@ const deriveColorGroupsFromVariants = (variants = []) => {
       seen.set(key, {
         color_group_key: explicitGroupKey || legacyGroupKey,
         colorGroupKey: explicitGroupKey || legacyGroupKey,
+        color_sort_order: Math.max(0, Number(variant?.color_sort_order ?? variant?.colorSortOrder ?? 0) || 0),
+        colorSortOrder: Math.max(0, Number(variant?.colorSortOrder ?? variant?.color_sort_order ?? 0) || 0),
         color,
         color_name: color,
         color_value: color,
@@ -1969,6 +1977,7 @@ const normalizeIncomingVariant = (variant = {}, group = {}) => {
 
   return {
     id: normalizeOptionalForeignKey(variant.id ?? variant.variant_id ?? variant.variantId),
+    color_sort_order: Math.max(0, Number(variant.color_sort_order ?? variant.colorSortOrder ?? group.color_sort_order ?? group.colorSortOrder ?? 0) || 0),
     color_group_key: normalizeCopiedText(
       variant.color_group_key ?? variant.colorGroupKey ?? variant.variant_color_group_key ??
       group.color_group_key ?? group.colorGroupKey ?? group.id ?? ""
@@ -2476,6 +2485,7 @@ const prepareVariantsForCreate = async (client, {
     ).trim();
 
     return {
+      color_sort_order: Math.max(0, Number(variant.color_sort_order || 0)),
       color_group_key: variant.color_group_key || "",
       manufacturer_id: variant.manufacturer_id,
       manufacturer_ids: normalizeIncomingManufacturerIds(variant.manufacturer_ids, variant.manufacturer_id),
@@ -2508,7 +2518,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
 
   const values = [];
   const placeholders = variants.map((variant, index) => {
-    const offset = index * 26;
+    const offset = index * 27;
     values.push(
       tenantId,
       productId,
@@ -2518,6 +2528,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       variant.warehouse_id ?? null,
       variant.branch_id ?? null,
       variant.color_group_key || "",
+      variant.color_sort_order ?? 0,
       variant.color || "",
       variant.size || "",
       variant.sku || "",
@@ -2537,7 +2548,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       variant.default_purchase_qty ?? 0,
       true
     );
-    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}::bigint[], $${offset + 5}, $${offset + 6}, $${offset + 7}, NULLIF($${offset + 8}, ''), $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, NULLIF($${offset + 13}, ''), $${offset + 14}, $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, $${offset + 24}, $${offset + 25}, $${offset + 26}, NULL)`;
+    return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}::bigint[], $${offset + 5}, $${offset + 6}, $${offset + 7}, NULLIF($${offset + 8}, ''), $${offset + 9}, $${offset + 10}, $${offset + 11}, $${offset + 12}, $${offset + 13}, NULLIF($${offset + 14}, ''), $${offset + 15}, $${offset + 16}, $${offset + 17}, $${offset + 18}, $${offset + 19}, $${offset + 20}, $${offset + 21}, $${offset + 22}, $${offset + 23}, $${offset + 24}, $${offset + 25}, $${offset + 26}, $${offset + 27}, NULL)`;
   });
 
   const result = await client.query(
@@ -2551,6 +2562,7 @@ const bulkInsertProductVariants = async (client, { tenantId, productId, variants
       warehouse_id,
       branch_id,
       color_group_key,
+      color_sort_order,
       color,
       size,
       sku,
@@ -2614,6 +2626,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       warehouse_id,
       branch_id,
       color_group_key,
+      color_sort_order,
       color,
       size,
       sku,
@@ -2634,7 +2647,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       is_active,
       deleted_at
     )
-    VALUES ($1, $2, $3, $4::bigint[], $5, $6, $7, NULLIF($8, ''), $9, $10, $11, $12, NULLIF($13, ''), $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, TRUE, NULL)
+    VALUES ($1, $2, $3, $4::bigint[], $5, $6, $7, NULLIF($8, ''), $9, $10, $11, $12, $13, NULLIF($14, ''), $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, TRUE, NULL)
     RETURNING *
     `,
     [
@@ -2646,6 +2659,7 @@ const insertProductVariant = async (client, { productId, tenantId, variant, skuP
       nextVariant.warehouse_id,
       nextVariant.branch_id,
       nextVariant.color_group_key || "",
+      Math.max(0, Number(nextVariant.color_sort_order || 0)),
       nextVariant.color,
       nextVariant.size,
       nextVariant.sku,
@@ -2773,12 +2787,13 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       edition_name = $20,
       edition_slug = $21,
       color_group_key = COALESCE(NULLIF($22, ''), color_group_key),
-      default_purchase_qty = COALESCE($23, default_purchase_qty),
+      color_sort_order = $23,
+      default_purchase_qty = COALESCE($24, default_purchase_qty),
       is_active = TRUE,
       deleted_at = NULL
-    WHERE id = $24
-      AND product_id = $25
-      AND ($26::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $26::bigint)
+    WHERE id = $25
+      AND product_id = $26
+      AND ($27::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $27::bigint)
     RETURNING *
     `,
     [
@@ -2804,6 +2819,7 @@ const updateProductVariant = async (client, { productId, tenantId, variant, user
       nextVariant.edition_name || null,
       nextVariant.edition_slug || slugifyEdition(nextVariant.edition_name) || null,
       nextVariant.color_group_key || "",
+      Math.max(0, Number(nextVariant.color_sort_order || 0)),
       nextVariant.default_purchase_qty === undefined || nextVariant.default_purchase_qty === null || nextVariant.default_purchase_qty === ""
         ? null
         : Math.max(0, Number(nextVariant.default_purchase_qty || 0)),
@@ -2902,13 +2918,13 @@ const archiveProductVariantsByIds = async (client, { productId, tenantId, varian
 const loadActiveProductVariantSnapshot = async (client, { productId, tenantId }) => {
   const result = await client.query(
     `
-    SELECT id, color_group_key, color, size, audience, stock, default_purchase_qty, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error, is_active, deleted_at
+    SELECT id, color_group_key, color_sort_order, color, size, audience, stock, default_purchase_qty, image_url, thermal_image_url, thermal_image_status, thermal_image_generated_at, thermal_image_error, is_active, deleted_at
     FROM product_variants
     WHERE product_id = $1
       AND ($2::bigint IS NULL OR tenant_id IS NULL OR tenant_id = $2::bigint)
       AND is_active IS DISTINCT FROM FALSE
       AND deleted_at IS NULL
-    ORDER BY color ASC NULLS LAST, size ASC NULLS LAST, id ASC
+    ORDER BY color_sort_order ASC, color ASC NULLS LAST, size ASC NULLS LAST, id ASC
     `,
     [productId, tenantId]
   );
@@ -3412,7 +3428,7 @@ export const getProductsWithVariants = async (req, res) => {
             WHERE v.product_id = ANY($1::bigint[])
               AND v.is_active IS DISTINCT FROM FALSE
               AND v.deleted_at IS NULL
-            ORDER BY v.product_id DESC, v.id ASC
+            ORDER BY v.product_id DESC, v.color_sort_order ASC, v.id ASC
           `,
           values: [variantProductIds],
           scope,
@@ -3702,7 +3718,7 @@ export const getProductByQrToken = async (req, res) => {
       WHERE p.qr_token = $1
         AND p.is_active IS DISTINCT FROM FALSE
         AND COALESCE(NULLIF(LOWER(TRIM(p.status)), ''), 'active') NOT IN ('inactive', 'disabled', 'archived', 'deleted', 'draft')
-      ORDER BY v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC
+      ORDER BY v.color_sort_order ASC, v.color ASC NULLS LAST, v.size ASC NULLS LAST, v.id ASC
       `,
       [token]
     );

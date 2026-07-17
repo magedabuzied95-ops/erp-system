@@ -1647,6 +1647,17 @@ function CreateProduct() {
     );
   };
 
+  const moveColorGroup = (colorGroupId, direction) => {
+    setColorGroups((prev) => {
+      const currentIndex = prev.findIndex((group) => group.id === colorGroupId);
+      const targetIndex = currentIndex + direction;
+      if (currentIndex < 0 || targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const next = [...prev];
+      [next[currentIndex], next[targetIndex]] = [next[targetIndex], next[currentIndex]];
+      return next;
+    });
+  };
+
   const zeroAllColorStock = () => {
     const rowCount = colorGroups.reduce((total, group) => total + (Array.isArray(group.sizes) ? group.sizes.length : 0), 0);
     if (!rowCount) {
@@ -2004,7 +2015,7 @@ function CreateProduct() {
       }
 
       const usedVariantSkus = new Set(existingSkuValues);
-      const generatedVariants = filledGroups.flatMap((group) => {
+      const generatedVariants = filledGroups.flatMap((group, groupIndex) => {
         const groupColor = String(group.color || "").trim();
         const groupImageUrl = String(getPrimaryColorImage(group) || colorImageUrlsRef.current.get(group.id) || "").trim();
         const groupEditionName = mirrorEditionEnabled ? String(group.edition_name || "").trim() : "";
@@ -2018,6 +2029,7 @@ function CreateProduct() {
           const purchaseQty = getVariantPurchaseQty(sourceRow, group);
           return [
             normalizeVariantPayload({
+              color_sort_order: groupIndex,
               color: groupColor,
               audience: group.audience || "",
               size: String(fixedSizeLabel || "One Size").trim() || "One Size",
@@ -2061,6 +2073,7 @@ function CreateProduct() {
           .map((row, rowIndex) => {
             const purchaseQty = getVariantPurchaseQty(row, group);
             return normalizeVariantPayload({
+              color_sort_order: groupIndex,
               color: groupColor,
               audience: group.audience || "",
               size: String(row.size || "").trim(),
@@ -2101,7 +2114,7 @@ function CreateProduct() {
       );
 
       const colorImagesPayload = filledGroups
-        .map((group) => {
+        .map((group, groupIndex) => {
           const groupColor = String(group.color || "").trim();
           if (!groupColor) return null;
           const images = normalizeColorImages(group.images);
@@ -2112,6 +2125,8 @@ function CreateProduct() {
               ? [{ id: makeId(), preview: primaryImageUrl, image_url: primaryImageUrl, is_primary: true, name: `${groupColor} image` }]
               : []);
           return {
+            sort_order: groupIndex,
+            color_sort_order: groupIndex,
             color_name: groupColor,
             color_value: groupColor,
             color_article_code: String(group.color_article_code || "").trim(),
@@ -3428,6 +3443,34 @@ function CreateProduct() {
                         </div>
 
                         <div className="flex items-center gap-2">
+                          <div className="flex items-center rounded-xl border border-white/10 bg-zinc-950/70 p-1" aria-label="ترتيب اللون">
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                moveColorGroup(group.id, -1);
+                              }}
+                              disabled={groupIndex === 0}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                              aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأعلى`}
+                              title="تحريك لأعلى"
+                            >
+                              <ArrowUp size={15} />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                moveColorGroup(group.id, 1);
+                              }}
+                              disabled={groupIndex === colorGroups.length - 1}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25"
+                              aria-label={`تحريك ${group.color || `اللون ${groupIndex + 1}`} لأسفل`}
+                              title="تحريك لأسفل"
+                            >
+                              <ArrowDown size={15} />
+                            </button>
+                          </div>
                           <button
                             type="button"
                             onClick={(event) => {

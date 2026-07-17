@@ -708,6 +708,7 @@ const ensureStorefrontSchemaNow = async (clientOrPool = db) => {
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS edition_slug TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS article_code TEXT`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS audience VARCHAR(30)`);
+  await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS color_sort_order INTEGER NOT NULL DEFAULT 0`);
   await clientOrPool.query(`CREATE INDEX IF NOT EXISTS idx_product_variants_product_audience ON product_variants (product_id, audience, is_active) WHERE deleted_at IS NULL`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
   await clientOrPool.query(`ALTER TABLE IF EXISTS product_variants ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0`);
@@ -1303,7 +1304,11 @@ const attachSocialMetadata = async (product = {}, req = null) => {
 
 const deriveColorGroupsFromVariants = (variants = []) => {
   const seen = new Map();
-  for (const variant of Array.isArray(variants) ? variants : []) {
+  const orderedVariants = [...(Array.isArray(variants) ? variants : [])].sort((left, right) =>
+    Number(left?.color_sort_order ?? left?.colorSortOrder ?? 0) - Number(right?.color_sort_order ?? right?.colorSortOrder ?? 0) ||
+    Number(left?.id ?? left?.variant_id ?? 0) - Number(right?.id ?? right?.variant_id ?? 0)
+  );
+  for (const variant of orderedVariants) {
     const color = String(variant?.color || variant?.color_name || "").trim();
     const key = color.toLowerCase() || "default";
     if (!seen.has(key)) {
@@ -1311,6 +1316,7 @@ const deriveColorGroupsFromVariants = (variants = []) => {
         color,
         color_name: color,
         color_value: color,
+        color_sort_order: Math.max(0, Number(variant?.color_sort_order ?? variant?.colorSortOrder ?? 0) || 0),
         image_url: variant?.image_url || "",
       });
     }
@@ -1343,6 +1349,7 @@ const catalogQuery = `
           'product_id', pv.product_id,
           'size', pv.size,
           'color', pv.color,
+          'color_sort_order', pv.color_sort_order,
           'audience', pv.audience,
           'audiences', string_to_array(LOWER(REPLACE(COALESCE(pv.audience, ''), ' ', '')), ','),
           'sku', pv.sku,
@@ -2281,7 +2288,13 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
 
   return rows.map((product) => {
     const imageBundle = imageBundleMap.get(String(product.id)) || null;
-    const variants = attachVariantImages(Array.isArray(product.variants) ? product.variants : [], imageBundle);
+    const variants = attachVariantImages(
+      [...(Array.isArray(product.variants) ? product.variants : [])].sort((left, right) =>
+        Number(left?.color_sort_order ?? left?.colorSortOrder ?? 0) - Number(right?.color_sort_order ?? right?.colorSortOrder ?? 0) ||
+        Number(left?.id ?? left?.variant_id ?? 0) - Number(right?.id ?? right?.variant_id ?? 0)
+      ),
+      imageBundle
+    );
     if (compact) {
       const colorImages = attachGroupedColorImages(deriveColorGroupsFromVariants(variants), imageBundle);
       const compactVariants = variants.map((variant) => {
@@ -2291,6 +2304,7 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
           product_id: variant.product_id,
           size: variant.size,
           color: variant.color,
+          color_sort_order: variant.color_sort_order ?? variant.colorSortOrder ?? 0,
           sku: variant.sku,
           barcode: variant.barcode,
           edition_name: variant.edition_name,

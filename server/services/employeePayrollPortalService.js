@@ -205,6 +205,34 @@ const normalizeShiftForPortal = (row = null) => {
   };
 };
 
+const normalizeScheduledShiftForPortal = (row = null) => {
+  if (!row) return null;
+  const expectedHours = toNumber(row.expected_hours);
+  return {
+    id: row.id || null,
+    schedule_id: row.id || null,
+    work_date: row.work_date || null,
+    workDate: row.work_date || null,
+    branch_id: row.branch_id || null,
+    branchId: row.branch_id || null,
+    branch_name: row.branch_name || "",
+    branchName: row.branch_name || "",
+    shift_type: row.shift_type || "regular",
+    shiftType: row.shift_type || "regular",
+    shift_name: row.shift_name || "",
+    shiftName: row.shift_name || "",
+    start_time: row.start_time || "",
+    startTime: row.start_time || "",
+    end_time: row.end_time || "",
+    endTime: row.end_time || "",
+    expected_hours: expectedHours,
+    expectedHours,
+    source: row.source || "",
+    status: row.status || "scheduled",
+    isOpening: String(row.shift_type || "").toLowerCase() === "opening",
+  };
+};
+
 export const generateEmployeePortalToken = () => randomBytes(tokenBytes).toString("hex");
 
 export const ensureEmployeePayrollPortalSchema = async (clientOrPool = db) => {
@@ -743,6 +771,50 @@ const getActiveEmployeeShift = async ({ tenantId, employeeId }) => {
   }
 };
 
+const getEmployeeScheduledShifts = async ({ tenantId, employeeId, timeZone = "Africa/Cairo" }) => {
+  try {
+    await ensureEmployeePayrollPortalSchema(db);
+    const today = localIsoDate(new Date(), timeZone);
+    const tomorrowDate = new Date(`${today}T12:00:00Z`);
+    tomorrowDate.setUTCDate(tomorrowDate.getUTCDate() + 1);
+    const tomorrow = tomorrowDate.toISOString().slice(0, 10);
+    const result = await db.query(
+      `
+      SELECT
+        s.id,
+        s.employee_id,
+        s.branch_id,
+        b.name AS branch_name,
+        s.work_date::text AS work_date,
+        s.shift_type,
+        s.shift_name,
+        s.start_time::text AS start_time,
+        s.end_time::text AS end_time,
+        s.expected_hours,
+        s.source,
+        s.status
+      FROM employee_shift_schedules s
+      LEFT JOIN branches b ON b.id = s.branch_id
+      WHERE s.employee_id::text = $1::text
+        AND ($2::bigint IS NULL OR s.tenant_id = $2::bigint)
+        AND s.work_date BETWEEN $3::date AND $4::date
+        AND LOWER(COALESCE(s.status, 'scheduled')) <> 'cancelled'
+      ORDER BY s.work_date ASC, s.start_time ASC, s.id ASC
+      `,
+      [employeeId, tenantId, today, tomorrow]
+    );
+    const shifts = result.rows.map(normalizeScheduledShiftForPortal).filter(Boolean);
+    return {
+      today: shifts.find((shift) => String(shift.work_date).slice(0, 10) === today) || null,
+      tomorrow: shifts.find((shift) => String(shift.work_date).slice(0, 10) === tomorrow) || null,
+      upcoming: shifts,
+    };
+  } catch (error) {
+    debugEmployeePortal("[employee-portal] scheduled shifts load failed", { employeeId, error: error?.message || error });
+    return { today: null, tomorrow: null, upcoming: [] };
+  }
+};
+
 const getAttendanceSummary = async ({ tenantId, employeeId, periodStart, periodEnd, currentShift = null }) => {
   try {
     const result = await db.query(
@@ -974,6 +1046,41 @@ export const recordEmployeePortalAudit = async ({ employee = null, action, statu
       JSON.stringify({ ...metadata, request_id: audit.requestId || audit.request_id || "" }),
     ]
   ).catch((error) => debugEmployeePortal("[employee-portal] audit skipped", { action, error: error?.message || error }));
+};
+
+const recordHrAuditLog = async ({ tenantId = null, userId = null, action, entityType = "employee_portal_request", entityId = null, details = {} } = {}) => {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id BIGINT NULL,
+        user_id BIGINT NULL,
+        action VARCHAR(120) NOT NULL,
+        entity_type VARCHAR(120),
+        entity_id BIGINT,
+        details JSONB NOT NULL DEFAULT '{}'::jsonb,
+        ip_address INET,
+        user_agent TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.query(
+      `
+      INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, details, created_at)
+      VALUES ($1,$2,$3,$4,$5,$6::jsonb,NOW())
+      `,
+      [
+        tenantId,
+        userId,
+        clean(action || "hr.action").slice(0, 120),
+        clean(entityType || "employee_portal_request").slice(0, 120),
+        entityId || null,
+        JSON.stringify(details || {}),
+      ]
+    );
+  } catch (error) {
+    debugEmployeePortal("[employee-portal] HR audit skipped", { action, entityId, error: error?.message || error });
+  }
 };
 
 const transaction = ({ id, type, label, amount = 0, direction = "neutral", status = "", date = null, description = "" }) => ({
@@ -1551,13 +1658,17 @@ export const createEmployeePortalNotification = async ({
     actionUrl,
     tab: metadata?.tab || "salary",
   });
+  const normalizedDedupeKey = clean(dedupeKey) || null;
+  const conflictClause = normalizedDedupeKey
+    ? `ON CONFLICT (tenant_id, employee_id, dedupe_key) WHERE dedupe_key IS NOT NULL DO UPDATE`
+    : `ON CONFLICT (tenant_id, employee_id, order_id, type) WHERE order_id IS NOT NULL DO UPDATE`;
   const result = await clientOrPool.query(
     `
     INSERT INTO employee_portal_notifications (
       tenant_id, employee_id, type, order_id, invoice_number, amount, title, body, action_url, metadata, dedupe_key
     )
     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb,$11)
-    ON CONFLICT (tenant_id, employee_id, order_id, type) WHERE order_id IS NOT NULL DO UPDATE
+    ${conflictClause}
     SET invoice_number = EXCLUDED.invoice_number,
         amount = EXCLUDED.amount,
         title = EXCLUDED.title,
@@ -1581,7 +1692,7 @@ export const createEmployeePortalNotification = async ({
       clean(body),
       resolvedActionUrl,
       JSON.stringify(metadata || {}),
-      clean(dedupeKey) || null,
+      normalizedDedupeKey,
     ]
   );
   const notification = result.rows[0] ? normalizeEmployeePortalNotification(result.rows[0]) : null;
@@ -1659,11 +1770,13 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
   const snapshot = payrollRun?.snapshot && typeof payrollRun.snapshot === "object" ? payrollRun.snapshot : {};
   const attendanceSnapshot = snapshot.attendance_deductions || {};
   startedAt = nowMs();
-  const [recentAdvances, pendingCommissions, currentShift] = await Promise.all([
+  const [recentAdvances, pendingCommissions, currentShift, scheduledShifts] = await Promise.all([
     getRecentAdvances({ tenantId: employee.tenant_id, employeeId: employee.id }),
     getPendingCommissionsTotal({ tenantId: employee.tenant_id, employeeId: employee.id }),
     getActiveEmployeeShift({ tenantId: employee.tenant_id, employeeId: employee.id }),
+    getEmployeeScheduledShifts({ tenantId: employee.tenant_id, employeeId: employee.id, timeZone }),
   ]);
+  const effectiveCurrentShift = scheduledShifts.today || currentShift;
   recordTiming(timings, "payroll_related_ms", startedAt);
 
   startedAt = nowMs();
@@ -1672,14 +1785,14 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
     employeeId: employee.id,
     periodStart: bounds.start,
     periodEnd: bounds.end,
-    currentShift,
+    currentShift: effectiveCurrentShift,
   });
   const attendanceTimeline = await getAttendanceTimeline({
     tenantId: employee.tenant_id,
     employeeId: employee.id,
     periodStart: bounds.start,
     periodEnd: bounds.end,
-    currentShift,
+    currentShift: effectiveCurrentShift,
   });
   recordTiming(timings, "attendance_summary_ms", startedAt);
 
@@ -1817,12 +1930,15 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       photo: employeeImageFields.photo,
       employee_image: employeeImageFields.employee_image,
       avatar_initials: clean(employee.full_name).split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase(),
-      currentShift,
-      shiftName: currentShift?.shiftName || "",
-      startTime: currentShift?.startTime || "",
-      endTime: currentShift?.endTime || "",
-      expectedHours: currentShift?.expectedHours || 0,
-      workingDays: currentShift?.workingDays || [],
+      currentShift: effectiveCurrentShift,
+      scheduledShifts,
+      todayShift: scheduledShifts.today,
+      tomorrowShift: scheduledShifts.tomorrow,
+      shiftName: effectiveCurrentShift?.shiftName || "",
+      startTime: effectiveCurrentShift?.startTime || "",
+      endTime: effectiveCurrentShift?.endTime || "",
+      expectedHours: effectiveCurrentShift?.expectedHours || 0,
+      workingDays: effectiveCurrentShift?.workingDays || [],
     },
     employee: {
       id: employee.id,
@@ -1841,19 +1957,25 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
       image: employeeImageFields.image,
       photo: employeeImageFields.photo,
       employee_image: employeeImageFields.employee_image,
-      currentShift,
-      shiftName: currentShift?.shiftName || "",
-      startTime: currentShift?.startTime || "",
-      endTime: currentShift?.endTime || "",
-      expectedHours: currentShift?.expectedHours || 0,
-      workingDays: currentShift?.workingDays || [],
+      currentShift: effectiveCurrentShift,
+      scheduledShifts,
+      todayShift: scheduledShifts.today,
+      tomorrowShift: scheduledShifts.tomorrow,
+      shiftName: effectiveCurrentShift?.shiftName || "",
+      startTime: effectiveCurrentShift?.startTime || "",
+      endTime: effectiveCurrentShift?.endTime || "",
+      expectedHours: effectiveCurrentShift?.expectedHours || 0,
+      workingDays: effectiveCurrentShift?.workingDays || [],
     },
-    currentShift,
-    shiftName: currentShift?.shiftName || "",
-    startTime: currentShift?.startTime || "",
-    endTime: currentShift?.endTime || "",
-    expectedHours: currentShift?.expectedHours || 0,
-    workingDays: currentShift?.workingDays || [],
+    currentShift: effectiveCurrentShift,
+    scheduledShifts,
+    todayShift: scheduledShifts.today,
+    tomorrowShift: scheduledShifts.tomorrow,
+    shiftName: effectiveCurrentShift?.shiftName || "",
+    startTime: effectiveCurrentShift?.startTime || "",
+    endTime: effectiveCurrentShift?.endTime || "",
+    expectedHours: effectiveCurrentShift?.expectedHours || 0,
+    workingDays: effectiveCurrentShift?.workingDays || [],
     wallet_summary: walletSummary,
     recent_wallet_transactions: recentWalletTransactions,
     payslip,
@@ -1913,7 +2035,7 @@ export const buildEmployeePayrollPortalPayload = async ({ employee, includeOptio
 export const createEmployeePortalRequest = async ({ employee, data = {}, audit = {} }) => {
   await ensureEmployeePayrollPortalSchema(db);
   const requestType = clean(data.request_type || data.type).toLowerCase();
-  if (!["vacation", "advance", "hr_note"].includes(requestType)) {
+  if (!["vacation", "advance", "hr_note", "late_permission"].includes(requestType)) {
     const error = new Error("Invalid request type");
     error.status = 400;
     throw error;
@@ -1922,8 +2044,27 @@ export const createEmployeePortalRequest = async ({ employee, data = {}, audit =
   const requestDate = clean(data.request_date || data.date) || null;
   const endDate = clean(data.end_date || data.endDate) || null;
   const message = clean(data.message || data.note || data.notes);
+  if (requestType === "vacation") {
+    if (!requestDate) {
+      const error = new Error("Vacation date is required");
+      error.status = 400;
+      throw error;
+    }
+    await assertLeaveRequestAllowed({
+      tenantId: employee.tenant_id,
+      startDate: requestDate,
+      endDate: endDate || requestDate,
+      override: false,
+      overrideReason: "",
+    });
+  }
   if (requestType === "advance" && amount <= 0) {
     const error = new Error("Advance amount is required");
+    error.status = 400;
+    throw error;
+  }
+  if (requestType === "late_permission" && !requestDate) {
+    const error = new Error("Late permission date is required");
     error.status = 400;
     throw error;
   }
@@ -2678,6 +2819,42 @@ export const recordEmployeePortalAttendance = async ({ employee, data = {}, audi
     );
   }
   const updatedAttendanceRow = result?.rows?.[0] || null;
+  if (updatedAttendanceRow && toAttendanceMinutes(metrics.overtime_minutes) > 0) {
+    await db.query(
+      `
+      INSERT INTO attendance_overtime_approvals (
+        tenant_id,
+        employee_id,
+        branch_id,
+        attendance_log_id,
+        attendance_date,
+        overtime_minutes,
+        status,
+        requested_by_user_id,
+        notes
+      )
+      VALUES ($1,$2,$3,$4,$5,$6,'pending',NULL,$7)
+      ON CONFLICT (attendance_log_id) WHERE attendance_log_id IS NOT NULL DO UPDATE
+      SET
+        overtime_minutes = EXCLUDED.overtime_minutes,
+        status = CASE
+          WHEN attendance_overtime_approvals.status = 'approved' THEN attendance_overtime_approvals.status
+          ELSE 'pending'
+        END,
+        notes = EXCLUDED.notes,
+        updated_at = NOW()
+      `,
+      [
+        employee.tenant_id,
+        employee.id,
+        branch.id,
+        updatedAttendanceRow.id,
+        updatedAttendanceRow.attendance_date || attendanceDate,
+        toAttendanceMinutes(metrics.overtime_minutes),
+        "Auto-created from employee portal checkout overtime",
+      ]
+    ).catch(() => null);
+  }
   await recordEmployeePortalAudit({ employee, action: "attendance_check_out", audit: auditWithGps, metadata: { branch_id: branch.id, attendance_id: updatedAttendanceRow?.id } });
   await createNotification({
     tenant_id: employee.tenant_id,
@@ -2867,7 +3044,109 @@ const createAdvanceFromPortalRequest = async ({ request, reviewedBy = null } = {
   return result.rows[0] || null;
 };
 
-export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, status, adminNote = "", reviewedBy = null, createAdvance = false } = {}) => {
+const parseDateOnly = (value) => {
+  const raw = clean(value);
+  if (!raw) return null;
+  const date = new Date(`${raw.slice(0, 10)}T00:00:00Z`);
+  return Number.isFinite(date.getTime()) ? date.toISOString().slice(0, 10) : null;
+};
+
+const enumerateDateRange = (startValue, endValue = startValue) => {
+  const start = new Date(`${parseDateOnly(startValue)}T00:00:00Z`);
+  const end = new Date(`${parseDateOnly(endValue) || parseDateOnly(startValue)}T00:00:00Z`);
+  if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()) || start > end) return [];
+  const rows = [];
+  for (const cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    rows.push(cursor.toISOString().slice(0, 10));
+  }
+  return rows;
+};
+
+const getHrAttendanceSettingsForTenant = async (tenantId) => {
+  await ensureAttendanceSchema();
+  const result = await db.query(
+    `
+    SELECT
+      COALESCE(monthly_paid_leave_days, 3)::int AS monthly_paid_leave_days,
+      COALESCE(forbidden_leave_weekdays, '[4,5,6]'::jsonb) AS forbidden_leave_weekdays
+    FROM hr_attendance_settings
+    WHERE ($1::bigint IS NOT NULL AND tenant_id = $1::bigint)
+    LIMIT 1
+    `,
+    [tenantId]
+  );
+  const row = result.rows[0] || {};
+  const forbidden = Array.isArray(row.forbidden_leave_weekdays)
+    ? row.forbidden_leave_weekdays
+    : [4, 5, 6];
+  return {
+    monthlyPaidLeaveDays: Math.max(0, toNumber(row.monthly_paid_leave_days, 3)),
+    forbiddenLeaveWeekdays: forbidden.map((item) => Number(item)).filter((item) => Number.isFinite(item)),
+  };
+};
+
+const blockedLeaveDatesForRequest = async ({ tenantId, startDate, endDate }) => {
+  const settings = await getHrAttendanceSettingsForTenant(tenantId);
+  const forbidden = new Set(settings.forbiddenLeaveWeekdays);
+  return enumerateDateRange(startDate, endDate).filter((dateValue) => {
+    const date = new Date(`${dateValue}T00:00:00Z`);
+    return forbidden.has(date.getUTCDay());
+  });
+};
+
+const assertLeaveRequestAllowed = async ({ tenantId, startDate, endDate, override = false, overrideReason = "" }) => {
+  const blockedDates = await blockedLeaveDatesForRequest({ tenantId, startDate, endDate });
+  if (blockedDates.length && (!override || !clean(overrideReason))) {
+    const error = new Error(`Leave is blocked on configured weekdays: ${blockedDates.join(", ")}. Manager override reason is required.`);
+    error.status = 400;
+    error.code = "forbidden_leave_weekday";
+    error.blocked_dates = blockedDates;
+    throw error;
+  }
+  return blockedDates;
+};
+
+const createVacationFromPortalRequest = async ({ request, reviewedBy = null, override = false, overrideReason = "" } = {}) => {
+  if (!request || !["vacation", "leave"].includes(clean(request.request_type)) || clean(request.status) !== "approved") return null;
+  const startDate = parseDateOnly(request.request_date || request.created_at);
+  const endDate = parseDateOnly(request.end_date || request.request_date || request.created_at);
+  if (!startDate) return null;
+  const blockedDates = await assertLeaveRequestAllowed({
+    tenantId: request.tenant_id,
+    startDate,
+    endDate,
+    override,
+    overrideReason,
+  });
+  const result = await db.query(
+    `
+    INSERT INTO employee_vacations (
+      tenant_id, employee_id, vacation_type, vacation_date, start_date, end_date, status, notes, created_at, updated_at
+    )
+    SELECT $1,$2,'annual',$3::date,$3::date,$4::date,'approved',$5,NOW(),NOW()
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM employee_vacations
+      WHERE ($1::bigint IS NULL OR tenant_id = $1::bigint)
+        AND employee_id = $2::bigint
+        AND COALESCE(vacation_date, start_date) = $3::date
+        AND COALESCE(end_date, vacation_date, start_date) = $4::date
+        AND LOWER(COALESCE(status, 'pending')) <> 'cancelled'
+    )
+    RETURNING *
+    `,
+    [
+      request.tenant_id,
+      request.employee_id,
+      startDate,
+      endDate,
+      [clean(request.message), clean(request.admin_note), blockedDates.length ? `Manager override: ${clean(overrideReason)}` : ""].filter(Boolean).join("\n"),
+    ]
+  );
+  return result.rows[0] || { synced: true, start_date: startDate, end_date: endDate, blocked_dates: blockedDates };
+};
+
+export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, status, adminNote = "", reviewedBy = null, createAdvance = false, leaveOverride = false, leaveOverrideReason = "" } = {}) => {
   await ensureEmployeePayrollPortalSchema(db);
   const nextStatus = clean(status).toLowerCase();
   if (!["approved", "rejected"].includes(nextStatus)) {
@@ -2907,8 +3186,17 @@ export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, 
   );
   const employeePortalToken = clean(employeeTokenResult.rows[0]?.employee_portal_token);
   let advance = null;
+  let vacation = null;
   if (createAdvance && request.request_type === "advance" && request.status === "approved") {
     advance = await createAdvanceFromPortalRequest({ request, reviewedBy });
+  }
+  if (["vacation", "leave"].includes(request.request_type) && request.status === "approved") {
+    vacation = await createVacationFromPortalRequest({
+      request,
+      reviewedBy,
+      override: leaveOverride,
+      overrideReason: leaveOverrideReason || adminNote,
+    });
   }
   if (request.request_type === "advance" && nextStatus === "approved") {
     console.info("[employee-push:advance-approved-trigger]", {
@@ -2970,5 +3258,23 @@ export const reviewEmployeePortalRequest = async ({ tenantId = null, requestId, 
     message: requestPushBody,
   };
   emitToRooms([`employee:${request.employee_id}`], "employee_portal:request_updated", requestUpdatePayload);
-  return { ...request, created_advance: advance };
+  await recordHrAuditLog({
+    tenantId: request.tenant_id || tenantId,
+    userId: reviewedBy || null,
+    action: `employee_request.${nextStatus}`,
+    entityType: "employee_portal_request",
+    entityId: request.id,
+    details: {
+      employee_id: request.employee_id,
+      request_type: request.request_type,
+      previous_status: "pending",
+      new_status: nextStatus,
+      admin_note: adminNote,
+      created_advance_id: advance?.id || null,
+      created_vacation_id: vacation?.id || null,
+      leave_override: leaveOverride === true,
+      leave_override_reason: leaveOverrideReason || "",
+    },
+  });
+  return { ...request, created_advance: advance, created_vacation: vacation };
 };

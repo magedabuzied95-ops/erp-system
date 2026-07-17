@@ -9,6 +9,8 @@ import { ensureAttendanceSchema } from "../utils/attendanceSchema.js";
 import { haversineDistanceMeters } from "../utils/geoDistance.js";
 import { createEmployeePortalSession, ensureStaffTasksSchema, getEmployeePortalSettings, handleBranchQrCheckInStaffTasks } from "../services/staffTasksService.js";
 import { ensureShiftResolutionSchema, resolveShiftForCheckIn } from "../services/attendanceShiftResolver.js";
+import { listEligibleOpeningEmployees, assignNextOpeningEmployee, getDefaultOpeningWorkDate } from "../services/openingShiftService.js";
+import { generateOpeningShiftSchedule } from "../services/shiftScheduleService.js";
 
 const expectedSqlParamCount = (text = "") =>
   [...String(text || "").matchAll(/\$(\d+)/g)].reduce((max, match) => Math.max(max, Number(match[1]) || 0), 0);
@@ -1195,6 +1197,43 @@ const getUserId = (req) => {
   return Number.isFinite(userId) && userId > 0 ? userId : null;
 };
 
+const recordAttendanceAuditLog = async (req, { action, entityType = "attendance", entityId = null, details = {} } = {}) => {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id BIGSERIAL PRIMARY KEY,
+        tenant_id BIGINT NULL,
+        user_id BIGINT NULL,
+        action VARCHAR(120) NOT NULL,
+        entity_type VARCHAR(120),
+        entity_id BIGINT,
+        details JSONB NOT NULL DEFAULT '{}'::jsonb,
+        ip_address INET,
+        user_agent TEXT,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await db.query(
+      `
+      INSERT INTO audit_logs (tenant_id, user_id, action, entity_type, entity_id, details, ip_address, user_agent, created_at)
+      VALUES ($1,$2,$3,$4,$5,$6::jsonb,NULLIF($7, '')::inet,$8,NOW())
+      `,
+      [
+        getTenantScope(req),
+        getUserId(req),
+        String(action || "attendance.action").slice(0, 120),
+        String(entityType || "attendance").slice(0, 120),
+        entityId || null,
+        JSON.stringify(details || {}),
+        getRequestIp(req),
+        String(req.headers?.["user-agent"] || "").slice(0, 500),
+      ]
+    );
+  } catch (error) {
+    console.warn("[attendance-center] audit log skipped", error?.message || error);
+  }
+};
+
 const normalizeOpeningCandidate = (row = {}, recommendedEmployeeId = null) => ({
   id: row.id,
   employee_id: row.id,
@@ -1275,6 +1314,29 @@ const fetchLatestOpeningAssignment = async (client, tenantId) => {
 };
 
 const fetchOpeningCandidates = async (client, tenantId, options = {}) => {
+  if (options.branchId || options.workDate) {
+    const rows = await listEligibleOpeningEmployees(client, {
+      tenantId,
+      branchId: options.branchId || null,
+      workDate: options.workDate || getDefaultOpeningWorkDate(),
+      includeAllBranches: options.includeAllBranches,
+    });
+    return rows.map((row) => ({
+      ...normalizeOpeningCandidate(
+        {
+          ...row,
+          last_opening_at: row.last_opening_date || null,
+          employee_status: row.status || "active",
+        },
+        rows.find((candidate) => candidate.is_recommended)?.id || null
+      ),
+      is_test_like: isTestLikeEmployee(row),
+      can_open_branch: row.can_open_branch !== false,
+      is_branch_eligible: row.is_branch_eligible !== false,
+      target_work_date: options.workDate || getDefaultOpeningWorkDate(),
+    }));
+  }
+
   const attendanceDate = getAttendanceDate();
   const result = await safeQuery(
     client,
@@ -2388,6 +2450,45 @@ export const checkOut = async (req, res) => {
       });
     }
 
+    if (normalizeAttendanceMinutes(metrics.overtime_minutes) > 0) {
+      await client.query(
+        `
+        INSERT INTO attendance_overtime_approvals (
+          tenant_id,
+          employee_id,
+          branch_id,
+          attendance_log_id,
+          attendance_date,
+          overtime_minutes,
+          status,
+          requested_by_user_id,
+          notes
+        )
+        VALUES ($1,$2,$3,$4,$5,$6,'pending',$7,$8)
+        ON CONFLICT (attendance_log_id) WHERE attendance_log_id IS NOT NULL DO UPDATE
+        SET
+          overtime_minutes = EXCLUDED.overtime_minutes,
+          status = CASE
+            WHEN attendance_overtime_approvals.status = 'approved' THEN attendance_overtime_approvals.status
+            ELSE 'pending'
+          END,
+          requested_by_user_id = EXCLUDED.requested_by_user_id,
+          notes = EXCLUDED.notes,
+          updated_at = NOW()
+        `,
+        [
+          tenantId,
+          attendanceRow.employee_id,
+          attendanceRow.branch_id || employee?.branch_id || null,
+          updated.rows[0].id,
+          attendanceRow.attendance_date,
+          normalizeAttendanceMinutes(metrics.overtime_minutes),
+          getUserId(req),
+          "Auto-created from attendance checkout overtime",
+        ]
+      );
+    }
+
     const responseRow = {
       ...updated.rows[0],
       employee_name: employee?.full_name || "",
@@ -2398,40 +2499,19 @@ export const checkOut = async (req, res) => {
 
     let openingAssignment = null;
     if (nextOpeningEmployeeId) {
-      const assignment = await client.query(
-        `
-        INSERT INTO shift_opening_assignments (
-          tenant_id,
-          shift_id,
-          attendance_log_id,
-          employee_id,
-          assigned_by_user_id,
-          assigned_at,
-          note
-        )
-        VALUES ($1,$2,$3,$4,$5,NOW(),$6)
-        ON CONFLICT (attendance_log_id) WHERE attendance_log_id IS NOT NULL
-        DO UPDATE SET
-          employee_id = EXCLUDED.employee_id,
-          assigned_by_user_id = EXCLUDED.assigned_by_user_id,
-          assigned_at = EXCLUDED.assigned_at,
-          note = EXCLUDED.note
-        RETURNING *
-        `,
-        [
-          tenantId,
-          attendanceRow.shift_id || null,
-          updated.rows[0].id,
-          nextOpeningEmployeeId,
-          getUserId(req),
-          req.body?.next_opening_note || req.body?.note || "Assigned during POS shift close",
-        ]
-      );
+      const openingResult = await assignNextOpeningEmployee(client, {
+        tenantId,
+        branchId: attendanceRow.branch_id || employee?.branch_id || null,
+        employeeId: nextOpeningEmployeeId,
+        workDate: req.body?.next_opening_work_date || req.body?.nextOpeningWorkDate || getDefaultOpeningWorkDate(),
+        assignedByUserId: getUserId(req),
+        attendanceLogId: updated.rows[0].id,
+        source: "attendance_checkout",
+        note: req.body?.next_opening_note || req.body?.note || "Assigned during attendance checkout",
+      });
 
       openingAssignment = normalizeOpeningAssignment({
-        ...assignment.rows[0],
-        employee_name: nextOpeningEmployee.full_name,
-        employee_code: nextOpeningEmployee.employee_code,
+        ...openingResult.assignment,
         assigned_by_name: req.user?.name || req.user?.email || "",
       });
     }
@@ -3025,6 +3105,9 @@ export const getAttendanceReports = async (req, res) => {
         acc.missingCheckout += row.check_out_at || row.check_out ? 0 : 1;
         acc.late += Number(row.late_minutes || 0) > 0 ? 1 : 0;
         acc.totalWorkedMinutes += Number(row.work_minutes || 0);
+        acc.totalLateMinutes += Number(row.late_minutes || 0);
+        acc.totalEarlyLeaveMinutes += Number(row.early_leave_minutes || 0);
+        acc.totalRawOvertimeMinutes += Number(row.overtime_minutes || 0);
         return acc;
       },
       {
@@ -3033,8 +3116,149 @@ export const getAttendanceReports = async (req, res) => {
         missingCheckout: 0,
         late: 0,
         totalWorkedMinutes: 0,
+        totalLateMinutes: 0,
+        totalEarlyLeaveMinutes: 0,
+        totalRawOvertimeMinutes: 0,
       }
     );
+
+    const scheduleParams = [tenantId, from, to];
+    const scheduleClauses = ["($1::bigint IS NULL OR ess.tenant_id = $1::bigint)", "ess.work_date BETWEEN $2::date AND $3::date"];
+    if (branchId) {
+      scheduleParams.push(branchId);
+      scheduleClauses.push(`ess.branch_id::text = $${scheduleParams.length}::text`);
+    }
+    if (employeeId) {
+      scheduleParams.push(employeeId);
+      scheduleClauses.push(`ess.employee_id::text = $${scheduleParams.length}::text`);
+    }
+    const scheduleResult = await db.query(
+      `
+      SELECT
+        ess.*,
+        e.full_name AS employee_name,
+        e.employee_code,
+        b.name AS branch_name
+      FROM employee_shift_schedules ess
+      LEFT JOIN employees e ON e.id = ess.employee_id
+      LEFT JOIN branches b ON b.id = ess.branch_id
+      WHERE ${scheduleClauses.join(" AND ")}
+      ORDER BY ess.work_date DESC, ess.start_time ASC
+      `,
+      scheduleParams
+    );
+
+    const overtimeParams = [tenantId, from, to];
+    const overtimeClauses = ["($1::bigint IS NULL OR aoa.tenant_id = $1::bigint)", "aoa.attendance_date BETWEEN $2::date AND $3::date"];
+    if (branchId) {
+      overtimeParams.push(branchId);
+      overtimeClauses.push(`aoa.branch_id::text = $${overtimeParams.length}::text`);
+    }
+    if (employeeId) {
+      overtimeParams.push(employeeId);
+      overtimeClauses.push(`aoa.employee_id::text = $${overtimeParams.length}::text`);
+    }
+    const overtimeResult = await db.query(
+      `
+      SELECT
+        aoa.*,
+        e.full_name AS employee_name,
+        e.employee_code,
+        b.name AS branch_name
+      FROM attendance_overtime_approvals aoa
+      LEFT JOIN employees e ON e.id = aoa.employee_id
+      LEFT JOIN branches b ON b.id = aoa.branch_id
+      WHERE ${overtimeClauses.join(" AND ")}
+      ORDER BY aoa.attendance_date DESC, aoa.created_at DESC
+      `,
+      overtimeParams
+    );
+
+    const openingParams = [tenantId, from, to];
+    const openingClauses = ["($1::bigint IS NULL OR soa.tenant_id = $1::bigint)", "soa.work_date BETWEEN $2::date AND $3::date"];
+    if (branchId) {
+      openingParams.push(branchId);
+      openingClauses.push(`soa.branch_id::text = $${openingParams.length}::text`);
+    }
+    if (employeeId) {
+      openingParams.push(employeeId);
+      openingClauses.push(`soa.employee_id::text = $${openingParams.length}::text`);
+    }
+    const openingResult = await db.query(
+      `
+      SELECT
+        soa.*,
+        e.full_name AS employee_name,
+        e.employee_code,
+        b.name AS branch_name,
+        u.name AS assigned_by_name
+      FROM shift_opening_assignments soa
+      LEFT JOIN employees e ON e.id = soa.employee_id
+      LEFT JOIN branches b ON b.id = soa.branch_id
+      LEFT JOIN users u ON u.id = soa.assigned_by_user_id
+      WHERE ${openingClauses.join(" AND ")}
+      ORDER BY soa.work_date DESC, soa.assigned_at DESC
+      `,
+      openingParams
+    );
+
+    const dateKey = (value) => centerDateKey(value);
+    const scheduleByEmployeeDate = new Map(
+      scheduleResult.rows.map((row) => [`${row.employee_id}:${dateKey(row.work_date)}`, row])
+    );
+    const overtimeByLogId = new Map(
+      overtimeResult.rows.filter((row) => row.attendance_log_id).map((row) => [String(row.attendance_log_id), row])
+    );
+    const overtimeByEmployeeDate = new Map(
+      overtimeResult.rows.map((row) => [`${row.employee_id}:${dateKey(row.attendance_date)}`, row])
+    );
+
+    const overtimeSummary = overtimeResult.rows.reduce(
+      (acc, row) => {
+        const status = String(row.status || "pending").toLowerCase();
+        acc.total += 1;
+        acc[status] = (acc[status] || 0) + 1;
+        acc.totalMinutes += Number(row.overtime_minutes || 0);
+        if (status === "approved") acc.approvedMinutes += Number(row.overtime_minutes || 0);
+        if (status === "pending") acc.pendingMinutes += Number(row.overtime_minutes || 0);
+        if (status === "rejected") acc.rejectedMinutes += Number(row.overtime_minutes || 0);
+        return acc;
+      },
+      { total: 0, pending: 0, approved: 0, rejected: 0, totalMinutes: 0, approvedMinutes: 0, pendingMinutes: 0, rejectedMinutes: 0 }
+    );
+
+    const normalizedLogs = result.rows.map((row) => {
+      const normalized = normalizeAttendance(row);
+      const key = `${row.employee_id}:${dateKey(row.attendance_date)}`;
+      const schedule = scheduleByEmployeeDate.get(key) || null;
+      const overtime = overtimeByLogId.get(String(row.id)) || overtimeByEmployeeDate.get(key) || null;
+      return {
+        ...normalized,
+        scheduled_shift: schedule
+          ? {
+              id: schedule.id,
+              shift_type: schedule.shift_type,
+              shift_name: schedule.shift_name,
+              work_date: schedule.work_date,
+              start_time: schedule.start_time,
+              end_time: schedule.end_time,
+              expected_hours: Number(schedule.expected_hours || 0),
+              source: schedule.source,
+              status: schedule.status,
+            }
+          : null,
+        overtime_approval: overtime
+          ? {
+              id: overtime.id,
+              status: overtime.status,
+              overtime_minutes: Number(overtime.overtime_minutes || 0),
+              approved_at: overtime.approved_at || null,
+              payroll_applied: Boolean(overtime.payroll_applied),
+              notes: overtime.notes || "",
+            }
+          : null,
+      };
+    });
 
     return res.status(200).json({
       success: true,
@@ -3048,9 +3272,60 @@ export const getAttendanceReports = async (req, res) => {
         summary: {
           ...summary,
           totalWorkedHours: formatMinutes(summary.totalWorkedMinutes),
+          totalLateHours: formatMinutes(summary.totalLateMinutes),
+          totalEarlyLeaveHours: formatMinutes(summary.totalEarlyLeaveMinutes),
+          totalRawOvertimeHours: formatMinutes(summary.totalRawOvertimeMinutes),
+          schedules: scheduleResult.rowCount,
+          openingAssignments: openingResult.rowCount,
+          overtimeApprovals: overtimeSummary,
         },
         monthlyTotals: buildMonthlyTotals(result.rows),
-        logs: result.rows.map(normalizeAttendance),
+        logs: normalizedLogs,
+        schedules: scheduleResult.rows.map((row) => ({
+          id: row.id,
+          employee_id: row.employee_id,
+          employee_name: row.employee_name || "",
+          employee_code: row.employee_code || "",
+          branch_id: row.branch_id || null,
+          branch_name: row.branch_name || "",
+          work_date: row.work_date,
+          shift_type: row.shift_type,
+          shift_name: row.shift_name,
+          start_time: row.start_time,
+          end_time: row.end_time,
+          expected_hours: Number(row.expected_hours || 0),
+          source: row.source,
+          status: row.status,
+        })),
+        openingAssignments: openingResult.rows.map((row) => ({
+          id: row.id,
+          employee_id: row.employee_id,
+          employee_name: row.employee_name || "",
+          employee_code: row.employee_code || "",
+          branch_id: row.branch_id || null,
+          branch_name: row.branch_name || "",
+          work_date: row.work_date,
+          source: row.source,
+          assigned_at: row.assigned_at,
+          assigned_by_name: row.assigned_by_name || "",
+          override_reason: row.override_reason || "",
+          note: row.note || "",
+        })),
+        overtimeApprovals: overtimeResult.rows.map((row) => ({
+          id: row.id,
+          employee_id: row.employee_id,
+          employee_name: row.employee_name || "",
+          employee_code: row.employee_code || "",
+          branch_id: row.branch_id || null,
+          branch_name: row.branch_name || "",
+          attendance_log_id: row.attendance_log_id || null,
+          attendance_date: row.attendance_date,
+          overtime_minutes: Number(row.overtime_minutes || 0),
+          status: row.status,
+          approved_at: row.approved_at || null,
+          payroll_applied: Boolean(row.payroll_applied),
+          notes: row.notes || "",
+        })),
       },
     });
   } catch (error) {
@@ -3109,6 +3384,13 @@ const centerBuildFilters = (req) => {
     missingOnly: ["1", "true", "yes"].includes(String(req.query.missingOnly || req.query.missing_hours_only || "").toLowerCase()),
     payrollAffectedOnly: ["1", "true", "yes"].includes(String(req.query.payrollAffectedOnly || req.query.payroll_affected_only || "").toLowerCase()),
   };
+};
+
+const centerMonthStart = (dateValue) => {
+  const date = new Date(`${centerDateKey(dateValue)}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return centerDateKey(dateValue);
+  date.setUTCDate(1);
+  return date.toISOString().slice(0, 10);
 };
 
 const centerSourceLabel = (value = "") => {
@@ -3337,11 +3619,149 @@ const summarizeAttendanceCenter = (rows = []) => {
   };
 };
 
+const loadLeavePayrollImpact = async (filters) => {
+  const settingsResult = await db.query(
+    `
+    SELECT COALESCE(monthly_paid_leave_days, 3)::int AS monthly_paid_leave_days
+    FROM hr_attendance_settings
+    WHERE ($1::bigint IS NOT NULL AND tenant_id = $1::bigint)
+    LIMIT 1
+    `,
+    [filters.tenantId]
+  );
+  const paidAllowance = Math.max(0, centerNumber(settingsResult.rows[0]?.monthly_paid_leave_days, 3));
+  const fromMonthStart = centerMonthStart(filters.startDate);
+  const params = [filters.tenantId, fromMonthStart, filters.endDate];
+  const where = [
+    "($1::bigint IS NULL OR e.tenant_id = $1::bigint)",
+    "ld.leave_day BETWEEN $2::date AND $3::date",
+  ];
+  if (filters.branchId) {
+    params.push(filters.branchId);
+    where.push(`e.branch_id::text = $${params.length}::text`);
+  }
+  if (filters.employeeId) {
+    params.push(filters.employeeId);
+    where.push(`e.id::text = $${params.length}::text`);
+  }
+
+  const result = await db.query(
+    `
+    WITH leave_days AS (
+      SELECT l.employee_id,
+        generate_series(COALESCE(l.leave_date, l.start_date), COALESCE(l.leave_date, l.end_date, l.start_date), interval '1 day')::date AS leave_day,
+        COALESCE(l.leave_type, 'paid') AS leave_kind,
+        l.status
+      FROM employee_leaves l
+      WHERE ($1::bigint IS NULL OR l.tenant_id = $1::bigint)
+        AND COALESCE(l.leave_date, l.start_date) <= $3::date
+        AND COALESCE(l.leave_date, l.end_date, l.start_date) >= $2::date
+      UNION ALL
+      SELECT v.employee_id,
+        generate_series(COALESCE(v.vacation_date, v.start_date), COALESCE(v.vacation_date, v.end_date, v.start_date), interval '1 day')::date AS leave_day,
+        COALESCE(v.vacation_type, 'annual') AS leave_kind,
+        v.status
+      FROM employee_vacations v
+      WHERE ($1::bigint IS NULL OR v.tenant_id = $1::bigint)
+        AND COALESCE(v.vacation_date, v.start_date) <= $3::date
+        AND COALESCE(v.vacation_date, v.end_date, v.start_date) >= $2::date
+    )
+    SELECT ld.employee_id, e.full_name AS employee_name, e.branch_id, ld.leave_day, ld.leave_kind,
+      COALESCE(e.salary, 0)::numeric AS salary,
+      COALESCE(e.working_days_per_month, 26)::int AS working_days_per_month
+    FROM leave_days ld
+    JOIN employees e ON e.id = ld.employee_id
+    WHERE ${where.join(" AND ")}
+      AND LOWER(COALESCE(ld.status, 'pending')) = 'approved'
+      AND LOWER(COALESCE(ld.leave_kind, 'paid')) NOT IN ('unpaid', 'no_pay', 'deducted', 'غير مدفوعة', 'بدون راتب')
+    ORDER BY ld.employee_id, ld.leave_day
+    `,
+    params
+  );
+
+  const runningByEmployeeMonth = new Map();
+  const impactByEmployee = new Map();
+  result.rows.forEach((row) => {
+    const leaveDate = centerDateKey(row.leave_day);
+    const monthKey = `${row.employee_id}:${leaveDate.slice(0, 7)}`;
+    const usedAfter = (runningByEmployeeMonth.get(monthKey) || 0) + 1;
+    runningByEmployeeMonth.set(monthKey, usedAfter);
+    if (leaveDate < filters.startDate || leaveDate > filters.endDate) return;
+
+    const employeeKey = String(row.employee_id);
+    const dailyRate = centerNumber(row.salary) / Math.max(1, centerNumber(row.working_days_per_month, 26));
+    const bucket = impactByEmployee.get(employeeKey) || {
+      employee_id: row.employee_id,
+      leave_days: 0,
+      paid_leave_days: 0,
+      deducted_leave_days: 0,
+      leave_deduction: 0,
+      monthly_paid_leave_days: paidAllowance,
+    };
+    bucket.leave_days += 1;
+    if (usedAfter <= paidAllowance) {
+      bucket.paid_leave_days += 1;
+    } else {
+      bucket.deducted_leave_days += 1;
+      bucket.leave_deduction += dailyRate;
+    }
+    impactByEmployee.set(employeeKey, bucket);
+  });
+
+  return impactByEmployee;
+};
+
+const loadApprovedOvertimePayrollImpact = async (filters) => {
+  const params = [filters.tenantId, filters.startDate, filters.endDate];
+  const where = [
+    "($1::bigint IS NULL OR e.tenant_id = $1::bigint)",
+    "a.attendance_date BETWEEN $2::date AND $3::date",
+    "LOWER(COALESCE(a.status, 'pending')) = 'approved'",
+  ];
+  if (filters.branchId) {
+    params.push(filters.branchId);
+    where.push(`COALESCE(a.branch_id, e.branch_id)::text = $${params.length}::text`);
+  }
+  if (filters.employeeId) {
+    params.push(filters.employeeId);
+    where.push(`e.id::text = $${params.length}::text`);
+  }
+
+  const result = await db.query(
+    `
+    SELECT
+      a.employee_id,
+      SUM(COALESCE(a.overtime_minutes, 0))::numeric AS overtime_minutes,
+      MAX(COALESCE(e.salary, 0))::numeric AS salary,
+      MAX(COALESCE(e.working_days_per_month, 26))::numeric AS working_days_per_month,
+      MAX(COALESCE(e.daily_work_hours, 8))::numeric AS daily_work_hours
+    FROM attendance_overtime_approvals a
+    JOIN employees e ON e.id = a.employee_id
+    WHERE ${where.join(" AND ")}
+    GROUP BY a.employee_id
+    `,
+    params
+  );
+
+  return new Map(result.rows.map((row) => {
+    const dailyRate = centerNumber(row.salary) / Math.max(1, centerNumber(row.working_days_per_month, 26));
+    const hourlyRate = dailyRate / Math.max(0.1, centerNumber(row.daily_work_hours, 8));
+    const minutes = centerNumber(row.overtime_minutes);
+    return [String(row.employee_id), {
+      employee_id: row.employee_id,
+      approved_overtime_minutes: minutes,
+      approved_overtime_hours: Number((minutes / 60).toFixed(2)),
+      approved_overtime_pay: Number(((minutes / 60) * hourlyRate).toFixed(2)),
+    }];
+  }));
+};
+
 export const getAttendanceDashboard = async (req, res) => {
   try {
     await ensureAttendanceSchema();
     const filters = centerBuildFilters(req);
     const rows = await loadAttendanceCenterRows(filters);
+    const schedules = await loadAttendanceSchedules(filters);
     const trendMap = new Map();
     const branchMap = new Map();
     const employeeMap = new Map();
@@ -3385,10 +3805,111 @@ export const getAttendanceDashboard = async (req, res) => {
       },
       branches: [...branchMap.values()],
       employee_ranking: [...employeeMap.values()].sort((a, b) => b.present - a.present).slice(0, 10),
+      schedules: {
+        opening_today: schedules.find((row) => row.shift_type === "opening" && String(row.work_date).slice(0, 10) === filters.endDate) || null,
+        opening_upcoming: schedules.filter((row) => row.shift_type === "opening").slice(0, 5),
+        rows: schedules,
+      },
     });
   } catch (error) {
     console.error("[attendance-center] dashboard error", error);
     return res.status(500).json({ success: false, message: "Failed to load attendance dashboard", error: error.message });
+  }
+};
+
+const loadAttendanceSchedules = async (filters) => {
+  const params = [filters.tenantId, filters.startDate, filters.endDate];
+  const where = [
+    "($1::bigint IS NULL OR s.tenant_id = $1::bigint)",
+    "s.work_date BETWEEN $2::date AND $3::date",
+  ];
+  if (filters.branchId) {
+    params.push(filters.branchId);
+    where.push(`s.branch_id::text = $${params.length}::text`);
+  }
+  if (filters.employeeId) {
+    params.push(filters.employeeId);
+    where.push(`s.employee_id::text = $${params.length}::text`);
+  }
+  const result = await db.query(
+    `
+    SELECT
+      s.id,
+      s.tenant_id,
+      s.employee_id,
+      e.full_name AS employee_name,
+      e.employee_code,
+      s.branch_id,
+      b.name AS branch_name,
+      s.work_date::text AS work_date,
+      s.shift_type,
+      s.shift_name,
+      s.start_time::text AS start_time,
+      s.end_time::text AS end_time,
+      s.expected_hours,
+      s.source,
+      s.status,
+      soa.assigned_by_user_id,
+      COALESCE(u.name, u.email, '') AS assigned_by_name,
+      soa.assigned_at,
+      soa.note AS assignment_note,
+      soa.cash_drawer_shift_id
+    FROM employee_shift_schedules s
+    LEFT JOIN employees e ON e.id = s.employee_id
+    LEFT JOIN branches b ON b.id = s.branch_id
+    LEFT JOIN shift_opening_assignments soa ON soa.id = s.source_assignment_id
+    LEFT JOIN users u ON u.id = soa.assigned_by_user_id
+    WHERE ${where.join(" AND ")}
+      AND LOWER(COALESCE(s.status, 'scheduled')) <> 'cancelled'
+    ORDER BY s.work_date ASC, s.start_time ASC, s.shift_type ASC, e.full_name ASC
+    `,
+    params
+  );
+  return result.rows.map((row) => ({
+    ...row,
+    expected_hours: Number(row.expected_hours || 0),
+  }));
+};
+
+export const getAttendanceSchedules = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const filters = centerBuildFilters(req);
+    const rows = await loadAttendanceSchedules(filters);
+    return res.json({
+      success: true,
+      rows,
+      schedules: rows,
+      summary: {
+        total: rows.length,
+        opening: rows.filter((row) => row.shift_type === "opening").length,
+        regular: rows.filter((row) => row.shift_type !== "opening").length,
+      },
+    });
+  } catch (error) {
+    console.error("[attendance-center] schedules error", error);
+    return res.status(500).json({ success: false, message: "Failed to load attendance schedules", error: error.message });
+  }
+};
+
+export const generateAttendanceOpeningSchedule = async (req, res) => {
+  try {
+    const tenantId = getTenantScope(req);
+    const startDate = centerDateKey(req.body?.start_date || req.body?.startDate || req.query?.startDate || req.query?.start_date);
+    const endDate = centerDateKey(req.body?.end_date || req.body?.endDate || req.query?.endDate || req.query?.end_date || startDate);
+    const branchId = req.body?.branch_id || req.body?.branchId || req.query?.branchId || req.query?.branch_id;
+    const result = await generateOpeningShiftSchedule({
+      tenantId,
+      branchId,
+      startDate,
+      endDate,
+      createdByUserId: getUserId(req),
+      overwrite: req.body?.overwrite === true || String(req.body?.overwrite || req.query?.overwrite || "").toLowerCase() === "true",
+    });
+    return res.json({ success: true, ...result });
+  } catch (error) {
+    console.error("[attendance-center] generate opening schedule error", error);
+    return res.status(error.status || 500).json({ success: false, message: error.message || "Failed to generate opening schedule", error: error.message });
   }
 };
 
@@ -3454,6 +3975,8 @@ export const getAttendancePayrollImpact = async (req, res) => {
     await ensureAttendanceSchema();
     const filters = centerBuildFilters(req);
     const rows = await loadAttendanceCenterRows(filters, { qrOnly: true });
+    const leaveImpactByEmployee = await loadLeavePayrollImpact(filters);
+    const approvedOvertimeByEmployee = await loadApprovedOvertimePayrollImpact(filters);
     let penaltiesByEmployee = new Map();
     try {
       const penaltyResult = await db.query(
@@ -3481,6 +4004,13 @@ export const getAttendancePayrollImpact = async (req, res) => {
         missing_hours: 0,
         late_count: 0,
         attendance_deduction: 0,
+        leave_days: 0,
+        paid_leave_days: 0,
+        deducted_leave_days: 0,
+        leave_deduction: 0,
+        monthly_paid_leave_days: 3,
+        approved_overtime_hours: 0,
+        approved_overtime_pay: 0,
         daily_rate: row.daily_rate,
         hourly_rate: row.hourly_rate,
       };
@@ -3493,13 +4023,26 @@ export const getAttendancePayrollImpact = async (req, res) => {
       return map;
     }, new Map()).values()].map((row) => {
       const penalties = penaltiesByEmployee.get(String(row.employee_id)) || 0;
+      const leaveImpact = leaveImpactByEmployee.get(String(row.employee_id)) || {};
+      const overtimeImpact = approvedOvertimeByEmployee.get(String(row.employee_id)) || {};
+      const leaveDeduction = centerNumber(leaveImpact.leave_deduction);
+      const totalAttendanceDeduction = row.attendance_deduction + leaveDeduction;
+      const approvedOvertimePay = centerNumber(overtimeImpact.approved_overtime_pay);
       return {
         ...row,
         missing_hours: Number(row.missing_hours.toFixed(2)),
-        attendance_deduction: Number(row.attendance_deduction.toFixed(2)),
+        leave_days: centerNumber(leaveImpact.leave_days),
+        paid_leave_days: centerNumber(leaveImpact.paid_leave_days),
+        deducted_leave_days: centerNumber(leaveImpact.deducted_leave_days),
+        monthly_paid_leave_days: centerNumber(leaveImpact.monthly_paid_leave_days, 3),
+        leave_deduction: Number(leaveDeduction.toFixed(2)),
+        approved_overtime_hours: centerNumber(overtimeImpact.approved_overtime_hours),
+        approved_overtime_pay: Number(approvedOvertimePay.toFixed(2)),
+        attendance_deduction: Number(totalAttendanceDeduction.toFixed(2)),
+        raw_attendance_deduction: Number(row.attendance_deduction.toFixed(2)),
         penalties: Number(penalties.toFixed(2)),
-        net_salary_impact: Number((row.attendance_deduction + penalties).toFixed(2)),
-        explanation: `Daily rate ${row.daily_rate}, hourly rate ${row.hourly_rate}, absence ${row.absence_days} days, missing ${row.missing_hours.toFixed(2)} hours.`,
+        net_salary_impact: Number((totalAttendanceDeduction + penalties - approvedOvertimePay).toFixed(2)),
+        explanation: `Daily rate ${row.daily_rate}, hourly rate ${row.hourly_rate}, absence ${row.absence_days} days, missing ${row.missing_hours.toFixed(2)} hours, paid leave ${centerNumber(leaveImpact.paid_leave_days)}, deducted leave ${centerNumber(leaveImpact.deducted_leave_days)}, approved overtime ${centerNumber(overtimeImpact.approved_overtime_hours)}h.`,
       };
     });
     if (analyticsDebugEnabled()) console.info("[payroll-impact]", {
@@ -3513,6 +4056,109 @@ export const getAttendancePayrollImpact = async (req, res) => {
   } catch (error) {
     console.error("[attendance-center] payroll impact error", error);
     return res.status(500).json({ success: false, message: "Failed to load payroll impact", error: error.message });
+  }
+};
+
+export const getAttendanceOvertimeApprovals = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const filters = centerBuildFilters(req);
+    const params = [filters.tenantId, filters.startDate, filters.endDate];
+    const where = [
+      "($1::bigint IS NULL OR a.tenant_id = $1::bigint)",
+      "a.attendance_date BETWEEN $2::date AND $3::date",
+    ];
+    if (filters.branchId) {
+      params.push(filters.branchId);
+      where.push(`COALESCE(a.branch_id, e.branch_id)::text = $${params.length}::text`);
+    }
+    if (filters.employeeId) {
+      params.push(filters.employeeId);
+      where.push(`a.employee_id::text = $${params.length}::text`);
+    }
+    if (filters.status) {
+      params.push(filters.status);
+      where.push(`LOWER(COALESCE(a.status, 'pending')) = $${params.length}`);
+    }
+    const result = await db.query(
+      `
+      SELECT a.*, e.full_name AS employee_name, e.employee_code, b.name AS branch_name,
+        u.name AS approved_by_name
+      FROM attendance_overtime_approvals a
+      JOIN employees e ON e.id = a.employee_id
+      LEFT JOIN branches b ON b.id = COALESCE(a.branch_id, e.branch_id)
+      LEFT JOIN users u ON u.id = a.approved_by_user_id
+      WHERE ${where.join(" AND ")}
+      ORDER BY a.attendance_date DESC, a.created_at DESC
+      LIMIT 500
+      `,
+      params
+    );
+    return res.json({ success: true, rows: result.rows });
+  } catch (error) {
+    console.error("[attendance-center] overtime approvals error", error);
+    return res.status(500).json({ success: false, message: "Failed to load overtime approvals", error: error.message });
+  }
+};
+
+export const updateAttendanceOvertimeApproval = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const tenantId = getTenantScope(req);
+    const id = req.params.id;
+    const status = String(req.body?.status || "").trim().toLowerCase();
+    if (!["approved", "rejected", "pending"].includes(status)) {
+      return res.status(400).json({ success: false, message: "Unsupported overtime approval status" });
+    }
+    const previousResult = await db.query(
+      `
+      SELECT *
+      FROM attendance_overtime_approvals
+      WHERE id = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      LIMIT 1
+      `,
+      [id, tenantId]
+    );
+    const previousRow = previousResult.rows[0] || null;
+    const result = await db.query(
+      `
+      UPDATE attendance_overtime_approvals
+      SET
+        status = $3,
+        approved_by_user_id = CASE WHEN $3 = 'approved' THEN $4 ELSE NULL END,
+        approved_at = CASE WHEN $3 = 'approved' THEN NOW() ELSE NULL END,
+        notes = CASE
+          WHEN COALESCE($5::text, '') = '' THEN notes
+          WHEN COALESCE(notes, '') = '' THEN $5::text
+          ELSE notes || E'\n' || $5::text
+        END,
+        updated_at = NOW()
+      WHERE id = $1
+        AND ($2::bigint IS NULL OR tenant_id = $2::bigint)
+      RETURNING *
+      `,
+      [id, tenantId, status, getUserId(req), req.body?.notes || ""]
+    );
+    if (!result.rows[0]) return res.status(404).json({ success: false, message: "Overtime approval request not found" });
+    await recordAttendanceAuditLog(req, {
+      action: `attendance_overtime.${status}`,
+      entityType: "attendance_overtime_approval",
+      entityId: result.rows[0].id,
+      details: {
+        employee_id: result.rows[0].employee_id,
+        branch_id: result.rows[0].branch_id,
+        attendance_date: result.rows[0].attendance_date,
+        overtime_minutes: result.rows[0].overtime_minutes,
+        previous_status: previousRow?.status || null,
+        new_status: result.rows[0].status,
+        notes: req.body?.notes || "",
+      },
+    });
+    return res.json({ success: true, row: result.rows[0], overtime: result.rows[0] });
+  } catch (error) {
+    console.error("[attendance-center] overtime approval update error", error);
+    return res.status(500).json({ success: false, message: "Failed to update overtime approval", error: error.message });
   }
 };
 
@@ -3626,7 +4272,14 @@ export const getOpeningCandidates = async (req, res) => {
     await ensureAttendanceSchema();
     const tenantId = getTenantScope(req);
     const includeTestEmployees = ["1", "true", "yes"].includes(String(req.query.include_test || req.query.includeTest || "").toLowerCase());
-    const candidates = await fetchOpeningCandidates(db, tenantId, { includeTestEmployees });
+    const branchId = req.query.branch_id || req.query.branchId || null;
+    const workDate = req.query.work_date || req.query.workDate || getDefaultOpeningWorkDate();
+    const candidates = await fetchOpeningCandidates(db, tenantId, {
+      includeTestEmployees,
+      branchId,
+      workDate,
+      includeAllBranches: ["1", "true", "yes"].includes(String(req.query.include_all_branches || req.query.includeAllBranches || "").toLowerCase()),
+    });
     const recommended = candidates.find((candidate) => candidate.is_recommended) || null;
     const latestAssignment = await fetchLatestOpeningAssignment(db, tenantId);
 
@@ -3636,6 +4289,8 @@ export const getOpeningCandidates = async (req, res) => {
         candidates,
         recommended,
         latest_assignment: latestAssignment,
+        branch_id: branchId || null,
+        work_date: workDate,
         expected_hours: SHIFT_DEFAULTS.expectedHours,
         include_test_employees: includeTestEmployees,
         shift_templates: {
@@ -4669,6 +5324,116 @@ export const getAttendanceDeviceSettings = async (req, res) => {
   } catch (error) {
     console.log("GET ATTENDANCE DEVICE SETTINGS ERROR:", error);
     return res.status(500).json({ success: false, message: "Failed to fetch attendance device settings", error: error.message });
+  }
+};
+
+const normalizeForbiddenWeekdays = (value) => {
+  const source = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value
+          .split(",")
+          .map((item) => item.trim())
+      : [];
+  const unique = new Set();
+  source.forEach((item) => {
+    const weekday = Number(item);
+    if (Number.isInteger(weekday) && weekday >= 0 && weekday <= 6) unique.add(weekday);
+  });
+  return Array.from(unique).sort((a, b) => a - b);
+};
+
+const normalizeHrAttendanceSettings = (row = {}) => {
+  let forbiddenLeaveWeekdays = row.forbidden_leave_weekdays;
+  if (typeof forbiddenLeaveWeekdays === "string") {
+    try {
+      forbiddenLeaveWeekdays = JSON.parse(forbiddenLeaveWeekdays);
+    } catch {
+      forbiddenLeaveWeekdays = normalizeForbiddenWeekdays(forbiddenLeaveWeekdays);
+    }
+  }
+  return {
+    require_next_opening_on_pos_close: row.require_next_opening_on_pos_close !== false,
+    grace_minutes: Math.max(0, Number(row.grace_minutes ?? 10)),
+    monthly_paid_leave_days: Math.max(0, Number(row.monthly_paid_leave_days ?? 3)),
+    forbidden_leave_weekdays: normalizeForbiddenWeekdays(forbiddenLeaveWeekdays?.length ? forbiddenLeaveWeekdays : [4, 5, 6]),
+    updated_at: row.updated_at || null,
+  };
+};
+
+export const getAttendanceHrSettings = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const tenantId = getTenantScope(req) ?? resolveAuthenticatedTenantId(req) ?? 1;
+    const result = await db.query(
+      `
+      INSERT INTO hr_attendance_settings (tenant_id)
+      VALUES ($1)
+      ON CONFLICT (tenant_id) DO UPDATE SET tenant_id = EXCLUDED.tenant_id
+      RETURNING require_next_opening_on_pos_close, grace_minutes, monthly_paid_leave_days, forbidden_leave_weekdays, updated_at
+      `,
+      [tenantId]
+    );
+    const settings = normalizeHrAttendanceSettings(result.rows[0]);
+    return res.status(200).json({ success: true, data: settings, settings });
+  } catch (error) {
+    console.log("GET ATTENDANCE HR SETTINGS ERROR:", error);
+    return res.status(500).json({ success: false, message: "Failed to fetch attendance HR settings", error: error.message });
+  }
+};
+
+export const updateAttendanceHrSettings = async (req, res) => {
+  try {
+    await ensureAttendanceSchema();
+    const tenantId = getTenantScope(req) ?? resolveAuthenticatedTenantId(req) ?? 1;
+    const requireNextOpening = Object.prototype.hasOwnProperty.call(req.body || {}, "require_next_opening_on_pos_close")
+      ? req.body.require_next_opening_on_pos_close === true
+      : Object.prototype.hasOwnProperty.call(req.body || {}, "requireNextOpeningOnPosClose")
+        ? req.body.requireNextOpeningOnPosClose === true
+        : true;
+    const graceMinutes = Math.max(0, Math.round(Number(req.body?.grace_minutes ?? req.body?.graceMinutes ?? 10)));
+    const monthlyPaidLeaveDays = Math.max(0, Math.round(Number(req.body?.monthly_paid_leave_days ?? req.body?.monthlyPaidLeaveDays ?? 3)));
+    const forbiddenLeaveWeekdays = normalizeForbiddenWeekdays(req.body?.forbidden_leave_weekdays ?? req.body?.forbiddenLeaveWeekdays ?? [4, 5, 6]);
+
+    const result = await db.query(
+      `
+      INSERT INTO hr_attendance_settings (
+        tenant_id,
+        require_next_opening_on_pos_close,
+        grace_minutes,
+        monthly_paid_leave_days,
+        forbidden_leave_weekdays,
+        updated_at
+      )
+      VALUES ($1,$2,$3,$4,$5::jsonb,NOW())
+      ON CONFLICT (tenant_id) DO UPDATE
+      SET require_next_opening_on_pos_close = EXCLUDED.require_next_opening_on_pos_close,
+          grace_minutes = EXCLUDED.grace_minutes,
+          monthly_paid_leave_days = EXCLUDED.monthly_paid_leave_days,
+          forbidden_leave_weekdays = EXCLUDED.forbidden_leave_weekdays,
+          updated_at = NOW()
+      RETURNING require_next_opening_on_pos_close, grace_minutes, monthly_paid_leave_days, forbidden_leave_weekdays, updated_at
+      `,
+      [tenantId, requireNextOpening, graceMinutes, monthlyPaidLeaveDays, JSON.stringify(forbiddenLeaveWeekdays)]
+    );
+
+    await recordAttendanceAuditLog(req, {
+      action: "attendance_hr_settings.updated",
+      entityType: "hr_attendance_settings",
+      entityId: tenantId,
+      details: {
+        require_next_opening_on_pos_close: requireNextOpening,
+        grace_minutes: graceMinutes,
+        monthly_paid_leave_days: monthlyPaidLeaveDays,
+        forbidden_leave_weekdays: forbiddenLeaveWeekdays,
+      },
+    });
+
+    const settings = normalizeHrAttendanceSettings(result.rows[0]);
+    return res.status(200).json({ success: true, data: settings, settings });
+  } catch (error) {
+    console.log("UPDATE ATTENDANCE HR SETTINGS ERROR:", error);
+    return res.status(500).json({ success: false, message: error.message || "Failed to update attendance HR settings", error: error.message });
   }
 };
 

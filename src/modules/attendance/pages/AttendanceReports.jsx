@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Download, Filter, RefreshCcw, Table2 } from "lucide-react";
+import { CalendarClock, Download, Filter, RefreshCcw, Table2, TimerReset } from "lucide-react";
 
 import { getAttendanceReports } from "../attendanceApi";
 
@@ -35,8 +35,16 @@ const statusLabel = (status, checkout) => {
   return status || "Open";
 };
 
+const formatMinutes = (value) => {
+  const minutes = Number(value || 0);
+  if (!Number.isFinite(minutes) || minutes <= 0) return "00:00";
+  const hours = Math.floor(minutes / 60);
+  const rest = Math.round(minutes % 60);
+  return `${String(hours).padStart(2, "0")}:${String(rest).padStart(2, "0")}`;
+};
+
 const exportCsv = (rows = [], fileName = "attendance-reports.csv") => {
-  const headers = ["Employee", "Branch", "Date", "Check In", "Check Out", "Worked Minutes", "Status"];
+  const headers = ["Employee", "Branch", "Date", "Scheduled Shift", "Check In", "Check Out", "Worked Minutes", "Late Minutes", "Early Leave Minutes", "Raw Overtime Minutes", "Overtime Approval", "Status"];
   const csv = [
     headers.join(","),
     ...rows.map((row) =>
@@ -44,9 +52,14 @@ const exportCsv = (rows = [], fileName = "attendance-reports.csv") => {
     row.employee_name || "",
     row.branch_name || "",
     row.attendance_date || "",
+    row.scheduled_shift?.shift_name || "",
     row.check_in_at || row.check_in || "",
     row.check_out_at || row.check_out || "",
     row.work_minutes ?? "",
+    row.late_minutes ?? "",
+    row.early_leave_minutes ?? "",
+    row.overtime_minutes ?? "",
+    row.overtime_approval?.status || "",
         statusLabel(row.status, row.check_out_at || row.check_out),
       ]
         .map((value) => `"${String(value).replaceAll('"', '""')}"`)
@@ -70,6 +83,18 @@ function StatCard({ label, value, hint }) {
       <div className="mt-2 text-2xl font-black text-white">{value}</div>
       {hint ? <div className="mt-2 text-sm text-slate-400">{hint}</div> : null}
     </div>
+  );
+}
+
+function MiniPanel({ title, icon: Icon, children }) {
+  return (
+    <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
+      <div className="mb-4 flex items-center gap-2">
+        {Icon ? <Icon className="h-5 w-5 text-cyan-200" /> : null}
+        <h2 className="text-lg font-black text-white">{title}</h2>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -112,6 +137,10 @@ export default function AttendanceReports() {
   const summary = payload?.summary || {};
   const logs = Array.isArray(payload?.logs) ? payload.logs : [];
   const monthlyTotals = Array.isArray(payload?.monthlyTotals) ? payload.monthlyTotals : [];
+  const schedules = Array.isArray(payload?.schedules) ? payload.schedules : [];
+  const openingAssignments = Array.isArray(payload?.openingAssignments) ? payload.openingAssignments : [];
+  const overtimeApprovals = Array.isArray(payload?.overtimeApprovals) ? payload.overtimeApprovals : [];
+  const overtimeSummary = summary.overtimeApprovals || {};
 
   const rows = logs;
 
@@ -198,6 +227,13 @@ export default function AttendanceReports() {
           <StatCard label="Worked hours" value={loading ? "-" : summary.totalWorkedHours || "00:00"} hint={`Range ${payload?.from || filters.from} to ${payload?.to || filters.to}`} />
         </section>
 
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Scheduled shifts" value={loading ? "-" : summary.schedules ?? schedules.length} hint="Manual and generated schedules" />
+          <StatCard label="Opening assignments" value={loading ? "-" : summary.openingAssignments ?? openingAssignments.length} hint="Next opener rows" />
+          <StatCard label="Approved overtime" value={loading ? "-" : formatMinutes(overtimeSummary.approvedMinutes)} hint={`${overtimeSummary.approved || 0} approved requests`} />
+          <StatCard label="Pending overtime" value={loading ? "-" : formatMinutes(overtimeSummary.pendingMinutes)} hint={`${overtimeSummary.pending || 0} waiting approvals`} />
+        </section>
+
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
@@ -223,6 +259,54 @@ export default function AttendanceReports() {
           </div>
         </section>
 
+        <div className="grid gap-5 xl:grid-cols-2">
+          <MiniPanel title="Opening assignments" icon={CalendarClock}>
+            {loading ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading opening assignments...</div>
+            ) : openingAssignments.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No opening assignments in this range.</div>
+            ) : (
+              <div className="space-y-3">
+                {openingAssignments.slice(0, 8).map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-white">{item.employee_name || `Employee #${item.employee_id}`}</div>
+                        <div className="text-xs text-slate-400">{item.branch_name || "-"} آ· {String(item.work_date || "").slice(0, 10)}</div>
+                      </div>
+                      <span className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-bold text-cyan-100">{item.source || "assigned"}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </MiniPanel>
+
+          <MiniPanel title="Overtime approvals" icon={TimerReset}>
+            {loading ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">Loading overtime approvals...</div>
+            ) : overtimeApprovals.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-400">No overtime approval requests in this range.</div>
+            ) : (
+              <div className="space-y-3">
+                {overtimeApprovals.slice(0, 8).map((item) => (
+                  <div key={item.id} className="rounded-2xl border border-white/10 bg-slate-950/50 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-white">{item.employee_name || `Employee #${item.employee_id}`}</div>
+                        <div className="text-xs text-slate-400">{String(item.attendance_date || "").slice(0, 10)} آ· {formatMinutes(item.overtime_minutes)}</div>
+                      </div>
+                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${String(item.status).toLowerCase() === "approved" ? "bg-emerald-400/15 text-emerald-100" : String(item.status).toLowerCase() === "rejected" ? "bg-rose-400/15 text-rose-100" : "bg-amber-400/15 text-amber-100"}`}>
+                        {item.status || "pending"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </MiniPanel>
+        </div>
+
         <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-5 shadow-2xl shadow-black/20">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
@@ -239,22 +323,25 @@ export default function AttendanceReports() {
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Employee</th>
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Branch</th>
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Date</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Scheduled shift</th>
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Check in</th>
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Check out</th>
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Worked</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">Late / OT</th>
+                  <th className="border-b border-white/10 px-3 py-3 font-semibold">OT approval</th>
                   <th className="border-b border-white/10 px-3 py-3 font-semibold">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {loading ? (
                   <tr>
-                      <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">
+                      <td colSpan={10} className="px-3 py-10 text-center text-sm text-slate-400">
                       Loading report rows...
                     </td>
                   </tr>
                 ) : rows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-3 py-10 text-center text-sm text-slate-400">
+                    <td colSpan={10} className="px-3 py-10 text-center text-sm text-slate-400">
                       No attendance records found.
                     </td>
                   </tr>
@@ -267,10 +354,29 @@ export default function AttendanceReports() {
                       </td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.branch_name || "-"}</td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{row.attendance_date || "-"}</td>
+                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">
+                        {row.scheduled_shift ? (
+                          <div>
+                            <div className="font-semibold text-white">{row.scheduled_shift.shift_name || row.scheduled_shift.shift_type}</div>
+                            <div className="text-xs text-slate-400">{row.scheduled_shift.start_time} - {row.scheduled_shift.end_time}</div>
+                          </div>
+                        ) : "-"}
+                      </td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatDateTime(row.check_in_at || row.check_in)}</td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">{formatDateTime(row.check_out_at || row.check_out)}</td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">
-                        {row.work_minutes ? `${Math.floor(row.work_minutes / 60)}h ${row.work_minutes % 60}m` : "-"}
+                        {row.work_minutes ? formatMinutes(row.work_minutes) : "-"}
+                      </td>
+                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">
+                        <div>Late: {formatMinutes(row.late_minutes)}</div>
+                        <div className="text-xs text-slate-400">OT: {formatMinutes(row.overtime_minutes)}</div>
+                      </td>
+                      <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">
+                        {row.overtime_approval ? (
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${String(row.overtime_approval.status).toLowerCase() === "approved" ? "bg-emerald-400/15 text-emerald-100" : String(row.overtime_approval.status).toLowerCase() === "rejected" ? "bg-rose-400/15 text-rose-100" : "bg-amber-400/15 text-amber-100"}`}>
+                            {row.overtime_approval.status}
+                          </span>
+                        ) : "-"}
                       </td>
                       <td className="border-b border-white/5 px-3 py-4 text-sm text-slate-300">
                         {statusLabel(row.status, row.check_out_at || row.check_out)}
