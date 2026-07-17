@@ -851,6 +851,31 @@ const markPurchaseStockApplied = async (client, purchaseId) => {
   return result.rows[0] || null;
 };
 
+const resetConsumedDefaultPurchaseQty = async (client, { tenantId, items = [] }) => {
+  const variantIds = Array.from(new Set(
+    items
+      .filter((item) => item?.metadata?.consume_default_purchase_qty === true)
+      .map((item) => Number(item.variant_id))
+      .filter((variantId) => Number.isInteger(variantId) && variantId > 0)
+  ));
+  if (!variantIds.length) return [];
+
+  const columns = await getTableColumns(client, "product_variants");
+  if (!columns.has("default_purchase_qty")) return [];
+  const updatedAt = columns.has("updated_at") ? ", updated_at = CURRENT_TIMESTAMP" : "";
+  const result = await client.query(
+    `
+    UPDATE product_variants
+    SET default_purchase_qty = 0${updatedAt}
+    WHERE id = ANY($2::int[])
+      AND (tenant_id = $1 OR tenant_id IS NULL)
+    RETURNING id
+    `,
+    [tenantId, variantIds]
+  );
+  return result.rows.map((row) => row.id);
+};
+
 const insertPurchaseItem = async (client, { tenantId, purchaseId, item, metadata = {} }) => {
   const columnInfo = await getTableColumnInfo(client, "purchase_items");
   const columns = new Set(columnInfo.keys());
@@ -5222,6 +5247,11 @@ router.post(
         supplierId,
         items: itemsWithInsertedIds,
         shouldApplyStock,
+      }));
+
+      await runStep("variant purchase quantity reset", () => resetConsumedDefaultPurchaseQty(client, {
+        tenantId,
+        items: itemsWithInsertedIds,
       }));
 
       const simpleItems = itemsWithInsertedIds.filter((item) => !item.variant_id && item.product_id);

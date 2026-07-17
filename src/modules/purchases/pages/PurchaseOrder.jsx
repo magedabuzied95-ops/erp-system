@@ -1236,6 +1236,7 @@ function PurchaseOrder() {
           return row ? normalizePurchaseItem({
             ...item,
             quantity: row.savedQty,
+            consume_default_purchase_qty: true,
             unit_cost: money(row.purchasePrice),
             cost_price: money(row.purchasePrice),
             purchase_price: money(row.purchasePrice),
@@ -1255,6 +1256,7 @@ function PurchaseOrder() {
           .map((row) => normalizePurchaseItem({
             ...row.variant,
             quantity: row.savedQty,
+            consume_default_purchase_qty: true,
             received_quantity: 0,
             unit_cost: money(row.purchasePrice),
             cost_price: money(row.purchasePrice),
@@ -1653,6 +1655,7 @@ function PurchaseOrder() {
         total: safeNumericPayload(item.subtotal, safeNumericPayload(item.quantity) * safeNumericPayload(item.cost_price)),
         metadata: {
           image_url: item.image_url,
+          ...(item.consume_default_purchase_qty ? { consume_default_purchase_qty: true } : {}),
           last_purchase_cost: item.last_purchase_cost,
           last_purchase_date: item.last_purchase_date,
           supplier_name: item.supplier_name,
