@@ -131,6 +131,26 @@ const employeeRoleLabels = {
   employee: { en: "Employee", ar: "موظف" },
   staff: { en: "Employee", ar: "موظف" },
 };
+const jobTitlePresets = [
+  { id: "employee", title: { ar: "موظف", en: "Employee" }, role: "employee", canOpenBranch: false, salesActive: false, managerPortal: false },
+  { id: "pos_cashier", title: { ar: "كاشير POS", en: "POS Cashier" }, role: "pos_cashier", canOpenBranch: true, salesActive: true, managerPortal: false },
+  { id: "sales", title: { ar: "موظف مبيعات", en: "Sales Employee" }, role: "sales", canOpenBranch: false, salesActive: true, managerPortal: false },
+  { id: "branch_manager", title: { ar: "مدير فرع", en: "Branch Manager" }, role: "branch_manager", canOpenBranch: true, salesActive: true, managerPortal: true },
+  { id: "warehouse", title: { ar: "مسؤول مخزن", en: "Warehouse Officer" }, role: "warehouse", canOpenBranch: false, salesActive: false, managerPortal: false },
+  { id: "accountant", title: { ar: "محاسب", en: "Accountant" }, role: "accountant", canOpenBranch: false, salesActive: false, managerPortal: false },
+  { id: "hr", title: { ar: "موارد بشرية", en: "HR Officer" }, role: "hr", canOpenBranch: false, salesActive: false, managerPortal: true },
+  { id: "custom", title: { ar: "مسمى مخصص", en: "Custom title" }, role: "", canOpenBranch: null, salesActive: null, managerPortal: null },
+];
+const jobTitlePresetLabel = (preset, isArabic) => preset.title[isArabic ? "ar" : "en"];
+const findJobTitlePreset = (form = {}) => {
+  const role = normalizeEmployeeRoleCode(form.role || "");
+  const title = normalizeEmployeeRoleCode(form.job_title || form.position || "");
+  return jobTitlePresets.find((preset) => preset.id !== "custom" && (
+    preset.role === role ||
+    normalizeEmployeeRoleCode(preset.title.en) === title ||
+    normalizeEmployeeRoleCode(preset.title.ar) === title
+  )) || null;
+};
 const isArabicLocale = (language = "") => String(language || "").toLowerCase().startsWith("ar");
 const cleanPhotoUrl = (value = "") => String(value || "").trim();
 const titleCaseRole = (value = "") =>
@@ -371,6 +391,42 @@ function AttendanceWorkspace({
     () => resolveEmployeeProfileImageUrl(cleanPhotoUrl(employeeForm.photo_url) || cleanPhotoUrl(editingEmployee?.photo_url)),
     [editingEmployee?.photo_url, employeeForm.photo_url]
   );
+  const selectedJobTitlePresetId = useMemo(
+    () => findJobTitlePreset(employeeForm)?.id || (employeeForm.job_title || employeeForm.role ? "custom" : ""),
+    [employeeForm]
+  );
+  const jobTitlePresetOptions = useMemo(
+    () => [
+      { id: "", label: isArabic ? "اختر المسمى الوظيفي" : "Select job title" },
+      ...jobTitlePresets.map((preset) => ({
+        id: preset.id,
+        label: jobTitlePresetLabel(preset, isArabic),
+      })),
+    ],
+    [isArabic]
+  );
+  const applyJobTitlePreset = useCallback((presetId) => {
+    const preset = jobTitlePresets.find((item) => item.id === presetId);
+    if (!preset) return;
+    if (preset.id === "custom") {
+      setEmployeeForm((prev) => ({
+        ...prev,
+        role: prev.role || "employee",
+      }));
+      return;
+    }
+
+    setEmployeeForm((prev) => ({
+      ...prev,
+      job_title: jobTitlePresetLabel(preset, isArabic),
+      position: jobTitlePresetLabel(preset, isArabic),
+      role: preset.role,
+      can_open_branch: preset.canOpenBranch,
+      is_sales_active: preset.salesActive,
+      manager_portal_enabled: Boolean(preset.managerPortal),
+      pos_alias: preset.salesActive && !prev.pos_alias ? prev.full_name || prev.employee_code || "" : prev.pos_alias,
+    }));
+  }, [isArabic]);
   const statusLabel = useCallback(
     (value) => {
       const normalized = String(value || "").toLowerCase().replace(/[\s-]+/g, "_");
@@ -1783,11 +1839,68 @@ function AttendanceWorkspace({
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <InputField label={tr("fields.nationalId")} value={employeeForm.national_id} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, national_id: value }))} />
-                    <InputField label={tr("fields.jobTitle")} value={employeeForm.job_title} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, job_title: value, position: value }))} />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <InputField label={tr("fields.internalRole")} value={employeeForm.role} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, role: value }))} />
                     <InputField label={tr("fields.salary")} type="number" value={employeeForm.salary} onChange={(value) => setEmployeeForm((prev) => ({ ...prev, salary: value }))} />
+                  </div>
+                  <div className="rounded-[28px] border border-cyan-400/20 bg-cyan-500/10 p-4">
+                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div>
+                        <div className="text-sm font-black text-cyan-100">{isArabic ? "إعدادات المسمى الوظيفي" : "Job title settings"}</div>
+                        <div className="mt-1 text-xs font-semibold leading-5 text-cyan-100/65">
+                          {isArabic ? "اختيار المسمى هنا يضبط الدور الداخلي وصلاحيات POS وفتح الفرع تلقائياً، ويمكنك استخدام مسمى مخصص عند الحاجة." : "Choosing a title here sets the internal role, POS seller access, and branch-opening eligibility automatically. Use custom when needed."}
+                        </div>
+                      </div>
+                      <span className="w-fit rounded-full border border-cyan-200/20 bg-black/20 px-3 py-1 text-[11px] font-black text-cyan-100">
+                        {employeeForm.job_title || (isArabic ? "غير محدد" : "Not set")}
+                      </span>
+                    </div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2">
+                      <SelectField
+                        label={tr("fields.jobTitle")}
+                        value={selectedJobTitlePresetId}
+                        onChange={applyJobTitlePreset}
+                        options={jobTitlePresetOptions}
+                      />
+                      <InputField
+                        label={isArabic ? "المسمى الظاهر في الجدول والبوابة" : "Visible job title"}
+                        value={employeeForm.job_title}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, job_title: value, position: value }))}
+                      />
+                      <InputField
+                        label={tr("fields.internalRole")}
+                        value={employeeForm.role}
+                        onChange={(value) => setEmployeeForm((prev) => ({ ...prev, role: value }))}
+                        helper={isArabic ? "الدور الداخلي يُستخدم في الصلاحيات والبوابات وتحديد نوع الموظف داخل النظام." : "Internal role is used for permissions, portals, and employee behavior inside the system."}
+                      />
+                      <div className="grid gap-2">
+                        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-bold text-zinc-200">
+                          <span>{isArabic ? "مؤهل لفتح الفرع في POS" : "Can open POS branch"}</span>
+                          <input
+                            type="checkbox"
+                            checked={employeeForm.can_open_branch !== false}
+                            onChange={(event) => setEmployeeForm((prev) => ({ ...prev, can_open_branch: event.target.checked }))}
+                            className="h-4 w-4 accent-cyan-400"
+                          />
+                        </label>
+                        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-bold text-zinc-200">
+                          <span>{isArabic ? "يظهر كبائع في POS" : "Show as POS salesperson"}</span>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(employeeForm.is_sales_active)}
+                            onChange={(event) => setEmployeeForm((prev) => ({ ...prev, is_sales_active: event.target.checked }))}
+                            className="h-4 w-4 accent-cyan-400"
+                          />
+                        </label>
+                        <label className="flex cursor-pointer items-center justify-between gap-3 rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-bold text-zinc-200">
+                          <span>{isArabic ? "تفعيل بوابة المدير" : "Enable manager portal"}</span>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(employeeForm.manager_portal_enabled)}
+                            onChange={(event) => setEmployeeForm((prev) => ({ ...prev, manager_portal_enabled: event.target.checked }))}
+                            className="h-4 w-4 accent-cyan-400"
+                          />
+                        </label>
+                      </div>
+                    </div>
                   </div>
                   <div className="rounded-[28px] border border-white/10 bg-black/20 p-4">
                     <div className="text-sm font-black text-white">{isArabic ? "إعدادات الراتب والحضور" : "Payroll & attendance settings"}</div>
