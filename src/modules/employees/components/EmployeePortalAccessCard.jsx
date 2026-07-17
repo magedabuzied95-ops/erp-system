@@ -29,7 +29,7 @@ export default function EmployeePortalAccessCard({ employee, onEmployeeTokenChan
   }, [employee?.id]);
 
   const effectivePortalUrl = portalUrl || portalQrUrl;
-  if (!employee?.id || !employee?.employee_portal_token) return null;
+  if (!employee?.id) return null;
 
   const portalStatusActive = String(employee.status || "active").toLowerCase() === "active";
 
@@ -117,23 +117,25 @@ export default function EmployeePortalAccessCard({ employee, onEmployeeTokenChan
 
       <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
         <div className="text-[10px] font-bold text-zinc-500">{isArabic ? "رابط بوابة الموظف" : "Employee portal URL"}</div>
-        <div className="mt-2 break-all text-sm font-semibold text-white" dir="ltr">{effectivePortalUrl}</div>
+        <div className="mt-2 break-all text-sm font-semibold text-white" dir="ltr">
+          {effectivePortalUrl || (isArabic ? "لم يتم إنشاء رابط بوابة الموظف بعد. اضغط إعادة إنشاء الرابط." : "No employee portal link yet. Generate one below.")}
+        </div>
       </div>
 
       <div className="mt-4 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-        <button type="button" onClick={copyPortalLink} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10">
+        <button type="button" onClick={copyPortalLink} disabled={!effectivePortalUrl} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <Copy className="h-4 w-4" />
           {isArabic ? "نسخ رابط البوابة" : "Copy Portal Link"}
         </button>
-        <button type="button" onClick={openPortal} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10">
+        <button type="button" onClick={openPortal} disabled={!effectivePortalUrl} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50">
           <ExternalLink className="h-4 w-4" />
           {isArabic ? "فتح البوابة" : "Open Portal"}
         </button>
-        <button type="button" onClick={shareWhatsapp} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400">
+        <button type="button" onClick={shareWhatsapp} disabled={!effectivePortalUrl} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-4 text-sm font-black text-black transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50">
           <Send className="h-4 w-4" />
           {isArabic ? "رابط واتساب" : "WhatsApp Link"}
         </button>
-        <button type="button" onClick={downloadQr} disabled={portalTokenBusy} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:opacity-60">
+        <button type="button" onClick={downloadQr} disabled={portalTokenBusy || !effectivePortalUrl} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-60">
           <Download className="h-4 w-4" />
           {isArabic ? "تنزيل QR" : "Download QR"}
         </button>

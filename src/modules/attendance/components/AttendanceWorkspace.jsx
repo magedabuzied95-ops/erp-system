@@ -280,6 +280,7 @@ function AttendanceWorkspace({
   const [employeePhotoUploadError, setEmployeePhotoUploadError] = useState("");
   const [employeeForm, setEmployeeForm] = useState(() => createEmptyEmployeeForm());
   const [editingEmployee, setEditingEmployee] = useState(null);
+  const [employeeEditorOpen, setEmployeeEditorOpen] = useState(false);
   const [shiftForm, setShiftForm] = useState(() => createEmptyShiftForm());
   const [filters, setFilters] = useState({
     date: todayValue(),
@@ -779,6 +780,7 @@ function AttendanceWorkspace({
     setEditingEmployee(null);
     setEmployeeForm(createEmptyEmployeeForm(singleBranchId));
     setShiftForm(createEmptyShiftForm());
+    setEmployeeEditorOpen(true);
     if (typeof onSelectedEmployeeChange === "function") {
       onSelectedEmployeeChange(null);
     }
@@ -816,7 +818,7 @@ function AttendanceWorkspace({
 
   const handleEditEmployee = (employee) => {
     const nextEmployeeId = String(employee?.id || "");
-    if (!nextEmployeeId || String(employeeForm.id || "") === nextEmployeeId) return;
+    if (!nextEmployeeId) return;
 
     const snapshot = {
       id: employee.id,
@@ -861,6 +863,7 @@ function AttendanceWorkspace({
     setShiftForm(createEmptyShiftForm());
     setSelectedEmployeeId(nextEmployeeId);
     setSelectedTab("employees");
+    setEmployeeEditorOpen(true);
   };
 
   const handleEmployeePhotoUpload = async (event) => {
@@ -1548,11 +1551,14 @@ function AttendanceWorkspace({
 
       {selectedTab === "employees" ? (
         <div className="grid gap-6 xl:grid-cols-12">
-          <section className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 xl:col-span-7">
+          <section className={`rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10 ${employeeEditorOpen ? "hidden" : "xl:col-span-12"}`}>
             <div className="flex items-center justify-between gap-3">
               <div>
                 <div className={isArabic ? "text-[11px] font-bold text-zinc-500" : "text-[11px] uppercase tracking-[0.2em] text-zinc-500"}>{tr("employees.employeeList")}</div>
                 <h2 className="text-2xl font-black text-white">{tr("employees.employeesAndShifts")}</h2>
+                <p className="mt-2 text-sm leading-6 text-zinc-400">
+                  {isArabic ? "اختار موظف للتعديل أو افتح ملف موظف جديد. بيانات الموظف الكاملة أصبحت في صفحة مستقلة بدل الفورم الجانبي." : "Select an employee to edit or open a new employee profile. Full employee settings now live in a dedicated page."}
+                </p>
               </div>
               <button
                 type="button"
@@ -1645,7 +1651,42 @@ function AttendanceWorkspace({
             </div>
           </section>
 
-          <section className="space-y-5 xl:col-span-5">
+          <section className={employeeEditorOpen ? "space-y-5 xl:col-span-12" : "hidden"}>
+            <div className="rounded-[34px] border border-amber-400/20 bg-gradient-to-br from-zinc-950 via-zinc-950 to-amber-950/20 p-5 shadow-2xl shadow-black/10">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <div className={isArabic ? "text-[11px] font-bold text-amber-300" : "text-[11px] uppercase tracking-[0.2em] text-amber-300"}>{isArabic ? "ملف الموظف" : "Employee profile"}</div>
+                  <h2 className="mt-2 text-3xl font-black text-white">
+                    {employeeForm.id ? (employeeForm.full_name || tr("employees.editEmployee")) : (isArabic ? "إضافة موظف جديد" : "Add new employee")}
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-400">
+                    {isArabic
+                      ? "كل ما يخص الموظف في مكان واحد: البيانات الأساسية، بوابة الموظف، بوابة المدير، الراتب، العمولات، لوائح الخصم، صلاحية فتح الفرع والوردية."
+                      : "Everything for the employee in one place: basics, employee portal, manager portal, salary, commissions, deduction rules, branch-opening eligibility, and shifts."}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEmployeeEditorOpen(false)}
+                    className="inline-flex items-center justify-center rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+                  >
+                    {isArabic ? "رجوع لدليل الموظفين" : "Back to employees"}
+                  </button>
+                  {isEditable ? (
+                    <button
+                      type="button"
+                      onClick={handleSaveEmployee}
+                      disabled={saving}
+                      className="inline-flex items-center justify-center gap-2 rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-black text-black transition hover:bg-emerald-400 disabled:opacity-50"
+                    >
+                      {saving ? t("common.saving") : employeeForm.id ? tr("actions.updateEmployee") : tr("actions.createEmployee")}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+
             {isEditable ? (
               <div className="rounded-[34px] border border-white/10 bg-zinc-950/90 p-5 shadow-2xl shadow-black/10">
                 <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-500">
@@ -1909,7 +1950,7 @@ function AttendanceWorkspace({
               </div>
             ) : null}
 
-            {profileEmployee?.employee_portal_token ? (
+            {profileEmployee ? (
               <EmployeePortalAccessCard employee={profileEmployee} onEmployeeTokenChange={setEmployeePortalToken} />
             ) : null}
 
