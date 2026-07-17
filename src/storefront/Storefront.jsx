@@ -2470,10 +2470,10 @@ const uniqueClassificationOptions = (options = []) => {
 
 // Men's category motion clip (Pexels video 33294342, free to use).
 // Product/category media from the API still takes priority when configured.
-const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/33294342/14180897_3840_2160_24fps.mp4";
+const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/33294342/14180878_640_360_24fps.mp4";
 // Women's category motion clip (Pexels video 7877138, free to use).
-const WOMEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/7877138/7877138-uhd_4096_2160_25fps.mp4";
-const KIDS_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/8456205/8456205-hd_1920_1080_25fps.mp4";
+const WOMEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/7877138/7877138-sd_640_338_25fps.mp4";
+const KIDS_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/8456205/8456205-sd_640_360_25fps.mp4";
 
 const mainHomeCategoryCards = [
   {
@@ -3017,33 +3017,51 @@ function HomePremiumHero({ lang = "ar", brandName = "M1 Store", themeTokens = {}
 function HomeCategoryMotionMedia({ video = "", image = "", alt = "" }) {
   const videoRef = useRef(null);
   const [videoFailed, setVideoFailed] = useState(false);
+  const [shouldLoadVideo, setShouldLoadVideo] = useState(false);
 
   useEffect(() => {
     setVideoFailed(false);
+    setShouldLoadVideo(false);
   }, [video]);
 
   useEffect(() => {
     const element = videoRef.current;
-    if (!element || !video || videoFailed || typeof IntersectionObserver === "undefined") return undefined;
+    if (!element || !video || videoFailed || typeof window === "undefined") return undefined;
+    const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const saveData = Boolean(window.navigator?.connection?.saveData);
+    if (reduceMotion || saveData) return undefined;
+    if (typeof IntersectionObserver === "undefined") {
+      setShouldLoadVideo(true);
+      return undefined;
+    }
     const observer = new IntersectionObserver(([entry]) => {
-      if (entry?.isIntersecting) element.play().catch(() => {});
-      else element.pause();
-    }, { threshold: 0.25 });
+      if (!entry?.isIntersecting) return;
+      setShouldLoadVideo(true);
+      observer.disconnect();
+    }, { threshold: 0.12, rootMargin: "80px 0px" });
     observer.observe(element);
     return () => observer.disconnect();
   }, [video, videoFailed]);
+
+  useEffect(() => {
+    const element = videoRef.current;
+    if (!element || !shouldLoadVideo || videoFailed) return undefined;
+    element.play().catch(() => {});
+    return () => element.pause();
+  }, [shouldLoadVideo, videoFailed]);
 
   if (video && !videoFailed) {
     return (
       <video
         ref={videoRef}
-        src={video}
+        src={shouldLoadVideo ? video : undefined}
         poster={image ? imageFor(image) : undefined}
         className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-[1.04]"
         muted
         loop
         playsInline
-        preload="metadata"
+        preload="none"
+        onCanPlay={() => videoRef.current?.play().catch(() => {})}
         onError={() => setVideoFailed(true)}
         aria-label={alt}
       />
