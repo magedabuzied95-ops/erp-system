@@ -82,6 +82,9 @@ try {
         has_img: Boolean(group.querySelector('img')),
         buttons: group.querySelectorAll('[role="button"], button').length,
         links: group.querySelectorAll('a[href]').length,
+        aria_label: group.getAttribute('aria-label') || '',
+        text_preview: (group.innerText || group.textContent || '').trim().slice(0, 300),
+        nested_groups: group.querySelectorAll('div[role="group"]').length,
         tokens: group.textContent?.match(/IG-(?:A|B)-(?:001|PARALLEL)-\d{8}-\d{6}/g) || [],
       }))).catch(() => []),
       request_actions: await page.locator('[role="button"], button').evaluateAll((controls) => controls
