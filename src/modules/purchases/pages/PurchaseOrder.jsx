@@ -1928,35 +1928,40 @@ function PurchaseOrder() {
         </div>
       ) : null}
 
-      <div className="sticky top-0 z-20 rounded-2xl border border-white/10 bg-zinc-950/95 p-2 shadow-2xl shadow-black/20 backdrop-blur">
-        <div className="grid gap-2 lg:grid-cols-[minmax(10rem,1fr)_minmax(10rem,0.9fr)_minmax(9rem,0.8fr)_minmax(16rem,1.35fr)_auto]">
-          <Select label={t("purchases.filters.supplier")} value={supplierId} onChange={setSupplierId} options={suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code ? `${supplier.supplier_code} - ` : ""}${supplier.name}` }))} emptyLabel={t("purchases.create.createSupplierFirst")} />
+      <div className="sticky top-0 z-20 rounded-2xl border border-white/10 bg-zinc-950/95 p-3 shadow-2xl shadow-black/20 backdrop-blur">
+        <div className={`grid items-end gap-3 md:grid-cols-2 ${branches.length > 1 ? "xl:grid-cols-[minmax(18rem,1.15fr)_minmax(15rem,0.9fr)_minmax(12rem,0.75fr)_minmax(25rem,2fr)]" : "xl:grid-cols-[minmax(18rem,1.1fr)_minmax(15rem,0.9fr)_minmax(28rem,2fr)]"}`}>
+          <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
+            <Select label={t("purchases.filters.supplier")} value={supplierId} onChange={setSupplierId} options={suppliers.map((supplier) => ({ value: supplier.id, label: `${supplier.supplier_code ? `${supplier.supplier_code} - ` : ""}${supplier.name}` }))} emptyLabel={t("purchases.create.createSupplierFirst")} />
+            <button
+              type="button"
+              onClick={() => setSupplierModalOpen(true)}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-white transition hover:border-emerald-300/30 hover:bg-emerald-400/10"
+              title={isArabic ? "إضافة مورد" : "Add supplier"}
+            >
+              <Plus className="h-4 w-4" />
+              <span>{t("purchases.filters.supplier")}</span>
+            </button>
+          </div>
           <Select label={t("purchases.filters.warehouse")} value={warehouseId} onChange={setWarehouseId} options={warehouses.map((warehouse) => ({ value: warehouse.id, label: warehouse.name }))} emptyLabel={t("purchases.create.mainWarehouse")} />
           {branches.length > 1 ? <Select label={t("purchases.filters.branch")} value={branchId} onChange={setBranchId} options={branches.map((branch) => ({ value: branch.id, label: branch.name }))} emptyLabel={t("purchases.create.allBranches")} /> : null}
-          <div ref={searchPanelWrapRef} className="relative">
-            <div className="mb-1.5 flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+          <div ref={searchPanelWrapRef} className="relative min-w-0">
+            <div className="mb-1.5 flex items-center gap-2 text-[11px] font-bold text-zinc-400">
               <Barcode className="h-3.5 w-3.5" />
               {t("purchases.create.searchBarcode")}
             </div>
-            <Search className="pointer-events-none absolute start-3 top-[1.9rem] h-4 w-4 text-zinc-500" />
-            <input
-              ref={searchRef}
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              onKeyDown={handleBarcodeSubmit}
-              onFocus={() => setProductPickerOpen(true)}
-              placeholder={t("purchases.create.searchProductPlaceholder")}
-              className="h-9 w-full rounded-xl border border-white/10 bg-black/35 py-2 pe-3 ps-9 text-sm font-semibold text-white outline-none transition placeholder:text-zinc-500 focus:border-emerald-400/50 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
-            />
+            <div className="relative">
+              <Search className="pointer-events-none absolute start-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
+              <input
+                ref={searchRef}
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                onKeyDown={handleBarcodeSubmit}
+                onFocus={() => setProductPickerOpen(true)}
+                placeholder={t("purchases.create.searchProductPlaceholder")}
+                className="h-11 w-full rounded-2xl border border-white/10 bg-black/40 py-2 pe-4 ps-12 text-base font-semibold text-white outline-none transition placeholder:text-zinc-500 hover:border-white/20 focus:border-emerald-400/60 focus:bg-black/55 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+              />
+            </div>
             {productPickerOpen ? <ProductSearchPanel search={search} products={products} results={filteredProducts} loading={productsLoading} onAdd={addProduct} /> : null}
-          </div>
-          <div className="flex items-end gap-2">
-            <button type="button" onClick={() => setSupplierModalOpen(true)} className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">
-              {t("purchases.filters.supplier")}
-            </button>
-            <button type="button" onClick={() => setRunModal({ mode: "size", product: groupedCards[0] || null })} className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-black text-black disabled:opacity-40" disabled={!groupedCards.length}>
-              {t("purchases.create.sizeRun")}
-            </button>
           </div>
         </div>
       </div>
