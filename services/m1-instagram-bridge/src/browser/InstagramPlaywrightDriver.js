@@ -90,11 +90,12 @@ export class InstagramPlaywrightDriver {
   }
   async collectButtonConversations(startUrl, limit) {
     if (limit <= 0) return [];
-    await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+    const deadline = Date.now() + 30_000;
+    await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 });
     await this.page.waitForTimeout(2_500);
     const conversations = [];
     const seenPreviews = new Set();
-    for (let attempt = 0; attempt < limit * 3 && conversations.length < limit; attempt += 1) {
+    for (let attempt = 0; attempt < limit * 2 && conversations.length < limit && Date.now() < deadline; attempt += 1) {
       const buttons = this.page.locator('div[role="button"]:has(img)');
       await buttons.first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
       const count = await buttons.count();
@@ -109,16 +110,16 @@ export class InstagramPlaywrightDriver {
       }
       if (!target) break;
       await this.safety.beforeConversationOpen();
-      const clicked = await target.click({ timeout: 5_000 }).then(() => true).catch(() => false);
+      const clicked = await target.click({ timeout: 3_000 }).then(() => true).catch(() => false);
       if (!clicked) {
-        await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 15_000 }).catch(() => {});
+        await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 }).catch(() => {});
         continue;
       }
       await this.page.waitForTimeout(1_500);
       const url = this.page.url();
       const threadId = extractThreadId(url);
       if (threadId) conversations.push({ url, threadId, preview });
-      await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+      await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 });
       await this.page.waitForTimeout(1_200);
     }
     return conversations;
