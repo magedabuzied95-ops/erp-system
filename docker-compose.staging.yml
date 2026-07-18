@@ -1,0 +1,224 @@
+name: m1-staging
+
+x-staging-identity: &staging-identity
+  STAGING_ISOLATION_REQUIRED: "true"
+  APP_ENV: staging
+  DOCKER_PROJECT: m1-staging
+  CHANNEL_ACCOUNT_TYPE: test
+  DATABASE_NAME: erp_staging
+  STAGING_EXPECTED_DATABASE: erp_staging
+  STAGING_PUBLIC_ORIGIN: ${STAGING_PUBLIC_ORIGIN:-http://localhost:3100}
+  INSTAGRAM_CHANNEL_ACCOUNT_ID: instagram-test-account
+
+x-logging: &staging-logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+services:
+  postgres-staging:
+    image: postgres:16-alpine
+    container_name: m1-postgres-staging
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: erp_staging
+      POSTGRES_USER: staging-only-user
+      POSTGRES_PASSWORD: ${STAGING_POSTGRES_PASSWORD:?STAGING_POSTGRES_PASSWORD is required}
+    volumes:
+      - m1_staging_postgres_data:/var/lib/postgresql/data
+      - ./server/database/schema.sql:/docker-entrypoint-initdb.d/01-erp-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U staging-only-user -d erp_staging"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [m1-staging-network]
+    logging: *staging-logging
+
+  redis-staging:
+    image: redis:7.4-alpine
+    container_name: m1-redis-staging
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes: [m1_staging_redis_data:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [m1-staging-network]
+    logging: *staging-logging
+
+  backend-staging:
+    build: { context: ., dockerfile: Dockerfile.backend }
+    container_name: m1-erp-backend-staging
+    restart: unless-stopped
+    command: ["sh", "-c", "node server/scripts/stagingIsolationPreflight.js && node server/scripts/dbSetup.js && node server/server.js"]
+    env_file: .env.staging
+    environment:
+      <<: *staging-identity
+      NODE_ENV: production
+      PORT: "8000"
+      DATABASE_URL: postgresql://staging-only-user:${STAGING_POSTGRES_PASSWORD}@postgres-staging:5432/erp_staging
+      REDIS_URL: redis://redis-staging:6379
+      FRONTEND_URL: ${STAGING_PUBLIC_ORIGIN:-http://localhost:3100}
+      PUBLIC_APP_URL: ${STAGING_PUBLIC_ORIGIN:-http://localhost:3100}
+      CHANNEL_GATEWAY_ENABLED: "false"
+      INSTAGRAM_BRIDGE_ENABLED: "false"
+      INSTAGRAM_BRIDGE_AI_AUTO_SEND_ENABLED: "false"
+      INSTAGRAM_AI_MODE: draft_only
+    depends_on:
+      postgres-staging: { condition: service_healthy }
+      redis-staging: { condition: service_healthy }
+    volumes: [m1_staging_uploads:/app/server/uploads]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    networks:
+      m1-staging-network: { aliases: [backend] }
+      m1-staging-egress: {}
+    logging: *staging-logging
+
+  frontend-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args: { VITE_API_URL: /api }
+    container_name: m1-erp-frontend-staging
+    restart: unless-stopped
+    ports: ["127.0.0.1:${STAGING_FRONTEND_PORT:-3100}:80"]
+    depends_on:
+      backend-staging: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health || wget -qO- http://127.0.0.1/"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    networks: [m1-staging-network]
+    logging: *staging-logging
+
+  channel-gateway-staging:
+    build: { context: ., dockerfile: services/m1-channel-gateway/Dockerfile }
+    container_name: m1-channel-gateway-staging
+    restart: unless-stopped
+    env_file: .env.staging
+    environment:
+      <<: *staging-identity
+      PORT: "4080"
+      DATABASE_URL: postgresql://staging-only-user:${STAGING_POSTGRES_PASSWORD}@postgres-staging:5432/erp_staging
+      REDIS_URL: redis://redis-staging:6379
+      ERP_BACKEND_URL: http://backend-staging:8000
+      INSTAGRAM_BRIDGE_URL: http://instagram-bridge-staging:4090
+      CHANNEL_GATEWAY_ENABLED: "false"
+      CHANNEL_GATEWAY_SHADOW_MODE: "true"
+      CHANNEL_GATEWAY_OUTBOUND_ENABLED: "false"
+      CHANNEL_GATEWAY_INBOUND_ENABLED: "false"
+      CHANNEL_GATEWAY_WORKER_ENABLED: "false"
+      INSTAGRAM_BRIDGE_ENABLED: "false"
+      INSTAGRAM_BRIDGE_INBOUND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_OUTBOUND_ENABLED: "false"
+    command: ["sh", "-c", "node src/db/migrate.js && node src/index.js"]
+    depends_on:
+      postgres-staging: { condition: service_healthy }
+      redis-staging: { condition: service_healthy }
+      backend-staging: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4080/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    networks: [m1-staging-network, m1-staging-egress]
+    logging: *staging-logging
+
+  instagram-bridge-staging:
+    profiles: [instagram-pilot]
+    build: { context: ., dockerfile: services/m1-instagram-bridge/Dockerfile }
+    container_name: m1-instagram-bridge-staging
+    restart: "no"
+    env_file: .env.staging
+    environment:
+      <<: *staging-identity
+      PORT: "4090"
+      CHANNEL_GATEWAY_URL: http://channel-gateway-staging:4080
+      INSTAGRAM_PROFILE_PATH: /data/browser-profiles/instagram-test-account
+      INSTAGRAM_DIAGNOSTICS_PATH: /data/diagnostics
+      INSTAGRAM_STATE_PATH: /data/state/instagram-bridge-state.json
+      INSTAGRAM_HEADLESS: "true"
+      INSTAGRAM_BRIDGE_ENABLED: "false"
+      INSTAGRAM_BRIDGE_INBOUND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_OUTBOUND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_MEDIA_ENABLED: "false"
+      INSTAGRAM_BRIDGE_AI_AUTO_SEND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_RECOVERY_SYNC_ENABLED: "false"
+      INSTAGRAM_AI_MODE: draft_only
+    volumes:
+      - m1_staging_instagram_profile:/data/browser-profiles/instagram-test-account
+      - m1_staging_instagram_diagnostics:/data/diagnostics
+      - m1_staging_instagram_state:/data/state
+    read_only: true
+    tmpfs: [/tmp:size=256m,mode=1777]
+    shm_size: 512mb
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4090/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    deploy:
+      resources:
+        limits: { memory: 1G, cpus: "1.00" }
+    networks: [m1-staging-network]
+    logging: *staging-logging
+
+  instagram-login-staging:
+    profiles: [instagram-login]
+    build: { context: ., dockerfile: services/m1-instagram-bridge/Dockerfile }
+    container_name: m1-instagram-login-staging
+    restart: "no"
+    env_file: .env.staging
+    environment:
+      <<: *staging-identity
+      DISPLAY: :99
+      INSTAGRAM_HEADLESS: "false"
+      INSTAGRAM_LOGIN_AUTO_CONFIRM: "true"
+      INSTAGRAM_PROFILE_PATH: /data/browser-profiles/instagram-test-account
+      INSTAGRAM_DIAGNOSTICS_PATH: /data/diagnostics
+      INSTAGRAM_STATE_PATH: /data/state/instagram-bridge-state.json
+      INSTAGRAM_BRIDGE_ENABLED: "false"
+      INSTAGRAM_BRIDGE_INBOUND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_OUTBOUND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_MEDIA_ENABLED: "false"
+      INSTAGRAM_BRIDGE_AI_AUTO_SEND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_RECOVERY_SYNC_ENABLED: "false"
+      INSTAGRAM_AI_MODE: draft_only
+    command:
+      - bash
+      - -lc
+      - >-
+        Xvfb :99 -screen 0 1440x900x24 -nolisten tcp &
+        x11vnc -display :99 -forever -shared -nopw &
+        websockify --web=/usr/share/novnc/ 6080 localhost:5900 &
+        node scripts/manual-login.js
+    ports: ["127.0.0.1:${STAGING_NOVNC_PORT:-6080}:6080"]
+    volumes:
+      - m1_staging_instagram_profile:/data/browser-profiles/instagram-test-account
+      - m1_staging_instagram_diagnostics:/data/diagnostics
+      - m1_staging_instagram_state:/data/state
+    shm_size: 512mb
+    networks: [m1-staging-network, m1-staging-egress]
+    logging: *staging-logging
+
+volumes:
+  m1_staging_postgres_data: { name: m1_staging_postgres_data }
+  m1_staging_redis_data: { name: m1_staging_redis_data }
+  m1_staging_uploads: { name: m1_staging_uploads }
+  m1_staging_instagram_profile: { name: m1_staging_instagram_profile }
+  m1_staging_instagram_diagnostics: { name: m1_staging_instagram_diagnostics }
+  m1_staging_instagram_state: { name: m1_staging_instagram_state }
+
+networks:
+  m1-staging-network:
+    name: m1-staging-network
+    internal: true
+  m1-staging-egress:
+    name: m1-staging-egress

@@ -1,0 +1,81 @@
+services:
+  channel-gateway:
+    build:
+      context: ../..
+      dockerfile: services/m1-channel-gateway/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CHANNEL_GATEWAY_WORKER_ENABLED: "false"
+    ports:
+      - "127.0.0.1:4080:4080"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - channel_internal
+
+  instagram-bridge:
+    profiles: ["instagram-pilot"]
+    build:
+      context: ../..
+      dockerfile: services/m1-instagram-bridge/Dockerfile
+    restart: "no"
+    env_file: ../m1-instagram-bridge/.env
+    environment:
+      INSTAGRAM_BRIDGE_ENABLED: "false"
+      INSTAGRAM_BRIDGE_INBOUND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_OUTBOUND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_MEDIA_ENABLED: "false"
+      INSTAGRAM_BRIDGE_AI_AUTO_SEND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_RECOVERY_SYNC_ENABLED: "false"
+      INSTAGRAM_AI_MODE: draft_only
+    volumes:
+      - instagram_bridge_profile:/data/browser-profiles/instagram-test-account
+      - instagram_bridge_diagnostics:/data/diagnostics
+      - instagram_bridge_state:/data/state
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+    shm_size: 512mb
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4090/health/live').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.00"
+    networks:
+      - channel_internal
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
+    volumes:
+      - channel_gateway_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - channel_internal
+
+volumes:
+  channel_gateway_redis:
+  instagram_bridge_profile:
+  instagram_bridge_diagnostics:
+  instagram_bridge_state:
+
+networks:
+  channel_internal:
+    internal: true

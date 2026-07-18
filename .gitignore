@@ -8,6 +8,7 @@ build/
 .env
 .env.*
 !.env.example
+!.env.staging.example
 !server/.env.example
 
 *.log
@@ -29,3 +30,14 @@ Thumbs.db
 .vscode/
 .idea/
 instances.json
+
+# Browser bridge sessions and diagnostics must never enter source control.
+services/m1-instagram-bridge/data/
+browser-profiles/
+instagram_bridge_profile/
+instagram_bridge_diagnostics/
+diagnostics/
+playwright/.auth/
+storage-state*.json
+*.session.json
+*.instagram-session.json
