@@ -157,3 +157,23 @@ test('manual outbound waiting yields scheduled conversation sweeps', async () =>
 
   assert.equal(opened, 1);
 });
+
+test('manual outbound safely resets a stuck scheduled browser operation', async () => {
+  const { bridge } = fixture();
+  let disconnected = 0; let connected = 0; let inboxOpened = 0;
+  bridge.browserOperationInFlight = true;
+  bridge.driver.disconnect = async () => {
+    disconnected += 1;
+    bridge.browserOperationInFlight = false;
+  };
+  bridge.driver.connect = async () => { connected += 1; };
+  bridge.driver.openInbox = async () => { inboxOpened += 1; };
+
+  const result = await bridge.withExclusiveBrowserOperation(async () => 'sent', 100, { preemptAfterMs: 10 });
+
+  bridge.stopWatchers();
+  assert.equal(result, 'sent');
+  assert.equal(disconnected, 1);
+  assert.equal(connected, 1);
+  assert.equal(inboxOpened, 1);
+});

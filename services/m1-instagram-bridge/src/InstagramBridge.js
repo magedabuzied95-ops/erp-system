@@ -46,18 +46,39 @@ export class InstagramBridge {
     queueMicrotask(run);
     return timer;
   }
+  startWatchers() {
+    if (this.config.inboundEnabled && !this.liveTimer) this.liveTimer = this.schedule(() => this.liveWatch(), this.config.liveWatchIntervalMs, 'live_watch');
+    if (this.config.recoverySyncEnabled && !this.recoveryTimer) this.recoveryTimer = this.schedule(() => this.recoverySync(), this.config.recoverySyncIntervalMs, 'recovery_sync');
+  }
   stopWatchers() { if (this.liveTimer) clearInterval(this.liveTimer); if (this.recoveryTimer) clearInterval(this.recoveryTimer); this.liveTimer = null; this.recoveryTimer = null; }
-  async withExclusiveBrowserOperation(operation, timeoutMs = 180_000) {
+  async withExclusiveBrowserOperation(operation, timeoutMs = 180_000, { preemptAfterMs = 15_000 } = {}) {
     this.browserOperationPriorityWaiting = true;
+    let preempted = false;
     try {
       const deadline = Date.now() + timeoutMs;
-      while (this.browserOperationInFlight && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50));
+      const preemptAt = Date.now() + Math.min(preemptAfterMs, timeoutMs);
+      while (this.browserOperationInFlight && Date.now() < deadline) {
+        if (!preempted && Date.now() >= preemptAt) {
+          preempted = true;
+          this.paused = true;
+          this.stopWatchers();
+          await this.driver.disconnect().catch(() => {});
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
       if (this.browserOperationInFlight) throw Object.assign(new Error('Browser operation is busy'), { code: 'BROWSER_OPERATION_BUSY' });
+      if (preempted) {
+        await this.driver.connect();
+        await this.driver.openInbox();
+        this.paused = false;
+        this.running = true;
+      }
       this.browserOperationInFlight = true;
       try { return await operation(); }
       finally { this.browserOperationInFlight = false; }
     } finally {
       this.browserOperationPriorityWaiting = false;
+      if (preempted && !this.paused) this.startWatchers();
     }
   }
   async pause() { this.paused = true; this.stopWatchers(); return this.getHealth(); }
