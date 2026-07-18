@@ -52,7 +52,7 @@ services:
     build: { context: ., dockerfile: Dockerfile.backend }
     container_name: m1-erp-backend-staging
     restart: unless-stopped
-    command: ["sh", "-c", "node server/scripts/stagingIsolationPreflight.js && node server/scripts/dbSetup.js && node server/server.js"]
+    command: ["sh", "-c", "node server/scripts/stagingIsolationPreflight.js && node server/scripts/dbSetup.js && node server/scripts/stagingSeed.js && node server/server.js"]
     env_file: .env.staging
     environment:
       <<: *staging-identity
