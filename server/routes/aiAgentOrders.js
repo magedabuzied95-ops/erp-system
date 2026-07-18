@@ -4748,6 +4748,45 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
         code: "CHANNEL_SEND_UNAVAILABLE",
       });
     }
+    const instagramPilotMatch = /^instagram:([^:]+):(.+)$/i.exec(conversationId);
+    const instagramBridgePilot = normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM
+      && instagramPilotMatch
+      && ["1", "true", "yes", "on"].includes(String(process.env.CHANNEL_GATEWAY_ENABLED || "").toLowerCase())
+      && ["1", "true", "yes", "on"].includes(String(process.env.CHANNEL_GATEWAY_OUTBOUND_ENABLED || "").toLowerCase())
+      && ["1", "true", "yes", "on"].includes(String(process.env.INSTAGRAM_BRIDGE_ENABLED || "").toLowerCase())
+      && ["1", "true", "yes", "on"].includes(String(process.env.INSTAGRAM_BRIDGE_OUTBOUND_ENABLED || "").toLowerCase());
+    if (instagramBridgePilot) {
+      const idempotencyKey = envText(req.get("idempotency-key") || req.get("x-idempotency-key") || requestClientRequestId(req) || `instagram_manual:${tenantId}:${conversationId}:${Date.now()}`);
+      const message = await appendManualAiSupportReply({
+        tenantId,
+        sessionId: conversationId,
+        message: messageText,
+        staffUserId: req.user?.id || null,
+        staffUserName: userDisplayName(req.user),
+        source: "instagram_browser_bridge_manual",
+        channel: "instagram",
+        deliveryStatus: "queued",
+        clientRequestId: idempotencyKey,
+        idempotencyKey,
+        channelConnectionId: instagramPilotMatch[1],
+        externalConversationId: instagramPilotMatch[2],
+        externalUsername: envText(channelMetadata.external_username || channelMetadata.username || ""),
+        externalDisplayName: envText(conversation.customer_name || channelMetadata.external_display_name || ""),
+        conversationFingerprint: envText(channelMetadata.conversation_fingerprint || ""),
+        preserveExactMessage: true,
+      });
+      const emittedAt = new Date().toISOString();
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: emittedAt });
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: emittedAt });
+      return res.status(202).json({
+        success: true,
+        sent: false,
+        queued: true,
+        delivery_status: "queued",
+        message,
+        channel_transport: "instagram_browser_bridge",
+      });
+    }
     if (!recipientId) {
       if (isWhatsAppConversation) {
         const message = await appendManualAiSupportReply({

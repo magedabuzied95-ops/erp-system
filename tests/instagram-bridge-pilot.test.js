@@ -26,11 +26,15 @@ test('Instagram AI path creates draft and never invokes outbound send', async ()
 
 test('manual Instagram reply is queued without calling the official Meta send path', async () => {
   const route = await read('../server/routes/aiAgentOrders.js');
-  const branchStart = route.indexOf('const instagramPilotMatch');
-  const branchEnd = route.indexOf('const recipientId', branchStart);
-  const branch = route.slice(branchStart, branchEnd);
-  assert.match(branch, /appendManualAiSupportReply/); assert.match(branch, /deliveryStatus: "queued"/);
-  assert.doesNotMatch(branch, /sendMetaInboxOutboundMessage|replyToComment/);
+  const branchStarts = [...route.matchAll(/const instagramPilotMatch/g)].map((match) => match.index);
+  assert.ok(branchStarts.length >= 2, 'both private-message and main Send now routes must use the pilot queue');
+  for (const branchStart of branchStarts) {
+    const transportMarker = route.indexOf('channel_transport: "instagram_browser_bridge"', branchStart);
+    const branchEnd = route.indexOf('\n    }', transportMarker) + '\n    }'.length;
+    const branch = route.slice(branchStart, branchEnd);
+    assert.match(branch, /appendManualAiSupportReply/); assert.match(branch, /deliveryStatus: "queued"/);
+    assert.doesNotMatch(branch, /sendMetaInboxOutboundMessage|replyToComment/);
+  }
 });
 
 test('Web and PWA continue to consume the same conversation and message events', async () => {
