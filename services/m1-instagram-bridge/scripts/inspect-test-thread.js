@@ -10,6 +10,8 @@ const config = loadConfig();
 assertSafePilotConfig(config);
 const threadId = String(process.env.INSTAGRAM_INSPECT_THREAD_ID || '').trim();
 if (!threadId) throw new Error('INSTAGRAM_INSPECT_THREAD_ID is required');
+const inspectedToken = String(process.env.INSTAGRAM_INSPECT_TOKEN || '').trim();
+const escapedInspectedToken = inspectedToken.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const driver = new InstagramPlaywrightDriver({
   config,
@@ -21,7 +23,9 @@ try {
   await driver.connect();
   const identity = await driver.openConversation({ external_conversation_id: threadId });
   const messages = await driver.readMessages({ limit: 100 });
-  const tokenPattern = /(?:IG-(?:A|B)-(?:001|PARALLEL)|ERP-(?:WEB|PWA)-TO-(?:A|B)-001)-\d{8}-\d{6}/g;
+  const tokenPattern = inspectedToken
+    ? new RegExp(escapedInspectedToken, 'g')
+    : /(?:IG-(?:A|B)-(?:001|PARALLEL)|ERP-(?:WEB|PWA)-TO-(?:A|B)-001)-\d{8}-\d{6}/g;
   const testTokens = messages.flatMap((message) => message.text.match(tokenPattern) || []);
   const state = new BridgeStateStore(config.statePath);
   await state.load();
@@ -43,6 +47,7 @@ try {
   };
   console.log(JSON.stringify({
     external_conversation_id: identity.external_conversation_id,
+    inspected_token: inspectedToken || null,
     identity_confidence: identity.identity_confidence,
     messages_read: messages.length,
     test_tokens: testTokens,
