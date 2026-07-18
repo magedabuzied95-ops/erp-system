@@ -445,32 +445,44 @@ export default function AttendanceCenter() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [branchData, employeeData, dashboardData, listData, liveData, payrollData, overtimeData, leavesData, scheduleData, qrData, reportsData, hrSettingsData] = await Promise.all([
-        getBranches({ active: true }),
-        getAttendanceEmployees({ active: true, branch_id: filters.branchId }),
-        getAttendanceDashboard(params),
-        getAttendanceList(params),
-        getAttendanceLive(params),
-        getAttendancePayrollImpact(params),
-        getAttendanceOvertimeApprovals(params),
-        getAttendanceLeaves(params),
-        getAttendanceSchedules(params),
-        getAttendanceQrSessions(params),
-        getAttendanceCenterReports(params),
-        getAttendanceHrSettings(),
-      ]);
-      setBranches(safeArray(branchData));
-      setEmployees(safeArray(employeeData));
-      setDashboard(dashboardData || null);
-      setRows(safeArray(listData?.rows || listData?.attendance || listData));
-      setLiveRows(safeArray(liveData?.rows || liveData));
-      setPayrollRows(safeArray(payrollData?.rows || payrollData));
-      setOvertimeRows(safeArray(overtimeData?.rows || overtimeData));
-      setLeaveRows(safeArray(leavesData?.rows || leavesData));
-      setScheduleRows(safeArray(scheduleData?.rows || scheduleData?.schedules || scheduleData));
-      setQrRows(safeArray(qrData?.rows || qrData));
-      setReportPayload(reportsData || null);
-      setHrSettings(hrSettingsData || null);
+      const requests = [
+        ["branches", getBranches({ active: true })],
+        ["employees", getAttendanceEmployees({ active: true, branch_id: filters.branchId })],
+        ["dashboard", getAttendanceDashboard(params)],
+        ["list", getAttendanceList(params)],
+        ["live", getAttendanceLive(params)],
+        ["payroll", getAttendancePayrollImpact(params)],
+        ["overtime", getAttendanceOvertimeApprovals(params)],
+        ["leaves", getAttendanceLeaves(params)],
+        ["schedules", getAttendanceSchedules(params)],
+        ["qr", getAttendanceQrSessions(params)],
+        ["reports", getAttendanceCenterReports(params)],
+        ["hrSettings", getAttendanceHrSettings()],
+      ];
+      const settled = await Promise.allSettled(requests.map(([, request]) => request));
+      const fulfilled = {};
+
+      settled.forEach((result, index) => {
+        const key = requests[index][0];
+        if (result.status === "fulfilled") {
+          fulfilled[key] = result.value;
+          return;
+        }
+        console.error(`[attendance-center] ${key} request failed`, result.reason);
+      });
+
+      if (Object.hasOwn(fulfilled, "branches")) setBranches(safeArray(fulfilled.branches));
+      if (Object.hasOwn(fulfilled, "employees")) setEmployees(safeArray(fulfilled.employees));
+      if (Object.hasOwn(fulfilled, "dashboard")) setDashboard(fulfilled.dashboard || null);
+      if (Object.hasOwn(fulfilled, "list")) setRows(safeArray(fulfilled.list?.rows || fulfilled.list?.attendance || fulfilled.list));
+      if (Object.hasOwn(fulfilled, "live")) setLiveRows(safeArray(fulfilled.live?.rows || fulfilled.live));
+      if (Object.hasOwn(fulfilled, "payroll")) setPayrollRows(safeArray(fulfilled.payroll?.rows || fulfilled.payroll));
+      if (Object.hasOwn(fulfilled, "overtime")) setOvertimeRows(safeArray(fulfilled.overtime?.rows || fulfilled.overtime));
+      if (Object.hasOwn(fulfilled, "leaves")) setLeaveRows(safeArray(fulfilled.leaves?.rows || fulfilled.leaves));
+      if (Object.hasOwn(fulfilled, "schedules")) setScheduleRows(safeArray(fulfilled.schedules?.rows || fulfilled.schedules?.schedules || fulfilled.schedules));
+      if (Object.hasOwn(fulfilled, "qr")) setQrRows(safeArray(fulfilled.qr?.rows || fulfilled.qr));
+      if (Object.hasOwn(fulfilled, "reports")) setReportPayload(fulfilled.reports || null);
+      if (Object.hasOwn(fulfilled, "hrSettings")) setHrSettings(fulfilled.hrSettings || null);
     } finally {
       setLoading(false);
     }
