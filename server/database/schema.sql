@@ -842,6 +842,28 @@ ALTER TABLE IF EXISTS ai_support_messages
   ADD COLUMN IF NOT EXISTS external_reply_id TEXT NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS error_code TEXT NOT NULL DEFAULT '';
 
+CREATE TABLE IF NOT EXISTS ai_channel_conversations (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  channel TEXT NOT NULL,
+  external_conversation_id TEXT NOT NULL,
+  external_customer_id TEXT NOT NULL DEFAULT '',
+  is_group BOOLEAN NOT NULL DEFAULT FALSE,
+  ai_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  thread_kind TEXT NOT NULL DEFAULT 'dm',
+  lead_status TEXT NOT NULL DEFAULT 'new',
+  customer_name TEXT NOT NULL DEFAULT '',
+  customer_avatar_url TEXT NOT NULL DEFAULT '',
+  last_message TEXT NOT NULL DEFAULT '',
+  customer_profile_id BIGINT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_message_at TIMESTAMP NULL,
+  read_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (tenant_id, channel, external_conversation_id)
+);
+
 ALTER TABLE IF EXISTS ai_channel_conversations
   ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm';
 ALTER TABLE IF EXISTS ai_channel_conversations
