@@ -7,13 +7,14 @@ const DIRECT_INBOX_URL = 'https://www.instagram.com/direct/inbox/';
 const DIRECT_REQUESTS_URL = 'https://www.instagram.com/direct/requests/';
 const LOGIN_URL = 'https://www.instagram.com/accounts/login/';
 
-export function shouldSkipInstagramMessageCandidate({ text, hasLinkedImage = false, identityLabels = [] } = {}) {
+export function shouldSkipInstagramMessageCandidate({ text, hasLinkedImage = false, linkedIdentity = '', identityLabels = [] } = {}) {
   const normalized = String(text || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
   if (!normalized || /view once|disappearing|vanish mode/i.test(normalized)) return true;
   if (/^(video|photo|audio|reel|post)$/i.test(normalized)) return true;
   if (/^(accept|delete|block|decline)$/i.test(normalized)) return true;
   const labels = identityLabels.map((value) => String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase()).filter(Boolean);
-  return hasLinkedImage && labels.includes(normalized.toLowerCase());
+  const linkedLabel = String(linkedIdentity || '').replace(/^https?:\/\/[^/]+/i, '').replaceAll('/', '').trim().toLowerCase();
+  return hasLinkedImage && (labels.includes(normalized.toLowerCase()) || linkedLabel === normalized.toLowerCase());
 }
 
 export class InstagramPlaywrightDriver {
@@ -190,7 +191,8 @@ export class InstagramPlaywrightDriver {
       const node = nodes.nth(index);
       const text = (await node.innerText().catch(() => '')).trim();
       const hasLinkedImage = await node.locator('a[href] img').count().then((value) => value > 0).catch(() => false);
-      if (shouldSkipInstagramMessageCandidate({ text, hasLinkedImage, identityLabels })) continue;
+      const linkedIdentity = await node.locator('a[href]').first().getAttribute('href').catch(() => '');
+      if (shouldSkipInstagramMessageCandidate({ text, hasLinkedImage, linkedIdentity, identityLabels })) continue;
       const externalMessageId = await node.getAttribute('data-message-id').catch(() => '');
       const aria = await node.getAttribute('aria-label').catch(() => '');
       const direction = /you sent|sent by you/i.test(aria || '') ? 'outgoing' : 'incoming';

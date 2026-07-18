@@ -5,6 +5,7 @@ import { InstagramPlaywrightDriver, shouldSkipInstagramMessageCandidate } from '
 test('message candidate filter keeps avatar-backed message bubbles but skips the profile card', () => {
   const identityLabels = ['IG-A-001', 'Test User A'];
   assert.equal(shouldSkipInstagramMessageCandidate({ text: 'IG-A-001', hasLinkedImage: true, identityLabels }), true);
+  assert.equal(shouldSkipInstagramMessageCandidate({ text: 'IG-A-001', hasLinkedImage: true, linkedIdentity: '/IG-A-001/', identityLabels: [] }), true);
   assert.equal(shouldSkipInstagramMessageCandidate({ text: 'IG-A-PARALLEL-20260718-215940', hasLinkedImage: true, identityLabels }), false);
   assert.equal(shouldSkipInstagramMessageCandidate({ text: 'IG-A-001-20260718-215940', hasLinkedImage: false, identityLabels }), false);
   assert.equal(shouldSkipInstagramMessageCandidate({ text: 'Accept', identityLabels }), true);
