@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { InstagramPlaywrightDriver, shouldSkipInstagramMessageCandidate } from '../src/browser/InstagramPlaywrightDriver.js';
+import { InstagramPlaywrightDriver, inferInstagramMessageDirection, shouldSkipInstagramMessageCandidate } from '../src/browser/InstagramPlaywrightDriver.js';
 
 test('message candidate filter keeps avatar-backed message bubbles but skips the profile card', () => {
   const identityLabels = ['IG-A-001', 'Test User A'];
@@ -10,6 +10,13 @@ test('message candidate filter keeps avatar-backed message bubbles but skips the
   assert.equal(shouldSkipInstagramMessageCandidate({ text: 'IG-A-001-20260718-215940', hasLinkedImage: false, identityLabels }), false);
   assert.equal(shouldSkipInstagramMessageCandidate({ text: 'Accept', identityLabels }), true);
   assert.equal(shouldSkipInstagramMessageCandidate({ text: 'Video', identityLabels }), true);
+});
+
+test('message direction recognizes Instagram right-aligned outgoing rows', () => {
+  assert.equal(inferInstagramMessageDirection({ aria: 'You sent a message' }), 'outgoing');
+  assert.equal(inferInstagramMessageDirection({ layout: [{ flexDirection: 'row-reverse', justifyContent: 'flex-start', alignItems: 'center' }] }), 'outgoing');
+  assert.equal(inferInstagramMessageDirection({ layout: [{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'flex-end' }] }), 'outgoing');
+  assert.equal(inferInstagramMessageDirection({ layout: [{ flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'center' }] }), 'incoming');
 });
 
 test('conversation discovery always reserves capacity for message requests', async () => {

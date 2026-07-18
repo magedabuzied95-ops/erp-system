@@ -17,6 +17,13 @@ export function shouldSkipInstagramMessageCandidate({ text, hasLinkedImage = fal
   return hasLinkedImage && (labels.includes(normalized.toLowerCase()) || linkedLabel === normalized.toLowerCase());
 }
 
+export function inferInstagramMessageDirection({ aria = '', layout = [] } = {}) {
+  if (/you sent|sent by you/i.test(String(aria || ''))) return 'outgoing';
+  const outgoingLayout = layout.some((item) => item?.flexDirection === 'row-reverse'
+    || (item?.justifyContent === 'flex-end' && item?.alignItems === 'flex-end'));
+  return outgoingLayout ? 'outgoing' : 'incoming';
+}
+
 export class InstagramPlaywrightDriver {
   constructor({ config, diagnostics, safety }) {
     this.config = config; this.diagnostics = diagnostics; this.safety = safety;
@@ -197,7 +204,15 @@ export class InstagramPlaywrightDriver {
       if (shouldSkipInstagramMessageCandidate({ text, hasLinkedImage, linkedIdentity, identityLabels })) continue;
       const externalMessageId = await node.getAttribute('data-message-id').catch(() => '');
       const aria = await node.getAttribute('aria-label').catch(() => '');
-      const direction = /you sent|sent by you/i.test(aria || '') ? 'outgoing' : 'incoming';
+      const layout = await node.evaluate((element) => {
+        const values = []; let current = element;
+        for (let depth = 0; current && depth < 8; depth += 1, current = current.parentElement) {
+          const style = getComputedStyle(current);
+          values.push({ flexDirection: style.flexDirection, justifyContent: style.justifyContent, alignItems: style.alignItems });
+        }
+        return values;
+      }).catch(() => []);
+      const direction = inferInstagramMessageDirection({ aria, layout });
       output.push({ text, direction, externalMessageId, domFingerprint: `${index}:${text.length}` });
     }
     return output;
