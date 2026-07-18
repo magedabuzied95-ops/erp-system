@@ -7,6 +7,15 @@ const DIRECT_INBOX_URL = 'https://www.instagram.com/direct/inbox/';
 const DIRECT_REQUESTS_URL = 'https://www.instagram.com/direct/requests/';
 const LOGIN_URL = 'https://www.instagram.com/accounts/login/';
 
+export function shouldSkipInstagramMessageCandidate({ text, hasLinkedImage = false, identityLabels = [] } = {}) {
+  const normalized = String(text || '').normalize('NFKC').trim().replace(/\s+/g, ' ');
+  if (!normalized || /view once|disappearing|vanish mode/i.test(normalized)) return true;
+  if (/^(video|photo|audio|reel|post)$/i.test(normalized)) return true;
+  if (/^(accept|delete|block|decline)$/i.test(normalized)) return true;
+  const labels = identityLabels.map((value) => String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase()).filter(Boolean);
+  return hasLinkedImage && labels.includes(normalized.toLowerCase());
+}
+
 export class InstagramPlaywrightDriver {
   constructor({ config, diagnostics, safety }) {
     this.config = config; this.diagnostics = diagnostics; this.safety = safety;
@@ -151,15 +160,20 @@ export class InstagramPlaywrightDriver {
   }
   async readMessages({ limit = 50 } = {}) {
     await this.ensurePage();
-    const nodes = this.page.locator('[data-message-id], div[role="row"], div[role="group"]:not(:has(a)):not(:has(button)):not(:has(img))');
+    const identity = await this.readActiveIdentity().catch(() => ({}));
+    const identityLabels = [identity.external_username, identity.external_display_name, identity.header_identity];
+    // Instagram adds the sender avatar/link to the first bubble of a message
+    // cluster. Excluding groups that contain images or links silently drops that
+    // real message, so use leaf groups and explicitly filter the profile card.
+    const nodes = this.page.locator('[data-message-id], div[role="row"], div[role="group"]:not(:has(div[role="group"]))');
     const count = await nodes.count();
     const start = Math.max(0, count - limit);
     const output = [];
     for (let index = start; index < count; index += 1) {
       const node = nodes.nth(index);
       const text = (await node.innerText().catch(() => '')).trim();
-      if (!text || /view once|disappearing|vanish mode/i.test(text)) continue;
-      if (/^(video|photo|audio|reel|post)$/i.test(text)) continue;
+      const hasLinkedImage = await node.locator('a[href] img').count().then((value) => value > 0).catch(() => false);
+      if (shouldSkipInstagramMessageCandidate({ text, hasLinkedImage, identityLabels })) continue;
       const externalMessageId = await node.getAttribute('data-message-id').catch(() => '');
       const aria = await node.getAttribute('aria-label').catch(() => '');
       const direction = /you sent|sent by you/i.test(aria || '') ? 'outgoing' : 'incoming';
