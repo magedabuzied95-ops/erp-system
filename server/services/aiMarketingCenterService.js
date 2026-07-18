@@ -1470,11 +1470,16 @@ const resolveAiContentMedia = ({ product = {}, variant = null, strategy = "", co
   const selectedVariantImages = variant ? variantMediaUrls(variant) : [];
   const variantImages = uniqueImageUrls(activeVariants.flatMap((row) => variantMediaUrls(row)));
   const lastSizeImages = strategy === "last_size" ? selectedVariantImages : [];
-  const primaryPool = strategy === "new_arrivals" || contentType === "post"
-    ? [...variantImages, ...productImages]
-    : strategy === "last_size"
-      ? [...lastSizeImages, ...productImages]
-    : [...lastSizeImages, ...selectedVariantImages, ...variantImages, ...productImages];
+  // Story slides are created only from variant/color photography. The product
+  // cover belongs to the catalogue card and must never become an extra story
+  // slide, otherwise the same product artwork is repeated at the end.
+  const primaryPool = contentType === "story"
+    ? (strategy === "last_size" ? lastSizeImages : variantImages)
+    : strategy === "new_arrivals" || contentType === "post"
+      ? [...variantImages, ...productImages]
+      : strategy === "last_size"
+        ? [...lastSizeImages, ...productImages]
+        : [...lastSizeImages, ...selectedVariantImages, ...variantImages, ...productImages];
   const mediaUrls = uniqueImageUrls(primaryPool);
   return {
     media_urls: mediaUrls,
@@ -2030,8 +2035,19 @@ const isKnownRenderedStoryUrl = (url = "", item = {}) => {
   return /(^|\/)uploads\/stories\//.test(value) || /\/(?:erp\/)?stories\//i.test(value) || knownAssets.some((asset) => sameImageUrl(asset, value));
 };
 
-const rawStoryImageUrls = (item = {}) => {
+const storyProductCoverUrls = (item = {}) => {
   const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return uniqueImageUrls([
+    item.product_cover_image_url,
+    design.product_cover_image_url,
+    metadata.product_cover_image_url,
+  ]);
+};
+
+export const rawStoryImageUrls = (item = {}) => {
+  const design = item.design_json || {};
+  const coverUrls = storyProductCoverUrls(item);
   const slideImages = [
     ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.source_product_image_url || slide?.variant_image_url || slide?.original_image_url || slide?.image_url) : []),
     ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.source_product_image_url || slide?.variant_image_url || slide?.original_image_url || slide?.image_url) : []),
@@ -2045,15 +2061,14 @@ const rawStoryImageUrls = (item = {}) => {
     ...slideImages,
     ...(Array.isArray(item.media_urls) ? item.media_urls : []),
     ...(Array.isArray(design.media_urls) ? design.media_urls : []),
-    item.primary_image_url,
-    item.image_url,
-    design.primary_image_url,
-    design.image_url,
-  ]).filter((url) => !isKnownRenderedStoryUrl(url, item));
+  ]).filter((url) =>
+    !isKnownRenderedStoryUrl(url, item) &&
+    !coverUrls.some((coverUrl) => sameImageUrl(coverUrl, url))
+  );
 };
 
 const storyProductImageUrl = (item = {}) => rawStoryImageUrls(item)[0] || "";
-const AI_MARKETING_STORY_RENDERER = "ai_marketing_story_commercial_template_v9_unified_crimson_editorial";
+const AI_MARKETING_STORY_RENDERER = "ai_marketing_story_commercial_template_v10_no_product_cover";
 
 const isValidRenderedStoryAsset = (item = {}, assetUrl = "") => {
   const selectedAsset = cleanImageUrl(assetUrl);
@@ -2108,13 +2123,36 @@ const updateQueueGenerationStage = async (tenantId, id, stage, extraMetadata = {
   return updated.rows[0] ? normalizeQueueRow(updated.rows[0]) : null;
 };
 
+const fetchQueueProductCoverImageUrl = async (tenantId, item = {}) => {
+  const savedCover = cleanImageUrl(
+    item.product_cover_image_url ||
+    item.design_json?.product_cover_image_url ||
+    item.metadata?.product_cover_image_url
+  );
+  if (savedCover || !item.product_id) return savedCover;
+  const result = await db.query(
+    `SELECT image_url FROM products WHERE id = $1 AND tenant_id = $2 LIMIT 1`,
+    [item.product_id, tenantId]
+  );
+  return cleanImageUrl(result.rows[0]?.image_url);
+};
+
 const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = false } = {}) => {
   if (!isStoryQueueItem(item)) return item;
   const existingAsset = queueStoryFinalAssetUrl(item);
   if (!force && isValidRenderedStoryAsset(item, existingAsset)) return normalizeQueueRow(item);
 
-  const rawImages = rawStoryImageUrls(item);
-  const design = item.design_json || {};
+  const productCoverImageUrl = await fetchQueueProductCoverImageUrl(tenantId, item);
+  const design = {
+    ...(item.design_json || {}),
+    ...(productCoverImageUrl ? { product_cover_image_url: productCoverImageUrl } : {}),
+  };
+  const sourceItem = {
+    ...item,
+    ...(productCoverImageUrl ? { product_cover_image_url: productCoverImageUrl } : {}),
+    design_json: design,
+  };
+  const rawImages = rawStoryImageUrls(sourceItem);
   const storeName = cleanText(await getSetting("storefront.store_name", "M1 STORE").catch(() => "M1 STORE")) || "M1 STORE";
   console.log("[story-source-images]", {
     queueId: item.id || null,
@@ -2130,7 +2168,7 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
       tenantId,
       postId: item.id,
       story: {
-        ...item,
+        ...sourceItem,
         image_url: rawImages[0] || item.image_url || design.image_url || "",
         source_product_image_url: rawImages[0] || "",
         media_urls: rawImages,
@@ -3772,6 +3810,7 @@ const makeFocusedCreative = ({ product, variant, contentType, strategy, layoutTy
       media_urls: media.media_urls.length ? media.media_urls : uniqueImageUrls([imageUrl]),
       primary_image_url: imageUrl,
       variant_image_url: media.variant_image_url,
+      product_cover_image_url: cleanImageUrl(product.image_url || product.product_image_url),
       product_url: storyProductUrl,
       cta_url: storyProductUrl,
       price,

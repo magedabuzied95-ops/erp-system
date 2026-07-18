@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 
-import { createDesignedStoryTextComposites, designedStoryBackgroundSvg, resolveDesignedStoryTheme } from "../../server/services/storyImageService.js";
+import { createDesignedStoryTextComposites, designedStoryBackgroundSvg, resolveDesignedStoryTheme, storyAssetImageSources } from "../../server/services/storyImageService.js";
 
 const previewSource = fs.readFileSync(
   new URL("../../src/modules/marketing/components/PostEditorModal.jsx", import.meta.url),
@@ -18,6 +18,21 @@ test("story renderer keeps the approved crimson commercial theme for every strat
   assert.equal(resolveDesignedStoryTheme({ strategy_type: "last_size", stock: 1 }).id, "new-arrival-crimson");
   assert.equal(resolveDesignedStoryTheme({ layout_type: "special_offer_story" }).id, "new-arrival-crimson");
   assert.equal(resolveDesignedStoryTheme({ strategy_type: "featured" }).id, "new-arrival-crimson");
+});
+
+test("story source selection excludes the product cover from old and new queues", () => {
+  const cover = "https://res.cloudinary.com/demo/image/upload/product-cover.webp";
+  const variantOne = "https://res.cloudinary.com/demo/image/upload/variant-one.webp";
+  const variantTwo = "https://res.cloudinary.com/demo/image/upload/variant-two.webp";
+  assert.deepEqual(storyAssetImageSources({
+    product_cover_image_url: cover,
+    variant_image_url: variantOne,
+    media_urls: [variantOne, variantTwo, cover],
+  }, {
+    product_cover_image_url: cover,
+    source_media_urls: [variantOne, variantTwo, cover],
+    slides: [{ image_url: cover }, { image_url: variantOne }],
+  }), [variantOne, variantTwo]);
 });
 
 test("rendered 9:16 asset uses a clean product-first selling hierarchy", () => {
@@ -55,7 +70,7 @@ test("story preview mirrors professional themes without store or audio chrome", 
   assert.match(previewSource, /const copyDirection = \/\[\\u0600-\\u06ff\]\//);
   assert.match(previewSource, /dir=\{copyDirection\}/);
   assert.match(previewSource, /from-red-100 via-red-400 to-rose-600/);
-  assert.match(marketingServiceSource, /ai_marketing_story_commercial_template_v9_unified_crimson_editorial/);
+  assert.match(marketingServiceSource, /ai_marketing_story_commercial_template_v10_no_product_cover/);
 });
 
 test("production story text is rasterized with the bundled font file", async () => {

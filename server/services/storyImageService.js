@@ -453,6 +453,23 @@ export const isGeneratedStoryImageUrl = (value) => {
 
 const uniqueList = (items = []) => Array.from(new Set(items.map(trimString).filter(Boolean)));
 
+const comparableImageUrl = (value = "") => {
+  const text = trimString(value);
+  if (!text) return "";
+  try {
+    const parsed = new URL(text, "https://local.invalid");
+    return decodeURIComponent(parsed.pathname || text).replace(/\/+/g, "/").replace(/^\/+/, "").toLowerCase();
+  } catch {
+    return text.split("?")[0].split("#")[0].replace(/\/+/g, "/").replace(/^\/+/, "").toLowerCase();
+  }
+};
+
+const sameImageUrl = (left = "", right = "") => {
+  const leftKey = comparableImageUrl(left);
+  const rightKey = comparableImageUrl(right);
+  return Boolean(leftKey && rightKey && leftKey === rightKey);
+};
+
 const numberValue = (value, fallback = 0) => {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
@@ -629,17 +646,21 @@ const storyPreviewSlideImages = (design = {}) => [
   ""
 );
 
-const storyAssetImageSources = (story = {}, design = {}) => {
-  const previewSlideImages = uniqueList(storyPreviewSlideImages(design)).filter((source) => !isGeneratedStoryImageUrl(source));
-  if (previewSlideImages.length) return previewSlideImages;
+export const storyAssetImageSources = (story = {}, design = {}) => {
+  const coverImages = uniqueList([
+    story.product_cover_image_url,
+    design.product_cover_image_url,
+    story.metadata?.product_cover_image_url,
+  ]);
+  const usableSources = (items = []) => uniqueList(items).filter((source) =>
+    !isGeneratedStoryImageUrl(source) &&
+    !coverImages.some((coverImage) => sameImageUrl(coverImage, source))
+  );
 
-  const previewFallbackImages = uniqueList([
-    story.image_url,
-    ...(Array.isArray(story.media_urls) ? story.media_urls : []),
-  ]).filter((source) => !isGeneratedStoryImageUrl(source));
-  if (previewFallbackImages.length) return previewFallbackImages;
-
-  const variantImages = uniqueList([
+  // Prefer the explicit variant/color source list supplied by the queue. Old
+  // slide previews may still contain the catalogue cover and must not override
+  // the cleaned list during regeneration.
+  const variantImages = usableSources([
     story.source_product_image_url,
     story.variant_image_url,
     design.source_product_image_url,
@@ -649,14 +670,16 @@ const storyAssetImageSources = (story = {}, design = {}) => {
     ...(Array.isArray(story.media_urls) ? story.media_urls : []),
     ...(Array.isArray(design.source_media_urls) ? design.source_media_urls : []),
     ...(Array.isArray(design.media_urls) ? design.media_urls : []),
-  ]).filter((source) => !isGeneratedStoryImageUrl(source));
-  const coverImages = uniqueList([
-    story.primary_image_url,
+  ]);
+  if (variantImages.length) return variantImages;
+
+  const previewSlideImages = usableSources(storyPreviewSlideImages(design));
+  if (previewSlideImages.length) return previewSlideImages;
+
+  return usableSources([
     story.image_url,
-    design.primary_image_url,
-    design.image_url,
-  ]).filter((source) => !isGeneratedStoryImageUrl(source));
-  return variantImages.length ? variantImages : coverImages;
+    ...(Array.isArray(story.media_urls) ? story.media_urls : []),
+  ]);
 };
 
 const storyAssetImageSource = (story = {}, design = {}) => storyAssetImageSources(story, design)[0] || "";
