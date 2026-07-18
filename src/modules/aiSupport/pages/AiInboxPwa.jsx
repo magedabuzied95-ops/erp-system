@@ -3000,6 +3000,8 @@ export default function AiInboxPwa() {
   const markReadSignatureRef = useRef("");
   const messengerProfileSyncAttemptedRef = useRef(new Set());
   const refreshInFlightRef = useRef(false);
+  const socialCommentsLoadedRef = useRef(false);
+  const socialCommentsRequestRef = useRef(false);
   const requestSeqRef = useRef(0);
   const socialWorkspaceLoadSeqRef = useRef(0);
   const socialWorkspaceLoadStartRef = useRef(0);
@@ -3117,6 +3119,8 @@ export default function AiInboxPwa() {
 
   const loadSocialComments = useCallback(
     async ({ silent = false, seq = requestSeqRef.current, cursor = "", append = false } = {}) => {
+      if (socialCommentsRequestRef.current && !append) return;
+      socialCommentsRequestRef.current = true;
       if (!silent) setSocialComments((current) => ({ ...current, loading: true, error: "" }));
       setSocialCommentsDebug((current) => ({ ...current, error: "" }));
 
@@ -3206,6 +3210,10 @@ export default function AiInboxPwa() {
           error: message,
         });
       } finally {
+        socialCommentsRequestRef.current = false;
+        if (!append) {
+          socialCommentsLoadedRef.current = true;
+        }
         if (DEBUG_SOCIAL_PERF) console.timeEnd(perfLabel);
       }
     },
@@ -3302,7 +3310,9 @@ export default function AiInboxPwa() {
             setAiAssistantGlobalEnabled(globalAiPayload?.ai_assistant_global_enabled !== false);
           }
         }).catch(() => {});
-        void loadSocialComments({ silent: tab !== "social_comments" ? true : silent, seq });
+        if (tab === "social_comments" && !socialCommentsLoadedRef.current && !socialCommentsRequestRef.current) {
+          void loadSocialComments({ silent, seq });
+        }
 
         if (conversationParam) {
           const normalizedConversationParam = normalizeConversationSessionId(conversationParam);
@@ -5456,7 +5466,11 @@ export default function AiInboxPwa() {
                   window.requestAnimationFrame(() => mainScrollRef.current?.scrollTo({ top: 0, behavior: "smooth" }));
                 }}
                 onFilterChange={setSocialCommentsFilter}
-                onRefresh={() => void requestRefresh("manual", { silent: true })}
+                onRefresh={() => {
+                  socialCommentsLoadedRef.current = false;
+                  void requestRefresh("manual", { silent: true });
+                  void loadSocialComments({ silent: false, seq: requestSeqRef.current });
+                }}
                 nextCursor={socialCommentsCursor}
                 onLoadMore={loadMoreSocialComments}
                 loadingMore={socialCommentsLoadingMore}
