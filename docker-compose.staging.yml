@@ -168,7 +168,7 @@ services:
     deploy:
       resources:
         limits: { memory: 1G, cpus: "1.00" }
-    networks: [m1-staging-network]
+    networks: [m1-staging-network, m1-staging-egress]
     logging: *staging-logging
 
   instagram-login-staging:
