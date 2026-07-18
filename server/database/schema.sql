@@ -542,7 +542,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_count_items_inventory_count_id ON inven
     UNIQUE (tenant_id, customer_id)
   );
 
-  CREATE TABLE IF NOT EXISTS suppliers (
+CREATE TABLE IF NOT EXISTS suppliers (
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
@@ -551,6 +551,24 @@ CREATE INDEX IF NOT EXISTS idx_inventory_count_items_inventory_count_id ON inven
   address TEXT,
   debt_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
   status VARCHAR(50) NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Orders and downstream sales tables reference the active cashbox/shift.
+-- Define it before those foreign keys so a brand-new staging database can be
+-- initialized in one pass. The later IF NOT EXISTS definition remains safe for
+-- existing installations and backward-compatible schema runs.
+CREATE TABLE IF NOT EXISTS cashbox (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+  status VARCHAR(50) NOT NULL DEFAULT 'open',
+  opened_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  opened_at TIMESTAMP NULL,
+  closed_at TIMESTAMP NULL,
+  shift_summary TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
