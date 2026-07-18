@@ -142,6 +142,7 @@ services:
       PORT: "4090"
       CHANNEL_GATEWAY_URL: http://channel-gateway-staging:4080
       INSTAGRAM_PROFILE_PATH: /data/browser-profiles/instagram-test-account
+      INSTAGRAM_STORAGE_STATE_PATH: /data/state/instagram-storage-state.json
       INSTAGRAM_DIAGNOSTICS_PATH: /data/diagnostics
       INSTAGRAM_STATE_PATH: /data/state/instagram-bridge-state.json
       INSTAGRAM_HEADLESS: "true"
@@ -181,7 +182,9 @@ services:
       DISPLAY: :99
       INSTAGRAM_HEADLESS: "false"
       INSTAGRAM_LOGIN_AUTO_CONFIRM: "true"
+      INSTAGRAM_LOGIN_TIMEOUT_MS: "3600000"
       INSTAGRAM_PROFILE_PATH: /data/browser-profiles/instagram-test-account
+      INSTAGRAM_STORAGE_STATE_PATH: /data/state/instagram-storage-state.json
       INSTAGRAM_DIAGNOSTICS_PATH: /data/diagnostics
       INSTAGRAM_STATE_PATH: /data/state/instagram-bridge-state.json
       INSTAGRAM_BRIDGE_ENABLED: "false"
@@ -195,7 +198,7 @@ services:
       - bash
       - -lc
       - >-
-        Xvfb :99 -screen 0 1440x900x24 -nolisten tcp &
+        Xvfb :99 -screen 0 1440x900x24 -nolisten tcp & sleep 1;
         x11vnc -display :99 -forever -shared -nopw &
         websockify --web=/usr/share/novnc/ 6080 localhost:5900 &
         node scripts/manual-login.js

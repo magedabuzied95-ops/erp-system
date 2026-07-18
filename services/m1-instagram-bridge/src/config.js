@@ -8,6 +8,9 @@ const number = (value, fallback, min = 0) => Math.max(min, Number(value || fallb
 
 export function loadConfig(env = process.env) {
   const profilePath = path.resolve(env.INSTAGRAM_PROFILE_PATH || '/data/browser-profiles/instagram-test-account');
+  const storageStatePath = env.INSTAGRAM_STORAGE_STATE_PATH
+    ? path.resolve(env.INSTAGRAM_STORAGE_STATE_PATH)
+    : '';
   return Object.freeze({
     port: number(env.PORT, 4090, 1),
     enabled: bool(env.INSTAGRAM_BRIDGE_ENABLED, false),
@@ -22,6 +25,7 @@ export function loadConfig(env = process.env) {
     connectionId: String(env.INSTAGRAM_CHANNEL_CONNECTION_ID || '').trim(),
     tenantId: Number(env.INSTAGRAM_TENANT_ID || 0),
     profilePath,
+    storageStatePath,
     diagnosticsPath: path.resolve(env.INSTAGRAM_DIAGNOSTICS_PATH || '/data/diagnostics'),
     statePath: path.resolve(env.INSTAGRAM_STATE_PATH || '/data/state/instagram-bridge-state.json'),
     headless: bool(env.INSTAGRAM_HEADLESS, true),

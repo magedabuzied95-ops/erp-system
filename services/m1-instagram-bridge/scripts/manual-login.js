@@ -12,6 +12,7 @@ console.log('سجّل الدخول يدويًا وأكمل 2FA. لن يقرأ ا
 const finish = async () => {
   await driver.openInbox().catch(() => {});
   const status = await driver.detectSession();
+  if (status === 'authenticated') await driver.persistStorageState();
   console.log(status === 'authenticated' ? 'تم حفظ جلسة الحساب التجريبي.' : `الجلسة غير جاهزة: ${status}`);
   await driver.disconnect(); process.exit(status === 'authenticated' ? 0 : 1);
 };

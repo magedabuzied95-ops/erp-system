@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { readFile } from 'node:fs/promises';
 import { instagramSelectors, resolveSelector, SELECTOR_VERSION } from '../selectors/instagram.selectors.js';
 import { buildConversationIdentity, extractThreadId } from '../domain/identity.js';
 
@@ -18,12 +19,29 @@ export class InstagramPlaywrightDriver {
       locale: 'en-US',
       args: ['--disable-dev-shm-usage'],
     });
+    await this.restoreStorageState();
     this.browserRunning = true;
     this.context.on('close', () => { this.browserRunning = false; this.context = null; this.page = null; });
     this.page = this.context.pages()[0] || await this.context.newPage();
     return this.getHealthProbe();
   }
   async disconnect() { await this.context?.close(); this.browserRunning = false; this.context = null; this.page = null; }
+  async restoreStorageState() {
+    if (!this.config.storageStatePath || !this.context) return false;
+    try {
+      const state = JSON.parse(await readFile(this.config.storageStatePath, 'utf8'));
+      if (Array.isArray(state.cookies) && state.cookies.length) await this.context.addCookies(state.cookies);
+      return true;
+    } catch (error) {
+      if (error?.code === 'ENOENT') return false;
+      throw error;
+    }
+  }
+  async persistStorageState() {
+    if (!this.config.storageStatePath || !this.context) return false;
+    await this.context.storageState({ path: this.config.storageStatePath });
+    return true;
+  }
   async openLogin() { await this.ensurePage(); await this.page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' }); return { status: 'manual_login_required', url: this.page.url() }; }
   async openInbox() {
     await this.ensurePage();

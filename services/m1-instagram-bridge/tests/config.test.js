@@ -8,6 +8,16 @@ test('all Instagram pilot capabilities are disabled by default', () => {
   assert.equal(config.enabled, false); assert.equal(config.inboundEnabled, false); assert.equal(config.outboundEnabled, false);
   assert.equal(config.mediaEnabled, false); assert.equal(config.aiAutoSendEnabled, false); assert.equal(config.recoverySyncEnabled, false);
   assert.equal(config.aiMode, 'draft_only'); assert.equal(config.testAccountOnly, true); assertSafePilotConfig(config);
+  assert.equal(config.storageStatePath, '');
+});
+
+test('dedicated storage-state path is opt-in and resolved without using a personal browser profile', () => {
+  const config = loadConfig({
+    INSTAGRAM_PROFILE_PATH: './data/test-profile',
+    INSTAGRAM_STORAGE_STATE_PATH: './data/storage-state.instagram-test.json',
+  });
+  assert.match(config.storageStatePath, /storage-state\.instagram-test\.json$/);
+  assertSafePilotConfig(config);
 });
 
 test('unsafe production account, media, AI auto-send, and personal Chrome profiles are rejected', () => {
