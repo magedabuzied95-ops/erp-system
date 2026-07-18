@@ -2518,7 +2518,8 @@ function PurchaseCart({
         )}
       </div>
 
-      <div className="max-h-[42vh] shrink-0 overflow-y-auto overscroll-contain bg-zinc-950/98 p-3 backdrop-blur [scrollbar-gutter:stable]">
+      <div className="shrink-0 bg-zinc-950/98 p-3 backdrop-blur">
+        <div className="max-h-[34vh] overflow-y-auto overscroll-contain pb-1 [scrollbar-gutter:stable]">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Summary label={t("purchases.details.subtotal")} value={formatCurrency(subtotal)} />
           <Summary label={t("purchases.create.expenses")} value={formatCurrency(expenses)} />
@@ -2547,7 +2548,7 @@ function PurchaseCart({
             {paymentDetailsOpen ? <ChevronUp className="h-4 w-4 text-zinc-400" /> : <ChevronDown className="h-4 w-4 text-zinc-400" />}
           </button>
           {paymentDetailsOpen ? (
-          <div className="max-h-[28vh] grid gap-2 overflow-y-auto overscroll-contain border-t border-white/10 p-3 [scrollbar-gutter:stable]">
+          <div className="grid gap-2 border-t border-white/10 p-3">
             <Select
               label={labels.supplierPayment}
               value={supplierPaymentStatus}
@@ -2592,6 +2593,7 @@ function PurchaseCart({
           </div>
           ) : null}
         </div>
+        </div>
         <button type="button" onClick={onSaveInvoice} disabled={posting || !hasItems} className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-amber-400 px-4 py-3 text-sm font-black text-black shadow-lg shadow-amber-950/20 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-40">
           {posting ? labels.saving : saveLabel || labels.saveInvoice}
         </button>
@@ -2609,7 +2611,7 @@ function CartLine({ item, variants, showCostError = false, onChangeVariant, onUp
   const saleBelowCost = salePrice > 0 && salePrice < purchasePrice;
   const saleAboveSelling = salePrice > sellingPrice;
   const lineTotal = money(item.quantity) * purchasePrice;
-  const numberInputClass = "h-5 w-full bg-transparent text-right text-xs font-semibold text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
+  const numberInputClass = "h-6 w-full bg-transparent text-right text-sm font-semibold text-white outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
   const labels = {
     quantity: "الكمية",
     purchasePrice: "سعر الشراء",
@@ -2625,23 +2627,23 @@ function CartLine({ item, variants, showCostError = false, onChangeVariant, onUp
   };
 
   return (
-    <div className="relative rounded-xl border border-white/10 bg-white/[0.035] p-2 transition hover:border-white/15 hover:bg-white/[0.055]">
+    <div className="relative rounded-2xl border border-white/10 bg-white/[0.04] p-3 shadow-lg shadow-black/10 transition hover:border-white/20 hover:bg-white/[0.065]">
       <button type="button" onClick={() => onRemove(item.line_id)} className="absolute end-2 top-2 flex h-7 w-7 items-center justify-center rounded-lg border border-white/10 bg-black/25 text-zinc-300 transition hover:border-rose-300/35 hover:bg-rose-500/10 hover:text-rose-100">
         <Trash2 className="h-3.5 w-3.5" />
       </button>
 
-      <div className="flex min-w-0 items-center gap-2 pe-8">
-        <ProductImage src={item.image_url} name={item.product_name} className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+      <div className="flex min-w-0 items-center gap-3 pe-8">
+        <ProductImage src={item.image_url} name={item.product_name} className="h-12 w-12 shrink-0 rounded-xl object-cover" />
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-black leading-5 text-white">{item.product_name}</div>
-          <div className="truncate text-[10px] font-semibold leading-4 text-zinc-500">
+          <div className="truncate text-sm font-black leading-6 text-white">{item.product_name}</div>
+          <div className="truncate text-[11px] font-semibold leading-4 text-zinc-500">
             {item.barcode || item.sku || "بدون SKU"} • {item.color || "افتراضي"} / {item.size || "مقاس واحد"}
           </div>
         </div>
       </div>
 
-      <div className="mt-2 grid min-w-0 grid-cols-2 gap-1.5 sm:grid-cols-[minmax(6.5rem,0.95fr)_7.75rem_minmax(5.5rem,1fr)_minmax(5.5rem,1fr)_minmax(5.5rem,1fr)_auto]">
-        <label className="min-w-0 rounded-lg border border-white/10 bg-zinc-950/45 px-2 py-1">
+      <div className="mt-3 grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-[minmax(7rem,0.95fr)_8rem_minmax(6rem,1fr)_minmax(6rem,1fr)_minmax(6rem,1fr)_auto]">
+        <label className="min-w-0 rounded-xl border border-white/10 bg-zinc-950/45 px-2.5 py-1.5">
           <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500">{labels.variant}</div>
           {variants.length > 1 ? (
             <select value={item.variant_id || ""} onChange={(event) => onChangeVariant(item.line_id, event.target.value)} className="h-5 w-full bg-transparent text-[11px] font-semibold text-zinc-200 outline-none focus:text-white">
@@ -2658,7 +2660,7 @@ function CartLine({ item, variants, showCostError = false, onChangeVariant, onUp
           )}
         </label>
 
-        <label className="rounded-lg border border-white/10 bg-white/5 px-2 py-1">
+        <label className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5">
           <div className="text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500">{labels.quantity}</div>
           <div className="flex h-5 items-center">
             <button type="button" onClick={() => onQty(item.line_id, -1)} className="flex h-5 w-7 items-center justify-center rounded-md text-zinc-300 hover:bg-white/5 hover:text-white"><Minus className="h-3 w-3" /></button>
@@ -2667,17 +2669,17 @@ function CartLine({ item, variants, showCostError = false, onChangeVariant, onUp
           </div>
         </label>
 
-        <label className={`rounded-lg border px-2 py-1 ${showCostError ? "border-rose-400/60 bg-rose-500/10" : "border-emerald-400/20 bg-emerald-400/8"}`}>
+        <label className={`rounded-xl border px-2.5 py-1.5 ${showCostError ? "border-rose-400/60 bg-rose-500/10" : "border-emerald-400/20 bg-emerald-400/8"}`}>
           <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-emerald-200">{labels.purchasePrice}</div>
           <input type="number" min="0" step="0.01" value={item.cost_price} onChange={(event) => onUpdate(item.line_id, { cost_price: money(event.target.value) })} className={`${numberInputClass} font-black`} dir="ltr" />
         </label>
 
-        <label className="rounded-lg border border-white/10 bg-zinc-950/45 px-2 py-1">
+        <label className="rounded-xl border border-white/10 bg-zinc-950/45 px-2.5 py-1.5">
           <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500">{labels.sellingPrice}</div>
           <input type="number" min="0" step="0.01" value={sellingPrice} onChange={(event) => onUpdate(item.line_id, { selling_price: money(event.target.value), price: money(event.target.value) })} className={`${numberInputClass} text-zinc-200`} dir="ltr" />
         </label>
 
-        <label className={`rounded-lg border px-2 py-1 ${saleBelowCost || saleAboveSelling ? "border-amber-400/35 bg-amber-500/10" : "border-white/10 bg-zinc-950/35"}`} title={labels.saleOptional}>
+        <label className={`rounded-xl border px-2.5 py-1.5 ${saleBelowCost || saleAboveSelling ? "border-amber-400/35 bg-amber-500/10" : "border-white/10 bg-zinc-950/35"}`} title={labels.saleOptional}>
           <div className="truncate text-[8px] font-black uppercase tracking-[0.1em] text-zinc-500">{labels.salePrice}</div>
           <input type="number" min="0" step="0.01" value={salePrice || ""} onChange={(event) => onUpdate(item.line_id, { sale_price: Math.max(0, money(event.target.value)) })} placeholder="0.00" className={`${numberInputClass} text-zinc-200 placeholder:text-zinc-700`} dir="ltr" />
         </label>
