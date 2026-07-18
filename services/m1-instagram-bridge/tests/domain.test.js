@@ -40,7 +40,7 @@ test('outgoing confirmation requires matching text, direction, and time window',
 });
 
 test('selector registry is centralized and versioned', () => {
-  for (const key of ['login','directInbox','conversationList','conversationItem','activeConversationHeader','messageList','incomingMessage','outgoingMessage','composer','sendButton','loginChallenge','sessionExpired']) {
+  for (const key of ['login','directInbox','conversationList','conversationItem','unreadIndicator','activeConversationHeader','messageList','incomingMessage','outgoingMessage','composer','sendButton','loginChallenge','sessionExpired','loadingState']) {
     assert.equal(instagramSelectors[key].version, SELECTOR_VERSION); assert.ok(instagramSelectors[key].primary); assert.ok(instagramSelectors[key].fallbacks.length);
   }
 });

@@ -4,6 +4,7 @@ import { instagramSelectors, resolveSelector, SELECTOR_VERSION } from '../select
 import { buildConversationIdentity, extractThreadId } from '../domain/identity.js';
 
 const DIRECT_INBOX_URL = 'https://www.instagram.com/direct/inbox/';
+const DIRECT_REQUESTS_URL = 'https://www.instagram.com/direct/requests/';
 const LOGIN_URL = 'https://www.instagram.com/accounts/login/';
 
 export class InstagramPlaywrightDriver {
@@ -69,6 +70,12 @@ export class InstagramPlaywrightDriver {
   }
   async listConversations({ limit = 12 } = {}) {
     await this.openInbox();
+    const conversations = await this.collectLinkedConversations(limit);
+    if (conversations.length < limit) conversations.push(...await this.collectButtonConversations(DIRECT_INBOX_URL, limit - conversations.length));
+    if (conversations.length < limit) conversations.push(...await this.collectButtonConversations(DIRECT_REQUESTS_URL, limit - conversations.length));
+    return [...new Map(conversations.map((item) => [item.threadId || item.url, item])).values()].slice(0, limit);
+  }
+  async collectLinkedConversations(limit) {
     const links = this.page.locator('a[href*="/direct/t/"]');
     await links.first().waitFor({ state: 'attached', timeout: 5_000 }).catch(() => {});
     const count = Math.min(await links.count(), limit);
@@ -81,6 +88,35 @@ export class InstagramPlaywrightDriver {
     }
     return conversations;
   }
+  async collectButtonConversations(startUrl, limit) {
+    if (limit <= 0) return [];
+    await this.page.goto(startUrl, { waitUntil: 'domcontentloaded' });
+    await this.page.waitForTimeout(2_500);
+    const conversations = [];
+    const seenPreviews = new Set();
+    for (let attempt = 0; attempt < limit * 3 && conversations.length < limit; attempt += 1) {
+      const buttons = this.page.locator('div[role="button"]:has(img)');
+      await buttons.first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => {});
+      const count = await buttons.count();
+      let target = null; let preview = '';
+      for (let index = 0; index < count; index += 1) {
+        const candidate = buttons.nth(index);
+        const candidatePreview = (await candidate.innerText().catch(() => '')).trim().slice(0, 200);
+        const key = `${index}:${candidatePreview}`;
+        if (!seenPreviews.has(key)) { seenPreviews.add(key); target = candidate; preview = candidatePreview; break; }
+      }
+      if (!target) break;
+      await this.safety.beforeConversationOpen();
+      await target.click();
+      await this.page.waitForTimeout(1_500);
+      const url = this.page.url();
+      const threadId = extractThreadId(url);
+      if (threadId) conversations.push({ url, threadId, preview });
+      await this.page.goto(startUrl, { waitUntil: 'domcontentloaded' });
+      await this.page.waitForTimeout(1_200);
+    }
+    return conversations;
+  }
   async openConversation(conversation) {
     await this.safety.beforeConversationOpen();
     const target = conversation.url || `https://www.instagram.com/direct/t/${conversation.external_conversation_id}/`;
@@ -89,8 +125,8 @@ export class InstagramPlaywrightDriver {
     return this.readActiveIdentity();
   }
   async readActiveIdentity() {
-    const header = await this.page.locator('header h1, header h2').first().innerText().catch(() => '');
-    const username = await this.page.locator('header a[href^="/"]').first().getAttribute('href').catch(() => '');
+    const header = await this.page.locator('main h1, main h2, div[role="main"] h1, div[role="main"] h2, h1, h2').first().innerText().catch(() => '');
+    const username = await this.page.locator('main a[href^="/"]:has(img), div[role="main"] a[href^="/"]:has(img)').first().getAttribute('href').catch(() => '');
     return buildConversationIdentity({
       url: this.page.url(), threadId: extractThreadId(this.page.url()),
       externalUsername: String(username || '').replaceAll('/', ''), headerIdentity: header,
@@ -100,7 +136,7 @@ export class InstagramPlaywrightDriver {
   }
   async readMessages({ limit = 50 } = {}) {
     await this.ensurePage();
-    const nodes = this.page.locator('[data-message-id], div[role="row"]');
+    const nodes = this.page.locator('[data-message-id], div[role="row"], div[role="group"]:not(:has(a)):not(:has(button)):not(:has(img))');
     const count = await nodes.count();
     const start = Math.max(0, count - limit);
     const output = [];
@@ -111,7 +147,7 @@ export class InstagramPlaywrightDriver {
       const externalMessageId = await node.getAttribute('data-message-id').catch(() => '');
       const aria = await node.getAttribute('aria-label').catch(() => '');
       const direction = /you sent|sent by you/i.test(aria || '') ? 'outgoing' : 'incoming';
-      output.push({ text, direction, externalMessageId, sentAt: new Date().toISOString(), domFingerprint: `${index}:${text.length}` });
+      output.push({ text, direction, externalMessageId, domFingerprint: `${index}:${text.length}` });
     }
     return output;
   }
