@@ -9,6 +9,7 @@
     "test": "node --test tests/*.test.js",
     "login": "node scripts/manual-login.js",
     "calibrate": "node scripts/calibrate-selectors.js",
+    "inspect:test-thread": "node scripts/inspect-test-thread.js",
     "benchmark": "node scripts/benchmark.js"
   },
   "dependencies": {
