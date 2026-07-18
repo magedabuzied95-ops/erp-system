@@ -67,6 +67,11 @@ const GENERIC_CUSTOMER_NAMES = new Set([
   "زائر",
   "مستخدم",
   "غير معروف",
+  ".",
+  "-",
+  "n/a",
+  "null",
+  "undefined",
 ]);
 const isGenericCustomerName = (value = "") => {
   const normalized = clean(value).toLowerCase().replace(/\s+/g, " ");
@@ -74,6 +79,13 @@ const isGenericCustomerName = (value = "") => {
 };
 const firstUsefulCustomerName = (...values) =>
   values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
+const customerIdentifier = (...values) => {
+  const value = values.map((item) => clean(item)).find(Boolean) || "";
+  return value
+    .replace(/^whatsapp:/i, "")
+    .replace(/@(?:s\.whatsapp\.net|c\.us|lid)$/i, "")
+    .trim();
+};
 
 const cleanMessageText = (value, depth = 0) => {
   if (value == null || depth > 3) return "";
@@ -1503,6 +1515,9 @@ const isLikelyMessengerExternalId = (value = "") => {
 const conversationName = (conversation = {}) =>
   (() => {
     const profile = conversation.customer_profile || {};
+    const channelMetadata = conversation.channel_metadata || {};
+    const metadata = conversation.metadata || {};
+    const memory = channelMetadata.ai_memory || metadata.ai_memory || {};
     const messengerProfile = conversation.channel_metadata?.messenger_profile || conversation.channel_metadata?.customer_profile || conversation.customer_profile?.messenger_profile || {};
     const candidates = [
       profile.name,
@@ -1534,10 +1549,25 @@ const conversationName = (conversation = {}) =>
       [conversation.first_name, conversation.last_name].filter(Boolean).join(" "),
       conversation.channel_metadata?.commenter_name,
       conversation.metadata?.commenter_name,
+      channelMetadata.customer_name,
+      channelMetadata.contact_name,
+      memory.customer_name,
     ].filter(Boolean);
-    if (!isMessengerConversation(conversation)) {
-      candidates.push(conversation.external_customer_id, conversation.phone);
-    }
+    candidates.push(
+      conversation.external_customer_id,
+      conversation.phone,
+      conversation.customer_phone,
+      profile.external_customer_id,
+      profile.phone,
+      channelMetadata.phone,
+      channelMetadata.customer_phone,
+      channelMetadata.resolved_phone,
+      channelMetadata.remote_jid,
+      metadata.phone,
+      metadata.customer_phone,
+      metadata.resolved_phone,
+      metadata.remote_jid,
+    );
     const resolved = candidates.find((candidate) => {
       const value = clean(candidate);
       if (!value) return false;
@@ -1545,7 +1575,21 @@ const conversationName = (conversation = {}) =>
       if (isMessengerConversation(conversation) && isLikelyMessengerExternalId(value)) return false;
       return true;
     });
-    return clean(resolved || conversation.external_customer_id || conversation.phone || "Customer");
+    return clean(resolved || customerIdentifier(
+      conversation.external_customer_id,
+      conversation.phone,
+      conversation.customer_phone,
+      profile.external_customer_id,
+      profile.phone,
+      channelMetadata.phone,
+      channelMetadata.customer_phone,
+      channelMetadata.resolved_phone,
+      channelMetadata.remote_jid,
+      metadata.phone,
+      metadata.customer_phone,
+      metadata.resolved_phone,
+      metadata.remote_jid,
+    ) || "Customer");
   })();
 
 const nestedProductImage = (value) => {

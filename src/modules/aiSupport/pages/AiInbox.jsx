@@ -89,6 +89,11 @@ const GENERIC_CUSTOMER_NAMES = new Set([
   "زائر",
   "مستخدم",
   "غير معروف",
+  ".",
+  "-",
+  "n/a",
+  "null",
+  "undefined",
 ]);
 const isGenericCustomerName = (value = "") => {
   const normalized = clean(value).toLowerCase().replace(/\s+/g, " ");
@@ -96,6 +101,10 @@ const isGenericCustomerName = (value = "") => {
 };
 const firstUsefulCustomerName = (...values) =>
   values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
+const customerIdentifier = (...values) => {
+  const value = values.map((item) => clean(item)).find(Boolean) || "";
+  return value.replace(/^whatsapp:/i, "").replace(/@(?:s\.whatsapp\.net|c\.us|lid)$/i, "").trim();
+};
 const storefrontProductUrl = (product = {}) => {
   const rawUrl = clean(product.product_url || product.storefront_url || product.url || "");
   if (rawUrl) return publicStorefrontUrl(rawUrl);
@@ -1280,10 +1289,27 @@ const buildSocialCommentsCenterUrl = (item = {}, tenantId = "") => {
 const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
   if (isMessengerConversation(source)) {
-    return messengerDisplayName(source) || firstNonEmpty(source.external_customer_id, source.phone) || "Customer";
+    const channelMetadata = source.channel_metadata || {};
+    const metadata = source.metadata || {};
+    return messengerDisplayName(source) || customerIdentifier(
+      source.external_customer_id,
+      source.phone,
+      source.customer_phone,
+      source.customer_profile?.external_customer_id,
+      source.customer_profile?.phone,
+      channelMetadata.psid,
+      channelMetadata.sender_id,
+      channelMetadata.customer_id,
+      metadata.psid,
+      metadata.sender_id,
+      metadata.customer_id,
+    ) || "Customer";
   }
 
   const profile = source.customer_profile || {};
+  const channelMetadata = source.channel_metadata || {};
+  const metadata = source.metadata || {};
+  const memory = channelMetadata.ai_memory || metadata.ai_memory || {};
   const fullName = [source.first_name || profile.first_name, source.last_name || profile.last_name].map(clean).filter(Boolean).join(" ");
   return firstUsefulCustomerName(
     source.customer_name,
@@ -1294,11 +1320,25 @@ const getConversationDisplayName = (conversation = {}) => {
     profile.name,
     profile.full_name,
     profile.display_name,
-    profile.contact_name
+    profile.contact_name,
+    channelMetadata.customer_name,
+    channelMetadata.contact_name,
+    memory.customer_name,
   ) || firstNonEmpty(
     source.external_customer_id,
-    source.phone
-  );
+    source.phone,
+    source.customer_phone,
+    profile.external_customer_id,
+    profile.phone,
+    channelMetadata.phone,
+    channelMetadata.customer_phone,
+    channelMetadata.resolved_phone,
+    channelMetadata.remote_jid,
+    metadata.phone,
+    metadata.customer_phone,
+    metadata.resolved_phone,
+    metadata.remote_jid,
+  ) || customerIdentifier(source.external_customer_id, source.phone, source.customer_phone, profile.external_customer_id, profile.phone, channelMetadata.phone, channelMetadata.customer_phone, channelMetadata.resolved_phone, channelMetadata.remote_jid, metadata.phone, metadata.customer_phone, metadata.resolved_phone, metadata.remote_jid);
 };
 const customerDisplayName = (item = {}) => getConversationDisplayName(item);
 const isRtlText = (value = "") => /[\u0600-\u06ff]/.test(String(value || ""));
