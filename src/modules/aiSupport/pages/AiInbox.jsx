@@ -1338,7 +1338,7 @@ const getConversationDisplayName = (conversation = {}) => {
     metadata.customer_phone,
     metadata.resolved_phone,
     metadata.remote_jid,
-  ) || customerIdentifier(source.external_customer_id, source.phone, source.customer_phone, profile.external_customer_id, profile.phone, channelMetadata.phone, channelMetadata.customer_phone, channelMetadata.resolved_phone, channelMetadata.remote_jid, metadata.phone, metadata.customer_phone, metadata.resolved_phone, metadata.remote_jid);
+  ) || customerIdentifier(source.external_customer_id, source.phone, source.customer_phone, profile.external_customer_id, profile.phone, channelMetadata.phone, channelMetadata.customer_phone, channelMetadata.resolved_phone, channelMetadata.remote_jid, metadata.phone, metadata.customer_phone, metadata.resolved_phone, metadata.remote_jid, source.session_id, source.conversation_id, source.conversation_key);
 };
 const customerDisplayName = (item = {}) => getConversationDisplayName(item);
 const isRtlText = (value = "") => /[\u0600-\u06ff]/.test(String(value || ""));

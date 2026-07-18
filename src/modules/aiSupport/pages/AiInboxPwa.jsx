@@ -1589,6 +1589,9 @@ const conversationName = (conversation = {}) =>
       metadata.customer_phone,
       metadata.resolved_phone,
       metadata.remote_jid,
+      conversation.session_id,
+      conversation.conversation_id,
+      conversation.conversation_key,
     ) || "Customer");
   })();
 
