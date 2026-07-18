@@ -31,6 +31,12 @@ export class InstagramPlaywrightDriver {
     try {
       const state = JSON.parse(await readFile(this.config.storageStatePath, 'utf8'));
       if (Array.isArray(state.cookies) && state.cookies.length) await this.context.addCookies(state.cookies);
+      if (Array.isArray(state.origins) && state.origins.length) {
+        await this.context.addInitScript(({ origins }) => {
+          const current = origins.find((item) => item.origin === window.location.origin);
+          for (const item of current?.localStorage || []) window.localStorage.setItem(item.name, item.value);
+        }, { origins: state.origins });
+      }
       return true;
     } catch (error) {
       if (error?.code === 'ENOENT') return false;
@@ -39,14 +45,14 @@ export class InstagramPlaywrightDriver {
   }
   async persistStorageState() {
     if (!this.config.storageStatePath || !this.context) return false;
-    await this.context.storageState({ path: this.config.storageStatePath });
+    await this.context.storageState({ path: this.config.storageStatePath, indexedDB: true });
     return true;
   }
   async openLogin() { await this.ensurePage(); await this.page.goto(LOGIN_URL, { waitUntil: 'domcontentloaded' }); return { status: 'manual_login_required', url: this.page.url() }; }
   async openInbox() {
     await this.ensurePage();
     await this.page.goto(DIRECT_INBOX_URL, { waitUntil: 'domcontentloaded' });
-    await this.page.waitForTimeout(1_000);
+    await this.page.waitForTimeout(2_500);
     const session = await this.detectSession();
     if (session !== 'authenticated') throw Object.assign(new Error(session), { code: session.toUpperCase() });
     return true;
@@ -58,11 +64,13 @@ export class InstagramPlaywrightDriver {
     if (/accounts\/login/i.test(url)) return 'session_expired';
     if (await this.page.locator('input[name="username"]').count().catch(() => 0)) return 'session_expired';
     if (/\/direct\//i.test(url)) return 'authenticated';
+    if (/instagram\.com/i.test(url) && await this.page.locator('a[href^="/direct/inbox"]').count().catch(() => 0)) return 'authenticated';
     return 'login_required';
   }
   async listConversations({ limit = 12 } = {}) {
     await this.openInbox();
     const links = this.page.locator('a[href*="/direct/t/"]');
+    await links.first().waitFor({ state: 'attached', timeout: 5_000 }).catch(() => {});
     const count = Math.min(await links.count(), limit);
     const conversations = [];
     for (let index = 0; index < count; index += 1) {

@@ -24,12 +24,12 @@ export class InstagramBridge {
   async disconnect() { this.stopWatchers(); await this.driver.disconnect(); this.running = false; this.paused = true; return this.getHealth(); }
   async start() {
     await this.connect(); this.running = true;
-    if (this.config.inboundEnabled) this.liveTimer = this.schedule(() => this.liveWatch(), this.config.liveWatchIntervalMs);
-    if (this.config.recoverySyncEnabled) this.recoveryTimer = this.schedule(() => this.recoverySync(), this.config.recoverySyncIntervalMs);
+    if (this.config.inboundEnabled) this.liveTimer = this.schedule(() => this.liveWatch(), this.config.liveWatchIntervalMs, 'live_watch');
+    if (this.config.recoverySyncEnabled) this.recoveryTimer = this.schedule(() => this.recoverySync(), this.config.recoverySyncIntervalMs, 'recovery_sync');
     return this.getHealth();
   }
-  schedule(operation, interval) {
-    const timer = setInterval(() => operation().catch((error) => this.handleFailure(error, operation.name)), interval); timer.unref?.(); return timer;
+  schedule(operation, interval, operationName = operation.name || 'scheduled_operation') {
+    const timer = setInterval(() => operation().catch((error) => this.handleFailure(error, operationName)), interval); timer.unref?.(); return timer;
   }
   stopWatchers() { if (this.liveTimer) clearInterval(this.liveTimer); if (this.recoveryTimer) clearInterval(this.recoveryTimer); this.liveTimer = null; this.recoveryTimer = null; }
   async pause() { this.paused = true; this.stopWatchers(); return this.getHealth(); }
