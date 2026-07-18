@@ -4,6 +4,26 @@ import { retryDecision } from './retryPolicy.js';
 
 const row = (result) => result.rows[0] || null;
 
+const MANUAL_REVIEW_CODES = new Set([
+  'CONVERSATION_HEADER_MISMATCH', 'USERNAME_MISMATCH', 'CONVERSATION_NOT_FOUND',
+  'LOW_IDENTITY_CONFIDENCE', 'CONVERSATION_FINGERPRINT_MISMATCH',
+  'COMPOSER_NOT_AVAILABLE', 'UNSUPPORTED_IN_CURRENT_PHASE',
+  'AI_AUTO_SEND_FORBIDDEN', 'MANUAL_ACTION_REQUIRED',
+]);
+
+export function queueFailureDecision(error = {}, attempts = 0, maxAttempts = 7, now = new Date()) {
+  const code = String(error.code || '').toUpperCase();
+  // Authentication loss is recoverable operator downtime. Keep the durable
+  // job queued with the normal backoff so it can resume after manual login;
+  // never hammer the provider login page and never discard the message.
+  if (code === 'LOGIN_REQUIRED' || code === 'SESSION_EXPIRED') {
+    return retryDecision(attempts, maxAttempts, now);
+  }
+  return error.needsManualReview || MANUAL_REVIEW_CODES.has(code)
+    ? { status: 'needs_manual_review', nextRetryAt: null, delaySeconds: null }
+    : retryDecision(attempts, maxAttempts, now);
+}
+
 export class PostgresOutboundQueue {
   constructor(pool, { workerId = `gateway-${process.pid}-${randomUUID()}`, staleAfterSeconds = 120 } = {}) {
     this.pool = pool;
@@ -141,15 +161,7 @@ export class PostgresOutboundQueue {
       );
       const job = row(current);
       if (!job) throw new Error(`Job ${jobId} is not owned by ${this.workerId}`);
-      const manualReviewCodes = new Set([
-        'CONVERSATION_HEADER_MISMATCH', 'USERNAME_MISMATCH', 'CONVERSATION_NOT_FOUND',
-        'LOW_IDENTITY_CONFIDENCE', 'CONVERSATION_FINGERPRINT_MISMATCH', 'SESSION_EXPIRED',
-        'LOGIN_REQUIRED', 'COMPOSER_NOT_AVAILABLE', 'UNSUPPORTED_IN_CURRENT_PHASE',
-        'AI_AUTO_SEND_FORBIDDEN', 'MANUAL_ACTION_REQUIRED',
-      ]);
-      const decision = error.needsManualReview || manualReviewCodes.has(String(error.code || '').toUpperCase())
-        ? { status: 'needs_manual_review', nextRetryAt: null }
-        : retryDecision(job.attempts, job.max_attempts);
+      const decision = queueFailureDecision(error, job.attempts, job.max_attempts);
       const updated = await client.query(`
         UPDATE outbound_message_jobs SET
           status = $2, next_retry_at = COALESCE($3, next_retry_at),

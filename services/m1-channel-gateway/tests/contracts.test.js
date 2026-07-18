@@ -6,6 +6,7 @@ import {
   normalizeTextForDedupe,
 } from '../src/contracts/channelEnvelope.js';
 import { retryDecision, RETRY_DELAYS_SECONDS } from '../src/queue/retryPolicy.js';
+import { queueFailureDecision } from '../src/queue/PostgresOutboundQueue.js';
 import { MediaProcessor } from '../src/media/MediaProcessor.js';
 import { validateErpEvent } from '../src/contracts/erpEvent.js';
 import {
@@ -62,6 +63,17 @@ test('retry schedule matches the durable queue contract then escalates', () => {
   assert.equal(retryDecision(1).delaySeconds, 30);
   assert.equal(retryDecision(6).delaySeconds, 1800);
   assert.equal(retryDecision(7).status, 'needs_manual_review');
+});
+
+test('provider login loss preserves the durable job with bounded backoff', () => {
+  const first = queueFailureDecision({ code: 'LOGIN_REQUIRED' }, 1, 7, new Date('2026-07-19T00:00:00Z'));
+  const second = queueFailureDecision({ code: 'SESSION_EXPIRED' }, 2, 7, new Date('2026-07-19T00:00:00Z'));
+  assert.equal(first.status, 'retrying');
+  assert.equal(first.delaySeconds, 30);
+  assert.equal(first.nextRetryAt.toISOString(), '2026-07-19T00:00:30.000Z');
+  assert.equal(second.status, 'retrying');
+  assert.equal(second.delaySeconds, 60);
+  assert.equal(queueFailureDecision({ code: 'CONVERSATION_HEADER_MISMATCH' }, 1).status, 'needs_manual_review');
 });
 
 test('media processor rejects unsafe protocols and oversized payloads', () => {
