@@ -37,6 +37,8 @@ browser-profiles/
 instagram_bridge_profile/
 instagram_bridge_diagnostics/
 diagnostics/
+!services/m1-instagram-bridge/src/diagnostics/
+!services/m1-instagram-bridge/src/diagnostics/*.js
 playwright/.auth/
 storage-state*.json
 *.session.json
