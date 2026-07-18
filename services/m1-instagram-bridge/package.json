@@ -8,6 +8,7 @@
     "dev": "node --watch src/index.js",
     "test": "node --test tests/*.test.js",
     "login": "node scripts/manual-login.js",
+    "calibrate": "node scripts/calibrate-selectors.js",
     "benchmark": "node scripts/benchmark.js"
   },
   "dependencies": {
