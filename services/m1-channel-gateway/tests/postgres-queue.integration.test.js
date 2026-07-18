@@ -148,6 +148,17 @@ integration('transactional outbox publishes an accepted event once', async () =>
     SET status = 'published', published_at = NOW(), locked_by = NULL, locked_at = NULL
     WHERE status IN ('pending', 'publishing')
   `);
+  const store = new InboundMessageStore(pool);
+  await store.accept({
+    tenant_id: tenantId,
+    connection_id: connectionId,
+    channel: 'whatsapp',
+    external_conversation_id: 'publisher-fixture-conversation',
+    external_message_id: 'publisher-fixture-message',
+    sender_id: 'publisher-fixture-customer',
+    text: 'publish exactly once',
+    occurred_at: '2026-07-18T15:00:00.000Z',
+  });
   const delivered = [];
   const publisher = new TransactionalOutboxPublisher(pool, {
     publisherId: 'publisher-1',
