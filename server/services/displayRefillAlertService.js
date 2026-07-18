@@ -697,7 +697,7 @@ const notifyDisplayRefillAlert = async ({
   replacementSize,
   imageUrl,
 } = {}) => {
-  const body = `اعرض ${replacementSize} بدل ${soldSize} من ${clean(alert?.product_name)} - ${colorName}`;
+  const body = `تم بيع مقاس ${soldSize} — اعرض مقاس ${replacementSize} من ${clean(alert?.product_name)} - ${colorName}`;
   const notificationTargetIds = await loadBranchEmployeeNotificationTargets({
     tenantId,
     branchId,

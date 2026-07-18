@@ -3464,8 +3464,8 @@ export default function EmployeePayrollPortal() {
                                 {alert.product_name}
                               </h4>
                               <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-black leading-none">
-                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-amber-950">اتبع: {alert.sold_size || "-"}</span>
-                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-emerald-900">اعرض: {alert.replacement_size || "-"}</span>
+                                <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-1 text-amber-950">تم بيع مقاس: {alert.sold_size || "-"}</span>
+                                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-1 text-emerald-900">اعرض مقاس: {alert.replacement_size || "-"}</span>
                               </div>
                               <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] font-bold text-slate-500">
                                 {alert.color_name ? <span>{alert.color_name}</span> : null}
@@ -3529,8 +3529,8 @@ export default function EmployeePayrollPortal() {
                                   {alert.product_name}
                                 </h4>
                                 <div className="mt-1 flex flex-wrap gap-1 text-[10px] font-black leading-none">
-                                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-slate-700">اتبع: {alert.sold_size || "-"}</span>
-                                  <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-1 text-slate-700">اعرض: {alert.replacement_size || "-"}</span>
+                                  <span className="inline-flex items-center rounded-full bg-slate-100 px-2 py-1 text-slate-700">تم بيع مقاس: {alert.sold_size || "-"}</span>
+                                  <span className="inline-flex items-center rounded-full bg-slate-200 px-2 py-1 text-slate-700">اعرض مقاس: {alert.replacement_size || "-"}</span>
                                 </div>
                                 <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[10px] font-bold text-slate-500">
                                   {alert.color_name ? <span>{alert.color_name}</span> : null}
