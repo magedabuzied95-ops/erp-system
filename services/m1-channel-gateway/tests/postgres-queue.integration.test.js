@@ -140,6 +140,14 @@ integration('inbound external id and fallback hash both prevent duplicate events
 });
 
 integration('transactional outbox publishes an accepted event once', async () => {
+  // Earlier queue tests intentionally emit delivery-status events. Mark those
+  // fixtures published so this assertion verifies one accepted inbound event
+  // without depending on test execution order.
+  await pool.query(`
+    UPDATE channel_gateway_outbox_events
+    SET status = 'published', published_at = NOW(), locked_by = NULL, locked_at = NULL
+    WHERE status IN ('pending', 'publishing')
+  `);
   const delivered = [];
   const publisher = new TransactionalOutboxPublisher(pool, {
     publisherId: 'publisher-1',
