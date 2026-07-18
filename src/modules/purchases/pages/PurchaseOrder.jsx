@@ -2506,7 +2506,7 @@ function PurchaseCart({
         </p>
       </div>
 
-      <div className="min-h-[14rem] max-h-[46vh] flex-none space-y-2 overflow-y-auto overscroll-contain border-b border-white/10 bg-black/20 p-2.5 [scrollbar-gutter:stable] xl:min-h-0 xl:max-h-none xl:flex-1">
+      <div className="min-h-[15rem] max-h-[46vh] flex-none space-y-2 overflow-y-auto overscroll-contain border-b border-white/10 bg-black/20 p-2.5 [scrollbar-gutter:stable] xl:min-h-[12rem] xl:max-h-none xl:flex-1">
         {items.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-white/10 bg-white/5 p-6 text-center text-sm text-zinc-400">
             {t("purchases.create.emptyCartHelper")}
@@ -2518,7 +2518,7 @@ function PurchaseCart({
         )}
       </div>
 
-      <div className="shrink-0 bg-zinc-950/98 p-3 backdrop-blur">
+      <div className="max-h-[42vh] shrink-0 overflow-y-auto overscroll-contain bg-zinc-950/98 p-3 backdrop-blur [scrollbar-gutter:stable]">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
           <Summary label={t("purchases.details.subtotal")} value={formatCurrency(subtotal)} />
           <Summary label={t("purchases.create.expenses")} value={formatCurrency(expenses)} />
@@ -2547,7 +2547,7 @@ function PurchaseCart({
             {paymentDetailsOpen ? <ChevronUp className="h-4 w-4 text-zinc-400" /> : <ChevronDown className="h-4 w-4 text-zinc-400" />}
           </button>
           {paymentDetailsOpen ? (
-          <div className="grid gap-2 border-t border-white/10 p-3">
+          <div className="max-h-[28vh] grid gap-2 overflow-y-auto overscroll-contain border-t border-white/10 p-3 [scrollbar-gutter:stable]">
             <Select
               label={labels.supplierPayment}
               value={supplierPaymentStatus}
