@@ -209,10 +209,23 @@ export class InstagramPlaywrightDriver {
       // accept that request. This path is only reachable through the guarded
       // manual outbound endpoint; inbound scans never accept requests.
       const accept = await resolveSelector(this.page, instagramSelectors.acceptMessageRequest).catch(() => null);
-      if (!accept) throw Object.assign(new Error('Instagram composer is unavailable'), { code: 'SELECTOR_MISSING' });
-      await accept.click();
-      await this.page.waitForTimeout(1_500);
-      composer = await resolveSelector(this.page, instagramSelectors.composer);
+      if (accept) {
+        await accept.click();
+        await this.page.waitForTimeout(1_500);
+      }
+      composer = await resolveSelector(this.page, instagramSelectors.composer).catch(() => null);
+      if (!composer) {
+        // Instagram may ask where to file an accepted request. Primary is the
+        // least surprising destination for a conversation an employee chose
+        // to answer, and keeps it visible to subsequent recovery scans.
+        const primary = this.page.getByRole('button', { name: /^primary$/i }).first();
+        if (await primary.count().catch(() => 0)) {
+          await primary.click();
+          await this.page.waitForTimeout(1_500);
+        }
+        composer = await resolveSelector(this.page, instagramSelectors.composer).catch(() => null);
+      }
+      if (!composer) throw Object.assign(new Error('Instagram composer is unavailable'), { code: 'SELECTOR_MISSING' });
     }
     const before = await this.readMessages({ limit: 20 });
     await composer.fill(text).catch(async () => { await composer.click(); await this.page.keyboard.type(text); });
