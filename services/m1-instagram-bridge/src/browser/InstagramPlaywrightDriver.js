@@ -205,7 +205,13 @@ export class InstagramPlaywrightDriver {
       const externalMessageId = await node.getAttribute('data-message-id').catch(() => '');
       const aria = await node.getAttribute('aria-label').catch(() => '');
       const layout = await node.evaluate((element) => {
-        const values = []; let current = element;
+        const values = [];
+        const candidates = [element, ...element.querySelectorAll('*')].slice(0, 80);
+        for (const candidate of candidates) {
+          const style = getComputedStyle(candidate);
+          values.push({ flexDirection: style.flexDirection, justifyContent: style.justifyContent, alignItems: style.alignItems });
+        }
+        let current = element.parentElement;
         for (let depth = 0; current && depth < 8; depth += 1, current = current.parentElement) {
           const style = getComputedStyle(current);
           values.push({ flexDirection: style.flexDirection, justifyContent: style.justifyContent, alignItems: style.alignItems });
