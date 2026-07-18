@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/playwright:v1.55.0-noble
+FROM mcr.microsoft.com/playwright:v1.61.1-noble
 ENV NODE_ENV=production PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 USER root
 RUN apt-get update \
@@ -6,7 +6,7 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/services/m1-instagram-bridge
 COPY services/m1-instagram-bridge/package*.json ./
-RUN npm install --omit=dev --ignore-scripts && npm cache clean --force
+RUN npm ci --omit=dev --ignore-scripts && npm cache clean --force
 COPY services/m1-instagram-bridge/src ./src
 COPY services/m1-instagram-bridge/scripts ./scripts
 COPY services/shared ../shared

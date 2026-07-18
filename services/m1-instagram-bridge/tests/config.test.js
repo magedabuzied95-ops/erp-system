@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import { loadConfig, assertSafePilotConfig } from '../src/config.js';
 
 test('all Instagram pilot capabilities are disabled by default', () => {
@@ -14,4 +15,11 @@ test('unsafe production account, media, AI auto-send, and personal Chrome profil
   assert.throws(() => assertSafePilotConfig(loadConfig({ INSTAGRAM_BRIDGE_MEDIA_ENABLED: 'true' })), /media_must_be_disabled/);
   assert.throws(() => assertSafePilotConfig(loadConfig({ INSTAGRAM_BRIDGE_AI_AUTO_SEND_ENABLED: 'true' })), /ai_auto_send_must_be_disabled/);
   assert.throws(() => assertSafePilotConfig(loadConfig({ INSTAGRAM_PROFILE_PATH: 'C:\\Users\\X\\AppData\\Local\\Google\\Chrome\\User Data' })), /personal_chrome_profile_forbidden/);
+});
+
+test('Docker browser image matches the locked Playwright runtime', async () => {
+  const packageJson = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  const dockerfile = await readFile(new URL('../Dockerfile', import.meta.url), 'utf8');
+  assert.match(dockerfile, new RegExp(`playwright:v${packageJson.dependencies.playwright.replaceAll('.', '\\.')}-noble`));
+  assert.match(dockerfile, /npm ci --omit=dev/);
 });
