@@ -1,5 +1,8 @@
 export const HEALTH_STATES = Object.freeze(['healthy', 'degraded', 'login_required', 'session_expired', 'selector_failure', 'inbox_unavailable', 'browser_crashed', 'paused']);
 
+export const isOperationalSessionReady = (probe = {}) =>
+  probe.session === 'authenticated' && probe.authenticated === true && probe.inboxLoaded === true;
+
 export function mapHealthState(input = {}) {
   // A lost or expired provider session always requires the same operator
   // action: a manual login. Report that actionable state even after the

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { buildConversationIdentity, verifyConversationTarget } from '../src/domain/identity.js';
 import { buildMessageFingerprint, matchOutgoingConfirmation, normalizeInstagramTextEvent } from '../src/domain/messages.js';
-import { mapHealthState } from '../src/domain/health.js';
+import { isOperationalSessionReady, mapHealthState } from '../src/domain/health.js';
 import { instagramSelectors, SELECTOR_VERSION } from '../src/selectors/instagram.selectors.js';
 import { redact } from '../src/security/redaction.js';
 
@@ -53,6 +53,12 @@ test('health state mapping covers session, selector, crash, and pause states', (
   assert.equal(mapHealthState({ paused: true, browserRunning: true, sessionExpired: true }), 'login_required');
   assert.equal(mapHealthState({ browserRunning: true, inboxLoaded: true, selectorFailures: 3, selectorFailureThreshold: 3 }), 'selector_failure');
   assert.equal(mapHealthState({ browserRunning: true, inboxLoaded: true, selectorFailures: 0 }), 'healthy');
+});
+
+test('manual login is accepted only after the Direct Inbox is loaded', () => {
+  assert.equal(isOperationalSessionReady({ session: 'authenticated', authenticated: true, inboxLoaded: false }), false);
+  assert.equal(isOperationalSessionReady({ session: 'login_required', authenticated: false, inboxLoaded: false }), false);
+  assert.equal(isOperationalSessionReady({ session: 'authenticated', authenticated: true, inboxLoaded: true }), true);
 });
 
 test('structured log redaction hides credentials and conversation PII', () => {
