@@ -49,7 +49,8 @@ test('health state mapping covers session, selector, crash, and pause states', (
   assert.equal(mapHealthState({ paused: true }), 'paused');
   assert.equal(mapHealthState({ browserRunning: false, everStarted: true }), 'browser_crashed');
   assert.equal(mapHealthState({ browserRunning: true, loginRequired: true }), 'login_required');
-  assert.equal(mapHealthState({ browserRunning: true, sessionExpired: true }), 'session_expired');
+  assert.equal(mapHealthState({ browserRunning: true, sessionExpired: true }), 'login_required');
+  assert.equal(mapHealthState({ paused: true, browserRunning: true, sessionExpired: true }), 'login_required');
   assert.equal(mapHealthState({ browserRunning: true, inboxLoaded: true, selectorFailures: 3, selectorFailureThreshold: 3 }), 'selector_failure');
   assert.equal(mapHealthState({ browserRunning: true, inboxLoaded: true, selectorFailures: 0 }), 'healthy');
 });

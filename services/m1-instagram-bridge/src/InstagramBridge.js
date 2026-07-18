@@ -27,7 +27,21 @@ export class InstagramBridge {
   }
   async disconnect() { this.stopWatchers(); await this.driver.disconnect(); this.running = false; this.paused = true; return this.getHealth(); }
   async start() {
-    await this.connect(); this.running = true;
+    try {
+      await this.connect();
+    } catch (error) {
+      if (!/LOGIN_REQUIRED|SESSION_EXPIRED/.test(error.code || '')) throw error;
+      // Session loss is an operational state, not a process crash. Keep the
+      // health API alive, stop all browser work, and wait for a manual login.
+      // Do not capture the login page in diagnostics because it may contain
+      // account identifiers or other authentication UI.
+      this.running = true;
+      this.paused = true;
+      this.stopWatchers();
+      this.logger.warn?.('instagram_bridge.login_required', { error_code: error.code });
+      return this.getHealth();
+    }
+    this.running = true;
     if (this.config.recoverySyncEnabled) this.recoveryTimer = this.schedule(() => this.recoverySync(), this.config.recoverySyncIntervalMs, 'recovery_sync');
     if (this.config.inboundEnabled) this.liveTimer = this.schedule(() => this.liveWatch(), this.config.liveWatchIntervalMs, 'live_watch');
     return this.getHealth();
@@ -158,6 +172,8 @@ export class InstagramBridge {
     if (!this.config.outboundEnabled) throw Object.assign(new Error('Instagram outbound is disabled'), { code: 'OUTBOUND_DISABLED' });
     if (options.ai_generated || options.sender_type === 'ai' || options.ai_auto_send) throw Object.assign(new Error('AI auto-send is forbidden in pilot'), { code: 'AI_AUTO_SEND_FORBIDDEN' });
     if (!options.manual_user_id && !options.manual) throw Object.assign(new Error('Manual employee action is required'), { code: 'MANUAL_ACTION_REQUIRED' });
+    const health = await this.getHealth();
+    if (health.status === 'login_required') throw Object.assign(new Error('Instagram login is required'), { code: 'LOGIN_REQUIRED' });
     this.safety.assertSendAllowed();
     return this.withExclusiveBrowserOperation(async () => {
     const expected = this.state.getConversation(externalConversationId) || buildConversationIdentity({
@@ -235,6 +251,6 @@ export class InstagramBridge {
   async getHealth() {
     const probe = await this.driver.getHealthProbe().catch(() => ({ browserRunning: false, authenticated: false, inboxLoaded: false, session: 'unknown' }));
     const status = mapHealthState({ paused: this.paused, browserRunning: probe.browserRunning, everStarted: this.everStarted, loginRequired: probe.session === 'login_required', sessionExpired: probe.session === 'session_expired', inboxLoaded: probe.inboxLoaded, selectorFailures: this.selectorFailures, selectorFailureThreshold: this.config.selectorFailurePauseThreshold });
-    return { status, browser: probe.browserRunning ? 'running' : 'stopped', authenticated: probe.authenticated, inbox_loaded: probe.inboxLoaded, live_watch: this.liveTimer ? 'running' : 'stopped', recovery_sync: this.recoveryTimer ? 'running' : 'idle', ...this.timestamps, selector_version: SELECTOR_VERSION, memory_usage_mb: await this.driver.memoryUsageMb().catch(() => 0), ai_mode: 'draft_only', media_enabled: false };
+    return { status, session_state: probe.session || 'unknown', browser: probe.browserRunning ? 'running' : 'stopped', authenticated: probe.authenticated, inbox_loaded: probe.inboxLoaded, live_watch: this.liveTimer ? 'running' : 'stopped', recovery_sync: this.recoveryTimer ? 'running' : 'idle', ...this.timestamps, selector_version: SELECTOR_VERSION, memory_usage_mb: await this.driver.memoryUsageMb().catch(() => 0), ai_mode: 'draft_only', media_enabled: false };
   }
 }

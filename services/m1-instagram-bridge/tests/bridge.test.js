@@ -84,6 +84,35 @@ test('scheduled browser work starts immediately and never overlaps', async () =>
   assert.ok(calls >= 1);
 });
 
+test('startup session expiry keeps health API state alive and pauses all watchers', async () => {
+  const { bridge } = fixture();
+  bridge.driver.openInbox = async () => { throw Object.assign(new Error('session_expired'), { code: 'SESSION_EXPIRED' }); };
+  bridge.driver.getHealthProbe = async () => ({ browserRunning: true, authenticated: false, inboxLoaded: false, session: 'session_expired' });
+
+  const health = await bridge.start();
+
+  assert.equal(health.status, 'login_required');
+  assert.equal(health.session_state, 'session_expired');
+  assert.equal(bridge.running, true);
+  assert.equal(bridge.paused, true);
+  assert.equal(bridge.liveTimer, null);
+  assert.equal(bridge.recoveryTimer, null);
+});
+
+test('outbound is rejected before browser interaction while login is required', async () => {
+  const { bridge, state } = fixture();
+  await state.saveConversation(identity);
+  bridge.driver.getHealthProbe = async () => ({ browserRunning: true, authenticated: false, inboxLoaded: false, session: 'session_expired' });
+  let opened = 0;
+  bridge.driver.openConversation = async () => { opened += 1; return identity; };
+
+  await assert.rejects(
+    () => bridge.sendText('thread-a', 'blocked reply', { manual_user_id: 7, job_key: 'login-blocked' }),
+    (error) => error.code === 'LOGIN_REQUIRED',
+  );
+  assert.equal(opened, 0);
+});
+
 test('manual outbound waits for live browser navigation before verifying the target', async () => {
   const { bridge, state } = fixture({ messages: [{ text: 'reply', direction: 'outgoing', externalMessageId: 'out-lock-1', sentAt: '2026-07-18T10:00:03Z' }] });
   await state.saveConversation(identity);
