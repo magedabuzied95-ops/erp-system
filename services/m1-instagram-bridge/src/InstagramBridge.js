@@ -56,7 +56,7 @@ export class InstagramBridge {
   }
   async pause() { this.paused = true; this.stopWatchers(); return this.getHealth(); }
   async resume() { if (!this.config.enabled) throw Object.assign(new Error('Bridge disabled'), { code: 'BRIDGE_DISABLED' }); this.paused = false; return this.start(); }
-  async syncConversations() { return this.driver.listConversations({ limit: this.config.maxConversationsPerMinute }); }
+  async syncConversations({ limit = this.config.maxConversationsPerMinute } = {}) { return this.driver.listConversations({ limit }); }
   async syncMessages(conversation, source = 'recovery_sync') {
     const identity = await this.driver.openConversation(conversation);
     await this.state.saveConversation(identity);
@@ -89,7 +89,7 @@ export class InstagramBridge {
       }
       this.initialKnownSweepCompleted = true;
     }
-    const conversations = await this.syncConversations();
+    const conversations = await this.syncConversations({ limit: Math.min(3, this.config.maxConversationsPerMinute) });
     const candidates = conversations.filter((item, index) => {
       const key = item.threadId || item.url; const preview = String(item.preview || '');
       const previous = this.conversationPreviews.get(key); this.conversationPreviews.set(key, preview);

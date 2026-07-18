@@ -114,7 +114,9 @@ export class InstagramPlaywrightDriver {
   }
   async collectButtonConversations(startUrl, limit, { tabName = '' } = {}) {
     if (limit <= 0) return [];
-    const deadline = Date.now() + 30_000;
+    // Keep each tab scan bounded so manual outbound cannot be starved behind a
+    // long Primary + General + Requests discovery sweep.
+    const deadline = Date.now() + 8_000;
     await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 });
     await this.page.waitForTimeout(2_500);
     const activateTab = async () => {
