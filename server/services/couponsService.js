@@ -536,7 +536,73 @@ const loadPdfLogo = async (url) => {
       return "";
     }
     const { default: sharp } = await import("sharp");
-    const png = await sharp(source).resize(500, 500, { fit: "inside", withoutEnlargement: true }).png().toBuffer();
+    const prepared = await sharp(source)
+      .resize(700, 700, { fit: "inside", withoutEnlargement: true })
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const { data, info } = prepared;
+    const pixelOffset = (x, y) => (y * info.width + x) * info.channels;
+    const cornerPoints = [
+      [0, 0],
+      [Math.max(0, info.width - 1), 0],
+      [0, Math.max(0, info.height - 1)],
+      [Math.max(0, info.width - 1), Math.max(0, info.height - 1)],
+    ];
+    const darkCorners = cornerPoints.filter(([x, y]) => {
+      const offset = pixelOffset(x, y);
+      return Math.max(data[offset], data[offset + 1], data[offset + 2]) <= 48;
+    }).length;
+
+    // The official logo is supplied as a black square. Convert that black
+    // canvas into transparency so the mark becomes part of the ticket panel
+    // instead of looking like a separate pasted image.
+    if (darkCorners >= 3) {
+      let chromaTotal = 0;
+      let visibleSamples = 0;
+      for (let i = 0; i < data.length; i += info.channels * 8) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        if (Math.max(r, g, b) > 24) {
+          chromaTotal += Math.max(r, g, b) - Math.min(r, g, b);
+          visibleSamples += 1;
+        }
+      }
+      const isMonochrome = visibleSamples === 0 || chromaTotal / visibleSamples < 18;
+
+      for (let i = 0; i < data.length; i += info.channels) {
+        const r = data[i];
+        const g = data[i + 1];
+        const b = data[i + 2];
+        const intensity = Math.max(r, g, b);
+        const originalAlpha = data[i + 3];
+
+        if (isMonochrome) {
+          // Ignore the subtle near-black radial gradient in the source tile,
+          // then preserve the antialiased white mark as real transparency.
+          const coverage = Math.max(0, Math.min(1, (intensity - 45) / 210));
+          data[i] = 255;
+          data[i + 1] = 255;
+          data[i + 2] = 255;
+          data[i + 3] = Math.round(originalAlpha * coverage);
+        } else {
+          const coverage = Math.max(0, Math.min(1, (intensity - 12) / 58));
+          data[i + 3] = Math.round(originalAlpha * coverage);
+        }
+      }
+    }
+
+    const png = await sharp(data, { raw: info })
+      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 2 })
+      .resize(500, 500, {
+        fit: "contain",
+        withoutEnlargement: true,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png()
+      .toBuffer();
     const dataUrl = `data:image/png;base64,${png.toString("base64")}`;
     imageDataCache.set(safeUrl, dataUrl);
     return dataUrl;
@@ -650,7 +716,7 @@ const drawCouponTicket = ({ doc, coupon, x, y, width, height, logoData, storeNam
     doc.stroke();
   }
 
-  // Official logo. The black logo tile blends into the black panel.
+  // Official logo with its dark canvas removed so it merges into the panel.
   if (logoData) {
     const logoSize = Math.min(22, height * 0.36);
     doc.addImage(logoData, "PNG", x + 6, y + 5, logoSize, logoSize, undefined, "FAST");
