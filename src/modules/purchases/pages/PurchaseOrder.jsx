@@ -908,10 +908,11 @@ function PurchaseOrder() {
 
   const filteredProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
-    return products.filter((item) => searchMatches(item, query));
+    if (query) return products.filter((item) => searchMatches(item, query));
+    return products.filter((item) => savedPurchaseQty(item) !== null);
   }, [products, search]);
 
-  const groupedCards = useMemo(() => groupByProduct(filteredProducts).slice(0, 80), [filteredProducts]);
+  const groupedCards = useMemo(() => groupByProduct(filteredProducts), [filteredProducts]);
 
   const variantsByProduct = useMemo(() => {
     return products.reduce((map, item) => {
@@ -2078,10 +2079,23 @@ function PurchaseOrder() {
             ) : groupedCards.length === 0 ? (
               <div className="mt-3 rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-center">
                 <PackagePlus className="mx-auto h-12 w-12 text-zinc-500" />
-                <h3 className="mt-4 text-xl font-black text-white">{t("purchases.create.noProductsFound")}</h3>
-                <button type="button" onClick={() => setProductModalOpen(true)} className="mt-4 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black">
-                  {t("purchases.create.addProduct")}
-                </button>
+                <h3 className="mt-4 text-xl font-black text-white">
+                  {search.trim()
+                    ? t("purchases.create.noMatchingProducts")
+                    : isArabic
+                      ? "لا توجد منتجات بكميات مبدئية تنتظر فاتورة مشتريات"
+                      : "No products with initial quantities are waiting for a purchase invoice"}
+                </h3>
+                <p className="mx-auto mt-2 max-w-xl text-sm font-semibold text-zinc-400">
+                  {search.trim()
+                    ? (isArabic ? "جرّب البحث بالاسم أو SKU أو الباركود أو اللون أو المقاس." : "Try a name, SKU, barcode, color, or size.")
+                    : (isArabic ? "يمكنك البحث بالأعلى لإظهار أي منتج سبق تسجيل فاتورة مشتريات له." : "Use search above to find any product that already has a purchase invoice.")}
+                </p>
+                {!search.trim() ? (
+                  <button type="button" onClick={() => setProductModalOpen(true)} className="mt-4 rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-black">
+                    {t("purchases.create.addProduct")}
+                  </button>
+                ) : null}
               </div>
             ) : (
               <div className={`mt-3 ${productPanelExpanded ? "min-h-0 flex-1 overflow-y-auto pr-1" : ""}`}>

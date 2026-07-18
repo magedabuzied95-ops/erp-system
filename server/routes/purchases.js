@@ -854,26 +854,60 @@ const markPurchaseStockApplied = async (client, purchaseId) => {
 const resetConsumedDefaultPurchaseQty = async (client, { tenantId, items = [] }) => {
   const variantIds = Array.from(new Set(
     items
-      .filter((item) => item?.metadata?.consume_default_purchase_qty === true)
       .map((item) => Number(item.variant_id))
       .filter((variantId) => Number.isInteger(variantId) && variantId > 0)
   ));
-  if (!variantIds.length) return [];
+  const productIds = Array.from(new Set(
+    items
+      .map((item) => Number(item.product_id))
+      .filter((productId) => Number.isInteger(productId) && productId > 0)
+  ));
+  if (!variantIds.length && !productIds.length) return [];
 
   const columns = await getTableColumns(client, "product_variants");
-  if (!columns.has("default_purchase_qty")) return [];
-  const updatedAt = columns.has("updated_at") ? ", updated_at = CURRENT_TIMESTAMP" : "";
-  const result = await client.query(
-    `
-    UPDATE product_variants
-    SET default_purchase_qty = 0${updatedAt}
-    WHERE id = ANY($2::int[])
-      AND (tenant_id = $1 OR tenant_id IS NULL)
-    RETURNING id
-    `,
-    [tenantId, variantIds]
-  );
-  return result.rows.map((row) => row.id);
+  const resetIds = [];
+  if (columns.has("default_purchase_qty")) {
+    const targetClauses = [];
+    const values = [tenantId];
+    if (variantIds.length) {
+      values.push(variantIds);
+      targetClauses.push(`id = ANY($${values.length}::bigint[])`);
+    }
+    if (productIds.length && columns.has("product_id")) {
+      values.push(productIds);
+      targetClauses.push(`product_id = ANY($${values.length}::bigint[])`);
+    }
+    const tenantClause = columns.has("tenant_id") ? "AND (tenant_id = $1 OR tenant_id IS NULL)" : "";
+    const updatedAt = columns.has("updated_at") ? ", updated_at = CURRENT_TIMESTAMP" : "";
+    const result = await client.query(
+      `
+      UPDATE product_variants
+      SET default_purchase_qty = 0${updatedAt}
+      WHERE (${targetClauses.join(" OR ")})
+        ${tenantClause}
+      RETURNING id
+      `,
+      values
+    );
+    resetIds.push(...result.rows.map((row) => row.id));
+  }
+
+  const productColumns = await getTableColumns(client, "products");
+  if (productIds.length && productColumns.has("default_purchase_qty")) {
+    const updatedAt = productColumns.has("updated_at") ? ", updated_at = CURRENT_TIMESTAMP" : "";
+    const tenantClause = productColumns.has("tenant_id") ? "AND (tenant_id = $1 OR tenant_id IS NULL)" : "";
+    await client.query(
+      `
+      UPDATE products
+      SET default_purchase_qty = 0${updatedAt}
+      WHERE id = ANY($2::bigint[])
+        ${tenantClause}
+      `,
+      [tenantId, productIds]
+    );
+  }
+
+  return resetIds;
 };
 
 const insertPurchaseItem = async (client, { tenantId, purchaseId, item, metadata = {} }) => {
