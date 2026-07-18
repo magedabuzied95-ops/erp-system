@@ -1,4 +1,4 @@
-const GRAPH_API_VERSION = "v19.0";
+const GRAPH_API_VERSION = "v25.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
 import process from "node:process";

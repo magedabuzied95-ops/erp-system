@@ -4589,12 +4589,19 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
       reason: validation.reason || "stale_last_piece",
     });
   }
-  const publishItem = await hydrateQueueStoryMetadata(
+  let publishItem = await hydrateQueueStoryMetadata(
     tenantId,
     currentItem?.strategy_type === "last_size" ? applyCurrentLastPieceStock(currentItem, validation.stock) : currentItem
   );
   const isStory = isStoryQueueItem(publishItem);
-  if (isStory) assertStoryPublishAsset(publishItem);
+  if (isStory) {
+    // "Publish now" is intentionally a single operation. Older queue rows can
+    // still have their source product images without a rendered 9:16 asset.
+    // Build and persist that asset synchronously before contacting Meta so the
+    // user never has to press "Generate asset" as a separate prerequisite.
+    publishItem = await ensureQueueStoryRenderedAsset(tenantId, publishItem, { force: false });
+    assertStoryPublishAsset(publishItem);
+  }
   await db.query(
     `
     UPDATE ai_marketing_content_queue

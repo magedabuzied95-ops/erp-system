@@ -17,6 +17,14 @@ const serviceSource = fs.readFileSync(
   new URL("../../server/services/aiMarketingCenterService.js", import.meta.url),
   "utf8"
 );
+const controllerSource = fs.readFileSync(
+  new URL("../../server/controllers/aiMarketingCenterController.js", import.meta.url),
+  "utf8"
+);
+const storyPublisherSource = fs.readFileSync(
+  new URL("../../server/services/storyPublisherService.js", import.meta.url),
+  "utf8"
+);
 
 test("schema initialization is coalesced and timed-out jobs retain their worker slot", () => {
   assert.match(serviceSource, /let aiMarketingSchemaPromise = null/);
@@ -24,6 +32,31 @@ test("schema initialization is coalesced and timed-out jobs retain their worker 
   assert.match(serviceSource, /if \(!aiMarketingSchemaPromise\)/);
   assert.match(serviceSource, /const runPromise = Promise\.resolve\(\)\.then\(\(\) => job\.run\(\)\)/);
   assert.match(serviceSource, /runPromise\s*\.catch\(\(\) => undefined\)\s*\.finally/);
+});
+
+test("publish now renders a missing story asset inline before calling Meta", () => {
+  const publishStart = serviceSource.indexOf("export const publishAiMarketingQueueItemNow");
+  const publishEnd = serviceSource.indexOf("export const deleteAiMarketingQueueItem", publishStart);
+  const publishSource = serviceSource.slice(publishStart, publishEnd);
+  const renderIndex = publishSource.indexOf("ensureQueueStoryRenderedAsset(tenantId, publishItem, { force: false })");
+  const validateIndex = publishSource.indexOf("assertStoryPublishAsset(publishItem)");
+  const metaIndex = publishSource.indexOf("publishStoryEverywhereService");
+
+  assert.ok(renderIndex > -1, "publish now must generate the 9:16 story asset");
+  assert.ok(validateIndex > renderIndex, "the generated asset must be validated after rendering");
+  assert.ok(metaIndex > validateIndex, "Meta publish must run only after render and validation");
+});
+
+test("publish-now endpoint only reports success after platform publication succeeds", () => {
+  assert.match(controllerSource, /failedPlatforms\.length === 0/);
+  assert.match(controllerSource, /res\.status\(published \? 200 : 502\)/);
+});
+
+test("story publishing uses the current Meta Graph API and direct story endpoints", () => {
+  assert.match(storyPublisherSource, /GRAPH_API_VERSION = "v25\.0"/);
+  assert.match(storyPublisherSource, /media_type: "STORIES"/);
+  assert.match(storyPublisherSource, /media_publish/);
+  assert.match(storyPublisherSource, /photo_stories/);
 });
 
 test("marketing price follows the POS sale toggle instead of stored sale values", () => {

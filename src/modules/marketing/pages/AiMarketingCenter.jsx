@@ -579,6 +579,8 @@ function AiMarketingCenter() {
           await approveAutonomousAiMarketingQueueItem(id);
         }
         await publishAutonomousAiMarketingQueueItemNow(id);
+        const { isStoryContent } = getPreviewContentFlags(targetItem);
+        toast.success(isStoryContent ? "تم نشر الاستوري بنجاح" : "تم نشر المحتوى بنجاح");
       }
       if (action === "delete") {
         if (!targetItem?.confirmedDelete) {

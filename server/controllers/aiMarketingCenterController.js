@@ -122,7 +122,16 @@ export const publishAutonomousAiMarketingQueueItemNow = async (req, res) => {
     if (!id) return res.status(400).json({ success: false, message: "Invalid queue item id" });
     const item = await publishAiMarketingQueueItemNow(tenantScope(req), id);
     if (!item) return res.status(404).json({ success: false, message: "Queue item not found" });
-    return res.json({ success: true, item });
+    const platformResults = item.platform_publish_results || {};
+    const failedPlatforms = Object.entries(platformResults)
+      .filter(([, result]) => result?.status && !["published", "skipped"].includes(String(result.status).toLowerCase()))
+      .map(([platform]) => platform);
+    const publishStatus = String(item.publish_status || item.status || "").toLowerCase();
+    const published = publishStatus === "published" && failedPlatforms.length === 0;
+    const message = published
+      ? "Content published successfully"
+      : item.platform_error_message || item.publish_error || item.error_message || `Publishing failed${failedPlatforms.length ? ` on ${failedPlatforms.join(", ")}` : ""}`;
+    return res.status(published ? 200 : 502).json({ success: published, item, message });
   } catch (error) {
     return sendError(res, error, "Failed to publish queue item");
   }
