@@ -47,6 +47,16 @@ test('Web and PWA continue to consume the same conversation and message events',
   assert.doesNotMatch(joined, /instagram_browser_bridge_socket/);
 });
 
+test('Instagram delivery status preserves its canonical non-WhatsApp session id', async () => {
+  const service = await read('../server/services/aiSupportLogService.js');
+  const updateStart = service.indexOf('const updateAiSupportMessageDeliveryStatusCore');
+  const updateEnd = service.indexOf('export const updateAiSupportMessageDeliveryStatus', updateStart);
+  const update = service.slice(updateStart, updateEnd);
+  assert.match(update, /hasWhatsappIdentity/);
+  assert.match(update, /\^whatsapp:/);
+  assert.match(update, /: rawSessionId/);
+});
+
 test('Docker pilot is opt-in, has no public port, and preserves profile volumes', async () => {
   const compose = await read('../services/m1-channel-gateway/docker-compose.example.yml');
   const block = compose.slice(compose.indexOf('instagram-bridge:'), compose.indexOf('\n  redis:'));

@@ -2300,7 +2300,12 @@ const updateAiSupportMessageDeliveryStatusCore = async ({
   insertSource = "whatsapp_webhook",
 } = {}, executor = db) => {
   const safeTenantId = numberOrNull(tenantId);
-  const safeSessionId = normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId) || toText(sessionId);
+  const rawSessionId = toText(sessionId);
+  const hasWhatsappIdentity = /^whatsapp:/i.test(rawSessionId)
+    || Boolean(toText(whatsappInstance || remoteJid || resolvedReplyJid || resolvedPhone));
+  const safeSessionId = hasWhatsappIdentity
+    ? (normalizeCanonicalWhatsappSessionId(rawSessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId) || rawSessionId)
+    : rawSessionId;
   const safeProviderMessageId = toText(providerMessageId || externalMessageId);
   if (!safeTenantId || !safeProviderMessageId) {
     return null;
