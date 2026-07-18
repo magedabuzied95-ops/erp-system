@@ -34,7 +34,48 @@ const smtpCommand = async (socket, command, expectedCodes = [250]) => {
 
 const encodeBase64 = (value) => Buffer.from(String(value || ""), "utf8").toString("base64");
 
-export const sendSmtpMail = async ({ to, subject, body }) => {
+const wrapBase64 = (value) => String(value || "").match(/.{1,76}/g)?.join("\r\n") || "";
+
+const buildRawEmail = ({ fromHeader, to, subject, body, attachments = [] }) => {
+  const safeAttachments = (Array.isArray(attachments) ? attachments : []).filter((item) => item?.content);
+  const headers = [
+    `From: ${fromHeader}`,
+    `To: ${to}`,
+    `Subject: =?UTF-8?B?${encodeBase64(subject)}?=`,
+    "MIME-Version: 1.0",
+  ];
+  if (!safeAttachments.length) {
+    return [...headers, "Content-Type: text/plain; charset=UTF-8", "", body, ".", ""].join("\r\n");
+  }
+  const boundary = `mone-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const parts = [
+    ...headers,
+    `Content-Type: multipart/mixed; boundary="${boundary}"`,
+    "",
+    `--${boundary}`,
+    "Content-Type: text/plain; charset=UTF-8",
+    "Content-Transfer-Encoding: base64",
+    "",
+    wrapBase64(encodeBase64(body)),
+  ];
+  safeAttachments.forEach((attachment) => {
+    const filename = text(attachment.filename || "attachment.pdf").replace(/[\r\n"]/g, "_");
+    const mimeType = text(attachment.contentType || "application/octet-stream");
+    const content = Buffer.isBuffer(attachment.content) ? attachment.content : Buffer.from(attachment.content);
+    parts.push(
+      `--${boundary}`,
+      `Content-Type: ${mimeType}; name="${filename}"`,
+      "Content-Transfer-Encoding: base64",
+      `Content-Disposition: attachment; filename="${filename}"`,
+      "",
+      wrapBase64(content.toString("base64"))
+    );
+  });
+  parts.push(`--${boundary}--`, ".", "");
+  return parts.join("\r\n");
+};
+
+export const sendSmtpMail = async ({ to, subject, body, attachments = [] }) => {
   const host = text(process.env.SMTP_HOST);
   const port = Number(process.env.SMTP_PORT || 587);
   const user = text(process.env.SMTP_USER);
@@ -66,17 +107,7 @@ export const sendSmtpMail = async ({ to, subject, body }) => {
     await smtpCommand(secureSocket, `MAIL FROM:<${from}>`, [250]);
     await smtpCommand(secureSocket, `RCPT TO:<${to}>`, [250, 251]);
     await smtpCommand(secureSocket, "DATA", [354]);
-    secureSocket.write([
-      `From: ${fromHeader}`,
-      `To: ${to}`,
-      `Subject: =?UTF-8?B?${encodeBase64(subject)}?=`,
-      "MIME-Version: 1.0",
-      "Content-Type: text/plain; charset=UTF-8",
-      "",
-      body,
-      ".",
-      "",
-    ].join("\r\n"));
+    secureSocket.write(buildRawEmail({ fromHeader, to, subject, body, attachments }));
     await smtpRequest(secureSocket, [250]);
     await smtpCommand(secureSocket, "QUIT", [221]);
     secureSocket.end();
@@ -91,17 +122,7 @@ export const sendSmtpMail = async ({ to, subject, body }) => {
   await smtpCommand(socket, `MAIL FROM:<${from}>`, [250]);
   await smtpCommand(socket, `RCPT TO:<${to}>`, [250, 251]);
   await smtpCommand(socket, "DATA", [354]);
-  socket.write([
-    `From: ${fromHeader}`,
-    `To: ${to}`,
-    `Subject: =?UTF-8?B?${encodeBase64(subject)}?=`,
-    "MIME-Version: 1.0",
-    "Content-Type: text/plain; charset=UTF-8",
-    "",
-    body,
-    ".",
-    "",
-  ].join("\r\n"));
+  socket.write(buildRawEmail({ fromHeader, to, subject, body, attachments }));
   await smtpRequest(socket, [250]);
   await smtpCommand(socket, "QUIT", [221]);
   socket.end();

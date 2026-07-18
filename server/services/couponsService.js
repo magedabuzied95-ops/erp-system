@@ -5,6 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import db from "../database/db.js";
+import { getSetting } from "./settingsService.js";
+import { getSiteSettings } from "./siteSettingsService.js";
+import { getPublicAppUrl } from "../utils/publicUrl.js";
 
 const currentFilePath = fileURLToPath(import.meta.url);
 const currentDir = path.dirname(currentFilePath);
@@ -174,10 +177,20 @@ const randomCodePart = (length = 6) => {
   return out;
 };
 
-const resolveQrValue = (code) => {
-  const base = String(process.env.WEBSITE_BASE_URL || process.env.FRONTEND_URL || process.env.CLIENT_URL || process.env.APP_URL || "").trim().replace(/\/$/, "");
-  return base ? `${base}/checkout?coupon=${encodeURIComponent(code)}` : code;
+export const resolveCouponUrl = (code, publicUrl = "") => {
+  const base = String(publicUrl || "").trim().replace(/\/+$/g, "");
+  return base ? `${base}/checkout?coupon=${encodeURIComponent(code)}` : String(code || "").trim();
 };
+
+const resolveStorefrontUrl = () =>
+  String(
+    getPublicAppUrl() ||
+      process.env.VITE_PUBLIC_STOREFRONT_URL ||
+      process.env.PUBLIC_STOREFRONT_URL ||
+      "https://m1store-egy.com"
+  ).trim();
+
+const resolveQrValue = (code) => resolveCouponUrl(code, resolveStorefrontUrl());
 
 export const generateCoupons = async ({ tenantId = null, campaignId, quantity = null } = {}) => {
   await ensureCouponsSchema();
@@ -252,7 +265,9 @@ export const listCoupons = async ({ tenantId = null, campaignId, search = "", st
   if (status === "active") where += " AND cp.is_active = TRUE AND (cp.expires_at IS NULL OR cp.expires_at >= NOW())";
   const result = await db.query(
     `
-    SELECT cp.*, c.name AS campaign_name, c.discount_type, c.discount_value
+    SELECT cp.*, c.name AS campaign_name, c.discount_type, c.discount_value,
+      c.minimum_order_amount, c.max_discount_amount, c.starts_at AS campaign_starts_at,
+      c.expires_at AS campaign_expires_at, c.channel, c.usage_limit_per_coupon
     FROM coupons cp
     JOIN coupon_campaigns c ON c.id = cp.campaign_id
     ${where}
@@ -493,44 +508,261 @@ export const exportCouponsCsv = async ({ tenantId = null, campaignId }) => {
   ].join("\n");
 };
 
-export const exportCouponsPdfBuffer = async ({ tenantId = null, campaignId, storeName = "ERP Store" }) => {
-  const rows = await listCoupons({ tenantId, campaignId });
-  const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4", compress: true });
-  const cardWidth = 88;
-  const cardHeight = 52;
-  let x = 12;
-  let y = 14;
-  rows.forEach((coupon, index) => {
-    if (y + cardHeight > 285) {
-      doc.addPage();
-      x = 12;
-      y = 14;
+const PDF_GOLD = [199, 153, 45];
+const PDF_BLACK = [15, 15, 16];
+const PDF_MUTED = [92, 92, 96];
+const imageDataCache = new Map();
+
+const formatCouponDate = (value) => {
+  if (!value) return "NO EXPIRY";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "NO EXPIRY";
+  return new Intl.DateTimeFormat("en-GB", { year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+};
+
+const loadPdfLogo = async (url) => {
+  const safeUrl = String(url || "").trim();
+  if (!safeUrl) return "";
+  if (imageDataCache.has(safeUrl)) return imageDataCache.get(safeUrl);
+  try {
+    let source;
+    if (/^https?:\/\//i.test(safeUrl)) {
+      const response = await fetch(safeUrl, { signal: AbortSignal.timeout(8_000) });
+      if (!response.ok) return "";
+      source = Buffer.from(await response.arrayBuffer());
+    } else if (fs.existsSync(safeUrl)) {
+      source = fs.readFileSync(safeUrl);
+    } else {
+      return "";
     }
-    doc.setDrawColor(28, 120, 85);
-    doc.roundedRect(x, y, cardWidth, cardHeight, 3, 3);
+    const { default: sharp } = await import("sharp");
+    const png = await sharp(source).resize(500, 500, { fit: "inside", withoutEnlargement: true }).png().toBuffer();
+    const dataUrl = `data:image/png;base64,${png.toString("base64")}`;
+    imageDataCache.set(safeUrl, dataUrl);
+    return dataUrl;
+  } catch {
+    return "";
+  }
+};
+
+const resolveCouponBranding = async (tenantId) => {
+  const site = await getSiteSettings({ tenantId }).catch(() => ({}));
+  const [settingName, companyName, storefrontLogo, companyLogo, settingUrl] = await Promise.all([
+    getSetting("storefront.store_name", "").catch(() => ""),
+    getSetting("general.company_name", "").catch(() => ""),
+    getSetting("storefront.store_logo_url", "").catch(() => ""),
+    getSetting("general.company_logo_url", "").catch(() => ""),
+    getSetting("storefront.public_url", "").catch(() => ""),
+  ]);
+  const publicUrl = String(settingUrl || resolveStorefrontUrl()).trim().replace(/\/+$/g, "");
+  return {
+    storeName: String(settingName || companyName || site.company_name || "M1 Store").trim(),
+    logoUrl: String(storefrontLogo || companyLogo || site.company_logo_url || path.resolve(currentDir, "../../public/icons/m1-512.png")).trim(),
+    publicUrl,
+  };
+};
+
+const pdfLayout = (layout = "a4") => {
+  const normalized = ["a4", "a5", "single"].includes(String(layout).toLowerCase()) ? String(layout).toLowerCase() : "a4";
+  if (normalized === "a5") return { name: "a5", format: "a5", orientation: "portrait", columns: 1, rows: 2, marginX: 8, marginY: 8, gapX: 0, gapY: 6 };
+  if (normalized === "single") return { name: "single", format: "a6", orientation: "landscape", columns: 1, rows: 1, marginX: 6, marginY: 7, gapX: 0, gapY: 0 };
+  return { name: "a4", format: "a4", orientation: "portrait", columns: 2, rows: 3, marginX: 7, marginY: 7, gapX: 4, gapY: 4 };
+};
+
+const addArabicFont = (doc) => {
+  const fontPath = path.resolve(currentDir, "../assets/fonts/NotoSansArabic.ttf");
+  if (!fs.existsSync(fontPath)) return false;
+  const fontData = fs.readFileSync(fontPath).toString("base64");
+  doc.addFileToVFS("MOneArabic.ttf", fontData);
+  doc.addFont("MOneArabic.ttf", "MOneArabic", "normal");
+  doc.addFont("MOneArabic.ttf", "MOneArabic", "bold");
+  if (typeof doc.setLanguage === "function") doc.setLanguage("ar");
+  return true;
+};
+
+const drawCouponTicket = ({ doc, coupon, x, y, width, height, logoData, storeName, qrData }) => {
+  const compact = height < 88;
+  const padding = compact ? 3.7 : 4.5;
+  const headerHeight = compact ? 17 : 19;
+  const footerHeight = compact ? 8 : 9;
+  const stubWidth = compact ? 27 : 30;
+  const qrSize = compact ? 20.5 : 23;
+  const arabic = (value) => typeof doc.processArabic === "function" ? doc.processArabic(String(value || "")) : String(value || "");
+  const rightText = (value, tx, ty, options = {}) => {
+    const raw = String(value || "");
+    const isArabic = /[\u0600-\u06ff]/.test(raw);
+    doc.text(isArabic ? arabic(raw) : raw, tx, ty, { align: "right", ...options });
+  };
+
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...PDF_BLACK);
+  doc.setLineWidth(0.55);
+  doc.roundedRect(x, y, width, height, 3.8, 3.8, "FD");
+
+  doc.setFillColor(...PDF_BLACK);
+  doc.roundedRect(x, y, width, headerHeight + 3, 3.8, 3.8, "F");
+  doc.rect(x, y + headerHeight - 2, width, 5, "F");
+  doc.setFillColor(...PDF_GOLD);
+  doc.rect(x, y + headerHeight, width, 0.85, "F");
+  if (logoData) {
+    const logoSize = compact ? 13 : 15;
+    doc.addImage(logoData, "PNG", x + width - padding - logoSize, y + 1.4, logoSize, logoSize, undefined, "FAST");
+  } else {
+    doc.setFillColor(...PDF_GOLD);
+    doc.circle(x + width - padding - 5, y + 7, 4, "F");
+    doc.setTextColor(...PDF_BLACK);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text(storeName, x + 5, y + 8, { maxWidth: cardWidth - 10 });
-    doc.setFontSize(16);
-    const discount = coupon.discount_type === "percentage" ? `${Number(coupon.discount_value)}% OFF` : `${Number(coupon.discount_value)} OFF`;
-    doc.text(discount, x + 5, y + 18);
-    doc.setFontSize(13);
-    doc.text(coupon.code, x + 5, y + 29);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text(`Expires: ${coupon.expires_at ? new Date(coupon.expires_at).toLocaleDateString("en-GB") : "No expiry"}`, x + 5, y + 37);
-    doc.text("Use at checkout or in store", x + 5, y + 43);
-    doc.text("Min order and campaign terms apply.", x + 5, y + 48);
-    doc.setDrawColor(80);
-    doc.rect(x + cardWidth - 27, y + 22, 20, 20);
-    doc.setFontSize(5);
-    doc.text(String(coupon.qr_value || coupon.code).slice(0, 48), x + cardWidth - 25, y + 32, { maxWidth: 16 });
-    x += cardWidth + 10;
-    if (index % 2 === 1) {
-      x = 12;
-      y += cardHeight + 8;
-    }
-  });
+    doc.setFontSize(6);
+    doc.text(storeName.slice(0, 2).toUpperCase(), x + width - padding - 5, y + 8.6, { align: "center" });
+  }
+  const brandRight = x + width - padding - (compact ? 15 : 17);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("MOneArabic", "bold");
+  doc.setFontSize(compact ? 7.6 : 8.8);
+  rightText(storeName, brandRight, y + 7.6, { maxWidth: width - 39 });
+  doc.setTextColor(...PDF_GOLD);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(compact ? 4.5 : 5.1);
+  doc.text("PREMIUM COUPON", brandRight, y + 12.2, { align: "right", charSpace: 0.45 });
+
+  const bodyTop = y + headerHeight + 1;
+  const footerTop = y + height - footerHeight;
+  const dividerX = x + padding + stubWidth;
+  const infoRight = x + width - padding;
+  const infoLeft = dividerX + 5;
+
+  doc.setDrawColor(186, 186, 188);
+  doc.setLineDashPattern([1.4, 1.2], 0);
+  doc.line(dividerX, bodyTop + 3, dividerX, footerTop - 3);
+  doc.setLineDashPattern([], 0);
+  doc.setFillColor(255, 255, 255);
+  doc.circle(dividerX, bodyTop, 2, "F");
+  doc.circle(dividerX, footerTop, 2, "F");
+
+  const qrX = x + padding + (stubWidth - qrSize) / 2;
+  const qrY = bodyTop + (compact ? 6 : 7);
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...PDF_GOLD);
+  doc.setLineWidth(0.75);
+  doc.roundedRect(qrX - 1.1, qrY - 1.1, qrSize + 2.2, qrSize + 2.2, 2.2, 2.2, "FD");
+  doc.addImage(qrData, "PNG", qrX, qrY, qrSize, qrSize, undefined, "FAST");
+  doc.setTextColor(...PDF_MUTED);
+  doc.setFont("MOneArabic", "normal");
+  doc.setFontSize(compact ? 4.8 : 5.3);
+  rightText("امسح للاستخدام", x + padding + stubWidth - 1, qrY + qrSize + 5, { maxWidth: stubWidth - 2 });
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(4.2);
+  doc.setTextColor(...PDF_GOLD);
+  doc.text("SCAN • SAVE • ENJOY", x + padding + stubWidth / 2, qrY + qrSize + 9, { align: "center", maxWidth: stubWidth });
+
+  const discount = coupon.discount_type === "percentage"
+    ? `${Number(coupon.discount_value || 0).toLocaleString("en-US")}%`
+    : `${Number(coupon.discount_value || 0).toLocaleString("en-US")} EGP`;
+  doc.setTextColor(...PDF_BLACK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(compact ? 18 : 22);
+  doc.text(discount, infoRight, bodyTop + 13, { align: "right" });
+  doc.setFont("MOneArabic", "normal");
+  doc.setFontSize(compact ? 5.7 : 6.4);
+  doc.setTextColor(...PDF_GOLD);
+  rightText(coupon.discount_type === "percentage" ? "خصم على إجمالي الطلب" : "خصم نقدي ثابت", infoRight, bodyTop + 18);
+
+  const codeY = bodyTop + 21;
+  doc.setFillColor(248, 244, 234);
+  doc.setDrawColor(...PDF_GOLD);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(infoLeft, codeY, Math.max(25, infoRight - infoLeft), compact ? 8.5 : 9.5, 2.2, 2.2, "FD");
+  doc.setTextColor(...PDF_BLACK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(compact ? 8.2 : 9.5);
+  doc.text(String(coupon.code || ""), (infoLeft + infoRight) / 2, codeY + (compact ? 5.7 : 6.5), { align: "center", maxWidth: infoRight - infoLeft - 3 });
+
+  const minOrder = Number(coupon.minimum_order_amount || 0);
+  const usage = Number(coupon.usage_limit || coupon.usage_limit_per_coupon || 1);
+  const detailsY = codeY + (compact ? 13 : 15);
+  const detailGap = 2;
+  const detailWidth = (infoRight - infoLeft - detailGap) / 2;
+  const detailHeight = compact ? 12 : 14;
+  const expiryX = infoRight - detailWidth;
+  doc.setFillColor(249, 249, 248);
+  doc.setDrawColor(225, 225, 222);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(infoLeft, detailsY, detailWidth, detailHeight, 1.8, 1.8, "FD");
+  doc.roundedRect(expiryX, detailsY, detailWidth, detailHeight, 1.8, 1.8, "FD");
+  doc.setFont("MOneArabic", "normal");
+  doc.setFontSize(compact ? 4.4 : 4.9);
+  doc.setTextColor(...PDF_GOLD);
+  rightText("الحد الأدنى", infoLeft + detailWidth - 2, detailsY + 4.2);
+  rightText("تاريخ الانتهاء", infoRight - 2, detailsY + 4.2);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(compact ? 6.2 : 7);
+  doc.setTextColor(...PDF_BLACK);
+  doc.text(minOrder > 0 ? `${minOrder.toLocaleString("en-US")} EGP` : "NO MINIMUM", infoLeft + detailWidth / 2, detailsY + detailHeight - 3, { align: "center", maxWidth: detailWidth - 3 });
+  doc.text(formatCouponDate(coupon.expires_at || coupon.campaign_expires_at), expiryX + detailWidth / 2, detailsY + detailHeight - 3, { align: "center", maxWidth: detailWidth - 3 });
+
+  doc.setFillColor(...PDF_BLACK);
+  doc.roundedRect(x, footerTop, width, footerHeight, 3.8, 3.8, "F");
+  doc.rect(x, footerTop, width, 3, "F");
+  doc.setFillColor(...PDF_GOLD);
+  doc.rect(x, footerTop, width, 0.7, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("MOneArabic", "normal");
+  doc.setFontSize(compact ? 5.1 : 5.7);
+  rightText(`صالح للاستخدام ${usage.toLocaleString("en-US")} ${usage === 1 ? "مرة" : "مرات"}`, infoRight, footerTop + footerHeight - 2.5);
+  doc.setTextColor(...PDF_GOLD);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(4.6);
+  doc.text("AUTHENTIC • SECURE • INSTANT", x + padding, footerTop + footerHeight - 2.6);
+};
+
+export const renderCouponsPdfBuffer = async ({ coupons = [], branding = {}, layout = "a4" } = {}) => {
+  const rows = Array.isArray(coupons) ? coupons : [];
+  if (!rows.length) {
+    const error = new Error("No coupons available for export");
+    error.status = 404;
+    throw error;
+  }
+  const config = pdfLayout(layout);
+  const [{ jsPDF }, qrcodeModule] = await Promise.all([import("jspdf"), import("qrcode")]);
+  const QRCode = qrcodeModule.default || qrcodeModule;
+  const doc = new jsPDF({ orientation: config.orientation, unit: "mm", format: config.format, compress: true, putOnlyUsedFonts: true });
+  const hasArabicFont = addArabicFont(doc);
+  if (!hasArabicFont) {
+    const error = new Error("Arabic PDF font is unavailable");
+    error.status = 500;
+    throw error;
+  }
+  doc.setProperties({ title: `${branding.storeName || "Store"} Coupons`, subject: "Premium printable coupons", creator: branding.storeName || "Store" });
+  const logoData = await loadPdfLogo(branding.logoUrl);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const cardWidth = (pageWidth - config.marginX * 2 - config.gapX * (config.columns - 1)) / config.columns;
+  const cardHeight = (pageHeight - config.marginY * 2 - config.gapY * (config.rows - 1)) / config.rows;
+  const pageCapacity = config.columns * config.rows;
+
+  for (let index = 0; index < rows.length; index += 1) {
+    if (index > 0 && index % pageCapacity === 0) doc.addPage(config.format, config.orientation);
+    const pageIndex = index % pageCapacity;
+    const column = pageIndex % config.columns;
+    const row = Math.floor(pageIndex / config.columns);
+    const x = config.marginX + column * (cardWidth + config.gapX);
+    const y = config.marginY + row * (cardHeight + config.gapY);
+    const coupon = rows[index];
+    const currentUrl = resolveCouponUrl(coupon.code, branding.publicUrl);
+    const qrData = await QRCode.toDataURL(currentUrl, {
+      width: 1024,
+      margin: 1,
+      errorCorrectionLevel: "H",
+      color: { dark: "#0F0F10", light: "#FFFFFF" },
+    });
+    drawCouponTicket({ doc, coupon, x, y, width: cardWidth, height: cardHeight, logoData, storeName: branding.storeName || "M1 Store", qrData });
+  }
   return Buffer.from(doc.output("arraybuffer"));
+};
+
+export const exportCouponsPdfBuffer = async ({ tenantId = null, campaignId, couponId = null, layout = "a4" } = {}) => {
+  const allRows = await listCoupons({ tenantId, campaignId });
+  const rows = couponId ? allRows.filter((coupon) => String(coupon.id) === String(couponId)) : allRows;
+  const branding = await resolveCouponBranding(tenantId);
+  return renderCouponsPdfBuffer({ coupons: rows, branding, layout });
 };

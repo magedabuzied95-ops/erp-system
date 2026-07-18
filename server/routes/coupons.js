@@ -2,6 +2,7 @@ import express from "express";
 
 import {
   exportCsv,
+  emailPdf,
   exportPdf,
   generateCampaignCoupons,
   getCampaignCoupons,
@@ -36,6 +37,7 @@ router.get("/campaigns/:id/coupons", protect, permit("marketing", "view"), getCa
 router.get("/campaigns/:id/stats", protect, permit("marketing", "view"), getStats);
 
 router.get("/export/pdf", protect, requireCouponManager, permit("marketing", "view"), exportPdf);
+router.post("/export/pdf/email", protect, requireCouponManager, permit("marketing", "view"), emailPdf);
 router.get("/export/csv", protect, requireCouponManager, permit("marketing", "view"), exportCsv);
 
 export default router;

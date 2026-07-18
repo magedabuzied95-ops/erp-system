@@ -11,6 +11,7 @@ import {
   updateCampaign,
   validateCoupon,
 } from "../services/couponsService.js";
+import { sendSmtpMail } from "../services/staffTaskEmailNotificationService.js";
 import { getTenantId, isSuperAdminUser } from "../utils/requestScope.js";
 
 const scopedTenantId = (req) => (isSuperAdminUser(req.user) ? null : getTenantId(req, req.user?.tenant_id));
@@ -145,12 +146,40 @@ export const exportCsv = async (req, res) => {
 
 export const exportPdf = async (req, res) => {
   try {
-    const storeName = req.tenant?.name || process.env.STORE_NAME || process.env.APP_NAME || "ERP Store";
-    const buffer = await exportCouponsPdfBuffer({ tenantId: scopedTenantId(req), campaignId: req.query.campaign_id, storeName });
+    const layout = String(req.query.layout || "a4").toLowerCase();
+    const buffer = await exportCouponsPdfBuffer({
+      tenantId: scopedTenantId(req),
+      campaignId: req.query.campaign_id,
+      couponId: req.query.coupon_id || null,
+      layout,
+    });
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="coupons-${req.query.campaign_id || "export"}.pdf"`);
+    const suffix = req.query.coupon_id ? `coupon-${req.query.coupon_id}` : `coupons-${req.query.campaign_id || "export"}`;
+    res.setHeader("Content-Disposition", `${req.query.inline === "1" ? "inline" : "attachment"}; filename="${suffix}-${layout}.pdf"`);
     return res.send(buffer);
   } catch (error) {
     return sendError(res, error, "Failed to export PDF");
+  }
+};
+
+export const emailPdf = async (req, res) => {
+  try {
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ success: false, message: "A valid email address is required" });
+    }
+    const layout = String(req.body?.layout || "a4").toLowerCase();
+    const campaignId = req.body?.campaign_id || req.body?.campaignId;
+    const couponId = req.body?.coupon_id || req.body?.couponId || null;
+    const buffer = await exportCouponsPdfBuffer({ tenantId: scopedTenantId(req), campaignId, couponId, layout });
+    await sendSmtpMail({
+      to: email,
+      subject: "قسائم الخصم",
+      body: "مرفق ملف قسائم الخصم الجاهز للطباعة والاستخدام.",
+      attachments: [{ filename: `coupons-${campaignId || "export"}-${layout}.pdf`, contentType: "application/pdf", content: buffer }],
+    });
+    return res.json({ success: true, message: "Coupon PDF sent successfully" });
+  } catch (error) {
+    return sendError(res, error, "Failed to send coupon PDF by email");
   }
 };

@@ -26,6 +26,7 @@
     "test:ai-commerce-cards": "node server/scripts/testAiCommerceCardReplies.js",
     "test:ai-sales-render": "node server/scripts/runAiSalesRegressionSuite.js",
     "test:ai-marketing": "node --test tests/ai-marketing/*.test.js",
+    "test:coupons": "node --test tests/coupons/*.test.js",
     "test:messenger-shopping": "node --test tests/messenger-guided-shopping/*.test.js",
     "start": "npm --prefix \"./server\" run start"
   },
@@ -51,6 +52,7 @@
     "nodemon": "^3.1.14",
     "openai": "^6.38.0",
     "pg": "^8.20.0",
+    "qrcode": "^1.5.4",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
