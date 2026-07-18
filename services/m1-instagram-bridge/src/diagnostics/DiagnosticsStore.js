@@ -16,7 +16,7 @@ export class DiagnosticsStore {
       error_code: error?.code || 'UNKNOWN', current_url: page ? await page.url().catch(() => '') : '',
       selector_version: error?.selector_version || null,
     });
-    if (page) await page.screenshot({ path: `${base}.png`, fullPage: false, mask: [page.locator('main'), page.locator('[role="main"]')] }).catch(() => {});
+    if (page) await page.screenshot({ path: `${base}.png`, fullPage: false, timeout: 5_000, mask: [page.locator('main'), page.locator('[role="main"]')] }).catch(() => {});
     if (page && includeDom) {
       const sanitized = String(await page.locator('body').innerText().catch(() => '')).slice(0, 4_000).replace(/[\w.+-]+@[\w.-]+/g, '[EMAIL]').replace(/\+?\d[\d\s-]{7,}/g, '[PHONE]');
       details.dom_snapshot = '[SANITIZED_LENGTH:' + sanitized.length + ']';

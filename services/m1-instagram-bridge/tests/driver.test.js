@@ -25,4 +25,5 @@ test('conversation discovery always reserves capacity for message requests', asy
     ['https://www.instagram.com/direct/requests/', 2],
   ]);
   assert.equal(conversations.filter((item) => item.threadId.startsWith('request-')).length, 2);
+  assert.equal(conversations[0].threadId, 'request-0');
 });

@@ -147,7 +147,19 @@ export class InstagramBridge {
     if (/LOGIN_REQUIRED|SESSION_EXPIRED/.test(error.code || '')) await this.pause();
     if (error.code === 'SELECTOR_MISSING') { this.selectorFailures += 1; this.safety.failure(); if (this.selectorFailures >= this.config.selectorFailurePauseThreshold) await this.pause(); }
     await this.diagnostics.capture({ page: this.driver.page, error, operation }).catch(() => {});
-    this.logger.warn?.('instagram_bridge.operation_failed', { operation, error_code: error.code || 'UNKNOWN' });
+    const message = String(error?.message || '');
+    const errorCategory = error?.name === 'TimeoutError' || /timeout/i.test(message) ? 'timeout'
+      : /target|browser|page.*closed/i.test(message) ? 'target_closed'
+        : /navigation|net::/i.test(message) ? 'navigation'
+          : /fetch|connect|socket|ECONN/i.test(message) ? 'network'
+            : /strict mode|selector/i.test(message) ? 'selector'
+              : 'other';
+    this.logger.warn?.('instagram_bridge.operation_failed', {
+      operation,
+      error_code: error.code || 'UNKNOWN',
+      error_name: error?.name || 'Error',
+      error_category: errorCategory,
+    });
   }
   async getHealth() {
     const probe = await this.driver.getHealthProbe().catch(() => ({ browserRunning: false, authenticated: false, inboxLoaded: false, session: 'unknown' }));

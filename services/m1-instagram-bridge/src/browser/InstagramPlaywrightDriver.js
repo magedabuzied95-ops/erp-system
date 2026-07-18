@@ -78,8 +78,10 @@ export class InstagramPlaywrightDriver {
     const inboxLimit = Math.max(0, limit - requestsLimit);
     const conversations = await this.collectLinkedConversations(inboxLimit);
     if (conversations.length < inboxLimit) conversations.push(...await this.collectButtonConversations(DIRECT_INBOX_URL, inboxLimit - conversations.length));
-    conversations.push(...await this.collectButtonConversations(DIRECT_REQUESTS_URL, requestsLimit));
-    return [...new Map(conversations.map((item) => [item.threadId || item.url, item])).values()].slice(0, limit);
+    const requests = await this.collectButtonConversations(DIRECT_REQUESTS_URL, requestsLimit);
+    // Requests come first so the live watcher opens new senders immediately;
+    // recovery sync still processes the complete bounded result.
+    return [...new Map([...requests, ...conversations].map((item) => [item.threadId || item.url, item])).values()].slice(0, limit);
   }
   async collectLinkedConversations(limit) {
     const links = this.page.locator('a[href*="/direct/t/"]');
@@ -157,6 +159,7 @@ export class InstagramPlaywrightDriver {
       const node = nodes.nth(index);
       const text = (await node.innerText().catch(() => '')).trim();
       if (!text || /view once|disappearing|vanish mode/i.test(text)) continue;
+      if (/^(video|photo|audio|reel|post)$/i.test(text)) continue;
       const externalMessageId = await node.getAttribute('data-message-id').catch(() => '');
       const aria = await node.getAttribute('aria-label').catch(() => '');
       const direction = /you sent|sent by you/i.test(aria || '') ? 'outgoing' : 'incoming';
