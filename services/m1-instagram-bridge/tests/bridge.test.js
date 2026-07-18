@@ -84,6 +84,19 @@ test('scheduled browser work starts immediately and never overlaps', async () =>
   assert.ok(calls >= 1);
 });
 
+test('manual outbound waits for live browser navigation before verifying the target', async () => {
+  const { bridge, state } = fixture({ messages: [{ text: 'reply', direction: 'outgoing', externalMessageId: 'out-lock-1', sentAt: '2026-07-18T10:00:03Z' }] });
+  await state.saveConversation(identity);
+  bridge.browserOperationInFlight = true;
+  setTimeout(() => { bridge.browserOperationInFlight = false; }, 30);
+  const startedAt = Date.now();
+
+  const result = await bridge.sendText('thread-a', 'reply', { manual_user_id: 7, job_key: 'j-lock' });
+
+  assert.equal(result.status, 'confirmed');
+  assert.ok(Date.now() - startedAt >= 25);
+});
+
 test('recovery sync revisits known conversations even when inbox discovery omits them', async () => {
   const message = { text: 'Known thread update', direction: 'incoming', externalMessageId: 'known-1', sentAt: '2026-07-18T10:00:00Z' };
   const { bridge, state, imported } = fixture({ messages: [message] });

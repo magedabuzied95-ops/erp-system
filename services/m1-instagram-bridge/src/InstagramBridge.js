@@ -46,6 +46,14 @@ export class InstagramBridge {
     return timer;
   }
   stopWatchers() { if (this.liveTimer) clearInterval(this.liveTimer); if (this.recoveryTimer) clearInterval(this.recoveryTimer); this.liveTimer = null; this.recoveryTimer = null; }
+  async withExclusiveBrowserOperation(operation, timeoutMs = 60_000) {
+    const deadline = Date.now() + timeoutMs;
+    while (this.browserOperationInFlight && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50));
+    if (this.browserOperationInFlight) throw Object.assign(new Error('Browser operation is busy'), { code: 'BROWSER_OPERATION_BUSY' });
+    this.browserOperationInFlight = true;
+    try { return await operation(); }
+    finally { this.browserOperationInFlight = false; }
+  }
   async pause() { this.paused = true; this.stopWatchers(); return this.getHealth(); }
   async resume() { if (!this.config.enabled) throw Object.assign(new Error('Bridge disabled'), { code: 'BRIDGE_DISABLED' }); this.paused = false; return this.start(); }
   async syncConversations() { return this.driver.listConversations({ limit: this.config.maxConversationsPerMinute }); }
@@ -115,6 +123,7 @@ export class InstagramBridge {
     if (options.ai_generated || options.sender_type === 'ai' || options.ai_auto_send) throw Object.assign(new Error('AI auto-send is forbidden in pilot'), { code: 'AI_AUTO_SEND_FORBIDDEN' });
     if (!options.manual_user_id && !options.manual) throw Object.assign(new Error('Manual employee action is required'), { code: 'MANUAL_ACTION_REQUIRED' });
     this.safety.assertSendAllowed();
+    return this.withExclusiveBrowserOperation(async () => {
     const expected = this.state.getConversation(externalConversationId) || buildConversationIdentity({
       threadId: externalConversationId, externalUsername: options.external_username,
       headerIdentity: options.external_display_name, channelAccountId: this.config.channelAccountId,
@@ -134,6 +143,7 @@ export class InstagramBridge {
       return { status: 'confirmed', confirmed: true, external_message_id: match.externalMessageId || `ig-fp:${jobKey}` };
     }
     return { status: 'sent_unconfirmed', confirmed: false, external_message_id: null, reconciliation_required: true };
+    });
   }
   async reconcileUncertainSends() {
     const results = [];
