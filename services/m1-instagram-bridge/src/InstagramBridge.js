@@ -28,8 +28,8 @@ export class InstagramBridge {
   async disconnect() { this.stopWatchers(); await this.driver.disconnect(); this.running = false; this.paused = true; return this.getHealth(); }
   async start() {
     await this.connect(); this.running = true;
-    if (this.config.inboundEnabled) this.liveTimer = this.schedule(() => this.liveWatch(), this.config.liveWatchIntervalMs, 'live_watch');
     if (this.config.recoverySyncEnabled) this.recoveryTimer = this.schedule(() => this.recoverySync(), this.config.recoverySyncIntervalMs, 'recovery_sync');
+    if (this.config.inboundEnabled) this.liveTimer = this.schedule(() => this.liveWatch(), this.config.liveWatchIntervalMs, 'live_watch');
     return this.getHealth();
   }
   schedule(operation, interval, operationName = operation.name || 'scheduled_operation') {
@@ -47,8 +47,8 @@ export class InstagramBridge {
     return timer;
   }
   startWatchers() {
-    if (this.config.inboundEnabled && !this.liveTimer) this.liveTimer = this.schedule(() => this.liveWatch(), this.config.liveWatchIntervalMs, 'live_watch');
     if (this.config.recoverySyncEnabled && !this.recoveryTimer) this.recoveryTimer = this.schedule(() => this.recoverySync(), this.config.recoverySyncIntervalMs, 'recovery_sync');
+    if (this.config.inboundEnabled && !this.liveTimer) this.liveTimer = this.schedule(() => this.liveWatch(), this.config.liveWatchIntervalMs, 'live_watch');
   }
   stopWatchers() { if (this.liveTimer) clearInterval(this.liveTimer); if (this.recoveryTimer) clearInterval(this.recoveryTimer); this.liveTimer = null; this.recoveryTimer = null; }
   async withExclusiveBrowserOperation(operation, timeoutMs = 180_000, { preemptAfterMs = 15_000 } = {}) {
@@ -136,6 +136,10 @@ export class InstagramBridge {
   }
   async recoverySync() {
     if (this.paused || !this.config.recoverySyncEnabled) return { skipped: true };
+    // Confirm uncertain manual sends before the broader inbox sweep. Visible
+    // discovery can be slow or selector-sensitive and must not starve delivery
+    // reconciliation after a restart.
+    const reconciled = await this.reconcileUncertainSends();
     // Revisit known thread IDs directly before relying on Instagram's visible
     // Primary/General tabs. A thread can be hidden by client-side tab state even
     // though new messages continue to arrive on the same stable conversation.
@@ -148,8 +152,7 @@ export class InstagramBridge {
       if (this.browserOperationPriorityWaiting) break;
       await this.syncMessages(conversation, 'recovery_sync');
     }
-    await this.reconcileUncertainSends();
-    return { scanned: conversations.length };
+    return { scanned: conversations.length, reconciled: reconciled.length };
   }
   async sendText(externalConversationId, text, options = {}) {
     if (!this.config.outboundEnabled) throw Object.assign(new Error('Instagram outbound is disabled'), { code: 'OUTBOUND_DISABLED' });
