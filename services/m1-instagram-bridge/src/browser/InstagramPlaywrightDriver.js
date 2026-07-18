@@ -212,6 +212,15 @@ export class InstagramPlaywrightDriver {
   }
   async markAsRead() { await this.page?.bringToFront(); return { marked: true }; }
   async reload() { await this.page?.reload({ waitUntil: 'domcontentloaded' }); }
+  async interruptActivePage() {
+    const activePage = this.page;
+    this.page = null;
+    if (!activePage) return;
+    await Promise.race([
+      activePage.close({ runBeforeUnload: false }).catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 3_000)),
+    ]);
+  }
   async reopenInboxTab() { if (this.page) await this.page.close().catch(() => {}); this.page = await this.context.newPage(); await this.openInbox(); }
   async getHealthProbe() {
     const session = this.page ? await this.detectSession().catch(() => 'unknown') : 'unknown';

@@ -162,12 +162,11 @@ test('manual outbound safely resets a stuck scheduled browser operation', async 
   const { bridge } = fixture();
   let disconnected = 0; let connected = 0; let inboxOpened = 0;
   bridge.browserOperationInFlight = true;
-  bridge.driver.disconnect = async () => {
+  bridge.driver.interruptActivePage = async () => {
     disconnected += 1;
     bridge.browserOperationInFlight = false;
   };
-  bridge.driver.connect = async () => { connected += 1; };
-  bridge.driver.openInbox = async () => { inboxOpened += 1; };
+  bridge.driver.reopenInboxTab = async () => { connected += 1; inboxOpened += 1; };
 
   const result = await bridge.withExclusiveBrowserOperation(async () => 'sent', 100, { preemptAfterMs: 10 });
 

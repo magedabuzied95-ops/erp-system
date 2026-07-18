@@ -62,14 +62,13 @@ export class InstagramBridge {
           preempted = true;
           this.paused = true;
           this.stopWatchers();
-          await this.driver.disconnect().catch(() => {});
+          await this.driver.interruptActivePage();
         }
         await new Promise((resolve) => setTimeout(resolve, 50));
       }
       if (this.browserOperationInFlight) throw Object.assign(new Error('Browser operation is busy'), { code: 'BROWSER_OPERATION_BUSY' });
       if (preempted) {
-        await this.driver.connect();
-        await this.driver.openInbox();
+        await this.driver.reopenInboxTab();
         this.paused = false;
         this.running = true;
       }
