@@ -77,6 +77,16 @@ try {
       message_rows: await count(page, '[data-message-id], div[role="row"]'),
       composer: await count(page, '[role="textbox"][contenteditable="true"], textarea[placeholder]'),
       send_controls: await count(page, '[role="button"], button[type="submit"]'),
+      scoped_headings: await count(page, 'main h1, main h2, div[role="main"] h1, div[role="main"] h2'),
+      test_token_groups: await page.locator('div[role="group"]').evaluateAll((groups) => groups.map((group) => ({
+        has_img: Boolean(group.querySelector('img')),
+        buttons: group.querySelectorAll('[role="button"], button').length,
+        links: group.querySelectorAll('a[href]').length,
+        tokens: group.textContent?.match(/IG-(?:A|B)-(?:001|PARALLEL)-\d{8}-\d{6}/g) || [],
+      }))).catch(() => []),
+      request_actions: await page.locator('[role="button"], button').evaluateAll((controls) => controls
+        .map((control) => control.textContent?.trim() || '')
+        .filter((label) => /^(accept|delete|block|decline)$/i.test(label))).catch(() => []),
     };
   }
   console.log(JSON.stringify(result));
