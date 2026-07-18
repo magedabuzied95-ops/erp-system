@@ -11,6 +11,7 @@ export class InstagramBridge {
     this.config = config; this.driver = driver; this.state = state; this.gateway = gateway;
     this.diagnostics = diagnostics; this.safety = safety; this.logger = logger;
     this.running = false; this.paused = true; this.liveTimer = null; this.recoveryTimer = null;
+    this.browserOperationInFlight = false;
     this.selectorFailures = 0; this.everStarted = false;
     this.conversationPreviews = new Map();
     this.timestamps = { last_message_seen_at: null, last_message_imported_at: null, last_outbound_confirmed_at: null, last_sync_at: null };
@@ -31,11 +32,11 @@ export class InstagramBridge {
   schedule(operation, interval, operationName = operation.name || 'scheduled_operation') {
     let inFlight = false;
     const run = async () => {
-      if (inFlight) return;
-      inFlight = true;
+      if (inFlight || this.browserOperationInFlight) return;
+      inFlight = true; this.browserOperationInFlight = true;
       try { await operation(); }
       catch (error) { await this.handleFailure(error, operationName); }
-      finally { inFlight = false; }
+      finally { inFlight = false; this.browserOperationInFlight = false; }
     };
     const timer = setInterval(run, interval);
     timer.unref?.();

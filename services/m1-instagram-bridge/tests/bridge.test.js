@@ -82,3 +82,18 @@ test('scheduled browser work starts immediately and never overlaps', async () =>
   assert.equal(maxActive, 1);
   assert.ok(calls >= 2 && calls <= 3);
 });
+
+test('live watch and recovery timers share one browser-operation lock', async () => {
+  const { bridge } = fixture();
+  let active = 0; let maxActive = 0;
+  const operation = async () => {
+    active += 1; maxActive = Math.max(maxActive, active);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    active -= 1;
+  };
+  const live = bridge.schedule(operation, 5, 'live_watch_probe');
+  const recovery = bridge.schedule(operation, 5, 'recovery_sync_probe');
+  await new Promise((resolve) => setTimeout(resolve, 55));
+  clearInterval(live); clearInterval(recovery);
+  assert.equal(maxActive, 1);
+});
