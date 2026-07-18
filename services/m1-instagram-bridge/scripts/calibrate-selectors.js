@@ -89,6 +89,28 @@ try {
         .filter((label) => /^(accept|delete|block|decline)$/i.test(label))).catch(() => []),
     };
   }
+  try {
+    const conversations = await driver.listConversations({ limit: 6 });
+    const tokenThreads = [];
+    for (const conversation of conversations) {
+      await driver.openConversation(conversation);
+      const messages = await driver.readMessages({ limit: 20 });
+      tokenThreads.push(messages.flatMap((message) => message.text.match(/IG-(?:A|B)-(?:001|PARALLEL)-\d{8}-\d{6}/g) || []));
+    }
+    result.driver_discovery = { conversations: conversations.length, token_threads: tokenThreads };
+  } catch (error) {
+    const message = String(error?.message || '');
+    result.driver_discovery = {
+      error_code: error?.code || 'UNKNOWN',
+      error_name: error?.name || 'Error',
+      error_category: /rate limit/i.test(message) ? 'rate_limited'
+        : /timeout/i.test(message) ? 'timeout'
+          : /strict mode/i.test(message) ? 'strict_mode'
+            : /closed/i.test(message) ? 'target_closed'
+              : /detached/i.test(message) ? 'detached'
+                : 'other',
+    };
+  }
   console.log(JSON.stringify(result));
 } finally {
   await driver.disconnect();
