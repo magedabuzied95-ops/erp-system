@@ -367,31 +367,15 @@ const storyIsLastPiece = (slide = {}) => {
 
 const storyCreativeTheme = (slide = {}) => {
   const signal = `${slide.strategy_type || ""} ${slide.layout_type || ""} ${slide.caption || ""} ${slide.title || ""}`.toLowerCase();
-  if (storyIsLastPiece(slide) || /low.?stock|almost gone/.test(signal)) {
-    return {
-      badge: "LAST SIZE", edition: "LIMITED DROP",
-      background: "bg-[radial-gradient(circle_at_22%_18%,rgba(251,113,133,.28),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(245,158,11,.3),transparent_26%),linear-gradient(155deg,#fff7ed_0%,#f5e7d7_45%,#2b100b_100%)]",
-      accent: "from-rose-100 via-rose-300 to-amber-400 text-rose-950 shadow-[0_0_24px_rgba(251,113,133,.25),0_18px_34px_rgba(76,5,25,.32)]", glow: "bg-rose-300/20",
-    };
-  }
-  if (/offer|sale|discount|deal|promotion/.test(signal)) {
-    return {
-      badge: "SPECIAL OFFER", edition: "PRICE DROP",
-      background: "bg-[radial-gradient(circle_at_22%_18%,rgba(251,113,133,.26),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(253,186,116,.3),transparent_26%),linear-gradient(155deg,#fff7f4_0%,#f7e5df_45%,#32110f_100%)]",
-      accent: "from-rose-100 via-rose-300 to-orange-300 text-rose-950 shadow-[0_0_24px_rgba(251,113,133,.24),0_18px_34px_rgba(76,5,25,.3)]", glow: "bg-rose-300/18",
-    };
-  }
-  if (/new.?arrival|new_arrival|new arrivals|just landed|fresh drop/.test(signal)) {
-    return {
-      badge: "NEW COLLECTION", edition: "FRESH DROP",
-      background: "bg-[radial-gradient(circle_at_22%_18%,rgba(239,68,68,.24),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(249,115,22,.18),transparent_26%),linear-gradient(155deg,#fff8f7_0%,#f1e5e3_43%,#170909_100%)]",
-      accent: "from-red-100 via-red-400 to-rose-600 text-red-950 shadow-[0_0_26px_rgba(239,68,68,.28),0_18px_34px_rgba(69,10,10,.38)]", glow: "bg-red-300/20",
-    };
-  }
+  const badge = storyIsLastPiece(slide) || /low.?stock|almost gone/.test(signal)
+    ? "LAST SIZE"
+    : /offer|sale|discount|deal|promotion/.test(signal)
+      ? "SPECIAL OFFER"
+      : "NEW COLLECTION";
   return {
-    badge: "NEW COLLECTION", edition: "M1 EDIT",
-    background: "bg-[radial-gradient(circle_at_22%_18%,rgba(56,189,248,.24),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(251,191,36,.28),transparent_26%),linear-gradient(155deg,#f8fafc_0%,#e8eef5_45%,#101827_100%)]",
-    accent: "from-cyan-100 via-cyan-300 to-sky-400 text-sky-950 shadow-[0_0_24px_rgba(56,189,248,.24),0_18px_34px_rgba(8,47,73,.3)]", glow: "bg-cyan-200/18",
+    badge, edition: "FRESH DROP",
+    background: "bg-[radial-gradient(circle_at_22%_18%,rgba(239,68,68,.24),transparent_30%),radial-gradient(circle_at_85%_22%,rgba(249,115,22,.18),transparent_26%),linear-gradient(155deg,#fff8f7_0%,#f1e5e3_43%,#170909_100%)]",
+    accent: "from-red-100 via-red-400 to-rose-600 text-red-950 shadow-[0_0_26px_rgba(239,68,68,.28),0_18px_34px_rgba(69,10,10,.38)]", glow: "bg-red-300/20",
   };
 };
 

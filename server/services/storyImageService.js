@@ -606,14 +606,9 @@ const DESIGNED_STORY_THEMES = {
   },
 };
 
-export const resolveDesignedStoryTheme = (story = {}, design = {}) => {
-  const text = storyAssetSignalText(story, design);
-  const stock = numberValue(story.stock ?? design.stock, 0);
-  if (/last_size|last piece|last size|low.?stock|almost gone/.test(text) || (stock > 0 && stock <= 2)) return DESIGNED_STORY_THEMES.last_piece;
-  if (/offer|sale|discount|deal|promotion/.test(text)) return DESIGNED_STORY_THEMES.offer;
-  if (/new.?arrival|new_arrival|new arrivals|just landed|fresh drop/.test(text)) return DESIGNED_STORY_THEMES.new_arrival;
-  return DESIGNED_STORY_THEMES.premium;
-};
+// Every AI Marketing story uses the approved M1 visual template. The campaign
+// strategy controls selling copy, but never swaps the black/crimson art style.
+export const resolveDesignedStoryTheme = () => DESIGNED_STORY_THEMES.new_arrival;
 
 const storyAssetTitle = (story = {}, design = {}) =>
   trimString(story.product_name || story.title || design.product_name || design.title || "New product");

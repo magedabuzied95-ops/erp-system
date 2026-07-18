@@ -13,11 +13,11 @@ const marketingServiceSource = fs.readFileSync(
   "utf8"
 );
 
-test("story renderer selects a commercial theme from the content strategy", () => {
+test("story renderer keeps the approved crimson commercial theme for every strategy", () => {
   assert.equal(resolveDesignedStoryTheme({ strategy_type: "new_arrivals" }).id, "new-arrival-crimson");
-  assert.equal(resolveDesignedStoryTheme({ strategy_type: "last_size", stock: 1 }).id, "last-piece-urgency");
-  assert.equal(resolveDesignedStoryTheme({ layout_type: "special_offer_story" }).id, "offer-coral");
-  assert.equal(resolveDesignedStoryTheme({ strategy_type: "featured" }).id, "premium-midnight");
+  assert.equal(resolveDesignedStoryTheme({ strategy_type: "last_size", stock: 1 }).id, "new-arrival-crimson");
+  assert.equal(resolveDesignedStoryTheme({ layout_type: "special_offer_story" }).id, "new-arrival-crimson");
+  assert.equal(resolveDesignedStoryTheme({ strategy_type: "featured" }).id, "new-arrival-crimson");
 });
 
 test("rendered 9:16 asset uses a clean product-first selling hierarchy", () => {
@@ -37,16 +37,16 @@ test("rendered 9:16 asset uses a clean product-first selling hierarchy", () => {
   assert.match(svg, /@font-face/);
   assert.match(svg, /data:font\/ttf;base64,/);
   assert.match(svg, /font-family:'M1Story'/);
-  for (const value of ["LIMITED DROP", "LAST SIZE", "Nike Air Max 97", "1750 EGP", "41 • 42 • 43", "View details"]) {
+  for (const value of ["FRESH DROP", "LAST SIZE", "Nike Air Max 97", "1750 EGP", "41 • 42 • 43", "View details"]) {
     assert.match(svg, new RegExp(value));
   }
   assert.doesNotMatch(svg, /M1 Store/i);
   assert.doesNotMatch(svg, /Arabic trend audio/i);
-  assert.match(svg, /#fb7185/i);
+  assert.match(svg, /#ef4444/i);
 });
 
 test("story preview mirrors professional themes without store or audio chrome", () => {
-  for (const marker of ["LIMITED DROP", "PRICE DROP", "FRESH DROP", "M1 EDIT", "theme.background", "theme.accent"]) {
+  for (const marker of ["LAST SIZE", "SPECIAL OFFER", "FRESH DROP", "NEW COLLECTION", "theme.background", "theme.accent"]) {
     assert.match(previewSource, new RegExp(marker.replace(".", "\\.")));
   }
   assert.doesNotMatch(previewSource, />ERP<\/div>/);
@@ -55,7 +55,7 @@ test("story preview mirrors professional themes without store or audio chrome", 
   assert.match(previewSource, /const copyDirection = \/\[\\u0600-\\u06ff\]\//);
   assert.match(previewSource, /dir=\{copyDirection\}/);
   assert.match(previewSource, /from-red-100 via-red-400 to-rose-600/);
-  assert.match(marketingServiceSource, /ai_marketing_story_commercial_templates_v8_crimson_editorial_hierarchy/);
+  assert.match(marketingServiceSource, /ai_marketing_story_commercial_template_v9_unified_crimson_editorial/);
 });
 
 test("production story text is rasterized with the bundled font file", async () => {
