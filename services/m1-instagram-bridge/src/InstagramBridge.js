@@ -12,6 +12,7 @@ export class InstagramBridge {
     this.diagnostics = diagnostics; this.safety = safety; this.logger = logger;
     this.running = false; this.paused = true; this.liveTimer = null; this.recoveryTimer = null;
     this.browserOperationInFlight = false;
+    this.browserOperationPriorityWaiting = false;
     this.knownConversationCursor = 0;
     this.initialKnownSweepCompleted = false;
     this.selectorFailures = 0; this.everStarted = false;
@@ -34,7 +35,7 @@ export class InstagramBridge {
   schedule(operation, interval, operationName = operation.name || 'scheduled_operation') {
     let inFlight = false;
     const run = async () => {
-      if (inFlight || this.browserOperationInFlight) return;
+      if (inFlight || this.browserOperationInFlight || this.browserOperationPriorityWaiting) return;
       inFlight = true; this.browserOperationInFlight = true;
       try { await operation(); }
       catch (error) { await this.handleFailure(error, operationName); }
@@ -47,12 +48,17 @@ export class InstagramBridge {
   }
   stopWatchers() { if (this.liveTimer) clearInterval(this.liveTimer); if (this.recoveryTimer) clearInterval(this.recoveryTimer); this.liveTimer = null; this.recoveryTimer = null; }
   async withExclusiveBrowserOperation(operation, timeoutMs = 60_000) {
-    const deadline = Date.now() + timeoutMs;
-    while (this.browserOperationInFlight && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50));
-    if (this.browserOperationInFlight) throw Object.assign(new Error('Browser operation is busy'), { code: 'BROWSER_OPERATION_BUSY' });
-    this.browserOperationInFlight = true;
-    try { return await operation(); }
-    finally { this.browserOperationInFlight = false; }
+    this.browserOperationPriorityWaiting = true;
+    try {
+      const deadline = Date.now() + timeoutMs;
+      while (this.browserOperationInFlight && Date.now() < deadline) await new Promise((resolve) => setTimeout(resolve, 50));
+      if (this.browserOperationInFlight) throw Object.assign(new Error('Browser operation is busy'), { code: 'BROWSER_OPERATION_BUSY' });
+      this.browserOperationInFlight = true;
+      try { return await operation(); }
+      finally { this.browserOperationInFlight = false; }
+    } finally {
+      this.browserOperationPriorityWaiting = false;
+    }
   }
   async pause() { this.paused = true; this.stopWatchers(); return this.getHealth(); }
   async resume() { if (!this.config.enabled) throw Object.assign(new Error('Bridge disabled'), { code: 'BRIDGE_DISABLED' }); this.paused = false; return this.start(); }
@@ -84,6 +90,7 @@ export class InstagramBridge {
     let knownOpened = 0;
     if (!this.initialKnownSweepCompleted && known.length) {
       for (const conversation of known.slice(0, this.config.maxConversationsPerMinute)) {
+        if (this.browserOperationPriorityWaiting) break;
         await this.syncMessages(conversation, 'live_watch_known_sweep');
         knownOpened += 1;
       }
@@ -101,7 +108,10 @@ export class InstagramBridge {
       const knownKey = nextKnown.external_conversation_id || nextKnown.threadId || nextKnown.url;
       if (!candidates.some((item) => (item.external_conversation_id || item.threadId || item.url) === knownKey)) candidates.push(nextKnown);
     }
-    for (const conversation of candidates) await this.syncMessages(conversation, 'live_watch');
+    for (const conversation of candidates) {
+      if (this.browserOperationPriorityWaiting) break;
+      await this.syncMessages(conversation, 'live_watch');
+    }
     return { scanned: conversations.length, opened: candidates.length + knownOpened };
   }
   async recoverySync() {
@@ -114,7 +124,10 @@ export class InstagramBridge {
     const conversations = [...new Map([...known, ...discovered].map((item) => [
       item.external_conversation_id || item.threadId || item.url, item,
     ])).values()].slice(0, this.config.maxConversationsPerMinute);
-    for (const conversation of conversations) await this.syncMessages(conversation, 'recovery_sync');
+    for (const conversation of conversations) {
+      if (this.browserOperationPriorityWaiting) break;
+      await this.syncMessages(conversation, 'recovery_sync');
+    }
     await this.reconcileUncertainSends();
     return { scanned: conversations.length };
   }

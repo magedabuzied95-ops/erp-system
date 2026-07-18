@@ -139,3 +139,21 @@ test('live watch and recovery timers share one browser-operation lock', async ()
   clearInterval(live); clearInterval(recovery);
   assert.equal(maxActive, 1);
 });
+
+test('manual outbound waiting yields scheduled conversation sweeps', async () => {
+  const { bridge } = fixture();
+  bridge.paused = false;
+  bridge.config.maxConversationsPerMinute = 3;
+  bridge.initialKnownSweepCompleted = false;
+  bridge.state.listConversations = () => [{ threadId: 'a' }, { threadId: 'b' }, { threadId: 'c' }];
+  let opened = 0;
+  bridge.syncMessages = async () => {
+    opened += 1;
+    if (opened === 1) bridge.browserOperationPriorityWaiting = true;
+  };
+  bridge.syncConversations = async () => [];
+
+  await bridge.liveWatch();
+
+  assert.equal(opened, 1);
+});
