@@ -68,3 +68,17 @@ test('unsupported phase operations return explicit result', () => {
   const { bridge } = fixture();
   for (const operation of ['sendMedia', 'downloadMedia', 'sendReaction', 'typingIndicator']) assert.equal(bridge[operation]().status, 'unsupported_in_current_phase');
 });
+
+test('scheduled browser work starts immediately and never overlaps', async () => {
+  const { bridge } = fixture();
+  let active = 0; let maxActive = 0; let calls = 0;
+  const timer = bridge.schedule(async () => {
+    calls += 1; active += 1; maxActive = Math.max(maxActive, active);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    active -= 1;
+  }, 5, 'overlap_probe');
+  await new Promise((resolve) => setTimeout(resolve, 62));
+  clearInterval(timer);
+  assert.equal(maxActive, 1);
+  assert.ok(calls >= 2 && calls <= 3);
+});

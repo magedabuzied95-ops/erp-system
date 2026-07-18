@@ -29,7 +29,18 @@ export class InstagramBridge {
     return this.getHealth();
   }
   schedule(operation, interval, operationName = operation.name || 'scheduled_operation') {
-    const timer = setInterval(() => operation().catch((error) => this.handleFailure(error, operationName)), interval); timer.unref?.(); return timer;
+    let inFlight = false;
+    const run = async () => {
+      if (inFlight) return;
+      inFlight = true;
+      try { await operation(); }
+      catch (error) { await this.handleFailure(error, operationName); }
+      finally { inFlight = false; }
+    };
+    const timer = setInterval(run, interval);
+    timer.unref?.();
+    queueMicrotask(run);
+    return timer;
   }
   stopWatchers() { if (this.liveTimer) clearInterval(this.liveTimer); if (this.recoveryTimer) clearInterval(this.recoveryTimer); this.liveTimer = null; this.recoveryTimer = null; }
   async pause() { this.paused = true; this.stopWatchers(); return this.getHealth(); }
