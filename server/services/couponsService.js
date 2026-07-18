@@ -564,9 +564,9 @@ const resolveCouponBranding = async (tenantId) => {
 
 const pdfLayout = (layout = "a4") => {
   const normalized = ["a4", "a5", "single"].includes(String(layout).toLowerCase()) ? String(layout).toLowerCase() : "a4";
-  if (normalized === "a5") return { name: "a5", format: "a5", orientation: "portrait", columns: 1, rows: 2, marginX: 8, marginY: 8, gapX: 0, gapY: 6 };
-  if (normalized === "single") return { name: "single", format: "a6", orientation: "landscape", columns: 1, rows: 1, marginX: 6, marginY: 7, gapX: 0, gapY: 0 };
-  return { name: "a4", format: "a4", orientation: "portrait", columns: 2, rows: 3, marginX: 7, marginY: 7, gapX: 4, gapY: 4 };
+  if (normalized === "a5") return { name: "a5", format: "a5", orientation: "landscape", columns: 1, rows: 2, marginX: 7, marginY: 7, gapX: 0, gapY: 5 };
+  if (normalized === "single") return { name: "single", format: [90, 190], orientation: "landscape", columns: 1, rows: 1, marginX: 6, marginY: 6, gapX: 0, gapY: 0 };
+  return { name: "a4", format: "a4", orientation: "landscape", columns: 2, rows: 3, marginX: 7, marginY: 7, gapX: 4, gapY: 4 };
 };
 
 const addArabicFont = (doc) => {
@@ -580,139 +580,209 @@ const addArabicFont = (doc) => {
   return true;
 };
 
-const drawCouponTicket = ({ doc, coupon, x, y, width, height, logoData, storeName, qrData }) => {
-  const compact = height < 88;
-  const padding = compact ? 3.7 : 4.5;
-  const headerHeight = compact ? 17 : 19;
-  const footerHeight = compact ? 8 : 9;
-  const stubWidth = compact ? 27 : 30;
-  const qrSize = compact ? 20.5 : 23;
-  const arabic = (value) => typeof doc.processArabic === "function" ? doc.processArabic(String(value || "")) : String(value || "");
-  const rightText = (value, tx, ty, options = {}) => {
-    const raw = String(value || "");
-    const isArabic = /[\u0600-\u06ff]/.test(raw);
-    doc.text(isArabic ? arabic(raw) : raw, tx, ty, { align: "right", ...options });
-  };
-
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(...PDF_BLACK);
-  doc.setLineWidth(0.55);
-  doc.roundedRect(x, y, width, height, 3.8, 3.8, "FD");
-
-  doc.setFillColor(...PDF_BLACK);
-  doc.roundedRect(x, y, width, headerHeight + 3, 3.8, 3.8, "F");
-  doc.rect(x, y + headerHeight - 2, width, 5, "F");
-  doc.setFillColor(...PDF_GOLD);
-  doc.rect(x, y + headerHeight, width, 0.85, "F");
-  if (logoData) {
-    const logoSize = compact ? 13 : 15;
-    doc.addImage(logoData, "PNG", x + width - padding - logoSize, y + 1.4, logoSize, logoSize, undefined, "FAST");
-  } else {
-    doc.setFillColor(...PDF_GOLD);
-    doc.circle(x + width - padding - 5, y + 7, 4, "F");
-    doc.setTextColor(...PDF_BLACK);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6);
-    doc.text(storeName.slice(0, 2).toUpperCase(), x + width - padding - 5, y + 8.6, { align: "center" });
+const storeHostLabel = (value) => {
+  try {
+    return new URL(String(value || "https://m1store-egy.com")).hostname.replace(/^www\./i, "");
+  } catch {
+    return "m1store-egy.com";
   }
-  const brandRight = x + width - padding - (compact ? 15 : 17);
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("MOneArabic", "bold");
-  doc.setFontSize(compact ? 7.6 : 8.8);
-  rightText(storeName, brandRight, y + 7.6, { maxWidth: width - 39 });
-  doc.setTextColor(...PDF_GOLD);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(compact ? 4.5 : 5.1);
-  doc.text("PREMIUM COUPON", brandRight, y + 12.2, { align: "right", charSpace: 0.45 });
+};
 
-  const bodyTop = y + headerHeight + 1;
-  const footerTop = y + height - footerHeight;
-  const dividerX = x + padding + stubWidth;
-  const infoRight = x + width - padding;
-  const infoLeft = dividerX + 5;
+const fillPath = (doc, commands, color) => {
+  doc.setFillColor(...color);
+  doc.path(commands);
+  doc.fill();
+};
 
-  doc.setDrawColor(186, 186, 188);
-  doc.setLineDashPattern([1.4, 1.2], 0);
-  doc.line(dividerX, bodyTop + 3, dividerX, footerTop - 3);
-  doc.setLineDashPattern([], 0);
-  doc.setFillColor(255, 255, 255);
-  doc.circle(dividerX, bodyTop, 2, "F");
-  doc.circle(dividerX, footerTop, 2, "F");
-
-  const qrX = x + padding + (stubWidth - qrSize) / 2;
-  const qrY = bodyTop + (compact ? 6 : 7);
-  doc.setFillColor(255, 255, 255);
-  doc.setDrawColor(...PDF_GOLD);
-  doc.setLineWidth(0.75);
-  doc.roundedRect(qrX - 1.1, qrY - 1.1, qrSize + 2.2, qrSize + 2.2, 2.2, 2.2, "FD");
-  doc.addImage(qrData, "PNG", qrX, qrY, qrSize, qrSize, undefined, "FAST");
-  doc.setTextColor(...PDF_MUTED);
-  doc.setFont("MOneArabic", "normal");
-  doc.setFontSize(compact ? 4.8 : 5.3);
-  rightText("امسح للاستخدام", x + padding + stubWidth - 1, qrY + qrSize + 5, { maxWidth: stubWidth - 2 });
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(4.2);
-  doc.setTextColor(...PDF_GOLD);
-  doc.text("SCAN • SAVE • ENJOY", x + padding + stubWidth / 2, qrY + qrSize + 9, { align: "center", maxWidth: stubWidth });
-
-  const discount = coupon.discount_type === "percentage"
-    ? `${Number(coupon.discount_value || 0).toLocaleString("en-US")}%`
-    : `${Number(coupon.discount_value || 0).toLocaleString("en-US")} EGP`;
-  doc.setTextColor(...PDF_BLACK);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(compact ? 18 : 22);
-  doc.text(discount, infoRight, bodyTop + 13, { align: "right" });
-  doc.setFont("MOneArabic", "normal");
-  doc.setFontSize(compact ? 5.7 : 6.4);
-  doc.setTextColor(...PDF_GOLD);
-  rightText(coupon.discount_type === "percentage" ? "خصم على إجمالي الطلب" : "خصم نقدي ثابت", infoRight, bodyTop + 18);
-
-  const codeY = bodyTop + 21;
-  doc.setFillColor(248, 244, 234);
-  doc.setDrawColor(...PDF_GOLD);
-  doc.setLineWidth(0.35);
-  doc.roundedRect(infoLeft, codeY, Math.max(25, infoRight - infoLeft), compact ? 8.5 : 9.5, 2.2, 2.2, "FD");
-  doc.setTextColor(...PDF_BLACK);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(compact ? 8.2 : 9.5);
-  doc.text(String(coupon.code || ""), (infoLeft + infoRight) / 2, codeY + (compact ? 5.7 : 6.5), { align: "center", maxWidth: infoRight - infoLeft - 3 });
-
+const drawCouponTicket = ({ doc, coupon, x, y, width, height, logoData, storeName, storeUrl, qrData }) => {
+  const radius = 4;
+  const brandWidth = Math.max(34, width * 0.275);
+  const stubWidth = Math.max(29, width * 0.225);
+  const dividerX = x + width - stubWidth;
+  const mainLeft = x + brandWidth + 8;
+  const mainRight = dividerX - 4;
+  const mainCenter = (mainLeft + mainRight) / 2;
+  const qrSize = Math.min(22.5, height * 0.37, stubWidth - 9);
   const minOrder = Number(coupon.minimum_order_amount || 0);
   const usage = Number(coupon.usage_limit || coupon.usage_limit_per_coupon || 1);
-  const detailsY = codeY + (compact ? 13 : 15);
-  const detailGap = 2;
-  const detailWidth = (infoRight - infoLeft - detailGap) / 2;
-  const detailHeight = compact ? 12 : 14;
-  const expiryX = infoRight - detailWidth;
-  doc.setFillColor(249, 249, 248);
-  doc.setDrawColor(225, 225, 222);
-  doc.setLineWidth(0.25);
-  doc.roundedRect(infoLeft, detailsY, detailWidth, detailHeight, 1.8, 1.8, "FD");
-  doc.roundedRect(expiryX, detailsY, detailWidth, detailHeight, 1.8, 1.8, "FD");
-  doc.setFont("MOneArabic", "normal");
-  doc.setFontSize(compact ? 4.4 : 4.9);
-  doc.setTextColor(...PDF_GOLD);
-  rightText("الحد الأدنى", infoLeft + detailWidth - 2, detailsY + 4.2);
-  rightText("تاريخ الانتهاء", infoRight - 2, detailsY + 4.2);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(compact ? 6.2 : 7);
-  doc.setTextColor(...PDF_BLACK);
-  doc.text(minOrder > 0 ? `${minOrder.toLocaleString("en-US")} EGP` : "NO MINIMUM", infoLeft + detailWidth / 2, detailsY + detailHeight - 3, { align: "center", maxWidth: detailWidth - 3 });
-  doc.text(formatCouponDate(coupon.expires_at || coupon.campaign_expires_at), expiryX + detailWidth / 2, detailsY + detailHeight - 3, { align: "center", maxWidth: detailWidth - 3 });
+  const fixedDiscount = coupon.discount_type !== "percentage";
+  const discountValue = Number(coupon.discount_value || 0).toLocaleString("en-US");
+  const hostLabel = storeHostLabel(storeUrl);
 
+  // Soft print-safe shadow and the white ticket base.
+  doc.setFillColor(230, 228, 224);
+  doc.roundedRect(x + 0.8, y + 1.1, width, height, radius, radius, "F");
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(207, 161, 55);
+  doc.setLineWidth(0.35);
+  doc.roundedRect(x, y, width, height, radius, radius, "FD");
+
+  // Black identity panel, then the white and gold sweeping curves from the reference.
   doc.setFillColor(...PDF_BLACK);
-  doc.roundedRect(x, footerTop, width, footerHeight, 3.8, 3.8, "F");
-  doc.rect(x, footerTop, width, 3, "F");
-  doc.setFillColor(...PDF_GOLD);
-  doc.rect(x, footerTop, width, 0.7, "F");
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("MOneArabic", "normal");
-  doc.setFontSize(compact ? 5.1 : 5.7);
-  rightText(`صالح للاستخدام ${usage.toLocaleString("en-US")} ${usage === 1 ? "مرة" : "مرات"}`, infoRight, footerTop + footerHeight - 2.5);
+  doc.roundedRect(x, y, brandWidth + 16, height, radius, radius, "F");
+  fillPath(doc, [
+    { op: "m", c: [x + brandWidth + 17, y] },
+    { op: "c", c: [x + brandWidth + 10, y + 9, x + brandWidth + 7, y + 17, x + brandWidth - 2, y + height * 0.57] },
+    { op: "c", c: [x + brandWidth - 8, y + height * 0.78, x + brandWidth - 4, y + height - 8, x + brandWidth + 6, y + height] },
+    { op: "l", c: [x + width, y + height] },
+    { op: "l", c: [x + width, y] },
+    { op: "h", c: [] },
+  ], [255, 255, 255]);
+  fillPath(doc, [
+    { op: "m", c: [x + brandWidth + 9, y] },
+    { op: "c", c: [x + brandWidth + 4, y + 10, x + brandWidth - 1, y + 20, x + brandWidth - 8, y + height * 0.58] },
+    { op: "c", c: [x + brandWidth - 13, y + height * 0.78, x + brandWidth - 8, y + height - 7, x + brandWidth + 2, y + height] },
+    { op: "l", c: [x + brandWidth + 6.5, y + height] },
+    { op: "c", c: [x + brandWidth - 4, y + height - 8, x + brandWidth - 8, y + height * 0.79, x + brandWidth - 2, y + height * 0.57] },
+    { op: "c", c: [x + brandWidth + 5, y + 20, x + brandWidth + 10, y + 10, x + brandWidth + 15, y] },
+    { op: "h", c: [] },
+  ], PDF_GOLD);
+
+  // Very subtle paper waves in the offer area.
+  doc.setDrawColor(245, 242, 235);
+  doc.setLineWidth(0.18);
+  for (let line = 0; line < 4; line += 1) {
+    const waveY = y + 13 + line * 6;
+    doc.path([
+      { op: "m", c: [mainLeft - 2, waveY] },
+      { op: "c", c: [mainCenter - 8, waveY - 3, mainCenter + 4, waveY + 3, mainRight + 1, waveY] },
+    ]);
+    doc.stroke();
+  }
+
+  // Official logo. The black logo tile blends into the black panel.
+  if (logoData) {
+    const logoSize = Math.min(22, height * 0.36);
+    doc.addImage(logoData, "PNG", x + 6, y + 5, logoSize, logoSize, undefined, "FAST");
+  } else {
+    doc.setTextColor(...PDF_GOLD);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("M1", x + 8, y + 18);
+  }
   doc.setTextColor(...PDF_GOLD);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(4.6);
-  doc.text("AUTHENTIC • SECURE • INSTANT", x + padding, footerTop + footerHeight - 2.6);
+  doc.setFontSize(5.6);
+  doc.text(String(storeName || "M1 Store").toUpperCase(), x + 6, y + height - 10, { maxWidth: brandWidth - 5 });
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(3.5);
+  doc.text("CHANGE YOUR LIFE", x + 6, y + height - 6.2, { maxWidth: brandWidth - 6, charSpace: 0.25 });
+
+  // Offer headline and value.
+  doc.setDrawColor(...PDF_GOLD);
+  doc.setLineWidth(0.3);
+  doc.line(mainCenter - 24, y + 11, mainCenter - 12, y + 11);
+  doc.line(mainCenter + 12, y + 11, mainCenter + 24, y + 11);
+  doc.setTextColor(...PDF_BLACK);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.5);
+  doc.text("SPECIAL OFFER", mainCenter, y + 12.7, { align: "center" });
+
+  doc.setFontSize(29);
+  const valueText = fixedDiscount ? discountValue : `${discountValue}%`;
+  const valueWidth = doc.getTextWidth(valueText);
+  const groupWidth = valueWidth + 16;
+  const valueX = mainCenter - groupWidth / 2;
+  doc.setTextColor(...PDF_BLACK);
+  doc.text(valueText, valueX, y + 33);
+  const sideX = valueX + valueWidth + 2.3;
+  if (fixedDiscount) {
+    doc.setFontSize(6.2);
+    doc.text("EGP", sideX, y + 25.8);
+  }
+  doc.setTextColor(...PDF_GOLD);
+  doc.setFontSize(14);
+  doc.text("OFF", sideX, y + 33.2);
+
+  // Compact benefit row, using the live coupon rules.
+  const detailY = y + height - 10.5;
+  const detailWidth = (mainRight - mainLeft) / 3;
+  const expiry = formatCouponDate(coupon.expires_at || coupon.campaign_expires_at);
+  const details = [
+    ["USE ONLINE", "OR IN STORE"],
+    ["MIN ORDER", minOrder > 0 ? `${minOrder.toLocaleString("en-US")} EGP` : "NO MINIMUM"],
+    ["EXPIRES", expiry],
+  ];
+  details.forEach(([top, bottom], index) => {
+    const cx = mainLeft + detailWidth * index + detailWidth / 2;
+    const iconX = cx - detailWidth / 2 + 3.3;
+    const iconY = detailY - 1.6;
+    doc.setDrawColor(...PDF_GOLD);
+    doc.setLineWidth(0.42);
+    if (index === 0) {
+      doc.roundedRect(iconX - 1.6, iconY - 1.2, 3.2, 3.2, 0.45, 0.45, "S");
+      doc.path([
+        { op: "m", c: [iconX - 0.9, iconY - 1.2] },
+        { op: "c", c: [iconX - 0.8, iconY - 2.7, iconX + 0.8, iconY - 2.7, iconX + 0.9, iconY - 1.2] },
+      ]);
+      doc.stroke();
+    } else if (index === 1) {
+      doc.line(iconX - 1.8, iconY - 1.4, iconX - 1.1, iconY - 1.4);
+      doc.line(iconX - 1.1, iconY - 1.4, iconX - 0.5, iconY + 1);
+      doc.line(iconX - 0.5, iconY + 1, iconX + 1.5, iconY + 1);
+      doc.line(iconX - 0.7, iconY - 0.8, iconX + 1.8, iconY - 0.8);
+      doc.line(iconX + 1.8, iconY - 0.8, iconX + 1.3, iconY + 0.5);
+      doc.circle(iconX - 0.2, iconY + 1.8, 0.35, "S");
+      doc.circle(iconX + 1.25, iconY + 1.8, 0.35, "S");
+    } else {
+      doc.roundedRect(iconX - 1.8, iconY - 1.6, 3.6, 3.6, 0.4, 0.4, "S");
+      doc.line(iconX - 1.8, iconY - 0.4, iconX + 1.8, iconY - 0.4);
+      doc.line(iconX - 0.9, iconY - 2.1, iconX - 0.9, iconY - 1.1);
+      doc.line(iconX + 0.9, iconY - 2.1, iconX + 0.9, iconY - 1.1);
+      doc.circle(iconX, iconY + 1, 0.35, "S");
+    }
+    doc.setTextColor(...PDF_BLACK);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(3.8);
+    doc.text(top, cx + 1.3, detailY - 1.3, { align: "center", maxWidth: detailWidth - 4 });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(3.3);
+    doc.text(bottom, cx + 1.3, detailY + 2.4, { align: "center", maxWidth: detailWidth - 4 });
+  });
+
+  // Perforated QR stub with the same ticket notches as the supplied reference.
+  doc.setDrawColor(...PDF_GOLD);
+  doc.setLineWidth(0.3);
+  doc.setLineDashPattern([1.4, 1.15], 0);
+  doc.line(dividerX, y + 1.5, dividerX, y + height - 1.5);
+  doc.setLineDashPattern([], 0);
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(...PDF_GOLD);
+  doc.circle(dividerX, y + height / 2, 2.1, "FD");
+
+  const stubCenter = dividerX + stubWidth / 2;
+  doc.setTextColor(...PDF_MUTED);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(4.2);
+  doc.text("YOUR CODE", stubCenter, y + 7.2, { align: "center" });
+  doc.setTextColor(...PDF_BLACK);
+  doc.setFontSize(7.8);
+  doc.text(String(coupon.code || ""), stubCenter, y + 13.2, { align: "center", maxWidth: stubWidth - 5 });
+
+  const qrX = stubCenter - qrSize / 2;
+  const qrY = y + 16.5;
+  doc.setDrawColor(...PDF_GOLD);
+  doc.setLineWidth(0.45);
+  doc.roundedRect(qrX - 1.2, qrY - 1.2, qrSize + 2.4, qrSize + 2.4, 1.8, 1.8, "S");
+  doc.addImage(qrData, "PNG", qrX, qrY, qrSize, qrSize, undefined, "FAST");
+  doc.setTextColor(...PDF_BLACK);
+  doc.setFontSize(4.1);
+  doc.text("SCAN TO APPLY", stubCenter, qrY + qrSize + 5, { align: "center" });
+  doc.text("ONLINE", stubCenter, qrY + qrSize + 9, { align: "center" });
+
+  const footerHeight = 7.5;
+  doc.setFillColor(...PDF_BLACK);
+  doc.roundedRect(dividerX, y + height - footerHeight, stubWidth, footerHeight, 3.2, 3.2, "F");
+  doc.rect(dividerX, y + height - footerHeight, stubWidth, 4.5, "F");
+  doc.rect(dividerX, y + height - footerHeight, 3.5, footerHeight, "F");
+  doc.setTextColor(...PDF_GOLD);
+  doc.setFontSize(4.5);
+  doc.text(`@ ${hostLabel}`, stubCenter, y + height - 2.6, { align: "center", maxWidth: stubWidth - 4 });
+
+  // A tiny usage marker keeps the operational rule without changing the reference layout.
+  doc.setTextColor(155, 155, 155);
+  doc.setFontSize(2.8);
+  doc.text(`USE ${usage.toLocaleString("en-US")}X`, dividerX - 2, y + height - 2.5, { align: "right" });
 };
 
 export const renderCouponsPdfBuffer = async ({ coupons = [], branding = {}, layout = "a4" } = {}) => {
@@ -755,7 +825,18 @@ export const renderCouponsPdfBuffer = async ({ coupons = [], branding = {}, layo
       errorCorrectionLevel: "H",
       color: { dark: "#0F0F10", light: "#FFFFFF" },
     });
-    drawCouponTicket({ doc, coupon, x, y, width: cardWidth, height: cardHeight, logoData, storeName: branding.storeName || "M1 Store", qrData });
+    drawCouponTicket({
+      doc,
+      coupon,
+      x,
+      y,
+      width: cardWidth,
+      height: cardHeight,
+      logoData,
+      storeName: branding.storeName || "M1 Store",
+      storeUrl: branding.publicUrl,
+      qrData,
+    });
   }
   return Buffer.from(doc.output("arraybuffer"));
 };
