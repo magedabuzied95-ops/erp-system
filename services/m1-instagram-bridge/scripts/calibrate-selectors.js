@@ -14,6 +14,11 @@ const driver = new InstagramPlaywrightDriver({
 });
 
 const count = async (page, selector) => page.locator(selector).count().catch(() => 0);
+const directRoutes = async (page) => page.locator('a[href*="/direct/"]').evaluateAll((links) =>
+  [...new Set(links.map((link) => {
+    const pathname = new URL(link.href).pathname;
+    return pathname.replace(/\/direct\/t\/[^/]+\/?/, '/direct/t/:id/');
+  }))].sort()).catch(() => []);
 
 try {
   await driver.connect();
@@ -22,6 +27,7 @@ try {
   const result = {
     session: await driver.detectSession(),
     inbox_url: /\/direct\/inbox\/?/.test(page.url()),
+    inbox_routes: await directRoutes(page),
     selectors: {
       direct_inbox: await count(page, 'a[href^="/direct/inbox"]'),
       conversation_list: await count(page, 'main, div[role="main"]'),
@@ -37,6 +43,15 @@ try {
       session_expired: await count(page, 'input[name="username"]'),
       loading_state: await count(page, '[aria-busy="true"], [role="progressbar"]'),
     },
+  };
+  await page.goto('https://www.instagram.com/direct/requests/', { waitUntil: 'domcontentloaded' });
+  await page.waitForTimeout(3_000);
+  result.requests = {
+    requests_url: /\/direct\/requests\/?/.test(page.url()),
+    routes: await directRoutes(page),
+    conversation_item: await count(page, 'a[href*="/direct/t/"]'),
+    buttons: await count(page, 'button'),
+    loading_state: await count(page, '[aria-busy="true"], [role="progressbar"]'),
   };
   console.log(JSON.stringify(result));
 } finally {
