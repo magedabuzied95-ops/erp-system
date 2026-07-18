@@ -86,7 +86,13 @@ export class InstagramPlaywrightDriver {
     const requestsLimit = Math.min(limit, Math.max(1, Math.ceil(limit / 3)));
     const inboxLimit = Math.max(0, limit - requestsLimit);
     const conversations = await this.collectLinkedConversations(inboxLimit);
-    if (conversations.length < inboxLimit) conversations.push(...await this.collectButtonConversations(DIRECT_INBOX_URL, inboxLimit - conversations.length));
+    let remainingInbox = Math.max(0, inboxLimit - conversations.length);
+    if (remainingInbox) {
+      const primaryLimit = Math.ceil(remainingInbox / 2);
+      conversations.push(...await this.collectButtonConversations(DIRECT_INBOX_URL, primaryLimit, { tabName: 'Primary' }));
+      remainingInbox = Math.max(0, inboxLimit - conversations.length);
+    }
+    if (remainingInbox) conversations.push(...await this.collectButtonConversations(DIRECT_INBOX_URL, remainingInbox, { tabName: 'General' }));
     const requests = await this.collectButtonConversations(DIRECT_REQUESTS_URL, requestsLimit);
     // Requests come first so the live watcher opens new senders immediately;
     // recovery sync still processes the complete bounded result.
@@ -105,11 +111,20 @@ export class InstagramPlaywrightDriver {
     }
     return conversations;
   }
-  async collectButtonConversations(startUrl, limit) {
+  async collectButtonConversations(startUrl, limit, { tabName = '' } = {}) {
     if (limit <= 0) return [];
     const deadline = Date.now() + 30_000;
     await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 });
     await this.page.waitForTimeout(2_500);
+    const activateTab = async () => {
+      if (!tabName) return;
+      const tab = this.page.getByRole('tab', { name: new RegExp(`^${tabName}$`, 'i') }).first();
+      if (await tab.count().catch(() => 0)) {
+        await tab.click({ timeout: 3_000 }).catch(() => {});
+        await this.page.waitForTimeout(1_200);
+      }
+    };
+    await activateTab();
     const conversations = [];
     const seenPreviews = new Set();
     for (let attempt = 0; attempt < limit * 2 && conversations.length < limit && Date.now() < deadline; attempt += 1) {
@@ -130,6 +145,7 @@ export class InstagramPlaywrightDriver {
       const clicked = await target.click({ timeout: 3_000 }).then(() => true).catch(() => false);
       if (!clicked) {
         await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 }).catch(() => {});
+        await activateTab();
         continue;
       }
       await this.page.waitForTimeout(1_500);
@@ -138,6 +154,7 @@ export class InstagramPlaywrightDriver {
       if (threadId) conversations.push({ url, threadId, preview });
       await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 });
       await this.page.waitForTimeout(1_200);
+      await activateTab();
     }
     return conversations;
   }
