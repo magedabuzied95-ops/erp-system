@@ -84,7 +84,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.frontend
-      args: { VITE_API_URL: /api }
+      args: { VITE_API_URL: /api, VITE_ERP_HOST: 127.0.0.1 }
     container_name: m1-erp-frontend-staging
     restart: unless-stopped
     ports: ["127.0.0.1:${STAGING_FRONTEND_PORT:-3100}:80"]
