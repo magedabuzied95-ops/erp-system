@@ -53,6 +53,29 @@ import "./AiInboxPwa.css";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
+const SOCIAL_COMMENTS_CACHE_PREFIX = "m1:ai-inbox-pwa:social-posts";
+const socialCommentsCacheKey = (tenantId = "") =>
+  `${SOCIAL_COMMENTS_CACHE_PREFIX}:${clean(tenantId) || "default"}`;
+const readSocialCommentsCache = (tenantId = "") => {
+  if (typeof window === "undefined") return [];
+  try {
+    const cached = JSON.parse(window.localStorage.getItem(socialCommentsCacheKey(tenantId)) || "null");
+    return asArray(cached?.items).slice(0, 200);
+  } catch {
+    return [];
+  }
+};
+const writeSocialCommentsCache = (tenantId = "", items = []) => {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(
+      socialCommentsCacheKey(tenantId),
+      JSON.stringify({ items: asArray(items).slice(0, 200), saved_at: new Date().toISOString() })
+    );
+  } catch {
+    // Storage can be unavailable in private mode; the live list still works normally.
+  }
+};
 const GENERIC_CUSTOMER_NAMES = new Set([
   "customer",
   "customers",
@@ -2968,7 +2991,12 @@ export default function AiInboxPwa() {
   const [userIsNearBottom, setUserIsNearBottom] = useState(true);
   const [aiAssistantGlobalEnabled, setAiAssistantGlobalEnabled] = useState(true);
   const [aiAssistantGlobalSaving, setAiAssistantGlobalSaving] = useState(false);
-  const [socialComments, setSocialComments] = useState({ items: [], loading: false, error: "", next_cursor: "" });
+  const [socialComments, setSocialComments] = useState(() => ({
+    items: readSocialCommentsCache(tenantId),
+    loading: false,
+    error: "",
+    next_cursor: "",
+  }));
   const [socialCommentsCursor, setSocialCommentsCursor] = useState("");
   const [socialCommentsLoadingMore, setSocialCommentsLoadingMore] = useState(false);
   const [socialReplySettings, setSocialReplySettings] = useState({
@@ -3171,12 +3199,24 @@ export default function AiInboxPwa() {
         if (seq !== requestSeqRef.current) return;
         const rawItems = asArray(payload?.posts || payload?.items || payload?.data?.posts || payload?.data?.items || payload);
         const items = fast ? rawItems.map(normalizeFastSocialCommentItem) : rawItems.map(normalizeSocialPostForPwa);
-        setSocialComments((current) => ({
-          items: append ? [...asArray(current.items), ...items] : items,
-          loading: false,
-          error: "",
-          next_cursor: fast ? clean(payload?.next_cursor || payload?.data?.next_cursor || "") : "",
-        }));
+        setSocialComments((current) => {
+          const currentItems = asArray(current.items);
+          const cachedItems = readSocialCommentsCache(tenantId);
+          const nextItems = append
+            ? [...currentItems, ...items]
+            : items.length
+              ? items
+              : currentItems.length
+                ? currentItems
+                : cachedItems;
+          if (nextItems.length) writeSocialCommentsCache(tenantId, nextItems);
+          return {
+            items: nextItems,
+            loading: false,
+            error: "",
+            next_cursor: fast ? clean(payload?.next_cursor || payload?.data?.next_cursor || "") : "",
+          };
+        });
         setSocialCommentsCursor(fast ? clean(payload?.next_cursor || payload?.data?.next_cursor || "") : "");
         setSocialReplySettings({
           generic_enabled: Boolean(settingsPayload?.settings?.generic_enabled),
@@ -3197,7 +3237,9 @@ export default function AiInboxPwa() {
         const status = Number(socialCommentsError?.status || socialCommentsError?.responseBody?.status || 0) || "";
         const message = socialCommentsError?.responseBody?.message || socialCommentsError?.message || "تعذر تحميل منشورات التعليقات";
         setSocialComments((current) => ({
-          items: silent && Array.isArray(current.items) ? current.items : [],
+          items: Array.isArray(current.items) && current.items.length
+            ? current.items
+            : readSocialCommentsCache(tenantId),
           loading: false,
           error: message,
           next_cursor: current?.next_cursor || "",

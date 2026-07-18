@@ -25,6 +25,10 @@
       "destination": "https://api.m1store-egy.com/share/available/$1"
     },
     {
+      "source": "/api/(.*)",
+      "destination": "https://api.m1store-egy.com/api/$1"
+    },
+    {
       "source": "/assets/(.*)",
       "destination": "/assets/$1"
     },

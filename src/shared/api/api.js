@@ -6,7 +6,7 @@ import { estimatePayloadSize, isErpPerfDebugEnabled } from "../lib/perfDebug";
 const runtimeApiBaseUrl = () => {
   if (typeof window !== "undefined") {
     const hostname = String(window.location.hostname || "").toLowerCase();
-    if (hostname.endsWith(".nip.io")) return "/api";
+    if (hostname.endsWith(".nip.io") || hostname.endsWith(".vercel.app")) return "/api";
   }
   return API_BASE_URL;
 };
