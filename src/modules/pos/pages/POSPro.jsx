@@ -76,6 +76,7 @@ import {
 import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
 import { getCompleteEgyptianMobilePhone, normalizePhone } from "../lib/phoneSearch";
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
+import { buildPosOpeningCandidateFallback, readPosOpeningCandidates } from "../lib/posOpeningCandidates";
 import { normalizePosCatalogProduct, normalizePosSellableProducts, resolvePosImageUrl } from "../services/posProductsApi";
 import {
   createOfflineOrderIdempotencyKey,
@@ -6054,32 +6055,67 @@ function POSPro() {
     if (!branchId || !nextOpeningWorkDate) return;
     let alive = true;
     setNextOpeningLoading(true);
-    api
-      .get("/pos/shifts/opening-candidates", {
-        params: {
-          branch_id: branchId,
-          work_date: nextOpeningWorkDate,
-        },
-      })
-      .then((response) => {
-        if (!alive) return;
-        const candidates = response?.candidates || response?.data?.candidates || [];
-        setNextOpeningCandidates(Array.isArray(candidates) ? candidates : []);
-        const eligibleCandidates = candidates.filter((candidate) => candidate.eligible !== false);
-        const recommended = eligibleCandidates.find((candidate) => candidate.is_recommended) || eligibleCandidates[0] || null;
-        setNextOpeningEmployeeId((prev) => prev || (recommended?.employee_id ? String(recommended.employee_id) : ""));
-      })
-      .catch((error) => {
-        console.error("[pos] failed to load opening candidates:", error);
-        if (alive) toast.error(error?.message || "تعذر تحميل موظفين فتح الفرع");
-      })
-      .finally(() => {
-        if (alive) setNextOpeningLoading(false);
+
+    const applyCandidates = (candidates) => {
+      if (!alive) return;
+      setNextOpeningCandidates(candidates);
+      const eligibleCandidates = candidates.filter((candidate) => candidate.eligible !== false);
+      const recommended = eligibleCandidates.find((candidate) => candidate.is_recommended) || eligibleCandidates[0] || null;
+      setNextOpeningEmployeeId((prev) => {
+        if (prev && eligibleCandidates.some((candidate) => String(candidate.employee_id || candidate.id) === String(prev))) return prev;
+        return recommended?.employee_id ? String(recommended.employee_id) : "";
       });
+    };
+
+    const loadFallbackCandidates = async () => {
+      let branchEmployees = [];
+      try {
+        const attendanceResponse = await api.get("/attendance/employees");
+        branchEmployees = Array.isArray(attendanceResponse?.employees)
+          ? attendanceResponse.employees
+          : Array.isArray(attendanceResponse?.data)
+            ? attendanceResponse.data
+            : [];
+      } catch (attendanceError) {
+        console.warn("[pos] attendance employees fallback unavailable:", attendanceError);
+      }
+
+      const fallbackRows = branchEmployees.length > 0 ? branchEmployees : salesEmployees;
+      return buildPosOpeningCandidateFallback(fallbackRows, branchId);
+    };
+
+    (async () => {
+      try {
+        const response = await api.get("/pos/shifts/opening-candidates", {
+          params: {
+            branch_id: branchId,
+            work_date: nextOpeningWorkDate,
+          },
+        });
+        const candidates = readPosOpeningCandidates(response);
+        if (candidates.length > 0) {
+          applyCandidates(candidates);
+          return;
+        }
+
+        const fallbackCandidates = await loadFallbackCandidates();
+        applyCandidates(fallbackCandidates);
+      } catch (error) {
+        console.error("[pos] failed to load opening candidates:", error);
+        const fallbackCandidates = await loadFallbackCandidates();
+        applyCandidates(fallbackCandidates);
+        if (alive && fallbackCandidates.length === 0) {
+          toast.error(error?.message || "تعذر تحميل موظفين فتح الفرع");
+        }
+      } finally {
+        if (alive) setNextOpeningLoading(false);
+      }
+    })();
+
     return () => {
       alive = false;
     };
-  }, [activePosShift?.branch_id, currentUser?.branch_id, nextOpeningWorkDate, posShiftBranch?.id, shiftCloseOpen, shiftCloseReport?.shift?.branch_id]);
+  }, [activePosShift?.branch_id, currentUser?.branch_id, nextOpeningWorkDate, posShiftBranch?.id, salesEmployees, shiftCloseOpen, shiftCloseReport?.shift?.branch_id]);
 
   const handleDownloadInvoicePdf = async () => {
     const source = lastOrder || lastShareContext || {};
