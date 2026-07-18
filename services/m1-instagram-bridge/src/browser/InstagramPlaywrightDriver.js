@@ -20,6 +20,8 @@ export class InstagramPlaywrightDriver {
       locale: 'en-US',
       args: ['--disable-dev-shm-usage'],
     });
+    this.context.setDefaultTimeout(5_000);
+    this.context.setDefaultNavigationTimeout(15_000);
     await this.restoreStorageState();
     this.browserRunning = true;
     this.context.on('close', () => { this.browserRunning = false; this.context = null; this.page = null; });
@@ -70,9 +72,13 @@ export class InstagramPlaywrightDriver {
   }
   async listConversations({ limit = 12 } = {}) {
     await this.openInbox();
-    const conversations = await this.collectLinkedConversations(limit);
-    if (conversations.length < limit) conversations.push(...await this.collectButtonConversations(DIRECT_INBOX_URL, limit - conversations.length));
-    if (conversations.length < limit) conversations.push(...await this.collectButtonConversations(DIRECT_REQUESTS_URL, limit - conversations.length));
+    // New senders land in Message Requests. Always reserve scan capacity for
+    // that queue so a busy primary inbox cannot starve inbound discovery.
+    const requestsLimit = Math.min(limit, Math.max(1, Math.ceil(limit / 3)));
+    const inboxLimit = Math.max(0, limit - requestsLimit);
+    const conversations = await this.collectLinkedConversations(inboxLimit);
+    if (conversations.length < inboxLimit) conversations.push(...await this.collectButtonConversations(DIRECT_INBOX_URL, inboxLimit - conversations.length));
+    conversations.push(...await this.collectButtonConversations(DIRECT_REQUESTS_URL, requestsLimit));
     return [...new Map(conversations.map((item) => [item.threadId || item.url, item])).values()].slice(0, limit);
   }
   async collectLinkedConversations(limit) {
@@ -102,8 +108,8 @@ export class InstagramPlaywrightDriver {
       let target = null; let preview = '';
       for (let index = 0; index < count; index += 1) {
         const candidate = buttons.nth(index);
-        const candidatePreview = (await candidate.innerText().catch(() => '')).trim().slice(0, 200);
-        const imageSource = await candidate.locator('img').first().getAttribute('src').catch(() => '');
+        const candidatePreview = (await candidate.innerText({ timeout: 1_000 }).catch(() => '')).trim().slice(0, 200);
+        const imageSource = await candidate.locator('img').first().getAttribute('src', { timeout: 1_000 }).catch(() => '');
         const stableLabel = candidatePreview.split('\n')[0] || imageSource || String(index);
         const key = `${stableLabel}:${imageSource}`;
         if (!seenPreviews.has(key)) { seenPreviews.add(key); target = candidate; preview = candidatePreview; break; }
