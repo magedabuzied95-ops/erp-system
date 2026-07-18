@@ -19,6 +19,16 @@ const directRoutes = async (page) => page.locator('a[href*="/direct/"]').evaluat
     const pathname = new URL(link.href).pathname;
     return pathname.replace(/\/direct\/t\/[^/]+\/?/, '/direct/t/:id/');
   }))].sort()).catch(() => []);
+const interactiveShape = async (page) => page.locator('main [role], div[role="main"] [role]').evaluateAll((nodes) => {
+  const counts = new Map();
+  for (const node of nodes) {
+    const role = node.getAttribute('role') || 'none';
+    const key = [node.tagName.toLowerCase(), role, node.hasAttribute('tabindex') ? 'tabindex' : 'no-tabindex',
+      node.querySelector('img') ? 'has-img' : 'no-img', node.textContent?.trim() ? 'has-text' : 'no-text'].join('|');
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return Object.fromEntries([...counts.entries()].sort());
+}).catch(() => ({}));
 
 try {
   await driver.connect();
@@ -28,6 +38,7 @@ try {
     session: await driver.detectSession(),
     inbox_url: /\/direct\/inbox\/?/.test(page.url()),
     inbox_routes: await directRoutes(page),
+    inbox_interactive_shape: await interactiveShape(page),
     selectors: {
       direct_inbox: await count(page, 'a[href^="/direct/inbox"]'),
       conversation_list: await count(page, 'main, div[role="main"]'),
@@ -49,6 +60,7 @@ try {
   result.requests = {
     requests_url: /\/direct\/requests\/?/.test(page.url()),
     routes: await directRoutes(page),
+    interactive_shape: await interactiveShape(page),
     conversation_item: await count(page, 'a[href*="/direct/t/"]'),
     buttons: await count(page, 'button'),
     loading_state: await count(page, '[aria-busy="true"], [role="progressbar"]'),
