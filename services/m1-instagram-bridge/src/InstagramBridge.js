@@ -47,7 +47,7 @@ export class InstagramBridge {
     return timer;
   }
   stopWatchers() { if (this.liveTimer) clearInterval(this.liveTimer); if (this.recoveryTimer) clearInterval(this.recoveryTimer); this.liveTimer = null; this.recoveryTimer = null; }
-  async withExclusiveBrowserOperation(operation, timeoutMs = 60_000) {
+  async withExclusiveBrowserOperation(operation, timeoutMs = 180_000) {
     this.browserOperationPriorityWaiting = true;
     try {
       const deadline = Date.now() + timeoutMs;
