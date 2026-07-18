@@ -75,6 +75,27 @@ import { prefetchSocialWorkspace, readSocialWorkspaceCache, socialWorkspaceCache
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const money = (value) => formatCurrency(value);
 const clean = (value = "") => String(value || "").trim();
+const GENERIC_CUSTOMER_NAMES = new Set([
+  "customer",
+  "customers",
+  "client",
+  "guest",
+  "unknown",
+  "anonymous",
+  "user",
+  "lead",
+  "عميل",
+  "العميل",
+  "زائر",
+  "مستخدم",
+  "غير معروف",
+]);
+const isGenericCustomerName = (value = "") => {
+  const normalized = clean(value).toLowerCase().replace(/\s+/g, " ");
+  return !normalized || GENERIC_CUSTOMER_NAMES.has(normalized);
+};
+const firstUsefulCustomerName = (...values) =>
+  values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
 const storefrontProductUrl = (product = {}) => {
   const rawUrl = clean(product.product_url || product.storefront_url || product.url || "");
   if (rawUrl) return publicStorefrontUrl(rawUrl);
@@ -806,6 +827,7 @@ const messengerDisplayName = (conversation = {}) => {
   const profileName = candidates.find((candidate) => {
     const value = clean(candidate);
     if (!value) return false;
+    if (isGenericCustomerName(value)) return false;
     return !isLikelyMessengerExternalId(value);
   });
   if (profileName) return profileName;
@@ -1258,12 +1280,12 @@ const buildSocialCommentsCenterUrl = (item = {}, tenantId = "") => {
 const getConversationDisplayName = (conversation = {}) => {
   const source = conversation || {};
   if (isMessengerConversation(source)) {
-    return messengerDisplayName(source) || "Customer";
+    return messengerDisplayName(source) || firstNonEmpty(source.external_customer_id, source.phone) || "Customer";
   }
 
   const profile = source.customer_profile || {};
   const fullName = [source.first_name || profile.first_name, source.last_name || profile.last_name].map(clean).filter(Boolean).join(" ");
-  return firstNonEmpty(
+  return firstUsefulCustomerName(
     source.customer_name,
     source.channel_metadata?.commenter_name,
     source.metadata?.commenter_name,
@@ -1271,6 +1293,9 @@ const getConversationDisplayName = (conversation = {}) => {
     source.customer?.name,
     profile.name,
     profile.full_name,
+    profile.display_name,
+    profile.contact_name
+  ) || firstNonEmpty(
     source.external_customer_id,
     source.phone
   );
@@ -3873,7 +3898,7 @@ function RightToolsTabsPanel({
                 <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3">
                   <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-500">Customer snapshot</div>
                   <div className="mt-2 space-y-1 text-sm text-slate-300">
-                    <div className="font-black text-white">{isMessengerConversation(conversation) ? messengerDisplayName(conversation) : getConversationDisplayName(conversation) || "Customer"}</div>
+                    <div className="font-black text-white">{getConversationDisplayName(conversation) || "Customer"}</div>
                     <div dir="ltr">{clean(conversation.phone || conversation.customer_phone || conversation.external_customer_id || conversation.customer_profile?.phone) || "No phone"}</div>
                     <div>{channelLabel(conversation.channel || conversation.source)}</div>
                   </div>
@@ -3994,7 +4019,7 @@ export default function AiInbox() {
         ...customer,
         id: customerId,
         customer_name:
-          clean(customer.customer_name || customer.commenter_name || customer.author_name || customer.from_name || customerProfile.name || customerProfile.display_name || "") ||
+          firstUsefulCustomerName(customer.customer_name, customer.commenter_name, customer.author_name, customer.from_name, customerProfile.name, customerProfile.display_name) ||
           "Customer",
         customer_avatar_url: clean(customer.customer_avatar_url || customer.commenter_profile_picture_url || customerProfile.avatar_url || customerProfile.profile_pic_url || ""),
         platform: clean(customer.platform || context.platform || customerProfile.platform || ""),

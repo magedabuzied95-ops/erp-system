@@ -53,6 +53,27 @@ import "./AiInboxPwa.css";
 
 const asArray = (value) => (Array.isArray(value) ? value : []);
 const clean = (value = "") => String(value || "").trim();
+const GENERIC_CUSTOMER_NAMES = new Set([
+  "customer",
+  "customers",
+  "client",
+  "guest",
+  "unknown",
+  "anonymous",
+  "user",
+  "lead",
+  "عميل",
+  "العميل",
+  "زائر",
+  "مستخدم",
+  "غير معروف",
+]);
+const isGenericCustomerName = (value = "") => {
+  const normalized = clean(value).toLowerCase().replace(/\s+/g, " ");
+  return !normalized || GENERIC_CUSTOMER_NAMES.has(normalized);
+};
+const firstUsefulCustomerName = (...values) =>
+  values.map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "";
 
 const cleanMessageText = (value, depth = 0) => {
   if (value == null || depth > 3) return "";
@@ -1136,14 +1157,14 @@ const normalizeFastSocialCommentItem = (item = {}) => {
     post_id: postId,
     external_comment_id: externalCommentId,
     comment_id: clean(item?.comment_id || externalCommentId || item?.id || ""),
-    customer_name: clean(item?.customer_name || "Customer"),
+    customer_name: isGenericCustomerName(item?.customer_name) ? "" : clean(item?.customer_name),
     customer_avatar_url: clean(item?.customer_avatar_url || ""),
     message_preview: messagePreview,
     comments_count: Math.max(0, Number(item?.comments_count ?? item?.comment_count ?? item?.total_comments ?? 0) || 0),
     new_comments_count: Number(item?.new_comments_count ?? (unread ? 1 : 0)) || 0,
     last_comment_text: clean(item?.last_comment_text || messagePreview),
     last_comment_at: clean(item?.last_comment_at || activityAt),
-    last_commenter_name: clean(item?.last_commenter_name || item?.customer_name || "Customer"),
+    last_commenter_name: [item?.last_commenter_name, item?.customer_name].map((value) => clean(value)).find((value) => value && !isGenericCustomerName(value)) || "",
     last_commenter_id: clean(item?.last_commenter_id || externalCommentId || item?.comment_id || item?.id || ""),
     post_created_time: clean(
       item?.post_created_time ||
@@ -1520,10 +1541,11 @@ const conversationName = (conversation = {}) =>
     const resolved = candidates.find((candidate) => {
       const value = clean(candidate);
       if (!value) return false;
+      if (isGenericCustomerName(value)) return false;
       if (isMessengerConversation(conversation) && isLikelyMessengerExternalId(value)) return false;
       return true;
     });
-    return clean(resolved || (isMessengerConversation(conversation) ? "Customer" : conversation.external_customer_id || conversation.phone || "Customer"));
+    return clean(resolved || conversation.external_customer_id || conversation.phone || "Customer");
   })();
 
 const nestedProductImage = (value) => {
@@ -2962,7 +2984,9 @@ export default function AiInboxPwa() {
         ...customer,
         id: customerId,
         customer_name:
-          clean(customer.customer_name || customer.commenter_name || customer.author_name || customer.from_name || customerProfile.name || customerProfile.display_name || "") ||
+          [customer.customer_name, customer.commenter_name, customer.author_name, customer.from_name, customerProfile.name, customerProfile.display_name]
+            .map((value) => clean(value))
+            .find((value) => value && !isGenericCustomerName(value)) ||
           "Customer",
         customer_avatar_url: clean(customer.customer_avatar_url || customer.commenter_profile_picture_url || customerProfile.avatar_url || customerProfile.profile_pic_url || ""),
         platform: clean(customer.platform || context.platform || customerProfile.platform || ""),
@@ -5038,7 +5062,12 @@ export default function AiInboxPwa() {
       comment_id: commentId,
       post_id: postId,
       platform,
-      customer_name: clean(comment?.customer_name || selectedSocialPost?.customer_name || "Customer"),
+      customer_name: firstUsefulCustomerName(
+        comment?.customer_name,
+        selectedSocialPost?.customer_name,
+        comment?.from?.name,
+        selectedSocialPost?.author_name
+      ) || "Customer",
       customer_avatar_url: clean(comment?.customer_avatar_url || selectedSocialPost?.customer_avatar_url || ""),
       original_comment_text: action === "private_message" ? privateReplyText : publicReplyText,
       comment_text: action === "private_message" ? privateReplyText : publicReplyText,
