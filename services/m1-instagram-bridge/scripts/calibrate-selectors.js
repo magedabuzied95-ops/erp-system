@@ -39,6 +39,14 @@ try {
     inbox_url: /\/direct\/inbox\/?/.test(page.url()),
     inbox_routes: await directRoutes(page),
     inbox_interactive_shape: await interactiveShape(page),
+    inbox_tabs: await page.locator('[role="tab"]').evaluateAll((tabs) => tabs.map((tab) => ({
+      text: (tab.innerText || tab.textContent || '').trim(),
+      selected: tab.getAttribute('aria-selected'),
+    }))).catch(() => []),
+    inbox_button_previews: await page.locator('div[role="button"]:has(img)').evaluateAll((buttons) => buttons.map((button) => ({
+      text: (button.innerText || button.textContent || '').trim().slice(0, 200),
+      images: button.querySelectorAll('img').length,
+    }))).catch(() => []),
     selectors: {
       direct_inbox: await count(page, 'a[href^="/direct/inbox"]'),
       conversation_list: await count(page, 'main, div[role="main"]'),
