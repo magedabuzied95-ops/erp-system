@@ -14,6 +14,7 @@ export const instagramSelectors = Object.freeze({
   incomingMessage: entry({ type: 'semantic', value: 'incoming-message' }, ['[data-message-id]', 'div[role="group"]:not(:has(a)):not(:has(button)):not(:has(img))']),
   outgoingMessage: entry({ type: 'semantic', value: 'outgoing-message' }, ['[data-message-id]', '[aria-label*="you sent" i]', '[aria-label*="sent by you" i]']),
   composer: entry({ type: 'role', role: 'textbox', name: /message/i }, ['textarea[placeholder]', 'div[contenteditable="true"]']),
+  acceptMessageRequest: entry({ type: 'role', role: 'button', name: /^accept$/i }, ['button:has-text("Accept")']),
   sendButton: entry({ type: 'role', role: 'button', name: /send/i }, ['button[type="submit"]']),
   loginChallenge: entry({ type: 'text', value: /security code|confirm it was you|two-factor|challenge/i }, ['form[action*="challenge"]']),
   sessionExpired: entry({ type: 'text', value: /log in|login/i }, ['input[name="username"]']),

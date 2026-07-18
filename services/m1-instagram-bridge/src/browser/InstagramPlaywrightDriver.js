@@ -203,7 +203,17 @@ export class InstagramPlaywrightDriver {
     return output;
   }
   async sendText(text) {
-    const composer = await resolveSelector(this.page, instagramSelectors.composer);
+    let composer = await resolveSelector(this.page, instagramSelectors.composer).catch(() => null);
+    if (!composer) {
+      // A manual employee reply to a Message Request is explicit consent to
+      // accept that request. This path is only reachable through the guarded
+      // manual outbound endpoint; inbound scans never accept requests.
+      const accept = await resolveSelector(this.page, instagramSelectors.acceptMessageRequest).catch(() => null);
+      if (!accept) throw Object.assign(new Error('Instagram composer is unavailable'), { code: 'SELECTOR_MISSING' });
+      await accept.click();
+      await this.page.waitForTimeout(1_500);
+      composer = await resolveSelector(this.page, instagramSelectors.composer);
+    }
     const before = await this.readMessages({ limit: 20 });
     await composer.fill(text).catch(async () => { await composer.click(); await this.page.keyboard.type(text); });
     const button = await resolveSelector(this.page, instagramSelectors.sendButton).catch(() => null);

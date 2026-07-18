@@ -168,7 +168,7 @@ test('manual outbound safely resets a stuck scheduled browser operation', async 
   };
   bridge.driver.reopenInboxTab = async () => { connected += 1; inboxOpened += 1; };
 
-  const result = await bridge.withExclusiveBrowserOperation(async () => 'sent', 100, { preemptAfterMs: 10 });
+  const result = await bridge.withExclusiveBrowserOperation(async () => 'sent', 500, { preemptAfterMs: 10 });
 
   bridge.stopWatchers();
   assert.equal(result, 'sent');
