@@ -32,7 +32,7 @@ try {
       connectionId: config.connectionId,
       channelAccountId: config.channelAccountId,
     });
-    return { token: message.text, external_message_id: event.external_message_id, seen: state.hasMessage(event.external_message_id) };
+    return { token: message.text, direction: message.direction, external_message_id: event.external_message_id, seen: state.hasMessage(event.external_message_id) };
   });
   const actionLabels = await driver.page.getByRole('button').allInnerTexts().then((values) => values
     .map((value) => value.trim()).filter((value) => /^(accept|delete|block|send)$/i.test(value))).catch(() => []);
