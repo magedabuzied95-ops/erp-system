@@ -65,6 +65,20 @@ try {
     buttons: await count(page, 'button'),
     loading_state: await count(page, '[aria-busy="true"], [role="progressbar"]'),
   };
+  const firstRequest = page.locator('div[role="button"]:has(img)').first();
+  if (await firstRequest.count()) {
+    await firstRequest.click();
+    await page.waitForTimeout(2_500);
+    result.opened_request = {
+      thread_url: /\/direct\/t\/[^/]+\/?/.test(page.url()),
+      routes: await directRoutes(page),
+      interactive_shape: await interactiveShape(page),
+      headings: await count(page, 'header h1, header h2, h1, h2'),
+      message_rows: await count(page, '[data-message-id], div[role="row"]'),
+      composer: await count(page, '[role="textbox"][contenteditable="true"], textarea[placeholder]'),
+      send_controls: await count(page, '[role="button"], button[type="submit"]'),
+    };
+  }
   console.log(JSON.stringify(result));
 } finally {
   await driver.disconnect();
