@@ -81,7 +81,14 @@ export class InstagramBridge {
   }
   async recoverySync() {
     if (this.paused || !this.config.recoverySyncEnabled) return { skipped: true };
-    const conversations = (await this.syncConversations()).slice(0, this.config.maxConversationsPerMinute);
+    // Revisit known thread IDs directly before relying on Instagram's visible
+    // Primary/General tabs. A thread can be hidden by client-side tab state even
+    // though new messages continue to arrive on the same stable conversation.
+    const known = this.state.listConversations?.() || [];
+    const discovered = await this.syncConversations();
+    const conversations = [...new Map([...known, ...discovered].map((item) => [
+      item.external_conversation_id || item.threadId || item.url, item,
+    ])).values()].slice(0, this.config.maxConversationsPerMinute);
     for (const conversation of conversations) await this.syncMessages(conversation, 'recovery_sync');
     await this.reconcileUncertainSends();
     return { scanned: conversations.length };

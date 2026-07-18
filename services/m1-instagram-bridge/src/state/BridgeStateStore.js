@@ -18,6 +18,7 @@ export class BridgeStateStore {
     return true;
   }
   getConversation(id) { return this.state.conversations[id] || null; }
+  listConversations() { return Object.values(this.state.conversations); }
   async saveConversation(identity) {
     this.state.conversations[identity.external_conversation_id] = identity;
     await this.save();

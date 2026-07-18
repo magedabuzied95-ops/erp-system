@@ -9,6 +9,7 @@ class MemoryState {
   async rememberMessage(key) { if (this.seen.has(key)) return false; this.seen.add(key); return true; }
   async saveConversation(identity) { this.conversations[identity.external_conversation_id] = identity; }
   getConversation(id) { return this.conversations[id] || null; }
+  listConversations() { return Object.values(this.conversations); }
   async setReconciliation(key, value) { this.reconciliations[key] = value; }
   async clearReconciliation(key) { delete this.reconciliations[key]; }
   listReconciliations() { return Object.entries(this.reconciliations); }
@@ -81,6 +82,20 @@ test('scheduled browser work starts immediately and never overlaps', async () =>
   clearInterval(timer);
   assert.equal(maxActive, 1);
   assert.ok(calls >= 2 && calls <= 3);
+});
+
+test('recovery sync revisits known conversations even when inbox discovery omits them', async () => {
+  const message = { text: 'Known thread update', direction: 'incoming', externalMessageId: 'known-1', sentAt: '2026-07-18T10:00:00Z' };
+  const { bridge, state, imported } = fixture({ messages: [message] });
+  await state.saveConversation(identity);
+  bridge.driver.listConversations = async () => [];
+  bridge.paused = false;
+
+  const result = await bridge.recoverySync();
+
+  assert.equal(result.scanned, 1);
+  assert.equal(imported.length, 1);
+  assert.equal(imported[0].external_conversation_id, 'thread-a');
 });
 
 test('live watch and recovery timers share one browser-operation lock', async () => {
