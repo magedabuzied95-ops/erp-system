@@ -12,6 +12,7 @@ export class InstagramBridge {
     this.diagnostics = diagnostics; this.safety = safety; this.logger = logger;
     this.running = false; this.paused = true; this.liveTimer = null; this.recoveryTimer = null;
     this.browserOperationInFlight = false;
+    this.knownConversationCursor = 0;
     this.selectorFailures = 0; this.everStarted = false;
     this.conversationPreviews = new Map();
     this.timestamps = { last_message_seen_at: null, last_message_imported_at: null, last_outbound_confirmed_at: null, last_sync_at: null };
@@ -75,7 +76,14 @@ export class InstagramBridge {
       const key = item.threadId || item.url; const preview = String(item.preview || '');
       const previous = this.conversationPreviews.get(key); this.conversationPreviews.set(key, preview);
       return previous === undefined ? index < 3 : previous !== preview;
-    }).slice(0, 3);
+    }).slice(0, 2);
+    const known = this.state.listConversations?.() || [];
+    if (known.length) {
+      const nextKnown = known[this.knownConversationCursor % known.length];
+      this.knownConversationCursor = (this.knownConversationCursor + 1) % known.length;
+      const knownKey = nextKnown.external_conversation_id || nextKnown.threadId || nextKnown.url;
+      if (!candidates.some((item) => (item.external_conversation_id || item.threadId || item.url) === knownKey)) candidates.push(nextKnown);
+    }
     for (const conversation of candidates) await this.syncMessages(conversation, 'live_watch');
     return { scanned: conversations.length, opened: candidates.length };
   }

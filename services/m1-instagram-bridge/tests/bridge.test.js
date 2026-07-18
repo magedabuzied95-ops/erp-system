@@ -98,6 +98,20 @@ test('recovery sync revisits known conversations even when inbox discovery omits
   assert.equal(imported[0].external_conversation_id, 'thread-a');
 });
 
+test('live watch round-robins one known conversation when visible discovery omits it', async () => {
+  const message = { text: 'Known live update', direction: 'incoming', externalMessageId: 'known-live-1', sentAt: '2026-07-18T10:00:00Z' };
+  const { bridge, state, imported } = fixture({ messages: [message] });
+  await state.saveConversation(identity);
+  bridge.driver.listConversations = async () => [];
+  bridge.paused = false;
+
+  const result = await bridge.liveWatch();
+
+  assert.equal(result.opened, 1);
+  assert.equal(imported.length, 1);
+  assert.equal(imported[0].external_conversation_id, 'thread-a');
+});
+
 test('live watch and recovery timers share one browser-operation lock', async () => {
   const { bridge } = fixture();
   let active = 0; let maxActive = 0;
