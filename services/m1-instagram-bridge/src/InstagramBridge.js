@@ -192,7 +192,7 @@ export class InstagramBridge {
     if (options.ai_generated || options.sender_type === 'ai' || options.ai_auto_send) throw Object.assign(new Error('AI auto-send is forbidden in pilot'), { code: 'AI_AUTO_SEND_FORBIDDEN' });
     if (!options.manual_user_id && !options.manual) throw Object.assign(new Error('Manual employee action is required'), { code: 'MANUAL_ACTION_REQUIRED' });
     const health = await this.getHealth();
-    if (this.paused) throw Object.assign(new Error('Instagram bridge is paused'), { code: 'BRIDGE_PAUSED' });
+    if (this.paused) throw Object.assign(new Error('Instagram bridge is paused'), { code: 'BRIDGE_PAUSED', status: 409 });
     if (health.status === 'account_mismatch') throw Object.assign(new Error('Instagram test account verification failed'), { code: 'ACCOUNT_IDENTITY_MISMATCH' });
     if (health.status === 'login_required') throw Object.assign(new Error('Instagram login is required'), { code: 'LOGIN_REQUIRED' });
     this.safety.assertSendAllowed();

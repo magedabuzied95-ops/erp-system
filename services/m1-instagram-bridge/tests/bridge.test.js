@@ -74,7 +74,7 @@ test('kill switch blocks manual outbound before browser interaction', async () =
   bridge.driver.openConversation = async () => { opened += 1; return identity; };
   await assert.rejects(
     () => bridge.sendText('thread-a', 'blocked by kill switch', { manual_user_id: 7 }),
-    (error) => error.code === 'BRIDGE_PAUSED',
+    (error) => error.code === 'BRIDGE_PAUSED' && error.status === 409,
   );
   assert.equal(opened, 0);
 });
