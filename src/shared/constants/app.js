@@ -10,6 +10,7 @@ const LOCAL_API_ORIGIN = "http://localhost:8000";
 const PRODUCTION_API_ORIGIN = "https://api.m1store-egy.com";
 const PRODUCTION_API_BASE_URL = `${PRODUCTION_API_ORIGIN}/api`;
 const IS_PRODUCTION = Boolean(import.meta?.env?.PROD);
+const USE_SAME_ORIGIN_API = String(import.meta?.env?.VITE_USE_SAME_ORIGIN_API || "").toLowerCase() === "true";
 
 const defaultApiOrigin = () =>
   IS_PRODUCTION ? PRODUCTION_API_ORIGIN : LOCAL_API_ORIGIN;
@@ -52,6 +53,7 @@ const API_ORIGIN_ENV =
   devEnvValue(import.meta?.env?.VITE_API_URL);
 
 const resolveApiBaseUrl = () => {
+  if (USE_SAME_ORIGIN_API) return "/api";
   if (IS_PRODUCTION) {
     return PRODUCTION_API_BASE_URL;
   }

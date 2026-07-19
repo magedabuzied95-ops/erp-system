@@ -1,0 +1,100 @@
+name: erp
+
+x-channel-logging: &channel-logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+services:
+  erp-backend:
+    build:
+      context: ${ERP_RELEASE_PATH:-/opt/apps/erp-system}
+      dockerfile: Dockerfile.backend
+    env_file:
+      - /opt/erp/backend/.env
+      - /opt/erp/channel-gateway.env
+
+  channel-gateway:
+    build:
+      context: ${ERP_RELEASE_PATH:-/opt/apps/erp-system}
+      dockerfile: services/m1-channel-gateway/Dockerfile
+    container_name: m1-channel-gateway-production
+    restart: unless-stopped
+    env_file:
+      - /opt/erp/backend/.env
+      - /opt/erp/channel-gateway.env
+    environment:
+      PORT: "4080"
+      APP_ENV: production
+      ERP_BACKEND_URL: http://erp-backend:8000
+      INSTAGRAM_BRIDGE_URL: http://instagram-bridge:4090
+      CHANNEL_GATEWAY_ENABLED: "true"
+      CHANNEL_GATEWAY_SHADOW_MODE: "false"
+      CHANNEL_GATEWAY_INBOUND_ENABLED: "true"
+      CHANNEL_GATEWAY_OUTBOUND_ENABLED: "true"
+      CHANNEL_GATEWAY_WORKER_ENABLED: "true"
+      CHANNEL_GATEWAY_ERP_INBOUND_PUBLISH_ENABLED: "true"
+      CHANNEL_GATEWAY_ERP_OUTBOUND_CONSUME_ENABLED: "true"
+      INSTAGRAM_BRIDGE_ENABLED: "true"
+      INSTAGRAM_BRIDGE_INBOUND_ENABLED: "true"
+      INSTAGRAM_BRIDGE_OUTBOUND_ENABLED: "true"
+    command: ["sh", "-c", "node src/db/migrate.js && node src/index.js"]
+    depends_on:
+      erp-postgres: { condition: service_started }
+      erp-redis: { condition: service_started }
+      erp-backend: { condition: service_started }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4080/health/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    logging: *channel-logging
+
+  instagram-bridge:
+    profiles: [instagram-test]
+    build:
+      context: ${ERP_RELEASE_PATH:-/opt/apps/erp-system}
+      dockerfile: services/m1-instagram-bridge/Dockerfile
+    container_name: m1-instagram-bridge-production-test
+    restart: unless-stopped
+    env_file: /opt/erp/channel-gateway.env
+    environment:
+      PORT: "4090"
+      APP_ENV: production
+      CHANNEL_ACCOUNT_TYPE: test
+      CHANNEL_GATEWAY_URL: http://channel-gateway:4080
+      INSTAGRAM_PROFILE_PATH: /data/browser-profiles/instagram-test-account
+      INSTAGRAM_STORAGE_STATE_PATH: /data/state/instagram-storage-state.json
+      INSTAGRAM_DIAGNOSTICS_PATH: /data/diagnostics
+      INSTAGRAM_STATE_PATH: /data/state/instagram-bridge-state.json
+      INSTAGRAM_HEADLESS: "true"
+      INSTAGRAM_TEST_ACCOUNT_ONLY: "true"
+      INSTAGRAM_CHANNEL_ACCOUNT_ID: instagram-test-account
+      INSTAGRAM_EXPECTED_USERNAME: m.one.store.pro
+      INSTAGRAM_BRIDGE_ENABLED: "true"
+      INSTAGRAM_BRIDGE_INBOUND_ENABLED: "true"
+      INSTAGRAM_BRIDGE_OUTBOUND_ENABLED: "true"
+      INSTAGRAM_BRIDGE_MEDIA_ENABLED: "false"
+      INSTAGRAM_BRIDGE_AI_AUTO_SEND_ENABLED: "false"
+      INSTAGRAM_BRIDGE_RECOVERY_SYNC_ENABLED: "true"
+      INSTAGRAM_AI_MODE: draft_only
+    volumes:
+      - m1_production_instagram_test_profile:/data/browser-profiles/instagram-test-account
+      - m1_production_instagram_test_diagnostics:/data/diagnostics
+      - m1_production_instagram_test_state:/data/state
+    read_only: true
+    tmpfs: ["/tmp:size=256m,mode=1777"]
+    shm_size: 512mb
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4090/health/live').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+    deploy:
+      resources:
+        limits: { memory: 1G, cpus: "1.00" }
+    logging: *channel-logging
+
+volumes:
+  m1_production_instagram_test_profile: { name: m1_production_instagram_test_profile }
+  m1_production_instagram_test_diagnostics: { name: m1_production_instagram_test_diagnostics }
+  m1_production_instagram_test_state: { name: m1_production_instagram_test_state }

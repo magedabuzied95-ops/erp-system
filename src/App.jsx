@@ -258,7 +258,7 @@ const STOREFRONT_ROOT_HOSTS = new Set([
   "127.0.0.1",
 ]);
 
-const ERP_HOST = "erp.m1store-egy.com";
+const ERP_HOST = String(import.meta.env.VITE_ERP_HOST || "erp.m1store-egy.com").trim().toLowerCase();
 const STOREFRONT_CANONICAL_ORIGIN = "https://m1store-egy.com";
 const ERP_CANONICAL_ORIGIN = "https://erp.m1store-egy.com";
 const M1_FAVICON_URL = "/favicon.svg?v=m1-mark-20260716";

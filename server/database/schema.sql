@@ -542,7 +542,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_count_items_inventory_count_id ON inven
     UNIQUE (tenant_id, customer_id)
   );
 
-  CREATE TABLE IF NOT EXISTS suppliers (
+CREATE TABLE IF NOT EXISTS suppliers (
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
   name VARCHAR(255) NOT NULL,
@@ -551,6 +551,24 @@ CREATE INDEX IF NOT EXISTS idx_inventory_count_items_inventory_count_id ON inven
   address TEXT,
   debt_balance NUMERIC(12,2) NOT NULL DEFAULT 0,
   status VARCHAR(50) NOT NULL DEFAULT 'active',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Orders and downstream sales tables reference the active cashbox/shift.
+-- Define it before those foreign keys so a brand-new staging database can be
+-- initialized in one pass. The later IF NOT EXISTS definition remains safe for
+-- existing installations and backward-compatible schema runs.
+CREATE TABLE IF NOT EXISTS cashbox (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  name VARCHAR(255) NOT NULL,
+  balance NUMERIC(12,2) NOT NULL DEFAULT 0,
+  status VARCHAR(50) NOT NULL DEFAULT 'open',
+  opened_by BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  opened_at TIMESTAMP NULL,
+  closed_at TIMESTAMP NULL,
+  shift_summary TEXT,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -823,6 +841,28 @@ ALTER TABLE IF EXISTS ai_support_messages
   ADD COLUMN IF NOT EXISTS product_cards JSONB NOT NULL DEFAULT '[]'::jsonb,
   ADD COLUMN IF NOT EXISTS external_reply_id TEXT NOT NULL DEFAULT '',
   ADD COLUMN IF NOT EXISTS error_code TEXT NOT NULL DEFAULT '';
+
+CREATE TABLE IF NOT EXISTS ai_channel_conversations (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL,
+  channel TEXT NOT NULL,
+  external_conversation_id TEXT NOT NULL,
+  external_customer_id TEXT NOT NULL DEFAULT '',
+  is_group BOOLEAN NOT NULL DEFAULT FALSE,
+  ai_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  thread_kind TEXT NOT NULL DEFAULT 'dm',
+  lead_status TEXT NOT NULL DEFAULT 'new',
+  customer_name TEXT NOT NULL DEFAULT '',
+  customer_avatar_url TEXT NOT NULL DEFAULT '',
+  last_message TEXT NOT NULL DEFAULT '',
+  customer_profile_id BIGINT NULL,
+  metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  last_message_at TIMESTAMP NULL,
+  read_at TIMESTAMP NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (tenant_id, channel, external_conversation_id)
+);
 
 ALTER TABLE IF EXISTS ai_channel_conversations
   ADD COLUMN IF NOT EXISTS thread_kind TEXT NOT NULL DEFAULT 'dm';

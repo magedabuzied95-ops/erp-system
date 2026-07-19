@@ -1,0 +1,20 @@
+{
+  "name": "m1-instagram-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test tests/*.test.js",
+    "login": "node scripts/manual-login.js",
+    "calibrate": "node scripts/calibrate-selectors.js",
+    "inspect:test-thread": "node scripts/inspect-test-thread.js",
+    "benchmark": "node scripts/benchmark.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "playwright": "1.61.1"
+  }
+}

@@ -2022,7 +2022,7 @@ export const loadAiInboxMessages = async ({ tenantId, conversationId, limit = 30
   };
 };
 
-export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 50, search = "", messageLimit = 30, summaryOnly = false } = {}) => {
+export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = "", limit = 50, search = "", conversationId = "", messageLimit = 30, summaryOnly = false } = {}) => {
   const loadAiInboxStartedAt = Date.now();
   await ensureAiSalesAgentSchema();
   await ensureAiConversationMemorySchema();
@@ -2033,7 +2033,17 @@ export const loadAiInbox = async ({ tenantId, filter = "all", channelFilter = ""
   const normalizedFilter = lower(filter || "all");
   const normalizedChannelFilter = lower(channelFilter || "");
   const searchTerm = text(search);
+  const exactConversationId = text(conversationId);
   clauses.push(whatsappInboxGroupFilterSql("s", "c"));
+  if (exactConversationId) {
+    params.push(exactConversationId);
+    const idx = params.length;
+    clauses.push(`(
+      s.session_id = $${idx}
+      OR c.external_conversation_id = $${idx}
+      OR c.external_customer_id = $${idx}
+    )`);
+  }
   if (normalizedFilter === "hot_leads") clauses.push("(COALESCE(o.draft_count, 0) > 0 OR COALESCE(p.memory_score, 0) >= 75)");
   if (normalizedFilter === "complaints") clauses.push("(m.needs_human_support = TRUE OR COALESCE(p.customer_sentiment, '') = 'negative')");
   if (["human_handoff", "human_takeover", "needs_human"].includes(normalizedFilter)) clauses.push("(s.status = 'human_takeover' OR m.needs_human_support = TRUE)");
@@ -4667,17 +4677,13 @@ const conversationMatchesKeys = (conversation = {}, keys = []) => {
 };
 
 const findAiInboxConversationByKeys = async ({ tenantId, keys = [] } = {}) => {
-  const all = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
-  let conversation = asArray(all.conversations).find((item) => conversationMatchesKeys(item, keys));
-  if (conversation) return { conversation, loaded_count: all.conversations.length, searched: "all" };
-
   for (const key of keys) {
-    const searched = await loadAiInbox({ tenantId, filter: "all", search: key, limit: 50 });
-    conversation = asArray(searched.conversations).find((item) => conversationMatchesKeys(item, keys));
+    const searched = await loadAiInbox({ tenantId, filter: "all", conversationId: key, limit: 1 });
+    const conversation = asArray(searched.conversations).find((item) => conversationMatchesKeys(item, keys));
     if (conversation) return { conversation, loaded_count: searched.conversations.length, searched: key };
   }
 
-  return { conversation: null, loaded_count: all.conversations.length, searched: "all" };
+  return { conversation: null, loaded_count: 0, searched: "exact_keys" };
 };
 
 const buildPaymentActions = ({ conversation = {}, order = {}, product = {} } = {}) => {

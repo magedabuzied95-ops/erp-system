@@ -272,6 +272,7 @@ export default function AiChannels() {
   const [busyAction, setBusyAction] = useState("");
   const [settingsSaving, setSettingsSaving] = useState("");
   const [whatsappGateway, setWhatsappGateway] = useState(null);
+  const [instagramBridgeAdmin, setInstagramBridgeAdmin] = useState(null);
   const [whatsappTest, setWhatsappTest] = useState({ phone: "", message: "اختبار من بوابة واتساب ERP." });
   const whatsappGatewayRef = useRef(null);
 
@@ -280,13 +281,14 @@ export default function AiChannels() {
   const loadPage = useCallback(async () => {
     setLoading(true);
     setAnalyticsLoading(true);
-    const [statusResult, metaResult, inboxResult, analyticsResult, rulesResult, whatsappGatewayResult] = await Promise.allSettled([
+    const [statusResult, metaResult, inboxResult, analyticsResult, rulesResult, whatsappGatewayResult, instagramBridgeResult] = await Promise.allSettled([
       api.get("/ai-agent/channels/status", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
       api.get("/integrations/meta/status", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
       api.get("/ai-agent/inbox", { params: { limit: 12 }, headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
       api.get("/ai-agent/analytics", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
       api.get("/marketing/comment-dm/rules", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
       api.get("/whatsapp/status", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500] }),
+      api.get("/channel-gateway-admin/instagram/status", { headers, suppressErrorStatuses: [400, 403, 404, 409, 500, 503] }),
     ]);
 
     if (statusResult.status === "fulfilled") {
@@ -329,6 +331,13 @@ export default function AiChannels() {
     } else {
       setWhatsappGateway(null);
       devWarn("whatsapp gateway unavailable", whatsappGatewayResult.reason);
+    }
+
+    if (instagramBridgeResult.status === "fulfilled") {
+      setInstagramBridgeAdmin(instagramBridgeResult.value || null);
+    } else {
+      setInstagramBridgeAdmin(null);
+      devWarn("instagram bridge admin status unavailable", instagramBridgeResult.reason);
     }
 
     setAnalyticsLoading(false);
@@ -414,6 +423,20 @@ export default function AiChannels() {
   const openWhatsappGatewaySettings = useCallback(() => {
     whatsappGatewayRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, []);
+
+  const setInstagramBridgeEnabled = useCallback(async (enabled) => {
+    setBusyAction(`instagram-bridge:${enabled ? "enable" : "disable"}`);
+    setActionMessage("");
+    try {
+      await api.post(`/channel-gateway-admin/instagram/${enabled ? "enable" : "disable"}`, {}, { headers });
+      setActionMessage(enabled ? "Instagram test bridge enabled." : "Instagram test bridge disabled immediately.");
+      await loadPage();
+    } catch (error) {
+      setActionMessage(error?.message || "Unable to update the Instagram test bridge.");
+    } finally {
+      setBusyAction("");
+    }
+  }, [headers, loadPage]);
 
   const customerConversations = useMemo(() => conversations.filter((conversation) => !conversation.internal), [conversations]);
   const internalConversations = useMemo(() => conversations.filter((conversation) => conversation.internal), [conversations]);
@@ -573,6 +596,64 @@ export default function AiChannels() {
             <KpiCard icon={CheckCircle2} label={tr("health.resolvedToday", "Resolved by AI today")} value={resolvedToday || number(analytics?.closedConversations)} tone="emerald" />
           </div>
           {actionMessage ? <div className="mt-4 rounded-2xl border border-cyan-300/20 bg-cyan-400/10 p-3 text-sm font-bold text-cyan-100">{actionMessage}</div> : null}
+        </section>
+
+        <section className="rounded-3xl border border-amber-300/25 bg-amber-400/[0.055] p-5 shadow-xl shadow-amber-950/20">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0">
+              <div className="inline-flex items-center gap-2 rounded-full border border-amber-300/30 bg-amber-300/10 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-amber-200">
+                <TestTube2 className="h-3.5 w-3.5" />
+                Instagram Test Environment
+              </div>
+              <h2 className="mt-3 text-xl font-black text-white">Instagram Browser Bridge</h2>
+              <p className="mt-1 text-sm text-slate-400">
+                Current Connected Account: <span className="font-black text-amber-200">@{instagramBridgeAdmin?.current_connected_account || "unverified"}</span>
+              </p>
+              <p className={`mt-2 inline-flex rounded-full border px-3 py-1 text-xs font-black ${instagramBridgeAdmin?.test_account_verified ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200" : "border-red-300/25 bg-red-400/10 text-red-200"}`}>
+                {instagramBridgeAdmin?.test_account_verified ? "TEST ACCOUNT VERIFIED" : `Expected @${instagramBridgeAdmin?.expected_test_account || "m.one.store.pro"} — bridge must remain disabled`}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setInstagramBridgeEnabled(false)}
+                disabled={busyAction === "instagram-bridge:disable"}
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-red-300/25 bg-red-400/10 px-4 text-sm font-black text-red-200 transition hover:bg-red-400/20 disabled:opacity-50"
+              >
+                {busyAction === "instagram-bridge:disable" ? <Loader2 className="h-4 w-4 animate-spin" /> : <PauseCircle className="h-4 w-4" />}
+                Disable Instagram Bridge
+              </button>
+              <button
+                type="button"
+                onClick={() => setInstagramBridgeEnabled(true)}
+                disabled={!instagramBridgeAdmin?.test_account_verified || busyAction === "instagram-bridge:enable"}
+                className="inline-flex h-11 items-center gap-2 rounded-xl border border-emerald-300/25 bg-emerald-400/10 px-4 text-sm font-black text-emerald-200 transition hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {busyAction === "instagram-bridge:enable" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ShieldCheck className="h-4 w-4" />}
+                Enable verified test bridge
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
+            {[
+              ["Health", instagramBridgeAdmin?.bridge?.status || instagramBridgeAdmin?.errors?.bridge || "unavailable"],
+              ["Session", instagramBridgeAdmin?.bridge?.session_state || instagramBridgeAdmin?.bridge?.login_state || "unknown"],
+              ["Queue", instagramBridgeAdmin?.gateway?.queue?.pending ?? instagramBridgeAdmin?.gateway?.queue_size ?? "—"],
+              ["Recovery", instagramBridgeAdmin?.bridge?.recovery_status || (instagramBridgeAdmin?.bridge?.paused ? "stopped" : "ready")],
+              ["Last incoming", safeDate(instagramBridgeAdmin?.gateway?.activity?.last_incoming_at)],
+              ["Last outgoing", safeDate(instagramBridgeAdmin?.gateway?.activity?.last_outgoing_at)],
+              ["Last error", instagramBridgeAdmin?.bridge?.last_error_code || instagramBridgeAdmin?.errors?.gateway || "none"],
+              ["Memory", instagramBridgeAdmin?.bridge?.memory_usage_mb != null ? `${instagramBridgeAdmin.bridge.memory_usage_mb} MB` : "—"],
+              ["CPU", instagramBridgeAdmin?.bridge?.cpu_usage?.user != null ? `${instagramBridgeAdmin.bridge.cpu_usage.user} μs` : "—"],
+              ["AI mode", instagramBridgeAdmin?.bridge?.ai_mode?.mode || "draft_only"],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-white/10 bg-slate-950/35 p-3">
+                <div className="text-[11px] font-black uppercase tracking-wider text-slate-500">{label}</div>
+                <div className="mt-1 break-words text-sm font-black text-white">{String(value ?? "—")}</div>
+              </div>
+            ))}
+          </div>
         </section>
 
         <section id="whatsapp-gateway-settings" ref={whatsappGatewayRef} className="scroll-mt-6 rounded-3xl border border-emerald-300/20 bg-emerald-400/[0.055] p-5 shadow-xl shadow-emerald-950/20">

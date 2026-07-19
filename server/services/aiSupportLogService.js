@@ -3,6 +3,11 @@ import { logAIPersistentEvent } from "./aiPersistentEventLogService.js";
 
 import { repairCorruptedArabicValue } from "../utils/arabicTextRepair.js";
 import { normalizeWhatsappPhone, normalizeWhatsappSessionId as normalizeCanonicalWhatsappSessionId } from "../utils/whatsappIdentity.js";
+import {
+  ChannelOutboxPublisher,
+  getChannelGatewayFeatureFlags,
+  stableEventUuid,
+} from "./channelOutboxPublisher.js";
 
 let schemaReadyPromise = null;
 
@@ -297,7 +302,7 @@ const buildOutboundTranscriptIdentityKey = ({
 
 const buildOutboundTranscriptDedupeKey = (args = {}) => buildOutboundTranscriptIdentityKey(args);
 
-const persistOutboundTranscriptRow = async ({
+const persistOutboundTranscriptRowCore = async ({
   tenantId,
   sessionId,
   message,
@@ -339,7 +344,7 @@ const persistOutboundTranscriptRow = async ({
   staffMessage = "",
   direction = "outbound",
   preserveExistingOnProviderMatch = false,
-} = {}) => {
+} = {}, executor = db) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeChannel = toText(channel || "web_chat");
   const safeSessionId = safeChannel === "whatsapp"
@@ -425,12 +430,12 @@ const persistOutboundTranscriptRow = async ({
   if (!safeTenantId || !safeSessionId || !(safeMessage || safeProductCards.length)) {
     throw Object.assign(new Error("Reply message is required"), { status: 400 });
   }
-  await ensureAiSupportLogSchema();
+  await ensureAiSupportLogSchema(executor);
 
   let sessionRefId = null;
   if (upsertSession) {
     try {
-      const sessionResult = await db.query(
+      const sessionResult = await executor.query(
         `
         INSERT INTO ai_support_sessions (
           tenant_id, user_id, session_id, source, status, channel, customer_name, last_message, assigned_user_id, assigned_user_name, takeover_started_at, ai_enabled, updated_at
@@ -610,7 +615,7 @@ const persistOutboundTranscriptRow = async ({
 
   const providerKey = safeProviderMessageId;
   if (providerKey) {
-    const existingProvider = await db.query(
+    const existingProvider = await executor.query(
       `
       SELECT id
       FROM ai_support_messages
@@ -624,16 +629,16 @@ const persistOutboundTranscriptRow = async ({
     );
     if (existingProvider.rows[0]?.id) {
       if (preserveExistingOnProviderMatch) {
-        const existing = await db.query("SELECT * FROM ai_support_messages WHERE id = $1::bigint LIMIT 1", [existingProvider.rows[0].id]);
+        const existing = await executor.query("SELECT * FROM ai_support_messages WHERE id = $1::bigint LIMIT 1", [existingProvider.rows[0].id]);
         return existing.rows[0] || null;
       }
-      const updated = await db.query(updateSql, [existingProvider.rows[0].id, ...values]);
+      const updated = await executor.query(updateSql, [existingProvider.rows[0].id, ...values]);
       return updated.rows[0] || null;
     }
   }
 
   if (safeMessageIdentityKey) {
-    const existingIdentity = await db.query(
+    const existingIdentity = await executor.query(
       `
       SELECT id
       FROM ai_support_messages
@@ -646,13 +651,13 @@ const persistOutboundTranscriptRow = async ({
       [safeTenantId, safeSessionId, safeMessageIdentityKey]
     );
     if (existingIdentity.rows[0]?.id) {
-      const updated = await db.query(updateSql, [existingIdentity.rows[0].id, ...values]);
+      const updated = await executor.query(updateSql, [existingIdentity.rows[0].id, ...values]);
       return updated.rows[0] || null;
     }
   }
 
   if (safeDedupeKey) {
-    const existingDedupe = await db.query(
+    const existingDedupe = await executor.query(
       `
       SELECT id
       FROM ai_support_messages
@@ -665,14 +670,14 @@ const persistOutboundTranscriptRow = async ({
       [safeTenantId, safeSessionId, safeDedupeKey]
     );
     if (existingDedupe.rows[0]?.id) {
-      const updated = await db.query(updateSql, [existingDedupe.rows[0].id, ...values]);
+      const updated = await executor.query(updateSql, [existingDedupe.rows[0].id, ...values]);
       return updated.rows[0] || null;
     }
   }
 
   let inserted;
   try {
-    inserted = await db.query(
+    inserted = await executor.query(
       `
       INSERT INTO ai_support_messages (${baseColumns})
       VALUES ($1::bigint, $2::bigint, $3::bigint, $4::text, $5::text, $6::text, $7::text, $8::numeric, $9::boolean, $10::jsonb, $11::jsonb, $12::jsonb, $13::jsonb, $14::text, $15::text, $16::text, $17::text, $18::boolean, $19::bigint, $20::text, $21::text, $22::text, $23::text, $24::text, $25::text, $26::text, $27::text, $28::text, $29::text, $30::text, $31::text, $32::text, $33::text, $34::text, $35::text, $36::text, $37::jsonb, $38::text, $39::text)
@@ -695,7 +700,7 @@ const persistOutboundTranscriptRow = async ({
   if (inserted.rows[0]) return inserted.rows[0];
 
   if (providerKey) {
-    const fallbackProvider = await db.query(
+    const fallbackProvider = await executor.query(
       `
       SELECT *
       FROM ai_support_messages
@@ -711,7 +716,7 @@ const persistOutboundTranscriptRow = async ({
   }
 
   if (safeDedupeKey) {
-    const fallbackDedupe = await db.query(
+    const fallbackDedupe = await executor.query(
       `
       SELECT *
       FROM ai_support_messages
@@ -726,6 +731,84 @@ const persistOutboundTranscriptRow = async ({
     if (fallbackDedupe.rows[0]) return fallbackDedupe.rows[0];
   }
   return null;
+};
+
+const messageEventPayload = (row = {}, options = {}) => ({
+  conversation_id: String(row.session_id || options.sessionId || ''),
+  message_id: String(row.id || ''),
+  channel: String(row.channel || options.channel || 'web_chat'),
+  direction: String(options.direction || 'outbound').toLowerCase() === 'inbound' ? 'incoming' : 'outgoing',
+  message_type: String(row.message_type || options.messageType || 'text'),
+  text: String(row.message_text || row.customer_message || row.staff_message || row.ai_answer || options.message || options.answer || ''),
+  status: String(row.delivery_status || options.deliveryStatus || ''),
+  sender_type: String(row.sender_type || options.senderType || ''),
+  external_message_id: String(row.external_message_id || options.externalMessageId || ''),
+  provider_message_id: String(row.provider_message_id || options.providerMessageId || ''),
+  idempotency_key: String(row.idempotency_key || options.idempotencyKey || options.clientRequestId || ''),
+  connection_id: String(options.channelConnectionId || ''),
+  external_conversation_id: String(options.externalConversationId || row.session_id || options.sessionId || ''),
+  external_username: String(options.externalUsername || ''),
+  external_display_name: String(options.externalDisplayName || ''),
+  conversation_fingerprint: String(options.conversationFingerprint || ''),
+  manual_user_id: options.staffUserId || null,
+  manual: options.manualMessage === true,
+});
+
+const publishTranscriptOutboxEvents = async ({ publisher, row, options }) => {
+  if (!row?.id) return;
+  const tenantId = Number(row.tenant_id || options.tenantId);
+  const messageId = String(row.id);
+  const conversationId = String(row.session_id || options.sessionId || '');
+  const payload = messageEventPayload(row, options);
+  const common = {
+    tenantId,
+    aggregateId: messageId,
+    correlationId: conversationId,
+    causationId: String(options.causationId || options.externalMessageId || ''),
+    source: 'erp-backend',
+    payload,
+  };
+  if (payload.direction === 'outgoing') {
+    await publisher.publishOutboundMessageRequestedEvent({
+      ...common,
+      eventId: stableEventUuid(`${tenantId}:message:${messageId}:outbound_requested`),
+    });
+  }
+  // Active transport needs only the outbound command. The complete event stream
+  // remains a Shadow Mode concern so active mode cannot accumulate unused events.
+  if (!publisher.flags.shadowMode) return;
+  await publisher.publishMessageCreatedEvent({
+    ...common,
+    eventId: stableEventUuid(`${tenantId}:message:${messageId}:created`),
+  });
+  if (payload.status) {
+    await publisher.publishMessageStatusChangedEvent({
+      ...common,
+      eventId: stableEventUuid(`${tenantId}:message:${messageId}:status:${payload.status}`),
+    });
+  }
+};
+
+const persistOutboundTranscriptRow = async (options = {}) => {
+  const flags = getChannelGatewayFeatureFlags();
+  if (!flags.enabled || (!flags.shadowMode && !flags.outboundEnabled && !flags.inboundEnabled)) {
+    return persistOutboundTranscriptRowCore(options, db);
+  }
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const row = await persistOutboundTranscriptRowCore(options, client);
+    const publisher = new ChannelOutboxPublisher({ executor: client, flags });
+    await publishTranscriptOutboxEvents({ publisher, row, options });
+    await client.query('COMMIT');
+    return row;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const ensureAiSupportLogSchema = async (clientOrPool = db) => {
@@ -1340,7 +1423,7 @@ export const markAiSupportConversationRead = async ({
   };
 };
 
-export const updateAiSupportConversationState = async ({
+const updateAiSupportConversationStateCore = async ({
   tenantId,
   sessionId,
   status,
@@ -1350,7 +1433,7 @@ export const updateAiSupportConversationState = async ({
   actorUserId = null,
   source = "admin_console",
   allowClosedReopen = false,
-} = {}) => {
+} = {}, executor = db) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
   const safeStatus = toText(status || "ai_active");
@@ -1361,8 +1444,8 @@ export const updateAiSupportConversationState = async ({
   if (!["ai_active", "human_takeover", "closed"].includes(safeStatus)) {
     throw Object.assign(new Error("Invalid conversation status"), { status: 400 });
   }
-  await ensureAiSupportLogSchema();
-  const current = await db.query(
+  await ensureAiSupportLogSchema(executor);
+  const current = await executor.query(
     `SELECT status, channel FROM ai_support_sessions WHERE tenant_id = $1 AND session_id = $2 LIMIT 1`,
     [safeTenantId, safeSessionId]
   );
@@ -1385,7 +1468,7 @@ export const updateAiSupportConversationState = async ({
     ? ""
     : toText(assignedUserName);
 
-  const result = await db.query(
+  const result = await executor.query(
     `
     INSERT INTO ai_support_sessions (
       tenant_id,
@@ -1450,7 +1533,7 @@ export const updateAiSupportConversationState = async ({
       safeStatus,
     ]
   );
-  const existingChannelRows = await db.query(
+  const existingChannelRows = await executor.query(
     `
     SELECT DISTINCT channel
     FROM ai_channel_conversations
@@ -1464,7 +1547,7 @@ export const updateAiSupportConversationState = async ({
     ...existingChannelRows.rows.map((row) => normalizeConversationChannel(row.channel || "")),
   ].map((value) => normalizeConversationChannel(value)).filter(Boolean))];
   for (const resolvedChannel of resolvedChannels) {
-    await db.query(
+    await executor.query(
       `
       INSERT INTO ai_channel_conversations (
         tenant_id,
@@ -1481,7 +1564,69 @@ export const updateAiSupportConversationState = async ({
       [safeTenantId, resolvedChannel, safeSessionId, safeEnabled]
     );
   }
-  return result.rows[0] || null;
+  return { state: result.rows[0] || null, previous: current.rows[0] || null };
+};
+
+export const updateAiSupportConversationState = async (options = {}) => {
+  const flags = getChannelGatewayFeatureFlags();
+  if (!flags.enabled || !flags.shadowMode) {
+    const result = await updateAiSupportConversationStateCore(options, db);
+    return result.state;
+  }
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await updateAiSupportConversationStateCore(options, client);
+    const state = result.state;
+    if (state?.id) {
+      const publisher = new ChannelOutboxPublisher({ executor: client, flags });
+      const tenantId = Number(state.tenant_id || options.tenantId);
+      const sessionId = String(state.session_id || options.sessionId);
+      const revision = new Date(state.updated_at || Date.now()).toISOString();
+      const payload = {
+        conversation_id: sessionId,
+        status: String(state.status || ''),
+        previous_status: String(result.previous?.status || ''),
+        channel: String(state.channel || options.channel || ''),
+        ai_enabled: state.ai_enabled !== false,
+        assigned_user_id: state.assigned_user_id || null,
+        assigned_user_name: String(state.assigned_user_name || ''),
+      };
+      const common = {
+        tenantId,
+        aggregateId: sessionId,
+        correlationId: sessionId,
+        source: 'erp-backend',
+        payload,
+      };
+      const publishConversation = result.previous
+        ? publisher.publishConversationUpdatedEvent.bind(publisher)
+        : publisher.publishConversationCreatedEvent.bind(publisher);
+      await publishConversation({
+        ...common,
+        eventId: stableEventUuid(`${tenantId}:conversation:${sessionId}:${result.previous ? 'updated' : 'created'}:${revision}`),
+      });
+      if (result.previous?.status !== state.status && ['human_takeover', 'ai_active'].includes(state.status)) {
+        await publisher.publishHumanTakeoverChangedEvent({
+          ...common,
+          eventId: stableEventUuid(`${tenantId}:conversation:${sessionId}:takeover:${state.status}:${revision}`),
+        });
+      }
+      if (options.assignedUserId !== undefined || options.assignedUserName !== undefined) {
+        await publisher.publishAssignmentChangedEvent({
+          ...common,
+          eventId: stableEventUuid(`${tenantId}:conversation:${sessionId}:assignment:${state.assigned_user_id || 'none'}:${revision}`),
+        });
+      }
+    }
+    await client.query('COMMIT');
+    return state;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const assignAiSupportConversation = async ({
@@ -1562,6 +1707,11 @@ export const appendManualAiSupportReply = async ({
   externalReplyId = "",
   preserveExactMessage = false,
   upsertSession = true,
+  channelConnectionId = "",
+  externalConversationId = "",
+  externalUsername = "",
+  externalDisplayName = "",
+  conversationFingerprint = "",
 } = {}) => {
   const safeTenantId = numberOrNull(tenantId);
   const safeSessionId = toText(sessionId);
@@ -1614,6 +1764,11 @@ export const appendManualAiSupportReply = async ({
     sourcePath: "manual_message_insert",
     insertSource: "manual_message_insert",
     staffMessage: safeMessage,
+    channelConnectionId,
+    externalConversationId,
+    externalUsername,
+    externalDisplayName,
+    conversationFingerprint,
   });
   console.info("[ai-support-insert]", {
     source: "ai_support_route",
@@ -2129,7 +2284,7 @@ export const completeAiInboxReplyLock = async ({
   return lock;
 };
 
-export const updateAiSupportMessageDeliveryStatus = async ({
+const updateAiSupportMessageDeliveryStatusCore = async ({
   tenantId,
   sessionId = "",
   providerMessageId = "",
@@ -2143,15 +2298,20 @@ export const updateAiSupportMessageDeliveryStatus = async ({
   resolvedPhone = "",
   sourcePath = "whatsapp_webhook",
   insertSource = "whatsapp_webhook",
-} = {}) => {
+} = {}, executor = db) => {
   const safeTenantId = numberOrNull(tenantId);
-  const safeSessionId = normalizeCanonicalWhatsappSessionId(sessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId) || toText(sessionId);
+  const rawSessionId = toText(sessionId);
+  const hasWhatsappIdentity = /^whatsapp:/i.test(rawSessionId)
+    || Boolean(toText(whatsappInstance || remoteJid || resolvedReplyJid || resolvedPhone));
+  const safeSessionId = hasWhatsappIdentity
+    ? (normalizeCanonicalWhatsappSessionId(rawSessionId, resolvedPhone || remoteJid || externalMessageId || providerMessageId) || rawSessionId)
+    : rawSessionId;
   const safeProviderMessageId = toText(providerMessageId || externalMessageId);
   if (!safeTenantId || !safeProviderMessageId) {
     return null;
   }
-  await ensureAiSupportLogSchema();
-  const result = await db.query(
+  await ensureAiSupportLogSchema(executor);
+  const result = await executor.query(
     `
     UPDATE ai_support_messages
     SET
@@ -2201,6 +2361,40 @@ export const updateAiSupportMessageDeliveryStatus = async ({
     ]
   );
   return result.rows[0] || null;
+};
+
+export const updateAiSupportMessageDeliveryStatus = async (options = {}) => {
+  const flags = getChannelGatewayFeatureFlags();
+  if (!flags.enabled || !flags.shadowMode) return updateAiSupportMessageDeliveryStatusCore(options, db);
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+    const row = await updateAiSupportMessageDeliveryStatusCore(options, client);
+    if (row?.id) {
+      const publisher = new ChannelOutboxPublisher({ executor: client, flags });
+      const tenantId = Number(row.tenant_id || options.tenantId);
+      const status = String(row.delivery_status || options.deliveryStatus || '');
+      await publisher.publishMessageStatusChangedEvent({
+        eventId: stableEventUuid(`${tenantId}:message:${row.id}:status:${status}`),
+        tenantId,
+        aggregateId: String(row.id),
+        correlationId: String(row.session_id || options.sessionId || ''),
+        causationId: String(options.providerMessageId || options.externalMessageId || ''),
+        source: 'erp-backend',
+        payload: messageEventPayload(row, {
+          ...options,
+          direction: row.sender_type === 'customer' ? 'inbound' : 'outbound',
+        }),
+      });
+    }
+    await client.query('COMMIT');
+    return row;
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
 };
 
 export const appendAutomationSupportTranscript = async ({

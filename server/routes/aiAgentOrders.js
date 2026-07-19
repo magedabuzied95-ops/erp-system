@@ -3149,6 +3149,43 @@ router.post("/inbox/:conversationId/private-message", protect, permit("settings"
       });
     }
 
+    const instagramPilotMatch = /^instagram:([^:]+):(.+)$/i.exec(conversationId);
+    const instagramBridgePilot = channel === "instagram"
+      && instagramPilotMatch
+      && ["1", "true", "yes", "on"].includes(String(process.env.INSTAGRAM_BRIDGE_ENABLED || "").toLowerCase())
+      && ["1", "true", "yes", "on"].includes(String(process.env.INSTAGRAM_BRIDGE_OUTBOUND_ENABLED || "").toLowerCase());
+    if (instagramBridgePilot) {
+      const idempotencyKey = envText(req.get("idempotency-key") || req.get("x-idempotency-key") || `instagram_manual:${tenantId}:${conversationId}:${Date.now()}`);
+      const message = await appendManualAiSupportReply({
+        tenantId,
+        sessionId: conversationId,
+        message: messageText,
+        staffUserId: req.user?.id || null,
+        staffUserName: userDisplayName(req.user),
+        source: "instagram_browser_bridge_manual",
+        channel: "instagram",
+        deliveryStatus: "queued",
+        clientRequestId: idempotencyKey,
+        idempotencyKey,
+        channelConnectionId: instagramPilotMatch[1],
+        externalConversationId: instagramPilotMatch[2],
+        externalUsername: envText(channelMetadata.external_username || channelMetadata.username || ""),
+        externalDisplayName: envText(conversation.customer_name || channelMetadata.external_display_name || ""),
+        conversationFingerprint: envText(channelMetadata.conversation_fingerprint || ""),
+        preserveExactMessage: true,
+      });
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: nowIso });
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: nowIso });
+      return res.status(202).json({
+        success: true,
+        sent: false,
+        queued: true,
+        delivery_status: "queued",
+        message,
+        channel_transport: "instagram_browser_bridge",
+      });
+    }
+
     const recipientId = envText(
       channelMetadata.customer_psid ||
         channelMetadata.sender_psid ||
@@ -3378,7 +3415,7 @@ router.post("/conversations/:conversationId/sync-messenger-profile", protect, pe
       conversationId,
       externalCustomerId: req.body?.external_customer_id || req.body?.psid || "",
     });
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000, messageLimit: 30 });
+    const inbox = await loadAiInbox({ tenantId, filter: "all", conversationId, limit: 1, messageLimit: 30 });
     const conversation = (inbox.conversations || []).find((item) => item.session_id === conversationId) || null;
     return res.json({ success: true, ...result, conversation });
   } catch (error) {
@@ -4134,7 +4171,7 @@ router.post("/conversations/:conversationId/create-draft-order", protect, permit
       conversation_id: conversationId,
       requested_product_id: req.body?.product_id || req.body?.product?.id || req.body?.product?.product_id || null,
     });
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
+    const inbox = await loadAiInbox({ tenantId, filter: "all", conversationId, limit: 1 });
     const conversation = inbox.conversations.find((item) =>
       item.session_id === conversationId ||
       item.external_conversation_id === conversationId ||
@@ -4663,7 +4700,13 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       item.external_customer_id === conversationId ||
       item.conversation_key === conversationId
     ) || null;
-    let inbox = await loadAiInbox({ tenantId, filter: "all", search: conversationId, limit: 50 });
+    const inbox = await loadAiInbox({
+      tenantId,
+      filter: "all",
+      conversationId,
+      limit: 1,
+      messageLimit: 30,
+    });
     console.info("[ai-inbox:send-route]", {
       stage: "load_ai_inbox_done",
       tenant_id: tenantId,
@@ -4671,16 +4714,6 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       loaded_count: inbox.conversations.length,
     });
     conversation = findConversation(inbox.conversations);
-    if (!conversation) {
-      console.info("[ai-inbox:send-route]", {
-        stage: "targeted_lookup_miss",
-        tenant_id: tenantId,
-        conversation_id: conversationId,
-        loaded_count: inbox.conversations.length,
-      });
-      inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
-      conversation = findConversation(inbox.conversations);
-    }
     perfLog("ai_inbox_send_session_lookup", {
       tenant_id: tenantId,
       conversation_id: conversationId,
@@ -4713,6 +4746,45 @@ router.post("/conversations/:conversationId/send", protect, permit("settings", "
       throw Object.assign(new Error("Live sending is only available for WhatsApp, Messenger, and Instagram DM conversations."), {
         status: 409,
         code: "CHANNEL_SEND_UNAVAILABLE",
+      });
+    }
+    const instagramPilotMatch = /^instagram:([^:]+):(.+)$/i.exec(conversationId);
+    const instagramBridgePilot = normalizedChannel === AI_AGENT_CHANNELS.INSTAGRAM
+      && instagramPilotMatch
+      && ["1", "true", "yes", "on"].includes(String(process.env.CHANNEL_GATEWAY_ENABLED || "").toLowerCase())
+      && ["1", "true", "yes", "on"].includes(String(process.env.CHANNEL_GATEWAY_OUTBOUND_ENABLED || "").toLowerCase())
+      && ["1", "true", "yes", "on"].includes(String(process.env.INSTAGRAM_BRIDGE_ENABLED || "").toLowerCase())
+      && ["1", "true", "yes", "on"].includes(String(process.env.INSTAGRAM_BRIDGE_OUTBOUND_ENABLED || "").toLowerCase());
+    if (instagramBridgePilot) {
+      const idempotencyKey = envText(req.get("idempotency-key") || req.get("x-idempotency-key") || requestClientRequestId(req) || `instagram_manual:${tenantId}:${conversationId}:${Date.now()}`);
+      const message = await appendManualAiSupportReply({
+        tenantId,
+        sessionId: conversationId,
+        message: messageText,
+        staffUserId: req.user?.id || null,
+        staffUserName: userDisplayName(req.user),
+        source: "instagram_browser_bridge_manual",
+        channel: "instagram",
+        deliveryStatus: "queued",
+        clientRequestId: idempotencyKey,
+        idempotencyKey,
+        channelConnectionId: instagramPilotMatch[1],
+        externalConversationId: instagramPilotMatch[2],
+        externalUsername: envText(channelMetadata.external_username || channelMetadata.username || ""),
+        externalDisplayName: envText(conversation.customer_name || channelMetadata.external_display_name || ""),
+        conversationFingerprint: envText(channelMetadata.conversation_fingerprint || ""),
+        preserveExactMessage: true,
+      });
+      const emittedAt = new Date().toISOString();
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:message", { tenant_id: tenantId, session_id: conversationId, message, at: emittedAt });
+      emitToRooms([`tenant:${tenantId}`], "ai_inbox:refresh", { tenant_id: tenantId, session_id: conversationId, at: emittedAt });
+      return res.status(202).json({
+        success: true,
+        sent: false,
+        queued: true,
+        delivery_status: "queued",
+        message,
+        channel_transport: "instagram_browser_bridge",
       });
     }
     if (!recipientId) {
@@ -5296,7 +5368,7 @@ router.post("/conversations/:conversationId/test-meta-send", protect, permit("se
   const outboundTestMessage = "\u0627\u062e\u062a\u0628\u0627\u0631 \u0625\u0631\u0633\u0627\u0644 \u0645\u0646 \u0627\u0644\u0633\u064a\u0633\u062a\u0645 \u2705";
   let conversation = null;
   try {
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000 });
+    const inbox = await loadAiInbox({ tenantId, filter: "all", conversationId, limit: 1 });
     conversation = inbox.conversations.find((item) =>
       item.session_id === conversationId ||
       item.external_conversation_id === conversationId ||
@@ -5402,7 +5474,7 @@ router.post("/conversations/:conversationId/force-send-last-ai-reply", protect, 
   const conversationId = decodeRouteId(req.params.conversationId);
   let conversation = null;
   try {
-    const inbox = await loadAiInbox({ tenantId, filter: "all", limit: 1000, messageLimit: 50 });
+    const inbox = await loadAiInbox({ tenantId, filter: "all", conversationId, limit: 1, messageLimit: 50 });
     conversation = inbox.conversations.find((item) =>
       item.session_id === conversationId ||
       item.external_conversation_id === conversationId ||
