@@ -11,7 +11,7 @@ const sign = ({ secret, timestamp, nonce, method, path, rawBody = '' }) => creat
   .update([timestamp, nonce, method.toUpperCase(), path, digest(rawBody)].join('.'))
   .digest('hex');
 
-async function gatewayRequest(path, { method = 'GET', body = null } = {}) {
+async function gatewayRequest(path, { method = 'GET', body = null, timeoutMs = 10_000 } = {}) {
   const secret = gatewaySecret();
   if (!secret) throw Object.assign(new Error('Channel Gateway admin authentication is not configured'), { code: 'GATEWAY_AUTH_NOT_CONFIGURED', status: 503 });
   const rawBody = body == null ? '' : JSON.stringify(body);
@@ -26,7 +26,7 @@ async function gatewayRequest(path, { method = 'GET', body = null } = {}) {
       'x-m1-signature': sign({ secret, timestamp, nonce, method, path, rawBody }),
     },
     body: rawBody || undefined,
-    signal: AbortSignal.timeout(10_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw Object.assign(new Error(payload.error || `Channel Gateway returned ${response.status}`), {
@@ -65,17 +65,17 @@ export async function getInstagramBridgeAdminStatus({ tenantId = null } = {}) {
 export async function disableInstagramBridge() {
   const id = connectionId();
   if (!id) throw Object.assign(new Error('Instagram connection is not configured'), { code: 'CONNECTION_NOT_CONFIGURED', status: 409 });
-  const bridge = await gatewayRequest(`/v1/connections/${encodeURIComponent(id)}/pause`, { method: 'POST' });
+  const bridge = await gatewayRequest(`/v1/connections/${encodeURIComponent(id)}/pause`, { method: 'POST', timeoutMs: 30_000 });
   return { disabled: true, inbound: 'stopped', outbound: 'stopped', recovery: 'stopped', live_watch: 'stopped', bridge };
 }
 
 export async function enableInstagramBridge() {
   const id = connectionId();
   if (!id) throw Object.assign(new Error('Instagram connection is not configured'), { code: 'CONNECTION_NOT_CONFIGURED', status: 409 });
-  const bridge = await gatewayRequest(`/v1/connections/${encodeURIComponent(id)}/resume`, { method: 'POST' });
+  const bridge = await gatewayRequest(`/v1/connections/${encodeURIComponent(id)}/resume`, { method: 'POST', timeoutMs: 180_000 });
   const currentAccount = text(bridge?.current_connected_account).replace(/^@/, '').toLowerCase();
   if (bridge?.test_account_verified !== true || currentAccount !== expectedAccount()) {
-    await gatewayRequest(`/v1/connections/${encodeURIComponent(id)}/pause`, { method: 'POST' }).catch(() => {});
+    await gatewayRequest(`/v1/connections/${encodeURIComponent(id)}/pause`, { method: 'POST', timeoutMs: 30_000 }).catch(() => {});
     throw Object.assign(new Error('Instagram test account verification failed; bridge remains disabled'), { code: 'TEST_ACCOUNT_VERIFICATION_FAILED', status: 409 });
   }
   return { enabled: true, bridge };

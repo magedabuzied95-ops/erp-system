@@ -72,3 +72,10 @@ test('ERP inbound authentication prefers its dedicated shared secret', async () 
   const source = await readFile(new URL('../server/middleware/channelGatewayAuth.js', import.meta.url), 'utf8');
   assert.match(source, /ERP_CHANNEL_GATEWAY_HMAC_SECRET\s*\|\|\s*process\.env\.CHANNEL_GATEWAY_HMAC_SECRET/);
 });
+
+test('admin resume allows a bounded browser startup without weakening normal request timeouts', async () => {
+  const source = await readFile(serviceUrl, 'utf8');
+  assert.match(source, /timeoutMs = 10_000/);
+  assert.match(source, /\/resume`, \{ method: 'POST', timeoutMs: 180_000 \}/);
+  assert.match(source, /AbortSignal\.timeout\(timeoutMs\)/);
+});
