@@ -5,7 +5,7 @@ const digest = (body = '') => createHash('sha256').update(Buffer.isBuffer(body) 
 const expectedSignature = ({ secret, timestamp, nonce, method, path, rawBody }) => createHmac('sha256', secret).update([timestamp, nonce, method.toUpperCase(), path, digest(rawBody)].join('.')).digest('hex');
 
 export async function channelGatewayAuth(req, res, next) {
-  const secret = String(process.env.CHANNEL_GATEWAY_HMAC_SECRET || '');
+  const secret = String(process.env.ERP_CHANNEL_GATEWAY_HMAC_SECRET || process.env.CHANNEL_GATEWAY_HMAC_SECRET || '');
   if (!secret) return res.status(503).json({ error: 'gateway_auth_not_configured' });
   const timestamp = req.get('x-m1-timestamp'); const nonce = req.get('x-m1-nonce'); const actual = req.get('x-m1-signature') || '';
   if (!nonce || !Number.isFinite(Number(timestamp)) || Math.abs(Date.now() - Number(timestamp)) > 300_000) return res.status(401).json({ error: 'timestamp_or_nonce_invalid' });

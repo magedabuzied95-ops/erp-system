@@ -27,7 +27,7 @@ export function createApp({ bridge, config, logger = console }) {
   });
   const internal = express.Router(); internal.use(createBridgeAuth({ secret: config.bridgeHmacSecret }));
   internal.get('/health', async (_req, res) => res.json(await bridge.getHealth()));
-  internal.post('/sync', async (_req, res, next) => { try { res.json(await bridge.recoverySync()); } catch (error) { next(error); } });
+  internal.post('/sync', async (_req, res, next) => { try { res.json(await bridge.forceRecoverySync()); } catch (error) { next(error); } });
   internal.post('/pause', async (_req, res) => res.json(await bridge.pause()));
   internal.post('/resume', async (_req, res, next) => { try { res.json(await bridge.resume()); } catch (error) { next(error); } });
   internal.post('/restart', async (_req, res, next) => { try { res.json(await bridge.restart()); } catch (error) { next(error); } });

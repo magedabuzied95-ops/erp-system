@@ -157,6 +157,16 @@ test('manual outbound waits for live browser navigation before verifying the tar
   assert.ok(Date.now() - startedAt >= 25);
 });
 
+test('manual recovery waits for an active scheduled browser operation', async () => {
+  const { bridge } = fixture();
+  bridge.browserOperationInFlight = true;
+  setTimeout(() => { bridge.browserOperationInFlight = false; }, 30);
+  const startedAt = Date.now();
+  const result = await bridge.forceRecoverySync();
+  assert.equal(result.scanned, 1);
+  assert.ok(Date.now() - startedAt >= 25);
+});
+
 test('recovery sync revisits known conversations even when inbox discovery omits them', async () => {
   const message = { text: 'Known thread update', direction: 'incoming', externalMessageId: 'known-1', sentAt: '2026-07-18T10:00:00Z' };
   const { bridge, state, imported } = fixture({ messages: [message] });

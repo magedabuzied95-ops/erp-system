@@ -180,6 +180,13 @@ export class InstagramBridge {
     }
     return { scanned: conversations.length, reconciled: reconciled.length };
   }
+  async forceRecoverySync() {
+    return this.withExclusiveBrowserOperation(
+      () => this.recoverySync(),
+      180_000,
+      { preemptAfterMs: 15_000 },
+    );
+  }
   async sendText(externalConversationId, text, options = {}) {
     if (!this.config.outboundEnabled) throw Object.assign(new Error('Instagram outbound is disabled'), { code: 'OUTBOUND_DISABLED' });
     if (options.ai_generated || options.sender_type === 'ai' || options.ai_auto_send) throw Object.assign(new Error('AI auto-send is forbidden in pilot'), { code: 'AI_AUTO_SEND_FORBIDDEN' });

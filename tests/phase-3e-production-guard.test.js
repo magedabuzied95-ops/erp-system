@@ -67,3 +67,8 @@ test('AI Channels contains a visible test label and an immediate Instagram kill 
   assert.match(source, /Disable Instagram Bridge/);
   assert.match(source, /channel-gateway-admin\/instagram\/\$\{enabled \? "enable" : "disable"\}/);
 });
+
+test('ERP inbound authentication prefers its dedicated shared secret', async () => {
+  const source = await readFile(new URL('../server/middleware/channelGatewayAuth.js', import.meta.url), 'utf8');
+  assert.match(source, /ERP_CHANNEL_GATEWAY_HMAC_SECRET\s*\|\|\s*process\.env\.CHANNEL_GATEWAY_HMAC_SECRET/);
+});
