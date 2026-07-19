@@ -1,4 +1,4 @@
-export const SELECTOR_VERSION = 'instagram-web-2026.07-pilot.2';
+export const SELECTOR_VERSION = 'instagram-web-2026.07-pilot.3';
 
 const entry = (primary, fallbacks, validate = async (locator) => (await locator.count()) > 0) =>
   Object.freeze({ primary, fallbacks: Object.freeze(fallbacks), version: SELECTOR_VERSION, validate });

@@ -143,7 +143,7 @@ export class InstagramPlaywrightDriver {
     if (limit <= 0) return [];
     // Keep each tab scan bounded so manual outbound cannot be starved behind a
     // long Primary + General + Requests discovery sweep.
-    const deadline = Date.now() + 8_000;
+    const deadline = Date.now() + Math.max(15_000, limit * 7_000);
     await this.page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 10_000 });
     await this.page.waitForTimeout(2_500);
     const activateTab = async () => {
@@ -164,6 +164,12 @@ export class InstagramPlaywrightDriver {
       let target = null; let preview = '';
       for (let index = 0; index < count; index += 1) {
         const candidate = buttons.nth(index);
+        const box = await candidate.boundingBox().catch(() => null);
+        // The inbox header and "Your note" avatar also match :has(img), but
+        // conversation rows span most of the left rail. Restrict discovery to
+        // row-sized controls so those decorative controls cannot consume the
+        // bounded scan window before real threads are opened.
+        if (!box || box.width < 180 || box.height < 40) continue;
         const candidatePreview = (await candidate.innerText({ timeout: 1_000 }).catch(() => '')).trim().slice(0, 200);
         const imageSource = await candidate.locator('img').first().getAttribute('src', { timeout: 1_000 }).catch(() => '');
         const stableLabel = candidatePreview.split('\n')[0] || imageSource || String(index);
@@ -179,6 +185,7 @@ export class InstagramPlaywrightDriver {
         continue;
       }
       await this.page.waitForTimeout(1_500);
+      await this.page.waitForURL(/\/direct\/t\//, { timeout: 4_500 }).catch(() => {});
       const url = this.page.url();
       const threadId = extractThreadId(url);
       if (threadId) conversations.push({ url, threadId, preview });
