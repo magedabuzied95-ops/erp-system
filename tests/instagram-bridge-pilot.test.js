@@ -73,6 +73,13 @@ test('outbound confirmation falls back to the existing canonical conversation ma
   assert.match(queue, /resolvedInternalConversationId, JSON\.stringify\(payload\)/);
 });
 
+test('accepted inbound responses persist the ERP conversation id back into the channel map', async () => {
+  const worker = await read('../services/m1-channel-gateway/src/worker/ErpInboundOutboxWorker.js');
+  assert.match(worker, /payload\.conversation_id/);
+  assert.match(worker, /UPDATE channel_conversation_map/);
+  assert.match(worker, /internal_conversation_id = COALESCE\(internal_conversation_id, \$3\)/);
+});
+
 test('Docker pilot is opt-in, has no public port, and preserves profile volumes', async () => {
   const compose = await read('../services/m1-channel-gateway/docker-compose.example.yml');
   const block = compose.slice(compose.indexOf('instagram-bridge:'), compose.indexOf('\n  redis:'));

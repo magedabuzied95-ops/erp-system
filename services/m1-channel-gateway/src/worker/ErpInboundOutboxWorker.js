@@ -36,6 +36,13 @@ export class ErpInboundOutboxWorker {
       const response = await this.fetch(`${this.baseUrl}${path}`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-m1-timestamp': timestamp, 'x-m1-nonce': nonce, 'x-m1-signature': signGatewayRequest({ secret: this.secret, timestamp, nonce, method: 'POST', path, rawBody }) }, body: rawBody });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw Object.assign(new Error(payload.error || `ERP ${response.status}`), { code: payload.error || 'ERP_INBOUND_FAILED' });
+      if (event.event_type === 'channel.message.accepted' && payload.conversation_id) {
+        await this.pool.query(`
+          UPDATE channel_conversation_map
+          SET internal_conversation_id = COALESCE(internal_conversation_id, $3), updated_at = NOW()
+          WHERE connection_id = $1 AND external_conversation_id = $2
+        `, [event.delivery_payload?.connection_id, event.delivery_payload?.external_conversation_id, payload.conversation_id]);
+      }
       await this.pool.query(`UPDATE channel_gateway_outbox_events SET status='published', published_at=NOW(), locked_by=NULL, locked_at=NULL, last_error=NULL, updated_at=NOW() WHERE id=$1 AND locked_by=$2`, [event.id, this.workerId]);
       this.logger.info('erp_channel_event.published', { event_id: event.event_key, event_type: event.event_type });
     } catch (error) {
