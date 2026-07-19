@@ -7,6 +7,14 @@ import { emitToRooms } from '../utils/socket.js';
 const router = express.Router();
 const enabled = (value) => ['1', 'true', 'yes', 'on'].includes(String(value || '').toLowerCase());
 const text = (value = '') => String(value ?? '').trim();
+const accountName = (value = '') => text(value).replace(/^@/, '').toLowerCase();
+const instagramCustomerName = (event = {}) => {
+  const connectedAccount = accountName(process.env.INSTAGRAM_EXPECTED_USERNAME || 'm.one.store.pro');
+  const displayName = text(event.metadata?.external_display_name);
+  const displayAccount = accountName(displayName);
+  if (displayName && (!connectedAccount || displayAccount !== connectedAccount)) return displayName;
+  return text(event.metadata?.external_username || event.sender_id);
+};
 
 router.post('/inbound', channelGatewayAuth, async (req, res, next) => {
   try {
@@ -20,7 +28,7 @@ router.post('/inbound', channelGatewayAuth, async (req, res, next) => {
     const sessionId = `instagram:${text(event.connection_id)}:${externalConversationId}`;
     const message = await appendInboundAiSupportMessage({
       tenantId, sessionId, message: event.text, channel: 'instagram', messageType: 'text',
-      customerName: text(event.metadata?.external_display_name || event.metadata?.external_username || event.sender_id),
+      customerName: instagramCustomerName(event),
       deliveryStatus: 'received', externalMessageId: event.external_message_id,
       providerMessageId: event.external_message_id, source: 'instagram_browser_bridge',
       sourcePath: 'channel_gateway', insertSource: 'instagram_browser_bridge',

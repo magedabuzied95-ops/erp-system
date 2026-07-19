@@ -11,6 +11,19 @@ test('conversation identity prefers thread id and records confidence', () => {
   assert.equal(identity.external_conversation_id, '12345'); assert.equal(identity.external_username, 'user_a'); assert.equal(identity.identity_confidence, 'high'); assert.equal(identity.conversation_fingerprint.length, 64);
 });
 
+test('conversation identity never uses the connected account as the customer display name', () => {
+  const identity = buildConversationIdentity({
+    threadId: '12345',
+    externalUsername: '_omar__ayoub_',
+    headerIdentity: 'm.one.store.pro',
+    externalDisplayName: 'm.one.store.pro',
+    connectedAccountUsername: 'm.one.store.pro',
+    channelAccountId: 'instagram-test-account',
+  });
+  assert.equal(identity.external_username, '_omar__ayoub_');
+  assert.equal(identity.external_display_name, '_omar__ayoub_');
+});
+
 test('two customers cannot collapse into one conversation', () => {
   const a = buildConversationIdentity({ threadId: 'a', externalUsername: 'user_a', headerIdentity: 'User A', channelAccountId: 'instagram-test-account' });
   const b = buildConversationIdentity({ threadId: 'b', externalUsername: 'user_b', headerIdentity: 'User B', channelAccountId: 'instagram-test-account' });

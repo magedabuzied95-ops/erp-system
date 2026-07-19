@@ -216,6 +216,7 @@ export class InstagramPlaywrightDriver {
       url: this.page.url(), threadId: extractThreadId(this.page.url()),
       externalUsername: String(username || '').replaceAll('/', ''), headerIdentity: header,
       externalDisplayName: header, channelAccountId: this.config.channelAccountId,
+      connectedAccountUsername: this.config.expectedUsername,
       channelConnectionId: this.config.connectionId,
     });
   }

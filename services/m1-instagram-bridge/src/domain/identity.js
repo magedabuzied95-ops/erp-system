@@ -8,6 +8,12 @@ export function buildConversationIdentity(input = {}) {
   const username = clean(input.externalUsername).replace(/^@/, '');
   const header = clean(input.headerIdentity);
   const account = clean(input.channelAccountId);
+  const connectedAccount = clean(input.connectedAccountUsername || input.expectedUsername).replace(/^@/, '');
+  const displayName = String(input.externalDisplayName || input.headerIdentity || '').trim();
+  const cleanDisplayName = clean(displayName).replace(/^@/, '');
+  const externalDisplayName = connectedAccount && cleanDisplayName === connectedAccount
+    ? username
+    : displayName;
   const externalConversationId = threadId || (username && `ig-user:${username}`) || '';
   const confidence = threadId && username ? 'high' : threadId || (username && header) ? 'medium' : 'low';
   return {
@@ -15,7 +21,7 @@ export function buildConversationIdentity(input = {}) {
     external_conversation_id: externalConversationId || `ig-fingerprint:${sha256([account, username, header].join('|')).slice(0, 32)}`,
     external_customer_id: clean(input.externalCustomerId) || (username ? `ig-user:${username}` : ''),
     external_username: username,
-    external_display_name: String(input.externalDisplayName || input.headerIdentity || '').trim(),
+    external_display_name: externalDisplayName,
     conversation_fingerprint: sha256([account, threadId, username, header].join('|')),
     identity_confidence: confidence,
     last_verified_at: new Date(input.verifiedAt || Date.now()).toISOString(),

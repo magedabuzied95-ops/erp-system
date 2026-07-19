@@ -33,6 +33,13 @@ test('Instagram inbound remains accepted when optional AI draft generation is un
   assert.match(route, /draft_error_code: draftErrorCode/);
 });
 
+test('Instagram inbound does not display the connected account as the customer name', async () => {
+  const route = await read('../server/routes/channelGatewayInternal.js');
+  assert.match(route, /const instagramCustomerName = \(event = \{\}\) =>/);
+  assert.match(route, /process\.env\.INSTAGRAM_EXPECTED_USERNAME/);
+  assert.match(route, /customerName: instagramCustomerName\(event\)/);
+});
+
 test('manual Instagram reply is queued without calling the official Meta send path', async () => {
   const route = await read('../server/routes/aiAgentOrders.js');
   const branchStarts = [...route.matchAll(/const instagramPilotMatch/g)].map((match) => match.index);
