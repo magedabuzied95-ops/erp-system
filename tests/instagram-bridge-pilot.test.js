@@ -66,6 +66,13 @@ test('Instagram delivery status preserves its canonical non-WhatsApp session id'
   assert.match(update, /: rawSessionId/);
 });
 
+test('outbound confirmation falls back to the existing canonical conversation map', async () => {
+  const queue = await read('../services/m1-channel-gateway/src/queue/PostgresOutboundQueue.js');
+  assert.match(queue, /SELECT internal_conversation_id\s+FROM channel_conversation_map/);
+  assert.match(queue, /resolvedInternalConversationId/);
+  assert.match(queue, /resolvedInternalConversationId, JSON\.stringify\(payload\)/);
+});
+
 test('Docker pilot is opt-in, has no public port, and preserves profile volumes', async () => {
   const compose = await read('../services/m1-channel-gateway/docker-compose.example.yml');
   const block = compose.slice(compose.indexOf('instagram-bridge:'), compose.indexOf('\n  redis:'));

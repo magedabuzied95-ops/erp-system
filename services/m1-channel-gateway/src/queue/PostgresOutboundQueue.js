@@ -45,6 +45,15 @@ export class PostgresOutboundQueue {
           internal_conversation_id = COALESCE(channel_conversation_map.internal_conversation_id, EXCLUDED.internal_conversation_id),
           updated_at = NOW()
       `, [tenantId, connectionId, externalConversationId, internalConversationId]);
+      const mappedConversation = await client.query(`
+        SELECT internal_conversation_id
+        FROM channel_conversation_map
+        WHERE connection_id = $1 AND external_conversation_id = $2
+        LIMIT 1
+      `, [connectionId, externalConversationId]);
+      const resolvedInternalConversationId = internalConversationId
+        || mappedConversation.rows[0]?.internal_conversation_id
+        || null;
       const inserted = await client.query(`
         INSERT INTO outbound_message_jobs (
           job_key, idempotency_key, tenant_id, connection_id, external_conversation_id,
@@ -53,7 +62,7 @@ export class PostgresOutboundQueue {
         ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
         RETURNING *
       `, [jobKey, idempotencyKey, tenantId, connectionId, externalConversationId,
-        internalConversationId, JSON.stringify(payload), priority, maxAttempts]);
+        resolvedInternalConversationId, JSON.stringify(payload), priority, maxAttempts]);
 
       if (inserted.rowCount) return { job: row(inserted), duplicate: false };
       const existing = await client.query(
