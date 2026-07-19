@@ -24,6 +24,15 @@ test('Instagram AI path creates draft and never invokes outbound send', async ()
   assert.doesNotMatch(route, /appendAiGeneratedSupportReply|sendText|sendMessage|auto.?send/i);
 });
 
+test('Instagram inbound remains accepted when optional AI draft generation is unavailable', async () => {
+  const route = await read('../server/routes/channelGatewayInternal.js');
+  const draftCall = route.indexOf('draft = await generateAiInboxReply');
+  const acceptedResponse = route.indexOf('accepted: true', draftCall);
+  assert.ok(draftCall > 0 && acceptedResponse > draftCall);
+  assert.match(route.slice(draftCall - 100, acceptedResponse), /catch \(error\)/);
+  assert.match(route, /draft_error_code: draftErrorCode/);
+});
+
 test('manual Instagram reply is queued without calling the official Meta send path', async () => {
   const route = await read('../server/routes/aiAgentOrders.js');
   const branchStarts = [...route.matchAll(/const instagramPilotMatch/g)].map((match) => match.index);

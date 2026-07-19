@@ -26,13 +26,30 @@ router.post('/inbound', channelGatewayAuth, async (req, res, next) => {
       sourcePath: 'channel_gateway', insertSource: 'instagram_browser_bridge',
     });
     let draft = null;
+    let draftErrorCode = null;
     if (String(process.env.INSTAGRAM_AI_MODE || 'draft_only').toLowerCase() === 'draft_only') {
-      draft = await generateAiInboxReply({ tenantId, conversationId: sessionId, persist: true });
+      try {
+        draft = await generateAiInboxReply({ tenantId, conversationId: sessionId, persist: true });
+      } catch (error) {
+        draftErrorCode = text(error?.code || 'ai_draft_unavailable');
+        console.warn('instagram_gateway.ai_draft_skipped', {
+          tenant_id: tenantId,
+          conversation_id: sessionId,
+          error_code: draftErrorCode,
+        });
+      }
     }
     const at = new Date().toISOString();
     emitToRooms([`tenant:${tenantId}`], 'ai_inbox:message', { tenant_id: tenantId, session_id: sessionId, message, at });
     emitToRooms([`tenant:${tenantId}`], 'ai_inbox:refresh', { tenant_id: tenantId, session_id: sessionId, at });
-    return res.status(202).json({ accepted: true, internal_message_id: message?.id || null, conversation_id: sessionId, ai_mode: 'draft_only', draft_created: Boolean(draft) });
+    return res.status(202).json({
+      accepted: true,
+      internal_message_id: message?.id || null,
+      conversation_id: sessionId,
+      ai_mode: 'draft_only',
+      draft_created: Boolean(draft),
+      draft_error_code: draftErrorCode,
+    });
   } catch (error) { return next(error); }
 });
 
