@@ -27,7 +27,7 @@ export function inferInstagramMessageDirection({ aria = '', layout = [] } = {}) 
 export class InstagramPlaywrightDriver {
   constructor({ config, diagnostics, safety }) {
     this.config = config; this.diagnostics = diagnostics; this.safety = safety;
-    this.context = null; this.page = null; this.browserRunning = false;
+    this.context = null; this.page = null; this.browserRunning = false; this.verifiedAccountUsername = '';
   }
   async connect({ headed = false } = {}) {
     if (this.context) return this.getHealthProbe();
@@ -45,7 +45,7 @@ export class InstagramPlaywrightDriver {
     this.page = this.context.pages()[0] || await this.context.newPage();
     return this.getHealthProbe();
   }
-  async disconnect() { await this.context?.close(); this.browserRunning = false; this.context = null; this.page = null; }
+  async disconnect() { await this.context?.close(); this.browserRunning = false; this.context = null; this.page = null; this.verifiedAccountUsername = ''; }
   async restoreStorageState() {
     if (!this.config.storageStatePath || !this.context) return false;
     try {
@@ -83,7 +83,13 @@ export class InstagramPlaywrightDriver {
     const expected = String(this.config.expectedUsername || '').trim().replace(/^@/, '').toLowerCase();
     if (!expected) return '';
     const exactProfileLink = this.page.locator(`a[href="/${expected}/"], a[href="/${expected}"]`).first();
-    return await exactProfileLink.count().catch(() => 0) ? expected : '';
+    if (await exactProfileLink.count().catch(() => 0)) return expected;
+    if (/\/direct\//.test(this.page.url())) {
+      const exactHeaderText = this.page.getByText(expected, { exact: true }).first();
+      const box = await exactHeaderText.boundingBox().catch(() => null);
+      if (box && box.y < 180) return expected;
+    }
+    return '';
   }
   async assertExpectedAccount() {
     const expected = String(this.config.expectedUsername || '').trim().replace(/^@/, '').toLowerCase();
@@ -95,6 +101,7 @@ export class InstagramPlaywrightDriver {
         currentUsername: current || 'unverified',
       });
     }
+    this.verifiedAccountUsername = current;
     return { expected, current, verified: true };
   }
   async detectSession() {
@@ -295,7 +302,10 @@ export class InstagramPlaywrightDriver {
   async reopenInboxTab() { if (this.page) await this.page.close().catch(() => {}); this.page = await this.context.newPage(); await this.openInbox(); }
   async getHealthProbe() {
     const session = this.page ? await this.detectSession().catch(() => 'unknown') : 'unknown';
-    const currentAccountUsername = session === 'authenticated' ? await this.currentAccountUsername().catch(() => '') : '';
+    if (session !== 'authenticated') this.verifiedAccountUsername = '';
+    const currentAccountUsername = session === 'authenticated'
+      ? ((await this.currentAccountUsername().catch(() => '')) || this.verifiedAccountUsername)
+      : '';
     return { browserRunning: this.browserRunning, authenticated: session === 'authenticated', session, inboxLoaded: /\/direct\//.test(this.page?.url?.() || ''), selectorVersion: SELECTOR_VERSION, currentAccountUsername };
   }
   async memoryUsageMb() { const usage = process.memoryUsage(); return Math.round(usage.rss / 1024 / 1024); }

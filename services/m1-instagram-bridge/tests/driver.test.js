@@ -7,10 +7,11 @@ test('connected account guard accepts only the configured test profile link', as
     config: { expectedUsername: 'm.one.store.pro' }, diagnostics: null, safety: { beforeConversationOpen: async () => {} },
   });
   driver.ensurePage = async () => {};
-  driver.page = { locator: (selector) => ({ first: () => ({ count: async () => selector.includes('/m.one.store.pro/') ? 1 : 0 }) }) };
+  driver.page = { url: () => 'https://www.instagram.com/direct/inbox/', locator: (selector) => ({ first: () => ({ count: async () => selector.includes('/m.one.store.pro/') ? 1 : 0 }) }) };
   assert.deepEqual(await driver.assertExpectedAccount(), { expected: 'm.one.store.pro', current: 'm.one.store.pro', verified: true });
+  assert.equal(driver.verifiedAccountUsername, 'm.one.store.pro');
 
-  driver.page = { locator: () => ({ first: () => ({ count: async () => 0 }) }) };
+  driver.page = { url: () => 'https://www.instagram.com/direct/inbox/', locator: () => ({ first: () => ({ count: async () => 0 }) }), getByText: () => ({ first: () => ({ boundingBox: async () => null }) }) };
   await assert.rejects(() => driver.assertExpectedAccount(), (error) => error.code === 'ACCOUNT_IDENTITY_MISMATCH' && error.currentUsername === 'unverified');
 });
 
