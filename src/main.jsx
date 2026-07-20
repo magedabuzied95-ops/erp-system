@@ -15,6 +15,7 @@ import { BrowserRouter, Route, Routes } from "react-router-dom";
 ====================================================== */
 
 import LocalizedToaster from "./shared/components/LocalizedToaster.jsx";
+import MetaPageTracker from "./shared/components/MetaPageTracker.jsx";
 
 const clearStaleApiOverrides = () => {
   if (typeof window === "undefined") return;
@@ -68,6 +69,7 @@ const clearStaleApiOverrides = () => {
 clearStaleApiOverrides();
 installChunkLoadRecovery();
 
+
 if (import.meta.env.DEV) {
   console.debug("[runtime] resolved URLs", {
     apiBaseUrl: API_BASE_URL,
@@ -106,6 +108,7 @@ if (isEmployeeAppRoute) {
     root.render(
       <ThemeProvider>
         <BrowserRouter>
+          <MetaPageTracker />
 
           {/* ======================================================
              APP
