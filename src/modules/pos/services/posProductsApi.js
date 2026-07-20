@@ -87,6 +87,12 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
       row.articleCode ??
       row.variant_article_code ??
       row.variantArticleCode ??
+      row.color_article_code ??
+      row.colorArticleCode ??
+      sourceProduct.article_code ??
+      sourceProduct.articleCode ??
+      sourceProduct.color_article_code ??
+      sourceProduct.colorArticleCode ??
       row.model_code ??
       row.modelCode ??
       row.factory_model ??
@@ -187,6 +193,7 @@ const normalizeVariant = (row = {}, sourceProduct = row, saleModeSettings = {}) 
     qr_token: qrToken,
     qrToken,
     article_code: articleCode,
+    articleCode,
     color_article_code: colorArticleCode,
     colorArticleCode,
     image_url: imageUrl,
@@ -275,6 +282,16 @@ const buildProductFromVariants = (productSeed, variants) => {
   const matchedArticle = normalizeText(productSeed.matched_article ?? productSeed.matchedArticle ?? "");
   const matchedSku = normalizeText(productSeed.matched_sku ?? productSeed.matchedSku ?? "");
   const searchMatchType = normalizeText(productSeed.search_match_type ?? productSeed.searchMatchType ?? "");
+  const productArticleCode = pickFirstText(
+    productSeed.article_code,
+    productSeed.articleCode,
+    productSeed.color_article_code,
+    productSeed.colorArticleCode,
+    variants.find((variant) => variant.article_code)?.article_code,
+    variants.find((variant) => variant.articleCode)?.articleCode,
+    variants.find((variant) => variant.color_article_code)?.color_article_code,
+    variants.find((variant) => variant.colorArticleCode)?.colorArticleCode
+  );
   const offerFlags = {
     is_offer_story: shouldForceSalePriceForPos(productSeed) || variants.some((variant) => shouldForceSalePriceForPos(variant)),
     isOfferStory: shouldForceSalePriceForPos(productSeed) || variants.some((variant) => shouldForceSalePriceForPos(variant)),
@@ -341,6 +358,8 @@ const buildProductFromVariants = (productSeed, variants) => {
     stock: variants.reduce((sum, variant) => sum + Number(variant.stock_quantity ?? variant.stock ?? 0), 0),
     sku: variants.find((variant) => variant.sku)?.sku || normalizeText(productSeed.sku ?? productSeed.product_sku),
     barcode: variants.find((variant) => variant.barcode)?.barcode || normalizeText(productSeed.barcode ?? productSeed.product_barcode),
+    article_code: productArticleCode,
+    articleCode: productArticleCode,
     qr_token: normalizeText(productSeed.qr_token ?? productSeed.qrToken ?? productSeed.product_qr_token ?? productSeed.productQrToken),
     low_stock_threshold: normalizeNumber(productSeed.low_stock_threshold ?? productSeed.low_stock_alert ?? 10),
     matched_variant_id: matchedVariantId,
