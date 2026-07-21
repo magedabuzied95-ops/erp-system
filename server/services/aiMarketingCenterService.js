@@ -1875,48 +1875,46 @@ const queueItemStoryPayload = (item = {}) => {
   const design = item.design_json || {};
   const metadata = item.metadata || {};
   const productLink = cleanText(item.cta_url || design.cta_url || item.product_url || design.product_url);
-  const generatedMediaUrls = currentStoryGeneratedAssetUrls(item);
-  const selectedPublishUrl = storySelectedPublishUrl(item);
-  const finalAssetUrl = generatedMediaUrls.find((url) => sameImageUrl(url, selectedPublishUrl)) || generatedMediaUrls[0] || "";
-  if (!finalAssetUrl) {
-    throw serviceError("Generated story asset is missing for this story.", 409, {
-      queue_id: item.id,
-      product_id: item.product_id,
-      reason: "missing_current_story_asset",
-    });
-  }
-  const mediaUrls = rawStoryImageUrls(item);
+  const asset = assertFinalGeneratedStoryAsset(item);
+  const generatedMediaUrls = [asset.assetUrl];
   console.log("[story-publish-payload]", {
     storyId: item.id || null,
     productId: item.product_id || null,
     creativeId: design.creative_id || metadata.creative_id || null,
-    assetId: generatedStoryAssetIds(item)[0] || null,
-    assetUrl: finalAssetUrl,
+    assetId: asset.assetId,
+    assetUrl: asset.assetUrl,
+    templateKey: asset.templateKey,
+    templateVersion: asset.templateVersion,
     template: metadata.story_asset_renderer || design.story_asset_renderer || "",
     layout: item.layout_type || design.layout_type || "",
     generated_asset_count: generatedMediaUrls.length,
   });
   return {
+    storyId: item.id,
+    assetId: asset.assetId,
+    assetUrl: asset.assetUrl,
+    templateKey: asset.templateKey,
+    templateVersion: asset.templateVersion,
     id: item.id,
     tenant_id: item.tenant_id,
     product_id: item.product_id,
     product_name: design.product_name || item.title || "",
     title: item.title || design.product_name || "",
     caption: item.caption || design.caption || "",
-    image_url: finalAssetUrl,
-    media_urls: generatedMediaUrls.length ? generatedMediaUrls : (finalAssetUrl ? [finalAssetUrl] : []),
-    rendered_image_url: finalAssetUrl,
-    story_image_url: finalAssetUrl,
-    final_asset_url: finalAssetUrl,
-    source_product_image_url: mediaUrls[0] || "",
+    image_url: asset.assetUrl,
+    media_urls: generatedMediaUrls,
+    rendered_image_url: asset.assetUrl,
+    story_image_url: asset.assetUrl,
+    final_asset_url: asset.assetUrl,
+    source_product_image_url: "",
     story_type: "ai_center",
     require_generated_story_asset: true,
-    publish_asset_ids: generatedStoryAssetIds(item),
+    publish_asset_ids: [asset.assetId],
     product_slug: item.product_slug || design.product_slug || "",
     product_url: item.product_url || design.product_url || productLink || "",
     cta_url: productLink,
-    cta_text: "View details",
-    availability_text: "Available now",
+    cta_text: cleanText(item.cta_text || design.cta_text || metadata.cta_text || ""),
+    availability_text: cleanText(item.availability_text || design.availability_text || metadata.availability_text || ""),
     design_json: design,
   };
 };
@@ -1984,6 +1982,53 @@ const storyAssetBinding = (item = {}) => {
   };
 };
 
+const storyTemplateKey = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return cleanText(
+    metadata.story_template_key ||
+      design.story_template_key ||
+      metadata.template_key ||
+      design.template_key ||
+      metadata.templateKey ||
+      design.templateKey ||
+      item.template_key ||
+      item.templateKey ||
+      design.layout_type ||
+      item.layout_type ||
+      item.strategy_type ||
+      ""
+  );
+};
+
+const storyTemplateVersion = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return cleanText(
+    metadata.story_template_version ||
+      design.story_template_version ||
+      metadata.template_version ||
+      design.template_version ||
+      metadata.templateVersion ||
+      design.templateVersion ||
+      item.template_version ||
+      item.templateVersion ||
+      "v1"
+  );
+};
+
+const generatedStoryAssetTemplateKey = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return cleanText(metadata.story_asset_template_key || design.story_asset_template_key || "");
+};
+
+const generatedStoryAssetTemplateVersion = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return cleanText(metadata.story_asset_template_version || design.story_asset_template_version || "");
+};
+
 const isStoryAssetBoundToCurrentItem = (item = {}) => {
   const binding = storyAssetBinding(item);
   if (!binding.storyId) return false;
@@ -2047,6 +2092,65 @@ const currentStoryGeneratedAssetUrls = (item = {}) => {
     item.generated_asset_urls,
     item.generated_media_urls,
   ]).filter((url) => boundAssetSet.has(cleanImageUrl(url).toLowerCase()));
+};
+
+const finalGeneratedStoryAsset = (item = {}) => {
+  const assetUrls = currentStoryGeneratedAssetUrls(item);
+  const selectedPublishUrl = storySelectedPublishUrl(item);
+  const assetUrl = assetUrls.find((url) => sameImageUrl(url, selectedPublishUrl)) || assetUrls[0] || "";
+  const assetId = generatedStoryAssetIds(item)[0] || "";
+  const templateKey = storyTemplateKey(item);
+  const templateVersion = storyTemplateVersion(item);
+  const assetTemplateKey = generatedStoryAssetTemplateKey(item);
+  const assetTemplateVersion = generatedStoryAssetTemplateVersion(item);
+  return {
+    storyId: item.id || null,
+    assetId,
+    assetUrl,
+    templateKey,
+    templateVersion,
+    assetTemplateKey,
+    assetTemplateVersion,
+    isFinalGeneratedAsset: Boolean(assetUrl && assetId && isStoryAssetBoundToCurrentItem(item)),
+  };
+};
+
+const assertFinalGeneratedStoryAsset = (item = {}) => {
+  const asset = finalGeneratedStoryAsset(item);
+  const productImageUrl = storyProductImageUrl(item);
+  const fail = (reason, extra = {}) => {
+    throw serviceError("Cannot publish: final generated story asset is missing. Generate the story asset first.", 409, {
+      queue_id: item.id,
+      story_id: item.id,
+      product_id: item.product_id,
+      reason,
+      asset_id: asset.assetId,
+      asset_url: asset.assetUrl,
+      template_key: asset.templateKey,
+      template_version: asset.templateVersion,
+      ...extra,
+    });
+  };
+  if (!asset.assetUrl || !asset.assetId || !asset.isFinalGeneratedAsset) fail("missing_final_generated_asset");
+  if (!isStoryAssetBoundToCurrentItem(item)) fail("asset_story_binding_mismatch");
+  if (!isValidRenderedStoryAsset(item, asset.assetUrl) || sameImageUrl(asset.assetUrl, productImageUrl)) {
+    fail("invalid_final_generated_asset", { product_image_url: productImageUrl });
+  }
+  if (!asset.assetTemplateKey || asset.assetTemplateKey !== asset.templateKey) {
+    fail("asset_template_key_mismatch", { asset_template_key: asset.assetTemplateKey });
+  }
+  if (!asset.assetTemplateVersion || asset.assetTemplateVersion !== asset.templateVersion) {
+    fail("asset_template_version_mismatch", { asset_template_version: asset.assetTemplateVersion });
+  }
+  console.log("PUBLISH_STORY_ASSET_SELECTED", {
+    storyId: asset.storyId,
+    assetId: asset.assetId,
+    assetUrl: asset.assetUrl,
+    templateKey: asset.templateKey,
+    templateVersion: asset.templateVersion,
+    isFinalGeneratedAsset: asset.isFinalGeneratedAsset,
+  });
+  return asset;
 };
 
 const isKnownRenderedStoryUrl = (url = "", item = {}) => {
@@ -2216,6 +2320,8 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
   let renderedAssetUrls = [];
   let renderedSlides = [];
   const creativeId = cleanText(design.creative_id || item.metadata?.creative_id || `ai-story-${item.id || "new"}`);
+  const templateKey = storyTemplateKey({ ...item, design_json: design });
+  const templateVersion = storyTemplateVersion({ ...item, design_json: design });
   try {
     const rendered = await generateDesignedAiMarketingStoryImages({
       tenantId,
@@ -2251,6 +2357,10 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
       queue_id: item.id,
       product_id: item.product_id || null,
       creative_id: creativeId,
+      template_key: templateKey,
+      template_version: templateVersion,
+      story_asset_template_key: templateKey,
+      story_asset_template_version: templateVersion,
       asset_id: `story-${item.id}-slide-${index + 1}`,
       slide_number: index + 1,
     })) : [];
@@ -2261,6 +2371,8 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
       productId: item.product_id || null,
       creativeId,
       template: AI_MARKETING_STORY_RENDERER,
+      templateKey,
+      templateVersion,
       layout: item.layout_type || design.layout_type || "",
       generated_asset_count: renderedAssetUrls.length,
       generated_asset_urls: renderedAssetUrls,
@@ -2308,6 +2420,10 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     final_asset_url: renderedAssetUrl,
     source_product_image_url: rawImages[0] || "",
     story_asset_renderer: AI_MARKETING_STORY_RENDERER,
+    story_template_key: templateKey,
+    story_template_version: templateVersion,
+    story_asset_template_key: templateKey,
+    story_asset_template_version: templateVersion,
     story_asset_story_id: item.id,
     story_asset_queue_id: item.id,
     story_asset_product_id: item.product_id || null,
@@ -2327,6 +2443,10 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
       queue_id: item.id,
       product_id: item.product_id || null,
       creative_id: creativeId,
+      template_key: templateKey,
+      template_version: templateVersion,
+      story_asset_template_key: templateKey,
+      story_asset_template_version: templateVersion,
       asset_id: `story-${item.id}-slide-${index + 1}`,
       slide_number: index + 1,
     }))).map((slide, index) => ({
@@ -2342,6 +2462,10 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
       queue_id: item.id,
       product_id: item.product_id || null,
       creative_id: creativeId,
+      template_key: templateKey,
+      template_version: templateVersion,
+      story_asset_template_key: templateKey,
+      story_asset_template_version: templateVersion,
       asset_id: slide.asset_id || `story-${item.id}-slide-${index + 1}`,
       slide_number: index + 1,
     })),
@@ -2362,6 +2486,10 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     generated_matches_source_count: renderedAssetUrls.length === rawImages.length,
     story_asset_error: "",
     story_asset_renderer: AI_MARKETING_STORY_RENDERER,
+    story_template_key: templateKey,
+    story_template_version: templateVersion,
+    story_asset_template_key: templateKey,
+    story_asset_template_version: templateVersion,
     story_asset_story_id: item.id,
     story_asset_queue_id: item.id,
     story_asset_product_id: item.product_id || null,
@@ -2394,6 +2522,8 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     creativeId,
     assetId: nextMetadata.story_asset_ids[0] || null,
     assetUrl: renderedAssetUrl,
+    templateKey,
+    templateVersion,
     template: AI_MARKETING_STORY_RENDERER,
     layout: item.layout_type || design.layout_type || "",
     rendered_image_url: renderedAssetUrl,
@@ -4692,19 +4822,16 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
   );
   const isStory = isStoryQueueItem(publishItem);
   if (isStory) {
-    // "Publish now" is intentionally a single operation. Older queue rows can
-    // still have their source product images without a rendered 9:16 asset.
-    // Build and persist that asset synchronously before contacting Meta so the
-    // user never has to press "Generate asset" as a separate prerequisite.
-    publishItem = await ensureQueueStoryRenderedAsset(tenantId, publishItem, { force: false });
-    assertStoryPublishAsset(publishItem);
+    const selectedAsset = assertFinalGeneratedStoryAsset(publishItem);
     console.log("[story-publish-enqueue]", {
       storyId: publishItem.id || null,
       productId: publishItem.product_id || null,
       creativeId: publishItem.design_json?.creative_id || publishItem.metadata?.creative_id || null,
-      assetId: generatedStoryAssetIds(publishItem)[0] || null,
-      assetUrl: currentStoryGeneratedAssetUrls(publishItem)[0] || "",
+      assetId: selectedAsset.assetId,
+      assetUrl: selectedAsset.assetUrl,
       publishJobId,
+      templateKey: selectedAsset.templateKey,
+      templateVersion: selectedAsset.templateVersion,
       template: publishItem.metadata?.story_asset_renderer || publishItem.design_json?.story_asset_renderer || "",
       layout: publishItem.layout_type || publishItem.design_json?.layout_type || "",
     });

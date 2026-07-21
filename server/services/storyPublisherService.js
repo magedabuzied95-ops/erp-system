@@ -80,7 +80,7 @@ const parseMediaUrls = (value) => {
 const uniqueList = (items = []) => Array.from(new Set(items.map(trimString).filter(Boolean)));
 
 const getStoryImageCandidate = (story = {}) => {
-  const rawCandidates = uniqueList([story.image_url, ...parseMediaUrls(story.media_urls)]);
+  const rawCandidates = uniqueList([story.assetUrl, story.image_url, ...parseMediaUrls(story.media_urls)]);
   const generatedCandidates = rawCandidates.filter(isGeneratedStoryImageUrl);
   if (shouldRequireGeneratedStoryAsset(story) && generatedCandidates.length) {
     const candidates = generatedCandidates.map((raw) => ({ raw, publicUrl: toPublicUploadUrl(raw) }));
@@ -93,7 +93,7 @@ const getStoryImageCandidate = (story = {}) => {
 };
 
 const getStoryImageCandidates = (story = {}) => {
-  const rawCandidates = uniqueList([story.image_url, ...parseMediaUrls(story.media_urls)]);
+  const rawCandidates = uniqueList([story.assetUrl, story.image_url, ...parseMediaUrls(story.media_urls)]);
   const generatedCandidates = rawCandidates.filter(isGeneratedStoryImageUrl);
   if (shouldRequireGeneratedStoryAsset(story)) {
     return generatedCandidates
@@ -119,9 +119,11 @@ const logFinalStoryMedia = async ({ story, platform, candidate }) => {
     post_id: story?.id || null,
     product_id: story?.product_id || null,
     creativeId: story?.design_json?.creative_id || story?.creative_id || null,
-    assetId: Array.isArray(story?.publish_asset_ids) ? story.publish_asset_ids[0] || null : story?.asset_id || null,
+    assetId: story?.assetId || (Array.isArray(story?.publish_asset_ids) ? story.publish_asset_ids[0] || null : story?.asset_id || null),
     assetUrl: candidate.publicUrl || "",
     publishJobId: story?.publish_job_id || null,
+    templateKey: story?.templateKey || story?.design_json?.template_key || story?.design_json?.layout_type || "",
+    templateVersion: story?.templateVersion || story?.design_json?.template_version || "",
     template: story?.design_json?.story_asset_renderer || story?.story_asset_renderer || "",
     layout: story?.design_json?.layout_type || story?.layout_type || "",
     story_type: story?.story_type || "story",
@@ -362,6 +364,10 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
     productId: story?.product_id || null,
     creativeId: story?.design_json?.creative_id || story?.creative_id || null,
     publishJobId: story?.publish_job_id || null,
+    assetId: story?.assetId || (Array.isArray(story?.publish_asset_ids) ? story.publish_asset_ids[0] || null : null),
+    assetUrl: story?.assetUrl || story?.image_url || "",
+    templateKey: story?.templateKey || story?.design_json?.template_key || story?.design_json?.layout_type || "",
+    templateVersion: story?.templateVersion || story?.design_json?.template_version || "",
     story_type: story?.story_type || "story",
   });
   let accessToken;
@@ -394,9 +400,11 @@ export const publishStoryEverywhere = async ({ story = {}, settings = {} }) => {
     storyId: story?.id || null,
     productId: story?.product_id || null,
     creativeId: story?.design_json?.creative_id || story?.creative_id || null,
-    assetId: Array.isArray(story?.publish_asset_ids) ? story.publish_asset_ids[0] || null : story?.asset_id || null,
+    assetId: story?.assetId || (Array.isArray(story?.publish_asset_ids) ? story.publish_asset_ids[0] || null : story?.asset_id || null),
     assetUrl: generatedAssetUrls[0] || "",
     publishJobId: story?.publish_job_id || null,
+    templateKey: story?.templateKey || story?.design_json?.template_key || story?.design_json?.layout_type || "",
+    templateVersion: story?.templateVersion || story?.design_json?.template_version || "",
     template: story?.design_json?.story_asset_renderer || story?.story_asset_renderer || "",
     layout: story?.design_json?.layout_type || story?.layout_type || "",
     generated_asset_count: generatedAssetUrls.length,

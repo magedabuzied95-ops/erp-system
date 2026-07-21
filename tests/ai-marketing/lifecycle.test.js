@@ -37,17 +37,17 @@ test("schema initialization is coalesced and timed-out jobs retain their worker 
   assert.match(serviceSource, /runPromise\s*\.catch\(\(\) => undefined\)\s*\.finally/);
 });
 
-test("publish now renders a missing story asset inline before calling Meta", () => {
+test("publish now does not render story assets before calling Meta", () => {
   const publishStart = serviceSource.indexOf("export const publishAiMarketingQueueItemNow");
   const publishEnd = serviceSource.indexOf("export const deleteAiMarketingQueueItem", publishStart);
   const publishSource = serviceSource.slice(publishStart, publishEnd);
-  const renderIndex = publishSource.indexOf("ensureQueueStoryRenderedAsset(tenantId, publishItem, { force: false })");
-  const validateIndex = publishSource.indexOf("assertStoryPublishAsset(publishItem)");
+  const renderIndex = publishSource.indexOf("ensureQueueStoryRenderedAsset");
+  const validateIndex = publishSource.indexOf("assertFinalGeneratedStoryAsset(publishItem)");
   const metaIndex = publishSource.indexOf("publishStoryEverywhereService");
 
-  assert.ok(renderIndex > -1, "publish now must generate the 9:16 story asset");
-  assert.ok(validateIndex > renderIndex, "the generated asset must be validated after rendering");
-  assert.ok(metaIndex > validateIndex, "Meta publish must run only after render and validation");
+  assert.equal(renderIndex, -1, "publish now must not render or regenerate story assets");
+  assert.ok(validateIndex > -1, "publish now must validate the pre-generated final story asset");
+  assert.ok(metaIndex > validateIndex, "Meta publish must run only after final asset validation");
 });
 
 test("publish-now endpoint only reports success after platform publication succeeds", () => {
@@ -170,8 +170,8 @@ test("async generation state machine model covers success, failure, reuse, force
 });
 
 test("story publish payload only uses assets bound to the current story", () => {
-  const skechersAsset = "https://api.m1store-egy.com/uploads/stories/story-10-skechers.png";
-  const oldAdidasAsset = "https://api.m1store-egy.com/uploads/stories/story-2-adidas-ultra-boost.png";
+  const skechersAsset = "https://res.cloudinary.com/m1-store/image/upload/v1/stories/story-10-skechers.png";
+  const oldAdidasAsset = "https://res.cloudinary.com/m1-store/image/upload/v1/stories/story-2-adidas-ultra-boost.png";
   const story = {
     id: 10,
     tenant_id: 1,
@@ -186,6 +186,10 @@ test("story publish payload only uses assets bound to the current story", () => 
       story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
       story_asset_story_id: 10,
       story_asset_product_id: 345,
+      story_asset_template_key: "fresh_drop",
+      story_asset_template_version: "v3",
+      template_key: "fresh_drop",
+      template_version: "v3",
       generated_media_urls: [skechersAsset],
       final_asset_url: skechersAsset,
       slides: [{
@@ -193,6 +197,8 @@ test("story publish payload only uses assets bound to the current story", () => 
         story_id: 10,
         product_id: 345,
         asset_id: "story-10-slide-1",
+        template_key: "fresh_drop",
+        template_version: "v3",
         rendered_asset_url: skechersAsset,
       }],
     },
@@ -200,6 +206,10 @@ test("story publish payload only uses assets bound to the current story", () => 
       story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
       story_asset_story_id: 10,
       story_asset_product_id: 345,
+      story_asset_template_key: "fresh_drop",
+      story_asset_template_version: "v3",
+      template_key: "fresh_drop",
+      template_version: "v3",
       story_asset_ids: ["story-10-slide-1"],
       generated_asset_urls: [skechersAsset],
       generated_asset_count: 1,
@@ -211,6 +221,11 @@ test("story publish payload only uses assets bound to the current story", () => 
   const payload = queueItemStoryPayload(story);
   assert.deepEqual(payload.media_urls, [skechersAsset]);
   assert.equal(payload.image_url, skechersAsset);
+  assert.equal(payload.storyId, 10);
+  assert.equal(payload.assetId, "story-10-slide-1");
+  assert.equal(payload.assetUrl, skechersAsset);
+  assert.equal(payload.templateKey, "fresh_drop");
+  assert.equal(payload.templateVersion, "v3");
   assert.doesNotMatch(JSON.stringify(payload), /adidas|ultra-boost/i);
 });
 
@@ -223,16 +238,16 @@ test("story publish payload fails instead of falling back when current story ass
       content_type: "story",
       title: "Skechers Hyper Pillars",
       image_url: "https://api.m1store-egy.com/uploads/products/skechers.jpg",
-      media_urls: ["https://api.m1store-egy.com/uploads/stories/story-2-adidas-ultra-boost.png"],
+      media_urls: ["https://res.cloudinary.com/m1-store/image/upload/v1/stories/story-2-adidas-ultra-boost.png"],
       design_json: { layout_type: "special_offer_story", product_name: "Skechers Hyper Pillars" },
       metadata: {},
     }),
-    /Generated story asset is missing for this story/
+    /Cannot publish: final generated story asset is missing\. Generate the story asset first\./
   );
 });
 
 test("story asset binding survives reload-shaped normalized rows", () => {
-  const asset = "https://api.m1store-egy.com/uploads/stories/story-12-skechers.png";
+  const asset = "https://res.cloudinary.com/m1-store/image/upload/v1/stories/story-12-skechers.png";
   const normalized = normalizeQueueRow({
     id: 12,
     tenant_id: 1,
@@ -245,6 +260,11 @@ test("story asset binding survives reload-shaped normalized rows", () => {
       story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
       story_asset_story_id: 12,
       story_asset_product_id: 345,
+      story_asset_template_key: "fresh_drop",
+      story_asset_template_version: "v3",
+      template_key: "fresh_drop",
+      template_version: "v3",
+      story_asset_ids: ["story-12-slide-1"],
       generated_media_urls: [asset],
       final_asset_url: asset,
     },
@@ -252,6 +272,11 @@ test("story asset binding survives reload-shaped normalized rows", () => {
       story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
       story_asset_story_id: 12,
       story_asset_product_id: 345,
+      story_asset_template_key: "fresh_drop",
+      story_asset_template_version: "v3",
+      template_key: "fresh_drop",
+      template_version: "v3",
+      story_asset_ids: ["story-12-slide-1"],
       generated_asset_urls: [asset],
       generated_asset_count: 1,
     },
@@ -259,4 +284,60 @@ test("story asset binding survives reload-shaped normalized rows", () => {
 
   assert.equal(isStoryAssetBoundToCurrentItem(normalized), true);
   assert.deepEqual(queueItemStoryPayload(normalized).media_urls, [asset]);
+});
+
+test("fresh drop publish payload uses the exact generated asset without legacy template or rerender", () => {
+  const assetUrl = "https://res.cloudinary.com/m1-store/image/upload/v1/stories/fresh-drop-final.png";
+  const story = {
+    id: 20,
+    tenant_id: 1,
+    product_id: 345,
+    content_type: "story",
+    title: "Skechers Hyper Pillars",
+    image_url: "https://api.m1store-egy.com/uploads/products/skechers.jpg",
+    media_urls: ["https://api.m1store-egy.com/uploads/products/skechers.jpg"],
+    design_json: {
+      layout_type: "fresh_drop",
+      template_key: "fresh_drop",
+      template_version: "v3",
+      story_asset_template_key: "fresh_drop",
+      story_asset_template_version: "v3",
+      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_story_id: 20,
+      story_asset_product_id: 345,
+      generated_media_urls: [assetUrl],
+      final_asset_url: assetUrl,
+      slides: [{
+        story_id: 20,
+        product_id: 345,
+        asset_id: "story-20-slide-1",
+        template_key: "fresh_drop",
+        template_version: "v3",
+        rendered_asset_url: assetUrl,
+      }],
+    },
+    metadata: {
+      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_story_id: 20,
+      story_asset_product_id: 345,
+      story_asset_template_key: "fresh_drop",
+      story_asset_template_version: "v3",
+      template_key: "fresh_drop",
+      template_version: "v3",
+      story_asset_ids: ["story-20-slide-1"],
+      generated_asset_urls: [assetUrl],
+      generated_asset_count: 1,
+    },
+  };
+
+  const payload = queueItemStoryPayload(story);
+  assert.equal(payload.assetId, "story-20-slide-1");
+  assert.equal(payload.assetUrl, assetUrl);
+  assert.equal(payload.image_url, assetUrl);
+  assert.deepEqual(payload.media_urls, [assetUrl]);
+  assert.equal(payload.templateKey, "fresh_drop");
+  assert.equal(payload.templateVersion, "v3");
+  assert.equal(payload.source_product_image_url, "");
+  assert.doesNotMatch(JSON.stringify(payload), /LAST SIZE|View details|dark-gradient|legacy/i);
+  assert.doesNotMatch(serviceSource.slice(serviceSource.indexOf("export const publishAiMarketingQueueItemNow")), /generateDesignedAiMarketingStoryImages/);
 });
