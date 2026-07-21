@@ -1696,6 +1696,13 @@ const getVariantDirectSearchMatch = (product = {}, search = "") => {
 
   if (!match) return null;
 
+  if (match.search_match_type === "variant_article") {
+    return {
+      ...match,
+      variants,
+    };
+  }
+
   const matchedColor = normalizeSearchToken(match.matched_color);
   if (matchedColor) {
     const matchedVariants = variants.filter((variant) => normalizeSearchToken(pickFirstNonEmptyText(variant?.color, variant?.color_name)) === matchedColor);

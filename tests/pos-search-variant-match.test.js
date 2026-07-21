@@ -23,6 +23,8 @@ test("article search metadata keeps all product colors and selects matched varia
   assert.equal(cardColors.size, 3);
   assert.equal(searchColors.size, 3);
   assert.deepEqual([...searchColors].sort(), [...cardColors].sort());
+  assert.equal(productFromArticleSearch.variants.length, fullProduct.variants.length);
+  assert.notEqual(searchColors.size, 1);
   assert.equal(productFromArticleSearch.search_match_type, "variant_article");
   assert.equal(productFromArticleSearch.matched_variant_id, 2);
   assert.equal(productFromArticleSearch.matched_color, "Black");
@@ -103,6 +105,7 @@ test("GET /api/products/with-variants annotates article matches without narrowin
     (Array.isArray(product.variants) ? product.variants : []).map((variant) => String(variant.color || "").trim()).filter(Boolean)
   );
   assert.equal(productColors.size, expectedColorCount);
+  assert.notEqual(productColors.size, 1);
   assert.ok(productColors.size >= 3);
   assert.ok(productColors.has(String(candidateVariant.color ?? "").trim()));
 });
