@@ -1713,7 +1713,7 @@ const getVariantDirectSearchMatch = (product = {}, search = "") => {
   };
 };
 
-const attachVariantSearchMetadata = (product = {}, search = "", options = {}) => {
+export const attachVariantSearchMetadata = (product = {}, search = "", options = {}) => {
   const match = getVariantDirectSearchMatch(product, search);
   if (!match) {
     return {
@@ -1730,7 +1730,7 @@ const attachVariantSearchMetadata = (product = {}, search = "", options = {}) =>
   return {
     ...product,
     ...match,
-    variants: options.preserveVariants ? product.variants : match.variants,
+    variants: options.preserveVariants || match.search_match_type === "variant_article" ? product.variants : match.variants,
     matched_variant_id: match.matched_variant_id ?? null,
     matched_color: match.matched_color || null,
     matched_color_id: match.matched_color_id ?? null,

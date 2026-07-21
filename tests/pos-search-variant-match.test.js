@@ -2,29 +2,54 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import db from "../server/database/db.js";
-import { loadProductsWithVariantsPayload } from "../server/controllers/productsController.js";
+import { attachVariantSearchMetadata, loadProductsWithVariantsPayload } from "../server/controllers/productsController.js";
 
-test("GET /api/products/with-variants annotates and narrows direct variant article matches", async (t) => {
+test("article search metadata keeps all product colors and selects matched variant", () => {
+  const fullProduct = {
+    id: 101,
+    product_id: 101,
+    variants: [
+      { variant_id: 1, color: "White", size: "40", article_code: "ART-WHT-40" },
+      { variant_id: 2, color: "Black", size: "41", article_code: "ART-BLK-41" },
+      { variant_id: 3, color: "Gold", size: "42", article_code: "ART-GLD-42" },
+    ],
+  };
+
+  const productFromCard = attachVariantSearchMetadata(fullProduct, "");
+  const productFromArticleSearch = attachVariantSearchMetadata(fullProduct, "ART-BLK-41");
+  const cardColors = new Set(productFromCard.variants.map((variant) => variant.color));
+  const searchColors = new Set(productFromArticleSearch.variants.map((variant) => variant.color));
+
+  assert.equal(cardColors.size, 3);
+  assert.equal(searchColors.size, 3);
+  assert.deepEqual([...searchColors].sort(), [...cardColors].sort());
+  assert.equal(productFromArticleSearch.search_match_type, "variant_article");
+  assert.equal(productFromArticleSearch.matched_variant_id, 2);
+  assert.equal(productFromArticleSearch.matched_color, "Black");
+});
+
+test("GET /api/products/with-variants annotates article matches without narrowing product colors", async (t) => {
   const candidateProductResult = await db.query(
     `
     SELECT
-      p.id AS product_id
+      p.id AS product_id,
+      COUNT(DISTINCT COALESCE(NULLIF(TRIM(pv.color), ''), 'default'))::int AS color_count
     FROM products p
     INNER JOIN product_variants pv ON pv.product_id = p.id
     WHERE pv.is_active IS DISTINCT FROM FALSE
       AND pv.deleted_at IS NULL
-      AND COALESCE(NULLIF(TRIM(pv.article_code), ''), NULLIF(TRIM(pv.sku), ''), NULLIF(TRIM(pv.barcode), '')) IS NOT NULL
+      AND NULLIF(TRIM(pv.article_code), '') IS NOT NULL
     GROUP BY p.id
-    HAVING COUNT(*) >= 2
-       AND COUNT(DISTINCT COALESCE(NULLIF(TRIM(pv.color), ''), 'default')) >= 2
+    HAVING COUNT(DISTINCT COALESCE(NULLIF(TRIM(pv.color), ''), 'default')) >= 3
     ORDER BY p.id DESC
     LIMIT 1
     `
   );
 
   const candidateProductId = candidateProductResult.rows?.[0]?.product_id || null;
+  const expectedColorCount = Number(candidateProductResult.rows?.[0]?.color_count || 0);
   if (!candidateProductId) {
-    t.skip("No real multi-color product with a direct variant identifier was found");
+    t.skip("No real product with at least 3 article-searchable colors was found");
     return;
   }
 
@@ -41,7 +66,7 @@ test("GET /api/products/with-variants annotates and narrows direct variant artic
     WHERE product_id = $1
       AND is_active IS DISTINCT FROM FALSE
       AND deleted_at IS NULL
-      AND COALESCE(NULLIF(TRIM(article_code), ''), NULLIF(TRIM(sku), ''), NULLIF(TRIM(barcode), '')) IS NOT NULL
+      AND NULLIF(TRIM(article_code), '') IS NOT NULL
     ORDER BY id ASC
     LIMIT 1
     `,
@@ -54,7 +79,7 @@ test("GET /api/products/with-variants annotates and narrows direct variant artic
     return;
   }
 
-  const queryValue = candidateVariant.article_code || candidateVariant.sku || candidateVariant.barcode;
+  const queryValue = candidateVariant.article_code;
   const payload = await loadProductsWithVariantsPayload({
     query: {
       search: queryValue,
@@ -66,7 +91,7 @@ test("GET /api/products/with-variants annotates and narrows direct variant artic
     : null;
 
   assert.ok(product, "Expected the searched product to be present in the response");
-  assert.equal(product.search_match_type, candidateVariant.article_code ? "variant_article" : candidateVariant.sku ? "sku" : "barcode");
+  assert.equal(product.search_match_type, "variant_article");
   assert.equal(String(product.matched_variant_id ?? ""), String(candidateVariant.variant_id ?? ""));
   assert.equal(String(product.matched_color ?? ""), String(candidateVariant.color ?? ""));
   assert.equal(String(product.matched_article ?? ""), String(candidateVariant.article_code || ""));
@@ -77,6 +102,7 @@ test("GET /api/products/with-variants annotates and narrows direct variant artic
   const productColors = new Set(
     (Array.isArray(product.variants) ? product.variants : []).map((variant) => String(variant.color || "").trim()).filter(Boolean)
   );
-  assert.equal(productColors.size, 1);
-  assert.equal(Array.from(productColors)[0], String(candidateVariant.color ?? ""));
+  assert.equal(productColors.size, expectedColorCount);
+  assert.ok(productColors.size >= 3);
+  assert.ok(productColors.has(String(candidateVariant.color ?? "").trim()));
 });
