@@ -1875,61 +1875,27 @@ const queueItemStoryPayload = (item = {}) => {
   const design = item.design_json || {};
   const metadata = item.metadata || {};
   const productLink = cleanText(item.cta_url || design.cta_url || item.product_url || design.product_url);
-  const finalAssetUrl = storySelectedPublishUrl(item);
-  const slideGeneratedAssetUrls = Array.isArray(design.slides)
-    ? design.slides.flatMap((slide) => [
-        slide?.rendered_asset_url,
-        slide?.final_asset_url,
-        slide?.story_image_url,
-        slide?.generated_asset_url,
-        slide?.generated_asset_urls,
-        slide?.generated_media_urls,
-        slide?.image_url,
-      ])
-    : [];
-  const expectedGeneratedCount = Number(metadata.generated_asset_count || metadata.generated_slide_count || design.generated_asset_count || 0);
-  const countedGeneratedMediaSet = new Set(
-    expectedGeneratedCount > 0
-      ? uniqueImageUrls([item.media_urls, design.media_urls, metadata.media_urls]).slice(0, expectedGeneratedCount).map((url) => cleanImageUrl(url).toLowerCase())
-      : []
-  );
-  const generatedMediaUrls = uniqueImageUrls([
-    item.final_asset_urls,
-    item.generated_asset_urls,
-    item.generated_media_urls,
-    design.final_asset_urls,
-    design.generated_asset_urls,
-    ...(Array.isArray(design.generated_media_urls) ? design.generated_media_urls : []),
-    metadata.final_asset_urls,
-    metadata.generated_asset_urls,
-    ...(Array.isArray(metadata.generated_media_urls) ? metadata.generated_media_urls : []),
-    item.final_asset_url,
-    item.rendered_image_url,
-    item.story_image_url,
-    design.final_asset_url,
-    design.rendered_image_url,
-    design.story_image_url,
-    metadata.final_asset_url,
-    metadata.rendered_image_url,
-    metadata.story_image_url,
-    ...(Array.isArray(item.media_urls) ? item.media_urls : []),
-    ...(Array.isArray(design.media_urls) ? design.media_urls : []),
-    ...(Array.isArray(metadata.media_urls) ? metadata.media_urls : []),
-    ...slideGeneratedAssetUrls,
-  ]).filter((url) => isKnownRenderedStoryUrl(url, item) || sameImageUrl(url, finalAssetUrl) || countedGeneratedMediaSet.has(cleanImageUrl(url).toLowerCase()));
-  const slideImages = [
-    ...(Array.isArray(design.slides) ? design.slides.map((slide) => slide?.source_product_image_url || slide?.original_image_url || slide?.image_url) : []),
-    ...(Array.isArray(design.carousel) ? design.carousel.map((slide) => slide?.image_url) : []),
-  ];
-  const mediaUrls = uniqueImageUrls([
-    item.primary_image_url,
-    item.image_url,
-    design.primary_image_url,
-    design.image_url,
-    ...(Array.isArray(item.media_urls) ? item.media_urls : []),
-    ...(Array.isArray(design.media_urls) ? design.media_urls : []),
-    ...slideImages,
-  ]);
+  const generatedMediaUrls = currentStoryGeneratedAssetUrls(item);
+  const selectedPublishUrl = storySelectedPublishUrl(item);
+  const finalAssetUrl = generatedMediaUrls.find((url) => sameImageUrl(url, selectedPublishUrl)) || generatedMediaUrls[0] || "";
+  if (!finalAssetUrl) {
+    throw serviceError("Generated story asset is missing for this story.", 409, {
+      queue_id: item.id,
+      product_id: item.product_id,
+      reason: "missing_current_story_asset",
+    });
+  }
+  const mediaUrls = rawStoryImageUrls(item);
+  console.log("[story-publish-payload]", {
+    storyId: item.id || null,
+    productId: item.product_id || null,
+    creativeId: design.creative_id || metadata.creative_id || null,
+    assetId: generatedStoryAssetIds(item)[0] || null,
+    assetUrl: finalAssetUrl,
+    template: metadata.story_asset_renderer || design.story_asset_renderer || "",
+    layout: item.layout_type || design.layout_type || "",
+    generated_asset_count: generatedMediaUrls.length,
+  });
   return {
     id: item.id,
     tenant_id: item.tenant_id,
@@ -1945,6 +1911,7 @@ const queueItemStoryPayload = (item = {}) => {
     source_product_image_url: mediaUrls[0] || "",
     story_type: "ai_center",
     require_generated_story_asset: true,
+    publish_asset_ids: generatedStoryAssetIds(item),
     product_slug: item.product_slug || design.product_slug || "",
     product_url: item.product_url || design.product_url || productLink || "",
     cta_url: productLink,
@@ -2005,6 +1972,81 @@ const rawStorySelectedPublishUrl = (item = {}) => {
       design.story_image_url ||
       metadata.story_image_url
   );
+};
+
+const storyAssetBinding = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  return {
+    storyId: cleanText(metadata.story_asset_story_id || metadata.story_asset_queue_id || design.story_asset_story_id || design.story_asset_queue_id || ""),
+    productId: cleanText(metadata.story_asset_product_id || design.story_asset_product_id || ""),
+    creativeId: cleanText(metadata.creative_id || design.creative_id || metadata.story_asset_creative_id || design.story_asset_creative_id || ""),
+  };
+};
+
+const isStoryAssetBoundToCurrentItem = (item = {}) => {
+  const binding = storyAssetBinding(item);
+  if (!binding.storyId) return false;
+  if (String(binding.storyId) !== String(item.id || "")) return false;
+  if (binding.productId && item.product_id && String(binding.productId) !== String(item.product_id)) return false;
+  return true;
+};
+
+const generatedStoryAssetIds = (item = {}) => {
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  const slideAssetIds = Array.isArray(design.slides)
+    ? design.slides.map((slide) => slide?.asset_id || slide?.story_asset_id)
+    : [];
+  return [...new Set([
+    metadata.story_asset_id,
+    design.story_asset_id,
+    ...(Array.isArray(metadata.story_asset_ids) ? metadata.story_asset_ids : []),
+    ...(Array.isArray(design.story_asset_ids) ? design.story_asset_ids : []),
+    ...slideAssetIds,
+  ].map(cleanText).filter(Boolean))];
+};
+
+const currentStoryGeneratedAssetUrls = (item = {}) => {
+  if (!isStoryAssetBoundToCurrentItem(item)) return [];
+  const design = item.design_json || {};
+  const metadata = item.metadata || {};
+  const slideGeneratedAssetUrls = Array.isArray(design.slides)
+    ? design.slides.flatMap((slide) => [
+        slide?.rendered_asset_url,
+        slide?.final_asset_url,
+        slide?.story_image_url,
+        slide?.generated_asset_url,
+        slide?.generated_asset_urls,
+        slide?.generated_media_urls,
+        slide?.image_url,
+      ])
+    : [];
+  const boundAssetUrls = uniqueImageUrls([
+    design.final_asset_urls,
+    design.generated_asset_urls,
+    design.generated_media_urls,
+    metadata.final_asset_urls,
+    metadata.generated_asset_urls,
+    metadata.generated_media_urls,
+    design.final_asset_url,
+    design.rendered_image_url,
+    design.story_image_url,
+    metadata.final_asset_url,
+    metadata.rendered_image_url,
+    metadata.story_image_url,
+    ...slideGeneratedAssetUrls,
+  ]).filter((url) => isKnownRenderedStoryUrl(url, item));
+  const boundAssetSet = new Set(boundAssetUrls.map((url) => cleanImageUrl(url).toLowerCase()));
+  return uniqueImageUrls([
+    ...boundAssetUrls,
+    item.final_asset_url,
+    item.rendered_image_url,
+    item.story_image_url,
+    item.final_asset_urls,
+    item.generated_asset_urls,
+    item.generated_media_urls,
+  ]).filter((url) => boundAssetSet.has(cleanImageUrl(url).toLowerCase()));
 };
 
 const isKnownRenderedStoryUrl = (url = "", item = {}) => {
@@ -2140,7 +2182,17 @@ const fetchQueueProductCoverImageUrl = async (tenantId, item = {}) => {
 const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = false } = {}) => {
   if (!isStoryQueueItem(item)) return item;
   const existingAsset = queueStoryFinalAssetUrl(item);
-  if (!force && isValidRenderedStoryAsset(item, existingAsset)) return normalizeQueueRow(item);
+  if (!force && isValidRenderedStoryAsset(item, existingAsset) && isStoryAssetBoundToCurrentItem(item)) return normalizeQueueRow(item);
+  if (!force && existingAsset && !isStoryAssetBoundToCurrentItem(item)) {
+    console.warn("[story-asset-binding-miss]", {
+      storyId: item.id || null,
+      productId: item.product_id || null,
+      creativeId: item.design_json?.creative_id || item.metadata?.creative_id || null,
+      assetUrl: existingAsset,
+      layout: item.layout_type || item.design_json?.layout_type || "",
+      reason: "asset_not_bound_to_current_story",
+    });
+  }
 
   const productCoverImageUrl = await fetchQueueProductCoverImageUrl(tenantId, item);
   const design = {
@@ -2163,6 +2215,7 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
   let renderedAssetUrl = "";
   let renderedAssetUrls = [];
   let renderedSlides = [];
+  const creativeId = cleanText(design.creative_id || item.metadata?.creative_id || `ai-story-${item.id || "new"}`);
   try {
     const rendered = await generateDesignedAiMarketingStoryImages({
       tenantId,
@@ -2194,11 +2247,21 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
       rendered_asset_url: absoluteStoryAssetUrl(slide.rendered_asset_url || slide.final_asset_url || slide.image_url),
       image_url: absoluteStoryAssetUrl(slide.rendered_asset_url || slide.final_asset_url || slide.image_url),
       source_product_image_url: rawImages[index] || slide.source_product_image_url || "",
+      story_id: item.id,
+      queue_id: item.id,
+      product_id: item.product_id || null,
+      creative_id: creativeId,
+      asset_id: `story-${item.id}-slide-${index + 1}`,
       slide_number: index + 1,
     })) : [];
     renderedAssetUrl = renderedAssetUrls[0] || absoluteStoryAssetUrl(rendered.final_asset_url);
     console.log("[story-generated-assets]", {
+      storyId: item.id || null,
       queueId: item.id || null,
+      productId: item.product_id || null,
+      creativeId,
+      template: AI_MARKETING_STORY_RENDERER,
+      layout: item.layout_type || design.layout_type || "",
       generated_asset_count: renderedAssetUrls.length,
       generated_asset_urls: renderedAssetUrls,
       media_urls_length: renderedAssetUrls.length,
@@ -2208,7 +2271,10 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     });
     if (renderedAssetUrls.length !== rawImages.length) {
       console.warn("[story-generated-assets-mismatch]", {
+        storyId: item.id || null,
         queueId: item.id || null,
+        productId: item.product_id || null,
+        creativeId,
         source_image_count: rawImages.length,
         generated_asset_count: renderedAssetUrls.length,
         generated_asset_urls: renderedAssetUrls,
@@ -2242,6 +2308,11 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     final_asset_url: renderedAssetUrl,
     source_product_image_url: rawImages[0] || "",
     story_asset_renderer: AI_MARKETING_STORY_RENDERER,
+    story_asset_story_id: item.id,
+    story_asset_queue_id: item.id,
+    story_asset_product_id: item.product_id || null,
+    story_asset_creative_id: creativeId,
+    story_asset_ids: renderedAssetUrls.map((_, index) => `story-${item.id}-slide-${index + 1}`),
     media_urls: renderedAssetUrls,
     media_urls_length: renderedAssetUrls.length,
     generated_asset_count: renderedAssetUrls.length,
@@ -2252,6 +2323,11 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
       rendered_asset_url: url,
       final_asset_url: url,
       source_product_image_url: rawImages[index] || "",
+      story_id: item.id,
+      queue_id: item.id,
+      product_id: item.product_id || null,
+      creative_id: creativeId,
+      asset_id: `story-${item.id}-slide-${index + 1}`,
       slide_number: index + 1,
     }))).map((slide, index) => ({
       ...(Array.isArray(design.slides) ? design.slides[index] || {} : {}),
@@ -2262,6 +2338,11 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
       story_image_url: slide.story_image_url || slide.rendered_asset_url || slide.image_url,
       source_product_image_url: slide.source_product_image_url || rawImages[index] || "",
       original_image_url: slide.source_product_image_url || rawImages[index] || "",
+      story_id: item.id,
+      queue_id: item.id,
+      product_id: item.product_id || null,
+      creative_id: creativeId,
+      asset_id: slide.asset_id || `story-${item.id}-slide-${index + 1}`,
       slide_number: index + 1,
     })),
   };
@@ -2281,6 +2362,11 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     generated_matches_source_count: renderedAssetUrls.length === rawImages.length,
     story_asset_error: "",
     story_asset_renderer: AI_MARKETING_STORY_RENDERER,
+    story_asset_story_id: item.id,
+    story_asset_queue_id: item.id,
+    story_asset_product_id: item.product_id || null,
+    story_asset_creative_id: creativeId,
+    story_asset_ids: renderedAssetUrls.map((_, index) => `story-${item.id}-slide-${index + 1}`),
     story_asset_generated_at: new Date().toISOString(),
     generation_stage: "ready",
   };
@@ -2302,7 +2388,14 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     [item.id, tenantId, renderedAssetUrl, JSON.stringify(nextDesign), JSON.stringify(nextMetadata), JSON.stringify(renderedAssetUrls)]
   );
   console.log("[story-asset-url-persist]", {
+    storyId: item.id,
     queueId: item.id,
+    productId: item.product_id || null,
+    creativeId,
+    assetId: nextMetadata.story_asset_ids[0] || null,
+    assetUrl: renderedAssetUrl,
+    template: AI_MARKETING_STORY_RENDERER,
+    layout: item.layout_type || design.layout_type || "",
     rendered_image_url: renderedAssetUrl,
     story_image_url: renderedAssetUrl,
     final_asset_url: renderedAssetUrl,
@@ -2349,68 +2442,17 @@ export const enqueueAiMarketingQueueStoryAssetGeneration = async (tenantId, id, 
   if (!isStoryQueueItem(currentItem)) {
     throw serviceError("Queue item is not a story.", 400, { queue_id: id, content_type: currentItem.content_type || "" });
   }
-  if (!force && isValidRenderedStoryAsset(currentItem, queueStoryFinalAssetUrl(currentItem))) {
+  if (!force && isValidRenderedStoryAsset(currentItem, queueStoryFinalAssetUrl(currentItem)) && isStoryAssetBoundToCurrentItem(currentItem)) {
     return { queued: false, reused: true, item: currentItem };
   }
   if (!force) {
-    const design = currentItem.design_json || {};
-    const reusable = await db.query(
-      `
-      SELECT *
-      FROM ai_marketing_content_queue
-      WHERE tenant_id = $1
-        AND id <> $2
-        AND content_type = $3
-        AND product_id = $4
-        AND COALESCE(strategy_type, '') = COALESCE($5, '')
-        AND COALESCE(design_json->>'layout_type', '') = COALESCE($6, '')
-        AND created_at::date = CURRENT_DATE
-        AND final_asset_url <> ''
-        AND status = 'ready'
-      ORDER BY updated_at DESC
-      LIMIT 1
-      `,
-      [tenantId, id, currentItem.content_type, currentItem.product_id, currentItem.strategy_type || "", design.layout_type || ""]
-    );
-    const reusableItem = reusable.rows[0] ? normalizeQueueRow(reusable.rows[0]) : null;
-    const reusableUrl = queueStoryFinalAssetUrl(reusableItem || {});
-    if (reusableItem && isValidRenderedStoryAsset(reusableItem, reusableUrl)) {
-      const nextDesign = {
-        ...design,
-        rendered_image_url: reusableUrl,
-        story_image_url: reusableUrl,
-        final_asset_url: reusableUrl,
-        story_asset_renderer: AI_MARKETING_STORY_RENDERER,
-      };
-      const nextMetadata = {
-        ...(currentItem.metadata || {}),
-        rendered_image_url: reusableUrl,
-        story_image_url: reusableUrl,
-        final_asset_url: reusableUrl,
-        story_asset_error: "",
-        story_asset_reused_from_queue_id: reusableItem.id,
-        story_asset_reused_at: new Date().toISOString(),
-        story_asset_renderer: AI_MARKETING_STORY_RENDERER,
-        generation_stage: "ready",
-      };
-      const updated = await db.query(
-        `
-        UPDATE ai_marketing_content_queue
-        SET status = 'ready',
-            rendered_image_url = $3,
-            story_image_url = $3,
-            final_asset_url = $3,
-            image_url = $3,
-            design_json = $4::jsonb,
-            metadata = $5::jsonb,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = $1 AND tenant_id = $2
-        RETURNING *
-        `,
-        [id, tenantId, reusableUrl, JSON.stringify(nextDesign), JSON.stringify(nextMetadata)]
-      );
-      return { queued: false, reused: true, item: normalizeQueueRow(updated.rows[0]) };
-    }
+    console.log("[story-asset-reuse-skipped]", {
+      storyId: currentItem.id || null,
+      productId: currentItem.product_id || null,
+      creativeId: currentItem.design_json?.creative_id || currentItem.metadata?.creative_id || null,
+      layout: currentItem.layout_type || currentItem.design_json?.layout_type || "",
+      reason: "story_assets_must_be_bound_to_current_story",
+    });
   }
 
   const queuedItem = await updateQueueGenerationStage(tenantId, id, "queued", {
@@ -2447,8 +2489,14 @@ const logStoryPublishAsset = ({ item = {}, selectedPublishUrl = "", reason = "" 
   const productImageUrl = storyProductImageUrl(item);
   const finalAssetUrlRaw = cleanText(item.final_asset_url || design.final_asset_url || metadata.final_asset_url);
   const selectedPublishUrlRaw = rawStorySelectedPublishUrl(item);
+  const binding = storyAssetBinding(item);
   console.log("[story-publish-asset]", {
+    storyId: item.id || null,
     queueId: item.id || null,
+    productId: item.product_id || null,
+    creativeId: binding.creativeId || null,
+    assetId: generatedStoryAssetIds(item)[0] || null,
+    assetUrl: selectedPublishUrl,
     productImageUrl,
     rendered_image_url: cleanText(item.rendered_image_url || design.rendered_image_url),
     story_image_url: cleanText(item.story_image_url || design.story_image_url),
@@ -2458,13 +2506,19 @@ const logStoryPublishAsset = ({ item = {}, selectedPublishUrl = "", reason = "" 
     selectedPublishUrl_raw: selectedPublishUrlRaw,
     selectedPublishUrl_valid: isPublicStoryAssetUrl(selectedPublishUrl),
     selectedPublishUrlReason: reason,
+    storyAssetBound: isStoryAssetBoundToCurrentItem(item),
+    boundStoryId: binding.storyId || null,
+    boundProductId: binding.productId || null,
     contentType: item.content_type || "",
+    template: metadata.story_asset_renderer || design.story_asset_renderer || "",
     layout: item.layout_type || design.layout_type || "",
   });
 };
 
 const assertStoryPublishAsset = (item = {}) => {
-  const selectedPublishUrl = storySelectedPublishUrl(item);
+  const currentAssets = currentStoryGeneratedAssetUrls(item);
+  const requestedPublishUrl = storySelectedPublishUrl(item);
+  const selectedPublishUrl = currentAssets.find((url) => sameImageUrl(url, requestedPublishUrl)) || currentAssets[0] || "";
   const selectedPublishUrlRaw = rawStorySelectedPublishUrl(item);
   const productImageUrl = storyProductImageUrl(item);
   const reason = selectedPublishUrl
@@ -2475,13 +2529,16 @@ const assertStoryPublishAsset = (item = {}) => {
         : "story_image_url"
     : "missing";
   logStoryPublishAsset({ item, selectedPublishUrl, reason });
-  if (!selectedPublishUrl || !isValidRenderedStoryAsset(item, selectedPublishUrl) || sameImageUrl(selectedPublishUrl, productImageUrl)) {
-    throw serviceError("Story asset not generated.", 409, {
+  if (!selectedPublishUrl || !isStoryAssetBoundToCurrentItem(item) || !isValidRenderedStoryAsset(item, selectedPublishUrl) || sameImageUrl(selectedPublishUrl, productImageUrl)) {
+    throw serviceError("Generated story asset is missing for this story.", 409, {
       queue_id: item.id,
+      product_id: item.product_id,
       product_image_url: productImageUrl,
       selected_publish_url: selectedPublishUrl,
       selected_publish_url_raw: selectedPublishUrlRaw,
       selected_publish_url_reason: reason,
+      current_story_asset_count: currentAssets.length,
+      reason: "missing_or_unbound_current_story_asset",
     });
   }
   return selectedPublishUrl;
@@ -4605,6 +4662,7 @@ export const approveAiMarketingQueueItem = async (tenantId, id) => {
 
 export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
   await ensureAiMarketingCenterSchema();
+  const publishJobId = `ai-story-publish-${id}-${Date.now()}`;
   const current = await db.query(`SELECT * FROM ai_marketing_content_queue WHERE id = $1 AND tenant_id = $2 LIMIT 1`, [id, tenantId]);
   const currentItem = current.rows[0] ? normalizeQueueRow(current.rows[0]) : null;
   if (!currentItem) {
@@ -4640,6 +4698,16 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
     // user never has to press "Generate asset" as a separate prerequisite.
     publishItem = await ensureQueueStoryRenderedAsset(tenantId, publishItem, { force: false });
     assertStoryPublishAsset(publishItem);
+    console.log("[story-publish-enqueue]", {
+      storyId: publishItem.id || null,
+      productId: publishItem.product_id || null,
+      creativeId: publishItem.design_json?.creative_id || publishItem.metadata?.creative_id || null,
+      assetId: generatedStoryAssetIds(publishItem)[0] || null,
+      assetUrl: currentStoryGeneratedAssetUrls(publishItem)[0] || "",
+      publishJobId,
+      template: publishItem.metadata?.story_asset_renderer || publishItem.design_json?.story_asset_renderer || "",
+      layout: publishItem.layout_type || publishItem.design_json?.layout_type || "",
+    });
   }
   await db.query(
     `
@@ -4690,7 +4758,7 @@ export const publishAiMarketingQueueItemNow = async (tenantId, id) => {
       return persistQueuePublishResult({ tenantId, id, item: publishItem, result, platformResults, statusOverride: "failed", errorOverride: result.error_message });
     }
     const publishResult = isStory
-      ? await publishStoryEverywhereService({ story: queueItemStoryPayload(publishItem), settings })
+      ? await publishStoryEverywhereService({ story: { ...queueItemStoryPayload(publishItem), publish_job_id: publishJobId }, settings })
       : await publishPostService(queueItemPostPayload(publishItem), settings);
     const platformResults = normalizePlatformResults(publishResult, isStory ? "story" : "post");
     return persistQueuePublishResult({ tenantId, id, item: publishItem, result: publishResult, platformResults });
@@ -4879,6 +4947,9 @@ export const __aiMarketingCenterTestHooks = {
   publishedPlatformsFromResults,
   normalizeQueueRow,
   getProductPrice,
+  queueItemStoryPayload,
+  currentStoryGeneratedAssetUrls,
+  isStoryAssetBoundToCurrentItem,
 };
 
 export const setAiMarketingAutomationActive = async (tenantId, active) => {

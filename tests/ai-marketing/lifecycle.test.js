@@ -11,6 +11,9 @@ const {
   publishedPlatformsFromResults,
   normalizeQueueRow,
   getProductPrice,
+  queueItemStoryPayload,
+  currentStoryGeneratedAssetUrls,
+  isStoryAssetBoundToCurrentItem,
 } = __aiMarketingCenterTestHooks;
 
 const serviceSource = fs.readFileSync(
@@ -161,5 +164,99 @@ test("async generation state machine model covers success, failure, reuse, force
   const sameKey = { product_id: 1, strategy_type: "new_arrivals", layout_type: "story" };
   const canReuse = !sameKey.force && existing.product_id === sameKey.product_id && existing.strategy_type === sameKey.strategy_type && existing.layout_type === sameKey.layout_type;
   assert.equal(canReuse, true);
+  assert.match(serviceSource, /story_assets_must_be_bound_to_current_story/);
+  assert.doesNotMatch(serviceSource, /story_asset_reused_from_queue_id/);
   assert.equal(Boolean({ ...sameKey, force: true }.force), true);
+});
+
+test("story publish payload only uses assets bound to the current story", () => {
+  const skechersAsset = "https://api.m1store-egy.com/uploads/stories/story-10-skechers.png";
+  const oldAdidasAsset = "https://api.m1store-egy.com/uploads/stories/story-2-adidas-ultra-boost.png";
+  const story = {
+    id: 10,
+    tenant_id: 1,
+    product_id: 345,
+    content_type: "story",
+    title: "Skechers Hyper Pillars",
+    final_asset_url: oldAdidasAsset,
+    media_urls: [oldAdidasAsset],
+    design_json: {
+      layout_type: "special_offer_story",
+      product_name: "Skechers Hyper Pillars",
+      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_story_id: 10,
+      story_asset_product_id: 345,
+      generated_media_urls: [skechersAsset],
+      final_asset_url: skechersAsset,
+      slides: [{
+        slide_number: 1,
+        story_id: 10,
+        product_id: 345,
+        asset_id: "story-10-slide-1",
+        rendered_asset_url: skechersAsset,
+      }],
+    },
+    metadata: {
+      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_story_id: 10,
+      story_asset_product_id: 345,
+      story_asset_ids: ["story-10-slide-1"],
+      generated_asset_urls: [skechersAsset],
+      generated_asset_count: 1,
+    },
+  };
+
+  assert.equal(isStoryAssetBoundToCurrentItem(story), true);
+  assert.deepEqual(currentStoryGeneratedAssetUrls(story), [skechersAsset]);
+  const payload = queueItemStoryPayload(story);
+  assert.deepEqual(payload.media_urls, [skechersAsset]);
+  assert.equal(payload.image_url, skechersAsset);
+  assert.doesNotMatch(JSON.stringify(payload), /adidas|ultra-boost/i);
+});
+
+test("story publish payload fails instead of falling back when current story asset is missing", () => {
+  assert.throws(
+    () => queueItemStoryPayload({
+      id: 11,
+      tenant_id: 1,
+      product_id: 345,
+      content_type: "story",
+      title: "Skechers Hyper Pillars",
+      image_url: "https://api.m1store-egy.com/uploads/products/skechers.jpg",
+      media_urls: ["https://api.m1store-egy.com/uploads/stories/story-2-adidas-ultra-boost.png"],
+      design_json: { layout_type: "special_offer_story", product_name: "Skechers Hyper Pillars" },
+      metadata: {},
+    }),
+    /Generated story asset is missing for this story/
+  );
+});
+
+test("story asset binding survives reload-shaped normalized rows", () => {
+  const asset = "https://api.m1store-egy.com/uploads/stories/story-12-skechers.png";
+  const normalized = normalizeQueueRow({
+    id: 12,
+    tenant_id: 1,
+    product_id: 345,
+    content_type: "story",
+    final_asset_url: asset,
+    media_urls: [asset],
+    design_json: {
+      layout_type: "story",
+      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_story_id: 12,
+      story_asset_product_id: 345,
+      generated_media_urls: [asset],
+      final_asset_url: asset,
+    },
+    metadata: {
+      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_story_id: 12,
+      story_asset_product_id: 345,
+      generated_asset_urls: [asset],
+      generated_asset_count: 1,
+    },
+  });
+
+  assert.equal(isStoryAssetBoundToCurrentItem(normalized), true);
+  assert.deepEqual(queueItemStoryPayload(normalized).media_urls, [asset]);
 });
