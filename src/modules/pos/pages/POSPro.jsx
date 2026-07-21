@@ -51,7 +51,7 @@ import {
   getLoyaltyCustomerById,
   validateLoyaltyRedemption,
 } from "../../loyalty/loyaltyApi";
-import { getProductByQrToken, getProductsWithVariants } from "../../products/services/productsApi";
+import { getProductByQrToken, getProductFull, getProductsWithVariants } from "../../products/services/productsApi";
 import {
   calcTotals,
   clearPosPersistedState,
@@ -77,6 +77,7 @@ import { POS_ARABIC_TEXT, safeArabicText } from "../lib/arabicText";
 import { getCompleteEgyptianMobilePhone, normalizePhone } from "../lib/phoneSearch";
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 import { buildPosOpeningCandidateFallback, readPosOpeningCandidates } from "../lib/posOpeningCandidates";
+import { countUniqueVariantColors, mergeCatalogProducts } from "../lib/posCatalogMerge";
 import { normalizePosCatalogProduct, normalizePosSellableProducts, resolvePosImageUrl } from "../services/posProductsApi";
 import {
   createOfflineOrderIdempotencyKey,
@@ -1167,19 +1168,6 @@ const applySoldItemsToCatalog = (products = [], soldItems = []) => {
   }
 
   return nextProducts;
-};
-
-const mergeCatalogProducts = (current = [], incoming = []) => {
-  const byId = new Map();
-  (Array.isArray(current) ? current : []).forEach((product) => {
-    const key = String(product?.product_id ?? product?.id ?? "").trim();
-    if (key) byId.set(key, product);
-  });
-  (Array.isArray(incoming) ? incoming : []).forEach((product) => {
-    const key = String(product?.product_id ?? product?.id ?? "").trim();
-    if (key) byId.set(key, product);
-  });
-  return Array.from(byId.values());
 };
 
 const extractOrderItemsFromResponse = (response = {}, fallbackOrder = {}) => {
@@ -4187,6 +4175,13 @@ function POSPro() {
     const selectionMatch = getProductSelectionMatch(product);
     const initialColor = selectionMatch.matchedColor || selectionMatch.matchedVariant?.color || "";
     const initialSize = selectionMatch.matchedVariant?.size || "";
+    console.info("[pos-open-product-modal]", {
+      search_match_type: product?.search_match_type || product?.searchMatchType || "",
+      product_id: product?.product_id || product?.id || null,
+      variants_length: variants.length,
+      unique_colors_count: countUniqueVariantColors(product),
+      matched_variant_id: product?.matched_variant_id || product?.matchedVariantId || null,
+    });
 
     if (viewportIsMobile) {
       const firstVariant =
@@ -4248,10 +4243,41 @@ function POSPro() {
     toast.error(t("pos.toasts.notSellable"));
   }, [addVariantToCart, openProductVariantPicker, t]);
 
-  const handleSelectProduct = useCallback((product) => {
-    if (openProductVariantPicker(product)) return;
-    quickAddProduct(product);
-  }, [openProductVariantPicker, quickAddProduct]);
+  const hydrateProductForArticleModal = useCallback(async (product) => {
+    const matchType = String(product?.search_match_type || product?.searchMatchType || "").trim().toLowerCase();
+    if (matchType !== "variant_article" || countUniqueVariantColors(product) > 1) return product;
+
+    const productId = product?.product_id || product?.id || null;
+    if (!productId) return product;
+
+    try {
+      const fullProduct = await getProductFull(productId);
+      const normalized = normalizePosSellableProducts([fullProduct], saleModeSettings).map((item) => normalizePosCatalogProduct(item))[0];
+      if (!normalized) return product;
+      return {
+        ...normalized,
+        matched_variant_id: product?.matched_variant_id ?? product?.matchedVariantId ?? null,
+        matchedVariantId: product?.matchedVariantId ?? product?.matched_variant_id ?? null,
+        matched_color: product?.matched_color ?? product?.matchedColor ?? null,
+        matchedColor: product?.matchedColor ?? product?.matched_color ?? null,
+        matched_color_id: product?.matched_color_id ?? product?.matchedColorId ?? null,
+        matchedColorId: product?.matchedColorId ?? product?.matched_color_id ?? null,
+        matched_article: product?.matched_article ?? product?.matchedArticle ?? null,
+        matchedArticle: product?.matchedArticle ?? product?.matched_article ?? null,
+        search_match_type: product?.search_match_type ?? product?.searchMatchType ?? null,
+        searchMatchType: product?.searchMatchType ?? product?.search_match_type ?? null,
+      };
+    } catch (error) {
+      console.error("[pos] failed to hydrate article search product:", error);
+      return product;
+    }
+  }, [saleModeSettings]);
+
+  const handleSelectProduct = useCallback(async (product) => {
+    const productForModal = await hydrateProductForArticleModal(product);
+    if (openProductVariantPicker(productForModal)) return;
+    quickAddProduct(productForModal);
+  }, [hydrateProductForArticleModal, openProductVariantPicker, quickAddProduct]);
 
   const handleRemoveCartItem = useCallback((key) => setCart((prev) => prev.filter((item) => item.key !== key)), []);
   const handleIncrease = useCallback((key) =>
