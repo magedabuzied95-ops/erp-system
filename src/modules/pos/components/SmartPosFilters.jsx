@@ -36,6 +36,8 @@ function CategoryPill({ active, onClick, name, count, icon, color }) {
 function SmartFilterRow({ label, options, value, onChange }) {
   const { t } = useTranslation();
   const items = Array.isArray(options) ? options : [];
+  const selectedValues = Array.isArray(value) ? value.map(String) : [];
+  const hasMultiValue = Array.isArray(value);
 
   if (items.length === 0) return null;
 
@@ -46,11 +48,11 @@ function SmartFilterRow({ label, options, value, onChange }) {
       </div>
 
       <div className="flex min-w-0 flex-wrap items-start gap-1.5 sm:gap-2">
-        <CategoryPill active={value === "all"} onClick={() => onChange("all")} name={t("pos.labels.all")} count={items.reduce((sum, option) => sum + Number(option.count || 0), 0)} />
+        <CategoryPill active={hasMultiValue ? selectedValues.length === 0 : value === "all"} onClick={() => onChange("all")} name={t("pos.labels.all")} count={items.reduce((sum, option) => sum + Number(option.count || 0), 0)} />
         {items.map((option) => (
           <CategoryPill
             key={option.id}
-            active={value === option.id}
+            active={hasMultiValue ? selectedValues.includes(String(option.id)) : value === option.id}
             onClick={() => onChange(option.id)}
             name={option.name}
             count={option.count}
@@ -65,8 +67,29 @@ function SmartFilterRow({ label, options, value, onChange }) {
 
 function SmartSelectBlock({ label, options, value = "all", onChange, allLabel }) {
   const items = Array.isArray(options) ? options : [];
+  const selectedValues = Array.isArray(value) ? value.map(String) : [];
+  const hasMultiValue = Array.isArray(value);
 
   if (items.length === 0) return null;
+
+  if (hasMultiValue) {
+    return (
+      <div className="m1-smart-filter-group rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
+        <div className="m1-smart-filter-label mb-1.5 text-[11px] font-bold tracking-[0.04em] text-zinc-500 sm:text-xs">{label}</div>
+        <div className="flex min-w-0 flex-wrap items-start gap-1.5 sm:gap-2">
+          <CategoryPill active={selectedValues.length === 0} onClick={() => onChange?.("all")} name={allLabel} />
+          {items.map((item) => (
+            <CategoryPill
+              key={item.id || item.name}
+              active={selectedValues.includes(String(item.id))}
+              onClick={() => onChange?.(item.id)}
+              name={item.name}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="m1-smart-filter-group rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">

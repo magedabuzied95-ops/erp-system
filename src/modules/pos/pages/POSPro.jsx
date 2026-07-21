@@ -78,6 +78,11 @@ import { getCompleteEgyptianMobilePhone, normalizePhone } from "../lib/phoneSear
 import { getPosEffectivePrice, shouldForceSalePriceForPos } from "../lib/posPricing";
 import { buildPosOpeningCandidateFallback, readPosOpeningCandidates } from "../lib/posOpeningCandidates";
 import { countUniqueVariantColors, mergeCatalogProducts } from "../lib/posCatalogMerge";
+import {
+  matchesQuickFilterGroups,
+  normalizeMultiFilterValue,
+  toggleMultiFilterValue,
+} from "../lib/posQuickFilterLogic";
 import { normalizePosCatalogProduct, normalizePosSellableProducts, resolvePosImageUrl } from "../services/posProductsApi";
 import {
   createOfflineOrderIdempotencyKey,
@@ -111,6 +116,7 @@ import ProductGrid from "../components/ProductGrid";
 import CartSidebar from "../components/CartSidebar";
 import ProductAvailabilityModal from "../components/ProductAvailabilityModal";
 import SmartPosFilters from "../components/SmartPosFilters";
+import QuickPosFilters from "../components/QuickPosFilters";
 import { CurrencyText } from "../../../shared/components/CurrencyAmount";
 import { MobileBottomSheet, StickyMobileActionBar } from "../../../shared/components/mobile/ResponsiveMobile";
 import "./POSPro.m1.css";
@@ -1593,11 +1599,11 @@ function POSPro() {
   const [selectedChildCategoryId, setSelectedChildCategoryId] = useState(
     () => persisted.selectedChildCategoryId || defaultState.selectedChildCategoryId
   );
-  const [selectedBrandId, setSelectedBrandId] = useState(() => persisted.selectedBrandId || defaultState.selectedBrandId);
+  const [selectedBrandId, setSelectedBrandId] = useState(() => normalizeMultiFilterValue(persisted.selectedBrandId || defaultState.selectedBrandId));
   const [selectedManufacturerId, setSelectedManufacturerId] = useState(
-    () => persisted.selectedManufacturerId || persisted.manufacturerFilter || defaultState.selectedManufacturerId
+    () => normalizeMultiFilterValue(persisted.selectedManufacturerId || persisted.manufacturerFilter || defaultState.selectedManufacturerId)
   );
-  const [selectedGender, setSelectedGender] = useState(() => persisted.selectedGender || defaultState.selectedGender);
+  const [selectedGender, setSelectedGender] = useState(() => normalizeMultiFilterValue(persisted.selectedGender || defaultState.selectedGender));
   const [selectedProductType, setSelectedProductType] = useState(() => persisted.selectedProductType || defaultState.selectedProductType);
   const [selectedGrade, setSelectedGrade] = useState(() => persisted.selectedGrade || defaultState.selectedGrade);
   const [customerSearch, setCustomerSearch] = useState(defaultState.customerSearch);
@@ -3184,15 +3190,10 @@ function POSPro() {
     const query = normalizeSmartText(deferredSearch.trim());
 
     return productsAfterChildCategory.filter(({ meta }) => {
-      const matchesBrand = selectedBrandId === "all" || meta.brandKey === selectedBrandId;
-      const matchesManufacturer =
-        selectedManufacturerId === "all" ||
-        meta.manufacturerIds.has(String(selectedManufacturerId)) ||
-        meta.manufacturerNames.includes(normalizeSmartText(String(selectedManufacturerId).replace(/^name:/, "")));
       const matchesText = !query || meta.searchText.includes(query);
-      return matchesBrand && matchesManufacturer && matchesText;
+      return matchesText;
     });
-  }, [productsAfterChildCategory, deferredSearch, selectedBrandId, selectedManufacturerId]);
+  }, [productsAfterChildCategory, deferredSearch]);
 
   const smartFilterOptions = useMemo(() => {
     const renderedFilterSource = productsAfterNonSmartFilters.map(({ product }) => product);
@@ -3232,8 +3233,11 @@ function POSPro() {
   const productsAfterSmartFilters = useMemo(
     () =>
       productsAfterNonSmartFilters.filter(({ product }) => {
-        const matchesGender =
-          selectedGender === "all" || getProductAudienceKeys(product).includes(normalizeAudienceValue(selectedGender) || normalizeFilterValue(selectedGender));
+        const matchesGender = matchesQuickFilterGroups(
+          { audienceKeys: getProductAudienceKeys(product) },
+          { genders: normalizeMultiFilterValue(selectedGender).map((gender) => normalizeAudienceValue(gender) || normalizeFilterValue(gender)) },
+          normalizeSmartText
+        );
         const matchesProductType =
           selectedProductType === "all" ||
           getProductSmartFilterValue(product, "productType", smartClassificationOptions.productType) === normalizeFilterValue(selectedProductType);
@@ -3280,13 +3284,20 @@ function POSPro() {
 
     return productsAfterSmartFilters
       .filter(({ meta }) => {
-        const matchesBrand = selectedBrandId === "all" || meta.brandKey === selectedBrandId;
-        const matchesManufacturer =
-          selectedManufacturerId === "all" ||
-          meta.manufacturerIds.has(String(selectedManufacturerId)) ||
-          meta.manufacturerNames.includes(normalizeSmartText(String(selectedManufacturerId).replace(/^name:/, "")));
+        const matchesQuickFilters = matchesQuickFilterGroups(
+          {
+            brandKey: meta.brandKey,
+            manufacturerIds: meta.manufacturerIds,
+            manufacturerNames: meta.manufacturerNames,
+          },
+          {
+            brands: selectedBrandId,
+            manufacturers: selectedManufacturerId,
+          },
+          normalizeSmartText
+        );
         const matchesText = !query || meta.searchText.includes(query);
-        return matchesBrand && matchesManufacturer && matchesText;
+        return matchesQuickFilters && matchesText;
       })
       .map(({ product }) => product);
   }, [productsAfterSmartFilters, deferredSearch, selectedBrandId, selectedManufacturerId]);
@@ -3345,8 +3356,10 @@ function POSPro() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (selectedGender !== "all" && !smartFilterOptions.gender.some((option) => option.id === selectedGender)) {
-        setSelectedGender("all");
+      const validIds = new Set(smartFilterOptions.gender.map((option) => String(option.id)));
+      const nextValues = normalizeMultiFilterValue(selectedGender).filter((value) => validIds.has(String(value)));
+      if (nextValues.length !== normalizeMultiFilterValue(selectedGender).length) {
+        setSelectedGender(nextValues);
       }
     }, 0);
     return () => window.clearTimeout(timer);
@@ -3372,8 +3385,10 @@ function POSPro() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (selectedBrandId !== "all" && !brandOptions.some((option) => option.id === selectedBrandId)) {
-        setSelectedBrandId("all");
+      const validIds = new Set(brandOptions.map((option) => String(option.id)));
+      const nextValues = normalizeMultiFilterValue(selectedBrandId).filter((value) => validIds.has(String(value)));
+      if (nextValues.length !== normalizeMultiFilterValue(selectedBrandId).length) {
+        setSelectedBrandId(nextValues);
       }
     }, 0);
     return () => window.clearTimeout(timer);
@@ -3381,8 +3396,10 @@ function POSPro() {
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      if (selectedManufacturerId !== "all" && !manufacturerOptions.some((option) => option.id === selectedManufacturerId)) {
-        setSelectedManufacturerId("all");
+      const validIds = new Set(manufacturerOptions.map((option) => String(option.id)));
+      const nextValues = normalizeMultiFilterValue(selectedManufacturerId).filter((value) => validIds.has(String(value)));
+      if (nextValues.length !== normalizeMultiFilterValue(selectedManufacturerId).length) {
+        setSelectedManufacturerId(nextValues);
       }
     }, 0);
     return () => window.clearTimeout(timer);
@@ -3689,14 +3706,20 @@ function POSPro() {
         { key: "type", label: "نوع المنتج", value: selectedProductType, setValue: setSelectedProductType, options: smartFilterOptions.productType },
         { key: "grade", label: "الفئة", value: selectedGrade, setValue: setSelectedGrade, options: smartFilterOptions.grade },
       ]
-        .filter((item) => item.value !== "all")
-        .map((item) => ({
-          ...item,
-          name: item.options.find((option) => option.id === item.value)?.name || item.options.find((option) => option.value === item.value)?.name || item.value,
-        })),
+        .flatMap((item) => {
+          const values = item.key === "gender" ? normalizeMultiFilterValue(item.value) : normalizeMultiFilterValue(item.value);
+          return values.map((value) => ({
+            ...item,
+            value,
+            name: item.options.find((option) => option.id === value)?.name || item.options.find((option) => option.value === value)?.name || value,
+          }));
+        }),
     [selectedGender, selectedProductType, selectedGrade, smartFilterOptions]
   );
-  const activeSmartFilterCount = activeSmartFilters.length;
+  const activeSmartFilterCount =
+    activeSmartFilters.length +
+    normalizeMultiFilterValue(selectedBrandId).length +
+    normalizeMultiFilterValue(selectedManufacturerId).length;
 
   useEffect(() => {
     const previousTotal = Number(previousTotalRef.current || 0);
@@ -6696,12 +6719,24 @@ function POSPro() {
     setSelectedMainCategoryId("all");
     setSelectedSubCategoryId("all");
     setSelectedChildCategoryId("all");
-    setSelectedBrandId("all");
-    setSelectedManufacturerId("all");
-    setSelectedGender("all");
+    setSelectedBrandId([]);
+    setSelectedManufacturerId([]);
+    setSelectedGender([]);
     setSelectedProductType("all");
     setSelectedGrade("all");
     setSearch("");
+  }, []);
+
+  const handleGenderFilterChange = useCallback((value) => {
+    setSelectedGender((current) => toggleMultiFilterValue(current, value));
+  }, []);
+
+  const handleBrandFilterChange = useCallback((value) => {
+    setSelectedBrandId((current) => toggleMultiFilterValue(current, value));
+  }, []);
+
+  const handleManufacturerFilterChange = useCallback((value) => {
+    setSelectedManufacturerId((current) => toggleMultiFilterValue(current, value));
   }, []);
 
   const handleToggleFilters = useCallback(() => {
@@ -7119,17 +7154,17 @@ function POSPro() {
             portalTarget={typeof document !== "undefined" ? document.fullscreenElement || document.body : undefined}
             smartFilterOptions={smartFilterOptions}
             selectedGender={selectedGender}
-            onGenderChange={setSelectedGender}
+            onGenderChange={handleGenderFilterChange}
             selectedProductType={selectedProductType}
             onProductTypeChange={setSelectedProductType}
             selectedGrade={selectedGrade}
             onGradeChange={setSelectedGrade}
             brandOptions={brandOptions}
             selectedBrandId={selectedBrandId}
-            onBrandChange={setSelectedBrandId}
+            onBrandChange={handleBrandFilterChange}
             manufacturerOptions={manufacturerOptions}
             selectedManufacturerId={selectedManufacturerId}
-            onManufacturerChange={setSelectedManufacturerId}
+            onManufacturerChange={handleManufacturerFilterChange}
             activeSmartFilterCount={activeSmartFilterCount}
             onReset={handleClearSmartFilters}
             onClose={handleCloseFilters}
@@ -7407,6 +7442,19 @@ function POSPro() {
                   </button>
                 ) : null}
             </div>
+            <QuickPosFilters
+              genderOptions={smartFilterOptions.gender}
+              selectedGenders={normalizeMultiFilterValue(selectedGender)}
+              onToggleGender={handleGenderFilterChange}
+              brandOptions={brandOptions}
+              selectedBrands={normalizeMultiFilterValue(selectedBrandId)}
+              onToggleBrand={handleBrandFilterChange}
+              onClearBrands={() => setSelectedBrandId([])}
+              manufacturerOptions={manufacturerOptions}
+              selectedManufacturers={normalizeMultiFilterValue(selectedManufacturerId)}
+              onToggleManufacturer={handleManufacturerFilterChange}
+              onClearManufacturers={() => setSelectedManufacturerId([])}
+            />
             </div>
 
             <div className="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:overflow-x-hidden lg:pr-1">
