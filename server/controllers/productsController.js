@@ -30,6 +30,7 @@ import { normalizeClassificationInput } from "../services/productClassifications
 import { getTenantId, isSuperAdminUser, tenantContextMissingResponse } from "../utils/requestScope.js";
 import { slugifyEdition } from "../utils/mirrorProduct.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
+import { buildProductBaseSlug, generateUniqueProductSlug } from "../utils/productSlug.js";
 
 let productVariantSchemaReadyPromise = null;
 let fullProductVariantSchemaReadyPromise = null;
@@ -1712,7 +1713,7 @@ const getVariantDirectSearchMatch = (product = {}, search = "") => {
   };
 };
 
-const attachVariantSearchMetadata = (product = {}, search = "") => {
+const attachVariantSearchMetadata = (product = {}, search = "", options = {}) => {
   const match = getVariantDirectSearchMatch(product, search);
   if (!match) {
     return {
@@ -1729,6 +1730,7 @@ const attachVariantSearchMetadata = (product = {}, search = "") => {
   return {
     ...product,
     ...match,
+    variants: options.preserveVariants ? product.variants : match.variants,
     matched_variant_id: match.matched_variant_id ?? null,
     matched_color: match.matched_color || null,
     matched_color_id: match.matched_color_id ?? null,
@@ -3514,8 +3516,10 @@ export const getProductsWithVariants = async (req, res) => {
       aiEnrichedProducts.forEach(logProductDetailsPriceDebug);
     }
     const searchTerm = req.query.search ?? req.query.q ?? "";
+    const preserveSearchVariants =
+      String(req.query.preserveSearchVariants ?? req.query.preserve_search_variants ?? "").trim().toLowerCase() === "true";
     const payload = normalizeResponse(
-      aiEnrichedProducts.map((product) => attachVariantSearchMetadata(product, searchTerm))
+      aiEnrichedProducts.map((product) => attachVariantSearchMetadata(product, searchTerm, { preserveVariants: preserveSearchVariants }))
     );
 
     res.json(payload);
@@ -4076,7 +4080,36 @@ export const createProduct = async (req, res) => {
       unit_id: normalizedForeignKeys.unit_id,
       parsedPayload,
     });
-    const finalProductSlug = normalizedCanonicalSlug || slugifyProductSlug(name) || slugifyProductSlug(finalProductSku) || "";
+    const baseProductSlug = buildProductBaseSlug({
+      brand,
+      name,
+      fallback: finalProductSku,
+    });
+    const requestedProductSlug = normalizedCanonicalSlug || baseProductSlug;
+    const existingProductSlugResult = await client.query(
+      `
+      SELECT id
+      FROM products
+      WHERE tenant_id = $1
+        AND (
+          LOWER(TRIM(COALESCE(slug, ''))) = LOWER(TRIM($2))
+          OR LOWER(TRIM(COALESCE(canonical_slug, ''))) = LOWER(TRIM($2))
+        )
+      LIMIT 1
+      `,
+      [tenantId, requestedProductSlug]
+    );
+    const reservedProductId = existingProductSlugResult.rows[0]
+      ? Number((await client.query("SELECT nextval(pg_get_serial_sequence('products', 'id')) AS id")).rows[0]?.id || 0)
+      : null;
+    const finalProductSlug = await generateUniqueProductSlug(client, {
+      tenantId,
+      productId: reservedProductId,
+      name,
+      brand,
+      requestedSlug: requestedProductSlug,
+      fallback: finalProductSku,
+    });
     const finalQrToken = `SHOP-PROD-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`;
     const normalizedProductImageUrl = String(image_url || "").trim();
     const normalizedThermalImageUrl = String(thermal_image_url || "").trim();
@@ -4086,6 +4119,7 @@ export const createProduct = async (req, res) => {
     const nextThermalImageError = "";
     performanceLogger.markStage("Upload images");
     const insertColumns = [
+      ...(reservedProductId ? ["id"] : []),
       "tenant_id",
       "name",
       "description",
@@ -4148,6 +4182,7 @@ export const createProduct = async (req, res) => {
       "tax_rate",
     ];
     const insertParams = [
+      ...(reservedProductId ? [reservedProductId] : []),
       tenantId,
       String(name || "").trim(),
       normalizedDescription,
@@ -4841,6 +4876,25 @@ export const updateProduct = async (req, res) => {
         seo_keywords: nextSeoKeywords,
       }),
     });
+    const currentSlugValue = String(currentProductRow.slug || currentProductRow.canonical_slug || "").trim();
+    const requestedSlugChanged = bodyHas("canonical_slug") && String(nextCanonicalSlug || "").trim() !== currentSlugValue;
+    const finalProductSlug = requestedSlugChanged
+      ? await generateUniqueProductSlug(client, {
+          tenantId,
+          productId,
+          name: nextName,
+          brand: nextBrandValue,
+          requestedSlug: nextCanonicalSlug || buildProductBaseSlug({ brand: nextBrandValue, name: nextName, fallback: finalProductSku }),
+          fallback: finalProductSku,
+        })
+      : currentSlugValue || await generateUniqueProductSlug(client, {
+          tenantId,
+          productId,
+          name: nextName,
+          brand: nextBrandValue,
+          requestedSlug: buildProductBaseSlug({ brand: nextBrandValue, name: nextName, fallback: finalProductSku }),
+          fallback: finalProductSku,
+        });
     const reservedVariantSkus = new Set([finalProductSku.toLowerCase()]);
     const activeVariantsBeforeSave = await loadActiveProductVariantSnapshot(client, { productId, tenantId });
     const previousImageBundleMap = await loadProductVariantImages(client, [productId]).catch(() => new Map());
@@ -4879,7 +4933,8 @@ export const updateProduct = async (req, res) => {
       `meta_title = ${addUpdateValue(nextMetaTitle)}`,
       `seo_description = ${addUpdateValue(nextSeoDescription)}`,
       `seo_keywords = ${addUpdateValue(nextSeoKeywords)}`,
-      `canonical_slug = ${addUpdateValue(nextCanonicalSlug)}`,
+      `slug = ${addUpdateValue(finalProductSlug)}`,
+      `canonical_slug = ${addUpdateValue(finalProductSlug)}`,
       `regular_price = CASE WHEN ${addUpdateValue(basePriceProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE regular_price END`,
       `price = CASE WHEN ${addUpdateValue(basePriceProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE price END`,
       `selling_price = CASE WHEN ${addUpdateValue(basePriceProvided)} THEN ${addUpdateValue(normalizedRegularPrice)} ELSE selling_price END`,

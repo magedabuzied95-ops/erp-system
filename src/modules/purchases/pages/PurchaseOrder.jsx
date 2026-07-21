@@ -49,6 +49,7 @@ const safeNumericPayload = (value, fallback = 0) => {
 };
 const text = (value) => String(value || "").trim();
 const normalizeKey = (value) => text(value).toLowerCase();
+const normalizeFilterValue = (value) => normalizeKey(value).replace(/\s+/g, "_");
 const firstText = (...values) => values.map(text).find(Boolean) || "";
 const purchaseVariantColorGroupKey = (item = {}) =>
   firstText(item.color_group_key, item.colorGroupKey) || `color:${normalizeKey(item.color || "افتراضي")}`;
@@ -441,6 +442,19 @@ const normalizeVariantOption = (product, variant = null) => {
   );
   const salePrice = money(variant?.sale_price ?? product?.sale_price ?? 0);
   const wholesalePrice = money(variant?.wholesale_price ?? product?.wholesale_price ?? 0);
+  const articleCode = firstText(
+    variant?.article_code,
+    variant?.articleCode,
+    variant?.variant_article_code,
+    variant?.variantArticleCode,
+    variant?.color_article_code,
+    variant?.colorArticleCode,
+    product?.article_code,
+    product?.articleCode,
+    product?.model_code,
+    product?.modelCode
+  );
+  const colorArticleCode = firstText(variant?.color_article_code, variant?.colorArticleCode, product?.color_article_code, product?.colorArticleCode);
 
   return {
     line_id: `${productId || "product"}-${variantId || "base"}-${colorGroupKey || color}-${sku}-${barcode}-${size}`,
@@ -450,6 +464,11 @@ const normalizeVariantOption = (product, variant = null) => {
     product_name: product?.name || product?.product_name || "Unnamed product",
     sku,
     barcode,
+    article_code: articleCode,
+    articleCode,
+    variant_article_code: firstText(variant?.variant_article_code, variant?.article_code, variant?.articleCode),
+    color_article_code: colorArticleCode,
+    colorArticleCode: colorArticleCode,
     color,
     size,
     stock,
@@ -480,6 +499,28 @@ const normalizeVariantOption = (product, variant = null) => {
     last_purchase_date: variant?.last_purchase_date || variant?.last_purchased_at || product?.last_purchase_date || "",
     supplier_id: variant?.supplier_id || product?.supplier_id || null,
     supplier_name: variant?.supplier_name || product?.supplier_name || product?.supplier || "",
+    brand_id: product?.brand_id ?? product?.brandId ?? variant?.brand_id ?? variant?.brandId ?? null,
+    brand: firstText(product?.brand, product?.brand_name, product?.brandName, variant?.brand, variant?.brand_name),
+    brand_name: firstText(product?.brand_name, product?.brandName, product?.brand, variant?.brand_name, variant?.brand),
+    category_id: product?.category_id ?? product?.categoryId ?? variant?.category_id ?? null,
+    category: firstText(product?.category, product?.category_name, product?.categoryName, variant?.category, variant?.category_name),
+    category_name: firstText(product?.category_name, product?.categoryName, product?.category, variant?.category_name),
+    main_category_id: product?.main_category_id ?? product?.mainCategoryId ?? null,
+    main_category_name: firstText(product?.main_category_name, product?.mainCategoryName, product?.main_category),
+    sub_category_id: product?.sub_category_id ?? product?.subCategoryId ?? null,
+    sub_category_name: firstText(product?.sub_category_name, product?.subCategoryName, product?.sub_category),
+    child_category_id: product?.child_category_id ?? product?.childCategoryId ?? null,
+    child_category_name: firstText(product?.child_category_name, product?.childCategoryName, product?.child_category),
+    gender: firstText(product?.gender, product?.audience, variant?.gender, variant?.audience),
+    product_type: firstText(product?.product_type, product?.productType, variant?.product_type, variant?.productType),
+    productType: firstText(product?.productType, product?.product_type, variant?.productType, variant?.product_type),
+    grade: firstText(product?.grade, variant?.grade),
+    is_pos_favorite: product?.is_pos_favorite === true || product?.isPosFavorite === true,
+    isPosFavorite: product?.isPosFavorite === true || product?.is_pos_favorite === true,
+    matched_variant_id: product?.matched_variant_id ?? product?.matchedVariantId ?? null,
+    matched_color: product?.matched_color ?? product?.matchedColor ?? "",
+    matched_article: product?.matched_article ?? product?.matchedArticle ?? "",
+    search_match_type: product?.search_match_type ?? product?.searchMatchType ?? "",
     purchase_pack_qty: Math.max(1, money(variant?.purchase_pack_qty || product?.purchase_pack_qty || 1)),
     quantity: 1,
     received_quantity: 0,
@@ -527,6 +568,10 @@ const groupByProduct = (products = []) => {
       product_name: item.product_name,
       image_url: item.image_url,
       supplier_name: item.supplier_name,
+      matched_variant_id: item.matched_variant_id,
+      matched_color: item.matched_color,
+      matched_article: item.matched_article,
+      search_match_type: item.search_match_type,
       variants: [],
     };
     current.variants.push(item);
@@ -539,7 +584,56 @@ const groupByProduct = (products = []) => {
 
 const searchMatches = (item, query) => {
   if (!query) return true;
-  return `${item.product_name} ${item.sku} ${item.barcode} ${item.color} ${item.size} ${item.supplier_name}`.toLowerCase().includes(query);
+  return [
+    item.product_name,
+    item.sku,
+    item.barcode,
+    item.article_code,
+    item.articleCode,
+    item.variant_article_code,
+    item.color_article_code,
+    item.colorArticleCode,
+    item.color,
+    item.size,
+    item.supplier_name,
+    item.brand,
+    item.brand_name,
+    item.category,
+    item.category_name,
+  ].join(" ").toLowerCase().includes(query);
+};
+
+const optionId = (...values) => firstText(...values);
+const makeCountOptions = (items = [], getId, getName = getId) => {
+  const map = new Map();
+  items.forEach((item) => {
+    const id = text(getId(item));
+    if (!id) return;
+    const current = map.get(id) || { id, name: text(getName(item)) || id, count: 0 };
+    current.count += 1;
+    map.set(id, current);
+  });
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "ar"));
+};
+
+const purchaseFilterMatches = (item = {}, filters = {}) => {
+  if (filters.category !== "all") {
+    const categoryIds = [item.category_id, item.main_category_id, item.sub_category_id, item.child_category_id].map((value) => text(value)).filter(Boolean);
+    const categoryNames = [item.category, item.category_name, item.main_category_name, item.sub_category_name, item.child_category_name].map(normalizeFilterValue).filter(Boolean);
+    if (!categoryIds.includes(String(filters.category)) && !categoryNames.includes(normalizeFilterValue(filters.category))) return false;
+  }
+  if (filters.brand !== "all") {
+    const brandIds = [item.brand_id].map((value) => text(value)).filter(Boolean);
+    const brandNames = [item.brand, item.brand_name].map(normalizeFilterValue).filter(Boolean);
+    if (!brandIds.includes(String(filters.brand)) && !brandNames.includes(normalizeFilterValue(filters.brand))) return false;
+  }
+  if (filters.gender !== "all" && ![item.gender].map(normalizeFilterValue).includes(normalizeFilterValue(filters.gender))) return false;
+  if (filters.productType !== "all" && ![item.product_type, item.productType].map(normalizeFilterValue).includes(normalizeFilterValue(filters.productType))) return false;
+  if (filters.color !== "all" && normalizeFilterValue(item.color) !== normalizeFilterValue(filters.color)) return false;
+  if (filters.size !== "all" && normalizeFilterValue(item.size) !== normalizeFilterValue(filters.size)) return false;
+  if (filters.stock === "available" && money(item.stock) <= 0) return false;
+  if (filters.favorite === "favorites" && !(item.is_pos_favorite === true || item.isPosFavorite === true)) return false;
+  return true;
 };
 
 function PurchaseOrder() {
@@ -558,6 +652,9 @@ function PurchaseOrder() {
   const [warehouses, setWarehouses] = useState([]);
   const [branches, setBranches] = useState([]);
   const [products, setProducts] = useState([]);
+  const [reorderRows, setReorderRows] = useState([]);
+  const [searchProducts, setSearchProducts] = useState([]);
+  const [serverSearchLoading, setServerSearchLoading] = useState(false);
   const [financialAccounts, setFinancialAccounts] = useState([]);
   const [paymentMethodMappings, setPaymentMethodMappings] = useState([]);
   const [paymentMethodMappingsLoadFailed, setPaymentMethodMappingsLoadFailed] = useState(false);
@@ -568,6 +665,17 @@ function PurchaseOrder() {
   const [warehouseId, setWarehouseId] = useState("");
   const [branchId, setBranchId] = useState("");
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [purchaseFilters, setPurchaseFilters] = useState({
+    category: "all",
+    brand: "all",
+    gender: "all",
+    productType: "all",
+    color: "all",
+    size: "all",
+    stock: "all",
+    favorite: "all",
+  });
   const status = "received";
   const [discount, setDiscount] = useState(0);
   const shipping = 0;
@@ -676,6 +784,7 @@ function PurchaseOrder() {
 
       const rows = productsRes.status === "fulfilled" ? normalizeProductsResponse(productsRes.value) : [];
       const reorderRows = reorderRes.status === "fulfilled" ? normalizeReorderResponse(reorderRes.value) : [];
+      setReorderRows(reorderRows);
       if (productsRes.status === "fulfilled") {
         setProducts(mergeReorderFlags(flattenProductsWithVariants(rows), reorderRows));
       } else {
@@ -759,6 +868,8 @@ function PurchaseOrder() {
       setWarehouses([]);
       setBranches([]);
       setProducts([]);
+      setSearchProducts([]);
+      setReorderRows([]);
       setFinancialAccounts([]);
       setPaymentMethodMappings([]);
       setPaymentMethodMappingsLoadFailed(true);
@@ -906,13 +1017,101 @@ function PurchaseOrder() {
     if (!branchId && branches.length === 1) setBranchId(String(branches[0].id));
   }, [suppliers, warehouses, branches, supplierId, warehouseId, branchId, location.search, loading, isEditMode]);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
+    const query = debouncedSearch.trim();
+    if (query.length < 2) {
+      setSearchProducts([]);
+      setServerSearchLoading(false);
+      return undefined;
+    }
+
+    const controller = new AbortController();
+    const loadSearchProducts = async () => {
+      try {
+        setServerSearchLoading(true);
+        const response = await api.get("/products/with-variants", {
+          params: { search: query, preserveSearchVariants: "true" },
+          signal: controller.signal,
+        });
+        const rows = normalizeProductsResponse(response);
+        setSearchProducts(mergeReorderFlags(flattenProductsWithVariants(rows), reorderRows));
+      } catch (err) {
+        if (controller.signal.aborted || err?.name === "AbortError") return;
+        console.error("[purchase-product-search-failed]", err);
+        setSearchProducts([]);
+      } finally {
+        if (!controller.signal.aborted) setServerSearchLoading(false);
+      }
+    };
+
+    loadSearchProducts();
+    return () => controller.abort();
+  }, [debouncedSearch, reorderRows]);
+
+  const purchaseProductSource = useMemo(
+    () => (debouncedSearch.trim().length >= 2 ? searchProducts : products),
+    [debouncedSearch, products, searchProducts]
+  );
+
+  const activePurchaseFilterCount = Object.values(purchaseFilters).filter((value) => value !== "all").length;
+
   const filteredProducts = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (query) return products.filter((item) => searchMatches(item, query));
-    return products.filter((item) => savedPurchaseQty(item) !== null);
-  }, [products, search]);
+    const query = debouncedSearch.trim().toLowerCase();
+    const filterMatchedIds = new Set(
+      purchaseProductSource
+        .filter((item) => purchaseFilterMatches(item, purchaseFilters))
+        .map((item) => String(item.product_id || ""))
+        .filter(Boolean)
+    );
+    const source = purchaseProductSource.filter((item) => filterMatchedIds.has(String(item.product_id || "")));
+    if (query) {
+      const queryMatchedIds = new Set(
+        source
+          .filter((item) => searchMatches(item, query))
+          .map((item) => String(item.product_id || ""))
+          .filter(Boolean)
+      );
+      return source.filter((item) => queryMatchedIds.has(String(item.product_id || "")));
+    }
+    if (activePurchaseFilterCount > 0) return source;
+    return source.filter((item) => savedPurchaseQty(item) !== null);
+  }, [activePurchaseFilterCount, debouncedSearch, purchaseFilters, purchaseProductSource]);
 
   const groupedCards = useMemo(() => groupByProduct(filteredProducts), [filteredProducts]);
+
+  const filterSource = debouncedSearch.trim().length >= 2 && searchProducts.length ? searchProducts : products;
+  const purchaseFilterOptions = useMemo(() => ({
+    category: makeCountOptions(
+      filterSource,
+      (item) => optionId(item.category_id, item.main_category_id, normalizeFilterValue(firstText(item.category_name, item.category, item.main_category_name))),
+      (item) => firstText(item.category_name, item.category, item.main_category_name)
+    ),
+    brand: makeCountOptions(
+      filterSource,
+      (item) => optionId(item.brand_id, normalizeFilterValue(firstText(item.brand_name, item.brand))),
+      (item) => firstText(item.brand_name, item.brand)
+    ),
+    gender: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.gender), (item) => item.gender),
+    productType: makeCountOptions(filterSource, (item) => normalizeFilterValue(firstText(item.product_type, item.productType)), (item) => firstText(item.product_type, item.productType)),
+    color: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.color), (item) => item.color),
+    size: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.size), (item) => item.size),
+  }), [filterSource]);
+
+  const resetPurchaseFilters = () => setPurchaseFilters({
+    category: "all",
+    brand: "all",
+    gender: "all",
+    productType: "all",
+    color: "all",
+    size: "all",
+    stock: "all",
+    favorite: "all",
+  });
 
   const variantsByProduct = useMemo(() => {
     return products.reduce((map, item) => {
@@ -1328,14 +1527,21 @@ function PurchaseOrder() {
     const query = search.trim();
     if (!query) return;
     event.preventDefault();
-    const exact =
-      products.find((item) => normalizeKey(item.barcode) === normalizeKey(query)) ||
-      products.find((item) => normalizeKey(item.sku) === normalizeKey(query)) ||
-      filteredProducts[0];
+    const lookupSource = debouncedSearch.trim().length >= 2 && searchProducts.length ? searchProducts : products;
+    const exactBarcodeOrSku =
+      lookupSource.find((item) => normalizeKey(item.barcode) === normalizeKey(query)) ||
+      lookupSource.find((item) => normalizeKey(item.sku) === normalizeKey(query));
+    const exactArticle =
+      lookupSource.find((item) => normalizeKey(item.article_code) === normalizeKey(query)) ||
+      lookupSource.find((item) => normalizeKey(item.variant_article_code) === normalizeKey(query)) ||
+      lookupSource.find((item) => normalizeKey(item.color_article_code) === normalizeKey(query));
+    const exact = exactBarcodeOrSku || (!exactArticle ? filteredProducts[0] : null);
     if (exact) {
       addProduct(exact);
       setSearch("");
       toast.success(t("purchases.create.productAdded"));
+    } else if (exactArticle) {
+      setProductPickerOpen(true);
     } else {
       toast.error(t("purchases.create.noProductMatched"));
     }
@@ -1961,9 +2167,17 @@ function PurchaseOrder() {
                 className="h-11 w-full rounded-2xl border border-white/10 bg-black/40 py-2 pe-4 ps-12 text-base font-semibold text-white outline-none transition placeholder:text-zinc-500 hover:border-white/20 focus:border-emerald-400/60 focus:bg-black/55 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
               />
             </div>
-            {productPickerOpen ? <ProductSearchPanel search={search} products={products} results={filteredProducts} loading={productsLoading} onAdd={addProduct} /> : null}
+            {productPickerOpen ? <ProductSearchPanel search={search} products={purchaseProductSource} results={filteredProducts} loading={productsLoading || serverSearchLoading} onAdd={addProductCard} /> : null}
           </div>
         </div>
+        <PurchaseFilterBar
+          filters={purchaseFilters}
+          options={purchaseFilterOptions}
+          activeCount={activePurchaseFilterCount}
+          isArabic={isArabic}
+          onChange={(key, value) => setPurchaseFilters((current) => ({ ...current, [key]: value }))}
+          onReset={resetPurchaseFilters}
+        />
       </div>
 
       <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,48%)_minmax(0,52%)]">
@@ -2195,19 +2409,108 @@ function ActionTile({ icon, label, onClick, disabled }) {
   );
 }
 
+function PurchaseFilterBar({ filters, options, activeCount, isArabic, onChange, onReset }) {
+  const labels = isArabic
+    ? {
+        category: "الفئة",
+        brand: "البراند",
+        gender: "الجنس",
+        productType: "النوع",
+        color: "اللون",
+        size: "المقاس",
+        stock: "المخزون",
+        favorite: "المفضلة",
+        all: "الكل",
+        available: "متاح فقط",
+        favorites: "المفضلة فقط",
+        reset: "مسح الفلاتر",
+      }
+    : {
+        category: "Category",
+        brand: "Brand",
+        gender: "Gender",
+        productType: "Type",
+        color: "Color",
+        size: "Size",
+        stock: "Stock",
+        favorite: "Favorites",
+        all: "All",
+        available: "Available only",
+        favorites: "Favorites only",
+        reset: "Reset filters",
+      };
+
+  const optionList = (key) => (Array.isArray(options?.[key]) ? options[key] : []);
+
+  return (
+    <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-white/10 pt-3">
+      <FilterSelect label={labels.category} value={filters.category} options={optionList("category")} allLabel={labels.all} onChange={(value) => onChange("category", value)} />
+      <FilterSelect label={labels.brand} value={filters.brand} options={optionList("brand")} allLabel={labels.all} onChange={(value) => onChange("brand", value)} />
+      <FilterSelect label={labels.gender} value={filters.gender} options={optionList("gender")} allLabel={labels.all} onChange={(value) => onChange("gender", value)} />
+      <FilterSelect label={labels.productType} value={filters.productType} options={optionList("productType")} allLabel={labels.all} onChange={(value) => onChange("productType", value)} />
+      <FilterSelect label={labels.color} value={filters.color} options={optionList("color")} allLabel={labels.all} onChange={(value) => onChange("color", value)} />
+      <FilterSelect label={labels.size} value={filters.size} options={optionList("size")} allLabel={labels.all} onChange={(value) => onChange("size", value)} />
+      <FilterSelect
+        label={labels.stock}
+        value={filters.stock}
+        options={[{ id: "available", name: labels.available }]}
+        allLabel={labels.all}
+        onChange={(value) => onChange("stock", value)}
+      />
+      <FilterSelect
+        label={labels.favorite}
+        value={filters.favorite}
+        options={[{ id: "favorites", name: labels.favorites }]}
+        allLabel={labels.all}
+        onChange={(value) => onChange("favorite", value)}
+      />
+      <button
+        type="button"
+        onClick={onReset}
+        disabled={!activeCount}
+        className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-zinc-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
+      >
+        {labels.reset}{activeCount ? ` (${activeCount})` : ""}
+      </button>
+    </div>
+  );
+}
+
+function FilterSelect({ label, value, options, allLabel, onChange }) {
+  return (
+    <label className="min-w-[8.5rem] flex-1 text-[11px] font-bold text-zinc-400 sm:flex-none">
+      <span className="mb-1 block">{label}</span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="h-10 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-xs font-black text-white outline-none transition focus:border-emerald-400/60"
+      >
+        <option value="all">{allLabel}</option>
+        {toArray(options).map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}{Number.isFinite(Number(option.count)) ? ` (${option.count})` : ""}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
 function ProductCard({ group, purchaseQtyLabel, purchaseQtySelected = false, onClick, onSizeRun, onColorRun, onUsePurchaseQty }) {
   const { t } = useTranslation();
   const variants = toArray(group.variants);
   const first = variants[0] || {};
+  const matchedLabel = firstText(group.matched_article, group.matched_color);
 
   return (
-    <div className={`group overflow-hidden rounded-xl border bg-white/[0.04] transition hover:bg-white/[0.07] ${purchaseQtySelected ? "border-amber-400 ring-2 ring-amber-400/20" : "border-white/10 hover:border-emerald-400/30"}`}>
+    <div className={`group overflow-hidden rounded-xl border bg-white/[0.04] transition hover:bg-white/[0.07] ${purchaseQtySelected ? "border-amber-400 ring-2 ring-amber-400/20" : matchedLabel ? "border-emerald-300/60 ring-2 ring-emerald-400/10" : "border-white/10 hover:border-emerald-400/30"}`}>
       <button type="button" onClick={onClick} className="block w-full text-left">
         <div className="aspect-[5/3] bg-zinc-900">
           <ProductImage src={group.image_url || first.image_url} name={group.product_name} className="h-full w-full object-cover" />
         </div>
         <div className="p-2.5">
           <div className="line-clamp-1 text-sm font-black text-white">{group.product_name}</div>
+          {matchedLabel ? <div className="mt-1 truncate rounded-lg border border-emerald-300/20 bg-emerald-400/10 px-2 py-1 text-[10px] font-black text-emerald-100">Match: {matchedLabel}</div> : null}
           <div className="mt-1 text-xs text-zinc-500">{first.sku || first.barcode ? `SKU ${first.sku || first.barcode}` : t("purchases.create.variantsCount", { count: variants.length })}</div>
         </div>
       </button>
@@ -2710,7 +3013,7 @@ function ProductSearchPanel({ search, products, results, loading, onAdd }) {
   const { t } = useTranslation();
   const hasSearch = Boolean(text(search));
   const hasProducts = Array.isArray(products) && products.length > 0;
-  const rows = Array.isArray(results) ? results.slice(0, 12) : [];
+  const rows = groupByProduct(Array.isArray(results) ? results : []).slice(0, 12);
 
   return (
     <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-30 overflow-hidden rounded-2xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/40">
@@ -2730,23 +3033,26 @@ function ProductSearchPanel({ search, products, results, loading, onAdd }) {
         <div className="px-4 py-5 text-sm text-zinc-400">{t("purchases.create.noMatchingProducts")}</div>
       ) : (
         <div className="max-h-96 overflow-y-auto p-2">
-          {rows.map((product) => (
-            <button key={product.line_id} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => onAdd(product)} className="grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/10 focus:bg-white/10 focus:outline-none">
-              <ProductImage src={product.image_url} name={product.product_name} />
+          {rows.map((product) => {
+            const first = toArray(product.variants)[0] || {};
+            return (
+            <button key={String(product.product_id)} type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => onAdd(product)} className="grid w-full grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 rounded-xl px-3 py-3 text-left transition hover:bg-white/10 focus:bg-white/10 focus:outline-none">
+              <ProductImage src={product.image_url || first.image_url} name={product.product_name} />
               <div className="min-w-0">
                 <div className="truncate text-sm font-semibold text-white">{product.product_name}</div>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-400">
-                  <span>SKU {product.sku || t("purchases.supplierDetails.notAvailable")}</span>
-                  <span>{product.color || t("purchases.create.defaultVariant")}</span>
-                  <span>{product.size || t("purchases.create.oneSize")}</span>
+                  <span>SKU {first.sku || t("purchases.supplierDetails.notAvailable")}</span>
+                  {product.matched_article ? <span>Article {product.matched_article}</span> : null}
+                  <span>{toArray(product.variants).length} variants</span>
                 </div>
               </div>
               <div className="text-right text-xs">
-                <div className="font-semibold text-zinc-200">{t("purchases.create.stockWithValue", { stock: product.stock })}</div>
-                <div className="mt-1 text-emerald-300">{formatCurrency(product.cost_price || 0)}</div>
+                <div className="font-semibold text-zinc-200">{t("purchases.create.stockWithValue", { stock: toArray(product.variants).reduce((sum, item) => sum + money(item.stock), 0) })}</div>
+                <div className="mt-1 text-emerald-300">{formatCurrency(first.cost_price || 0)}</div>
               </div>
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
