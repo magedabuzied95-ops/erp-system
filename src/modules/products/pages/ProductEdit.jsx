@@ -955,6 +955,7 @@ function ProductEdit() {
   const [defaultManufacturerId, setDefaultManufacturerId] = useState("");
   const [colorGroups, setColorGroups] = useState([]);
   const [expandedGroupId, setExpandedGroupId] = useState("");
+  const [highlightMissingColorKeys, setHighlightMissingColorKeys] = useState(() => new Set());
   const [crocsLibraryGroupId, setCrocsLibraryGroupId] = useState("");
   const [removedVariantIds, setRemovedVariantIds] = useState([]);
   const [variantStructureEdited, setVariantStructureEdited] = useState(false);
@@ -972,6 +973,7 @@ function ProductEdit() {
   const [aiCoverRegeneratingKey, setAiCoverRegeneratingKey] = useState("");
   const [colorPickTarget, setColorPickTarget] = useState(null);
   const [searchParams] = useSearchParams();
+  const colorGroupsSectionRef = useRef(null);
   const productId = String(id || "").trim();
   const variationMode = product.variation_mode || "full_variations";
   const isFullVariationMode = variationMode === "full_variations";
@@ -990,6 +992,27 @@ function ProductEdit() {
   const mirrorEditionEnabled = isMirrorProduct(product);
   const canRegenerateAiCover = isAdminUser();
   const canViewCostPrice = canViewCostPrices();
+
+  useEffect(() => {
+    if (String(searchParams.get("focus") || "").trim().toLowerCase() !== "colors") return undefined;
+    const missingColorNames = String(searchParams.get("missingColors") || "")
+      .split("|")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    const missingKeys = new Set(missingColorNames.map((value) => normalizeColorKey(value)).filter(Boolean));
+    setHighlightMissingColorKeys(missingKeys);
+
+    if (missingKeys.size && colorGroups.length) {
+      const targetGroup = colorGroups.find((group) => missingKeys.has(normalizeColorKey(group.color)));
+      if (targetGroup?.id) setExpandedGroupId(targetGroup.id);
+    }
+
+    const timer = window.setTimeout(() => {
+      colorGroupsSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 80);
+    return () => window.clearTimeout(timer);
+  }, [searchParams, colorGroups]);
+
   const descriptionContext = useMemo(
     () => ({
       name: product.name,
@@ -3971,7 +3994,7 @@ function ProductEdit() {
               </div>
             ) : null}
           </section>
-          <section className={`${isSimpleMode ? "hidden" : ""} rounded-[28px] border border-white/8 bg-zinc-950/80 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] sm:p-5`}>
+          <section ref={colorGroupsSectionRef} className={`${isSimpleMode ? "hidden" : ""} rounded-[28px] border border-white/8 bg-zinc-950/80 p-4 shadow-[0_24px_80px_rgba(0,0,0,0.22)] sm:p-5`}>
             <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
               <div className="min-w-0">
                 <p className="text-[11px] uppercase tracking-[0.2em] text-emerald-300">{t("products.editor.bulkTools", "Bulk Tools")}</p>
@@ -4118,9 +4141,14 @@ function ProductEdit() {
             <div className="mt-4 space-y-3">
               {colorGroups.map((group, groupIndex) => {
                 const isExpanded = expandedGroupId === group.id;
+                const isMissingImageHighlight = highlightMissingColorKeys.has(normalizeColorKey(group.color));
 
                 return (
-                <div key={group.id} className="overflow-visible rounded-[14px] border border-white/8 bg-white/5">
+                <div key={group.id} className={`overflow-visible rounded-[14px] border bg-white/5 transition ${
+                  isMissingImageHighlight
+                    ? "border-red-300/60 shadow-[0_0_0_1px_rgba(252,165,165,0.25),0_0_28px_rgba(239,68,68,0.18)]"
+                    : "border-white/8"
+                }`}>
                   <div
                     role="button"
                     tabIndex={0}

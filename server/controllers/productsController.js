@@ -2987,10 +2987,19 @@ export const getProductsAdminList = async (req, res) => {
         grade: req.query.grade,
       },
     });
+    const colorImageFilter = String(req.query.color_image_status ?? req.query.colorImageStatus ?? "all").trim().toLowerCase();
+    const colorImageFilterClause = ["complete", "missing", "none"].includes(colorImageFilter)
+      ? colorImageFilter === "complete"
+        ? "COALESCE(cis.total_colors, 0) > 0 AND COALESCE(cis.missing_colors, 0) = 0"
+        : colorImageFilter === "missing"
+          ? "COALESCE(cis.missing_colors, 0) > 0"
+          : "COALESCE(cis.total_colors, 0) = 0 OR COALESCE(cis.missing_colors, 0) = COALESCE(cis.total_colors, 0)"
+      : "";
     const whereSql = [
       scopeClause.whereSql,
       searchClause ? `${scopeClause.whereSql ? "AND" : "WHERE"} ${searchClause}` : "",
       filtersClause.sql ? `${scopeClause.whereSql || searchClause ? "AND" : "WHERE"} ${filtersClause.sql}` : "",
+      colorImageFilterClause ? `${scopeClause.whereSql || searchClause || filtersClause.sql ? "AND" : "WHERE"} ${colorImageFilterClause}` : "",
     ].filter(Boolean).join("\n");
 
     const page = Math.max(1, Number(req.query.page || 1) || 1);
@@ -3014,6 +3023,52 @@ export const getProductsAdminList = async (req, res) => {
         ) pvi_cover ON pvi_cover.product_id = p.id
       `
       : "";
+    const colorImageStatusJoinSql = `
+        LEFT JOIN (
+          WITH variant_colors AS (
+            SELECT
+              pv.product_id,
+              COALESCE(NULLIF(LOWER(TRIM(pv.color_group_key)), ''), LOWER(TRIM(COALESCE(pv.color, ''))), 'default') AS color_key,
+              COALESCE(NULLIF(TRIM(pv.color), ''), 'Default') AS color_name,
+              BOOL_OR(TRIM(COALESCE(pv.image_url, '')) <> '') AS has_variant_image
+            FROM product_variants pv
+            WHERE pv.is_active IS DISTINCT FROM FALSE
+              AND pv.deleted_at IS NULL
+            GROUP BY pv.product_id, color_key, color_name
+          ),
+          stored_color_images AS (
+            ${hasProductVariantImages ? `
+            SELECT
+              pvi.product_id,
+              COALESCE(NULLIF(LOWER(TRIM(pvi.color_group_key)), ''), LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))), 'default') AS color_key,
+              BOOL_OR(TRIM(COALESCE(pvi.image_url, '')) <> '') AS has_color_image
+            FROM product_variant_images pvi
+            WHERE TRIM(COALESCE(pvi.image_url, '')) <> ''
+            GROUP BY pvi.product_id, color_key
+            ` : `
+            SELECT NULL::bigint AS product_id, ''::text AS color_key, FALSE AS has_color_image
+            WHERE FALSE
+            `}
+          ),
+          color_status AS (
+            SELECT
+              vc.product_id,
+              vc.color_name,
+              (vc.has_variant_image OR COALESCE(sci.has_color_image, FALSE)) AS has_image
+            FROM variant_colors vc
+            LEFT JOIN stored_color_images sci
+              ON sci.product_id = vc.product_id
+             AND sci.color_key = vc.color_key
+          )
+          SELECT
+            product_id,
+            COUNT(*)::int AS total_colors,
+            COUNT(*) FILTER (WHERE NOT has_image)::int AS missing_colors,
+            COALESCE(jsonb_agg(color_name ORDER BY color_name) FILTER (WHERE NOT has_image), '[]'::jsonb) AS missing_color_names
+          FROM color_status
+          GROUP BY product_id
+        ) cis ON cis.product_id = p.id
+      `;
 
     const audienceJoinSql = `
         LEFT JOIN (
@@ -3127,6 +3182,14 @@ export const getProductsAdminList = async (req, res) => {
             AND sv_count.deleted_at IS NULL
         ), 0) AS active_variant_count,
         COALESCE(pva.audiences, ${hasProductAudiences ? "pa.audiences" : "NULL"}, '[]'::jsonb) AS product_audiences,
+        COALESCE(cis.total_colors, 0)::int AS total_colors,
+        COALESCE(cis.missing_colors, 0)::int AS missing_colors,
+        COALESCE(cis.missing_color_names, '[]'::jsonb) AS missing_color_names,
+        CASE
+          WHEN COALESCE(cis.total_colors, 0) > 0 AND COALESCE(cis.missing_colors, 0) = 0 THEN 'complete'
+          WHEN COALESCE(cis.total_colors, 0) = 0 OR COALESCE(cis.missing_colors, 0) = COALESCE(cis.total_colors, 0) THEN 'none'
+          ELSE 'missing'
+        END AS color_image_status,
         COUNT(*) OVER()::int AS total_count
       FROM products p
       LEFT JOIN categories c ON c.id = p.category_id
@@ -3137,6 +3200,7 @@ export const getProductsAdminList = async (req, res) => {
         GROUP BY product_id
       ) vst ON vst.product_id = p.id
       ${coverImageJoinSql}
+      ${colorImageStatusJoinSql}
       ${audienceJoinSql}
       ${whereSql}
       ORDER BY p.id DESC
@@ -3168,6 +3232,10 @@ export const getProductsAdminList = async (req, res) => {
       color_images: [],
       product_audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
       audiences: Array.isArray(row.product_audiences) ? row.product_audiences : [],
+      colorImageStatus: row.color_image_status || "none",
+      totalColors: Number(row.total_colors || 0),
+      missingColors: Number(row.missing_colors || 0),
+      missingColorNames: Array.isArray(row.missing_color_names) ? row.missing_color_names : [],
     }));
     const total = Number(result.rows?.[0]?.total_count || 0);
     const availableBrands = Array.isArray(filterOptionsResult.rows?.[0]?.brands) ? filterOptionsResult.rows[0].brands.filter(Boolean) : [];

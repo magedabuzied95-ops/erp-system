@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   BadgeDollarSign,
   ChevronDown,
+  CheckCircle,
   Copy,
   Eye,
   EyeOff,
@@ -240,6 +241,44 @@ const ProductAudienceBadges = ({ row = {}, language = "ar" }) => {
       </span>
     ) : null;
   });
+};
+
+const getColorImageStatusDetails = (row = {}) => {
+  const status = String(row.colorImageStatus || row.color_image_status || "none").trim().toLowerCase();
+  const totalColors = Number(row.totalColors ?? row.total_colors ?? 0) || 0;
+  const missingColors = Number(row.missingColors ?? row.missing_colors ?? 0) || 0;
+  const missingColorNames = Array.isArray(row.missingColorNames)
+    ? row.missingColorNames
+    : Array.isArray(row.missing_color_names)
+      ? row.missing_color_names
+      : [];
+  return {
+    status,
+    totalColors,
+    missingColors,
+    missingColorNames: missingColorNames.map((name) => String(name || "").trim()).filter(Boolean),
+  };
+};
+
+const ProductColorImageBadge = ({ row = {}, onClick }) => {
+  const { status, totalColors, missingColors, missingColorNames } = getColorImageStatusDetails(row);
+  const isComplete = status === "complete";
+  const title = missingColorNames.length ? missingColorNames.join(", ") : "كل الألوان لديها صور";
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black transition ${
+        isComplete
+          ? "border-emerald-300/25 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/20"
+          : "border-red-300/25 bg-red-500/15 text-red-200 hover:bg-red-500/20"
+      }`}
+    >
+      {isComplete ? <CheckCircle size={12} /> : <AlertTriangle size={12} />}
+      <span>{isComplete ? "✓ الصور مكتملة" : `⚠ صور ناقصة (${missingColors}/${totalColors})`}</span>
+    </button>
+  );
 };
 
 const getActionMenuPosition = (rect, itemCount = 8) => {
@@ -1269,6 +1308,7 @@ function ProductsList() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [catalogTab, setCatalogTab] = useState("products");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [colorImageFilter, setColorImageFilter] = useState("all");
   const [storefrontVisibilityFilter, setStorefrontVisibilityFilter] = useState("all");
   const [classificationFilters, setClassificationFilters] = useState(() => ({
     gender: "all",
@@ -1383,6 +1423,15 @@ function ProductsList() {
     setReloadNonce((prev) => prev + 1);
   };
 
+  const openProductColorImages = (event, row = {}) => {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    const { missingColorNames } = getColorImageStatusDetails(row);
+    const params = new URLSearchParams({ focus: "colors" });
+    if (missingColorNames.length) params.set("missingColors", missingColorNames.join("|"));
+    navigate(`/products/${row.id}/edit?${params.toString()}`);
+  };
+
   useEffect(() => {
     let cancelled = false;
     const requestId = latestProductsRequestRef.current + 1;
@@ -1402,6 +1451,7 @@ function ProductsList() {
             limit: pageSize,
             search: debouncedSearch,
             status: statusFilter,
+            colorImageStatus: colorImageFilter,
             brand: brandFilter,
             storefrontVisibility: storefrontVisibilityFilter,
             catalogTab,
@@ -1451,6 +1501,7 @@ function ProductsList() {
     pageSize,
     debouncedSearch,
     statusFilter,
+    colorImageFilter,
     brandFilter,
     storefrontVisibilityFilter,
     catalogTab,
@@ -2306,7 +2357,7 @@ function ProductsList() {
             {t("products.tabs.offers", "العروض")}
           </button>
         </div>
-        <div className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(4,minmax(0,1fr))]">
+        <div className="grid min-w-0 grid-cols-1 gap-3 sm:gap-4 xl:grid-cols-[minmax(0,1.8fr)_repeat(5,minmax(0,1fr))]">
           <div className="relative">
             <Search className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500" size={18} />
             <input
@@ -2360,6 +2411,20 @@ function ProductsList() {
             <option value="all">{t("products.filters.storefrontVisibilityAll", "حالة الظهور على الموقع: الكل")}</option>
             <option value="visible">{t("products.filters.storefrontVisibilityVisible", "ظاهر بالموقع")}</option>
             <option value="hidden">{t("products.filters.storefrontVisibilityHidden", "مخفي من الموقع")}</option>
+          </select>
+
+          <select
+            value={colorImageFilter}
+            onChange={(e) => {
+              setColorImageFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-2xl border border-white/8 bg-white/5 px-4 py-3 text-white outline-none"
+          >
+            <option value="all">الكل</option>
+            <option value="complete">الصور مكتملة</option>
+            <option value="missing">صور ناقصة</option>
+            <option value="none">بدون صور</option>
           </select>
 
           <div className="relative" data-products-filter-popover>
@@ -2571,6 +2636,7 @@ function ProductsList() {
                     displaySku={displaySku}
                     storefrontVisible={storefrontVisible}
                     actions={dropdownActions}
+                    onColorImagesClick={(event) => openProductColorImages(event, row)}
                     t={t}
                     language={i18n.language}
                   />
@@ -2685,6 +2751,9 @@ function ProductsList() {
                                 </p>
                               ) : null}
                               <ProductArticleBadges row={row} />
+                              <div className="mt-1.5">
+                                <ProductColorImageBadge row={row} onClick={(event) => openProductColorImages(event, row)} />
+                              </div>
                             </div>
                           </button>
                         </td>
@@ -3261,7 +3330,7 @@ function BarcodeQueueBulkModal({
   );
 }
 
-const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, displayCost, concealCost, sellingPrice, salePrice, displaySku, actions, t, language }) {
+const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onToggleSelected, onOpen, statusKey, status, storefrontVisible, totalStock, lowStockAlert, displayCost, concealCost, sellingPrice, salePrice, displaySku, actions, onColorImagesClick, t, language }) {
   const visibleActions = (actions || []).slice(0, 4);
   const productType = getProductTypeValue(row);
   const category = isMeaningfulCategory(row.category) ? String(row.category).trim() : "";
@@ -3306,6 +3375,7 @@ const ProductMobileCard = memo(function ProductMobileCard({ row, selected, onTog
                   : t("products.storefront.hidden", "مخفي من الموقع")}
               </span>
               <ProductAudienceBadges row={row} language={language} />
+              <ProductColorImageBadge row={row} onClick={onColorImagesClick} />
             </div>
           </div>
         </button>
