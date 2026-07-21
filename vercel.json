@@ -41,12 +41,16 @@
       "destination": "/fonts/$1"
     },
     {
-      "source": "/favicon.ico",
-      "destination": "/favicon.ico"
-    },
-    {
-      "source": "/(.*)",
-      "destination": "/index.html"
-    }
+  "source": "/favicon.ico",
+  "destination": "/favicon.ico"
+},
+{
+  "source": "/um9cpgtxfeb945o41dlihclqmo6lby.html",
+  "destination": "/facebook-verification/um9cpgtxfeb945o41dlihclqmo6lby.html"
+},
+{
+  "source": "/(.*)",
+  "destination": "/index.html"
+}
   ]
 }
