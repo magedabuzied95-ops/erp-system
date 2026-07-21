@@ -18,6 +18,7 @@ import {
   Plus,
   ReceiptText,
   Search,
+  SlidersHorizontal,
   ShoppingCart,
   Trash2,
   Truck,
@@ -27,6 +28,7 @@ import {
 import toast from "react-hot-toast";
 import { api } from "../../../shared/api/api";
 import { resolveProductImageUrl } from "../../../shared/lib/imageUrls";
+import SmartPosFilters from "../../pos/components/SmartPosFilters";
 import FlowShell from "../components/FlowShell";
 import { accountingApi } from "../../accounting/services/accountingApi";
 import {
@@ -646,6 +648,7 @@ function PurchaseOrder() {
   const purchaseShellRef = useRef(null);
   const searchRef = useRef(null);
   const searchPanelWrapRef = useRef(null);
+  const filtersPanelRef = useRef(null);
   const productPanelRef = useRef(null);
   const draftImportAppliedRef = useRef(false);
   const [suppliers, setSuppliers] = useState([]);
@@ -660,6 +663,7 @@ function PurchaseOrder() {
   const [paymentMethodMappingsLoadFailed, setPaymentMethodMappingsLoadFailed] = useState(false);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productPickerOpen, setProductPickerOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [productPanelExpanded, setProductPanelExpanded] = useState(false);
   const [supplierId, setSupplierId] = useState("");
   const [warehouseId, setWarehouseId] = useState("");
@@ -1102,6 +1106,23 @@ function PurchaseOrder() {
     size: makeCountOptions(filterSource, (item) => normalizeFilterValue(item.size), (item) => item.size),
   }), [filterSource]);
 
+  const purchaseSmartFilterOptions = useMemo(
+    () => ({
+      gender: purchaseFilterOptions.gender,
+      productType: purchaseFilterOptions.productType,
+      grade: [],
+    }),
+    [purchaseFilterOptions.gender, purchaseFilterOptions.productType]
+  );
+  const purchaseStockOptions = useMemo(
+    () => [{ id: "available", name: isArabic ? "متاح فقط" : "Available only", count: filterSource.filter((item) => money(item.stock) > 0).length }],
+    [filterSource, isArabic]
+  );
+  const purchaseFavoriteOptions = useMemo(
+    () => [{ id: "favorites", name: isArabic ? "المفضلة فقط" : "Favorites only", count: filterSource.filter((item) => item.is_pos_favorite).length }],
+    [filterSource, isArabic]
+  );
+  const setPurchaseFilter = (key, value) => setPurchaseFilters((current) => ({ ...current, [key]: value }));
   const resetPurchaseFilters = () => setPurchaseFilters({
     category: "all",
     brand: "all",
@@ -2134,6 +2155,43 @@ function PurchaseOrder() {
         </div>
       ) : null}
 
+      <SmartPosFilters
+        open={filtersOpen}
+        panelRef={filtersPanelRef}
+        portalTarget={typeof document !== "undefined" ? document.fullscreenElement || document.body : undefined}
+        categoryOptions={purchaseFilterOptions.category}
+        selectedCategoryId={purchaseFilters.category}
+        onCategoryChange={(value) => setPurchaseFilter("category", value)}
+        smartFilterOptions={purchaseSmartFilterOptions}
+        selectedGender={purchaseFilters.gender}
+        onGenderChange={(value) => setPurchaseFilter("gender", value)}
+        selectedProductType={purchaseFilters.productType}
+        onProductTypeChange={(value) => setPurchaseFilter("productType", value)}
+        selectedGrade="all"
+        onGradeChange={() => {}}
+        brandOptions={purchaseFilterOptions.brand}
+        selectedBrandId={purchaseFilters.brand}
+        onBrandChange={(value) => setPurchaseFilter("brand", value)}
+        manufacturerOptions={[]}
+        selectedManufacturerId="all"
+        onManufacturerChange={() => {}}
+        colorOptions={purchaseFilterOptions.color}
+        selectedColor={purchaseFilters.color}
+        onColorChange={(value) => setPurchaseFilter("color", value)}
+        sizeOptions={purchaseFilterOptions.size}
+        selectedSize={purchaseFilters.size}
+        onSizeChange={(value) => setPurchaseFilter("size", value)}
+        stockOptions={purchaseStockOptions}
+        selectedStock={purchaseFilters.stock}
+        onStockChange={(value) => setPurchaseFilter("stock", value)}
+        favoriteOptions={purchaseFavoriteOptions}
+        selectedFavorite={purchaseFilters.favorite}
+        onFavoriteChange={(value) => setPurchaseFilter("favorite", value)}
+        activeSmartFilterCount={activePurchaseFilterCount}
+        onReset={resetPurchaseFilters}
+        onClose={() => setFiltersOpen(false)}
+      />
+
       <div className="sticky top-0 z-20 rounded-2xl border border-white/10 bg-zinc-950/95 p-3 shadow-2xl shadow-black/20 backdrop-blur">
         <div className={`grid items-end gap-3 md:grid-cols-2 ${branches.length > 1 ? "xl:grid-cols-[minmax(18rem,1.15fr)_minmax(15rem,0.9fr)_minmax(12rem,0.75fr)_minmax(25rem,2fr)]" : "xl:grid-cols-[minmax(18rem,1.1fr)_minmax(15rem,0.9fr)_minmax(28rem,2fr)]"}`}>
           <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-end gap-2">
@@ -2155,29 +2213,41 @@ function PurchaseOrder() {
               <Barcode className="h-3.5 w-3.5" />
               {t("purchases.create.searchBarcode")}
             </div>
-            <div className="relative">
-              <Search className="pointer-events-none absolute start-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
-              <input
-                ref={searchRef}
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                onKeyDown={handleBarcodeSubmit}
-                onFocus={() => setProductPickerOpen(true)}
-                placeholder={t("purchases.create.searchProductPlaceholder")}
-                className="h-11 w-full rounded-2xl border border-white/10 bg-black/40 py-2 pe-4 ps-12 text-base font-semibold text-white outline-none transition placeholder:text-zinc-500 hover:border-white/20 focus:border-emerald-400/60 focus:bg-black/55 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
-              />
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
+              <div className="relative min-w-0">
+                <Search className="pointer-events-none absolute start-4 top-1/2 h-5 w-5 -translate-y-1/2 text-zinc-400" />
+                <input
+                  ref={searchRef}
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  onKeyDown={handleBarcodeSubmit}
+                  onFocus={() => setProductPickerOpen(true)}
+                  placeholder={t("purchases.create.searchProductPlaceholder")}
+                  className="h-11 w-full rounded-2xl border border-white/10 bg-black/40 py-2 pe-4 ps-12 text-base font-semibold text-white outline-none transition placeholder:text-zinc-500 hover:border-white/20 focus:border-emerald-400/60 focus:bg-black/55 focus:shadow-[0_0_0_3px_rgba(16,185,129,0.12)]"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => setFiltersOpen((open) => !open)}
+                aria-expanded={filtersOpen}
+                className={`inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border px-3 text-xs font-black transition ${
+                  filtersOpen
+                    ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-100 shadow-[0_0_18px_rgba(16,185,129,0.14)]"
+                    : "border-white/10 bg-white/[0.04] text-zinc-200 hover:border-emerald-300/30 hover:bg-emerald-400/10"
+                }`}
+              >
+                <SlidersHorizontal className="h-4 w-4" />
+                {isArabic ? "الفلاتر" : "Filters"}
+                {activePurchaseFilterCount > 0 ? (
+                  <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[11px] font-black text-emerald-100">
+                    {activePurchaseFilterCount}
+                  </span>
+                ) : null}
+              </button>
             </div>
             {productPickerOpen ? <ProductSearchPanel search={search} products={purchaseProductSource} results={filteredProducts} loading={productsLoading || serverSearchLoading} onAdd={addProductCard} /> : null}
           </div>
         </div>
-        <PurchaseFilterBar
-          filters={purchaseFilters}
-          options={purchaseFilterOptions}
-          activeCount={activePurchaseFilterCount}
-          isArabic={isArabic}
-          onChange={(key, value) => setPurchaseFilters((current) => ({ ...current, [key]: value }))}
-          onReset={resetPurchaseFilters}
-        />
       </div>
 
       <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,48%)_minmax(0,52%)]">
@@ -2406,93 +2476,6 @@ function ActionTile({ icon, label, onClick, disabled }) {
       <span className="rounded-lg bg-emerald-500/10 p-1.5 text-emerald-300">{icon}</span>
       <span className="text-xs font-black text-white">{label}</span>
     </button>
-  );
-}
-
-function PurchaseFilterBar({ filters, options, activeCount, isArabic, onChange, onReset }) {
-  const labels = isArabic
-    ? {
-        category: "الفئة",
-        brand: "البراند",
-        gender: "الجنس",
-        productType: "النوع",
-        color: "اللون",
-        size: "المقاس",
-        stock: "المخزون",
-        favorite: "المفضلة",
-        all: "الكل",
-        available: "متاح فقط",
-        favorites: "المفضلة فقط",
-        reset: "مسح الفلاتر",
-      }
-    : {
-        category: "Category",
-        brand: "Brand",
-        gender: "Gender",
-        productType: "Type",
-        color: "Color",
-        size: "Size",
-        stock: "Stock",
-        favorite: "Favorites",
-        all: "All",
-        available: "Available only",
-        favorites: "Favorites only",
-        reset: "Reset filters",
-      };
-
-  const optionList = (key) => (Array.isArray(options?.[key]) ? options[key] : []);
-
-  return (
-    <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-white/10 pt-3">
-      <FilterSelect label={labels.category} value={filters.category} options={optionList("category")} allLabel={labels.all} onChange={(value) => onChange("category", value)} />
-      <FilterSelect label={labels.brand} value={filters.brand} options={optionList("brand")} allLabel={labels.all} onChange={(value) => onChange("brand", value)} />
-      <FilterSelect label={labels.gender} value={filters.gender} options={optionList("gender")} allLabel={labels.all} onChange={(value) => onChange("gender", value)} />
-      <FilterSelect label={labels.productType} value={filters.productType} options={optionList("productType")} allLabel={labels.all} onChange={(value) => onChange("productType", value)} />
-      <FilterSelect label={labels.color} value={filters.color} options={optionList("color")} allLabel={labels.all} onChange={(value) => onChange("color", value)} />
-      <FilterSelect label={labels.size} value={filters.size} options={optionList("size")} allLabel={labels.all} onChange={(value) => onChange("size", value)} />
-      <FilterSelect
-        label={labels.stock}
-        value={filters.stock}
-        options={[{ id: "available", name: labels.available }]}
-        allLabel={labels.all}
-        onChange={(value) => onChange("stock", value)}
-      />
-      <FilterSelect
-        label={labels.favorite}
-        value={filters.favorite}
-        options={[{ id: "favorites", name: labels.favorites }]}
-        allLabel={labels.all}
-        onChange={(value) => onChange("favorite", value)}
-      />
-      <button
-        type="button"
-        onClick={onReset}
-        disabled={!activeCount}
-        className="h-10 rounded-xl border border-white/10 bg-white/5 px-3 text-xs font-black text-zinc-200 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        {labels.reset}{activeCount ? ` (${activeCount})` : ""}
-      </button>
-    </div>
-  );
-}
-
-function FilterSelect({ label, value, options, allLabel, onChange }) {
-  return (
-    <label className="min-w-[8.5rem] flex-1 text-[11px] font-bold text-zinc-400 sm:flex-none">
-      <span className="mb-1 block">{label}</span>
-      <select
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-xl border border-white/10 bg-black/40 px-3 text-xs font-black text-white outline-none transition focus:border-emerald-400/60"
-      >
-        <option value="all">{allLabel}</option>
-        {toArray(options).map((option) => (
-          <option key={option.id} value={option.id}>
-            {option.name}{Number.isFinite(Number(option.count)) ? ` (${option.count})` : ""}
-          </option>
-        ))}
-      </select>
-    </label>
   );
 }
 

@@ -63,10 +63,37 @@ function SmartFilterRow({ label, options, value, onChange }) {
   );
 }
 
+function SmartSelectBlock({ label, options, value = "all", onChange, allLabel }) {
+  const items = Array.isArray(options) ? options : [];
+
+  if (items.length === 0) return null;
+
+  return (
+    <div className="m1-smart-filter-group rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
+      <div className="m1-smart-filter-label mb-1.5 text-[11px] font-bold tracking-[0.04em] text-zinc-500 sm:text-xs">{label}</div>
+      <select
+        value={value}
+        onChange={(event) => onChange?.(event.target.value)}
+        className="m1-smart-filter-select h-11 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-sm font-semibold text-white outline-none transition"
+      >
+        <option value="all">{allLabel}</option>
+        {items.map((item) => (
+          <option key={item.id || item.name} value={item.id}>
+            {item.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
 function SmartPosFilters({
   open,
   panelRef,
   portalTarget,
+  categoryOptions,
+  selectedCategoryId = "all",
+  onCategoryChange,
   smartFilterOptions,
   selectedGender,
   onGenderChange,
@@ -80,9 +107,18 @@ function SmartPosFilters({
   manufacturerOptions,
   selectedManufacturerId,
   onManufacturerChange,
+  colorOptions,
+  selectedColor = "all",
+  onColorChange,
   sizeOptions,
   selectedSize = "all",
   onSizeChange,
+  stockOptions,
+  selectedStock = "all",
+  onStockChange,
+  favoriteOptions,
+  selectedFavorite = "all",
+  onFavoriteChange,
   activeSmartFilterCount = 0,
   onReset,
   onClose,
@@ -106,6 +142,7 @@ function SmartPosFilters({
     reset: isArabic ? "إعادة الضبط" : "Reset",
     cancel: isArabic ? "إلغاء" : "Cancel",
   };
+  const hasExtendedFilters = Boolean(categoryOptions || colorOptions || stockOptions || favoriteOptions);
 
   if (!open || typeof document === "undefined") return null;
 
@@ -146,46 +183,37 @@ function SmartPosFilters({
 
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3 py-3 sm:px-4 sm:py-4">
           <div className="grid gap-2 xl:grid-cols-[minmax(0,1.45fr)_minmax(0,1fr)]">
-            <div className="grid gap-2">
-              <SmartFilterRow label={copy.gender} options={smartFilterOptions?.gender} value={selectedGender} onChange={onGenderChange} />
-              <SmartFilterRow label={copy.productType} options={smartFilterOptions?.productType} value={selectedProductType} onChange={onProductTypeChange} />
-              <SmartFilterRow label={copy.grade} options={smartFilterOptions?.grade} value={selectedGrade} onChange={onGradeChange} />
-              {Array.isArray(sizeOptions) && sizeOptions.length ? <SmartFilterRow label={copy.size} options={sizeOptions} value={selectedSize} onChange={onSizeChange} /> : null}
-            </div>
+            {hasExtendedFilters ? (
+              <>
+                <div className="grid gap-2">
+                  <SmartSelectBlock label={isArabic ? "الفئة" : "Category"} options={categoryOptions} value={selectedCategoryId} onChange={onCategoryChange} allLabel={isArabic ? "كل الفئات" : "All categories"} />
+                  <SmartSelectBlock label={copy.brand} options={brandOptions} value={selectedBrandId} onChange={onBrandChange} allLabel={copy.allBrands} />
+                  <SmartFilterRow label={copy.gender} options={smartFilterOptions?.gender} value={selectedGender} onChange={onGenderChange} />
+                  <SmartFilterRow label={copy.productType} options={smartFilterOptions?.productType} value={selectedProductType} onChange={onProductTypeChange} />
+                </div>
 
-            <div className="grid gap-2">
-              <div className="m1-smart-filter-group rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
-                <div className="m1-smart-filter-label mb-1.5 text-[11px] font-bold tracking-[0.04em] text-zinc-500 sm:text-xs">{copy.brand}</div>
-                <select
-                  value={selectedBrandId}
-                  onChange={(event) => onBrandChange(event.target.value)}
-                  className="m1-smart-filter-select h-11 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-sm font-semibold text-white outline-none transition"
-                >
-                  <option value="all">{copy.allBrands}</option>
-                  {(brandOptions || []).map((brand) => (
-                    <option key={brand.id || brand.name} value={brand.id}>
-                      {brand.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <div className="grid gap-2">
+                  <SmartFilterRow label={isArabic ? "اللون" : "Color"} options={colorOptions} value={selectedColor} onChange={onColorChange} />
+                  <SmartFilterRow label={copy.size} options={sizeOptions} value={selectedSize} onChange={onSizeChange} />
+                  <SmartFilterRow label={isArabic ? "المخزون" : "Stock"} options={stockOptions} value={selectedStock} onChange={onStockChange} />
+                  <SmartFilterRow label={isArabic ? "المفضلة" : "Favorites"} options={favoriteOptions} value={selectedFavorite} onChange={onFavoriteChange} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="grid gap-2">
+                  <SmartFilterRow label={copy.gender} options={smartFilterOptions?.gender} value={selectedGender} onChange={onGenderChange} />
+                  <SmartFilterRow label={copy.productType} options={smartFilterOptions?.productType} value={selectedProductType} onChange={onProductTypeChange} />
+                  <SmartFilterRow label={copy.grade} options={smartFilterOptions?.grade} value={selectedGrade} onChange={onGradeChange} />
+                  {Array.isArray(sizeOptions) && sizeOptions.length ? <SmartFilterRow label={copy.size} options={sizeOptions} value={selectedSize} onChange={onSizeChange} /> : null}
+                </div>
 
-              <div className="m1-smart-filter-group rounded-2xl border border-white/10 bg-white/[0.03] px-2.5 py-2 sm:px-3 sm:py-2.5">
-                <div className="m1-smart-filter-label mb-1.5 text-[11px] font-bold tracking-[0.04em] text-zinc-500 sm:text-xs">{copy.manufacturer}</div>
-                <select
-                  value={selectedManufacturerId}
-                  onChange={(event) => onManufacturerChange(event.target.value)}
-                  className="m1-smart-filter-select h-11 w-full rounded-[1.1rem] border border-white/10 bg-black/70 px-3 text-sm font-semibold text-white outline-none transition"
-                >
-                  <option value="all">{copy.allManufacturers}</option>
-                  {(manufacturerOptions || []).map((manufacturer) => (
-                    <option key={manufacturer.id || manufacturer.name} value={manufacturer.id}>
-                      {manufacturer.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
+                <div className="grid gap-2">
+                  <SmartSelectBlock label={copy.brand} options={brandOptions} value={selectedBrandId} onChange={onBrandChange} allLabel={copy.allBrands} />
+                  <SmartSelectBlock label={copy.manufacturer} options={manufacturerOptions} value={selectedManufacturerId} onChange={onManufacturerChange} allLabel={copy.allManufacturers} />
+                </div>
+              </>
+            )}
           </div>
         </div>
 
