@@ -263,7 +263,8 @@ const getColorImageStatusDetails = (row = {}) => {
 const ProductColorImageBadge = ({ row = {}, onClick }) => {
   const { status, totalColors, missingColors, missingColorNames } = getColorImageStatusDetails(row);
   const isComplete = status === "complete";
-  const title = missingColorNames.length ? missingColorNames.join(", ") : "كل الألوان لديها صور";
+  const isIncomplete = status === "incomplete" || status === "missing";
+  const title = isIncomplete && missingColorNames.length ? missingColorNames.join(", ") : isComplete ? "كل الألوان لديها صور" : "لا توجد ألوان";
   return (
     <button
       type="button"
@@ -272,11 +273,13 @@ const ProductColorImageBadge = ({ row = {}, onClick }) => {
       className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black transition ${
         isComplete
           ? "border-emerald-300/25 bg-emerald-500/15 text-emerald-200 hover:bg-emerald-500/20"
-          : "border-red-300/25 bg-red-500/15 text-red-200 hover:bg-red-500/20"
+          : isIncomplete
+            ? "border-red-300/25 bg-red-500/15 text-red-200 hover:bg-red-500/20"
+            : "border-zinc-400/20 bg-zinc-500/10 text-zinc-300 hover:bg-zinc-500/15"
       }`}
     >
-      {isComplete ? <CheckCircle size={12} /> : <AlertTriangle size={12} />}
-      <span>{isComplete ? "✓ الصور مكتملة" : `⚠ صور ناقصة (${missingColors}/${totalColors})`}</span>
+      {isComplete ? <CheckCircle size={12} /> : isIncomplete ? <AlertTriangle size={12} /> : <Package2 size={12} />}
+      <span>{isComplete ? "✓ الصور مكتملة" : isIncomplete ? `⚠ صور ناقصة (${missingColors}/${totalColors})` : "لا توجد ألوان"}</span>
     </button>
   );
 };
@@ -2423,7 +2426,7 @@ function ProductsList() {
           >
             <option value="all">الكل</option>
             <option value="complete">الصور مكتملة</option>
-            <option value="missing">صور ناقصة</option>
+            <option value="incomplete">صور ناقصة</option>
             <option value="none">بدون صور</option>
           </select>
 

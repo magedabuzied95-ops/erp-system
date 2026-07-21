@@ -2964,6 +2964,7 @@ export const getProductsAdminList = async (req, res) => {
     const columns = await getProductColumns();
     const scopeClause = buildProductScopeClause({ columns, scope });
     const hasProductVariantImages = await tableExists(db, "product_variant_images");
+    const hasProductColorGroups = await tableExists(db, "product_color_groups");
     const hasProductAudiences = await tableExists(db, "product_audiences");
 
     const values = [...scopeClause.values];
@@ -2988,12 +2989,13 @@ export const getProductsAdminList = async (req, res) => {
       },
     });
     const colorImageFilter = String(req.query.color_image_status ?? req.query.colorImageStatus ?? "all").trim().toLowerCase();
-    const colorImageFilterClause = ["complete", "missing", "none"].includes(colorImageFilter)
-      ? colorImageFilter === "complete"
+    const normalizedColorImageFilter = colorImageFilter === "missing" ? "incomplete" : colorImageFilter;
+    const colorImageFilterClause = ["complete", "incomplete", "none"].includes(normalizedColorImageFilter)
+      ? normalizedColorImageFilter === "complete"
         ? "COALESCE(cis.total_colors, 0) > 0 AND COALESCE(cis.missing_colors, 0) = 0"
-        : colorImageFilter === "missing"
+        : normalizedColorImageFilter === "incomplete"
           ? "COALESCE(cis.missing_colors, 0) > 0"
-          : "COALESCE(cis.total_colors, 0) = 0 OR COALESCE(cis.missing_colors, 0) = COALESCE(cis.total_colors, 0)"
+          : "COALESCE(cis.total_colors, 0) = 0"
       : "";
     const whereSql = [
       scopeClause.whereSql,
@@ -3025,40 +3027,70 @@ export const getProductsAdminList = async (req, res) => {
       : "";
     const colorImageStatusJoinSql = `
         LEFT JOIN (
-          WITH variant_colors AS (
-            SELECT
+          WITH all_colors AS (
+            SELECT DISTINCT
               pv.product_id,
               COALESCE(NULLIF(LOWER(TRIM(pv.color_group_key)), ''), LOWER(TRIM(COALESCE(pv.color, ''))), 'default') AS color_key,
-              COALESCE(NULLIF(TRIM(pv.color), ''), 'Default') AS color_name,
-              BOOL_OR(TRIM(COALESCE(pv.image_url, '')) <> '') AS has_variant_image
+              COALESCE(NULLIF(TRIM(pv.color), ''), 'Default') AS color_name
             FROM product_variants pv
-            WHERE pv.is_active IS DISTINCT FROM FALSE
-              AND pv.deleted_at IS NULL
-            GROUP BY pv.product_id, color_key, color_name
-          ),
-          stored_color_images AS (
+            WHERE pv.deleted_at IS NULL
             ${hasProductVariantImages ? `
-            SELECT
+            UNION
+            SELECT DISTINCT
               pvi.product_id,
               COALESCE(NULLIF(LOWER(TRIM(pvi.color_group_key)), ''), LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))), 'default') AS color_key,
-              BOOL_OR(TRIM(COALESCE(pvi.image_url, '')) <> '') AS has_color_image
+              COALESCE(NULLIF(TRIM(pvi.color_name), ''), NULLIF(TRIM(pvi.color_value), ''), 'Default') AS color_name
+            FROM product_variant_images pvi
+            WHERE TRIM(COALESCE(pvi.color_group_key, pvi.color_name, pvi.color_value, '')) <> ''
+            ` : ""}
+            ${hasProductColorGroups ? `
+            UNION
+            SELECT DISTINCT
+              pcg.product_id,
+              COALESCE(NULLIF(LOWER(TRIM(pcg.color_group_key)), ''), LOWER(TRIM(COALESCE(pcg.color_name, ''))), 'default') AS color_key,
+              COALESCE(NULLIF(TRIM(pcg.color_name), ''), 'Default') AS color_name
+            FROM product_color_groups pcg
+            WHERE TRIM(COALESCE(pcg.color_group_key, pcg.color_name, '')) <> ''
+            ` : ""}
+          ),
+          image_presence AS (
+            ${hasProductVariantImages ? `
+            SELECT DISTINCT
+              pvi.product_id,
+              COALESCE(NULLIF(LOWER(TRIM(pvi.color_group_key)), ''), LOWER(TRIM(COALESCE(pvi.color_name, pvi.color_value, ''))), 'default') AS color_key,
+              TRUE AS has_image
             FROM product_variant_images pvi
             WHERE TRIM(COALESCE(pvi.image_url, '')) <> ''
-            GROUP BY pvi.product_id, color_key
-            ` : `
-            SELECT NULL::bigint AS product_id, ''::text AS color_key, FALSE AS has_color_image
-            WHERE FALSE
-            `}
+            UNION
+            ` : ""}
+            SELECT DISTINCT
+              pv.product_id,
+              COALESCE(NULLIF(LOWER(TRIM(pv.color_group_key)), ''), LOWER(TRIM(COALESCE(pv.color, ''))), 'default') AS color_key,
+              TRUE AS has_image
+            FROM product_variants pv
+            WHERE pv.deleted_at IS NULL
+              AND (
+                TRIM(COALESCE(pv.image_url, '')) <> ''
+                OR TRIM(COALESCE(pv.image, '')) <> ''
+                OR TRIM(COALESCE(pv.photo_url, '')) <> ''
+                OR TRIM(COALESCE(pv.thumbnail_url, '')) <> ''
+              )
+            ${hasProductVariantImages ? "" : ""}
+          ),
+          grouped_image_presence AS (
+            SELECT product_id, color_key, BOOL_OR(has_image) AS has_image
+            FROM image_presence
+            GROUP BY product_id, color_key
           ),
           color_status AS (
             SELECT
-              vc.product_id,
-              vc.color_name,
-              (vc.has_variant_image OR COALESCE(sci.has_color_image, FALSE)) AS has_image
-            FROM variant_colors vc
-            LEFT JOIN stored_color_images sci
-              ON sci.product_id = vc.product_id
-             AND sci.color_key = vc.color_key
+              ac.product_id,
+              ac.color_name,
+              COALESCE(gip.has_image, FALSE) AS has_image
+            FROM all_colors ac
+            LEFT JOIN grouped_image_presence gip
+              ON gip.product_id = ac.product_id
+             AND gip.color_key = ac.color_key
           )
           SELECT
             product_id,
@@ -3187,8 +3219,8 @@ export const getProductsAdminList = async (req, res) => {
         COALESCE(cis.missing_color_names, '[]'::jsonb) AS missing_color_names,
         CASE
           WHEN COALESCE(cis.total_colors, 0) > 0 AND COALESCE(cis.missing_colors, 0) = 0 THEN 'complete'
-          WHEN COALESCE(cis.total_colors, 0) = 0 OR COALESCE(cis.missing_colors, 0) = COALESCE(cis.total_colors, 0) THEN 'none'
-          ELSE 'missing'
+          WHEN COALESCE(cis.total_colors, 0) = 0 THEN 'none'
+          ELSE 'incomplete'
         END AS color_image_status,
         COUNT(*) OVER()::int AS total_count
       FROM products p
