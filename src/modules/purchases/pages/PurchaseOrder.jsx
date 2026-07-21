@@ -1909,7 +1909,12 @@ function PurchaseOrder() {
       supplier_id: supplierId,
       warehouse_id: warehouseId,
       branch_id: branchId || null,
-      items: normalizedItems.map((item) => ({
+      items: normalizedItems.map((item) => {
+        const savedDefaultPurchaseQty = safeNumericPayload(
+          item.default_purchase_qty ?? item.purchase_qty ?? item.purchase_quantity ?? item.bulk_purchase_qty ?? item.planned_qty ?? 0
+        );
+        const shouldConsumeDefaultPurchaseQty = item.consume_default_purchase_qty || savedDefaultPurchaseQty > 0;
+        return {
         product_id: item.product_id,
         variant_id: item.variant_id || null,
         color_group_key: item.color_group_key || "",
@@ -1920,6 +1925,10 @@ function PurchaseOrder() {
         quantity: safeNumericPayload(item.quantity),
         qty: safeNumericPayload(item.quantity),
         received_quantity: safeNumericPayload(item.quantity),
+        default_purchase_qty: savedDefaultPurchaseQty,
+        purchase_qty: savedDefaultPurchaseQty,
+        purchase_quantity: savedDefaultPurchaseQty,
+        consume_default_purchase_qty: shouldConsumeDefaultPurchaseQty,
         unit_cost: safeNumericPayload(item.unit_cost),
         cost_price: safeNumericPayload(item.cost_price),
         purchase_cost: safeNumericPayload(item.purchase_price ?? item.cost_price ?? item.unit_cost),
@@ -1932,7 +1941,8 @@ function PurchaseOrder() {
         total: safeNumericPayload(item.subtotal, safeNumericPayload(item.quantity) * safeNumericPayload(item.cost_price)),
         metadata: {
           image_url: item.image_url,
-          ...(item.consume_default_purchase_qty ? { consume_default_purchase_qty: true } : {}),
+          ...(shouldConsumeDefaultPurchaseQty ? { consume_default_purchase_qty: true } : {}),
+          default_purchase_qty: savedDefaultPurchaseQty,
           last_purchase_cost: item.last_purchase_cost,
           last_purchase_date: item.last_purchase_date,
           supplier_name: item.supplier_name,
@@ -1940,7 +1950,8 @@ function PurchaseOrder() {
           sale_price: safeNumericPayload(item.sale_price),
           price: safeNumericPayload(item.price ?? item.selling_price),
         },
-      })),
+        };
+      }),
       status: nextStatus,
       notes: [internalNotes, deliveryNotes ? `Delivery: ${deliveryNotes}` : "", supplierInvoiceNumber ? `Supplier invoice: ${supplierInvoiceNumber}` : ""].filter(Boolean).join("\n"),
       subtotal,

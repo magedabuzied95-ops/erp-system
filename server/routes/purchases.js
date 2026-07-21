@@ -688,6 +688,28 @@ const normalizePurchaseItem = (item = {}) => {
   const wholesalePrice = Math.max(0, Number(item.wholesale_price ?? item.wholesalePrice ?? 0) || 0);
   const lineTotal = quantity * safeUnitCost;
   const metadata = item.metadata && typeof item.metadata === "object" ? item.metadata : {};
+  const defaultPurchaseQty = toNonNegativeNumber(
+    item.default_purchase_qty ??
+      item.defaultPurchaseQty ??
+      item.purchase_qty ??
+      item.purchaseQty ??
+      item.purchase_quantity ??
+      item.purchaseQuantity ??
+      item.bulk_purchase_qty ??
+      item.planned_qty ??
+      metadata.default_purchase_qty ??
+      metadata.defaultPurchaseQty ??
+      metadata.purchase_qty ??
+      metadata.purchaseQty ??
+      0,
+    0
+  );
+  const consumeDefaultPurchaseQty =
+    item.consume_default_purchase_qty === true ||
+    item.consumeDefaultPurchaseQty === true ||
+    metadata.consume_default_purchase_qty === true ||
+    metadata.consumeDefaultPurchaseQty === true ||
+    defaultPurchaseQty > 0;
   return {
     id: item.id ?? item.purchase_item_id ?? item.purchaseItemId ?? null,
     purchase_item_id: item.id ?? item.purchase_item_id ?? item.purchaseItemId ?? null,
@@ -714,6 +736,9 @@ const normalizePurchaseItem = (item = {}) => {
     color: item.color || "",
     size: item.size || "",
     quantity,
+    default_purchase_qty: defaultPurchaseQty,
+    purchase_qty: defaultPurchaseQty,
+    consume_default_purchase_qty: consumeDefaultPurchaseQty,
     unit_cost: safeUnitCost,
     cost_price: safeUnitCost,
     selling_price: sellingPrice,
@@ -726,6 +751,8 @@ const normalizePurchaseItem = (item = {}) => {
     total: lineTotal,
     metadata: {
       ...metadata,
+      default_purchase_qty: defaultPurchaseQty,
+      ...(consumeDefaultPurchaseQty ? { consume_default_purchase_qty: true } : {}),
       __pricing_input: {
         ...(metadata.__pricing_input && typeof metadata.__pricing_input === "object" ? metadata.__pricing_input : {}),
         purchaseCost: hasUsableNumericInput(item, ["unit_cost", "unitCost", "cost_price", "costPrice", "purchase_price", "purchasePrice", "purchase_cost", "purchaseCost"]),
@@ -852,13 +879,20 @@ const markPurchaseStockApplied = async (client, purchaseId) => {
 };
 
 const resetConsumedDefaultPurchaseQty = async (client, { tenantId, items = [] }) => {
+  const consumedItems = items
+    .map(normalizePurchaseItem)
+    .filter((item) =>
+      item?.consume_default_purchase_qty === true ||
+      item?.metadata?.consume_default_purchase_qty === true ||
+      Number(item?.default_purchase_qty || item?.metadata?.default_purchase_qty || 0) > 0
+    );
   const variantIds = Array.from(new Set(
-    items
+    consumedItems
       .map((item) => Number(item.variant_id))
       .filter((variantId) => Number.isInteger(variantId) && variantId > 0)
   ));
   const productIds = Array.from(new Set(
-    items
+    consumedItems
       .map((item) => Number(item.product_id))
       .filter((productId) => Number.isInteger(productId) && productId > 0)
   ));

@@ -13,9 +13,11 @@ const purchasesRoute = readFileSync(
 
 test("product purchase quantities are consumed only after a successful purchase transaction", () => {
   assert.match(purchaseOrder, /quantity: row\.savedQty,[\s\S]*?consume_default_purchase_qty: true/);
-  assert.match(purchaseOrder, /item\.consume_default_purchase_qty \? \{ consume_default_purchase_qty: true \}/);
+  assert.match(purchaseOrder, /shouldConsumeDefaultPurchaseQty = item\.consume_default_purchase_qty \|\| savedDefaultPurchaseQty > 0/);
+  assert.match(purchaseOrder, /shouldConsumeDefaultPurchaseQty \? \{ consume_default_purchase_qty: true \}/);
   assert.match(purchasesRoute, /const resetConsumedDefaultPurchaseQty = async/);
   assert.match(purchasesRoute, /item\?\.metadata\?\.consume_default_purchase_qty === true/);
+  assert.match(purchasesRoute, /Number\(item\?\.default_purchase_qty \|\| item\?\.metadata\?\.default_purchase_qty \|\| 0\) > 0/);
   assert.match(purchasesRoute, /UPDATE product_variants[\s\S]*?SET default_purchase_qty = 0/);
   assert.match(purchasesRoute, /runStep\("variant purchase quantity reset"[\s\S]*?resetConsumedDefaultPurchaseQty/);
   assert.ok(
