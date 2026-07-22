@@ -33,6 +33,19 @@ import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { buildProductBaseSlug, generateUniqueProductSlug } from "../utils/productSlug.js";
 import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 
+export const resolveAdminListCurrentSellingPrice = (row = {}) => resolveCurrentSellingPrice({
+  product: row,
+  variant: {
+    id: row.list_variant_id,
+    manual_selling_price: row.list_variant_manual_selling_price,
+    manual_price_override_active: row.list_variant_manual_price_override_active,
+    purchase_selling_price: row.list_variant_purchase_selling_price,
+    selling_price: row.list_variant_selling_price,
+    price: row.list_variant_price,
+    regular_price: row.list_variant_regular_price,
+  },
+}).value;
+
 let productVariantSchemaReadyPromise = null;
 let fullProductVariantSchemaReadyPromise = null;
 let productSchemaReadyPromise = null;
@@ -3185,6 +3198,16 @@ export const getProductsAdminList = async (req, res) => {
           NULLIF(p.cost_price, 0),
           0
         ) AS display_cost,
+        p.manual_selling_price,
+        COALESCE(p.manual_price_override_active, FALSE) AS manual_price_override_active,
+        p.purchase_selling_price,
+        lpv.id AS list_variant_id,
+        lpv.manual_selling_price AS list_variant_manual_selling_price,
+        COALESCE(lpv.manual_price_override_active, FALSE) AS list_variant_manual_price_override_active,
+        lpv.purchase_selling_price AS list_variant_purchase_selling_price,
+        lpv.selling_price AS list_variant_selling_price,
+        lpv.price AS list_variant_price,
+        lpv.regular_price AS list_variant_regular_price,
         COALESCE(p.selling_price, p.regular_price, p.price, 0) AS selling_price,
         COALESCE(p.regular_price, p.price, p.selling_price, 0) AS regular_price,
         CASE
@@ -3251,6 +3274,15 @@ export const getProductsAdminList = async (req, res) => {
         FROM product_variants
         GROUP BY product_id
       ) vst ON vst.product_id = p.id
+      LEFT JOIN LATERAL (
+        SELECT id, manual_selling_price, manual_price_override_active, purchase_selling_price, selling_price, price, regular_price
+        FROM product_variants
+        WHERE product_id = p.id
+          AND is_active IS DISTINCT FROM FALSE
+          AND deleted_at IS NULL
+        ORDER BY (COALESCE(stock, 0) > 0) DESC, id ASC
+        LIMIT 1
+      ) lpv ON TRUE
       ${coverImageJoinSql}
       ${colorImageStatusJoinSql}
       ${audienceJoinSql}
@@ -3274,8 +3306,13 @@ export const getProductsAdminList = async (req, res) => {
       scopeClause.values
     );
 
-    const rows = (result.rows || []).map((row) => ({
+    const rows = (result.rows || []).map((row) => {
+      const currentSellingPrice = resolveAdminListCurrentSellingPrice(row);
+      return {
       ...row,
+      selling_price: currentSellingPrice,
+      current_selling_price: currentSellingPrice,
+      price: currentSellingPrice,
       image_url: row.cover_image_url || "",
       product_image_url: row.cover_image_url || "",
       thumbnail_url: row.cover_image_url || "",
@@ -3288,7 +3325,8 @@ export const getProductsAdminList = async (req, res) => {
       totalColors: Number(row.total_colors || 0),
       missingColors: Number(row.missing_colors || 0),
       missingColorNames: Array.isArray(row.missing_color_names) ? row.missing_color_names : [],
-    }));
+    };
+    });
     const total = Number(result.rows?.[0]?.total_count || 0);
     const availableBrands = Array.isArray(filterOptionsResult.rows?.[0]?.brands) ? filterOptionsResult.rows[0].brands.filter(Boolean) : [];
     const availableCategories = Array.isArray(filterOptionsResult.rows?.[0]?.categories) ? filterOptionsResult.rows[0].categories.filter(Boolean) : [];
