@@ -71,3 +71,23 @@ test("null color/variant records and a variant without a color gallery cannot cr
   assert.equal(fallback?.key, "Blue");
   assert.deepEqual(buildSelectedColorGallery({ product: malformedProduct, colorGroup: fallback }).map((item) => item.image), ["safe-general.jpg"]);
 });
+
+test("one-color product includes all unique general product images as that color's gallery", () => {
+  const oneColorProduct = {
+    image_url: "nb-front.jpg",
+    image_urls: ["nb-front.jpg", "nb-side.jpg"],
+    gallery_images: [{ image_url: "nb-back.jpg" }],
+    additional_images: ["nb-side.jpg", "nb-detail.jpg"],
+    variants: [{ id: 3114, color: "White & Navy", size: "42", stock: 1, image_url: "nb-front.jpg" }],
+  };
+  const group = groupsFor(oneColorProduct.variants)[0];
+  const gallery = buildSelectedColorGallery({ product: oneColorProduct, colorGroup: group, colorGroupCount: 1 });
+  assert.deepEqual(gallery.map((item) => item.image), ["nb-front.jpg", "nb-back.jpg", "nb-side.jpg", "nb-detail.jpg"]);
+});
+
+test("multiple colors with color galleries remain isolated even when product has general images", () => {
+  const groups = groupsFor();
+  const olive = groups.find((group) => group.key === "Olive");
+  const gallery = buildSelectedColorGallery({ product: { ...product, gallery_images: ["general-other-angle.jpg"] }, colorGroup: olive, colorGroupCount: groups.length });
+  assert.deepEqual(gallery.map((item) => item.image), ["olive-front.jpg", "olive-side.jpg"]);
+});

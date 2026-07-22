@@ -365,8 +365,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     || firstDisplayVariant(variants);
   const safeActiveVariant = activeVariant || {};
   const galleryEntries = useMemo(
-    () => buildSelectedColorGallery({ product, colorGroup: selectedColorGroup }),
-    [product, selectedColorGroup]
+    () => buildSelectedColorGallery({ product, colorGroup: selectedColorGroup, colorGroupCount: colorGroups.length }),
+    [product, selectedColorGroup, colorGroups.length]
   );
   useEffect(() => {
     galleryEntries.forEach((item, index) => {
