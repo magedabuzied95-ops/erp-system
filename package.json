@@ -28,6 +28,7 @@
     "test:ai-marketing": "node --test tests/ai-marketing/*.test.js",
     "test:coupons": "node --test tests/coupons/*.test.js",
     "test:messenger-shopping": "node --test tests/messenger-guided-shopping/*.test.js",
+    "test:meta-catalog": "node --test tests/meta-catalog/*.test.js",
     "start": "npm --prefix \"./server\" run start"
   },
   "dependencies": {

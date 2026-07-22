@@ -231,7 +231,7 @@ export default function ProductVariants({
 
                   <th className="text-left text-gray-400 pb-3">
 
-                    {t("products.fields.price", "Price")}
+                    {t("products.fields.sellingPrice", "Selling price")}
 
                   </th>
 

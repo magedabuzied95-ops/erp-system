@@ -837,9 +837,9 @@ function ProductDetails() {
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                  <InfoCard label={t("products.fields.regularPrice", "Regular price")} value={displayMoneyOrEmpty(product.resolved_regular_price, notAvailableText)} />
+                  <InfoCard label={t("products.fields.sellingPrice", "Selling price")} value={displayMoneyOrEmpty(product.resolved_sale_price || product.resolved_regular_price, notAvailableText)} />
                   <InfoCard label={t("products.fields.comparePrice", "Compare price")} value={displayMoneyOrEmpty(product.resolved_compare_price, notAvailableText)} />
-                  <InfoCard label={t("products.fields.salePrice", "Sale price")} value={product.sale_display_enabled && product.resolved_sale_price !== null ? formatCurrency(product.resolved_sale_price) : t("products.status.disabled", "Disabled")} />
+                  <InfoCard label={t("products.fields.originalPrice", "Original price")} value={product.sale_display_enabled && Number(product.resolved_regular_price || 0) > Number(product.resolved_sale_price || 0) ? formatCurrency(product.resolved_regular_price) : notAvailableText} />
                   <InfoCard label={t("products.fields.costPrice", "Cost price")} value={canViewCostPrice ? displayMoneyOrEmpty(product.resolved_cost_price, notAvailableText) : "—"} />
                   <InfoCard label={t("products.fields.wholesalePrice", "Wholesale price")} value={canViewCostPrice ? displayMoneyOrEmpty(product.resolved_wholesale_price, notAvailableText) : "—"} />
                   <InfoCard label={t("products.fields.lastPurchasePriceUpdate", "Last purchase price update")} value={product.last_purchase_pricing_at ? String(product.last_purchase_pricing_at).slice(0, 16).replace("T", " ") : t("products.records.notYet", "Not yet")} />

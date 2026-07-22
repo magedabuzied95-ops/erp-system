@@ -493,7 +493,7 @@
     "pricingSummaryHelp": "Read-only. Active pricing is updated when purchase invoice stock is received.",
     "pricingFilledFromPurchases": "Pricing is filled from purchase invoices after stock is received.",
     "currentRegularPrice": "Current regular price",
-    "currentSalePrice": "Current sale price",
+    "currentSalePrice": "Current selling price",
     "currentCost": "Current cost",
     "lastUpdatedFromPurchase": "Last updated from purchase invoice",
     "customComparePrice": "Custom storefront compare price",
@@ -791,8 +791,10 @@
     "qrToken": "QR token"
   },
   "fields": {
+    "sellingPrice": "Selling price",
+    "originalPrice": "Original price",
     "regularPrice": "Regular price",
-    "salePrice": "Sale price",
+    "salePrice": "Selling price",
     "costPrice": "Cost price",
     "wholesalePrice": "Wholesale price",
     "lastPurchasePriceUpdate": "Last purchase price update",

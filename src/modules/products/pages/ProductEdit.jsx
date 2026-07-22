@@ -3473,12 +3473,12 @@ function ProductEdit() {
                 </div>
                 <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-4">
                   <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.currentRegularPrice", "Current regular price")}</p>
-                    <p className="mt-2 text-sm font-black text-zinc-100">{Number(product.regular_price || product.price || 0) > 0 ? formatCurrency(product.regular_price || product.price) : "Not set"}</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.fields.sellingPrice", "Selling price")}</p>
+                    <p className="mt-2 text-sm font-black text-zinc-100">{Number((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price || 0) > 0 ? formatCurrency((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price) : "Not set"}</p>
                   </div>
                   <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
-                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.currentSalePrice", "Current sale price")}</p>
-                    <p className="mt-2 text-sm font-black text-zinc-100">{product.sale_price_enabled && Number(product.sale_price || 0) > 0 ? formatCurrency(product.sale_price) : "Not active"}</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.fields.originalPrice", "Original price")}</p>
+                    <p className="mt-2 text-sm font-black text-zinc-100">{Number(product.custom_compare_price || (product.sale_price_enabled ? product.regular_price || product.price : 0) || 0) > Number((product.sale_price_enabled && product.sale_price) || product.regular_price || product.price || 0) ? formatCurrency(product.custom_compare_price || product.regular_price || product.price) : t("products.editor.notSet", "Not set")}</p>
                   </div>
                   <div className="rounded-[16px] border border-white/8 bg-white/[0.035] p-3">
                     <p className="text-[11px] font-black uppercase tracking-[0.14em] text-zinc-500">{t("products.editor.currentCost", "Current cost")}</p>

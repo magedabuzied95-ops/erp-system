@@ -789,7 +789,7 @@
     "qrToken": "رمز QR"
   },
   "fields": {
-    "regularPrice": "السعر العادي",
+    "regularPrice": "السعر قبل الخصم",
     "salePrice": "سعر البيع",
     "costPrice": "سعر التكلفة",
     "wholesalePrice": "سعر الجملة",

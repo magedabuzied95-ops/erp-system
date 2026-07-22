@@ -130,36 +130,18 @@ export const storefrontOriginalPrice = (product = {}, variant = {}) => {
 
 export const getDisplayPricing = (product = {}, saleModeEnabled = false, variant = null) => {
   const resolvedVariant = variant || pickPrimaryStorefrontVariant(product?.variants || []);
-  const sellingPrice = storefrontSellingPrice(product, resolvedVariant || {});
+  const storedSellingPrice = storefrontSellingPrice(product, resolvedVariant || {});
   const salePrice = parseStorefrontPriceValue(resolvedVariant?.sale_price ?? product?.sale_price ?? resolvedVariant?.offer_price ?? product?.offer_price ?? 0);
   const enabled = parseSaleModeEnabled(saleModeEnabled, false);
   const forceSaleForOffer = storefrontForceSaleForOffer(product, resolvedVariant || {});
-  const shouldUseSale = enabled || forceSaleForOffer;
-  const shouldForceOfferSalePrice = forceSaleForOffer && salePrice > 0;
+  const legacySaleEnabled = storefrontSaleModeOn(product, resolvedVariant || {});
+  const legacySaleValid = legacySaleEnabled && salePrice > 0 && storedSellingPrice > 0 && salePrice < storedSellingPrice;
+  const sellingPrice = legacySaleValid ? salePrice : storedSellingPrice;
+  const originalPrice = storefrontOriginalPriceCandidates(product, resolvedVariant || {}).find((value) => value > sellingPrice) ||
+    (legacySaleValid ? storedSellingPrice : 0);
   let price = sellingPrice;
-  let comparePrice = null;
-  let isOnSale = false;
-
-  if (shouldForceOfferSalePrice) {
-    price = salePrice;
-    const compareCandidate =
-      storefrontOriginalPriceCandidates(product, resolvedVariant || {}).find((value) => value > price) ||
-      (sellingPrice > price ? sellingPrice : 0);
-    comparePrice = compareCandidate > price ? compareCandidate : null;
-    isOnSale = true;
-  } else if (shouldUseSale && salePrice > 0 && sellingPrice > 0 && salePrice < sellingPrice) {
-    price = salePrice;
-    const compareCandidate =
-      storefrontOriginalPriceCandidates(product, resolvedVariant || {}).find((value) => value > price) ||
-      (sellingPrice > price ? sellingPrice : 0);
-    comparePrice = compareCandidate > price ? compareCandidate : null;
-    isOnSale = Boolean(comparePrice && comparePrice > price);
-  }
-
-  if (!comparePrice || !(comparePrice > price)) {
-    const compareCandidate = storefrontOriginalPriceCandidates(product, resolvedVariant || {}).find((value) => value > price) || 0;
-    comparePrice = compareCandidate > price ? compareCandidate : null;
-  }
+  const comparePrice = originalPrice > sellingPrice ? originalPrice : null;
+  const isOnSale = Boolean(comparePrice);
 
   const discountPercent =
     isOnSale && comparePrice && comparePrice > price
@@ -174,9 +156,9 @@ export const getDisplayPricing = (product = {}, saleModeEnabled = false, variant
     parsedSaleModeEnabled: enabled,
     saleModeEnabled: enabled,
     forceSaleForOffer,
-    shouldUseSale,
-    sellingPrice,
-    salePrice,
+    legacySaleEnabled,
+    sellingPrice: storedSellingPrice,
+    salePrice: isOnSale ? sellingPrice : 0,
     chosenPrice: price,
     isOnSale,
   });
