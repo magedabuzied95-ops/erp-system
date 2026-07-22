@@ -108,10 +108,6 @@ const queryMetaCatalogRows = async () => {
       p.selling_price AS product_selling_price,
       p.regular_price AS product_regular_price,
       p.price AS product_price,
-      p.sale_price AS product_sale_price,
-      p.sale_price_enabled AS product_sale_price_enabled,
-      p.sale_start_at AS product_sale_start_at,
-      p.sale_end_at AS product_sale_end_at,
       p.use_custom_compare_price,
       p.custom_compare_price,
       p.brand_id,
@@ -126,8 +122,6 @@ const queryMetaCatalogRows = async () => {
       pv.selling_price AS variant_selling_price,
       pv.regular_price AS variant_regular_price,
       pv.price AS variant_price,
-      pv.sale_price AS variant_sale_price,
-      pv.sale_price_enabled AS variant_sale_price_enabled,
       ci.primary_color_image,
       ci.color_gallery
     FROM products p
@@ -145,46 +139,34 @@ const queryMetaCatalogRows = async () => {
   return result.rows || [];
 };
 
-const validDate = (value) => {
-  if (!value) return null;
-  const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? null : date;
-};
+// Keep this priority in parity with resolveProductDetailsPricing in ProductDetails.jsx.
+// Meta intentionally ignores all sale_price fields, including stale variant values.
+export const resolveMetaCatalogCurrentPrice = (row = {}) => pickPrice(
+  row.product_selling_price,
+  row.product_price,
+  row.product_regular_price,
+  row.variant_selling_price,
+  row.variant_price,
+  row.variant_regular_price
+);
 
-const saleEffectiveDate = (row = {}) => {
-  const start = validDate(row.product_sale_start_at);
-  const end = validDate(row.product_sale_end_at);
-  if (!start || !end || end <= start) return "";
-  return `${start.toISOString()}/${end.toISOString()}`;
-};
+const enabledFlag = (value) =>
+  value === true || value === 1 || String(value || "").trim().toLowerCase() === "true";
 
-export const resolveMetaCatalogPricing = (row = {}) => {
-  const variantBase = pickPrice(row.variant_selling_price, row.variant_price, row.variant_regular_price);
-  const productBase = pickPrice(row.product_selling_price, row.product_price, row.product_regular_price);
-  const baseSellingPrice = variantBase || productBase;
-  const variantSale = numberValue(row.variant_sale_price);
-  const productSale = numberValue(row.product_sale_price);
-  const legacySalePrice = row.variant_sale_price_enabled && variantSale > 0 && variantSale < baseSellingPrice
-    ? variantSale
-    : row.product_sale_price_enabled && productSale > 0 && productSale < baseSellingPrice
-      ? productSale
-      : 0;
-  const sellingPrice = legacySalePrice || baseSellingPrice;
-  const explicitOriginalPrice = pickPrice(
-    row.variant_original_price,
-    row.variant_compare_at_price,
-    row.product_original_price,
+// Keep compare-at priority in parity with resolveProductDetailsPricing.
+export const resolveMetaCatalogComparePrice = (row = {}, currentPrice = resolveMetaCatalogCurrentPrice(row)) => {
+  const comparePrice = pickPrice(
+    enabledFlag(row.use_custom_compare_price) ? row.custom_compare_price : 0,
     row.product_compare_at_price,
-    row.use_custom_compare_price ? row.custom_compare_price : 0
+    row.product_original_price,
+    row.product_list_price,
+    row.product_compare_base_price,
+    row.variant_compare_at_price,
+    row.variant_original_price,
+    row.variant_list_price,
+    row.variant_compare_base_price
   );
-  const originalPrice = explicitOriginalPrice > sellingPrice
-    ? explicitOriginalPrice
-    : legacySalePrice > 0 && baseSellingPrice > sellingPrice
-      ? baseSellingPrice
-      : 0;
-  const hasDiscount = originalPrice > sellingPrice && sellingPrice > 0;
-
-  return { sellingPrice, originalPrice, hasDiscount };
+  return comparePrice > currentPrice ? comparePrice : 0;
 };
 
 export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_URL, backendUrl = DEFAULT_BACKEND_URL } = {}) => {
@@ -196,7 +178,8 @@ export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_U
   const color = text(row.color);
   const size = text(row.size);
   const titleParts = [row.product_name, color, size].map(text).filter(Boolean);
-  const { sellingPrice, originalPrice, hasDiscount } = resolveMetaCatalogPricing(row);
+  const sellingPrice = resolveMetaCatalogCurrentPrice(row);
+  const comparePrice = resolveMetaCatalogComparePrice(row, sellingPrice);
   const fallbackImage = absoluteUrl(DEFAULT_PRODUCT_IMAGE_PATH, storefrontUrl);
   const productImage = absoluteUrl(row.product_image_url, backendUrl);
   const image = absoluteUrl(row.primary_color_image || row.variant_image_url || row.product_image_url, backendUrl) || fallbackImage;
@@ -216,21 +199,19 @@ export const buildMetaCatalogItem = (row, { storefrontUrl = DEFAULT_STOREFRONT_U
     image_link: image || productImage,
     additional_image_link: [...new Set(gallery)].slice(0, 10),
     availability: Number(row.variant_stock || 0) > 0 ? "in stock" : "out of stock",
-    price: formatPrice(hasDiscount ? originalPrice : sellingPrice),
+    price: formatPrice(comparePrice || sellingPrice),
     currency: "EGP",
     brand,
     color,
     size,
   };
-  if (hasDiscount) {
+  if (comparePrice > sellingPrice && sellingPrice > 0) {
     item.sale_price = formatPrice(sellingPrice);
-    const effectiveDate = saleEffectiveDate(row);
-    if (effectiveDate) item.sale_price_effective_date = effectiveDate;
   }
   return item;
 };
 
-const itemXml = (item) => {
+export const metaCatalogItemXml = (item) => {
   const additionalImages = item.additional_image_link
     .map((url) => `      <g:additional_image_link>${xml(url)}</g:additional_image_link>`)
     .join("\n");
@@ -243,7 +224,7 @@ const itemXml = (item) => {
       <g:image_link>${xml(item.image_link)}</g:image_link>
 ${additionalImages ? `${additionalImages}\n` : ""}      <g:availability>${xml(item.availability)}</g:availability>
       <g:price>${xml(item.price)}</g:price>
-${item.sale_price ? `      <g:sale_price>${xml(item.sale_price)}</g:sale_price>\n` : ""}${item.sale_price_effective_date ? `      <g:sale_price_effective_date>${xml(item.sale_price_effective_date)}</g:sale_price_effective_date>\n` : ""}      <g:brand>${xml(item.brand)}</g:brand>
+${item.sale_price ? `      <g:sale_price>${xml(item.sale_price)}</g:sale_price>\n` : ""}      <g:brand>${xml(item.brand)}</g:brand>
       <g:currency>${xml(item.currency)}</g:currency>
       <g:color>${xml(item.color)}</g:color>
       <g:size>${xml(item.size)}</g:size>
@@ -256,7 +237,7 @@ export const buildMetaCatalogFeed = async () => {
   const backendUrl = text(process.env.PUBLIC_BACKEND_URL || process.env.API_PUBLIC_URL || DEFAULT_BACKEND_URL).replace(/\/+$/g, "");
   const rows = await queryMetaCatalogRows();
   const items = rows.map((row) => buildMetaCatalogItem(row, { storefrontUrl, backendUrl }));
-  const body = items.map(itemXml).join("\n");
+  const body = items.map(metaCatalogItemXml).join("\n");
 
   return {
     feedUrl: FEED_URL,
