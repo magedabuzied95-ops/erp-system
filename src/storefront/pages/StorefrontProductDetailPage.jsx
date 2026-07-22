@@ -39,6 +39,7 @@ import { readStorefrontCustomerAuth, storefrontCustomerRequest } from "../lib/st
 import { Check, Heart, Ruler, Share2, ShoppingCart } from "lucide-react";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
+import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
 
 const galleryImageValue = (value = "") => {
   if (!value) return "";
@@ -261,6 +262,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   const [variantSheetAction, setVariantSheetAction] = useState("");
   const [touchedOptions, setTouchedOptions] = useState({ color: false, size: false });
   const recentlyViewedSentRef = useRef("");
+  const metaViewSentRef = useRef(createMetaEventOnceGuard());
   const productTopRef = useRef(null);
   const mainImageRef = useRef(null);
   const initialRouteSearchRef = useRef(location.search);
@@ -353,6 +355,12 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             });
             setActiveImageIndex(0);
             setTouchedOptions({ color: false, size: false });
+            const pricing = getDisplayPricing(product, saleModeEnabled, first || {});
+            const contentId = metaCatalogContentId(product, first || {});
+            const viewKey = `${productRouteKey}:${contentId}`;
+            if (contentId && metaViewSentRef.current(viewKey)) {
+              trackMetaViewContent({ product, variant: first || {}, value: pricing.price });
+            }
             try {
               rememberProduct(product);
               const { token } = readStorefrontCustomerAuth();

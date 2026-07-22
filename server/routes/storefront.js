@@ -47,6 +47,7 @@ import {
 } from "../services/storefrontCustomerSessionService.js";
 import { requestCustomerOtp, verifyCustomerOtp } from "../services/customerOtpAuthService.js";
 import { hasStorefrontCustomerToken, requireStorefrontCustomerAuth } from "../middleware/storefrontCustomerAuth.js";
+import { sendStorefrontMetaEvent } from "../services/metaConversionsApiService.js";
 
 const router = express.Router();
 const publicStorefrontHomeCache = new Map();
@@ -557,6 +558,19 @@ router.get("/product/by-token/:token", getProductByToken);
 router.get("/products/resolve/:slugOrId", resolveProductLink);
 router.get("/products/:identifier", getProduct);
 router.get("/shipping/quote", getShippingQuote);
+router.post("/meta/events", async (req, res) => {
+  const eventName = toText(req.body?.event_name);
+  if (!["ViewContent", "AddToCart", "Purchase"].includes(eventName)) {
+    return res.status(400).json({ success: false, message: "Unsupported Meta event" });
+  }
+  try {
+    const result = await sendStorefrontMetaEvent({ req, event: req.body || {} });
+    return res.status(202).json({ success: true, capi_sent: Boolean(result.sent), reason: result.reason || "" });
+  } catch {
+    // Browser Pixel is already sent; avoid exposing Meta details or customer data.
+    return res.status(202).json({ success: true, capi_sent: false, reason: "delivery_unavailable" });
+  }
+});
 router.post("/checkout", checkoutUpload, createWebsiteOrder);
 router.get("/track", storefrontCustomerTransitionAuth, async (req, res, next) => {
   const jwtPhone = toText(req.storefrontCustomer?.phone || "");

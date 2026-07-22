@@ -88,6 +88,7 @@ import {
 } from "./lib/paths";
 import { sortProductSizes } from "../modules/products/lib/variantBulkSizes";
 import { getDisplayPricing, parseSaleModeEnabled as importedParseSaleModeEnabled } from "../shared/lib/storefrontPricing";
+import { isMetaPurchaseEligible, trackMetaAddToCart, trackMetaPurchase } from "./lib/metaPixelEvents";
 import instaPayLogoWebp from "../assets/payments/instapay.webp";
 import instaPayLogo from "../assets/payments/instapay.png";
 import vodafoneCashLogoWebp from "../assets/payments/vodafone-cash.webp";
@@ -8007,6 +8008,15 @@ function OrderSuccess({ profile, brandName = "MONE", brandLogoUrl = "" }) {
     (order.payment_method || loaded?.checkout?.payment_method) === "shipping_confirmation" ||
     order.payment_status === "awaiting_verification" ||
     order.status === "awaiting_verification";
+  useEffect(() => {
+    if (!order?.id || !Array.isArray(items) || !items.length || isShippingAwaitingVerification || !isMetaPurchaseEligible(order)) return;
+    trackMetaPurchase({
+      order,
+      items,
+      value: total,
+      customer: loaded?.customer || { full_name: customerName, phone },
+    });
+  }, [customerName, isShippingAwaitingVerification, items, loaded?.customer, order, phone, total]);
   const successTitle = isShippingAwaitingVerification ? t("storefront.success.awaitingVerificationTitle") : t("storefront.success.confirmedTitle");
   const successSubtitle = isShippingAwaitingVerification
     ? t("storefront.success.awaitingVerificationSubtitle")
@@ -9534,6 +9544,8 @@ const normalizeCartLine = (product = {}, variant = {}, quantity = 1) => {
     ].join(":"),
     product_id: product.id || "",
     variant_id: variant.id || "",
+    // Keep the exact catalog identifier with the order/cart line for Meta matching.
+    sku: variant.sku || variant.SKU || variant.variant_sku || product.sku || "",
     name: cleanDisplayText(mirrorProductTitle(product, variant) || product.name || product.title || ""),
     slug: product.slug || "",
     image_url: image,
@@ -9799,9 +9811,10 @@ function Storefront() {
       }
       return [...prev, nextLine];
     });
+    trackMetaAddToCart({ product, variant, line: nextLine, quantity, customer: profile });
     setCartDrawerOpen(true);
     return "added";
-  }, []);
+  }, [profile]);
 
   const toggleWishlist = useCallback((product) => {
     const item = normalizeStorefrontItem(product);

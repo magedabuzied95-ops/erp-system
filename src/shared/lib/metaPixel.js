@@ -1,4 +1,4 @@
-const META_PIXEL_ID = import.meta.env.VITE_META_PIXEL_ID;
+const META_PIXEL_ID = import.meta.env.VITE_M1_META_PIXEL_ID || import.meta.env.VITE_META_PIXEL_ID || "2459469681170451";
 
 const ALLOWED_STOREFRONT_HOSTS = new Set([
   "m1store-egy.com",
