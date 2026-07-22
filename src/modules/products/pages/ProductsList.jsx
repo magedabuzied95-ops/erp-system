@@ -891,21 +891,6 @@ function PriceEditorModal({ product, onClose, onSave }) {
     }
   };
 
-  const clearManualOverrides = async () => {
-    if (saving) return;
-    setSaving(true);
-    setError("");
-    try {
-      await onSave(product.id, isSimpleProduct
-        ? { variant_only: false, manual_price_override_active: false }
-        : { variant_only: true, variants: form.variants.map((variant) => ({ id: variant.id, manual_price_override_active: false })) });
-    } catch (err) {
-      setError(getErrorMessage(err, t("products.priceEditor.saveFailed", "Failed to update prices")));
-    } finally {
-      setSaving(false);
-    }
-  };
-
   return createPortal(
     <div className="fixed inset-0 z-[100001] grid place-items-center bg-black/70 p-4 backdrop-blur">
       <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60">
@@ -1201,6 +1186,21 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
           })),
         });
       }
+    } catch (err) {
+      setError(getErrorMessage(err, t("products.priceEditor.saveFailed", "Failed to update prices")));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const clearManualOverrides = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(product.id, isSimpleProduct
+        ? { variant_only: false, manual_price_override_active: false }
+        : { variant_only: true, variants: form.variants.map((variant) => ({ id: variant.id, manual_price_override_active: false })) });
     } catch (err) {
       setError(getErrorMessage(err, t("products.priceEditor.saveFailed", "Failed to update prices")));
     } finally {
