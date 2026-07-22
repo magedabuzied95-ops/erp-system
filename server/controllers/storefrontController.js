@@ -3880,7 +3880,10 @@ export const resolveProductLink = async (req, res) => {
       });
       return res.status(404).json({ success: false, resolvable: false, message: "Product not found" });
     }
-    const product = normalizeProduct(result.rows[0], await loadStorefrontPricingSettings(tenantId));
+    const pricingSettings = await loadStorefrontPricingSettings(tenantId);
+    const [product] = await scrubInactiveClassifications(
+      await hydrateProductsWithImages([normalizeProduct(result.rows[0], pricingSettings)])
+    );
     const link = await resolveStorefrontProductLink({ tenantId, product });
     console.log("[storefront] product resolve", {
       identifier: slugOrId,

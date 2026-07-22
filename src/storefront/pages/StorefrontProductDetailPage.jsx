@@ -42,6 +42,17 @@ import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
 import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../lib/productColorGallery";
 
+const variantColorIdentity = (variant = {}) => {
+  const safeVariant = variant && typeof variant === "object" ? variant : {};
+  const image = [safeVariant.images, safeVariant.color_images, safeVariant.gallery_images]
+    .flatMap((images) => Array.isArray(images) ? images : [])
+    .find((candidate) => candidate && typeof candidate === "object" && (candidate.color_group_key || candidate.colorGroupKey));
+  return String(
+    safeVariant.color_group_key || safeVariant.colorGroupKey || safeVariant.color_id || safeVariant.colorId ||
+    image?.color_group_key || image?.colorGroupKey || variantColorKey(safeVariant)
+  ).trim().toLowerCase();
+};
+
 function StorefrontProductDetailSkeleton() {
   return (
     <section className="sf-product-detail-skeleton mx-auto grid max-w-7xl gap-4 px-3 pb-20 pt-3 md:px-4 md:pb-28 md:pt-5 lg:grid-cols-[minmax(0,55fr)_minmax(360px,45fr)]">
@@ -231,7 +242,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
           const requestedColorId = normalizeQueryValue(routeSearchParams.get("colorId"));
           const requestedColorKey = requestedColor;
           const matchesRequestedColor = (variant) => requestedColor && (
-            String(variantColorKey(variant) || "").toLowerCase() === requestedColorKey ||
+            variantColorIdentity(variant) === requestedColorKey ||
             String(variantColorName(variant) || "").toLowerCase() === requestedColorKey
           );
           const availableVariants = productVariants.filter(variantHasStock);
@@ -259,7 +270,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             setSelected({
               variantId: first?.id || "",
               size: first?.size || "",
-              colorKey: first ? variantColorKey(first) : "",
+              colorKey: first ? variantColorIdentity(first) : "",
               colorName: first ? variantColorName(first) : "",
               image: variantImage(first) || displayImageForProduct(product, first) || product?.image_url || product?.gallery_images?.[0] || "",
             });
@@ -347,13 +358,13 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     [product]
   );
   const colorGroups = useMemo(
-    () => buildProductColorGroups({ product, variants, colorKey: variantColorKey, colorName: variantColorName, variantHasStock }),
+    () => buildProductColorGroups({ product, variants, colorKey: variantColorIdentity, colorName: variantColorName, variantHasStock }),
     [product, variants]
   );
   const selectedVariant = variants.find((item) => String(item.id) === String(selected.variantId)) || null;
-  const selectedColorKey = selected.colorKey || (selectedVariant ? variantColorKey(selectedVariant) : "");
+  const selectedColorKey = selected.colorKey || (selectedVariant ? variantColorIdentity(selectedVariant) : "");
   const selectedColorGroup = resolveColorGroup(colorGroups, selectedColorKey);
-  const variantGroup = selectedColorGroup ? variants.filter((item) => variantColorKey(item) === selectedColorGroup.key) : variants;
+  const variantGroup = selectedColorGroup ? variants.filter((item) => variantColorIdentity(item) === selectedColorGroup.key) : variants;
   const sizes = sortProductSizes([...new Set(variantGroup.map((variant) => variant.size).filter(Boolean))]);
   const colors = colorGroups;
   const sizeGuideHref = useMemo(
@@ -361,7 +372,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     [product]
   );
   const activeVariant = variants.find((item) => String(item.id) === String(selected.variantId))
-    || variants.find((item) => item.size === selected.size && (!selectedColorKey || variantColorKey(item) === selectedColorKey) && variantHasStock(item))
+    || variants.find((item) => item.size === selected.size && (!selectedColorKey || variantColorIdentity(item) === selectedColorKey) && variantHasStock(item))
     || firstDisplayVariant(variants);
   const safeActiveVariant = activeVariant || {};
   const galleryEntries = useMemo(
@@ -413,11 +424,11 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   }, [product, mirrorProduct, displayTitle]);
   const selectVariant = (candidate, options = {}) => {
     if (!candidate) return;
-    const candidateColorKey = variantColorKey(candidate);
+    const candidateColorKey = variantColorIdentity(candidate);
     let nextVariant = candidate;
     if (options.preserveSize && selected.size) {
-      const sameSize = variants.find((item) => variantColorKey(item) === candidateColorKey && String(item.size || "") === String(selected.size) && variantHasStock(item))
-        || variants.find((item) => variantColorKey(item) === candidateColorKey && String(item.size || "") === String(selected.size));
+      const sameSize = variants.find((item) => variantColorIdentity(item) === candidateColorKey && String(item.size || "") === String(selected.size) && variantHasStock(item))
+        || variants.find((item) => variantColorIdentity(item) === candidateColorKey && String(item.size || "") === String(selected.size));
       if (sameSize) nextVariant = sameSize;
     }
     const nextColorGroup = colorGroups.find((group) => group.key === candidateColorKey) || null;
@@ -426,7 +437,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     setSelected({
       variantId: nextVariant.id || "",
       size: nextVariant.size || "",
-      colorKey: variantColorKey(nextVariant),
+      colorKey: variantColorIdentity(nextVariant),
       colorName: variantColorName(nextVariant),
       image: nextImage,
     });
@@ -435,7 +446,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   };
   const selectColor = (group) => {
     const colorKey = group?.key || "";
-    const candidates = variants.filter((item) => variantColorKey(item) === colorKey);
+    const candidates = variants.filter((item) => variantColorIdentity(item) === colorKey);
     const candidate = candidates.find((item) => item.size === selected.size && variantHasStock(item))
       || candidates.find(variantHasStock)
       || candidates[0];
@@ -444,7 +455,7 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     selectVariant(candidate, { preserveSize: true, image: colorSwatchImage(group, variantImage(candidate)) });
   };
   const selectSize = (size) => {
-    const candidates = variants.filter((item) => String(item.size || "") === String(size) && (!selectedColorKey || variantColorKey(item) === selectedColorKey));
+    const candidates = variants.filter((item) => String(item.size || "") === String(size) && (!selectedColorKey || variantColorIdentity(item) === selectedColorKey));
     const candidate = candidates.find(variantHasStock) || candidates[0];
     setTouchedOptions((prev) => ({ ...prev, size: true }));
     selectVariant(candidate);

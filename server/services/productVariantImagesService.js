@@ -650,8 +650,11 @@ export const attachGroupedColorImages = (colors = [], imageBundle = null) => {
       : [];
     const uniqueImages = dedupeImages(images);
     const primary = uniqueImages.find((item) => item.is_primary) || uniqueImages[0] || null;
+    const stableColorGroupKey = groupKey || toText(primary?.color_group_key || primary?.colorGroupKey || "").toLowerCase();
     return {
       ...color,
+      color_group_key: stableColorGroupKey,
+      colorGroupKey: stableColorGroupKey,
       images: uniqueImages,
       image_url: color.image_url || primary?.image_url || "",
       colorPrimaryImageUrl: color.colorPrimaryImageUrl || primary?.image_url || color.image_url || "",

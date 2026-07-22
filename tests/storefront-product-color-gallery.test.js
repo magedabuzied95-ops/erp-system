@@ -96,3 +96,39 @@ test("multiple colors with color galleries remain isolated even when product has
   const gallery = buildSelectedColorGallery({ product: { ...product, gallery_images: ["general-other-angle.jpg"] }, colorGroup: olive, colorGroupCount: groups.length });
   assert.deepEqual(gallery.map((item) => item.image), ["olive-front.jpg", "olive-side.jpg"]);
 });
+
+test("New Balance 530 production payload keeps White & Navy cover plus its stored extra image", () => {
+  const cover = "https://res.cloudinary.com/dpnyfsjvz/image/upload/v1784140987/erp/products/ssgvyssfwsfbz9wdcomb.jpg";
+  const extra = "https://res.cloudinary.com/dpnyfsjvz/image/upload/v1784735201/erp/products/f4fqafxwunrlhxwimbdg.png";
+  const colorGroupKey = "legacy-eeaad18664b712c6437bd112a55d1079";
+  const actualProductPayload = {
+    id: "140",
+    color_images: [{
+      color: "White & Navy",
+      color_name: "White & Navy",
+      color_group_key: colorGroupKey,
+      images: [
+        { id: "2551", color_group_key: colorGroupKey, color_name: "White & Navy", image_url: cover, sort_order: 0, is_primary: true },
+        { id: "2552", color_group_key: colorGroupKey, color_name: "White & Navy", image_url: extra, sort_order: 1, is_primary: false },
+      ],
+    }],
+    variants: [{
+      id: 3114,
+      color: "White & Navy",
+      stock: 2,
+      images: [
+        { id: "2551", color_group_key: colorGroupKey, color_name: "White & Navy", image_url: cover, sort_order: 0, is_primary: true },
+        { id: "2552", color_group_key: colorGroupKey, color_name: "White & Navy", image_url: extra, sort_order: 1, is_primary: false },
+      ],
+    }],
+  };
+  const groups = buildProductColorGroups({
+    product: actualProductPayload,
+    variants: actualProductPayload.variants,
+    colorKey: (variant) => variant.images?.[0]?.color_group_key || variant.color,
+    colorName,
+    variantHasStock: inStock,
+  });
+  assert.equal(groups[0].key, colorGroupKey);
+  assert.deepEqual(buildSelectedColorGallery({ product: actualProductPayload, colorGroup: groups[0] }).map((item) => item.image), [cover, extra]);
+});
