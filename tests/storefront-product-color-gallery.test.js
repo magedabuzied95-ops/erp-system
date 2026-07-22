@@ -72,17 +72,22 @@ test("null color/variant records and a variant without a color gallery cannot cr
   assert.deepEqual(buildSelectedColorGallery({ product: malformedProduct, colorGroup: fallback }).map((item) => item.image), ["safe-general.jpg"]);
 });
 
-test("one-color product includes all unique general product images as that color's gallery", () => {
+test("product cover matching a color cover is emitted once before that color's extra image", () => {
   const oneColorProduct = {
-    image_url: "nb-front.jpg",
-    image_urls: ["nb-front.jpg", "nb-side.jpg"],
-    gallery_images: [{ image_url: "nb-back.jpg" }],
-    additional_images: ["nb-side.jpg", "nb-detail.jpg"],
-    variants: [{ id: 3114, color: "White & Navy", size: "42", stock: 1, image_url: "nb-front.jpg" }],
+    image_url: "nb-cover.jpg?cache=product",
+    image_urls: ["nb-cover.jpg?cache=product", "unlinked-product-image.jpg"],
+    color_images: [{
+      color: "White & Navy",
+      images: [
+        { image_id: 10, image_url: "nb-cover.jpg?cache=color", is_primary: true },
+        { image_id: 11, image_url: "nb-color-extra.jpg" },
+      ],
+    }],
+    variants: [{ id: 3114, color: "White & Navy", size: "42", stock: 1, image_url: "nb-cover.jpg?cache=product" }],
   };
-  const group = groupsFor(oneColorProduct.variants)[0];
-  const gallery = buildSelectedColorGallery({ product: oneColorProduct, colorGroup: group, colorGroupCount: 1 });
-  assert.deepEqual(gallery.map((item) => item.image), ["nb-front.jpg", "nb-back.jpg", "nb-side.jpg", "nb-detail.jpg"]);
+  const [group] = buildProductColorGroups({ product: oneColorProduct, variants: oneColorProduct.variants, colorKey, colorName, variantHasStock: inStock });
+  const gallery = buildSelectedColorGallery({ product: oneColorProduct, colorGroup: group });
+  assert.deepEqual(gallery.map((item) => item.image), ["nb-cover.jpg?cache=color", "nb-color-extra.jpg"]);
 });
 
 test("multiple colors with color galleries remain isolated even when product has general images", () => {

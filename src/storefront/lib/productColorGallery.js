@@ -7,12 +7,31 @@ const imageValue = (value = "") => {
   return "";
 };
 
+const normalizedImageUrl = (value = "") => {
+  const raw = imageValue(value);
+  if (!raw) return "";
+  try {
+    const url = new URL(raw, "https://m1store-egy.com");
+    return `${url.origin.toLowerCase()}${url.pathname.replace(/\/{2,}/g, "/").replace(/\/$/, "")}`.toLowerCase();
+  } catch {
+    return raw.split(/[?#]/)[0].trim().replace(/\/{2,}/g, "/").replace(/\/$/, "").toLowerCase();
+  }
+};
+
+const imageId = (value = {}) => typeof value === "object" && value
+  ? String(value.image_id || value.imageId || value.media_id || value.mediaId || value.asset_id || value.assetId || value.id || "").trim()
+  : "";
+
 const dedupeImages = (sources = [], meta = {}) => {
-  const seen = new Set();
+  const seenIds = new Set();
+  const seenUrls = new Set();
   return sources.reduce((images, source) => {
     const image = imageValue(source);
-    if (!image || seen.has(image)) return images;
-    seen.add(image);
+    const id = imageId(source);
+    const url = normalizedImageUrl(source);
+    if (!image || (id && seenIds.has(id)) || (url && seenUrls.has(url))) return images;
+    if (id) seenIds.add(id);
+    if (url) seenUrls.add(url);
     images.push({ image, ...meta });
     return images;
   }, []);
@@ -27,9 +46,25 @@ const variantImageSources = (variant = {}) => {
   ...list(safeVariant.color_images),
   ...list(safeVariant.gallery_images),
   ...list(safeVariant.additional_images),
+  ...list(safeVariant.image_urls),
   safeVariant.image_url,
   safeVariant.image,
 ];
+};
+
+const colorEntrySources = (entry = {}) => {
+  const safeEntry = entry && typeof entry === "object" ? entry : {};
+  return [
+    ...list(safeEntry.images),
+    ...list(safeEntry.color_images),
+    ...list(safeEntry.gallery_images),
+    ...list(safeEntry.additional_images),
+    safeEntry.primary_image_url,
+    safeEntry.color_image_url,
+    safeEntry.colorPrimaryImageUrl,
+    safeEntry.image_url,
+    safeEntry.image,
+  ];
 };
 
 const productImageSources = (product = {}) => {
@@ -49,7 +84,17 @@ const productImageSources = (product = {}) => {
   ];
 };
 
-export const buildProductColorGroups = ({ variants = [], colorKey, colorName, variantHasStock }) => {
+const normalized = (value = "") => String(value ?? "").trim().toLowerCase();
+
+const matchingColorEntries = (product = {}, group = {}) => {
+  const entries = [...list(product?.color_images), ...list(product?.colors)].filter((entry) => entry && typeof entry === "object");
+  const keys = new Set([normalized(group?.key), normalized(group?.colorName)].filter(Boolean));
+  return entries.filter((entry) => [entry.color_group_key, entry.colorGroupKey, entry.color, entry.color_name, entry.colorName, entry.name]
+    .map(normalized)
+    .some((key) => key && keys.has(key)));
+};
+
+export const buildProductColorGroups = ({ product = {}, variants = [], colorKey, colorName, variantHasStock }) => {
   const groups = new Map();
   const safeVariants = (Array.isArray(variants) ? variants : []).filter((variant) => variant && typeof variant === "object");
   safeVariants.forEach((variant) => {
@@ -64,7 +109,7 @@ export const buildProductColorGroups = ({ variants = [], colorKey, colorName, va
     .filter((group) => group.variants.some((variant) => variantHasStock(variant)))
     .map((group) => {
       const primaryVariant = group.variants.find((variant) => variantHasStock(variant)) || group.variants[0];
-      const sources = group.variants.flatMap(variantImageSources);
+      const sources = [...matchingColorEntries(product, group).flatMap(colorEntrySources), ...group.variants.flatMap(variantImageSources)];
       const primarySources = sources.filter((source) => typeof source === "object" && source?.is_primary);
       const images = dedupeImages(
         [...primarySources, ...sources],
@@ -78,27 +123,22 @@ export const buildProductColorGroups = ({ variants = [], colorKey, colorName, va
     });
 };
 
-const normalized = (value = "") => String(value ?? "").trim().toLowerCase();
-
 export const resolveColorGroup = (colorGroups = [], requestedColor = "") => {
   const groups = Array.isArray(colorGroups) ? colorGroups.filter(Boolean) : [];
   const requested = normalized(requestedColor);
   return groups.find((group) => normalized(group?.key) === requested || normalized(group?.colorName) === requested) || groups[0] || null;
 };
 
-export const buildSelectedColorGallery = ({ product = {}, colorGroup = null, colorGroupCount = 2 }) => {
+export const buildSelectedColorGallery = ({ product = {}, colorGroup = null }) => {
   const meta = {
     colorKey: colorGroup?.key || "",
     colorName: colorGroup?.colorName || "",
     variantId: String(colorGroup?.variants?.[0]?.id || colorGroup?.variants?.[0]?.variant_id || ""),
   };
   const colorImages = Array.isArray(colorGroup?.images) ? colorGroup.images : [];
-  const generalImages = productImageSources(product);
-  // With one real color, untagged product images are safely additional angles of it.
-  if (Number(colorGroupCount) <= 1) return dedupeImages([...colorImages, ...generalImages], meta);
-  if (colorImages.length) return colorImages;
-  // A multi-color legacy product without color metadata still gets a safe general fallback.
-  return dedupeImages(generalImages, meta);
+  if (colorImages.length) return dedupeImages(colorImages, meta);
+  // Product-level images are only a fallback when this color has no linked image at all.
+  return dedupeImages(productImageSources(product), meta);
 };
 
 export const colorSwatchImage = (group = {}, fallback = "") => group?.primaryImage?.image || imageValue(fallback);

@@ -347,8 +347,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     [product]
   );
   const colorGroups = useMemo(
-    () => buildProductColorGroups({ variants, colorKey: variantColorKey, colorName: variantColorName, variantHasStock }),
-    [variants]
+    () => buildProductColorGroups({ product, variants, colorKey: variantColorKey, colorName: variantColorName, variantHasStock }),
+    [product, variants]
   );
   const selectedVariant = variants.find((item) => String(item.id) === String(selected.variantId)) || null;
   const selectedColorKey = selected.colorKey || (selectedVariant ? variantColorKey(selectedVariant) : "");
@@ -365,8 +365,8 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
     || firstDisplayVariant(variants);
   const safeActiveVariant = activeVariant || {};
   const galleryEntries = useMemo(
-    () => buildSelectedColorGallery({ product, colorGroup: selectedColorGroup, colorGroupCount: colorGroups.length }),
-    [product, selectedColorGroup, colorGroups.length]
+    () => buildSelectedColorGallery({ product, colorGroup: selectedColorGroup }),
+    [product, selectedColorGroup]
   );
   useEffect(() => {
     galleryEntries.forEach((item, index) => {
