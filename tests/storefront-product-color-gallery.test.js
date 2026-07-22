@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage } from "../src/storefront/lib/productColorGallery.js";
+import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../src/storefront/lib/productColorGallery.js";
 
 const colorKey = (variant = {}) => variant.color;
 const colorName = (variant = {}) => variant.color;
@@ -52,4 +52,22 @@ test("changing color cannot retain a gallery image from the previous color", () 
   const whiteGallery = buildSelectedColorGallery({ product, colorGroup: groups.find((group) => group.key === "White") });
   const oliveGallery = buildSelectedColorGallery({ product, colorGroup: groups.find((group) => group.key === "Olive") });
   assert.equal(oliveGallery.some((item) => whiteGallery.some((previous) => previous.image === item.image)), false);
+});
+
+test("unknown URL color falls back to the first available color group", () => {
+  const groups = groupsFor();
+  const fallback = resolveColorGroup(groups, "not-a-real-color");
+  assert.equal(fallback.key, "White");
+  assert.deepEqual(buildSelectedColorGallery({ product, colorGroup: fallback }).map((item) => item.image), ["white-front.jpg", "white-side.jpg"]);
+});
+
+test("null color/variant records and a variant without a color gallery cannot crash the fallback", () => {
+  const malformedProduct = {
+    image_url: "safe-general.jpg",
+    variants: [null, { id: 99, color: "Blue", size: "43", stock: 1, gallery_images: null, images: null, color_images: null }],
+  };
+  const groups = groupsFor(malformedProduct.variants);
+  const fallback = resolveColorGroup(groups, "missing-url-color");
+  assert.equal(fallback?.key, "Blue");
+  assert.deepEqual(buildSelectedColorGallery({ product: malformedProduct, colorGroup: fallback }).map((item) => item.image), ["safe-general.jpg"]);
 });

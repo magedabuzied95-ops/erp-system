@@ -18,26 +18,33 @@ const dedupeImages = (sources = [], meta = {}) => {
   }, []);
 };
 
-const variantImageSources = (variant = {}) => [
-  ...(Array.isArray(variant.images) ? variant.images : []),
-  ...(Array.isArray(variant.color_images) ? variant.color_images : []),
-  ...(Array.isArray(variant.gallery_images) ? variant.gallery_images : []),
-  variant.image_url,
-  variant.image,
+const variantImageSources = (variant = {}) => {
+  const safeVariant = variant && typeof variant === "object" ? variant : {};
+  return [
+  ...(Array.isArray(safeVariant.images) ? safeVariant.images : []),
+  ...(Array.isArray(safeVariant.color_images) ? safeVariant.color_images : []),
+  ...(Array.isArray(safeVariant.gallery_images) ? safeVariant.gallery_images : []),
+  safeVariant.image_url,
+  safeVariant.image,
 ];
+};
 
-const productImageSources = (product = {}) => [
-  ...(Array.isArray(product.gallery_images) ? product.gallery_images : []),
-  ...(Array.isArray(product.images) ? product.images : []),
-  ...(Array.isArray(product.image_urls) ? product.image_urls : []),
-  product.image_url,
-  product.product_image_url,
-  product.image,
-];
+const productImageSources = (product = {}) => {
+  const safeProduct = product && typeof product === "object" ? product : {};
+  return [
+    ...(Array.isArray(safeProduct.gallery_images) ? safeProduct.gallery_images : []),
+    ...(Array.isArray(safeProduct.images) ? safeProduct.images : []),
+    ...(Array.isArray(safeProduct.image_urls) ? safeProduct.image_urls : []),
+    safeProduct.image_url,
+    safeProduct.product_image_url,
+    safeProduct.image,
+  ];
+};
 
 export const buildProductColorGroups = ({ variants = [], colorKey, colorName, variantHasStock }) => {
   const groups = new Map();
-  variants.forEach((variant) => {
+  const safeVariants = (Array.isArray(variants) ? variants : []).filter((variant) => variant && typeof variant === "object");
+  safeVariants.forEach((variant) => {
     const key = colorKey(variant) || String(variant.id || variant.variant_id || "");
     if (!groups.has(key)) {
       groups.set(key, { key, colorName: colorName(variant), variants: [], images: [] });
@@ -61,6 +68,14 @@ export const buildProductColorGroups = ({ variants = [], colorKey, colorName, va
         primaryImage: images[0] || null,
       };
     });
+};
+
+const normalized = (value = "") => String(value ?? "").trim().toLowerCase();
+
+export const resolveColorGroup = (colorGroups = [], requestedColor = "") => {
+  const groups = Array.isArray(colorGroups) ? colorGroups.filter(Boolean) : [];
+  const requested = normalized(requestedColor);
+  return groups.find((group) => normalized(group?.key) === requested || normalized(group?.colorName) === requested) || groups[0] || null;
 };
 
 export const buildSelectedColorGallery = ({ product = {}, colorGroup = null }) => {

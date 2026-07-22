@@ -40,7 +40,7 @@ import { Check, Heart, Ruler, Share2, ShoppingCart } from "lucide-react";
 import { buildSizeGuidePath, resolveSizeGuideTypeForProduct } from "../lib/sizeGuide";
 import { sortProductSizes } from "../../modules/products/lib/variantBulkSizes";
 import { createMetaEventOnceGuard, metaCatalogContentId, trackMetaViewContent } from "../lib/metaPixelEvents";
-import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage } from "../lib/productColorGallery";
+import { buildProductColorGroups, buildSelectedColorGallery, colorSwatchImage, resolveColorGroup } from "../lib/productColorGallery";
 
 function StorefrontProductDetailSkeleton() {
   return (
@@ -223,23 +223,30 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
             lastError.responseBody = data;
             continue;
           }
-          const productVariants = Array.isArray(product?.variants) ? product.variants : [];
+          const productVariants = (Array.isArray(product?.variants) ? product.variants : []).filter((variant) => variant && typeof variant === "object");
           const routeSearchParams = new URLSearchParams(initialRouteSearchRef.current || "");
           const requestedVariantId = normalizeQueryValue(routeSearchParams.get("variant") || routeSearchParams.get("variantId"));
           const requestedSize = normalizeQueryValue(routeSearchParams.get("size"));
           const requestedColor = normalizeQueryValue(routeSearchParams.get("color")).toLowerCase();
           const requestedColorId = normalizeQueryValue(routeSearchParams.get("colorId"));
           const requestedColorKey = requestedColor;
+          const matchesRequestedColor = (variant) => requestedColor && (
+            String(variantColorKey(variant) || "").toLowerCase() === requestedColorKey ||
+            String(variantColorName(variant) || "").toLowerCase() === requestedColorKey
+          );
           const availableVariants = productVariants.filter(variantHasStock);
           const requested =
             availableVariants.find((variant) => requestedVariantId && String(variant?.id || "") === String(requestedVariantId)) ||
             availableVariants.find((variant) => requestedVariantId && String(variant?.edition_slug || "") === String(requestedVariantId)) ||
             availableVariants.find((variant) => requestedColorId && String(variant?.color_id || "") === String(requestedColorId)) ||
+            availableVariants.find((variant) => requestedSize && matchesRequestedColor(variant) && String(variant?.size || "") === requestedSize) ||
+            availableVariants.find(matchesRequestedColor) ||
+            productVariants.find(matchesRequestedColor) ||
             productVariants.find(
               (variant) =>
                 requestedSize &&
                 String(variant?.size || "") === requestedSize &&
-                (!requestedColor || variantColorKey(variant) === requestedColorKey || variantColorName(variant).toLowerCase() === requestedColorKey) &&
+                (!requestedColor || matchesRequestedColor(variant)) &&
                 variantHasStock(variant)
             ) ||
             availableVariants.find((variant) => requestedSize && String(variant?.size || "") === requestedSize) ||
@@ -335,14 +342,17 @@ export function StorefrontProductDetailPage({ onAddToCart, toggleWishlist, wishl
   }, [identifier, location.pathname]);
 
   const product = state.product;
-  const variants = useMemo(() => product?.variants || [], [product]);
+  const variants = useMemo(
+    () => (Array.isArray(product?.variants) ? product.variants : []).filter((variant) => variant && typeof variant === "object"),
+    [product]
+  );
   const colorGroups = useMemo(
     () => buildProductColorGroups({ variants, colorKey: variantColorKey, colorName: variantColorName, variantHasStock }),
     [variants]
   );
   const selectedVariant = variants.find((item) => String(item.id) === String(selected.variantId)) || null;
   const selectedColorKey = selected.colorKey || (selectedVariant ? variantColorKey(selectedVariant) : "");
-  const selectedColorGroup = colorGroups.find((group) => String(group.key || "") === String(selectedColorKey)) || colorGroups[0] || null;
+  const selectedColorGroup = resolveColorGroup(colorGroups, selectedColorKey);
   const variantGroup = selectedColorGroup ? variants.filter((item) => variantColorKey(item) === selectedColorGroup.key) : variants;
   const sizes = sortProductSizes([...new Set(variantGroup.map((variant) => variant.size).filter(Boolean))]);
   const colors = colorGroups;
