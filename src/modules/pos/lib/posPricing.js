@@ -28,6 +28,10 @@ export const getPosEffectivePrice = ({ product = {}, variant = null, saleModeSet
   const normalizedSaleMode = normalizeSaleModeSettings(saleModeSettings);
   const scope = { ...(product || {}), ...(variant || {}) };
   const regularPrice = pickPositiveNumber(
+    variant?.current_selling_price,
+    product?.current_selling_price,
+    variant?.purchase_selling_price,
+    product?.purchase_selling_price,
     variant?.regular_price,
     variant?.original_price,
     variant?.selling_price,

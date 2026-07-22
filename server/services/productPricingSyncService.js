@@ -72,6 +72,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       cost_price,
       purchase_price,
       selling_price,
+      purchase_selling_price,
       price,
       regular_price,
       sale_price,
@@ -119,6 +120,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       cost_price,
       purchase_price,
       selling_price,
+      purchase_selling_price,
       regular_price,
       price,
       sale_price,
@@ -187,14 +189,7 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
     productRow.cost_price,
     productRow.average_cost
   );
-  const nextSellingPrice = pickPositiveMoney(
-    variantRow.selling_price,
-    variantRow.regular_price,
-    variantRow.price,
-    productRow.selling_price,
-    productRow.regular_price,
-    productRow.price
-  );
+  const nextSellingPrice = pickPositiveMoney(variantRow.purchase_selling_price, productRow.purchase_selling_price);
   const nextRegularPrice = pickPositiveMoney(
     variantRow.regular_price,
     variantRow.price,
@@ -321,14 +316,12 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       average_cost = $3,
       cost_price = $4,
       purchase_price = $5,
-      selling_price = $6,
-      regular_price = $7,
-      price = $8,
-      sale_price = $9,
-      sale_price_enabled = $10,
+      purchase_selling_price = $6,
+      sale_price = $7,
+      sale_price_enabled = $8,
       updated_at = CURRENT_TIMESTAMP
-    WHERE id = $11
-      AND ($12::bigint IS NULL OR tenant_id = $12::bigint OR tenant_id IS NULL)
+    WHERE id = $9
+      AND ($10::bigint IS NULL OR tenant_id = $10::bigint OR tenant_id IS NULL)
     `,
     [
       nextLastPurchaseCost,
@@ -337,8 +330,6 @@ export const syncProductPricingFromVariants = async (client, { productId, tenant
       nextCostPrice,
       nextPurchasePrice,
       nextSellingPrice,
-      nextRegularPrice,
-      nextPrice,
       nextSalePrice,
       nextSalePriceEnabled,
       numericProductId,

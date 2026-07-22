@@ -275,6 +275,9 @@ const ensurePurchaseCreateSchema = async (client) => {
       ADD COLUMN IF NOT EXISTS tenant_id BIGINT,
       ADD COLUMN IF NOT EXISTS quantity INTEGER NOT NULL DEFAULT 1,
       ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS purchase_selling_price NUMERIC(12,2) NULL,
+      ADD COLUMN IF NOT EXISTS manual_selling_price NUMERIC(12,2) NULL,
+      ADD COLUMN IF NOT EXISTS manual_price_override_active BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS wholesale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -313,6 +316,9 @@ const ensurePurchaseCreateSchema = async (client) => {
       ADD COLUMN IF NOT EXISTS average_cost NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS purchase_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS purchase_selling_price NUMERIC(12,2) NULL,
+      ADD COLUMN IF NOT EXISTS manual_selling_price NUMERIC(12,2) NULL,
+      ADD COLUMN IF NOT EXISTS manual_price_override_active BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -1367,8 +1373,7 @@ const batchUpdateVariantPricingAfterPurchase = async (client, { tenantId, suppli
   if (columns.has("last_purchase_price")) updateColumns.push("last_purchase_price");
   if (columns.has("purchase_price")) updateColumns.push("purchase_price");
   if (columns.has("cost_price")) updateColumns.push("cost_price");
-  if (columns.has("selling_price")) updateColumns.push("selling_price");
-  if (columns.has("price")) updateColumns.push("price");
+  if (columns.has("purchase_selling_price")) updateColumns.push("purchase_selling_price");
   if (columns.has("sale_price")) updateColumns.push("sale_price");
   if (columns.has("discount_price")) updateColumns.push("discount_price");
   if (columns.has("offer_price")) updateColumns.push("offer_price");
@@ -1400,8 +1405,7 @@ const batchUpdateVariantPricingAfterPurchase = async (client, { tenantId, suppli
   if (columns.has("last_purchase_price")) sets.push("last_purchase_price = COALESCE(incoming.unit_cost, pv.last_purchase_price)");
   if (columns.has("purchase_price")) sets.push("purchase_price = CASE WHEN COALESCE(incoming.unit_cost, 0) > 0 THEN incoming.unit_cost ELSE pv.purchase_price END");
   if (columns.has("cost_price")) sets.push("cost_price = CASE WHEN COALESCE(incoming.unit_cost, 0) > 0 THEN incoming.unit_cost ELSE pv.cost_price END");
-  if (columns.has("selling_price")) sets.push("selling_price = COALESCE(incoming.selling_price, pv.selling_price)");
-  if (columns.has("price")) sets.push("price = COALESCE(incoming.selling_price, pv.price)");
+  if (columns.has("purchase_selling_price")) sets.push("purchase_selling_price = COALESCE(incoming.selling_price, pv.purchase_selling_price)");
   if (columns.has("sale_price")) sets.push("sale_price = COALESCE(incoming.sale_price, pv.sale_price)");
   if (columns.has("discount_price")) sets.push("discount_price = COALESCE(incoming.sale_price, pv.discount_price)");
   if (columns.has("offer_price")) sets.push("offer_price = COALESCE(incoming.sale_price, pv.offer_price)");
@@ -1654,7 +1658,7 @@ const updateProductVariantAfterPurchase = async (client, { tenantId, productId =
     if (columns.has("cost_price")) sets.push(`cost_price = CASE WHEN ${push(purchaseCost)} > 0 THEN ${push(purchaseCost)} ELSE cost_price END`);
   }
   if (regularPrice !== null) {
-    if (columns.has("selling_price")) sets.push(`selling_price = ${push(regularPrice)}`);
+    if (columns.has("purchase_selling_price")) sets.push(`purchase_selling_price = ${push(regularPrice)}`);
     if (columns.has("price")) sets.push(`price = ${push(regularPrice)}`);
   }
   if (discountPrice !== null) {
@@ -1813,10 +1817,7 @@ const updateSimpleProductPricingAfterPurchase = async (client, { tenantId, produ
     if (columns.has("purchase_price")) sets.push(`purchase_price = CASE WHEN ${push(safePurchaseCost)} > 0 THEN ${push(safePurchaseCost)} ELSE purchase_price END`);
     if (columns.has("cost_price")) sets.push(`cost_price = CASE WHEN ${push(safePurchaseCost)} > 0 THEN ${push(safePurchaseCost)} ELSE cost_price END`);
   }
-  if (safeRegularPrice !== null) {
-    if (columns.has("selling_price")) sets.push(`selling_price = ${push(safeRegularPrice)}`);
-    if (columns.has("price")) sets.push(`price = ${push(safeRegularPrice)}`);
-  }
+  if (safeRegularPrice !== null && columns.has("purchase_selling_price")) sets.push(`purchase_selling_price = ${push(safeRegularPrice)}`);
   if (safeDiscountPrice !== null) {
     if (columns.has("sale_price")) sets.push(`sale_price = ${push(safeDiscountPrice)}`);
     if (columns.has("discount_price")) sets.push(`discount_price = ${push(safeDiscountPrice)}`);
@@ -1951,8 +1952,7 @@ const updateProductFallbackStock = async (client, { tenantId, productId, quantit
     if (columns.has("cost_price")) sets.push(`cost_price = CASE WHEN ${push(safePurchaseCost)} > 0 THEN ${push(safePurchaseCost)} ELSE cost_price END`);
   }
   if (safeRegularPrice !== null) {
-    if (columns.has("selling_price")) sets.push(`selling_price = ${push(safeRegularPrice)}`);
-    if (columns.has("price")) sets.push(`price = ${push(safeRegularPrice)}`);
+    if (columns.has("purchase_selling_price")) sets.push(`purchase_selling_price = ${push(safeRegularPrice)}`);
   }
   if (safeDiscountPrice !== null) {
     if (columns.has("sale_price")) sets.push(`sale_price = ${push(safeDiscountPrice)}`);

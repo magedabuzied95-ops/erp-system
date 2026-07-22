@@ -89,7 +89,7 @@ export const storefrontSaleModeOn = (product = {}, variant = {}) => Boolean(
 );
 
 export const storefrontSellingPrice = (product = {}, variant = {}) =>
-  parseStorefrontPriceValue(variant?.selling_price || variant?.price || product?.selling_price || product?.price || product?.regular_price || 0);
+  parseStorefrontPriceValue(variant?.current_selling_price || product?.current_selling_price || variant?.selling_price || variant?.price || product?.selling_price || product?.price || product?.regular_price || 0);
 
 const storefrontOriginalPriceCandidates = (product = {}, variant = {}) =>
   [

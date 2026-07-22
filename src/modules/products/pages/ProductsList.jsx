@@ -891,6 +891,21 @@ function PriceEditorModal({ product, onClose, onSave }) {
     }
   };
 
+  const clearManualOverrides = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(product.id, isSimpleProduct
+        ? { variant_only: false, manual_price_override_active: false }
+        : { variant_only: true, variants: form.variants.map((variant) => ({ id: variant.id, manual_price_override_active: false })) });
+    } catch (err) {
+      setError(getErrorMessage(err, t("products.priceEditor.saveFailed", "Failed to update prices")));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-[100001] grid place-items-center bg-black/70 p-4 backdrop-blur">
       <div className="w-full max-w-2xl overflow-hidden rounded-3xl border border-white/10 bg-zinc-950 shadow-2xl shadow-black/60">
@@ -1173,16 +1188,16 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
       if (isSimpleProduct) {
         await onSave(product.id, {
           variant_only: false,
-          selling_price: Number(form.product.sale_price || 0),
-          discount_price: form.product.discount_price === "" ? null : Number(form.product.discount_price),
+          manual_selling_price: Number(form.product.sale_price || 0),
+          manual_price_override_active: true,
         });
       } else {
         await onSave(product.id, {
           variant_only: true,
           variants: changedVariants.map((variant) => ({
             id: variant.id,
-            variant_sale_price: Number(variant.sale_price || 0),
-            variant_discount_price: variant.discount_price === "" ? null : Number(variant.discount_price),
+            manual_selling_price: Number(variant.sale_price || 0),
+            manual_price_override_active: true,
           })),
         });
       }
@@ -1287,6 +1302,7 @@ function EnhancedPriceEditorModal({ product, onClose, onSave }) {
             {changedCount ? `${changedCount} ${t("products.priceEditor.changedRows", "changed price rows")}` : t("products.priceEditor.noChanges", "No price changes")}
           </div>
           <div className="flex justify-end gap-2">
+            <button type="button" onClick={clearManualOverrides} disabled={saving} className="rounded-xl border border-amber-300/30 bg-amber-400/10 px-4 py-2 text-sm font-bold text-amber-100 outline-none hover:bg-amber-400/15 disabled:opacity-50">{t("products.priceEditor.clearManualOverride", "إلغاء التعديل اليدوي")}</button>
             <button type="button" onClick={onClose} disabled={saving} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white outline-none hover:bg-white/10 focus:border-emerald-300/50 disabled:opacity-50">{t("common.cancel")}</button>
             <button type="button" onClick={submit} disabled={saving || !changedCount} className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-black text-black outline-none hover:bg-emerald-400 focus:ring-2 focus:ring-emerald-300/40 disabled:opacity-60">
               {saving ? t("products.priceEditor.saving", "جارٍ الحفظ...") : t("common.save", "حفظ")}

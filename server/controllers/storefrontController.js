@@ -35,6 +35,7 @@ import { getSetting } from "../services/settingsService.js";
 import { normalizeSaleModeSettings } from "../services/saleModeService.js";
 import { redeemCoupon, validateCoupon } from "../services/couponsService.js";
 import { resolveStorefrontProductLink } from "../services/storefrontProductUrlService.js";
+import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 import { resolveStorefrontShippingQuote } from "../services/storefrontShippingService.js";
 import {
   attachPublicOrderNumber,
@@ -1113,11 +1114,13 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     : 0;
   const rowOriginalPrice = roundMoney(row.original_price || row.base_price || row.list_price || row.compare_at_price || customOriginalPrice || row.regular_price);
   const rowPublicPrice = resolveCustomerFacingDisplayPrice(row, {}, pricingSettings);
-  const rowSellingPrice = roundMoney(rowPublicPrice.selling_price || row.selling_price || row.price || row.regular_price);
+  const rowResolvedSellingPrice = resolveCurrentSellingPrice({ product: row }).value;
+  const rowSellingPrice = roundMoney(rowResolvedSellingPrice || rowPublicPrice.selling_price || row.selling_price || row.price || row.regular_price);
   const rowSalePrice = roundMoney(rowPublicPrice.sale_price || row.sale_price || row.offer_price);
   const variants = parseJsonArray(row.variants).map((variant) => {
     const variantPublicPrice = resolveCustomerFacingDisplayPrice(row, variant, pricingSettings);
-    const variantSellingPrice = roundMoney(variantPublicPrice.selling_price || variant.selling_price || variant.price || rowSellingPrice);
+    const variantResolvedSellingPrice = resolveCurrentSellingPrice({ product: row, variant }).value;
+    const variantSellingPrice = roundMoney(variantResolvedSellingPrice || variantPublicPrice.selling_price || variant.selling_price || variant.price || rowSellingPrice);
     const variantOriginalCandidates = [
       variant.original_price,
       variant.base_price,
@@ -1148,6 +1151,7 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
       compare_base_price: variantOriginalPrice,
       custom_compare_price: variantOriginalPrice,
       selling_price: variantSellingPrice,
+      current_selling_price: variantSellingPrice,
       regular_price: variantOriginalPrice,
       price: currentPrice || variantSellingPrice,
       sale_price: variantSalePrice,
@@ -1232,6 +1236,7 @@ const normalizeProduct = (row = {}, pricingSettings = STOREFRONT_PRICING_DEFAULT
     compare_base_price: originalPrice,
     custom_compare_price: originalPrice,
     selling_price: sellingPrice,
+    current_selling_price: sellingPrice,
     price: selectedDisplayPrice,
     sale_price: rowSalePrice,
     offer_price: rowSalePrice,

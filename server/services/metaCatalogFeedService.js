@@ -1,5 +1,6 @@
 import db from "../database/db.js";
 import { storefrontBaseUrl } from "./storefrontProductUrlService.js";
+import { resolveCurrentSellingPrice } from "./currentSellingPriceResolver.js";
 
 const FEED_URL = "https://api.m1store-egy.com/feeds/meta.xml";
 const DEFAULT_STOREFRONT_URL = "https://m1store-egy.com";
@@ -106,6 +107,9 @@ const queryMetaCatalogRows = async () => {
       p.image_url AS product_image_url,
       p.gallery_images,
       p.selling_price AS product_selling_price,
+      p.purchase_selling_price AS product_purchase_selling_price,
+      p.manual_selling_price AS product_manual_selling_price,
+      p.manual_price_override_active AS product_manual_price_override_active,
       p.regular_price AS product_regular_price,
       p.price AS product_price,
       p.use_custom_compare_price,
@@ -120,6 +124,9 @@ const queryMetaCatalogRows = async () => {
       pv.image_url AS variant_image_url,
       pv.stock AS variant_stock,
       pv.selling_price AS variant_selling_price,
+      pv.purchase_selling_price AS variant_purchase_selling_price,
+      pv.manual_selling_price AS variant_manual_selling_price,
+      pv.manual_price_override_active AS variant_manual_price_override_active,
       pv.regular_price AS variant_regular_price,
       pv.price AS variant_price,
       ci.primary_color_image,
@@ -141,14 +148,24 @@ const queryMetaCatalogRows = async () => {
 
 // Keep this priority in parity with resolveProductDetailsPricing in ProductDetails.jsx.
 // Meta intentionally ignores all sale_price fields, including stale variant values.
-export const resolveMetaCatalogCurrentPrice = (row = {}) => pickPrice(
-  row.product_selling_price,
-  row.product_price,
-  row.product_regular_price,
-  row.variant_selling_price,
-  row.variant_price,
-  row.variant_regular_price
-);
+export const resolveMetaCatalogCurrentPrice = (row = {}) => resolveCurrentSellingPrice({
+  product: {
+    manual_selling_price: row.product_manual_selling_price,
+    manual_price_override_active: row.product_manual_price_override_active,
+    purchase_selling_price: row.product_purchase_selling_price,
+    selling_price: row.product_selling_price,
+    price: row.product_price,
+    regular_price: row.product_regular_price,
+  },
+  variant: {
+    manual_selling_price: row.variant_manual_selling_price,
+    manual_price_override_active: row.variant_manual_price_override_active,
+    purchase_selling_price: row.variant_purchase_selling_price,
+    selling_price: row.variant_selling_price,
+    price: row.variant_price,
+    regular_price: row.variant_regular_price,
+  },
+}).value;
 
 const enabledFlag = (value) =>
   value === true || value === 1 || String(value || "").trim().toLowerCase() === "true";

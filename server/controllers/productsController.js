@@ -31,6 +31,7 @@ import { getTenantId, isSuperAdminUser, tenantContextMissingResponse } from "../
 import { slugifyEdition } from "../utils/mirrorProduct.js";
 import { ensureSingleBranchMode } from "../utils/singleBranchMode.js";
 import { buildProductBaseSlug, generateUniqueProductSlug } from "../utils/productSlug.js";
+import { resolveCurrentSellingPrice } from "../services/currentSellingPriceResolver.js";
 
 let productVariantSchemaReadyPromise = null;
 let fullProductVariantSchemaReadyPromise = null;
@@ -653,6 +654,9 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS canonical_slug TEXT DEFAULT '',
             ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+            ADD COLUMN IF NOT EXISTS purchase_selling_price NUMERIC(12,2) NULL,
+            ADD COLUMN IF NOT EXISTS manual_selling_price NUMERIC(12,2) NULL,
+            ADD COLUMN IF NOT EXISTS manual_price_override_active BOOLEAN NOT NULL DEFAULT FALSE,
             ADD COLUMN IF NOT EXISTS price NUMERIC(12,2) NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
             ADD COLUMN IF NOT EXISTS sale_price_enabled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -850,6 +854,9 @@ export const ensureProductVariantSchema = async () => {
       ADD COLUMN IF NOT EXISTS thermal_image_error TEXT DEFAULT '',
       ADD COLUMN IF NOT EXISTS cost_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS selling_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS purchase_selling_price NUMERIC(12,2) NULL,
+      ADD COLUMN IF NOT EXISTS manual_selling_price NUMERIC(12,2) NULL,
+      ADD COLUMN IF NOT EXISTS manual_price_override_active BOOLEAN NOT NULL DEFAULT FALSE,
       ADD COLUMN IF NOT EXISTS regular_price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS price NUMERIC(12,2) NOT NULL DEFAULT 0,
       ADD COLUMN IF NOT EXISTS sale_price NUMERIC(12,2) NOT NULL DEFAULT 0,
@@ -994,7 +1001,7 @@ const logProductListImageResolution = ({ productId, productImageUrl, coverImageU
 };
 
 const normalizeProductRow = (row = {}) => {
-  const regularPrice = firstPositiveNumber(row.selling_price, row.regular_price, row.price, row.sale_price);
+  const regularPrice = resolveCurrentSellingPrice({ product: row }).value || firstPositiveNumber(row.selling_price, row.regular_price, row.price, row.sale_price);
   const audiences = normalizeProductAudiences(row.audiences, row.product_audiences, row.gender);
   const productLevelCoverImage = resolveProductLevelCoverImage(row);
   const imageUrl = cleanImageValue(row.image_url || productLevelCoverImage);
@@ -1012,6 +1019,7 @@ const normalizeProductRow = (row = {}) => {
   return ({
   ...row,
   selling_price: regularPrice,
+  current_selling_price: regularPrice,
   regular_price: regularPrice,
   price: regularPrice,
   sale_price: Number(row.sale_price || 0),
@@ -1172,7 +1180,11 @@ const replaceProductAudiences = async (client, productId, audiences = []) => {
 };
 
 const normalizeVariantRow = (row = {}) => {
-  const regularPrice = firstPositiveNumber(row.variant_selling_price, row.selling_price, row.regular_price, row.variant_price, row.variant_sale_price, row.price);
+  const regularPrice = resolveCurrentSellingPrice({ variant: {
+    ...row,
+    selling_price: row.variant_selling_price ?? row.selling_price,
+    price: row.variant_price ?? row.price,
+  } }).value || firstPositiveNumber(row.variant_selling_price, row.selling_price, row.regular_price, row.variant_price, row.variant_sale_price, row.price);
   const thermalImageUrl = row.thermal_image_url || "";
   const thermalImageStatus = normalizeThermalImageStatus(row.thermal_image_status, thermalImageUrl);
   const thermalImageGeneratedAt = normalizeThermalTimestamp(row.thermal_image_generated_at);
@@ -1182,6 +1194,7 @@ const normalizeVariantRow = (row = {}) => {
   color_group_key: String(row.variant_color_group_key ?? row.color_group_key ?? row.colorGroupKey ?? "").trim(),
   colorGroupKey: String(row.variant_color_group_key ?? row.color_group_key ?? row.colorGroupKey ?? "").trim(),
   selling_price: regularPrice,
+  current_selling_price: regularPrice,
   regular_price: regularPrice,
   price: regularPrice,
   sale_price: Number(row.sale_price ?? 0),
@@ -5770,9 +5783,12 @@ export const updateProductPrices = async (req, res) => {
     const productColumns = await getTableColumns(client, "products");
     const variantColumns = await getTableColumns(client, "product_variants");
     const variants = Array.isArray(req.body?.variants) ? req.body.variants : [];
+    const hasManualProductOverride = ["manual_selling_price", "manualSellingPrice", "manual_price_override_active", "manualPriceOverrideActive"].some((key) => Object.prototype.hasOwnProperty.call(req.body || {}, key));
     const hasSimpleProductPricePayload = ["selling_price", "sellingPrice", "variant_sale_price", "variantSalePrice", "sale_price", "salePrice", "regular_price", "price"].some((key) => Object.prototype.hasOwnProperty.call(req.body || {}, key));
     const variantOnly = (req.body?.variant_only === true || req.body?.variantOnly === true) && variants.length > 0 && !hasSimpleProductPricePayload;
     const hasProductPrice = !variantOnly && hasSimpleProductPricePayload;
+    const productOverrideActive = req.body?.manual_price_override_active ?? req.body?.manualPriceOverrideActive;
+    const productManualPrice = toPriceValue(req.body?.manual_selling_price ?? req.body?.manualSellingPrice ?? req.body?.selling_price ?? req.body?.sellingPrice, { nullable: true });
     const hasProductDiscount = !variantOnly && ["discount_price", "discountPrice", "offer_price", "offerPrice"].some((key) => Object.prototype.hasOwnProperty.call(req.body || {}, key));
     const productPrice = hasProductPrice ? toPriceValue(req.body?.selling_price ?? req.body?.sellingPrice ?? req.body?.variant_sale_price ?? req.body?.variantSalePrice ?? req.body?.sale_price ?? req.body?.salePrice ?? req.body?.regular_price ?? req.body?.price) : null;
     const productDiscount = hasProductDiscount
@@ -5783,7 +5799,7 @@ export const updateProductPrices = async (req, res) => {
     await client.query("BEGIN");
     const existingProduct = await client.query(
       `
-      SELECT id, name, price, regular_price, sale_price, sale_price_enabled
+      SELECT id, name, price, regular_price, sale_price, sale_price_enabled, manual_selling_price, manual_price_override_active, purchase_selling_price
       FROM products
       WHERE id = $1
         AND ($2::bigint IS NULL OR tenant_id = $2::bigint OR tenant_id IS NULL)
@@ -5806,6 +5822,8 @@ export const updateProductPrices = async (req, res) => {
     if (hasProductPrice && productColumns.has("price")) productSets.push(`price = ${pushProduct(productPrice)}`);
     if (hasProductPrice && productColumns.has("selling_price")) productSets.push(`selling_price = ${pushProduct(productPrice)}`);
     if (hasProductPrice && productColumns.has("regular_price")) productSets.push(`regular_price = ${pushProduct(productPrice)}`);
+    if (hasManualProductOverride && productColumns.has("manual_price_override_active")) productSets.push(`manual_price_override_active = ${pushProduct(Boolean(productOverrideActive))}`);
+    if (hasManualProductOverride && productColumns.has("manual_selling_price")) productSets.push(`manual_selling_price = ${pushProduct(productOverrideActive ? productManualPrice : null)}`);
     if (hasProductDiscount && productColumns.has("sale_price")) productSets.push(`sale_price = ${pushProduct(productDiscount ?? 0)}`);
     if (hasProductDiscount && productColumns.has("offer_price")) productSets.push(`offer_price = ${pushProduct(productDiscount)}`);
     if (hasProductDiscount && productColumns.has("sale_price_enabled")) productSets.push(`sale_price_enabled = ${pushProduct(productDiscount !== null && productDiscount > 0)}`);
@@ -5834,12 +5852,13 @@ export const updateProductPrices = async (req, res) => {
     for (const variant of variants) {
       const variantId = normalizeOptionalForeignKey(variant.id ?? variant.variant_id ?? variant.variantId);
       if (!variantId) continue;
+      const hasVariantManualOverride = ["manual_selling_price", "manualSellingPrice", "manual_price_override_active", "manualPriceOverrideActive"].some((key) => Object.prototype.hasOwnProperty.call(variant || {}, key));
       const hasVariantPrice = ["variant_sale_price", "sale_price", "salePrice", "regular_price", "price"].some((key) => Object.prototype.hasOwnProperty.call(variant || {}, key));
       const hasVariantDiscount = ["variant_discount_price", "discount_price", "discountPrice", "offer_price", "offerPrice"].some((key) => Object.prototype.hasOwnProperty.call(variant || {}, key));
-      if (!hasVariantPrice && !hasVariantDiscount) continue;
+      if (!hasVariantPrice && !hasVariantDiscount && !hasVariantManualOverride) continue;
       const existingVariant = await client.query(
         `
-        SELECT id, price, regular_price, sale_price, sale_price_enabled
+        SELECT id, price, regular_price, sale_price, sale_price_enabled, manual_selling_price, manual_price_override_active, purchase_selling_price
         FROM product_variants
         WHERE id = $1
           AND product_id = $2
@@ -5854,6 +5873,8 @@ export const updateProductPrices = async (req, res) => {
       const variantDiscount = hasVariantDiscount
         ? toPriceValue(variant.variant_discount_price ?? variant.discount_price ?? variant.discountPrice ?? variant.offer_price ?? variant.offerPrice, { nullable: true })
         : null;
+      const variantOverrideActive = variant.manual_price_override_active ?? variant.manualPriceOverrideActive;
+      const variantManualPrice = toPriceValue(variant.manual_selling_price ?? variant.manualSellingPrice ?? variant.variant_sale_price ?? variant.sale_price ?? variant.salePrice ?? variant.regular_price ?? variant.price, { nullable: true });
       const variantSets = [];
       const variantValues = [];
       const pushVariant = (value) => {
@@ -5862,6 +5883,8 @@ export const updateProductPrices = async (req, res) => {
       };
       if (hasVariantPrice && variantColumns.has("price")) variantSets.push(`price = ${pushVariant(variantPrice)}`);
       if (hasVariantPrice && variantColumns.has("regular_price")) variantSets.push(`regular_price = ${pushVariant(variantPrice)}`);
+      if (hasVariantManualOverride && variantColumns.has("manual_price_override_active")) variantSets.push(`manual_price_override_active = ${pushVariant(Boolean(variantOverrideActive))}`);
+      if (hasVariantManualOverride && variantColumns.has("manual_selling_price")) variantSets.push(`manual_selling_price = ${pushVariant(variantOverrideActive ? variantManualPrice : null)}`);
       if (hasVariantDiscount && variantColumns.has("sale_price")) variantSets.push(`sale_price = ${pushVariant(variantDiscount ?? 0)}`);
       if (hasVariantDiscount && variantColumns.has("offer_price")) variantSets.push(`offer_price = ${pushVariant(variantDiscount)}`);
       if (hasVariantDiscount && variantColumns.has("sale_price_enabled")) variantSets.push(`sale_price_enabled = ${pushVariant(variantDiscount !== null && variantDiscount > 0)}`);
