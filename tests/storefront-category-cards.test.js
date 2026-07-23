@@ -19,9 +19,9 @@ test("storefront category cards use full-bleed motion media", async () => {
   assert.match(source, /id: "men"[\s\S]*?poster: "\/storefront\/category-posters\/men\.webp"/);
   assert.match(source, /const WOMEN_SLIPPERS_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/6919220\/6919220-hd_720_1366_30fps\.mp4";/);
   assert.match(source, /const WOMEN_SLIPPERS_POSTER_URL = "https:\/\/images\.pexels\.com\/videos\/6919220\/pexels-photo-6919220\.jpeg\?auto=compress&cs=tinysrgb&w=480";/);
-  assert.match(source, /id: "women-slippers"[\s\S]*?href: "\/products\?gender=women&type=slippers"/);
-  assert.match(source, /id: "women-slippers"[\s\S]*?resolveProductTypeKey\(product\.product_type \|\| product\.productType\) === "slippers"/);
-  assert.match(source, /id: "women-slippers"[\s\S]*?video: WOMEN_SLIPPERS_VIDEO_URL,[\s\S]*?poster: WOMEN_SLIPPERS_POSTER_URL,[\s\S]*?preferDefinitionVideo: true/);
+  assert.match(source, /id: "women"[\s\S]*?titleAr: "كوتشي حريمي"[\s\S]*?href: "\/products\?gender=women"/);
+  assert.match(source, /id: "women"[\s\S]*?test: \(product\) => isExclusiveCategoryAudience\(product, "women"\)/);
+  assert.match(source, /id: "women"[\s\S]*?video: WOMEN_SLIPPERS_VIDEO_URL,[\s\S]*?poster: WOMEN_SLIPPERS_POSTER_URL,[\s\S]*?preferDefinitionVideo: true/);
   assert.match(source, /definition\.preferDefinitionVideo[\s\S]*?\? definition\.video/);
   assert.match(source, /const KIDS_CATEGORY_TRIAL_VIDEO_URL = "https:\/\/videos\.pexels\.com\/video-files\/8456205\/8456205-sd_640_360_25fps\.mp4";/);
   assert.match(source, /id: "kids"[\s\S]*?video: KIDS_CATEGORY_TRIAL_VIDEO_URL/);
@@ -39,7 +39,7 @@ test("storefront category cards use full-bleed motion media", async () => {
   assert.match(source, /const isExclusiveCategoryAudience/);
   assert.match(source, /audiences\.includes\("men"\) && audiences\.includes\("women"\)/);
   assert.match(source, /test: \(product\) => isExclusiveCategoryAudience\(product, "men"\)/);
-  assert.match(source, /isExclusiveCategoryAudience\(product, "women"\) && resolveProductTypeKey/);
+  assert.match(source, /test: \(product\) => isExclusiveCategoryAudience\(product, "women"\)/);
   assert.match(source, /uniqueProductsByIdentity\(\[\.\.\.womenCategoryProducts, \.\.\.homepageProductPool\]\)/);
   assert.match(source, /تسوّق الآن/);
 });
