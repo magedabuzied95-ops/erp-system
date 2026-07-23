@@ -1,4 +1,5 @@
 const text = (value) => String(value || "").trim();
+export const CURRENT_STORY_RENDERER_BUILD = "m1-story-clean-product-v2-2026-07-23";
 
 const objectValue = (value) => value && typeof value === "object" && !Array.isArray(value) ? value : {};
 
@@ -21,6 +22,8 @@ export const normalizeStoryAssetSnapshot = (input = {}) => {
     assetUrl: text(source.assetUrl || source.asset_url),
     templateKey: text(source.templateKey || source.template_key),
     templateVersion: text(source.templateVersion || source.template_version),
+    rendererBuild: text(source.rendererBuild || source.renderer_build),
+    generationId: text(source.generationId || source.generation_id),
     checksum: text(source.checksum),
     generatedAt: text(source.generatedAt || source.generated_at),
   };
@@ -35,6 +38,8 @@ export const hasValidStoryAssetSnapshot = (input = {}) => {
     snapshot.assetUrl &&
     snapshot.templateKey &&
     snapshot.templateVersion &&
+    snapshot.rendererBuild === CURRENT_STORY_RENDERER_BUILD &&
+    snapshot.generationId &&
     snapshot.checksum &&
     (!item?.id || snapshot.storyId === String(item.id))
   );

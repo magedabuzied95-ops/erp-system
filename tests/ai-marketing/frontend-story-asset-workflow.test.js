@@ -16,6 +16,8 @@ const snapshot = {
   assetUrl: "https://cdn.example.com/erp/stories/story-42-abc.png",
   templateKey: "m1_story_current",
   templateVersion: "v1",
+  rendererBuild: "m1-story-clean-product-v2-2026-07-23",
+  generationId: "generation-42",
   checksum: "a".repeat(64),
   generatedAt: "2026-07-23T10:00:00.000Z",
 };
@@ -36,6 +38,8 @@ test("frontend normalizes the actual backend item snapshot shape", () => {
 test("old rows and another story's snapshot are invalid", () => {
   assert.equal(hasValidStoryAssetSnapshot({ id: 42, final_asset_url: snapshot.assetUrl }), false);
   assert.equal(hasValidStoryAssetSnapshot({ id: 99, metadata: { story_asset_snapshot: snapshot } }), false);
+  const { rendererBuild, generationId, ...oldBuildSnapshot } = snapshot;
+  assert.equal(hasValidStoryAssetSnapshot({ id: 42, metadata: { story_asset_snapshot: oldBuildSnapshot } }), false);
 });
 
 test("Preview generates first, deduplicates requests, and opens only a saved asset", () => {

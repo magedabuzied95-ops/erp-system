@@ -819,7 +819,7 @@ function AiMarketingCenter() {
           </div>
           <h1 className="mt-3 text-3xl font-black md:text-4xl">Stories and posts that stay clean</h1>
           <div className="mt-2 inline-flex rounded-full border border-amber-300/25 bg-amber-400/10 px-3 py-1 text-xs font-black text-amber-100">
-            AI Queue Fix Build: 2026-05-31-2017
+            AI Queue
           </div>
           <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-400">
             Focused generation for new arrivals, real last-piece variants, and premium AI product posts.
@@ -1437,6 +1437,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
   const storyLink = storySlides[0]?.cta_url || storySlides[0]?.product_url || item.cta_url || item.product_url || design.cta_url || design.product_url || "";
   const debugUrls = storyDebugUrls(item);
   const storyAssetError = String(item.metadata?.story_asset_error || design.story_asset_error || "").trim();
+  const renderedSnapshot = normalizeStoryAssetSnapshot(item);
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4">
       <div className="grid max-h-[92vh] w-full max-w-6xl gap-5 overflow-y-auto rounded-[28px] border border-white/10 bg-[#090d17] p-5 shadow-2xl lg:grid-cols-[minmax(0,760px)_minmax(300px,1fr)]">
@@ -1477,7 +1478,7 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             <div className="mb-3 grid gap-2">
               <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-100">Story publish asset debug</div>
               <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
-                GENERATE ASSET BUILD: 2026-05-31
+                Renderer build: {renderedSnapshot.rendererBuild || "pending generation"}
               </div>
               <button
                 type="button"
@@ -1558,10 +1559,10 @@ function PreviewModal({ item, onClose, onApprove, onPublish, onGenerateStoryAsse
             <summary className="cursor-pointer text-xs font-black uppercase tracking-[0.14em] text-slate-400">Admin / debug</summary>
             <div className="mt-3 grid gap-3">
               <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
-                DEBUG ASSET URLS BUILD: 2026-05-31
+                Generation: {renderedSnapshot.generationId || "pending"}
               </div>
               <div className="rounded-xl border border-amber-300/20 bg-amber-300/[0.08] p-3 text-xs font-black uppercase tracking-[0.14em] text-amber-100">
-                GENERATE ASSET BUILD: 2026-05-31
+                Renderer build: {renderedSnapshot.rendererBuild || "pending generation"}
               </div>
               <Info label="Stored product URL" value={storyLink || "n/a"} />
               {storyAssetError ? (

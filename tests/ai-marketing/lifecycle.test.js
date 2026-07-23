@@ -183,7 +183,7 @@ test("story publish payload only uses assets bound to the current story", () => 
     design_json: {
       layout_type: "special_offer_story",
       product_name: "Skechers Hyper Pillars",
-      story_asset_renderer: "ai_marketing_story_current",
+      story_asset_renderer: "m1_story_clean_product",
       story_asset_story_id: 10,
       story_asset_product_id: 345,
       story_asset_template_key: "fresh_drop",
@@ -203,7 +203,7 @@ test("story publish payload only uses assets bound to the current story", () => 
       }],
     },
     metadata: {
-      story_asset_renderer: "ai_marketing_story_current",
+      story_asset_renderer: "m1_story_clean_product",
       story_asset_story_id: 10,
       story_asset_product_id: 345,
       story_asset_template_key: "fresh_drop",
@@ -215,7 +215,7 @@ test("story publish payload only uses assets bound to the current story", () => 
       generated_asset_count: 1,
       story_asset_snapshot: {
         storyId: "10", assetId: "story-10-current", assetUrl: skechersAsset,
-        templateKey: "m1_story_current", templateVersion: "v1", checksum: "a".repeat(64),
+        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-clean-product-v2-2026-07-23", generationId: "generation-10", checksum: "a".repeat(64),
       },
     },
   };
@@ -261,7 +261,7 @@ test("story asset binding survives reload-shaped normalized rows", () => {
     media_urls: [asset],
     design_json: {
       layout_type: "story",
-      story_asset_renderer: "ai_marketing_story_current",
+      story_asset_renderer: "m1_story_clean_product",
       story_asset_story_id: 12,
       story_asset_product_id: 345,
       story_asset_template_key: "fresh_drop",
@@ -273,7 +273,7 @@ test("story asset binding survives reload-shaped normalized rows", () => {
       final_asset_url: asset,
     },
     metadata: {
-      story_asset_renderer: "ai_marketing_story_current",
+      story_asset_renderer: "m1_story_clean_product",
       story_asset_story_id: 12,
       story_asset_product_id: 345,
       story_asset_template_key: "fresh_drop",
@@ -285,7 +285,7 @@ test("story asset binding survives reload-shaped normalized rows", () => {
       generated_asset_count: 1,
       story_asset_snapshot: {
         storyId: "12", assetId: "story-12-current", assetUrl: asset,
-        templateKey: "m1_story_current", templateVersion: "v1", checksum: "b".repeat(64),
+        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-clean-product-v2-2026-07-23", generationId: "generation-12", checksum: "b".repeat(64),
       },
     },
   });
@@ -310,7 +310,7 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
       template_version: "v3",
       story_asset_template_key: "fresh_drop",
       story_asset_template_version: "v3",
-      story_asset_renderer: "ai_marketing_story_current",
+      story_asset_renderer: "m1_story_clean_product",
       story_asset_story_id: 20,
       story_asset_product_id: 345,
       generated_media_urls: [assetUrl],
@@ -325,7 +325,7 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
       }],
     },
     metadata: {
-      story_asset_renderer: "ai_marketing_story_current",
+      story_asset_renderer: "m1_story_clean_product",
       story_asset_story_id: 20,
       story_asset_product_id: 345,
       story_asset_template_key: "fresh_drop",
@@ -337,7 +337,7 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
       generated_asset_count: 1,
       story_asset_snapshot: {
         storyId: "20", assetId: "story-20-current", assetUrl,
-        templateKey: "m1_story_current", templateVersion: "v1", checksum: "c".repeat(64),
+        templateKey: "m1_story_current", templateVersion: "v1", rendererBuild: "m1-story-clean-product-v2-2026-07-23", generationId: "generation-20", checksum: "c".repeat(64),
       },
     },
   };

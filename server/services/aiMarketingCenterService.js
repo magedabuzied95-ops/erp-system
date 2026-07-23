@@ -2,7 +2,11 @@ import db from "../database/db.js";
 import { ensureProductVariantImagesSchema } from "./productVariantImagesService.js";
 import { publishPost as publishPostService } from "./socialPublisherService.js";
 import { publishStoryEverywhere as publishStoryEverywhereService } from "./storyPublisherService.js";
-import { generateDesignedAiMarketingStoryImages } from "./storyImageService.js";
+import {
+  generateDesignedAiMarketingStoryImages,
+  STORY_RENDERER_BUILD,
+  STORY_RENDERER_NAME,
+} from "./storyImageService.js";
 import { ensureMarketingSchema } from "../utils/marketingSchema.js";
 import { validateMetaToken } from "./metaTokenService.js";
 import { syncMarketingAnalyticsForTenant } from "./marketingAnalyticsService.js";
@@ -31,7 +35,7 @@ const DEFAULT_DELETE_ARCHIVED_AFTER_DAYS = 90;
 const LOCAL_UPLOADS_DIR = path.resolve(process.cwd(), "uploads");
 export const CANONICAL_STORY_TEMPLATE_KEY = "m1_story_current";
 export const CANONICAL_STORY_TEMPLATE_VERSION = "v1";
-const CANONICAL_STORY_RENDERER = "ai_marketing_story_current";
+const CANONICAL_STORY_RENDERER = STORY_RENDERER_NAME;
 
 const GENERATION_JOB_TIMEOUT_MS = Math.max(30000, Math.round(Number(process.env.AI_MARKETING_GENERATION_JOB_TIMEOUT_MS) || 180000));
 const GENERATION_JOB_CONCURRENCY = Math.min(2, Math.max(1, Math.round(Number(process.env.AI_MARKETING_GENERATION_CONCURRENCY) || 1)));
@@ -2027,6 +2031,8 @@ const storyAssetSnapshot = (item = {}) => {
     storagePublicId: cleanText(snapshot.storagePublicId || snapshot.storage_public_id),
     templateKey: cleanText(snapshot.templateKey || snapshot.template_key),
     templateVersion: cleanText(snapshot.templateVersion || snapshot.template_version),
+    rendererBuild: cleanText(snapshot.rendererBuild || snapshot.renderer_build),
+    generationId: cleanText(snapshot.generationId || snapshot.generation_id),
     checksum: cleanText(snapshot.checksum),
     generatedAt: cleanText(snapshot.generatedAt || snapshot.generated_at),
   };
@@ -2118,7 +2124,8 @@ const finalGeneratedStoryAsset = (item = {}) => {
       snapshot.checksum &&
       String(snapshot.storyId) === String(item.id) &&
       snapshot.templateKey === templateKey &&
-      snapshot.templateVersion === templateVersion
+      snapshot.templateVersion === templateVersion &&
+      snapshot.rendererBuild === STORY_RENDERER_BUILD
     ),
   };
 };
@@ -2365,6 +2372,7 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
   let renderedAssetUrls = [];
   let renderedSlides = [];
   const creativeId = cleanText(design.creative_id || item.metadata?.creative_id || `ai-story-${item.id || "new"}`);
+  const generationId = crypto.randomUUID();
   const templateKey = storyTemplateKey({ ...item, design_json: design });
   const templateVersion = storyTemplateVersion({ ...item, design_json: design });
   console.log("STORY_TEMPLATE_SELECTED", {
@@ -2393,6 +2401,7 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
           media_urls: rawImages,
           source_media_urls: rawImages,
           store_name: storeName,
+          story_asset_generation_id: generationId,
         },
       },
     });
@@ -2470,12 +2479,17 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     storagePublicId: storyStoragePublicId(renderedAssetUrl),
     templateKey,
     templateVersion,
+    rendererBuild: STORY_RENDERER_BUILD,
+    generationId,
     checksum,
     generatedAt,
   });
   console.log("STORY_ASSET_GENERATED", {
     queueId: item.id, storyId: item.id, assetId, assetUrl: renderedAssetUrl,
-    templateKey, templateVersion, checksum, source: "generate_story_asset",
+    templateKey, templateVersion, renderer: CANONICAL_STORY_RENDERER,
+    rendererBuild: STORY_RENDERER_BUILD, generationId, checksum,
+    cache: "miss", snapshotReused: false, sourceImageUrls: rawImages,
+    publicId: storyStoragePublicId(renderedAssetUrl), source: "generate_story_asset",
   });
 
   const nextDesign = {
@@ -2487,6 +2501,8 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     final_asset_url: renderedAssetUrl,
     source_product_image_url: rawImages[0] || "",
     story_asset_renderer: AI_MARKETING_STORY_RENDERER,
+    story_asset_renderer_build: STORY_RENDERER_BUILD,
+    story_asset_generation_id: generationId,
     story_template_key: templateKey,
     story_template_version: templateVersion,
     story_asset_template_key: templateKey,
@@ -2554,6 +2570,8 @@ const ensureQueueStoryRenderedAsset = async (tenantId, item = {}, { force = fals
     generated_matches_source_count: renderedAssetUrls.length === rawImages.length,
     story_asset_error: "",
     story_asset_renderer: AI_MARKETING_STORY_RENDERER,
+    story_asset_renderer_build: STORY_RENDERER_BUILD,
+    story_asset_generation_id: generationId,
     story_template_key: templateKey,
     story_template_version: templateVersion,
     story_asset_template_key: templateKey,
@@ -2647,6 +2665,24 @@ export const enqueueAiMarketingQueueStoryAssetGeneration = async (tenantId, id, 
   }
   if (!force && finalGeneratedStoryAsset(currentItem).isFinalGeneratedAsset &&
       isValidRenderedStoryAsset(currentItem, queueStoryFinalAssetUrl(currentItem))) {
+    const snapshot = storyAssetSnapshot(currentItem);
+    console.log("STORY_ASSET_REUSED", {
+      queueId: currentItem.id,
+      storyId: snapshot.storyId,
+      assetId: snapshot.assetId,
+      assetUrl: snapshot.assetUrl,
+      publicId: snapshot.storagePublicId,
+      checksum: snapshot.checksum,
+      templateKey: snapshot.templateKey,
+      templateVersion: snapshot.templateVersion,
+      generatedAt: snapshot.generatedAt,
+      renderer: CANONICAL_STORY_RENDERER,
+      rendererBuild: snapshot.rendererBuild,
+      generationId: snapshot.generationId,
+      cache: "hit",
+      snapshotReused: true,
+      sourceImageUrls: rawStoryImageUrls(currentItem),
+    });
     return { queued: false, reused: true, item: currentItem };
   }
   if (!force) {

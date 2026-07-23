@@ -1,23 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import crypto from "node:crypto";
+import sharp from "sharp";
 
-import { createDesignedStoryTextComposites, designedStoryBackgroundSvg, resolveDesignedStoryTheme, storyAssetImageSources } from "../../server/services/storyImageService.js";
+import {
+  createDesignedStoryTextComposites,
+  designedStoryBackgroundSvg,
+  resolveDesignedStoryTheme,
+  STORY_RENDERER_BUILD,
+  STORY_RENDERER_NAME,
+  storyAssetImageSources,
+} from "../../server/services/storyImageService.js";
 
-const previewSource = fs.readFileSync(
-  new URL("../../src/modules/marketing/components/PostEditorModal.jsx", import.meta.url),
+const rendererSource = fs.readFileSync(
+  new URL("../../server/services/storyImageService.js", import.meta.url),
   "utf8"
 );
-const marketingServiceSource = fs.readFileSync(
-  new URL("../../server/services/aiMarketingCenterService.js", import.meta.url),
-  "utf8"
-);
 
-test("story renderer keeps the approved crimson commercial theme for every strategy", () => {
-  assert.equal(resolveDesignedStoryTheme({ strategy_type: "new_arrivals" }).id, "new-arrival-crimson");
-  assert.equal(resolveDesignedStoryTheme({ strategy_type: "last_size", stock: 1 }).id, "new-arrival-crimson");
-  assert.equal(resolveDesignedStoryTheme({ layout_type: "special_offer_story" }).id, "new-arrival-crimson");
-  assert.equal(resolveDesignedStoryTheme({ strategy_type: "featured" }).id, "new-arrival-crimson");
+test("story renderer uses one clean current implementation for every strategy", () => {
+  assert.equal(STORY_RENDERER_NAME, "m1_story_clean_product");
+  assert.equal(STORY_RENDERER_BUILD, "m1-story-clean-product-v2-2026-07-23");
+  for (const strategy of ["new_arrivals", "last_size", "special_offer", "featured"]) {
+    assert.equal(resolveDesignedStoryTheme({ strategy_type: strategy }).id, "m1-clean-product-v2");
+  }
 });
 
 test("story source selection excludes the product cover from old and new queues", () => {
@@ -35,56 +41,56 @@ test("story source selection excludes the product cover from old and new queues"
   }), [variantOne, variantTwo]);
 });
 
-test("rendered 9:16 asset uses a clean product-first selling hierarchy", () => {
-  const theme = resolveDesignedStoryTheme({ strategy_type: "last_size" });
+test("rendered 9:16 markup is the clean current product layout", () => {
   const svg = designedStoryBackgroundSvg({
-    badge: "LAST SIZE",
     title: "Nike Air Max 97",
     price: "1750 EGP",
-    sizes: "41 • 42 • 43",
-    cta: "View details",
-    brandName: "M1 Store",
-    audioTitle: "Arabic trend audio",
-    theme,
+    sizes: "41, 42, 43",
+    theme: resolveDesignedStoryTheme(),
   });
-
   assert.match(svg, /width="1080" height="1920"/);
   assert.match(svg, /@font-face/);
-  assert.match(svg, /data:font\/ttf;base64,/);
-  assert.match(svg, /font-family:'M1Story'/);
-  for (const value of ["FRESH DROP", "LAST SIZE", "Nike Air Max 97", "1750 EGP", "41 • 42 • 43", "View details"]) {
-    assert.match(svg, new RegExp(value));
-  }
-  assert.doesNotMatch(svg, /M1 Store/i);
-  assert.doesNotMatch(svg, /Arabic trend audio/i);
-  assert.match(svg, /#ef4444/i);
+  assert.match(svg, /Nike Air Max 97/);
+  assert.match(svg, /1750 EGP/);
+  assert.match(svg, /#0f766e/i);
+  assert.doesNotMatch(svg, /LAST SIZE|Available now|View details|NEW COLLECTION|#ef4444|#dc2626/i);
 });
 
-test("story preview mirrors professional themes without store or audio chrome", () => {
-  for (const marker of ["LAST SIZE", "SPECIAL OFFER", "FRESH DROP", "NEW COLLECTION", "theme.background", "theme.accent"]) {
-    assert.match(previewSource, new RegExp(marker.replace(".", "\\.")));
-  }
-  assert.doesNotMatch(previewSource, />ERP<\/div>/);
-  assert.doesNotMatch(previewSource, /storeLogo/);
-  assert.doesNotMatch(previewSource, /story-creative-audio/);
-  assert.match(previewSource, /const copyDirection = \/\[\\u0600-\\u06ff\]\//);
-  assert.match(previewSource, /dir=\{copyDirection\}/);
-  assert.match(previewSource, /from-red-100 via-red-400 to-rose-600/);
-  assert.match(marketingServiceSource, /m1_story_current/);
-  assert.doesNotMatch(marketingServiceSource, /ai_marketing_story_commercial_template_v10_no_product_cover/);
+test("renderer source permanently excludes old visual markers", () => {
+  assert.doesNotMatch(rendererSource, /LAST SIZE|Available now|View details|NEW COLLECTION|#ef4444|#dc2626/i);
 });
 
 test("production story text is rasterized with the bundled font file", async () => {
-  const theme = resolveDesignedStoryTheme({ strategy_type: "new_arrivals" });
   const composites = await createDesignedStoryTextComposites({
-    badge: "NEW COLLECTION",
     title: "Adidas Terrex حذاء جديد",
     price: "1750 EGP",
     sizes: "41, 42, 43",
-    cta: "View details",
-    brandName: "M1 Store",
-    theme,
+    theme: resolveDesignedStoryTheme(),
   });
-  assert.equal(composites.length, 6);
-  for (const composite of composites) assert.ok(Buffer.isBuffer(composite.input) && composite.input.length > 100);
+  assert.equal(composites.length, 3);
+  for (const composite of composites) {
+    assert.ok(Buffer.isBuffer(composite.input) && composite.input.length > 100);
+  }
+});
+
+test("current renderer produces real 1080x1920 pixels and content-sensitive checksums", async () => {
+  const render = async (title) => {
+    const input = { title, price: "1750 EGP", sizes: "41, 42, 43", theme: resolveDesignedStoryTheme() };
+    const composites = await createDesignedStoryTextComposites(input);
+    const buffer = await sharp(Buffer.from(designedStoryBackgroundSvg({ ...input, renderText: false })))
+      .composite(composites)
+      .png()
+      .toBuffer();
+    const metadata = await sharp(buffer).metadata();
+    return {
+      checksum: crypto.createHash("sha256").update(buffer).digest("hex"),
+      metadata,
+    };
+  };
+  const first = await render("Nike Air Max 97");
+  const second = await render("Nike Air Max 95");
+  assert.equal(first.metadata.width, 1080);
+  assert.equal(first.metadata.height, 1920);
+  assert.equal(first.metadata.format, "png");
+  assert.notEqual(first.checksum, second.checksum);
 });

@@ -10,6 +10,8 @@ import {
   getStoryImageChecksum,
   getStoryImageLocalPath,
   getStoryImageMetadata,
+  STORY_RENDERER_BUILD,
+  STORY_RENDERER_NAME,
 } from "../services/storyImageService.js";
 import { getMetaTokenStatus, refreshMetaTokens } from "../services/metaTokenService.js";
 import { refreshMarketingTenantMetaToken } from "../services/metaTokenAutoRefreshService.js";
@@ -2811,10 +2813,11 @@ const assertFastStoryMetadata = (metadata) => {
 
 const CANONICAL_STORY_TEMPLATE_KEY = "m1_story_current";
 const CANONICAL_STORY_TEMPLATE_VERSION = "v1";
-const CANONICAL_STORY_RENDERER = "ai_marketing_story_current";
+const CANONICAL_STORY_RENDERER = STORY_RENDERER_NAME;
 
 const canonicalStorySnapshot = async ({ storyId, assetUrl }) => {
   const checksum = await getStoryImageChecksum(assetUrl);
+  const generationId = crypto.randomUUID();
   return {
     storyId: String(storyId),
     assetId: `story-${storyId}-${checksum.slice(0, 20)}`,
@@ -2822,6 +2825,8 @@ const canonicalStorySnapshot = async ({ storyId, assetUrl }) => {
     storagePublicId: "",
     templateKey: CANONICAL_STORY_TEMPLATE_KEY,
     templateVersion: CANONICAL_STORY_TEMPLATE_VERSION,
+    rendererBuild: STORY_RENDERER_BUILD,
+    generationId,
     checksum,
     generatedAt: new Date().toISOString(),
   };
