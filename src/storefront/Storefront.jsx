@@ -2490,6 +2490,8 @@ const uniqueClassificationOptions = (options = []) => {
 // Men's category motion clip (Pexels video 33294342, free to use).
 // Product/category media from the API still takes priority when configured.
 const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/33294342/14180878_640_360_24fps.mp4";
+// Women's category motion clip (Pexels video 7877138, free to use).
+const WOMEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/7877138/7877138-sd_640_338_25fps.mp4";
 // Women's slippers motion clip (Pexels video 6919220, free to use).
 // The 720px rendition is ~1.42 MB versus ~9.21 MB for the original UHD file.
 const WOMEN_SLIPPERS_VIDEO_URL = "https://videos.pexels.com/video-files/6919220/6919220-hd_720_1366_30fps.mp4";
@@ -2513,14 +2515,28 @@ const mainHomeCategoryCards = [
   },
   {
     id: "women",
-    titleAr: "كوتشي حريمي",
-    titleEn: "Women's Shoes",
+    titleAr: "حريمي",
+    titleEn: "Women",
     subtitleAr: "راحة وأناقة لكل يوم",
     subtitleEn: "Comfort and style for every day",
     href: "/products?gender=women",
     test: (product) => isExclusiveCategoryAudience(product, "women"),
     icon: Users,
     overlay: "from-rose-950/90 via-rose-950/30 to-transparent",
+    video: WOMEN_CATEGORY_TRIAL_VIDEO_URL,
+    poster: "/storefront/category-posters/women.webp",
+    preferDefinitionVideo: true,
+  },
+  {
+    id: "women-slipper",
+    titleAr: "سليبر حريمي",
+    titleEn: "Women Slipper",
+    subtitleAr: "راحة خفيفة لكل يوم",
+    subtitleEn: "Light comfort for every day",
+    href: "/products?gender=women&type=slippers",
+    test: (product) => isExclusiveCategoryAudience(product, "women") && resolveProductTypeKey(product.product_type || product.productType) === "slippers",
+    icon: Footprints,
+    overlay: "from-fuchsia-950/90 via-rose-950/30 to-transparent",
     video: WOMEN_SLIPPERS_VIDEO_URL,
     poster: WOMEN_SLIPPERS_POSTER_URL,
     preferDefinitionVideo: true,
@@ -2663,7 +2679,7 @@ function PremiumHomePage(props) {
   const heroCollection = storefrontHome.collections[0] || null;
   const homeCategoryCards = useMemo(() => {
     const sourceProducts = uniqueProductsByIdentity([...womenCategoryProducts, ...homepageProductPool]).filter((product) => product?.id && product?.name && isAvailableProduct(product));
-    return mainHomeCategoryCards.slice(0, 4).map((definition) => {
+    return mainHomeCategoryCards.slice(0, 5).map((definition) => {
       const matchingProducts = sourceProducts.filter((product) => {
         if (definition.id === "offers") return isOfferStory(product);
         if (isOfferStory(product)) return false;
@@ -3127,7 +3143,7 @@ function HomeCategoryCards({ cards = [], lang = "ar", themeTokens = {}, loading 
           </h2>
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {(loading && !visibleCards.length ? Array.from({ length: 4 }) : visibleCards).map((card, index) => {
           const Icon = card?.icon || Sparkles;
           return (
