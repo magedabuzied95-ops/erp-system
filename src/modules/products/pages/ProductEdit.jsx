@@ -4660,8 +4660,8 @@ function ProductEdit() {
                             </div>
                           </div>
 
-                          <div className="hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:grid-cols-[minmax(120px,1fr)_120px_minmax(130px,150px)_minmax(160px,185px)_minmax(130px,150px)_110px] xl:gap-2">
-                            <div>{t("products.fields.size", "Size")}</div>
+                          <div className={`hidden rounded-[12px] border border-white/8 bg-white/5 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:grid xl:gap-2 ${isColorOnlyMode ? "xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "xl:grid-cols-[minmax(120px,1fr)_120px_minmax(130px,150px)_minmax(160px,185px)_minmax(130px,150px)_110px]"}`}>
+                            {!isColorOnlyMode ? <div>{t("products.fields.size", "Size")}</div> : null}
                             <div>{t("products.editor.stockQty", "Stock Qty")}</div>
                             <div>SKU</div>
                             <div>{t("products.selected.barcode", "Barcode")}</div>
@@ -4673,24 +4673,24 @@ function ProductEdit() {
                             {(isColorOnlyMode ? group.sizes.slice(0, 1) : group.sizes).map((row, rowIndex) => (
                               <div
                                 key={row.id}
-                                className="grid min-w-[820px] gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:grid-cols-[minmax(120px,1fr)_120px_minmax(130px,150px)_minmax(160px,185px)_minmax(130px,150px)_110px] xl:items-start xl:py-2"
+                                className={`grid gap-2 rounded-[12px] border border-white/8 bg-white/5 p-3 xl:min-w-0 xl:items-start xl:py-2 ${isColorOnlyMode ? "min-w-[680px] xl:grid-cols-[120px_minmax(130px,1fr)_minmax(160px,1fr)_minmax(130px,1fr)_110px]" : "min-w-[820px] xl:grid-cols-[minmax(120px,1fr)_120px_minmax(130px,150px)_minmax(160px,185px)_minmax(130px,150px)_110px]"}`}
                               >
-                                <div>
+                                {!isColorOnlyMode ? <div>
                                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">
-                                    {isColorOnlyMode ? t("products.editor.fixedSize", "Fixed size") : t("products.fields.size", "Size")}
+                                    {t("products.fields.size", "Size")}
                                   </label>
                                   <input
                                     value={row.size}
                                     onChange={(e) => updateSizeRow(group.id, row.id, "size", e.target.value)}
-                                    placeholder={isColorOnlyMode ? product.fixed_size_label || "One Size" : "40"}
+                                    placeholder="40"
                                     className="mt-1.5 h-10 w-full rounded-[12px] border border-white/8 bg-zinc-950 px-3 text-sm text-white outline-none placeholder:text-zinc-500 xl:mt-0"
                                   />
                                   {isCrocsProductType(product.product_type) ? (
                                     <p className="mt-1 text-[11px] font-semibold leading-4 text-cyan-200/90">
                                       {getCrocsSizeInputDisplayLabel(row.size)}
-                                    </p>
-                                  ) : null}
-                                </div>
+                                      </p>
+                                    ) : null}
+                                </div> : null}
                                 <div>
                                   <label className="text-[11px] font-semibold uppercase tracking-[0.14em] text-zinc-500 xl:sr-only">{t("products.editor.stockQty", "Stock Qty")}</label>
                                   <input
