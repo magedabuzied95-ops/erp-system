@@ -5,7 +5,7 @@ import { useDeferredValue } from "react";
 import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
-import { FaWhatsapp } from "react-icons/fa";
+import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaYoutube } from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 import { lazy, Suspense } from "react";
 import i18n, { applyDocumentLanguage, normalizeLanguage, persistApplicationLanguage } from "../i18n/i18n";
@@ -30,6 +30,9 @@ import {
   Mic,
   Minus,
   MapPin,
+  Mail,
+  Headphones,
+  CreditCard,
   Grid2x2,
   PackageCheck,
   PackageSearch,
@@ -3308,33 +3311,38 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
   const items = [
     {
       icon: Truck,
-      title: isRtl ? "شحن لكل المحافظات" : "Nationwide delivery",
-      text: isRtl ? "متابعة حتى الاستلام" : "Tracked to your door",
+      title: isRtl ? "شحن سريع" : "Fast delivery",
+      text: isRtl ? "استلم طلبك خلال 24 ساعة داخل نطاق التوصيل." : "Get your order quickly with tracked delivery.",
     },
     {
       icon: RefreshCcw,
-      title: isRtl ? "استبدال مرن" : "Easy exchanges",
-      text: isRtl ? "بخطوات بسيطة" : "Simple, clear steps",
+      title: isRtl ? "إرجاع سهل خلال 14 يوم" : "Easy 14-day returns",
+      text: isRtl ? "يمكنك الإرجاع بسهولة طالما المنتج بحالته الأصلية." : "Simple returns while your item remains in original condition.",
     },
     {
-      icon: PackageCheck,
-      title: isRtl ? "الدفع عند الاستلام" : "Cash on delivery",
-      text: isRtl ? "ادفع عند وصول طلبك" : "Pay when your order arrives",
+      icon: CreditCard,
+      title: isRtl ? "دفع آمن" : "Secure payment",
+      text: isRtl ? "عمليات دفع موثوقة تحافظ على بياناتك ومعاملاتك." : "Trusted payment options that protect your information.",
+    },
+    {
+      icon: Headphones,
+      title: isRtl ? "دعم فني 24/7" : "24/7 support",
+      text: isRtl ? "فريق خدمة العملاء جاهز لمساعدتك في أي وقت." : "Our support team is ready whenever you need help.",
     },
   ];
 
   return (
-    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger mt-8 border-y border-white/[0.08] bg-[linear-gradient(180deg,#050505_0%,#101010_45%,#151515_100%)] md:mt-12">
-      <div className="mx-auto grid max-w-[1400px] divide-y divide-white/[0.08] px-5 md:grid-cols-3 md:divide-x md:divide-y-0 md:px-8 rtl:md:divide-x-reverse">
+    <section data-testid="storefront-service-strip" className="sf-home-motion sf-home-motion--stagger mt-8 border-y border-[#2f687f]/20 bg-[#2f687f] text-white dark:border-white/[0.08] dark:bg-[linear-gradient(180deg,#121212_0%,#080808_100%)] md:mt-12">
+      <div className="mx-auto grid max-w-[1440px] divide-y divide-white/15 px-5 sm:grid-cols-2 sm:divide-x sm:divide-y-0 md:grid-cols-4 md:px-8 rtl:sm:divide-x-reverse">
           {items.map((item, index) => {
             const Icon = item.icon;
             return (
-              <div key={item.title} className="sf-home-motion-item flex min-h-[76px] items-center gap-3 py-4 md:justify-center md:px-7 md:py-5" style={{ "--sf-motion-index": index }}>
-                <Icon className="h-5 w-5 shrink-0 text-[#d0a632]" strokeWidth={1.7} />
-                  <div className="min-w-0">
-                  <h3 className="text-[13px] font-black leading-5 text-white md:text-sm">{item.title}</h3>
-                  <p className="text-[11px] font-semibold leading-5 text-white/55 md:text-xs">{item.text}</p>
-                  </div>
+              <div key={item.title} className="sf-home-motion-item flex min-h-[190px] flex-col items-center justify-center px-4 py-7 text-center md:min-h-[230px] md:px-7" style={{ "--sf-motion-index": index }}>
+                <span className="grid h-16 w-16 place-items-center rounded-[42%_58%_52%_48%/48%_42%_58%_52%] bg-white text-[#d4af37] shadow-[0_14px_35px_rgba(0,0,0,0.12)] dark:bg-white/[0.08] dark:text-[#f3d77a] dark:ring-1 dark:ring-white/10">
+                  <Icon className="h-8 w-8" strokeWidth={1.55} />
+                </span>
+                <h3 className="mt-5 text-base font-black leading-6 text-white md:text-lg">{item.title}</h3>
+                <p className="mt-2 max-w-[250px] text-xs font-semibold leading-6 text-white/80 md:text-sm">{item.text}</p>
               </div>
             );
           })}
@@ -3345,45 +3353,113 @@ function HomeWhySection({ lang = "ar", themeTokens = {} }) {
 
 function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
   const isRtl = normalizeLanguage(lang) === "ar";
-  const links = [
+  const importantLinks = [
     { label: isRtl ? "الرئيسية" : "Home", to: "/" },
-    { label: isRtl ? "المنتجات" : "Products", to: "/products" },
-    { label: isRtl ? "العروض" : "Offers", to: "/offers" },
-    { label: isRtl ? "حسابي" : "Account", to: "/account" },
+    { label: isRtl ? "حسابي" : "My account", to: "/account" },
+    { label: isRtl ? "معلومات عنا" : "About us", to: "/" },
+    { label: isRtl ? "موقع العروض" : "Offers", to: "/offers" },
+    { label: isRtl ? "الشروط والأحكام" : "Terms & conditions", to: "/terms" },
   ];
-  const whatsappHref = buildWhatsAppHref(isRtl ? "مرحبًا، أحتاج مساعدة في اختيار منتج" : "Hi, I need help choosing a product");
+  const categoryLinks = [
+    { label: isRtl ? "سنيكرز رجالي" : "Men's sneakers", to: "/products?gender=men" },
+    { label: isRtl ? "سنيكرز حريمي" : "Women's sneakers", to: "/products?gender=women" },
+    { label: isRtl ? "أحذية أطفال" : "Kids sneakers", to: "/products?gender=kids" },
+    { label: isRtl ? "شنط" : "Bags", to: "/products?type=bags" },
+    { label: isRtl ? "ميرور أوريجنال" : "Mirror Original", to: "/products?quality=mirror_original" },
+  ];
+  const whatsappHref = buildWhatsAppHref(isRtl ? "مرحبًا، أحتاج مساعدة من خدمة العملاء" : "Hi, I need customer support");
   const currentYear = new Date().getFullYear();
+  const supportEmail = "support@m1store-egy.com";
+  const socialLinks = [
+    { label: "Facebook", href: "https://www.facebook.com/", icon: FaFacebookF },
+    { label: "Instagram", href: "https://www.instagram.com/", icon: FaInstagram },
+    { label: "TikTok", href: "https://www.tiktok.com/", icon: FaTiktok },
+    { label: "YouTube", href: "https://www.youtube.com/", icon: FaYoutube },
+  ];
 
   return (
-    <footer data-testid="storefront-modern-footer" className="bg-stone-950 text-white">
-      <div className="mx-auto max-w-[1400px] px-5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-8 md:px-8 md:pb-10 md:pt-10">
-        <div className="flex flex-col gap-6 border-b border-white/15 pb-8 md:flex-row md:items-end md:justify-between">
+    <footer data-testid="storefront-modern-footer" dir={isRtl ? "rtl" : "ltr"} className="border-t border-stone-200 bg-[#f5f3ef] text-stone-900 dark:border-white/[0.08] dark:bg-[#080808] dark:text-white">
+      <div className="mx-auto max-w-[1440px] px-5 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr_1.15fr]">
           <div>
-            <span className="text-xl font-black uppercase tracking-[0.16em]">M1 STORE</span>
-            <p className="mt-2 text-sm font-semibold text-white/55">
-              {isRtl ? "أحذية مختارة لكل خطوة." : "Footwear selected for every step."}
+            <div className="inline-flex h-24 w-24 items-center justify-center rounded-full bg-[#2f687f] text-center text-white shadow-[0_18px_45px_rgba(47,104,127,0.22)] dark:bg-[#d4af37] dark:text-[#111]">
+              <span className="text-xl font-black leading-5 tracking-[0.12em]">M1<br />STORE</span>
+            </div>
+            <p className="mt-5 text-xs font-bold text-stone-500 dark:text-white/50">{isRtl ? "كل يوم من 12 ظهرًا حتى 12 مساءً" : "Every day, 12 PM – 12 AM"}</p>
+            <a href={whatsappHref} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-black text-stone-900 transition hover:text-[#2f687f] dark:text-white dark:hover:text-[#f3d77a]">
+              <FaWhatsapp className="h-5 w-5 text-[#25D366]" />
+              {isRtl ? "خدمة العملاء" : "Customer service"}
+            </a>
+            <a href={`mailto:${supportEmail}`} className="mt-4 flex items-center gap-2 text-sm font-black text-stone-800 transition hover:text-[#2f687f] dark:text-white/80 dark:hover:text-[#f3d77a]">
+              <Mail className="h-5 w-5 text-[#2f687f] dark:text-[#d4af37]" />
+              <span dir="ltr">{supportEmail}</span>
+            </a>
+            <div className="mt-5 flex flex-wrap gap-2">
+              {socialLinks.map(({ label, href, icon: SocialIcon }) => (
+                <a key={label} href={href} target="_blank" rel="noreferrer" aria-label={label} className="grid h-10 w-10 place-items-center rounded-full border border-stone-200 bg-white text-stone-800 transition hover:-translate-y-0.5 hover:border-[#2f687f] hover:text-[#2f687f] dark:border-white/10 dark:bg-white/[0.05] dark:text-white dark:hover:border-[#d4af37] dark:hover:text-[#f3d77a]">
+                  <SocialIcon className="h-4 w-4" />
+                </a>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-base font-black">{isRtl ? "معلومات عنا" : "About M1 Store"}</h3>
+            <p className="mt-4 text-sm font-semibold leading-7 text-stone-600 dark:text-white/58">
+              {isRtl
+                ? "M1 Store متجر متخصص في الأحذية والسنيكرز والشنط المختارة بعناية. نهتم بالجودة، الراحة، التصميم العصري والسعر المناسب لتجد اختيارك المناسب لكل يوم."
+                : "M1 Store offers carefully selected sneakers, footwear and bags. We focus on quality, comfort, modern design and fair prices for every day."}
             </p>
           </div>
-          <a
-            href={whatsappHref}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex w-fit items-center gap-2 border-b border-white/50 pb-1 text-sm font-black text-white transition hover:border-white"
-          >
-            <FaWhatsapp className="h-4 w-4" />
-            {isRtl ? "تواصل عبر واتساب" : "WhatsApp support"}
-          </a>
-        </div>
-        <div className="flex flex-col gap-8 pt-7 md:flex-row md:items-end md:justify-between">
-            <nav aria-label={isRtl ? "روابط المتجر" : "Store links"} className="grid grid-cols-2 gap-x-10 gap-y-4 md:flex md:flex-wrap md:gap-x-7">
-              {links.map((link) => (
-                <Link key={link.label} to={link.to} className="text-sm font-bold text-white/70 transition hover:text-white">
-                  {link.label}
-                </Link>
+
+          <nav aria-label={isRtl ? "الأقسام المميزة" : "Featured categories"}>
+            <h3 className="text-base font-black">{isRtl ? "أقسام مميزة" : "Featured categories"}</h3>
+            <div className="mt-4 grid gap-3">
+              {categoryLinks.map((link) => (
+                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#2f687f] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
               ))}
-            </nav>
-            <span className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/35">© {currentYear} M1 STORE</span>
+            </div>
+          </nav>
+
+          <nav aria-label={isRtl ? "روابط مهمة" : "Important links"}>
+            <h3 className="text-base font-black">{isRtl ? "روابط مهمة" : "Important links"}</h3>
+            <div className="mt-4 grid gap-3">
+              {importantLinks.map((link) => (
+                <Link key={link.label} to={link.to} className="text-sm font-bold text-stone-600 transition hover:text-[#2f687f] dark:text-white/55 dark:hover:text-[#f3d77a]">{link.label}</Link>
+              ))}
+            </div>
+          </nav>
+
+          <div>
+            <h3 className="text-base font-black">{isRtl ? "آخر العروض" : "Latest offers"}</h3>
+            <p className="mt-4 text-sm font-semibold leading-7 text-stone-600 dark:text-white/55">
+              {isRtl ? "تابع آخر العروض والمنتجات الجديدة مباشرة على بريدك." : "Receive the latest offers and new arrivals in your inbox."}
+            </p>
+            <form className="mt-4 grid gap-2" onSubmit={(event) => { event.preventDefault(); toast.success(isRtl ? "تم الاشتراك بنجاح" : "Subscribed successfully"); }}>
+              <input type="email" required aria-label={isRtl ? "البريد الإلكتروني" : "Email address"} placeholder={isRtl ? "أدخل البريد الإلكتروني" : "Enter your email"} className="h-12 rounded-xl border border-stone-200 bg-white px-4 text-sm font-bold text-stone-900 outline-none transition focus:border-[#2f687f] dark:border-white/10 dark:bg-white/[0.06] dark:text-white dark:placeholder:text-white/35 dark:focus:border-[#d4af37]" />
+              <button type="submit" className="h-12 rounded-xl bg-[#2f687f] px-4 text-sm font-black text-white transition hover:bg-[#25566a] active:scale-[0.99] dark:bg-[#d4af37] dark:text-[#111] dark:hover:bg-[#e5c158]">
+                {isRtl ? "اشترك دلوقتي" : "Subscribe now"}
+              </button>
+            </form>
+          </div>
         </div>
+
+        <div className="mt-10 flex flex-col gap-6 border-t border-stone-200 pt-7 dark:border-white/10 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
+            {["Mastercard", "VISA", "PayPal", "Meeza"].map((brand) => (
+              <span key={brand} className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-[11px] font-black text-stone-700 shadow-sm dark:border-white/10 dark:bg-white/[0.05] dark:text-white/75">{brand}</span>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-black">{isRtl ? "انتظروا إطلاق التطبيق" : "App coming soon"}</span>
+            <span className="rounded-lg bg-stone-950 px-4 py-2 text-xs font-black text-white dark:border dark:border-white/15">Google Play</span>
+            <span className="rounded-lg bg-stone-950 px-4 py-2 text-xs font-black text-white dark:border dark:border-white/15">App Store</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-[#2f687f] px-5 py-5 text-center text-sm font-bold text-white dark:bg-[#050505] dark:text-white/55">
+        {isRtl ? `جميع الحقوق محفوظة © ${currentYear} - M1 Store` : `© ${currentYear} M1 Store. All rights reserved.`}
       </div>
     </footer>
   );
