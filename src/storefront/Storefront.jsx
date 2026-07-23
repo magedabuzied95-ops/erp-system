@@ -800,18 +800,21 @@ const fallbackProductImage = (event) => {
   }
   event.currentTarget.src = "/favicon.svg";
 };
-const variantHasStock = (variant = {}) => Number(variant.stock || 0) > 0;
+const safeStorefrontRecord = (value) => (value && typeof value === "object" ? value : {});
+const variantHasStock = (variant = {}) => Number(safeStorefrontRecord(variant).stock || 0) > 0;
 const variantPrimaryImage = (variant = {}) => {
-  const images = Array.isArray(variant.images) ? variant.images : Array.isArray(variant.color_images) ? variant.color_images : [];
+  const safeVariant = safeStorefrontRecord(variant);
+  const images = Array.isArray(safeVariant.images) ? safeVariant.images : Array.isArray(safeVariant.color_images) ? safeVariant.color_images : [];
   const primary = images.find((image) => image?.is_primary) || images[0] || null;
-  return compactImageValue(primary?.image_url || primary?.preview || variant.image_url || variant.image || variant.photo_url || variant.thumbnail_url);
+  return compactImageValue(primary?.image_url || primary?.preview || safeVariant.image_url || safeVariant.image || safeVariant.photo_url || safeVariant.thumbnail_url);
 };
 const variantImage = (variant = {}) => variantPrimaryImage(variant);
 const variantImages = (variant = {}) => {
-  const images = Array.isArray(variant.images) ? variant.images : Array.isArray(variant.color_images) ? variant.color_images : [];
+  const safeVariant = safeStorefrontRecord(variant);
+  const images = Array.isArray(safeVariant.images) ? safeVariant.images : Array.isArray(safeVariant.color_images) ? safeVariant.color_images : [];
   return [
     ...images.map((image) => compactImageValue(image?.image_url || image?.preview || image?.url || "")),
-    variantImage(variant),
+    variantImage(safeVariant),
   ].filter(Boolean).reduce((acc, image) => (acc.includes(image) ? acc : [...acc, image]), []);
 };
 const cardImageCandidateValue = (value = "") => {
@@ -836,10 +839,13 @@ const resolveCardImageUrl = (value = "") => {
   if (!resolved || resolved === "/favicon.svg") return "";
   return resolved;
 };
-const variantColorName = (variant = {}) =>
-  cleanDisplayText(variant.color_name || variant.edition_name || variant.color || variant.color_slug || "Default") || "Default";
+const variantColorName = (variant = {}) => {
+  const safeVariant = safeStorefrontRecord(variant);
+  return cleanDisplayText(safeVariant.color_name || safeVariant.edition_name || safeVariant.color || safeVariant.color_slug || "Default") || "Default";
+};
 const variantColorKey = (variant = {}) => {
-  const stable = variant.color_id || variant.color_slug || variant.edition_slug || variantColorName(variant);
+  const safeVariant = safeStorefrontRecord(variant);
+  const stable = safeVariant.color_id || safeVariant.color_slug || safeVariant.edition_slug || variantColorName(safeVariant);
   return String(stable || "Default").trim().toLowerCase();
 };
 const firstVariantImage = (variants = []) => variantImage(variants.find((variant) => variantHasStock(variant) && variantImage(variant))) || variantImage(variants.find((variant) => variantImage(variant)));
@@ -2338,25 +2344,28 @@ const nestedVariantFor = (item = {}, product = {}) => {
   return firstDisplayVariant(variants) || {};
 };
 const resolveProductImage = (item = {}, product = {}, variant = {}) => {
-  const itemFirstImage = firstArrayItem(item.images);
-  const productFirstImage = firstArrayItem(product.images) || firstArrayItem(product.gallery_images);
+  const safeItem = safeStorefrontRecord(item);
+  const safeProduct = safeStorefrontRecord(product);
+  const safeVariant = safeStorefrontRecord(variant);
+  const itemFirstImage = firstArrayItem(safeItem.images);
+  const productFirstImage = firstArrayItem(safeProduct.images) || firstArrayItem(safeProduct.gallery_images);
   return compactImageValue(
-    variant.image_url ||
-      variant.image ||
-      variant.primary_image ||
-      item.image_url ||
-      item.image ||
-      item.primary_image ||
-      item.thumbnail ||
-      item.thumbnail_url ||
+    safeVariant.image_url ||
+      safeVariant.image ||
+      safeVariant.primary_image ||
+      safeItem.image_url ||
+      safeItem.image ||
+      safeItem.primary_image ||
+      safeItem.thumbnail ||
+      safeItem.thumbnail_url ||
       itemFirstImage?.image_url ||
       itemFirstImage?.url ||
       itemFirstImage ||
-      product.image_url ||
-      product.image ||
-      product.primary_image ||
-      product.thumbnail ||
-      product.thumbnail_url ||
+      safeProduct.image_url ||
+      safeProduct.image ||
+      safeProduct.primary_image ||
+      safeProduct.thumbnail ||
+      safeProduct.thumbnail_url ||
       productFirstImage?.image_url ||
       productFirstImage?.url ||
       productFirstImage ||
