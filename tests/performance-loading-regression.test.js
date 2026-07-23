@@ -28,3 +28,16 @@ test("POS renders its cached catalog while the fresh catalog revalidates", () =>
   assert.ok(networkRefresh > cacheRead);
   assert.match(source.slice(cacheRead, networkRefresh), /setLoading\(false\)/);
 });
+
+test("storefront list payload does not duplicate full image collections", () => {
+  const source = readFileSync(new URL("../server/controllers/storefrontController.js", import.meta.url), "utf8");
+  const slimStart = source.indexOf("const slimProductForList");
+  const slimEnd = source.indexOf("\nconst productHomeImage", slimStart);
+  const slimSource = source.slice(slimStart, slimEnd);
+
+  assert.match(source, /const slimVariantForList/);
+  assert.doesNotMatch(slimSource, /\badditional_images:/);
+  assert.doesNotMatch(slimSource, /\bproduct_images:/);
+  assert.doesNotMatch(slimSource, /\bimage_urls:/);
+  assert.match(slimSource, /gallery_images:\s*\[\]/);
+});

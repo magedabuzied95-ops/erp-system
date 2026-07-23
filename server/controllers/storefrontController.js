@@ -2374,6 +2374,26 @@ const hydrateProductsWithImages = async (products = [], options = {}) => {
   });
 };
 
+const slimVariantForList = (variant = {}) => ({
+  id: variant.id || variant.variant_id || null,
+  variant_id: variant.variant_id || variant.id || null,
+  product_id: variant.product_id || null,
+  size: variant.size || "",
+  color: variant.color || "",
+  sku: variant.sku || "",
+  barcode: variant.barcode || "",
+  image_url: variant.image_url || variant.primary_image_url || variant.variant_image_url || "",
+  stock: toNumber(variant.stock),
+  price: roundMoney(variant.price),
+  regular_price: roundMoney(variant.regular_price),
+  selling_price: roundMoney(variant.selling_price || variant.price),
+  final_price: roundMoney(variant.final_price || variant.selling_price || variant.price),
+  sale_price: roundMoney(variant.sale_price),
+  sale_price_enabled: Boolean(variant.sale_price_enabled),
+  sale_mode_applied: Boolean(variant.sale_mode_applied),
+  compare_at_price: roundMoney(variant.compare_at_price || variant.old_price || variant.original_price),
+});
+
 const slimProductForList = (product = {}) => ({
   card_id: product.card_id || product.id,
   storefront_card_type: product.storefront_card_type || "product",
@@ -2403,13 +2423,7 @@ const slimProductForList = (product = {}) => ({
   manufacturer_name: product.manufacturer_name || product.manufacturer || "",
   image_url: product.image_url,
   product_image_url: product.product_image_url || product.image_url || "",
-  images: Array.isArray(product.images) ? product.images : [],
-  gallery_images: Array.isArray(product.gallery_images) ? product.gallery_images : [],
-  image_urls: Array.isArray(product.image_urls) ? product.image_urls : [],
-  product_images: Array.isArray(product.product_images) ? product.product_images : [],
-  additional_images: Array.isArray(product.additional_images) ? product.additional_images : [],
-  color_images: Array.isArray(product.color_images) ? product.color_images : [],
-  description: product.description,
+  gallery_images: [],
   created_at: product.created_at,
   price: product.price,
   regular_price: product.regular_price,
@@ -2452,7 +2466,7 @@ const slimProductForList = (product = {}) => ({
   badge: "",
   sizes: product.sizes,
   colors: product.colors,
-  variants: Array.isArray(product.variants) ? product.variants : [],
+  variants: Array.isArray(product.variants) ? product.variants.map(slimVariantForList) : [],
   low_stock: product.low_stock,
   is_mirror: product.is_mirror,
   seo_title: product.seo_title,
