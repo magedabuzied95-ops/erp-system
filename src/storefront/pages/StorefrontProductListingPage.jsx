@@ -509,8 +509,15 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     [classificationGroups, gender, grade, productType, bagType]
   );
   const backendFilterState = useMemo(
-    () => ({ q: backendSearchTerm, gender: gender || "", offer_story: saleView ? 1 : "", sort: sort || "newest", limit: 80 }),
-    [backendSearchTerm, gender, saleView, sort]
+    () => ({
+      q: backendSearchTerm,
+      gender: gender || "",
+      product_type: productType || "",
+      offer_story: saleView ? 1 : "",
+      sort: sort || "newest",
+      limit: 80,
+    }),
+    [backendSearchTerm, gender, productType, saleView, sort]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
   const { products, loading, error } = useProducts(productsApiParams);

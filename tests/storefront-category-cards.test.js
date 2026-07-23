@@ -52,3 +52,13 @@ test("storefront category cards use full-bleed motion media", async () => {
   assert.match(source, /uniqueProductsByIdentity\(\[\.\.\.womenCategoryProducts, \.\.\.homepageProductPool\]\)/);
   assert.match(source, /تسوّق الآن/);
 });
+
+test("category-card product type reaches the storefront products API", async () => {
+  const listingSource = await readFile(
+    new URL("../src/storefront/pages/StorefrontProductListingPage.jsx", import.meta.url),
+    "utf8"
+  );
+
+  assert.match(listingSource, /product_type: productType \|\| ""/);
+  assert.match(listingSource, /\[backendSearchTerm, gender, productType, saleView, sort\]/);
+});
