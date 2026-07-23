@@ -2814,12 +2814,12 @@ export const listProducts = async (req, res) => {
   const startedAt = Date.now();
   try {
     console.log("[storefront-products-hit]", req.originalUrl || req.url || "", req.query || {});
-    res.set("Cache-Control", "public, max-age=15, stale-while-revalidate=30");
+    res.set("Cache-Control", "public, max-age=30, stale-while-revalidate=120");
     await ensureStorefrontSchema();
     await ensureProductVariantImagesSchema();
     const tenantId = tenantFromRequest(req);
     const pricingSettings = await loadStorefrontPricingSettings(tenantId);
-    const payload = await getOrSetCache(storefrontCacheKey(tenantId, "products", req.query || {}), 20, async () => {
+    const payload = await getOrSetCache(storefrontCacheKey(tenantId, "products", req.query || {}), 120, async () => {
       const normalizedQuery = normalizeStorefrontProductsQuery(req.query || {});
       const { q, category, brand, saleOnly, offerStory, sort, limit, offset, scope, groupingMode, size, inStock, audienceSearch } = normalizedQuery;
       const genderAliases = await getClassificationFilterAliases("gender", normalizedQuery.gender);

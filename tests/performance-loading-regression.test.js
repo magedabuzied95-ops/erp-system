@@ -51,5 +51,6 @@ test("storefront product responses use a short shared cache", () => {
   const listSource = source.slice(listStart, listEnd);
 
   assert.match(listSource, /getOrSetCache\(storefrontCacheKey\(tenantId,\s*"products"/);
-  assert.match(listSource, /public,\s*max-age=15,\s*stale-while-revalidate=30/);
+  assert.match(listSource, /public,\s*max-age=30,\s*stale-while-revalidate=120/);
+  assert.match(listSource, /storefrontCacheKey\(tenantId,\s*"products"[\s\S]*?,\s*120,\s*async/);
 });
