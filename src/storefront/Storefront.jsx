@@ -2490,6 +2490,9 @@ const uniqueClassificationOptions = (options = []) => {
 // Men's category motion clip (Pexels video 33294342, free to use).
 // Product/category media from the API still takes priority when configured.
 const MEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/33294342/14180878_640_360_24fps.mp4";
+// Men's slippers motion clip (Pexels video 8994975). The SD rendition is ~425 KB.
+const MEN_SLIPPERS_VIDEO_URL = "https://videos.pexels.com/video-files/8994975/8994975-sd_360_640_25fps.mp4";
+const MEN_SLIPPERS_POSTER_URL = "https://images.pexels.com/videos/8994975/pexels-photo-8994975.jpeg?auto=compress&cs=tinysrgb&w=480";
 // Women's category motion clip (Pexels video 7877138, free to use).
 const WOMEN_CATEGORY_TRIAL_VIDEO_URL = "https://videos.pexels.com/video-files/7877138/7877138-sd_640_338_25fps.mp4";
 // Women's slippers motion clip (Pexels video 6919220, free to use).
@@ -2512,6 +2515,20 @@ const mainHomeCategoryCards = [
     overlay: "from-slate-950/95 via-slate-950/35 to-transparent",
     video: MEN_CATEGORY_TRIAL_VIDEO_URL,
     poster: "/storefront/category-posters/men.webp",
+  },
+  {
+    id: "men-slipper",
+    titleAr: "سليبر رجالي",
+    titleEn: "Men Slipper",
+    subtitleAr: "راحة خفيفة للاستخدام اليومي",
+    subtitleEn: "Light comfort for every day",
+    href: "/products?gender=men&type=slippers",
+    test: (product) => isExclusiveCategoryAudience(product, "men") && resolveProductTypeKey(product.product_type || product.productType) === "slippers",
+    icon: Footprints,
+    overlay: "from-cyan-950/90 via-slate-950/30 to-transparent",
+    video: MEN_SLIPPERS_VIDEO_URL,
+    poster: MEN_SLIPPERS_POSTER_URL,
+    preferDefinitionVideo: true,
   },
   {
     id: "women",
@@ -2679,7 +2696,7 @@ function PremiumHomePage(props) {
   const heroCollection = storefrontHome.collections[0] || null;
   const homeCategoryCards = useMemo(() => {
     const sourceProducts = uniqueProductsByIdentity([...womenCategoryProducts, ...homepageProductPool]).filter((product) => product?.id && product?.name && isAvailableProduct(product));
-    return mainHomeCategoryCards.slice(0, 5).map((definition) => {
+    return mainHomeCategoryCards.slice(0, 6).map((definition) => {
       const matchingProducts = sourceProducts.filter((product) => {
         if (definition.id === "offers") return isOfferStory(product);
         if (isOfferStory(product)) return false;
@@ -3143,7 +3160,7 @@ function HomeCategoryCards({ cards = [], lang = "ar", themeTokens = {}, loading 
           </h2>
         </div>
       </div>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         {(loading && !visibleCards.length ? Array.from({ length: 4 }) : visibleCards).map((card, index) => {
           const Icon = card?.icon || Sparkles;
           return (
