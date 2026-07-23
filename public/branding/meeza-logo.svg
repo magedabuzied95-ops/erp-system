@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 72" role="img" aria-labelledby="title">
+  <title id="title">Meeza</title>
+  <defs>
+    <linearGradient id="mark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f28c28"/>
+      <stop offset="1" stop-color="#e34f26"/>
+    </linearGradient>
+  </defs>
+  <g fill="none" fill-rule="evenodd">
+    <path fill="url(#mark)" d="M16 11h29c8 0 14 6 14 14v22c0 8-6 14-14 14H16c-8 0-14-6-14-14V25c0-8 6-14 14-14Z"/>
+    <path fill="#fff" d="M14 24h33v8H26v5h18v7H26v5h22v8H14z"/>
+    <text x="68" y="48" fill="#6c2d83" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700" letter-spacing="-1">meeza</text>
+  </g>
+</svg>

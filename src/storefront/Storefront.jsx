@@ -5,7 +5,18 @@ import { useDeferredValue } from "react";
 import { Link, NavLink, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { createPortal } from "react-dom";
 import toast from "react-hot-toast";
-import { FaFacebookF, FaInstagram, FaTiktok, FaWhatsapp, FaYoutube } from "react-icons/fa";
+import {
+  FaAppStoreIos,
+  FaCcMastercard,
+  FaCcPaypal,
+  FaCcVisa,
+  FaFacebookF,
+  FaGooglePlay,
+  FaInstagram,
+  FaTiktok,
+  FaWhatsapp,
+  FaYoutube,
+} from "react-icons/fa";
 import { useTranslation } from "react-i18next";
 import { lazy, Suspense } from "react";
 import i18n, { applyDocumentLanguage, normalizeLanguage, persistApplicationLanguage } from "../i18n/i18n";
@@ -3376,14 +3387,26 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
     { label: "TikTok", href: "https://www.tiktok.com/", icon: FaTiktok },
     { label: "YouTube", href: "https://www.youtube.com/", icon: FaYoutube },
   ];
+  const paymentMarks = [
+    { label: "Mastercard", icon: FaCcMastercard, className: "text-[#eb001b]" },
+    { label: "Visa", icon: FaCcVisa, className: "text-[#1434cb]" },
+    { label: "PayPal", icon: FaCcPaypal, className: "text-[#0070ba]" },
+  ];
 
   return (
     <footer data-testid="storefront-modern-footer" dir={isRtl ? "rtl" : "ltr"} className="border-t border-stone-200 bg-[#f5f3ef] text-stone-900 dark:border-white/[0.08] dark:bg-[#080808] dark:text-white">
       <div className="mx-auto max-w-[1440px] px-5 pb-10 pt-10 md:px-8 md:pb-12 md:pt-14">
         <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-[1.25fr_1.6fr_0.9fr_1fr_1.15fr]">
           <div>
-            <div className="inline-flex h-24 w-24 items-center justify-center rounded-full bg-[#2f687f] text-center text-white shadow-[0_18px_45px_rgba(47,104,127,0.22)] dark:bg-[#d4af37] dark:text-[#111]">
-              <span className="text-xl font-black leading-5 tracking-[0.12em]">M1<br />STORE</span>
+            <div className="relative h-28 w-28" aria-label="M1 Store">
+              <div className="absolute inset-0 dark:hidden">
+                <img src="/branding/m-one-logo-dark-fixed.png?v=20260716" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" width="160" height="160" decoding="async" />
+                <img src="/branding/m-one-logo-dark-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" decoding="async" />
+              </div>
+              <div className="absolute inset-0 hidden dark:block">
+                <img src="/branding/m-one-logo-white-fixed.png?v=20260716" alt="M1 Store" className="absolute inset-0 h-full w-full object-contain" width="160" height="160" decoding="async" />
+                <img src="/branding/m-one-logo-white-m.png?v=20260716" alt="" aria-hidden="true" className="sf-header-logo-moving-m absolute inset-0 h-full w-full object-contain" width="160" height="160" decoding="async" />
+              </div>
             </div>
             <p className="mt-5 text-xs font-bold text-stone-500 dark:text-white/50">{isRtl ? "كل يوم من 12 ظهرًا حتى 12 مساءً" : "Every day, 12 PM – 12 AM"}</p>
             <a href={whatsappHref} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-black text-stone-900 transition hover:text-[#2f687f] dark:text-white dark:hover:text-[#f3d77a]">
@@ -3445,15 +3468,32 @@ function HomeSimpleFooter({ lang = "ar", themeTokens = {} }) {
         </div>
 
         <div className="mt-10 flex flex-col gap-6 border-t border-stone-200 pt-7 dark:border-white/10 md:flex-row md:items-center md:justify-between">
-          <div className="flex flex-wrap items-center gap-2">
-            {["Mastercard", "VISA", "PayPal", "Meeza"].map((brand) => (
-              <span key={brand} className="rounded-lg border border-stone-200 bg-white px-3 py-2 text-[11px] font-black text-stone-700 shadow-sm dark:border-white/10 dark:bg-white/[0.05] dark:text-white/75">{brand}</span>
+          <div className="flex flex-wrap items-center gap-3">
+            {paymentMarks.map(({ label, icon: PaymentIcon, className }) => (
+              <span key={label} title={label} aria-label={label} className="grid h-12 min-w-20 place-items-center rounded-xl border border-stone-200 bg-white px-3 shadow-sm dark:border-white/10 dark:bg-white">
+                <PaymentIcon className={`h-8 w-14 ${className}`} />
+              </span>
             ))}
+            <span title="Meeza" aria-label="Meeza" className="grid h-12 min-w-20 place-items-center rounded-xl border border-stone-200 bg-white px-3 shadow-sm dark:border-white/10 dark:bg-white">
+              <img src="/branding/meeza-logo.svg" alt="Meeza" className="h-8 w-14 object-contain" width="56" height="32" loading="lazy" decoding="async" />
+            </span>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm font-black">{isRtl ? "انتظروا إطلاق التطبيق" : "App coming soon"}</span>
-            <span className="rounded-lg bg-stone-950 px-4 py-2 text-xs font-black text-white dark:border dark:border-white/15">Google Play</span>
-            <span className="rounded-lg bg-stone-950 px-4 py-2 text-xs font-black text-white dark:border dark:border-white/15">App Store</span>
+            <span className="inline-flex min-h-14 items-center gap-3 rounded-xl bg-stone-950 px-4 py-2 text-white shadow-sm dark:border dark:border-white/15">
+              <FaGooglePlay className="h-7 w-7 text-[#34a853]" />
+              <span className="text-start">
+                <small className="block text-[8px] font-bold uppercase tracking-wide text-white/65">Get it on</small>
+                <strong className="block text-sm font-black leading-4">Google Play</strong>
+              </span>
+            </span>
+            <span className="inline-flex min-h-14 items-center gap-3 rounded-xl bg-stone-950 px-4 py-2 text-white shadow-sm dark:border dark:border-white/15">
+              <FaAppStoreIos className="h-8 w-8" />
+              <span className="text-start">
+                <small className="block text-[8px] font-bold uppercase tracking-wide text-white/65">Download on the</small>
+                <strong className="block text-sm font-black leading-4">App Store</strong>
+              </span>
+            </span>
           </div>
         </div>
       </div>

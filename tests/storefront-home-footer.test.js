@@ -20,6 +20,15 @@ test("storefront home ends with the full legacy-inspired responsive footer", asy
   assert.match(lowerHome, /روابط مهمة/);
   assert.match(lowerHome, /آخر العروض/);
   assert.match(lowerHome, /Mastercard/);
+  assert.match(lowerHome, /FaCcMastercard/);
+  assert.match(lowerHome, /FaCcVisa/);
+  assert.match(lowerHome, /FaCcPaypal/);
+  assert.match(lowerHome, /meeza-logo\.svg/);
+  assert.match(lowerHome, /m-one-logo-dark-fixed\.png/);
+  assert.match(lowerHome, /m-one-logo-white-fixed\.png/);
+  assert.match(lowerHome, /sf-header-logo-moving-m/);
+  assert.match(lowerHome, /FaGooglePlay/);
+  assert.match(lowerHome, /FaAppStoreIos/);
   assert.match(lowerHome, /Google Play/);
   assert.match(lowerHome, /App Store/);
   assert.match(lowerHome, /buildWhatsAppHref/);
