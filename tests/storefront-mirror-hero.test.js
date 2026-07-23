@@ -18,7 +18,9 @@ test("home hero requests and prioritizes Mirror Original products", async () => 
   const controller = await readFile(new URL("../server/controllers/storefrontController.js", import.meta.url), "utf8");
   const stylesheet = await readFile(new URL("../src/index.css", import.meta.url), "utf8");
 
-  assert.match(controller, /const mirrorProducts = products\.filter\(isHomeMirrorProduct\)\.slice\(0, 12\)/);
+  assert.match(controller, /const mirrorFilters = \{ \.\.\.filters, quality: storefrontQualityAliases\("mirror_original"\) \}/);
+  assert.match(controller, /queryProducts\(tenantId, "", "", mirrorFilters, false, 12, 0\)/);
+  assert.match(controller, /const mirrorProducts = uniqueHomeProducts\(expandProductsToColorCards\(hydratedMirror\)\)/);
   assert.match(controller, /mirror_products: mirrorCards/);
   assert.match(controller, /const heroProduct = mirrorProducts\[0\] \|\| null/);
   assert.doesNotMatch(controller, /const heroProduct = sale\[0\] \|\| latest\[0\]/);

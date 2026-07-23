@@ -2579,14 +2579,24 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
   await ensureProductVariantImagesSchema();
   const pricingSettings = normalizeStorefrontPricingSettings(settings || await getWebsiteSettings({ tenantId }));
   const filters = { gender: [], productType: [], grade: [], quality: [], size: "", inStock: true };
-  let result = await queryProducts(tenantId, "", "", filters, false, 80, 0);
+  const mirrorFilters = { ...filters, quality: storefrontQualityAliases("mirror_original") };
+  let [result, mirrorResult] = await Promise.all([
+    queryProducts(tenantId, "", "", filters, false, 80, 0),
+    queryProducts(tenantId, "", "", mirrorFilters, false, 12, 0),
+  ]);
   let usedTenantFallback = false;
   if (!result.rows.length && tenantId !== null) {
     result = await queryProducts(null, "", "", filters, false, 80, 0);
     usedTenantFallback = result.rows.length > 0;
   }
-  const normalized = result.rows.map((row) => normalizeProduct(row, pricingSettings));
-  const hydrated = await scrubInactiveClassifications(await hydrateProductsWithImages(normalized, { compact: true }));
+  if (!mirrorResult.rows.length && tenantId !== null) {
+    mirrorResult = await queryProducts(null, "", "", mirrorFilters, false, 12, 0);
+    usedTenantFallback = usedTenantFallback || mirrorResult.rows.length > 0;
+  }
+  const [hydrated, hydratedMirror] = await Promise.all([
+    hydrateProductsWithImages(result.rows.map((row) => normalizeProduct(row, pricingSettings)), { compact: true }).then(scrubInactiveClassifications),
+    hydrateProductsWithImages(mirrorResult.rows.map((row) => normalizeProduct(row, pricingSettings)), { compact: true }).then(scrubInactiveClassifications),
+  ]);
   const products = uniqueHomeProducts(expandProductsToColorCards(hydrated))
     .filter((product) => toNumber(product.total_stock) > 0 && productHomeImage(product))
     .sort((a, b) => homeNewestScore(b) - homeNewestScore(a) || toNumber(b.total_stock) - toNumber(a.total_stock));
@@ -2596,7 +2606,9 @@ export const buildStorefrontHomeFromProducts = async ({ tenantId = DEFAULT_TENAN
   }
 
   const latest = products;
-  const mirrorProducts = products.filter(isHomeMirrorProduct).slice(0, 12);
+  const mirrorProducts = uniqueHomeProducts(expandProductsToColorCards(hydratedMirror))
+    .filter((product) => isHomeMirrorProduct(product) && toNumber(product.total_stock) > 0 && productHomeImage(product))
+    .slice(0, 12);
   const featured = [...products].sort((a, b) => toNumber(b.total_stock) - toNumber(a.total_stock) || homeNewestScore(b) - homeNewestScore(a));
   const sale = products.filter(isHomeSaleProduct);
   const heroProduct = mirrorProducts[0] || null;
