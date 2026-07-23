@@ -2588,7 +2588,7 @@ function PremiumHomePage(props) {
   const mirrorProducts = useMemo(() => products.filter(isMirrorProduct), [products]);
   const mirrorLoading = storefrontHome.loading;
   const womenCategoryProducts = useMemo(
-    () => products.filter((product) => productListingAudienceValues(product).includes("women")),
+    () => products.filter((product) => productAudienceValues(product).includes("women")),
     [products]
   );
   const womenCategoryLoading = storefrontHome.loading;

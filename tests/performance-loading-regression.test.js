@@ -10,6 +10,8 @@ test("storefront home uses its aggregated payload instead of four duplicate prod
 
   assert.doesNotMatch(homeSource, /useProducts\(/);
   assert.match(homeSource, /storefrontHome\.collections/);
+  assert.match(homeSource, /productAudienceValues\(product\)/);
+  assert.doesNotMatch(homeSource, /productListingAudienceValues/);
 });
 
 test("storefront product listing avoids the 500-product no-cache bootstrap", () => {
