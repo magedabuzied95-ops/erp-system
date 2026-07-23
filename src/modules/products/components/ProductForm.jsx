@@ -21,6 +21,7 @@ function ProductForm({
   gender = "",
   audiences = [],
   productType = "",
+  bagType = "",
   grade = "",
   isOfferStory = false,
   useCustomComparePrice = false,
@@ -33,6 +34,7 @@ function ProductForm({
   onUnitChange,
   onVariationModeChange,
   onProductTypeChange,
+  onBagTypeChange,
   onGradeChange,
   onIsOfferStoryChange,
   onUseCustomComparePriceChange,
@@ -54,8 +56,8 @@ function ProductForm({
   }, [brands, brandQuery]);
   const selectedAudiences = useMemo(() => normalizeAudiences(audiences, gender), [audiences, gender]);
   const classificationOptions = useMemo(
-    () => classificationGroupsToFieldOptions(classificationGroups, { gender: selectedAudiences[0] || gender, productType, grade }, { includeInactive: false, includeCurrentValue: false }),
-    [classificationGroups, selectedAudiences, gender, productType, grade]
+    () => classificationGroupsToFieldOptions(classificationGroups, { gender: selectedAudiences[0] || gender, productType, bagType, grade }, { includeInactive: false, includeCurrentValue: false }),
+    [classificationGroups, selectedAudiences, gender, productType, bagType, grade]
   );
 
   useEffect(() => {
@@ -195,6 +197,16 @@ function ProductForm({
             options={classificationOptions.productType}
             placeholder={t("products.form.selectProductType", "اختر نوع المنتج")}
           />
+
+          {String(productType || "").trim().toLowerCase() === "bags" ? (
+            <SmartClassificationSelect
+              label={t("products.form.bagType", "نوع الشنطة")}
+              value={bagType}
+              onChange={onBagTypeChange}
+              options={classificationOptions.bagType}
+              placeholder={t("products.form.selectBagType", "اختر نوع الشنطة")}
+            />
+          ) : null}
 
           <SmartClassificationSelect
             label={t("products.form.grade")}

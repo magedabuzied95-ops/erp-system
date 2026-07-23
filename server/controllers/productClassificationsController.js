@@ -178,6 +178,7 @@ const repairProductTypeGroupIfNeeded = async () => {
 const columnCandidatesForGroup = (groupKey) => ({
   gender: ["gender"],
   product_type: ["product_type", "productType", "type"],
+  bag_type: ["bag_type", "bagType"],
   grade: ["grade", "product_grade"],
 }[normalizeKey(groupKey)] || [normalizeKey(groupKey)]);
 

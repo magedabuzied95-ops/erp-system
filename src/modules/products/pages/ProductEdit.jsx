@@ -122,6 +122,7 @@ const emptyProduct = {
   audiences: [],
   product_audiences: [],
   product_type: "",
+  bag_type: "",
   style: "",
   grade: "",
   is_offer_story: false,
@@ -473,6 +474,7 @@ const normalizeProductForm = (row = {}) => ({
   audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
   product_audiences: normalizeProductAudiences(row.audiences, row.product_audiences, row.gender),
   product_type: row.product_type || "",
+  bag_type: row.bag_type || "",
   style: row.style || "",
   grade: row.grade || "",
   is_offer_story: row.is_offer_story === true || String(row.is_offer_story || "").toLowerCase() === "true",
@@ -551,6 +553,7 @@ const buildProductEditCoreSnapshot = ({
       audiences: Array.isArray(product.audiences) ? product.audiences : [],
       product_audiences: Array.isArray(product.product_audiences) ? product.product_audiences : [],
       product_type: product.product_type || "",
+      bag_type: product.bag_type || "",
       style: product.style || "",
       grade: product.grade || "",
       is_offer_story: Boolean(product.is_offer_story),
@@ -3255,6 +3258,7 @@ function ProductEdit() {
             audiences: derivedAudiences,
             product_audiences: derivedAudiences,
             product_type: product.product_type || "",
+            bag_type: String(product.product_type || "").toLowerCase() === "bags" ? product.bag_type || "" : "",
             style: product.style || "",
             grade: product.grade || "",
             is_offer_story: Boolean(product.is_offer_story),
@@ -3744,6 +3748,7 @@ function ProductEdit() {
               gender={product.gender}
               audiences={product.audiences || []}
               productType={product.product_type}
+              bagType={product.bag_type}
               grade={product.grade}
               isOfferStory={product.is_offer_story}
               useCustomComparePrice={product.use_custom_compare_price}
@@ -3761,6 +3766,7 @@ function ProductEdit() {
                 }));
               }}
               onProductTypeChange={(value) => updateProductField("product_type", value)}
+              onBagTypeChange={(value) => updateProductField("bag_type", value)}
               onGradeChange={(value) => updateProductField("grade", value)}
               onIsOfferStoryChange={(value) => updateProductField("is_offer_story", value)}
               onUseCustomComparePriceChange={(value) => updateProductField("use_custom_compare_price", value)}

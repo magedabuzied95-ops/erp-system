@@ -438,6 +438,7 @@ function CreateProduct() {
   const [gender, setGender] = useState("");
   const [audiences, setAudiences] = useState([]);
   const [productType, setProductType] = useState("");
+  const [bagType, setBagType] = useState("");
   const [grade, setGrade] = useState("");
   const [isOfferStory, setIsOfferStory] = useState(false);
   const [variationMode, setVariationMode] = useState("full_variations");
@@ -2182,6 +2183,7 @@ function CreateProduct() {
         audiences: derivedAudiences,
         product_audiences: derivedAudiences,
         product_type: productType,
+        bag_type: String(productType).toLowerCase() === "bags" ? bagType : "",
         grade,
         is_offer_story: isOfferStory,
         variation_mode: variationMode,
@@ -2243,6 +2245,7 @@ function CreateProduct() {
         audiences,
         product_audiences: audiences,
         product_type: productType,
+        bag_type: String(productType).toLowerCase() === "bags" ? bagType : "",
         grade,
         is_offer_story: isOfferStory,
         variation_mode: variationMode,
@@ -2618,6 +2621,7 @@ function CreateProduct() {
                 gender={gender}
                 audiences={audiences}
                 productType={productType}
+                bagType={bagType}
                 grade={grade}
                 isOfferStory={isOfferStory}
                 useCustomComparePrice={useCustomComparePrice}
@@ -2634,6 +2638,7 @@ function CreateProduct() {
                   setGender(next[0] || "");
                 }}
                 onProductTypeChange={setProductType}
+                onBagTypeChange={setBagType}
                 onGradeChange={setGrade}
                 onIsOfferStoryChange={setIsOfferStory}
                 onUseCustomComparePriceChange={setUseCustomComparePrice}

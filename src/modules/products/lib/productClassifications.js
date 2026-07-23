@@ -1,6 +1,7 @@
 export const CLASSIFICATION_FIELDS = {
   gender: "gender",
   productType: "product_type",
+  bagType: "bag_type",
   grade: "grade",
 };
 
@@ -60,6 +61,7 @@ export const classificationGroupsToFieldOptions = (
 ) => ({
   gender: buildFieldOptions(groups, CLASSIFICATION_FIELDS.gender, currentValues.gender || "", { includeInactive, includeCurrentValue }),
   productType: buildFieldOptions(groups, CLASSIFICATION_FIELDS.productType, currentValues.productType || "", { includeInactive, includeCurrentValue }),
+  bagType: buildFieldOptions(groups, CLASSIFICATION_FIELDS.bagType, currentValues.bagType || "", { includeInactive, includeCurrentValue }),
   grade: buildFieldOptions(groups, CLASSIFICATION_FIELDS.grade, currentValues.grade || "", { includeInactive, includeCurrentValue }),
 });
 

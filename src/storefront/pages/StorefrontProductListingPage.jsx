@@ -482,6 +482,7 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const inStock = params.get("inStock") || "";
   const quality = params.get("quality") || "";
   const productType = normalizeStorefrontProductTypeValue(params.get("product_type") || typeParam || "");
+  const bagType = normalizeFilterKey(params.get("bag_type") || "");
   const selectedType = productType || "";
   const grade = params.get("grade") || "";
   const minPrice = params.get("min_price") || "";
@@ -504,8 +505,8 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
   const [draftFilters, setDraftFilters] = useState({ gender, product_type: productType, grade });
   const { groups: classificationGroups } = useProductClassifications({ includeInactive: false });
   const classificationOptions = useMemo(
-    () => classificationGroupsToFieldOptions(classificationGroups, { gender, productType, grade }, { includeInactive: false }),
-    [classificationGroups, gender, grade, productType]
+    () => classificationGroupsToFieldOptions(classificationGroups, { gender, productType, bagType, grade }, { includeInactive: false }),
+    [classificationGroups, gender, grade, productType, bagType]
   );
   const backendFilterState = useMemo(
     () => ({ q: backendSearchTerm, gender: gender || "", offer_story: saleView ? 1 : "", sort, limit: 500 }),
@@ -631,8 +632,11 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
       debouncedFilterState.inStock
   );
   const filteredProducts = useMemo(
-    () => (hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFiltersWithoutGender) : catalogProducts),
-    [catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
+    () => {
+      const base = hasActiveCatalogFilters ? applyCatalogFilters(catalogProducts, catalogFiltersWithoutGender) : catalogProducts;
+      return bagType ? base.filter((product) => normalizeFilterKey(product.bag_type || product.bagType) === bagType) : base;
+    },
+    [bagType, catalogFiltersWithoutGender, catalogProducts, hasActiveCatalogFilters]
   );
   const orderedFilteredProducts = useMemo(
     () => sortStorefrontColorCardsByModel(sortCatalogProducts(filteredProducts, debouncedFilterState.selectedSort)),
@@ -974,6 +978,9 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
               typeOptions={typeOptions}
               selectedType={productType}
               onTypeChange={(value) => setSingleFilterValue("type", storefrontProductTypeQueryValue(normalizeStorefrontProductTypeValue(value)))}
+              bagTypeOptions={classificationOptions.bagType}
+              selectedBagType={bagType}
+              onBagTypeChange={(value) => setSingleFilterValue("bag_type", value)}
               gradeOptions={gradeOptions}
               selectedGrade={grade}
               onGradeChange={(value) => setSingleFilterValue("grade", value)}
@@ -1043,6 +1050,9 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
         typeOptions={typeOptions}
         selectedType={productType}
         onTypeChange={(value) => setSingleFilterValue("type", storefrontProductTypeQueryValue(normalizeStorefrontProductTypeValue(value)))}
+        bagTypeOptions={classificationOptions.bagType}
+        selectedBagType={bagType}
+        onBagTypeChange={(value) => setSingleFilterValue("bag_type", value)}
         gradeOptions={gradeOptions}
         selectedGrade={grade}
         onGradeChange={(value) => setSingleFilterValue("grade", value)}
@@ -1432,6 +1442,9 @@ function CatalogFiltersPanel({
   typeOptions = [],
   selectedType = "",
   onTypeChange,
+  bagTypeOptions = [],
+  selectedBagType = "",
+  onBagTypeChange,
   gradeOptions = [],
   selectedGrade = "",
   onGradeChange,
@@ -1462,7 +1475,10 @@ function CatalogFiltersPanel({
         <CatalogSortControl value={selectedSort} options={sortOptions} onChange={onSortChange} compact />
       </CatalogSectionShell>
       <CatalogSingleSelectFilter eyebrow={t("storefront.filters.gender", "الجنس")} title={t("storefront.filters.gender", "الجنس")} icon={Users} options={genderOptions} value={selectedGender} onChange={onGenderChange} onClear={() => onGenderChange("")} lang={lang} normalizeValue={normalizeStorefrontAudienceValue} />
-          <CatalogSingleSelectFilter eyebrow={t("storefront.filters.productType", "نوع المنتج")} title={t("storefront.filters.productType", "نوع المنتج")} icon={Footprints} options={typeOptions} value={selectedType} onChange={onTypeChange} onClear={() => onTypeChange("")} lang={lang} normalizeValue={normalizeStorefrontProductTypeValue} />
+      <CatalogSingleSelectFilter eyebrow={t("storefront.filters.productType", "نوع المنتج")} title={t("storefront.filters.productType", "نوع المنتج")} icon={Footprints} options={typeOptions} value={selectedType} onChange={onTypeChange} onClear={() => onTypeChange("")} lang={lang} normalizeValue={normalizeStorefrontProductTypeValue} />
+      {normalizeStorefrontProductTypeValue(selectedType) === "bags" && bagTypeOptions.length ? (
+        <CatalogSingleSelectFilter eyebrow={t("storefront.filters.bagType", "نوع الشنطة")} title={t("storefront.filters.bagType", "نوع الشنطة")} icon={Briefcase} options={bagTypeOptions} value={selectedBagType} onChange={onBagTypeChange} onClear={() => onBagTypeChange("")} lang={lang} />
+      ) : null}
       <CatalogSingleSelectFilter eyebrow={t("storefront.filters.grade", "الفئة / الجودة")} title={t("storefront.filters.grade", "الفئة / الجودة")} icon={Gem} options={gradeOptions} value={selectedGrade} onChange={onGradeChange} onClear={() => onGradeChange("")} lang={lang} />
       <CatalogSizeFilter sizes={sizes} selectedSizes={selectedSizes} onToggle={onToggleSize} onClear={onClearSizes} />
       <CatalogPriceFilter minPrice={minPrice} maxPrice={maxPrice} onChange={onPriceChange} priceBounds={priceBounds} />
@@ -1490,6 +1506,9 @@ function CatalogFiltersDrawer({
   typeOptions,
   selectedType,
   onTypeChange,
+  bagTypeOptions,
+  selectedBagType,
+  onBagTypeChange,
   gradeOptions,
   selectedGrade,
   onGradeChange,
@@ -1515,7 +1534,7 @@ function CatalogFiltersDrawer({
   onClearAll,
 }) {
   const { t } = useTranslation();
-  const activeFilterCount = [selectedGender, selectedType, selectedGrade, selectedBrand, selectedColor, minPrice, maxPrice, saleView, lastSizes, inStock]
+  const activeFilterCount = [selectedGender, selectedType, selectedBagType, selectedGrade, selectedBrand, selectedColor, minPrice, maxPrice, saleView, lastSizes, inStock]
     .filter(Boolean).length + (Array.isArray(selectedSizes) ? selectedSizes.length : 0) + (normalizeCatalogSortValue(selectedSort) !== "newest" ? 1 : 0);
   useBodyScrollLock(open);
   if (!open || typeof document === "undefined") return null;
@@ -1549,6 +1568,9 @@ function CatalogFiltersDrawer({
             typeOptions={typeOptions}
             selectedType={selectedType}
             onTypeChange={onTypeChange}
+            bagTypeOptions={bagTypeOptions}
+            selectedBagType={selectedBagType}
+            onBagTypeChange={onBagTypeChange}
             gradeOptions={gradeOptions}
             selectedGrade={selectedGrade}
             onGradeChange={onGradeChange}

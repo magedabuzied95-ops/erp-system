@@ -185,6 +185,7 @@ CREATE TABLE IF NOT EXISTS products (
   description TEXT,
   gender VARCHAR(50) DEFAULT '',
   product_type VARCHAR(80) DEFAULT '',
+  bag_type VARCHAR(120) DEFAULT '',
   style VARCHAR(80) DEFAULT '',
   grade VARCHAR(80) DEFAULT '',
   is_offer_story BOOLEAN NOT NULL DEFAULT FALSE,

@@ -1,6 +1,6 @@
 import db from "../database/db.js";
 
-const CLASSIFICATION_KEYS = ["gender", "product_type", "grade"];
+const CLASSIFICATION_KEYS = ["gender", "product_type", "grade", "bag_type"];
 let productClassificationSchemaPromise = null;
 let productClassificationSchemaEnsured = false;
 
@@ -47,6 +47,15 @@ const ensureProductClassificationSchemaNow = async () => {
     `);
     await client.query(`ALTER TABLE product_classification_groups ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
     await client.query(`ALTER TABLE product_classification_options ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMP`);
+    await client.query(`ALTER TABLE products ADD COLUMN IF NOT EXISTS bag_type TEXT`);
+    await client.query(`
+      INSERT INTO product_classification_groups (key, name_ar, name_en, sort_order, is_active, deleted_at)
+      VALUES ('bag_type', 'نوع الشنطة', 'Bag Type', 5, TRUE, NULL)
+      ON CONFLICT (key) DO UPDATE SET
+        name_ar = EXCLUDED.name_ar,
+        name_en = EXCLUDED.name_en,
+        deleted_at = NULL
+    `);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_product_classification_groups_sort ON product_classification_groups (sort_order, id)`);
     await client.query(`CREATE INDEX IF NOT EXISTS idx_product_classification_options_group_sort ON product_classification_options (group_id, sort_order, id)`);
     const repairedProductTypeGroup = await client.query(`

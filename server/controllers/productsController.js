@@ -652,6 +652,7 @@ export const ensureProductSchema = async () => {
             ADD COLUMN IF NOT EXISTS child_category VARCHAR(255) DEFAULT '',
             ADD COLUMN IF NOT EXISTS gender TEXT,
             ADD COLUMN IF NOT EXISTS product_type TEXT,
+            ADD COLUMN IF NOT EXISTS bag_type TEXT,
             ADD COLUMN IF NOT EXISTS style TEXT,
             ADD COLUMN IF NOT EXISTS grade TEXT,
             ADD COLUMN IF NOT EXISTS is_offer_story BOOLEAN NOT NULL DEFAULT FALSE,
@@ -4059,6 +4060,7 @@ export const createProduct = async (req, res) => {
       audiences,
       product_audiences,
       product_type,
+      bag_type,
       style,
       grade,
       is_offer_story,
@@ -4113,6 +4115,9 @@ export const createProduct = async (req, res) => {
     const normalizedAudiences = normalizeProductAudiences(audiences, product_audiences, gender);
     const normalizedGender = await normalizeClassificationValue("gender", gender || normalizedAudiences[0] || "");
     const normalizedProductType = await normalizeClassificationValue("product_type", product_type);
+    const normalizedBagType = String(normalizedProductType).toLowerCase() === "bags"
+      ? await normalizeClassificationValue("bag_type", bag_type)
+      : "";
     const normalizedStyle = await normalizeClassificationValue("style", style);
     const normalizedGrade = await normalizeClassificationValue("grade", grade);
     const normalizedGalleryImages = Array.isArray(gallery_images)
@@ -4307,6 +4312,7 @@ export const createProduct = async (req, res) => {
       "child_category",
       "gender",
       "product_type",
+      "bag_type",
       "style",
       "grade",
       "is_offer_story",
@@ -4370,6 +4376,7 @@ export const createProduct = async (req, res) => {
       child_category || "",
       normalizedGender || "",
       normalizedProductType || "",
+      normalizedBagType || "",
       normalizedStyle || "",
       normalizedGrade || "",
       Boolean(is_offer_story === true || String(is_offer_story || "").toLowerCase() === "true"),
@@ -4641,6 +4648,7 @@ export const updateProduct = async (req, res) => {
         audiences,
         product_audiences,
         product_type,
+        bag_type,
         style,
         grade,
       is_offer_story,
@@ -4728,6 +4736,7 @@ export const updateProduct = async (req, res) => {
     const normalizedAudiences = normalizeProductAudiences(audiences, product_audiences, gender);
     const normalizedGender = await normalizeClassificationValue("gender", gender || normalizedAudiences[0] || "");
     const normalizedProductType = await normalizeClassificationValue("product_type", product_type);
+    const normalizedBagType = await normalizeClassificationValue("bag_type", bag_type);
     const normalizedStyle = await normalizeClassificationValue("style", style);
     const normalizedGrade = await normalizeClassificationValue("grade", grade);
     const normalizedOfferStory = is_offer_story === true || String(is_offer_story || "").toLowerCase() === "true";
@@ -4947,6 +4956,9 @@ export const updateProduct = async (req, res) => {
     const nextProductTypeValue = bodyHas("product_type")
       ? normalizedProductType
       : String(currentProductRow.product_type || "").trim();
+    const nextBagTypeValue = String(nextProductTypeValue).toLowerCase() === "bags"
+      ? (bodyHas("bag_type") ? normalizedBagType : String(currentProductRow.bag_type || "").trim())
+      : "";
     const nextStyleValue = bodyHas("style") ? normalizedStyle : String(currentProductRow.style || "").trim();
     const nextGradeValue = bodyHas("grade") ? normalizedGrade : String(currentProductRow.grade || "").trim();
     const nextStatusValue = bodyHas("status") ? String(status || "active") : String(currentProductRow.status || "active");
@@ -5112,6 +5124,7 @@ export const updateProduct = async (req, res) => {
       `child_category = ${addUpdateValue(nextChildCategoryValue)}`,
       `gender = ${addUpdateValue(nextGenderValue)}`,
       `product_type = ${addUpdateValue(nextProductTypeValue)}`,
+      `bag_type = ${addUpdateValue(nextBagTypeValue)}`,
       `style = ${addUpdateValue(nextStyleValue)}`,
       `grade = ${addUpdateValue(nextGradeValue)}`,
       `is_storefront_visible = COALESCE(${addUpdateValue(normalizedStorefrontVisible)}, is_storefront_visible)`,
