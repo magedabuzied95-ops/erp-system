@@ -497,7 +497,6 @@ const useBodyScrollLock = (locked) => {
   }, [locked]);
 };
 const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } = {}) => {
-  const randomSeedRef = useRef(`${Date.now()}-${Math.random()}`);
   const queryKey = JSON.stringify(params);
   const offerStoryValue = String(params?.offer_story ?? params?.offerStory ?? "").trim().toLowerCase();
   const hasOfferStoryFilter = Boolean(offerStoryValue && !["0", "false", "no", "off"].includes(offerStoryValue));
@@ -516,7 +515,7 @@ const useProducts = (params = {}, { ttlMs = STOREFRONT_PRODUCTS_CACHE_TTL_MS } =
       }
       query.set(safeKey, value === true ? "1" : String(value));
     });
-    if (!queryParams.sort) query.set("random_seed", randomSeedRef.current);
+    if (!queryParams.sort) query.set("sort", "newest");
     query.set("_last_piece_scope", "product");
     return query.toString();
   }, [queryKey]);
@@ -2579,10 +2578,20 @@ function PremiumHomePage(props) {
   const brandFilter = params.get("brand") || "";
   const storefrontHome = useStorefrontHome();
   const { brands, loading: brandsLoading } = useStorefrontBrands();
-  const { products, loading } = useProducts({ limit: 24 });
-  const { products: saleProducts } = useProducts({ offer_story: 1, limit: 12 });
-  const { products: mirrorProducts, loading: mirrorLoading } = useProducts({ quality: "mirror_original", sort: "newest", limit: 24 });
-  const { products: womenCategoryProducts, loading: womenCategoryLoading } = useProducts({ gender: "women", sort: "newest", limit: 24 });
+  const storefrontHomeProducts = useMemo(
+    () => uniqueProductsByIdentity((storefrontHome.collections || []).flatMap((collection) => collection.products || [])),
+    [storefrontHome.collections]
+  );
+  const products = storefrontHomeProducts;
+  const loading = storefrontHome.loading;
+  const saleProducts = useMemo(() => products.filter(isOfferStory), [products]);
+  const mirrorProducts = useMemo(() => products.filter(isMirrorProduct), [products]);
+  const mirrorLoading = storefrontHome.loading;
+  const womenCategoryProducts = useMemo(
+    () => products.filter((product) => productListingAudienceValues(product).includes("women")),
+    [products]
+  );
+  const womenCategoryLoading = storefrontHome.loading;
 
   useEffect(() => {
     if (!brandFilter || !isStorefrontHomePath(location.pathname)) return;
@@ -2604,10 +2613,6 @@ function PremiumHomePage(props) {
   const saleBase = useMemo(
     () => uniqueProductsByIdentity([...(saleRailProducts.length ? saleRailProducts : saleProducts), ...saleFallback].filter(isOfferStory)),
     [saleFallback, saleProducts, saleRailProducts]
-  );
-  const storefrontHomeProducts = useMemo(
-    () => uniqueProductsByIdentity((storefrontHome.collections || []).flatMap((collection) => collection.products || [])),
-    [storefrontHome.collections]
   );
   const homepageProductPool = useMemo(
     () => uniqueProductsByIdentity([...railProducts, ...storefrontHomeProducts, ...saleBase, ...saleProducts, ...freshBase, ...bestBase]),

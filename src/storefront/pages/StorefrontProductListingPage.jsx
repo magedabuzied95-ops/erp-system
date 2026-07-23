@@ -509,11 +509,11 @@ export function StorefrontProductListingPage({ sale = false, saleModeEnabled, wi
     [classificationGroups, gender, grade, productType, bagType]
   );
   const backendFilterState = useMemo(
-    () => ({ q: backendSearchTerm, gender: gender || "", offer_story: saleView ? 1 : "", sort, limit: 500 }),
+    () => ({ q: backendSearchTerm, gender: gender || "", offer_story: saleView ? 1 : "", sort: sort || "newest", limit: 80 }),
     [backendSearchTerm, gender, saleView, sort]
   );
   const productsApiParams = useDebouncedValue(backendFilterState, FILTER_DEBOUNCE_MS);
-  const { products, loading, error } = useProducts(productsApiParams, { ttlMs: 0 });
+  const { products, loading, error } = useProducts(productsApiParams);
   const filterBasePath = sale ? "/sale" : "/products";
   const activeFilterCount = [
     brand,

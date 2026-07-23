@@ -2331,6 +2331,15 @@ function POSPro() {
       try {
         setLoading(true);
         setError("");
+        const cachedCatalogSnapshot = await getPosCatalogSnapshot();
+        if (active && cachedCatalogSnapshot?.products?.length) {
+          setProducts(cachedCatalogSnapshot.products);
+          setLoading(false);
+          console.info("POS_CATALOG_STALE_WHILE_REVALIDATE", {
+            cached_at: cachedCatalogSnapshot.cached_at || "",
+            product_count: cachedCatalogSnapshot.products.length,
+          });
+        }
         let saleModeForLoad = normalizeSaleModeSettings({ sale_mode_enabled: parseSaleModeEnabled(readUseSalePrices(), true) });
 
         let websiteSettings = null;
