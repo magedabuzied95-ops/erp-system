@@ -6,9 +6,8 @@ import { enqueueJob, registerJobHandler } from "../services/jobQueueService.js";
 import { publishFacebookText, publishPost as publishPostService } from "../services/socialPublisherService.js";
 import { publishStoryEverywhere as publishStoryEverywhereService } from "../services/storyPublisherService.js";
 import {
-  generateCollageStory,
-  generateInstagramSafeStoryImage,
-  generateSingleProductStory,
+  generateDesignedAiMarketingStoryImages,
+  getStoryImageChecksum,
   getStoryImageLocalPath,
   getStoryImageMetadata,
 } from "../services/storyImageService.js";
@@ -132,6 +131,7 @@ const normalizePostRow = (row = {}) => ({
   story_scheduled_at: row.story_scheduled_at || null,
   story_published_at: row.story_published_at || null,
   story_publish_results: safeJsonObject(row.story_publish_results, {}),
+  story_asset_snapshot: safeJsonObject(row.story_asset_snapshot, {}),
   story_error_message: row.story_error_message || null,
   error_message: row.error_message || null,
   tracking_code: row.tracking_code || null,
@@ -2809,17 +2809,46 @@ const assertFastStoryMetadata = (metadata) => {
   }
 };
 
+const CANONICAL_STORY_TEMPLATE_KEY = "m1_story_current";
+const CANONICAL_STORY_TEMPLATE_VERSION = "v1";
+const CANONICAL_STORY_RENDERER = "ai_marketing_story_current";
+
+const canonicalStorySnapshot = async ({ storyId, assetUrl }) => {
+  const checksum = await getStoryImageChecksum(assetUrl);
+  return {
+    storyId: String(storyId),
+    assetId: `story-${storyId}-${checksum.slice(0, 20)}`,
+    assetUrl,
+    storagePublicId: "",
+    templateKey: CANONICAL_STORY_TEMPLATE_KEY,
+    templateVersion: CANONICAL_STORY_TEMPLATE_VERSION,
+    checksum,
+    generatedAt: new Date().toISOString(),
+  };
+};
+
 const buildGeneratedStoryUrl = async ({ productId, postId = null, tenantId, imageUrls, source }) => {
   const collectedImages = uniqueList(imageUrls || []);
-  const generatedStoryUrl = await generateInstagramSafeStoryImage({
-    imageUrl: collectedImages[0] || "",
-    imageUrls: collectedImages,
+  const storyId = postId || productId;
+  const rendered = await generateDesignedAiMarketingStoryImages({
+    story: {
+      id: storyId,
+      product_id: productId,
+      content_type: "story",
+      media_urls: collectedImages,
+      source_media_urls: collectedImages,
+      story_asset_renderer: CANONICAL_STORY_RENDERER,
+      story_template_key: CANONICAL_STORY_TEMPLATE_KEY,
+      story_template_version: CANONICAL_STORY_TEMPLATE_VERSION,
+    },
     postId: postId || productId,
     tenantId,
   });
+  const generatedStoryUrl = rendered.final_asset_url || rendered.media_urls?.[0] || "";
   const metadata = await getStoryImageMetadata(generatedStoryUrl);
   assertFastStoryMetadata(metadata);
   const generatedStoryPublicUrl = getPublicUploadUrl(generatedStoryUrl);
+  const snapshot = await canonicalStorySnapshot({ storyId, assetUrl: generatedStoryPublicUrl });
 
   try {
     console.log("[FAST_STORY_HARD_CHECK]", {
@@ -2844,7 +2873,7 @@ const buildGeneratedStoryUrl = async ({ productId, postId = null, tenantId, imag
     source,
   });
 
-  return { generatedStoryUrl, generatedStoryPublicUrl, collectedImages, metadata };
+  return { generatedStoryUrl, generatedStoryPublicUrl, collectedImages, metadata, snapshot };
 };
 
 const assertGeneratedStoryFile = async (storyUrl) => {
@@ -2869,30 +2898,28 @@ const buildProductFastStoryAssets = async ({ product, variants, tenantId, postId
   }
 
   const assets = [];
-  const collageUrl = await generateCollageStory({
-    product,
-    images: collectedImages,
-    postId: postId || product.id,
-    tenantId,
-  });
-  assets.push({
-    kind: "collage",
-    url: collageUrl,
-    metadata: await assertGeneratedStoryFile(collageUrl),
-  });
-
   for (const [index, image] of collectedImages.entries()) {
-    const singleUrl = await generateSingleProductStory({
-      product,
-      image,
-      postId: `${postId || product.id}-${index + 1}`,
+    const storyId = `${postId || product.id}-${index + 1}`;
+    const rendered = await generateDesignedAiMarketingStoryImages({
+      story: {
+        id: storyId,
+        product_id: product.id,
+        product_name: product.name,
+        content_type: "story",
+        media_urls: [image],
+        source_media_urls: [image],
+      },
+      postId: storyId,
       tenantId,
     });
+    const singleUrl = rendered.final_asset_url || rendered.media_urls?.[0] || "";
+    const publicUrl = getPublicUploadUrl(singleUrl);
     assets.push({
       kind: "single",
       sourceImage: image,
-      url: singleUrl,
+      url: publicUrl,
       metadata: await assertGeneratedStoryFile(singleUrl),
+      snapshot: await canonicalStorySnapshot({ storyId, assetUrl: publicUrl }),
     });
   }
 
@@ -2920,6 +2947,12 @@ const publishGeneratedStoryAsset = async ({ baseStory, settings, asset }) => {
     media_urls: [generatedStoryUrl],
     story_type: "product",
     require_generated_story_asset: true,
+    storyId: asset.snapshot.storyId,
+    assetId: asset.snapshot.assetId,
+    assetUrl: asset.snapshot.assetUrl,
+    templateKey: asset.snapshot.templateKey,
+    templateVersion: asset.snapshot.templateVersion,
+    checksum: asset.snapshot.checksum,
   };
   return publishStoryEverywhereService({ story, settings });
 };
@@ -2950,6 +2983,33 @@ const aggregateFastStoryBatchResult = (results = []) => {
 };
 
 const ensureSafeStoryImageForPost = async (post, tenantId) => {
+  const savedSnapshot = safeJsonObject(post.story_asset_snapshot, {});
+  if (
+    savedSnapshot.templateKey === CANONICAL_STORY_TEMPLATE_KEY &&
+    savedSnapshot.templateVersion === CANONICAL_STORY_TEMPLATE_VERSION &&
+    savedSnapshot.storyId && savedSnapshot.assetId && savedSnapshot.assetUrl && savedSnapshot.checksum
+  ) {
+    return {
+      ...post,
+      image_url: savedSnapshot.assetUrl,
+      media_urls: [savedSnapshot.assetUrl],
+      require_generated_story_asset: true,
+      storyId: savedSnapshot.storyId,
+      assetId: savedSnapshot.assetId,
+      assetUrl: savedSnapshot.assetUrl,
+      templateKey: savedSnapshot.templateKey,
+      templateVersion: savedSnapshot.templateVersion,
+      checksum: savedSnapshot.checksum,
+    };
+  }
+  if (String(post.story_type || "").toLowerCase() === "custom") {
+    return { ...post, require_generated_story_asset: false };
+  }
+  if (post.id) {
+    const error = new Error("Cannot publish: final generated story asset is missing. Generate the story asset first.");
+    error.status = 409;
+    throw error;
+  }
   let storySourceUrls = [];
   let source = "post-media";
 
@@ -2977,7 +3037,7 @@ const ensureSafeStoryImageForPost = async (post, tenantId) => {
   }
 
   storySourceUrls = uniqueList(storySourceUrls);
-  const { generatedStoryPublicUrl } = await buildGeneratedStoryUrl({
+  const { generatedStoryPublicUrl, snapshot } = await buildGeneratedStoryUrl({
     productId: post.product_id,
     postId: post.id,
     tenantId,
@@ -2991,12 +3051,13 @@ const ensureSafeStoryImageForPost = async (post, tenantId) => {
     SET
       image_url = $1::text,
       media_urls = $2::jsonb,
+      story_asset_snapshot = $5::jsonb,
       updated_at = CURRENT_TIMESTAMP
     WHERE id = $3::bigint
       AND tenant_id = $4::bigint
     RETURNING *
     `,
-    [generatedStoryPublicUrl, JSON.stringify([generatedStoryPublicUrl]), post.id, tenantId]
+    [generatedStoryPublicUrl, JSON.stringify([generatedStoryPublicUrl]), post.id, tenantId, JSON.stringify(snapshot)]
   );
 
   return {
@@ -3004,6 +3065,13 @@ const ensureSafeStoryImageForPost = async (post, tenantId) => {
     image_url: generatedStoryPublicUrl,
     media_urls: [generatedStoryPublicUrl],
     require_generated_story_asset: true,
+    story_asset_snapshot: snapshot,
+    storyId: snapshot.storyId,
+    assetId: snapshot.assetId,
+    assetUrl: snapshot.assetUrl,
+    templateKey: snapshot.templateKey,
+    templateVersion: snapshot.templateVersion,
+    checksum: snapshot.checksum,
   };
 };
 
@@ -3020,7 +3088,7 @@ const createProductStoryPost = async (productId, tenantId, overrides = {}) => {
     error.status = 400;
     throw error;
   }
-  const { generatedStoryPublicUrl } = await buildGeneratedStoryUrl({
+  const { generatedStoryPublicUrl, snapshot } = await buildGeneratedStoryUrl({
     productId: product.id,
     tenantId,
     imageUrls: uniqueList(creative.media_urls || []),
@@ -3041,9 +3109,10 @@ const createProductStoryPost = async (productId, tenantId, overrides = {}) => {
       status,
       story_type,
       story_status,
-      story_scheduled_at
+      story_scheduled_at,
+      story_asset_snapshot
     )
-    VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,'draft',$9,$10,$11)
+    VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,'draft',$9,$10,$11,$12::jsonb)
     RETURNING *
     `,
     [
@@ -3058,6 +3127,7 @@ const createProductStoryPost = async (productId, tenantId, overrides = {}) => {
       creative.story_type || "product",
       creative.story_status || "draft",
       creative.story_scheduled_at || null,
+      JSON.stringify(snapshot),
     ]
   );
   return result.rows[0];
@@ -5382,9 +5452,10 @@ export const publishStoryForProduct = async (req, res) => {
         status,
         story_type,
         story_status,
-        story_scheduled_at
+        story_scheduled_at,
+        story_asset_snapshot
       )
-      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,'draft','product','draft',NULL)
+      VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,'draft','product','draft',NULL,$9::jsonb)
       RETURNING *
       `,
       [
@@ -5396,6 +5467,7 @@ export const publishStoryForProduct = async (req, res) => {
         firstAsset.url,
         JSON.stringify([firstAsset.url]),
         "all",
+        JSON.stringify(firstAsset.snapshot),
       ]
     );
     const row = rowResult.rows[0];

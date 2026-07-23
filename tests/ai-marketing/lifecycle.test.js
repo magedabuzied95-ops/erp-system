@@ -183,7 +183,7 @@ test("story publish payload only uses assets bound to the current story", () => 
     design_json: {
       layout_type: "special_offer_story",
       product_name: "Skechers Hyper Pillars",
-      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_renderer: "ai_marketing_story_current",
       story_asset_story_id: 10,
       story_asset_product_id: 345,
       story_asset_template_key: "fresh_drop",
@@ -203,7 +203,7 @@ test("story publish payload only uses assets bound to the current story", () => 
       }],
     },
     metadata: {
-      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_renderer: "ai_marketing_story_current",
       story_asset_story_id: 10,
       story_asset_product_id: 345,
       story_asset_template_key: "fresh_drop",
@@ -213,6 +213,10 @@ test("story publish payload only uses assets bound to the current story", () => 
       story_asset_ids: ["story-10-slide-1"],
       generated_asset_urls: [skechersAsset],
       generated_asset_count: 1,
+      story_asset_snapshot: {
+        storyId: "10", assetId: "story-10-current", assetUrl: skechersAsset,
+        templateKey: "m1_story_current", templateVersion: "v1", checksum: "a".repeat(64),
+      },
     },
   };
 
@@ -222,10 +226,10 @@ test("story publish payload only uses assets bound to the current story", () => 
   assert.deepEqual(payload.media_urls, [skechersAsset]);
   assert.equal(payload.image_url, skechersAsset);
   assert.equal(payload.storyId, 10);
-  assert.equal(payload.assetId, "story-10-slide-1");
+  assert.equal(payload.assetId, "story-10-current");
   assert.equal(payload.assetUrl, skechersAsset);
-  assert.equal(payload.templateKey, "fresh_drop");
-  assert.equal(payload.templateVersion, "v3");
+  assert.equal(payload.templateKey, "m1_story_current");
+  assert.equal(payload.templateVersion, "v1");
   assert.doesNotMatch(JSON.stringify(payload), /adidas|ultra-boost/i);
 });
 
@@ -257,7 +261,7 @@ test("story asset binding survives reload-shaped normalized rows", () => {
     media_urls: [asset],
     design_json: {
       layout_type: "story",
-      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_renderer: "ai_marketing_story_current",
       story_asset_story_id: 12,
       story_asset_product_id: 345,
       story_asset_template_key: "fresh_drop",
@@ -269,7 +273,7 @@ test("story asset binding survives reload-shaped normalized rows", () => {
       final_asset_url: asset,
     },
     metadata: {
-      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_renderer: "ai_marketing_story_current",
       story_asset_story_id: 12,
       story_asset_product_id: 345,
       story_asset_template_key: "fresh_drop",
@@ -279,6 +283,10 @@ test("story asset binding survives reload-shaped normalized rows", () => {
       story_asset_ids: ["story-12-slide-1"],
       generated_asset_urls: [asset],
       generated_asset_count: 1,
+      story_asset_snapshot: {
+        storyId: "12", assetId: "story-12-current", assetUrl: asset,
+        templateKey: "m1_story_current", templateVersion: "v1", checksum: "b".repeat(64),
+      },
     },
   });
 
@@ -302,7 +310,7 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
       template_version: "v3",
       story_asset_template_key: "fresh_drop",
       story_asset_template_version: "v3",
-      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_renderer: "ai_marketing_story_current",
       story_asset_story_id: 20,
       story_asset_product_id: 345,
       generated_media_urls: [assetUrl],
@@ -317,7 +325,7 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
       }],
     },
     metadata: {
-      story_asset_renderer: "ai_marketing_story_commercial_template_v10_no_product_cover",
+      story_asset_renderer: "ai_marketing_story_current",
       story_asset_story_id: 20,
       story_asset_product_id: 345,
       story_asset_template_key: "fresh_drop",
@@ -327,16 +335,20 @@ test("fresh drop publish payload uses the exact generated asset without legacy t
       story_asset_ids: ["story-20-slide-1"],
       generated_asset_urls: [assetUrl],
       generated_asset_count: 1,
+      story_asset_snapshot: {
+        storyId: "20", assetId: "story-20-current", assetUrl,
+        templateKey: "m1_story_current", templateVersion: "v1", checksum: "c".repeat(64),
+      },
     },
   };
 
   const payload = queueItemStoryPayload(story);
-  assert.equal(payload.assetId, "story-20-slide-1");
+  assert.equal(payload.assetId, "story-20-current");
   assert.equal(payload.assetUrl, assetUrl);
   assert.equal(payload.image_url, assetUrl);
   assert.deepEqual(payload.media_urls, [assetUrl]);
-  assert.equal(payload.templateKey, "fresh_drop");
-  assert.equal(payload.templateVersion, "v3");
+  assert.equal(payload.templateKey, "m1_story_current");
+  assert.equal(payload.templateVersion, "v1");
   assert.equal(payload.source_product_image_url, "");
   assert.doesNotMatch(JSON.stringify(payload), /LAST SIZE|View details|dark-gradient|legacy/i);
   assert.doesNotMatch(serviceSource.slice(serviceSource.indexOf("export const publishAiMarketingQueueItemNow")), /generateDesignedAiMarketingStoryImages/);

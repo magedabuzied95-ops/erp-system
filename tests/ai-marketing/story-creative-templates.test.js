@@ -70,7 +70,8 @@ test("story preview mirrors professional themes without store or audio chrome", 
   assert.match(previewSource, /const copyDirection = \/\[\\u0600-\\u06ff\]\//);
   assert.match(previewSource, /dir=\{copyDirection\}/);
   assert.match(previewSource, /from-red-100 via-red-400 to-rose-600/);
-  assert.match(marketingServiceSource, /ai_marketing_story_commercial_template_v10_no_product_cover/);
+  assert.match(marketingServiceSource, /m1_story_current/);
+  assert.doesNotMatch(marketingServiceSource, /ai_marketing_story_commercial_template_v10_no_product_cover/);
 });
 
 test("production story text is rasterized with the bundled font file", async () => {

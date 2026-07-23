@@ -2,6 +2,7 @@ const GRAPH_API_VERSION = "v25.0";
 const GRAPH_API_BASE_URL = `https://graph.facebook.com/${GRAPH_API_VERSION}`;
 
 import process from "node:process";
+import crypto from "node:crypto";
 import { validateMetaToken } from "./metaTokenService.js";
 import { getStoryImageMetadata, isGeneratedStoryImageUrl } from "./storyImageService.js";
 
@@ -138,6 +139,17 @@ const logFinalStoryMedia = async ({ story, platform, candidate }) => {
 const shouldRequireGeneratedStoryAsset = (story = {}) =>
   Boolean(story.require_generated_story_asset) || String(story.story_type || "").toLowerCase() === "product";
 
+const verifiedChecksums = new Map();
+const checksumForPublicAsset = async (url = "") => {
+  if (verifiedChecksums.has(url)) return verifiedChecksums.get(url);
+  const response = await fetch(url, { headers: { "Cache-Control": "no-cache" } });
+  if (!response.ok) throw new Error(`Story asset checksum verification failed (${response.status})`);
+  const checksum = crypto.createHash("sha256").update(Buffer.from(await response.arrayBuffer())).digest("hex");
+  verifiedChecksums.set(url, checksum);
+  if (verifiedChecksums.size > 100) verifiedChecksums.delete(verifiedChecksums.keys().next().value);
+  return checksum;
+};
+
 const assertGeneratedStoryAsset = async ({ story, platform, candidate }) => {
   const metadata = await logFinalStoryMedia({ story, platform, candidate });
   const finalMediaUrl = candidate.publicUrl || "";
@@ -149,6 +161,16 @@ const assertGeneratedStoryAsset = async ({ story, platform, candidate }) => {
   }
   if (shouldRequireGeneratedStoryAsset(story) && (metadata?.width !== 1080 || metadata?.height !== 1920)) {
     throw new Error("Fast story publish blocked: generated story asset is not 1080x1920");
+  }
+  if (shouldRequireGeneratedStoryAsset(story)) {
+    if (!trimString(story.storyId || story.id) || !trimString(story.assetId) ||
+        !trimString(story.templateKey) || !trimString(story.templateVersion) || !trimString(story.checksum)) {
+      throw new Error("Fast story publish blocked: immutable story asset contract is incomplete");
+    }
+    const actualChecksum = await checksumForPublicAsset(finalMediaUrl);
+    if (actualChecksum !== trimString(story.checksum)) {
+      throw new Error("Fast story publish blocked: story asset checksum mismatch");
+    }
   }
 };
 
